@@ -18,14 +18,27 @@ audit logs, and pod logs, then correlates disruption across backends and job run
 
 ## Input Format
 
-The user will provide:
+The user will provide one of the following as input:
 
-1. **One or more Prow job URLs** (required, at least 1)
+**Option A — Prow job URLs (direct analysis):**
+
+1. **One or more Prow job URLs** (at least 1)
    - Example: `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn/1983307151598161920`
+
+**Option B — Grafana disruption dashboard URL (run discovery + analysis):**
+
+1. **A Grafana disruption dashboard URL** — the skill extracts filter parameters, finds
+   matching job runs via Sippy, and presents candidates for the user to select before analysis
+   - Example: `https://grafana-loki.ci.openshift.org/d/gEdw_aLvk/disruption-for-5-0-os-agnostic?var-platform=gcp&var-backend=host-to-host-new-connections&var-upgrade_type=micro&var-architectures=amd64&var-topologies=ha&var-networks=ovn&var-releases=5.0`
+   - Recognized by hostname `grafana-loki.ci.openshift.org` and path starting with `/d/`
+   - The `var-backend` value automatically sets the `--backends` filter unless overridden
+
+**Optional flags (both input options):**
 
 2. **`--backends` flag** (optional) — comma-separated list of backend names to focus on
    - Example: `--backends kube-api,oauth-api,openshift-api`
-   - If omitted, analyze all backends that show disruption
+   - If omitted, analyze all backends that show disruption (Option A) or use the Grafana
+     `var-backend` value (Option B)
 
 3. **`--skip-jira` flag** (optional) — skip the Jira search for known disruption cards
    - By default, the skill searches TRT and OCPBUGS for existing disruption cards after analysis
@@ -34,18 +47,26 @@ The user will provide:
 
 ### Step 1: Parse and Validate Input
 
-1. **Extract job URLs and flags**
-   - Parse all positional arguments as Prow job URLs
+1. **Extract URLs and flags**
    - Parse `--backends` flag if present, split on comma to get backend filter list
    - Parse `--skip-jira` flag as a boolean option (default: false)
+   - Collect all positional URL arguments
+
+2. **Detect input type** based on the first URL provided:
+   - **Grafana URL**: hostname is `grafana-loki.ci.openshift.org` and path starts with `/d/`
+     → proceed directly to **Step 1.5** to parse URL parameters and find job runs via Sippy.
+     Do NOT fetch the URL, do NOT open or access the dashboard — it is behind SSO.
+     Skip steps 3 and 4 (they run after Step 1.5 resolves Prow URLs).
+   - **Prow URL**: any other URL (e.g., `prow.ci.openshift.org`, `gcsweb-ci`)
+     → continue to step 3 below
    - Validate at least one URL is provided
 
-2. **Parse each URL** to extract bucket path, job name, and build ID
+3. **Parse each Prow URL** to extract bucket path, job name, and build ID
    - Use the same URL parsing logic as the "prow-job-analysis" skill
    - Accept both `prow.ci.openshift.org` and `gcsweb-ci` URL formats
    - Extract `build_id` and `job_name` from each URL
 
-3. **Construct deep links** for each job run — these go **inline throughout the report**
+4. **Construct deep links** for each job run — these go **inline throughout the report**
    wherever the run or a specific artifact is referenced, not in a separate table:
 
    **Run-level links** (use when first mentioning a run):
@@ -67,152 +88,243 @@ The user will provide:
    the [timeline data][timeline1]..." — where `[timeline1]` links to the specific
    `e2e-timelines_spyglass_*.json` file on gcsweb.
 
-### Step 2: Create Working Directories
+### Step 1.5: Resolve Grafana URL to Job Runs
+
+Skip this step if the input is Prow job URL(s). This step resolves a Grafana disruption
+dashboard URL into specific Prow job runs for analysis.
+
+**IMPORTANT: Do NOT fetch or open the Grafana URL.** The dashboard is behind Red Hat SSO
+and will redirect to a login page. Do NOT manually query Sippy API endpoints — the script
+below handles all URL parsing, Sippy querying, and disruption filtering in one call.
+
+#### 1.5.1: Run the Disruption Run Finder
+
+Run `find_disruption_runs.py` with the full Grafana URL and `--auto-select 5` to get a
+recommended default selection. This script parses all `var-*` query parameters, maps them
+to Sippy variant filters, queries Sippy for matching runs, enriches with disruption data,
+and auto-selects a diverse sample:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/find_disruption_runs.py" \
+  --grafana-url "{grafana_url}" \
+  --auto-select 5 \
+  --format table
+```
+
+The script returns all runs matching the dashboard's variant filters. Each run is
+enriched with actual disruption seconds from BigQuery (via the Sippy
+`/api/jobs/runs/disruption` endpoint), showing how many seconds of disruption were
+recorded for the target backend — not just whether a test failure occurred. Recommended
+runs are marked with `*` in the `Rec` column. When available, a clean comparison run
+(0s disruption from the same job as a disrupted run) is included and marked with `C`.
+The output looks like:
+
+```text
+Dashboard: disruption-for-5-0-os-agnostic
+Filters: Platform=gcp | Architecture=amd64 | Topology=ha | Network=ovn | Upgrade=micro
+Release: 5.0 | Percentile: P50 | Backend: kube-api-new-connections
+
+Found 10 runs, 8 with disruption > 0s for kube-api:
+
+| # | Rec | Job | Build ID | Result | Disruption (s) | Disruption Failures | Timestamp |
+|---|-----|-----|----------|--------|----------------|---------------------|-----------|
+| 1 | *   | ...e2e-gcp-ovn-upgrade | 2084247445587365888 | F | 75 | cache-kube-api, kube-api | 2026-08-03 14:33 |
+| 2 |     | ...e2e-gcp-ovn-upgrade | 2084186427159334912 | S | 31 | — | 2026-08-02 12:00 |
+| 3 | *   | ...e2e-gcp-runc-upgrade | 2084097565123456789 | S | 12 | — | 2026-08-01 06:00 |
+| 4 | C   | ...e2e-gcp-ovn-upgrade | 2084097565987654321 | S | 0  | — | 2026-07-31 18:00 |
+
+Auto-selected 5 runs (* = disrupted, C = clean comparison from same job) for diverse coverage.
+```
+
+The auto-selection algorithm:
+1. Deduplicates same-job runs within 60s and cross-job runs within 5s
+2. Categorizes remaining runs into high/moderate/low disruption tiers
+3. Round-robins across different jobs within each tier for diversity
+4. Reserves one slot for a clean comparison (0s disruption from the same job as a selected
+   disrupted run) — used in Step 6.3 for same-job A/B comparison to filter out red herrings
+
+The `Disruption (s)` column shows the max disruption seconds for the target backend
+from BigQuery. A `—` means BigQuery data is not yet available for that run (data is
+refreshed every 4 hours).
+
+To get machine-readable output for downstream processing, use `--format json`:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/find_disruption_runs.py" \
+  --grafana-url "{grafana_url}" \
+  --auto-select 5 \
+  --format json
+```
+
+Each JSON row includes `build_id` (Prow build ID), `job` (job name),
+`disruption_seconds` (max seconds for target backend),
+`disruption_backends` (all matching backends with their disruption seconds),
+`disruption_failures` (test failures), `url` (Prow URL), `recommended` (boolean),
+and `role` (`"clean-comparison"` for the 0s same-job A/B run, absent otherwise).
+
+Use `--disruption-only` to filter to runs with disruption > 0 for the target backend.
+This uses actual BigQuery data, not just test failures.
+
+Additional flags:
+- `--since-hours N` — change lookback window (default: 720 = 30 days)
+- `--limit N` — max runs to fetch (default: 50)
+- `--auto-select N` — change number of auto-selected runs (default when used: 5)
+- Individual flags (`--release`, `--platform`, `--backend`, etc.) can override URL params
+
+#### 1.5.2: Present Candidates and Collect Selection
+
+**Show the COMPLETE table output to the user exactly as printed by the script.** Do NOT
+filter, reformat, or omit rows. The user needs to see all runs to make an informed
+selection. Recommended runs are marked with `*` in the `Rec` column — these are
+auto-selected for diverse coverage across jobs, disruption severity levels, and
+timestamps. The algorithm deduplicates runs that likely share the same infrastructure
+event and then selects a mix of high, moderate, and low disruption for comparison.
+
+After showing the full table, ask:
+
+```text
+Recommended runs are marked with * (auto-selected for diverse coverage).
+Proceed with recommended runs, or specify different numbers? (e.g., "1,3,5" or "all" or "yes" for recommended)
+```
+
+If the user confirms the recommendation (or says "yes"), use the recommended runs.
+If the user provides specific numbers, use those instead.
+
+If no runs have disruption test failures for the target backend, note this and offer to
+analyze the most recent failed runs anyway (disruption may be within threshold but elevated).
+
+#### 1.5.3: Convert Selections to Prow URLs
+
+Use the `url` field from the JSON output to get Prow URLs for the selected runs. Set:
+- `--backends` defaults to the Grafana `var-backend` value (unless explicitly overridden)
+- The resolved Prow URLs proceed to Step 1 step 3 (Parse each Prow URL) and then Step 2
+
+### Step 2: Download Artifacts for All Runs
 
 Compute `{date}` as today's date in `YYYY-MM-DD` format (e.g., `2026-03-23`).
 
-For each job run:
+Check for existing artifacts first. If `.work/disruption-analysis/{date}/{build_id}/logs/` exists
+with timeline files, ask the user whether to reuse or re-download.
+
+Use `download_timelines.py` to download prowjob.json and timeline files for all runs in a single
+invocation. The script handles creating directories, downloading prowjob.json, extracting the
+`--target=` value, finding timeline files via `gcloud storage ls`, and downloading them — all in
+parallel across runs:
 
 ```bash
-mkdir -p .work/disruption-analysis/{date}/{build_id}/logs
-mkdir -p .work/disruption-analysis/{date}/{build_id}/tmp
+python3 "${CLAUDE_SKILL_DIR}/download_timelines.py" \
+  --runs "{job_name_1}:{build_id_1},{job_name_2}:{build_id_2}" \
+  --output-dir .work/disruption-analysis/{date} \
+  --format text
 ```
-
-Check for existing artifacts first. If `.work/disruption-analysis/{date}/{build_id}/logs/` exists with content,
-ask user whether to reuse or re-download.
-
-### Step 3: Download prowjob.json for Each Run
-
-Use the `fetch-prowjob-json` skill for each job run URL.
-
-1. Save to `.work/disruption-analysis/{date}/{build_id}/logs/prowjob.json`
-2. Extract `JOB_NAME` from `.spec.job`
-3. Extract the `--target=` value from ci-operator args
-
-### Step 4: Download and Analyze Interval/Timeline Data
-
-For each job run:
-
-#### 4.1: Find and Download Interval Files
 
 **Important GCS bucket note**: Prow URLs may contain `origin-ci-test` in the path (e.g.,
 `/view/gs/origin-ci-test/logs/...`), but the actual GCS bucket is always `test-platform-results`.
-Always use `gs://test-platform-results/...` for `gcloud storage` commands.
+The script handles this automatically.
 
-**Recommended approach — use `gcloud storage ls` then download individually**:
+The `--runs` flag takes comma-separated `job_name:build_id` pairs. Extract these from the Prow
+URLs parsed in Step 1.
 
-The artifact search script and wildcard `gcloud storage cp` are unreliable for finding timeline
-files, especially in upgrade jobs where files are nested under multiple workflow step directories.
-Instead, list files first, then download each one:
+Output shows the target and downloaded timeline file paths per run:
 
-```bash
-# Step 1: List all timeline files in the job's artifact tree
-gcloud storage ls "gs://test-platform-results/logs/{job_name}/{build_id}/artifacts/**/e2e-timelines_spyglass_*.json"
+```text
+2084417286357127168: target=e2e-gcp-runc-upgrade
+  .work/disruption-analysis/2026-08-04/2084417286357127168/logs/e2e-timelines_spyglass_20260804-000654.json
+  .work/disruption-analysis/2026-08-04/2084417286357127168/logs/e2e-timelines_spyglass_20260804-012513.json
+
+2084701838124257280: target=e2e-gcp-ovn-upgrade
+  .work/disruption-analysis/2026-08-04/2084701838124257280/logs/e2e-timelines_spyglass_20260804-190035.json
 ```
 
-This returns the full GCS paths for each timeline file. Then download each one individually:
-
-```bash
-# Step 2: Download each file
-gcloud storage cp "gs://test-platform-results/logs/{job_name}/{build_id}/artifacts/{target}/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_{timestamp}.json" \
-  .work/disruption-analysis/{date}/{build_id}/logs/ --no-user-output-enabled
-```
+Use `--format json` for machine-readable output with `build_id`, `job`, `target`, and
+`timeline_files` fields per run.
 
 **Timeline file locations vary by job type**:
 
-- **Non-upgrade jobs**: Usually one timeline file at
-  `artifacts/{target}/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_{timestamp}.json`
+- **Non-upgrade jobs**: Usually one timeline file
+- **Upgrade jobs**: Usually two timeline files (one per phase — upgrade and conformance)
 
-- **Upgrade jobs**: Usually two timeline files (one per phase — upgrade and conformance), which
-  may be under different workflow step directories. The `gcloud storage ls` approach handles this
-  automatically.
+If the script reports errors for specific runs, check the error message and continue analysis
+with the runs that succeeded.
 
-**Fallback — artifact search script**:
+### Step 3: Analyze Interval/Timeline Data
 
-If `gcloud storage ls` doesn't find files, try the artifact search script:
+#### 3.1: Triage All Runs with Summary Mode
+
+**For multi-run analysis, always start with `--format summary`** to triage all runs before
+deep-diving. This prevents large JSON output from consuming context:
 
 ```bash
-python3 plugins/ci/skills/prow-job-analysis/prow_job_artifact_search.py \
-  <prow-url> search "**/e2e-timelines_spyglass_*.json"
+for build_id in {build_id_1} {build_id_2} {build_id_3}; do
+  python3 "${CLAUDE_SKILL_DIR}/parse_disruption.py" \
+    .work/disruption-analysis/{date}/${build_id}/logs/e2e-timelines_spyglass_*.json \
+    --build-id ${build_id} --backends {backend_filter} --format summary
+done
 ```
 
-Note: The GCS URIs returned by this script may not always be directly downloadable with
-`gcloud storage cp`. If downloads fail, extract the path components and construct the
-`gs://test-platform-results/...` URI manually, or use `gcloud storage ls` to verify the
-actual file locations.
+Example summary output:
+```text
+2084831773824389120: 11 disruptions | host-to-host:8 cache-host-to-host:3 | OVS:12 (max 9000ms) | etcd:5 | CPU: master-0 | src-node: abc12 | phase: upgrade:11
+2084701838124257280: 3 disruptions | kube-api:3 | net-liveness: degraded | phase: conformance:3
+2084417286357127168: 0 disruptions
+```
 
-#### 4.2: Run the Disruption Parser
+Use the summary output to identify which runs need deep investigation (highest disruption,
+interesting signal combinations, or unusual patterns). If the auto-selection included a
+clean comparison run (0s disruption from the same job as a disrupted run), note which
+disrupted run it pairs with — you will use this pair in Step 6.3 to filter out red herrings.
 
-Use the included `parse_disruption.py` script to extract and classify disruption events:
+#### 3.2: Get Blast Radius for Each Run
+
+To see which other backends were disrupted during the same time window (for the "Other Disrupted
+Backends" report section), use `--blast-radius` with `--format summary`:
 
 ```bash
-python3 plugins/ci/skills/analyze-disruption/parse_disruption.py \
+python3 "${CLAUDE_SKILL_DIR}/parse_disruption.py" \
+  .work/disruption-analysis/{date}/{build_id}/logs/e2e-timelines_spyglass_*.json \
+  --backends {backend_filter} --blast-radius --format summary
+```
+
+This appends a compact list of all disrupted backends (not just the filtered ones) with counts
+to the summary output, without full event details.
+
+#### 3.3: Deep-Dive Selected Runs
+
+For runs that need detailed investigation, use `--format text` or `--format json`:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/parse_disruption.py" \
   .work/disruption-analysis/{date}/{build_id}/logs/e2e-timelines_spyglass_*.json \
   --backends {backend_filter} \
   --window 60 \
   --format text
 ```
 
-Use `--format json` when you need structured data for further analysis. Omit `--backends` to
-analyze all disrupted backends.
+Use `--format json` when you need structured data for programmatic analysis. Only use JSON for
+runs that need deep investigation — the output can be 30KB+ per run and will consume context.
 
-The script automatically:
+Omit `--backends` to analyze all disrupted backends.
+
+The parser automatically:
 - Extracts all disruption events (Error/Warning level)
 - Classifies each backend (cache, non-cache, canary, cloud)
 - Detects which **phase** each disruption occurred in (upgrade vs conformance) — the first
   timeline file (sorted by filename) is the upgrade phase, the second is the conformance/e2e
   test phase. The phase is reported in the summary (`phase_breakdown`) and on each disruption event.
 - Detects source-node fan-out patterns (critical for host-to-host analysis)
-- Extracts concurrent events within the disruption window (±`--window` seconds)
+- Extracts concurrent events within the disruption window (±`--window` seconds), including
+  E2E test names active during disruption (for cross-run test correlation)
 - Summarizes OVS vswitchd stalls, CPU pressure, Azure disk metrics, etcd pressure
 - Assesses network-liveness status (clean, minor, degraded, unreliable)
 
-Review the parser output and use it as the foundation for the analysis. The parser handles
-Steps 4.2 through 4.6 below.
+If the parser output is insufficient for a particular signal, query the timeline JSON directly.
 
-#### 4.3: Interval File JSON Structure Reference
+#### 3.4: Signal Interpretation Reference
 
-Each item in the timeline JSON has this structure:
+The parser extracts and summarizes all of the following. Use this reference to interpret
+the output — you should not need to query the timeline files directly for most analyses.
 
-```json
-{
-  "level": "Error",
-  "source": "Disruption",
-  "locator": {
-    "type": "Disruption",
-    "keys": {
-      "backend-disruption-name": "host-to-host-new-connections",
-      "connection": "new",
-      "disruption": "host-to-host-from-node-...-worker-X-to-node-...-master-0-endpoint-10.0.0.5"
-    }
-  },
-  "message": {
-    "reason": "DisruptionBegan",
-    "humanMessage": "... stopped responding to GET requests over new connections",
-    "annotations": { "reason": "DisruptionBegan" }
-  },
-  "from": "2026-03-21T21:50:24Z",
-  "to": "2026-03-21T21:50:26Z"
-}
-```
-
-Key fields:
-- **`source`**: Event category. `"Disruption"` for disruption events. Other useful sources:
-  `OVSVswitchdLog`, `CPUMonitor`, `CloudMetrics`, `EtcdLog`, `EtcdDiskCommitDuration`,
-  `EtcdDiskWalFsyncDuration`, `AuditLog`, `Alert`, `NodeMonitor`, `MachineMonitor`,
-  `ClusterVersion`, `ClusterOperator`, `E2ETest`, `KubeletLog`
-- **`level`**: `"Error"`, `"Warning"`, `"Info"`. Disruption events are Error or Warning.
-- **`locator.keys.backend-disruption-name`**: The backend being monitored
-- **`locator.keys.disruption`**: For host-to-host backends, encodes source node, target node,
-  and endpoint IP in the format `host-to-host-from-node-{src}-to-node-{dst}-endpoint-{ip}`
-- **`locator.keys.connection`**: `"new"` or `"reused"`
-- **`message.reason`**: `"DisruptionBegan"` or `"DisruptionEnded"`
-- **`message.humanMessage`**: Human-readable description with error details
-
-#### 4.4: Classify Disruption by Backend Type
-
-The parser classifies backends automatically. For reference:
-
+**Backend classification:**
 1. **Cache backends** — name contains `cache` → likely **etcd or global networking** problem
 2. **Non-cache backends** — standard backends → likely **component or cluster networking** problem
 3. **ci-cluster-network-liveness** — canary polling external endpoint → **test infra network** issues
@@ -225,108 +337,39 @@ resource exhaustion** (disk I/O → etcd stalls → apiserver timeouts), not a n
 Look for etcd `slow fdatasync`, `apply took too long`, and `ExtremelyHighIndividualControlPlaneCPU`
 alerts as confirming evidence.
 
-#### 4.5: Source-Node Analysis
+**Source-node patterns:**
+- **single-source-fan-out**: All disruptions from one node → source-side issue (OVS stall,
+  CPU starvation, disk I/O). Focus investigation on that node.
+- **multi-source**: Disruptions from multiple nodes → network-wide or destination-side issue.
+- **unknown**: Backend doesn't include node info (e.g., ingress-routed backends).
 
-The parser detects source-node patterns automatically. Key patterns:
-
-- **single-source-fan-out**: All disruptions from one node to many targets. Indicates a
-  source-side issue (OVS stall, CPU starvation, disk I/O) — not a network-wide problem.
-- **multi-source**: Disruptions from multiple source nodes. Suggests a network-wide,
-  destination-side, or infrastructure-level issue.
-- **unknown**: Backend type doesn't include node info in the disruption path (e.g.,
-  ingress-routed backends like image-registry).
-
-When a single-source-fan-out pattern is detected, focus the investigation on that specific
-node: check its CPU, disk I/O, OVS vswitchd logs, and whether it was running heavy workloads.
-
-#### 4.6: Identify Concurrent Cluster Activity
-
-The parser extracts concurrent events from these sources within the disruption window:
+**Concurrent event signals:**
 
 | Source | What it tells you |
 |--------|-------------------|
-| `OVSVswitchdLog` | OVS packet processing stalls (poll intervals >500ms = networking frozen) |
-| `CPUMonitor` | Nodes with CPU >95% (starves OVS and other system processes) |
-| `CloudMetrics` | Azure disk IOPS saturation, queue depth, bandwidth (disk I/O pressure) |
+| `OVSVswitchdLog` | OVS packet processing stalls (>1000ms = networking frozen) |
+| `CPUMonitor` | Nodes with CPU >95% (starves OVS and system processes) |
+| `CloudMetrics` | Azure disk IOPS saturation, queue depth (disk I/O pressure) |
 | `EtcdLog` | apply took too long, slow fdatasync, ReadIndex delays |
 | `EtcdDiskCommitDuration` | etcd disk commit above 25ms threshold |
-| `EtcdDiskWalFsyncDuration` | etcd WAL fsync above 10ms threshold |
-| `AuditLog` | API request failures during disruption |
-| `Alert` | Firing Prometheus alerts (ExtremelyHighIndividualControlPlaneCPU, etc.) |
+| `AuditLog` | API request failures or gaps during disruption |
+| `Alert` | Firing alerts (ExtremelyHighIndividualControlPlaneCPU, etc.) |
+| `E2ETest` | Tests active during disruption (with test names for cross-run correlation) |
 | `NodeMonitor` / `MachineMonitor` | Node NotReady, machine phase changes |
 | `ClusterVersion` / `ClusterOperator` | Upgrade progress, operator status |
-| `E2ETest` | Active test phase (upgrade vs post-upgrade e2e tests) |
 
-If the parser output is insufficient for a particular signal, you can query the timeline
-JSON directly for deeper investigation.
+**E2E test correlation (multi-run):** The parser includes test names from `E2ETest` events.
+Tests appearing during disruption in 3+ runs are especially interesting — they may trigger
+the resource pressure causing disruption. Tests that *fail* during disruption are usually
+*victims*; tests that *pass* consistently during disruption windows are more likely causes.
 
-### Step 5: Review Key Signals from Parser Output
+### Step 4: Deep-Dive Artifact Download (Optional)
 
-The parser output from Step 4.2 already includes audit log events, etcd events, CPU warnings,
-OVS stalls, and cloud metrics extracted from the timeline files. For most analyses, this is
-sufficient — the timeline files aggregate the same data that would be found in separate
-artifact downloads.
-
-Review the parser's `concurrent_events` and `key_signals` sections and assess:
-
-#### 5.1: Audit Log Signals
-
-The timeline files contain `AuditLog` entries showing request failures during disruption windows
-(e.g., "1 requests made during this time failed out of 611 total").
-
-For kube-api, oauth-api, and openshift-api disruption, check whether:
-- **Audit entries show failures during disruption** → API server received requests but couldn't process them (internal issue)
-- **No audit entries during disruption** → requests never reached the API server (connectivity issue)
-
-#### 5.2: etcd Signals
-
-The timeline files contain `EtcdLog`, `EtcdDiskCommitDuration`, and `EtcdDiskWalFsyncDuration` entries.
-Key messages to look for:
-- `"apply request took too long"` — etcd under write pressure
-- `"slow fdatasync"` — disk I/O bottleneck
-- `"waiting for ReadIndex response took too long"` — etcd read latency
-- Commit duration above 25ms or WAL fsync above 10ms thresholds
-
-#### 5.3: CPU and Resource Pressure
-
-The timeline files contain `CPUMonitor` (>95% threshold) and `CloudMetrics` (Azure disk IOPS,
-queue depth, bandwidth, latency) entries.
-
-Key patterns:
-- **CPU >95% on the disruption source node** → OVS/networking starvation
-- **Azure disk IOPS at 100%** → disk I/O saturation cascading to CPU and etcd
-- **Disk queue depth >10x threshold** → severe I/O contention
-
-#### 5.4: OVS vswitchd Stalls
-
-`OVSVswitchdLog` entries report "Unreasonably long poll interval" warnings when OVS cannot
-process packets. Poll intervals >1000ms mean OVS was essentially frozen — no packets forwarded.
-This is the most direct cause of host-to-host and pod-to-host disruption.
-
-#### 5.5: E2E Test Correlation
-
-Query the timeline files for `E2ETest` source items that overlap the disruption window. The test
-name is in `locator.keys.e2e-test`. For each test active during disruption, note:
-- Test name, start time, end time
-- Whether it passed (`level: "Info"`) or failed (`level: "Error"`)
-
-**For multi-run analysis**: Cross-reference tests active during disruption across runs. Tests
-appearing in 3+ runs during the disruption window are especially interesting — they may be
-triggering the resource pressure that causes disruption (e.g., tests that create many resources,
-run heavy workloads, or cause pod evictions). Include a table of correlated tests in the report
-with pass/fail status per run.
-
-Note: Tests that *fail* during the disruption window are usually *victims* of the disruption,
-not causes. Tests that *pass* but consistently appear during disruption across runs are more
-likely to be contributing to the resource pressure that triggers it.
-
-### Step 6: Deep-Dive Artifact Download (Optional)
-
-**Only perform this step if the parser output from Step 4.2 is insufficient for root cause
+**Only perform this step if the parser output from Step 3 is insufficient for root cause
 determination** — for example, when you need to see the full audit log request details or
 etcd log context beyond what the timeline summaries provide.
 
-#### 6.1: Download Audit Logs (if needed)
+#### 4.1: Download Audit Logs (if needed)
 
 ```bash
 gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/audit_logs/" \
@@ -335,7 +378,7 @@ gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{target
 
 Query for sampler requests during disruption windows to identify request gaps.
 
-#### 6.2: Download etcd Pod Logs (if needed)
+#### 4.2: Download etcd Pod Logs (if needed)
 
 ```bash
 gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/" \
@@ -344,7 +387,7 @@ gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{target
 
 Search for leader changes, write delays, member issues, and disk problems.
 
-#### 6.3: PromQL Queries for Manual Investigation
+#### 4.3: PromQL Queries for Manual Investigation
 
 If the analysis needs live cluster metrics (not available in artifacts), provide these queries:
 
@@ -359,9 +402,9 @@ topk(25, sum by (namespace) (rate(container_cpu_usage_seconds_total{container!="
 topk(10, sum by (namespace) (rate(container_cpu_usage_seconds_total{container!="",pod!="",node="<node-name>",namespace=~"^e2e-.*"}[5m])))
 ```
 
-### Step 7: Additional Diagnostic Checks
+### Step 5: Additional Diagnostic Checks
 
-#### 7.1: Node Shutdown Sequencing
+#### 5.1: Node Shutdown Sequencing
 
 If disruption coincides with node events, check:
 
@@ -371,18 +414,18 @@ If disruption coincides with node events, check:
 
 Look for these signals in interval files and node-related logs.
 
-#### 7.2: Endpoint Slice Updates
+#### 5.2: Endpoint Slice Updates
 
 Check audit logs for endpoint slice modification events during disruption windows:
 
 - Look for audit events related to `endpointslices` resources
 - Verify that readiness changes triggered appropriate endpoint updates
 
-### Step 8: Cross-Run Comparison (Multiple Runs Only)
+### Step 6: Cross-Run Comparison (Multiple Runs Only)
 
 When multiple job run URLs are provided:
 
-#### 8.1: Align Disruption Events
+#### 6.1: Align Disruption Events
 
 For each backend that shows disruption across multiple runs:
 
@@ -390,7 +433,7 @@ For each backend that shows disruption across multiple runs:
 - Identify backends that are **consistently disrupted** across all runs (systemic issue)
 - Identify backends that are **disrupted in only some runs** (intermittent or infrastructure-specific)
 
-#### 8.2: Pattern Detection
+#### 6.2: Pattern Detection
 
 Look for common patterns:
 
@@ -406,13 +449,37 @@ Look for common patterns:
 - **Cache backends consistently disrupted** → systemic etcd or networking issue
 - **Non-cache backends consistently disrupted** → component-specific problem
 
-#### 8.3: Correlate etcd and CPU Findings
+#### 6.3: Clean Comparison Analysis (Same-Job A/B)
+
+When the auto-selection included a clean comparison run (0s disruption from the same job as a
+disrupted run), perform a same-job A/B comparison to filter out red herrings:
+
+1. **Identify the pair**: The clean run shares a job name with one or more disrupted runs.
+   Compare their concurrent events side by side.
+
+2. **Signals present in both**: Any concurrent events that appear in *both* the clean and
+   disrupted runs are **not the cause** of disruption — they are normal job behavior. Examples:
+   - E2E tests that run during disruption windows but also run in clean runs
+   - OVS log entries that appear at similar relative times in both runs
+   - Operator rollouts that happen in both upgrade phases
+
+3. **Signals unique to disrupted runs**: Concurrent events that appear *only* in disrupted runs
+   (and not in the clean comparison) are the strongest root cause candidates. Highlight these
+   in the Cross-Run Comparison section.
+
+4. **Infrastructure differences**: Note any differences in the cluster setup (node types, regions,
+   etc.) between the clean and disrupted runs if visible in the artifacts.
+
+This comparison is especially valuable for filtering out E2E test correlation noise — if the same
+tests run during disruption windows and during clean runs, they are not causing the disruption.
+
+#### 6.4: Correlate etcd and CPU Findings
 
 - Are etcd leader changes present in all runs showing cache-backend disruption?
 - Do runs with mass disruption consistently show high CPU or node pressure?
 - Are audit log gaps consistent across runs?
 
-### Step 9: Generate Report
+### Step 7: Generate Report
 
 Produce a structured Markdown report with **inline deep links** throughout. Links go where the
 evidence is discussed, not in a separate section at the end. Use Markdown reference-style links
@@ -439,6 +506,13 @@ to keep the text readable.
 
 ```text
 # Disruption Analysis
+
+{If triggered from a Grafana URL, include this section:}
+## Dashboard Context
+- **Source**: [{dashboard_name}]({grafana_url})
+- **Filters**: Platform={platform} | Upgrade={upgrade_type} | Topology={topology} | Network={network} | Architecture={architecture}
+- **Backend**: {var-backend}
+- **Percentile**: {var-percentile} | **Release**: {var-releases}
 
 ## Job Information
 - **Prow Job**: [{job-name}]({prow_url})
@@ -471,13 +545,20 @@ rather than an openshift-api-specific issue. Only include backends whose disrupt
 overlaps the same window; exclude unrelated disruption at other times.}
 
 ## Known Disruption Issues
-{Results from Step 10 Jira search, or "Jira search skipped (--skip-jira)"}
+{Results from Step 8 Jira search, or "Jira search skipped (--skip-jira)"}
 ```
 
 **For multiple runs — use the same inline linking pattern:**
 
 ```text
 # Disruption Analysis: {backend_names}
+
+{If triggered from a Grafana URL, include this section:}
+## Dashboard Context
+- **Source**: [{dashboard_name}]({grafana_url})
+- **Filters**: Platform={platform} | Upgrade={upgrade_type} | Topology={topology} | Network={network} | Architecture={architecture}
+- **Backend**: {var-backend}
+- **Percentile**: {var-percentile} | **Release**: {var-releases}
 
 ## Runs Analyzed
 | # | Build ID | Job | Disrupted Backends | Network Liveness |
@@ -509,7 +590,7 @@ This reveals the full blast radius and helps confirm root cause — e.g., if eve
 backend fails together, the problem is control-plane-wide, not backend-specific.}
 
 ## Known Disruption Issues
-{Results from Step 10 Jira search, or "Jira search skipped (--skip-jira)"}
+{Results from Step 8 Jira search, or "Jira search skipped (--skip-jira)"}
 ```
 
 Save the report using a filename that references the backends being analyzed:
@@ -523,53 +604,40 @@ If all backends are analyzed (no `--backends` filter), use the backends that act
 disruption. If the resulting filename would be excessively long (more than 5 backends),
 truncate to the first 5 and append `-and-more` (e.g., `kube-api-oauth-api-openshift-api-cache-oauth-api-cache-openshift-api-and-more-analysis.md`).
 
-### Step 10: Known Disruption Issue Lookup
+### Step 8: Known Disruption Issue Lookup
 
 Skip this step if `--skip-jira` was passed. This step searches Jira for existing cards that
 may already track the disruption pattern identified in the analysis, and offers to file a new
 bug if none are found.
 
-#### 10.1: Search for Known Disruption Cards
+#### 8.1: Search for Known Disruption Cards
 
 Extract the base backend names from the analysis (e.g., `openshift-api`, `kube-api`, `oauth-api`
 — strip `cache-` prefix and `-new-connections`/`-reused-connections` suffixes to get the base name).
 
-For each distinct base backend name, run two JQL queries using `searchJiraIssuesUsingJql`
-(cloudId: `redhat.atlassian.net`):
+Run two JQL queries using `searchJiraIssuesUsingJql` (cloudId: `redhat.atlassian.net`) —
+one for open cards, one for closed. Combine all backend names into a single query to avoid
+excessive API calls:
 
-**Query 1 — Labeled disruption cards (high confidence):**
+**Query 1 — Open cards:**
 
 ```jql
-project in (TRT, OCPBUGS) AND labels = "disruption" AND status != Closed AND text ~ "{backend_name}" ORDER BY updated DESC
+project in (TRT, OCPBUGS) AND status != Closed AND (labels = "disruption" OR text ~ "disruption") AND text ~ "{backend_name_1} OR {backend_name_2}" ORDER BY updated DESC
 ```
 
-**Query 2 — Broader search for open unlabeled cards:**
+**Query 2 — Closed cards (prior investigations):**
 
 ```jql
-project in (TRT, OCPBUGS) AND status != Closed AND text ~ "disruption {backend_name}" ORDER BY updated DESC
-```
-
-**Query 3 — Closed labeled disruption cards (prior investigations):**
-
-```jql
-project in (TRT, OCPBUGS) AND labels = "disruption" AND status = Closed AND text ~ "{backend_name}" ORDER BY updated DESC
-```
-
-**Query 4 — Closed broader search:**
-
-```jql
-project in (TRT, OCPBUGS) AND status = Closed AND text ~ "disruption {backend_name}" ORDER BY updated DESC
+project in (TRT, OCPBUGS) AND status = Closed AND (labels = "disruption" OR text ~ "disruption") AND text ~ "{backend_name_1} OR {backend_name_2}" ORDER BY updated DESC
 ```
 
 Use `maxResults: 10` and `fields: ["summary", "status", "labels", "assignee", "updated", "priority", "resolution"]`
 for each query. Deduplicate results across queries by issue key.
 
-Separating open and closed queries ensures `maxResults` doesn't cause one category to crowd
-out the other. Closed cards are valuable — they may have been closed prematurely, or they
-document a prior investigation into the same disruption pattern that provides context for the
-current occurrence (root cause, fix applied, affected versions).
+Closed cards are valuable — they may document a prior investigation into the same disruption
+pattern that provides context (root cause, fix applied, affected versions).
 
-#### 10.2: Present Results and Offer Actions
+#### 8.2: Present Results and Offer Actions
 
 **If matching cards are found:**
 
@@ -619,9 +687,9 @@ No existing Jira cards were found tracking this disruption pattern.
 Would you like to file a disruption bug? (yes/no)
 ```
 
-If yes, proceed to Step 10.3.
+If yes, proceed to Step 8.3.
 
-#### 10.3: File a Disruption Bug (Interactive)
+#### 8.3: File a Disruption Bug (Interactive)
 
 Use the `jira:create` skill to file a bug. Propose the following details for the user to review
 and edit before creation:
@@ -655,7 +723,15 @@ After creation, update the report's "Known Disruption Issues" section with the n
 
 5. **gcloud errors** — When `gcloud storage` commands fail, log the error, report which artifacts could not be downloaded, and continue analysis with the remaining available data.
 
-6. **Jira MCP unavailable** — If the Jira MCP tools are not available or authentication fails, skip Step 10 and note "Jira search skipped (MCP unavailable)" in the Known Disruption Issues section. Do not block the disruption analysis on Jira availability.
+6. **Jira MCP unavailable** — If the Jira MCP tools are not available or authentication fails, skip Step 8 and note "Jira search skipped (MCP unavailable)" in the Known Disruption Issues section. Do not block the disruption analysis on Jira availability.
+
+7. **Grafana URL missing required parameters** — If `var-releases` or `var-backend` are missing from the Grafana URL, prompt the user for the missing values rather than failing.
+
+8. **No Sippy results for Grafana filters** — If no runs match the variant filters from the Grafana URL, suggest widening the time window or relaxing filters. Report the exact query parameters that were attempted so the user can diagnose the mismatch.
+
+9. **No disruption test failures in matching runs** — If matching runs exist but none have disruption test failures for the target backend, note this (disruption may be within threshold but elevated compared to baseline). Offer to analyze the most recent runs anyway.
+
+10. **Sippy API unavailable** — If the Sippy API is unreachable during Grafana URL resolution, report the error and suggest providing Prow job URLs directly as a fallback.
 
 ## Performance Considerations
 

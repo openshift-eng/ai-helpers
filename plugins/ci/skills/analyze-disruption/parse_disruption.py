@@ -226,9 +226,10 @@ def extract_concurrent_events(items, disruptions, window_seconds=60):
     seen = set()
     by_source = defaultdict(list)
     for item in items:
-        if item.get("source") == "Disruption":
+        source = item.get("source")
+        if source == "Disruption":
             continue
-        if item.get("source") not in CONTEXT_SOURCES:
+        if source not in CONTEXT_SOURCES:
             continue
 
         item_from = parse_ts(item["from"])
@@ -264,8 +265,12 @@ def extract_concurrent_events(items, disruptions, window_seconds=60):
         }
         if node:
             entry["node"] = node
+        if source == "E2ETest":
+            test_name = keys.get("e2e-test", "")
+            if test_name:
+                entry["test_name"] = test_name
 
-        by_source[item["source"]].append(entry)
+        by_source[source].append(entry)
 
     # Post-process specific sources into summaries
     result = {}
@@ -276,6 +281,8 @@ def extract_concurrent_events(items, disruptions, window_seconds=60):
             result[source] = summarize_cloud_metrics(events)
         elif source == "CPUMonitor":
             result[source] = summarize_cpu(events)
+        elif source == "E2ETest":
+            result[source] = summarize_e2e_tests(events)
         else:
             # Keep raw events but cap at 20
             result[source] = {
@@ -356,6 +363,34 @@ def summarize_cpu(events):
     return {
         "count": len(events),
         "nodes": nodes,
+    }
+
+
+def summarize_e2e_tests(events):
+    """Summarize E2ETest events active during disruption.
+
+    Tracks both passed and failed tests. Passed tests that consistently appear
+    during disruption across runs may be causing the resource pressure that
+    triggers disruption. Failed tests are usually victims.
+    """
+    tests = {}
+    for e in events:
+        name = e.get("test_name", "")
+        if not name:
+            continue
+        if name not in tests:
+            tests[name] = {"level": e["level"], "from": e["from"]}
+        elif e["level"] == "Error":
+            tests[name]["level"] = "Error"
+
+    failed = sorted(n for n, t in tests.items() if t["level"] == "Error")
+    passed = sorted(n for n, t in tests.items() if t["level"] != "Error")
+
+    return {
+        "count": len(events),
+        "failed_tests": failed,
+        "passed_tests": passed,
+        "tests": tests,
     }
 
 
@@ -574,6 +609,103 @@ def node_name(full_name):
 # Text output
 # ---------------------------------------------------------------------------
 
+def format_blast_radius(all_disruptions, backend_filter):
+    """Summarize all disrupted backends NOT covered by the --backends filter."""
+    by_backend = defaultdict(int)
+    for d in all_disruptions:
+        if not any(bf in d["backend"] for bf in backend_filter):
+            by_backend[d["backend"]] += 1
+
+    if not by_backend:
+        return None
+
+    backends = sorted(
+        [{"backend": b, "type": classify_backend(b), "count": c}
+         for b, c in by_backend.items()],
+        key=lambda x: -x["count"],
+    )
+    compact_parts = [f"{e['backend']}:{e['count']}" for e in backends[:10]]
+    if len(backends) > 10:
+        compact_parts.append(f"+{len(backends) - 10} more")
+
+    return {
+        "backends": backends,
+        "backend_count": len(backends),
+        "total_count": sum(by_backend.values()),
+        "compact": " ".join(compact_parts),
+    }
+
+
+def format_summary(data):
+    """Format analysis data as a concise one-line summary.
+
+    Example output:
+      3 disruptions | host-to-host:3 | OVS:2 (max 1200ms) | etcd:5 | CPU: master-0 | net-liveness: clean | phase: upgrade:2,conformance:1
+    """
+    summary = data["summary"]
+    concurrent = data["concurrent_events"]
+    parts = []
+
+    count = summary["disruption_count"]
+    parts.append(f"{count} disruption{'s' if count != 1 else ''}")
+
+    backends = summary.get("backends", {})
+    if backends:
+        backend_parts = []
+        for name, cnt in sorted(backends.items(), key=lambda x: -x[1]):
+            short = name
+            for suffix in ("-new-connections", "-reused-connections"):
+                if short.endswith(suffix):
+                    short = short[: -len(suffix)]
+                    break
+            backend_parts.append(f"{short}:{cnt}")
+        parts.append(" ".join(backend_parts))
+
+    ovs = concurrent.get("OVSVswitchdLog")
+    if ovs and ovs.get("count", 0) > 0:
+        max_ms = ovs.get("max_poll_interval_ms", 0)
+        parts.append(f"OVS:{ovs['count']} (max {max_ms}ms)")
+
+    etcd = concurrent.get("EtcdLog")
+    if etcd and etcd.get("count", 0) > 0:
+        parts.append(f"etcd:{etcd['count']}")
+
+    cpu = concurrent.get("CPUMonitor")
+    if cpu and cpu.get("count", 0) > 0:
+        nodes = [n["node_short"] for n in cpu.get("nodes", []) if n.get("node_short")]
+        unique_nodes = list(dict.fromkeys(nodes))
+        if unique_nodes:
+            parts.append(f"CPU: {','.join(unique_nodes[:3])}")
+        else:
+            parts.append(f"CPU:{cpu['count']}")
+
+    cloud = concurrent.get("CloudMetrics")
+    if cloud and cloud.get("count", 0) > 0:
+        metrics_parts = []
+        for metric, info in cloud.get("metrics", {}).items():
+            short_metric = metric.replace("OS Disk ", "").replace(" Consumed Percentage", "%")
+            metrics_parts.append(f"{short_metric}:{info['max_value']:.0f}")
+        if metrics_parts:
+            parts.append(f"cloud: {','.join(metrics_parts)}")
+
+    sa = data.get("source_node_analysis", {})
+    pattern = sa.get("pattern", "unknown")
+    if pattern == "single-source-fan-out":
+        src = sa.get("source_node", "?")
+        parts.append(f"src-node: {src}")
+
+    liveness = summary.get("network_liveness_status", "clean")
+    if liveness != "clean":
+        parts.append(f"net-liveness: {liveness}")
+
+    phase = summary.get("phase_breakdown", {})
+    if phase:
+        phase_parts = [f"{p}:{c}" for p, c in sorted(phase.items())]
+        parts.append(f"phase: {','.join(phase_parts)}")
+
+    return " | ".join(parts)
+
+
 def format_text(data):
     """Format analysis data as human-readable text."""
     lines = []
@@ -703,7 +835,7 @@ def main():
         help="Seconds to expand around disruption window for concurrent events (default: 60)"
     )
     parser.add_argument(
-        "--format", choices=["json", "text"], default="text",
+        "--format", choices=["json", "text", "summary"], default="text",
         help="Output format (default: text)"
     )
     parser.add_argument(
@@ -718,6 +850,10 @@ def main():
         "--target", default=None,
         help="CI operator target name, e.g. e2e-azure-ovn-upgrade (for GCS artifact deep links)"
     )
+    parser.add_argument(
+        "--blast-radius", action="store_true",
+        help="Append a compact list of ALL disrupted backends (ignoring --backends filter)"
+    )
 
     args = parser.parse_args()
     backend_filter = args.backends.split(",") if args.backends else None
@@ -730,6 +866,11 @@ def main():
     summary = generate_summary(disruptions, network_liveness, concurrent, source_analysis)
     links = generate_links(args.job_name, args.build_id, args.target, args.files)
 
+    blast_radius = None
+    if args.blast_radius and backend_filter:
+        all_disruptions = extract_disruptions(items, backend_filter=None)
+        blast_radius = format_blast_radius(all_disruptions, backend_filter)
+
     data = {
         "disruptions": disruptions,
         "concurrent_events": concurrent,
@@ -738,12 +879,28 @@ def main():
         "summary": summary,
         "links": links,
     }
+    if blast_radius is not None:
+        data["blast_radius"] = blast_radius
 
     if args.format == "json":
         json.dump(data, sys.stdout, indent=2)
         print()
+    elif args.format == "summary":
+        prefix = ""
+        if args.build_id:
+            prefix = f"{args.build_id}: "
+        line = prefix + format_summary(data)
+        if blast_radius:
+            line += " | other: " + blast_radius["compact"]
+        print(line)
     else:
         print(format_text(data))
+        if blast_radius:
+            print()
+            print("Other disrupted backends (blast radius):")
+            for entry in blast_radius["backends"]:
+                print(f"  {entry['backend']} ({entry['type']}): {entry['count']}")
+            print(f"  Total: {blast_radius['total_count']} disruptions across {blast_radius['backend_count']} backends")
 
 
 if __name__ == "__main__":
