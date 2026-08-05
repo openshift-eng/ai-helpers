@@ -553,6 +553,14 @@ footer a { color: var(--primary); }
           "body_html": "\u003cp\u003eThe \u003ccode\u003eci:add-debug-wait\u003c/code\u003e command adds a \u003ccode\u003ewait\u003c/code\u003e step to a CI job/workflow for debugging test failures.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eWhat it does:\u003c/strong\u003e\u003cbr\u003e1. Takes job name, OCP version, and optional timeout as input\u003cbr\u003e2. Finds and edits the job config or workflow file\u003cbr\u003e3. Adds \u003ccode\u003e- ref: wait\u003c/code\u003e before the last test step (with optional timeout configuration)\u003cbr\u003e4. Creates a git commit\u003cbr\u003e5. Pushes the commit to your fork (\u003ccode\u003eorigin\u003c/code\u003e remote)\u003cbr\u003e6. Creates a PR via \u003ccode\u003egh\u003c/code\u003e\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eThat&#x27;s it!\u003c/strong\u003e Simple, fast, and automated.\u003c/p\u003e"
         },
         {
+          "name": "analyze-disruption",
+          "full_name": "ci:analyze-disruption",
+          "description": "Analyze and compare disruption across one or more Prow CI job runs",
+          "description_html": "Analyze and compare disruption across one or more Prow CI job runs",
+          "synopsis": "Analyze disruption events across one or more CI job runs, comparing backends to identify root causes:\n```text\n/ci:analyze-disruption \u003cprowjob-url-1\u003e [prowjob-url-2 ...] [--backends backend1,backend2,...]\n```\n\nAlso accepts a Grafana disruption dashboard URL instead of Prow URLs to discover and select runs automatically:\n```text\n/ci:analyze-disruption \u003cgrafana-dashboard-url\u003e [--backends backend1,backend2,...]\n```",
+          "body_html": "Analyze disruption recorded in Prow CI job runs by invoking the &quot;analyze-disruption&quot; skill."
+        },
+        {
           "name": "analyze-pr-reverts",
           "full_name": "ci:analyze-pr-reverts",
           "description": "Analyze recent PR reverts to identify patterns and recommend preventive measures",
