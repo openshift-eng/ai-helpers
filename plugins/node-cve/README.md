@@ -27,8 +27,8 @@ Triage all open CVEs for Node team components with automated reachability analys
 
 1. Queries OCPBUGS for open Vulnerability issues across all Node team components (CRI-O, Kubelet, MCO, etc.)
 2. Deduplicates by CVE ID (each CVE has multiple version trackers)
-3. Filters to the target OCP version (default: latest — auto-detected as the highest numeric version from query results, e.g., `5.0`). Older versions are owned by the sustaining team.
-4. Clones affected repositories at the target version's release branch and analyzes source code for reachability
+3. Filters to the latest OCP version (auto-detected as the highest numeric version from query results, e.g., `5.0`). Older versions are owned by the sustaining team.
+4. Clones affected repositories at the latest version's release branch and analyzes source code for reachability
 5. Classifies each CVE: Reachable, Present but not exploitable, Present but not reachable, Unaffected, or Uncertain
 6. Generates a triage report with confidence levels and recommended actions
 7. Posts analysis comments to Jira tracker issues (with `--notify-jira`)

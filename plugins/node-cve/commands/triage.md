@@ -209,18 +209,16 @@ Wait for all agents to complete, then collect results. Print progress for each: 
    | Overall classification | Reachable |
    | Overall confidence | High |
    | Assignee | <name or "Unassigned"> |
-   | Affected versions | 4.12.z - 4.19 |
-   | Tracker issues | OCPBUGS-XXXXX, OCPBUGS-XXXXX, ... |
+   | OCP version | 5.0 |
+   | Tracker issues | OCPBUGS-XXXXX |
 
-   **Per-branch results:**
+   **Analysis result:**
 
    | Branch | OCP Version | Classification | Confidence |
    |--------|-------------|----------------|------------|
-   | release-1.28 | 4.15 | Reachable | High |
-   | release-1.29 | 4.16 | Reachable | High |
-   | release-1.30 | 4.17 | Unaffected | High |
+   | release-1.36 | 5.0 | Reachable | High |
 
-   **Evidence (worst-case branch):** <source code analysis summary>
+   **Evidence:** <source code analysis summary>
    **Recommended action:** <update dependency / apply patch / monitor / investigate>
    ```
 
@@ -228,7 +226,7 @@ Wait for all agents to complete, then collect results. Print progress for each: 
 
    **Before posting anything, re-validate every tracker against both the auto-detected version and the Node team component list — do not rely solely on Phase 1's filtering.** See [report-findings](../skills/report-findings/SKILL.md) "Node Team Component Safeguard", "OCP Version Safeguard", and Step 2 for the mandatory validation logic and audit logging. Skip (never post to) any tracker whose component is not a Node team component or whose OCP version does not match the auto-detected latest version, and record it in the posting audit log.
 
-   Use Atlassian wiki markup (not Markdown), matching the format in [report-findings](../skills/report-findings/SKILL.md) Step 2. The comment includes per-branch results across all analyzed versions so reviewers can see the full picture.
+   Use Atlassian wiki markup (not Markdown), matching the format in [report-findings](../skills/report-findings/SKILL.md) Step 2. The comment includes the analysis result for the latest OCP version.
 
    Before posting, check for existing `node-cve:triage` comments on the issue. If a prior comment exists with the same classification, skip it. If the classification changed, edit the existing comment instead of adding a new one. See [report-findings](../skills/report-findings/SKILL.md) Step 2 for the deduplication logic.
 

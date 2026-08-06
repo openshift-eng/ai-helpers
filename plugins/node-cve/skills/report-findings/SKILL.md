@@ -76,19 +76,16 @@ List CVEs that are Reachable or Uncertain with unassigned owners. These need imm
 | Overall classification | Reachable / Present but not exploitable / Present but not reachable / Unaffected / Uncertain |
 | Overall confidence | High / Medium / Low |
 | Assignee | <name or Unassigned> |
-| Affected versions | 4.12.z - 4.19 |
-| Tracker issues | [OCPBUGS-XXXXX](https://redhat.atlassian.net/browse/OCPBUGS-XXXXX), [OCPBUGS-XXXXX](https://redhat.atlassian.net/browse/OCPBUGS-XXXXX), ... |
+| OCP version | 5.0 |
+| Tracker issues | [OCPBUGS-XXXXX](https://redhat.atlassian.net/browse/OCPBUGS-XXXXX) |
 
-**Per-branch results:**
+**Analysis result:**
 
 | Branch | OCP Version | Classification | Confidence |
 |--------|-------------|----------------|------------|
-| release-1.28 | 4.15 | Reachable | High |
-| release-1.29 | 4.16 | Reachable | High |
-| release-1.30 | 4.17 | Unaffected | High |
-| ... | ... | ... | ... |
+| release-1.36 | 5.0 | Reachable | High |
 
-**Evidence (worst-case branch):**
+**Evidence:**
 <source code analysis summary>
 <call path if found>
 
@@ -138,7 +135,7 @@ done
 
 If a tracker fails either check, **skip it and log the reason** — never post "just in case." Both checks must run even when `--component` was explicitly passed, and even if Phase 1 already filtered, since this is the last line of defense before an irreversible write. Rate limit: sleep 1 second between validation calls, same as the posting calls below, since a CVE with N trackers makes N validation calls before posting even starts.
 
-For each unique CVE, post a comment on every **validated** tracker issue. Each tracker issue receives the analysis result for its specific OCP version/branch (not a blanket result). Use Atlassian wiki markup (not Markdown):
+For each unique CVE, post a comment on every **validated** tracker issue. Each tracker receives the analysis result for the latest OCP version. Use Atlassian wiki markup (not Markdown):
 
 ```bash
 jira issue comment add OCPBUGS-XXXXX "$(cat <<'COMMENT'
@@ -147,19 +144,14 @@ h3. Automated CVE Reachability Analysis
 ||Field||Value||
 |CVE|CVE-XXXX-XXXXX|
 |Repository|[openshift/cri-o|https://github.com/openshift/cri-o]|
-|Branch|release-1.31|
+|Branch|release-1.36|
+|OCP Version|5.0|
 |Classification|Reachable / Present but not exploitable / Present but not reachable / Unaffected / Uncertain|
 |Confidence|High / Medium / Low|
 
-h4. Results across all analyzed branches
-||Branch||OCP Version||Classification||Confidence||
-|release-1.28|4.15|Reachable|High|
-|release-1.29|4.16|Reachable|High|
-|release-1.30|4.17|Unaffected|High|
-
 h4. Evidence
 {noformat}
-<source code analysis summary for this tracker's specific branch>
+<source code analysis summary>
 {noformat}
 
 h4. Recommended Action
@@ -185,7 +177,7 @@ Search the output for comments containing `[node-cve:triage|`. This pattern anch
 
 **Important:**
 - Rate limit: sleep 1 second between Jira API calls to avoid HTTP 429 throttling
-- Post to ALL **validated** tracker issues for a CVE (all version trackers), each with its version-specific result
+- Post to every **validated** tracker issue for a CVE
 - If commenting fails on a specific issue (e.g., permissions), log a warning and continue
 
 **POST-POSTING AUDIT (MANDATORY when --notify-jira is used):** Write an audit log to `.work/node-cve/triage-$(date +%Y-%m-%d)/posting-audit.log` summarizing what was posted and what was skipped, so cross-team or cross-version contamination is caught immediately instead of discovered days later:
@@ -357,23 +349,10 @@ Write `cves.json` to `.work/node-cve/triage-YYYY-MM-DD/cves.json` containing the
       "overall_confidence": "HIGH",
       "assignee": "...",
       "tracker_keys": ["OCPBUGS-XXXXX"],
-      "affected_versions": ["4.12.z", "4.19"],
-      "per_branch_results": [
-        {
-          "branch": "release-1.28",
-          "ocp_version": "4.15",
-          "classification": "REACHABLE",
-          "confidence": "HIGH",
-          "evidence_summary": "..."
-        },
-        {
-          "branch": "release-1.30",
-          "ocp_version": "4.17",
-          "classification": "NOT_AFFECTED",
-          "confidence": "HIGH",
-          "evidence_summary": "..."
-        }
-      ],
+      "affected_versions": ["5.0"],
+      "branch": "release-1.36",
+      "ocp_version": "5.0",
+      "evidence_summary": "...",
       "recommended_action": "..."
     }
   ]
