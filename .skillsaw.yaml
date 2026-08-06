@@ -1,9 +1,19 @@
 # skillsaw configuration
 # https://github.com/stbenjam/skillsaw
-version: "0.14.1"
+version: "0.18.0"
 strict: true
 
 rules:
+  # Agent Plugins plugin.json must conform to the 1.0.0 schema
+  agent-plugin-json-valid:
+    enabled: true
+    severity: error
+
+  # Agent Plugins mcp.json must conform to the 1.0.0 schema and semantics
+  agent-plugin-mcp-valid:
+    enabled: true
+    severity: error
+
   # Supply chain protection rules
   hooks-dangerous:
     enabled: true
@@ -49,6 +59,10 @@ rules:
   # SKILL.md must have valid frontmatter with name and description
   agentskill-rename-refs:
     enabled: true
+  # This repository intentionally keeps auxiliary skill files that are not
+  # imported by a SKILL.md entry point.
+  agentskill-unreferenced-files:
+    enabled: false
   content-weak-language:
     enabled: true
   content-cognitive-chunks:
@@ -86,6 +100,15 @@ rules:
   content-placeholder-text:
     enabled: false
     severity: warning
+
+  # These broad quality rules are not part of this repository's current
+  # migration policy; keep the existing strict lint signal focused.
+  content-repeated-directive:
+    enabled: false
+  content-unclosed-fence:
+    enabled: false
+  description-routing:
+    enabled: false
 
   # .coderabbit.yaml must be valid YAML
   coderabbit-yaml-valid:

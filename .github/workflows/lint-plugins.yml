@@ -19,6 +19,6 @@ jobs:
           persist-credentials: false
 
       - name: Run skillsaw
-        uses: stbenjam/skillsaw@f9819d2de4d69100f8544175d4045f34f0282b66 # v0.17.0
+        uses: stbenjam/skillsaw@42a474a97c318249717a2db7bdd97b43606b267d # v0.18.0
         with:
           strict: true
