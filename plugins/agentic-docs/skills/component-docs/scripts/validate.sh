@@ -273,6 +273,75 @@ fi
 
 echo ""
 
+# Check REVIEW.md
+if [ -f "$REPO_PATH/REVIEW.md" ]; then
+    echo "  ✅ REVIEW.md exists"
+    REVIEW_LINES=$(wc -l < "$REPO_PATH/REVIEW.md")
+    if [ "$REVIEW_LINES" -gt 100 ]; then
+        echo "  ⚠️  REVIEW.md is $REVIEW_LINES lines (soft cap: 100)"
+    else
+        echo "     $REVIEW_LINES lines (target: 60-80, cap: 100) ✅"
+    fi
+    # Check for platform citations
+    if grep -qi "dev-guide\|CONVENTIONS\|enhancements" "$REPO_PATH/REVIEW.md"; then
+        echo "  ✅ Platform rule citations found"
+    else
+        echo "  ⚠️  No platform rule citations found"
+    fi
+    # Check skip paths reference real directories
+    while IFS= read -r skip_path; do
+        clean_path=$(echo "$skip_path" | sed 's/[`*]//g' | xargs)
+        if [ -n "$clean_path" ] && [[ "$clean_path" != vendor* ]] && [[ "$clean_path" != go.* ]]; then
+            base_dir=$(echo "$clean_path" | cut -d'/' -f1)
+            if [ -d "$REPO_PATH/$base_dir" ] || [ -f "$REPO_PATH/$base_dir" ]; then
+                if [ "${VERBOSE:-false}" = "true" ]; then
+                    echo "  ✅ Skip path base exists: $base_dir"
+                fi
+            else
+                echo "  ⚠️  Skip path base not found: $base_dir (from $skip_path)"
+            fi
+        fi
+    done < <(grep -oP '`[^`]+\*\*[^`]*`' "$REPO_PATH/REVIEW.md" 2>/dev/null || true)
+    # Check no overlap with CLAUDE.md
+    if [ -f "$REPO_PATH/CLAUDE.md" ]; then
+        overlap=$(comm -12 \
+            <(grep -v '^$\|^#\|^-' "$REPO_PATH/REVIEW.md" 2>/dev/null | sort -u) \
+            <(grep -v '^$\|^#\|^-' "$REPO_PATH/CLAUDE.md" 2>/dev/null | sort -u) \
+            | wc -l)
+        if [ "$overlap" -gt 3 ]; then
+            echo "  ⚠️  REVIEW.md has $overlap lines overlapping with CLAUDE.md"
+        else
+            echo "  ✅ No significant CLAUDE.md overlap"
+        fi
+    fi
+else
+    echo "  ℹ️  REVIEW.md not found (optional — run Phase 9.5 to generate)"
+fi
+
+echo ""
+
+# Check .coderabbit.yaml
+if [ -f "$REPO_PATH/.coderabbit.yaml" ]; then
+    echo "  ✅ .coderabbit.yaml exists"
+    if python3 -c "import yaml; yaml.safe_load(open('$REPO_PATH/.coderabbit.yaml'))" 2>/dev/null; then
+        echo "  ✅ Valid YAML syntax"
+    else
+        echo "  ❌ Invalid YAML syntax"
+    fi
+    if grep -q "REVIEW.md" "$REPO_PATH/.coderabbit.yaml"; then
+        echo "  ✅ filePatterns includes REVIEW.md"
+    else
+        echo "  ⚠️  filePatterns missing REVIEW.md"
+    fi
+    if grep -q "CLAUDE.md" "$REPO_PATH/.coderabbit.yaml" 2>/dev/null; then
+        echo "  ⚠️  filePatterns includes CLAUDE.md (auto-detected, remove)"
+    fi
+else
+    echo "  ℹ️  .coderabbit.yaml not found (optional — run Phase 9.5 to generate)"
+fi
+
+echo ""
+
 # Check for forbidden patterns (generic content duplication)
 echo "Checking for generic duplication..."
 
@@ -313,6 +382,20 @@ if [ -f "$REPO_PATH/AGENTS.md" ]; then
     fi
     echo "  🔗 Internal links:"
     if ! validate_internal_links "$REPO_PATH/AGENTS.md"; then
+        LINK_VALIDATION_FAILED=true
+    fi
+    echo ""
+fi
+
+# Check links in REVIEW.md
+if [ -f "$REPO_PATH/REVIEW.md" ]; then
+    echo "📄 Checking REVIEW.md:"
+    echo "  🔗 External links:"
+    if ! validate_links "$REPO_PATH/REVIEW.md"; then
+        LINK_VALIDATION_FAILED=true
+    fi
+    echo "  🔗 Internal links:"
+    if ! validate_internal_links "$REPO_PATH/REVIEW.md"; then
         LINK_VALIDATION_FAILED=true
     fi
     echo ""
