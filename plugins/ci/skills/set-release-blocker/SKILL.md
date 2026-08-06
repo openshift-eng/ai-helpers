@@ -5,7 +5,15 @@ description: Set the Release Blocker field on a JIRA issue
 
 # Set Release Blocker
 
-Sets the "Release Blocker" custom field on a JIRA issue. Component Readiness regressions are treated as release blockers, so any bug filed for a regression should have this field set to "Approved".
+Sets the "Release Blocker" custom field on a JIRA issue.
+
+**Release-blocker status is conditional on the bug's nature and impact, not automatic for every Component Readiness regression.** As a rule of thumb:
+
+- `product` and `product-infra` bugs whose failures block or materially degrade blocking/informing payload jobs (e.g., a permafail of an entire job lane) → set **Approved**.
+- `test` bugs (flaky tests, test races, invariant-scan interference) and `ci-infra` issues (cloud capacity, registry outages, CI-cluster problems) → do **not** mark as release blockers, even though they surfaced as regressions.
+- A previously-approved blocker whose signature has been quiet for many days (fixed or masked) should be re-evaluated rather than left Approved indefinitely.
+
+When setting or skipping the field on behalf of a triage workflow, state the decision and a one-line justification wherever the action is reported.
 
 See the [release blocker definition](https://github.com/openshift/enhancements/blob/master/dev-guide/release-blocker-definition.md) for details on the criteria and process.
 

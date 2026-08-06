@@ -308,6 +308,8 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 - When creating, do not provide `--triage-id`; when updating, `--triage-id` is required
 - The API will validate that all regression IDs exist and return an error if any are missing
 - When updating a triage, the script automatically fetches existing regressions and merges them with the new ones (safe additive behavior)
+- **Removing regressions from a triage is not supported by this script** (updates are additive-only). To remove — e.g., when regressions were attributed to the wrong bug and must be re-pointed — GET the triage from `https://sippy-auth.dptools.openshift.org/api/component_readiness/triages/<id>` and PUT back a payload rebuilt from the **writable fields only** (`id`, `url`, `type`, `description`, `regressions` as `[{"id": <int>}, ...]`, plus `resolved`/`resolution_reason` if present) with the `regressions` array reduced to the desired members — do not echo back server-managed fields from the GET response. Add the regressions to their correct triage *before* removing them from the wrong one, so nothing is untracked in between.
+- **Extend, don't duplicate**: when a triage record already exists for the target JIRA, update it with `--triage-id` instead of creating a second triage that points at the same bug.
 - The API automatically looks up and links the JIRA bug if the URL matches an imported bug
 
 ## See Also
