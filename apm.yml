@@ -1,0 +1,14 @@
+name: ai-helpers
+version: 1.0.0
+description: OpenShift AI Helpers — Claude Code plugins deployed as agent-skills for Codex and other agents
+author: openshift-eng
+targets:
+  - agent-skills
+dependencies:
+  apm:
+    - openshift-eng/ai-helpers/plugins/ci
+    - openshift-eng/ai-helpers/plugins/hello-world
+    - openshift-eng/ai-helpers/plugins/jira
+  mcp: []
+includes: auto
+scripts: {}
