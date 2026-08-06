@@ -233,28 +233,38 @@ judges:
           return (False, "No triage-verdict.json found")
       data = json.loads(list(verdicts.values())[0])
       sig_re = ann.get("primary_signature_regex", ".")
-      primary = None
+      accepted = [a.lower() for a in ann.get("accepted_owning_components", [])]
+      exp_type = ann.get("expected_triage_type")
+      exp_class = ann.get("expected_primary_classification")
+
+      def problems_for(b):
+          out = []
+          owner = (b.get("owning_component") or "").lower()
+          if accepted and not any(a in owner for a in accepted):
+              out.append(f"owner '{owner}' matches none of {accepted}")
+          if exp_type and b.get("triage_type") != exp_type:
+              out.append(f"triage_type={b.get('triage_type')}, expected {exp_type}")
+          if exp_class and b.get("classification") != exp_class:
+              out.append(f"classification={b.get('classification')}, expected {exp_class}")
+          return out
+
+      # Bucket order is not part of the output contract, so every bucket whose
+      # signature/root_cause matches the case's primary signature is a
+      # candidate: the case passes if ANY candidate meets all expectations.
+      candidates = []
       for b in data.get("buckets", []):
           hay = (b.get("signature", "") + " " + b.get("root_cause", ""))
           if re.search(sig_re, hay, re.IGNORECASE):
-              primary = b
-              break
-      if primary is None:
+              candidates.append(b)
+      if not candidates:
           return (False, f"No bucket matches primary signature /{sig_re}/")
-      problems = []
-      accepted = [a.lower() for a in ann.get("accepted_owning_components", [])]
-      owner = (primary.get("owning_component") or "").lower()
-      if accepted and not any(a in owner for a in accepted):
-          problems.append(f"owner '{owner}' matches none of {accepted}")
-      exp_type = ann.get("expected_triage_type")
-      if exp_type and primary.get("triage_type") != exp_type:
-          problems.append(f"triage_type={primary.get('triage_type')}, expected {exp_type}")
-      exp_class = ann.get("expected_primary_classification")
-      if exp_class and primary.get("classification") != exp_class:
-          problems.append(f"classification={primary.get('classification')}, expected {exp_class}")
-      if problems:
-          return (False, "; ".join(problems))
-      return (True, f"primary bucket ok (owner={owner or 'n/a'})")
+      scored = [(problems_for(b), b) for b in candidates]
+      for probs, b in scored:
+          if not probs:
+              owner = (b.get("owning_component") or "").lower()
+              return (True, f"primary bucket ok (owner={owner or 'n/a'})")
+      best_probs, _ = min(scored, key=lambda p: len(p[0]))
+      return (False, f"{len(candidates)} candidate bucket(s), best mismatch: " + "; ".join(best_probs))
 
   - name: expected_jira_found
     description: Verify an existing bug the skill must discover is referenced
@@ -292,15 +302,30 @@ judges:
       banned = ann.get("banned_fix_patterns", [])
       if not banned:
           return (True, "No banned fix patterns for this case")
-      neg = re.compile(r"\b(not|never|avoid|do not|don't|instead of|rather than|should be corrected|refut)\b", re.IGNORECASE)
+      # A banned pattern counts as PROPOSED unless it is clearly disclaimed:
+      #  - a negation immediately BEFORE it ("do NOT switch failurePolicy to Ignore"), or
+      #  - a corrective phrase immediately AFTER it ("...fail-open framing should be corrected").
+      # Generic negation elsewhere must not exempt it: "set failurePolicy: Ignore
+      # so it does not block patches" is still a proposal.
+      neg_before = re.compile(
+          r"(never|avoid|instead of|rather than|as opposed to|not\b|n't\b|"
+          r"reject(?:s|ed|ing)?|refut(?:e|es|ed|ing)|discourag\w*)[^.;]{0,60}$",
+          re.IGNORECASE,
+      )
+      corrective_after = re.compile(
+          r"^[^.;]{0,80}?(should be corrected|is (?:the )?wrong|is incorrect|was refuted|"
+          r"must be rejected|is not the fix|framing)",
+          re.IGNORECASE,
+      )
       for b in data.get("buckets", []):
           fix = b.get("suggested_fix") or ""
-          for sentence in re.split(r"(?<=[.;])\s+", fix):
-              if neg.search(sentence):
-                  continue  # negated/refuting mention, not a proposal
-              for pat in banned:
-                  if re.search(pat, sentence, re.IGNORECASE):
-                      return (False, f"Banned fix proposed: /{pat}/ in '{sentence[:120]}'")
+          for pat in banned:
+              for m in re.finditer(pat, fix, re.IGNORECASE):
+                  before = fix[max(0, m.start() - 60):m.start()]
+                  after = fix[m.end():m.end() + 100]
+                  if neg_before.search(before) or corrective_after.search(after):
+                      continue  # disclaimed mention, not a proposal
+                  return (False, f"Banned fix proposed: /{pat}/ in '{fix[max(0, m.start() - 60):m.end() + 60]}'")
       return (True, "No banned fixes proposed")
 
   - name: mechanism_accuracy
