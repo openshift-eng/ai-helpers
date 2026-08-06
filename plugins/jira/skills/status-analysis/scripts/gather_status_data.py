@@ -129,12 +129,13 @@ except ImportError:
 # Jira rate limiting (conservative for Red Hat Jira)
 JIRA_REQUEST_DELAY_SECONDS = 0.3  # 300ms between requests (increased from 200ms)
 JIRA_MAX_CONCURRENT_REQUESTS = 2  # Max 2 parallel requests (reduced from 3)
-JIRA_BATCH_SIZE = 40  # Max tickets per JQL query
+JIRA_BATCH_SIZE = 40  # Max tickets per JQL query (for key in (...) with full fields)
+JIRA_BFS_BATCH_SIZE = 200  # Max keys per parent in (...) query (lightweight, key+parent only)
 JIRA_CHANGELOG_DELAY_SECONDS = 0.5  # Extra delay for changelog API (more rate-limited)
 
 # GitHub rate limiting
 GITHUB_MAX_CONCURRENT_REQUESTS = 5  # Reduced from 10
-GITHUB_GRAPHQL_BATCH_SIZE = 30  # Reduced from 50 to avoid timeouts
+GITHUB_GRAPHQL_BATCH_SIZE = 10  # Small batches to avoid GitHub 502 errors
 GITHUB_RETRY_ATTEMPTS = 3  # Number of retries for transient errors
 GITHUB_RETRY_DELAY_SECONDS = 5  # Delay between retries
 
@@ -173,6 +174,7 @@ class GatherConfig:
     status_summary_field: str = "customfield_10814"
     assignees: List[str] = field(default_factory=list)
     excluded_assignees: List[str] = field(default_factory=list)
+    updated_since_only: bool = False
 
 
 @dataclass
@@ -353,7 +355,7 @@ class JiraClient:
                 "fields": [f.strip() for f in fields.split(",")],
             }
             if expand:
-                body["expand"] = [e.strip() for e in expand.split(",")]
+                body["expand"] = expand
             if next_page_token:
                 body["nextPageToken"] = next_page_token
 
@@ -528,15 +530,24 @@ class GitHubClient:
         # Escape backslashes first, then quotes
         return s.replace("\\", "\\\\").replace('"', '\\"')
 
-    def _build_pr_query(self, pr_refs: List[PRRef]) -> str:
-        """Build a GraphQL query to fetch multiple PRs."""
+    def _build_pr_query(self, pr_refs: List[PRRef], lightweight: bool = False) -> str:
+        """Build a GraphQL query to fetch multiple PRs.
+
+        Args:
+            pr_refs: List of PR references to fetch.
+            lightweight: If True, only fetch url/state/mergedAt for filtering.
+        """
         query_parts = []
         for i, ref in enumerate(pr_refs):
             owner = self._escape_graphql_string(ref.owner)
             repo = self._escape_graphql_string(ref.repo)
-            query_parts.append(f"""
-                pr{i}: repository(owner: "{owner}", name: "{repo}") {{
-                    pullRequest(number: {ref.number}) {{
+            if lightweight:
+                fields = """
+                        url
+                        state
+                        mergedAt"""
+            else:
+                fields = """
                         number
                         title
                         state
@@ -549,45 +560,48 @@ class GitHubClient:
                         deletions
                         changedFiles
                         reviewDecision
-                        reviews(last: 30) {{
-                            nodes {{
-                                author {{ login ... on User {{ name }} }}
+                        reviews(last: 30) {
+                            nodes {
+                                author { login ... on User { name } }
                                 state
                                 body
                                 submittedAt
-                            }}
-                        }}
-                        reviewThreads(last: 50) {{
-                            nodes {{
+                            }
+                        }
+                        reviewThreads(last: 50) {
+                            nodes {
                                 isResolved
-                                comments(first: 5) {{
-                                    nodes {{
-                                        author {{ login ... on User {{ name }} }}
+                                comments(first: 5) {
+                                    nodes {
+                                        author { login ... on User { name } }
                                         body
                                         createdAt
                                         path
                                         line
-                                    }}
-                                }}
-                            }}
-                        }}
-                        commits(last: 30) {{
-                            nodes {{
-                                commit {{
+                                    }
+                                }
+                            }
+                        }
+                        commits(last: 30) {
+                            nodes {
+                                commit {
                                     oid
                                     messageHeadline
                                     committedDate
-                                    author {{ email name }}
-                                }}
-                            }}
-                        }}
-                        files(first: 50) {{
-                            nodes {{
+                                    author { email name }
+                                }
+                            }
+                        }
+                        files(first: 50) {
+                            nodes {
                                 path
                                 additions
                                 deletions
-                            }}
-                        }}
+                            }
+                        }"""
+            query_parts.append(f"""
+                pr{i}: repository(owner: "{owner}", name: "{repo}") {{
+                    pullRequest(number: {ref.number}) {{{fields}
                     }}
                 }}
             """)
@@ -715,6 +729,65 @@ class GitHubClient:
         logger.info(f"Fetched {len(results)} PRs total")
         return results
 
+    async def get_prs_two_pass(
+        self, session: aiohttp.ClientSession, pr_refs: List[PRRef],
+        merged_since: str,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Two-pass PR fetch: lightweight filter then heavy fetch for merged PRs only.
+
+        Args:
+            session: aiohttp session.
+            pr_refs: All PR references to check.
+            merged_since: ISO date string — only PRs merged on or after this date are fetched in full.
+        """
+        if not pr_refs:
+            return {}
+
+        # Pass 1: lightweight query — just url, state, mergedAt
+        logger.info(f"Pass 1: lightweight filter for {len(pr_refs)} PRs")
+        merged_refs: List[PRRef] = []
+        total_batches = (len(pr_refs) + GITHUB_GRAPHQL_BATCH_SIZE - 1) // GITHUB_GRAPHQL_BATCH_SIZE
+
+        for batch_start in range(0, len(pr_refs), GITHUB_GRAPHQL_BATCH_SIZE):
+            batch = pr_refs[batch_start : batch_start + GITHUB_GRAPHQL_BATCH_SIZE]
+            batch_num = batch_start // GITHUB_GRAPHQL_BATCH_SIZE + 1
+            query = self._build_pr_query(batch, lightweight=True)
+
+            data = None
+            async with self.semaphore:
+                try:
+                    async with session.post(
+                        self.GRAPHQL_URL,
+                        headers=self._get_headers(),
+                        json={"query": query},
+                        timeout=aiohttp.ClientTimeout(total=30),
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                        else:
+                            logger.warning(f"  Lightweight batch {batch_num}/{total_batches}: HTTP {resp.status}")
+                except Exception as e:
+                    logger.warning(f"  Lightweight batch {batch_num}/{total_batches}: {e}")
+
+            if not data or "data" not in data:
+                continue
+
+            for i, ref in enumerate(batch):
+                pr_data = (data["data"].get(f"pr{i}") or {}).get("pullRequest")
+                if pr_data and pr_data.get("state") == "MERGED":
+                    merged_at = pr_data.get("mergedAt", "")
+                    if merged_at and merged_at >= merged_since:
+                        merged_refs.append(ref)
+
+        logger.info(f"  {len(merged_refs)} PRs merged since {merged_since} (out of {len(pr_refs)} total)")
+
+        if not merged_refs:
+            return {}
+
+        # Pass 2: full detail fetch for merged PRs only
+        logger.info(f"Pass 2: full fetch for {len(merged_refs)} merged PRs")
+        return await self.get_prs_batch(session, merged_refs)
+
 
 # =============================================================================
 # Data Gatherer
@@ -738,6 +811,9 @@ class StatusDataGatherer:
             "status != Closed",
             'status != "Release Pending"',
         ]
+
+        if self.config.updated_since_only:
+            parts.append(f'updated >= "{self.config.date_range.start.isoformat()}"')
 
         if self.config.component:
             parts.append(f'component = "{self.config.component}"')
@@ -940,6 +1016,7 @@ class StatusDataGatherer:
         root_issues = await self.jira.search_issues(
             jql=jql,
             fields=f"{self.jira.ISSUE_FIELDS},{self.config.status_summary_field}",
+            expand="changelog",
             max_results=100,
         )
         logger.info(f"  Found {len(root_issues)} root issues")
@@ -950,32 +1027,78 @@ class StatusDataGatherer:
             logger.warning("No root issues found. Check JQL query and permissions.")
             return self._build_manifest([], {}, {}, {}, start_time)
 
-        # Step 2: Get descendants for all root issues (iterative BFS to handle multi-level hierarchy)
-        logger.info("Step 2/8: Fetching descendants")
-        all_descendant_keys: Dict[str, List[str]] = {}
-
+        # Extract changelogs from the search response (expand=changelog)
+        inline_changelogs: Dict[str, List[Dict[str, Any]]] = {}
         for issue in root_issues:
-            issue_key = issue["key"]
-            logger.debug(f"  Fetching descendants of {issue_key}")
-            descendant_keys: List[str] = []
-            queue = deque([issue_key])
-            visited = {issue_key}
-            while queue:
-                current_key = queue.popleft()
-                child_jql = f"parent = {current_key}"
+            histories = issue.get("changelog", {}).get("histories", [])
+            inline_changelogs[issue["key"]] = histories
+
+        # Optional pre-filter: keep only root issues whose Status Summary
+        # field was changed in the date range.
+        if self.config.updated_since_only:
+            logger.info("Pre-filter: checking Status Summary changes in changelogs")
+            active_keys: Set[str] = set()
+            for key, entries in inline_changelogs.items():
+                for entry in entries:
+                    created = entry.get("created", "")
+                    entry_date = None
+                    if created:
+                        try:
+                            entry_date = datetime.fromisoformat(created.replace("Z", "+00:00")).date()
+                        except (ValueError, TypeError):
+                            pass
+                    if entry_date and self.config.date_range.contains(entry_date):
+                        for item in entry.get("items", []):
+                            if item.get("fieldId") == self.config.status_summary_field:
+                                active_keys.add(key)
+                                break
+                    if key in active_keys:
+                        break
+            before = len(root_issues)
+            root_issues = [i for i in root_issues if i["key"] in active_keys]
+            inline_changelogs = {k: v for k, v in inline_changelogs.items() if k in active_keys}
+            logger.info(f"  Pre-filter: {before} -> {len(root_issues)} root issues (Status Summary changed in range)")
+            if not root_issues:
+                logger.warning("No root issues had Status Summary changes in the date range.")
+                return self._build_manifest([], {}, {}, {}, start_time)
+
+        # Step 2: Get descendants for all root issues (level-by-level BFS)
+        logger.info("Step 2/8: Fetching descendants")
+        all_descendant_keys: Dict[str, List[str]] = {issue["key"]: [] for issue in root_issues}
+
+        # Map every key to its root ancestor so we can assign children back
+        key_to_root: Dict[str, str] = {issue["key"]: issue["key"] for issue in root_issues}
+        visited: Set[str] = set(key_to_root.keys())
+        current_level_keys = list(visited)
+        depth = 0
+
+        while current_level_keys:
+            depth += 1
+            next_level_keys: List[str] = []
+            # Batch "parent in (...)" queries to stay within JQL length limits
+            for i in range(0, len(current_level_keys), JIRA_BFS_BATCH_SIZE):
+                batch = current_level_keys[i : i + JIRA_BFS_BATCH_SIZE]
+                parent_jql = f"parent in ({','.join(batch)})"
                 children = await self.jira.search_issues(
-                    jql=child_jql,
-                    fields="key",
+                    jql=parent_jql,
+                    fields="key,parent",
                     max_results=1000,
                 )
                 for child in children:
                     child_key = child["key"]
                     if child_key not in visited:
                         visited.add(child_key)
-                        descendant_keys.append(child_key)
-                        queue.append(child_key)
-            all_descendant_keys[issue_key] = descendant_keys
-            logger.debug(f"    {issue_key} has {len(descendant_keys)} descendants")
+                        next_level_keys.append(child_key)
+                        # Determine root: parent's root is our root
+                        parent_key = child.get("fields", {}).get("parent", {}).get("key", "")
+                        root = key_to_root.get(parent_key, parent_key)
+                        key_to_root[child_key] = root
+                        all_descendant_keys[root].append(child_key)
+            logger.info(f"  Depth {depth}: found {len(next_level_keys)} children in {(len(current_level_keys) + JIRA_BFS_BATCH_SIZE - 1) // JIRA_BFS_BATCH_SIZE} API call(s)")
+            current_level_keys = next_level_keys
+
+        for issue_key, descs in all_descendant_keys.items():
+            logger.debug(f"    {issue_key} has {len(descs)} descendants")
 
         total_descendants = sum(len(v) for v in all_descendant_keys.values())
         logger.info(f"  Found {total_descendants} total descendants across {len(root_issues)} root issues")
@@ -993,10 +1116,11 @@ class StatusDataGatherer:
             fields=self.jira.ISSUE_FIELDS,
         )
 
-        # Step 4: Fetch changelogs for root Jira issues
-        logger.info("Step 4/8: Fetching changelogs for root Jira issues")
+        # Step 4: Reuse changelogs from Step 1 (fetched via expand=changelog)
+        logger.info("Step 4/8: Using changelogs from root issue search")
         root_keys = [issue["key"] for issue in root_issues]
-        changelogs = await self.jira.fetch_changelogs_batch(root_keys)
+        changelogs = {k: v for k, v in inline_changelogs.items() if k in set(root_keys)}
+        logger.info(f"  Changelogs available for {len(changelogs)} issues")
 
         # Step 5: Fetch remote links for root Jira issues (PRs roll up to parent)
         logger.info("Step 5/8: Fetching remote links for root Jira issues")
@@ -1089,7 +1213,13 @@ class StatusDataGatherer:
         # Step 7: Fetch PR data from GitHub
         logger.info("Step 7/8: Fetching PR data from GitHub")
         if session and pr_refs_map:
-            pr_data_map = await self.github.get_prs_batch(session, list(pr_refs_map.values()))
+            if self.config.updated_since_only:
+                pr_data_map = await self.github.get_prs_two_pass(
+                    session, list(pr_refs_map.values()),
+                    merged_since=self.config.date_range.start.isoformat(),
+                )
+            else:
+                pr_data_map = await self.github.get_prs_batch(session, list(pr_refs_map.values()))
         else:
             pr_data_map = {}
             if not session:
@@ -1371,6 +1501,8 @@ Environment Variables:
     parser.add_argument("--status-field", default="customfield_10814", help="Status Summary field ID")
     parser.add_argument("--assignee", action="append", dest="assignees", help="Filter by assignee")
     parser.add_argument("--exclude-assignee", action="append", dest="excluded_assignees", help="Exclude assignee")
+    parser.add_argument("--updated-since-only", action="store_true",
+                        help="Pre-filter: add updated>= to JQL and skip root issues whose Status Summary field did not change in the date range")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output (INFO level)")
     parser.add_argument("--debug", action="store_true", help="Enable debug output (DEBUG level)")
 
@@ -1412,6 +1544,7 @@ Environment Variables:
         status_summary_field=args.status_field,
         assignees=args.assignees or [],
         excluded_assignees=args.excluded_assignees or [],
+        updated_since_only=args.updated_since_only,
     )
 
     # Always print header to stderr (regardless of log level)
