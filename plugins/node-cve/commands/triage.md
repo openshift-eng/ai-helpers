@@ -1,6 +1,6 @@
 ---
 description: Triage all open CVEs for OpenShift Node team components with reachability analysis
-argument-hint: "[--component <name>] [--version latest|<ver>|all] [--notify-jira] [--notify-slack] [--days N]"
+argument-hint: "[--component <name>] [--notify-jira] [--notify-slack] [--days N]"
 ---
 
 ## Name
@@ -8,7 +8,7 @@ node-cve:triage
 
 ## Synopsis
 ```text
-/node-cve:triage [--component "Node / CRI-O"] [--version latest|<ver>|all] [--notify-jira] [--notify-slack] [--days 7]
+/node-cve:triage [--component "Node / CRI-O"] [--notify-jira] [--notify-slack] [--days 7]
 ```
 
 ## Description
@@ -30,15 +30,11 @@ Designed for both interactive use and headless execution via `claude --print`.
 
 1. **Parse Arguments**
    - `--component <name>`: Filter to a single specific OCPBUGS component (e.g., "Node / CRI-O"). Optional. **If omitted, the command includes ALL Node team components — and only Node team components. It never queries or posts to components outside the Node team.** See the [node-team shared components reference](../../node-team/skills/node/references/shared/components.md) for the canonical list.
-   - `--version <value>`: Control which OCP versions are triaged. Default: `latest`. Accepted values:
-     - `latest` (default): auto-detect the highest OCP version from the query results and triage only trackers for that version. Older versions are owned by the sustaining team and should not receive Node team triage comments.
-     - A specific version (e.g., `5.0`, `4.19`): triage only trackers matching that exact OCP version.
-     - `all`: triage trackers for all OCP versions (legacy behavior, use with caution — see rationale below).
    - `--notify-jira`: Post analysis results as comments on Jira tracker issues. Default: off.
    - `--notify-slack`: Send summary to Slack. Requires either `$SLACK_API_TOKEN` + `$SLACK_CHANNEL` (enables threading) or `$SLACK_WEBHOOK` (simpler, no threading). Default: off.
    - `--days N`: Only include CVEs created or updated in the last N days. Default: all open.
 
-   **Why `--version latest` is the default:** Each CVE typically has tracker issues across many OCP versions (e.g., 4.12.z through 5.0). The OCP sustaining team owns triage and remediation for all versions except the latest in-development release. Posting Node-team reachability analysis to older-version trackers creates noise for the sustaining team and duplicates their work. By defaulting to `latest`, the command triages only the version the Node team is actively responsible for.
+   **Version scope:** The command always triages only the latest OCP version, auto-detected from the query results as the highest numeric `major.minor` version. Each CVE typically has tracker issues across many OCP versions (e.g., 4.12.z through 5.0). The OCP sustaining team owns triage and remediation for all versions except the latest in-development release. Posting Node-team reachability analysis to older-version trackers creates noise for the sustaining team and duplicates their work.
 
 2. **Validate Tools**
 
@@ -58,8 +54,8 @@ Designed for both interactive use and headless execution via `claude --print`.
 ### Phase 1: Query Open CVEs
 
 - **Skill**: [query-open-cves](../skills/query-open-cves/SKILL.md)
-- **Input**: Optional `--component` filter, `--version` filter (default: `latest`), optional `--days` filter
-- **Output**: Deduplicated, version-filtered list of CVEs with metadata
+- **Input**: Optional `--component` filter, optional `--days` filter
+- **Output**: Deduplicated, version-filtered list of CVEs with metadata (latest OCP version only)
 
 **CRITICAL SAFEGUARD:** The `component in (...)` filter below is mandatory and must never be omitted, regardless of whether `--component` was passed. This is the first of two layers of defense against cross-team contamination — the second is the posting-time re-validation in [report-findings](../skills/report-findings/SKILL.md) Phase 3, Step 2. Both layers exist because a prior incident (2026-07-15) showed that CVE analysis can otherwise be posted to 200+ trackers belonging to other OpenShift teams.
 
@@ -83,12 +79,9 @@ Designed for both interactive use and headless execution via `claude --print`.
    - Assignee (from the highest version tracker)
    - Status
 
-4. **Filter by OCP version** (see [query-open-cves](../skills/query-open-cves/SKILL.md) Step 5 for full logic):
-   - If `--version latest` (or omitted): auto-detect the highest OCP version across all tracker summaries, then keep only tracker issues matching that version. CVEs that have no tracker for the latest version are excluded entirely.
-   - If `--version <specific>`: keep only tracker issues matching the specified version.
-   - If `--version all`: skip filtering (keep all versions).
+4. **Filter to latest OCP version** (see [query-open-cves](../skills/query-open-cves/SKILL.md) Step 5 for full logic): auto-detect the highest OCP version across all tracker summaries, then keep only tracker issues matching that version. CVEs that have no tracker for the latest version are excluded entirely — they are the sustaining team's responsibility.
 
-   Print the version scope: "Version filter: <version> (auto-detected)" or "Version filter: <version> (user-specified)" or "Version filter: all (all versions included)".
+   Print the version scope: "Version filter: <version> (auto-detected). Older versions are triaged by the sustaining team."
 
 5. Print intermediate summary: "Found N unique CVEs across M tracker issues (version: <version>)."
 
@@ -140,7 +133,7 @@ Print which CVEs are skipped or partially cached: "CVE-XXXX-XXXXX: reusing prior
 
 #### Step 1: Determine affected repos, branches, and clone
 
-Analysis targets only the release branches for OCP versions that survived the Phase 1 version filter. When `--version latest` is in effect (the default), this means a single release branch per repo per CVE. The `main` branch may have newer dependencies or Go versions that mask vulnerabilities present in shipped releases. Analysis targets downstream forks only. If the downstream fork or branch does not exist, classify as Uncertain with note "downstream fork/branch not found" and skip analysis.
+Analysis targets only the release branch for the latest OCP version (as detected in Phase 1), meaning a single release branch per repo per CVE. The `main` branch may have newer dependencies or Go versions that mask vulnerabilities present in shipped releases. Analysis targets downstream forks only. If the downstream fork or branch does not exist, classify as Uncertain with note "downstream fork/branch not found" and skip analysis.
 
 **Component to repository mapping:** Read from the [node-team shared components reference](../../node-team/skills/node/references/shared/components.md). Use the "Component to Repository Mapping" table for downstream forks and branch patterns, and the "pscomponent Label Mapping" table for label-based repo resolution.
 
@@ -148,7 +141,7 @@ Analysis targets only the release branches for OCP versions that survived the Ph
 
 **Clone strategy:**
 
-For each CVE, use the OCP versions that survived the Phase 1 version filter. When `--version latest` is in effect, each CVE has a single version (the auto-detected latest); when `--version all` is used, all affected versions from the tracker summaries are included. Clone the repo at each corresponding release branch. Features can be added, removed, or refactored across releases, so a CVE may be reachable on one version but not affected on another.
+Each CVE has a single version after Phase 1 filtering (the auto-detected latest). Clone the repo at the corresponding release branch.
 
 For each affected version's release branch, clone the downstream fork:
 
@@ -162,7 +155,7 @@ Use `--depth 1` for speed. Multiple CVEs sharing the same repo and branch reuse 
 
 #### Step 2: Analyze CVEs across all affected branches in parallel
 
-Spawn a concurrent analysis agent for each unique CVE and release branch combination. With `--version latest` (default), each CVE typically has one branch to analyze (e.g., CVE-2026-32281 at release-1.36 for OCP 5.0). With `--version all`, a CVE spanning OCP 4.15 through 5.0 would spawn separate agents for each release branch. Each agent runs the [analyze-cve-repos](../skills/analyze-cve-repos/SKILL.md) skill independently:
+Spawn a concurrent analysis agent for each unique CVE. Each CVE has one branch to analyze (e.g., CVE-2026-32281 at release-1.36 for OCP 5.0). Each agent runs the [analyze-cve-repos](../skills/analyze-cve-repos/SKILL.md) skill independently:
 
 1. **Gather CVE intelligence**: fetch vulnerability details from public sources (NVD, advisories, Jira issue description/comments) to identify the affected package, vulnerable functions, and attack vector. This step is shared across branches for the same CVE (gather once, reuse).
 
@@ -180,9 +173,7 @@ Spawn a concurrent analysis agent for each unique CVE and release branch combina
 
 5. **Save analysis** to `.work/node-cve/triage-$(date +%Y-%m-%d)/<CVE-ID>-<branch>-analysis.md` with file paths, call sites, and evidence.
 
-Wait for all agents to complete, then collect results. A CVE's overall classification is the most severe across all analyzed branches (e.g., if Reachable on release-1.28 but Unaffected on release-1.32, the overall result is Reachable). Print progress for each: "Analyzed CVE-XXXX-XXXXX against <repo> (<branch>): <result>"
-
-The per-branch results are preserved in the report so reviewers can see which versions are affected. Post the version-specific result to each version's Jira tracker (e.g., the 4.18 tracker gets the release-1.31 analysis result).
+Wait for all agents to complete, then collect results. Print progress for each: "Analyzed CVE-XXXX-XXXXX against <repo> (<branch>): <result>"
 
 ---
 
@@ -233,9 +224,9 @@ The per-branch results are preserved in the report so reviewers can see which ve
    **Recommended action:** <update dependency / apply patch / monitor / investigate>
    ```
 
-2. **If `--notify-jira`**: For each CVE, post a comment on its **version-filtered, Node-team-validated** tracker issues. Each tracker receives the analysis result specific to its OCP version/branch.
+2. **If `--notify-jira`**: For each CVE, post a comment on its **version-filtered, Node-team-validated** tracker issues.
 
-   **Before posting anything, re-validate every tracker against both the version filter and the Node team component list — do not rely solely on Phase 1's filtering.** See [report-findings](../skills/report-findings/SKILL.md) "Node Team Component Safeguard", "OCP Version Safeguard", and Step 2 for the mandatory validation logic and audit logging. Skip (never post to) any tracker whose component is not a Node team component or whose OCP version does not match the active version filter, and record it in the posting audit log.
+   **Before posting anything, re-validate every tracker against both the auto-detected version and the Node team component list — do not rely solely on Phase 1's filtering.** See [report-findings](../skills/report-findings/SKILL.md) "Node Team Component Safeguard", "OCP Version Safeguard", and Step 2 for the mandatory validation logic and audit logging. Skip (never post to) any tracker whose component is not a Node team component or whose OCP version does not match the auto-detected latest version, and record it in the posting audit log.
 
    Use Atlassian wiki markup (not Markdown), matching the format in [report-findings](../skills/report-findings/SKILL.md) Step 2. The comment includes per-branch results across all analyzed versions so reviewers can see the full picture.
 
@@ -282,19 +273,15 @@ See report-findings skill.)
 Report: .work/node-cve/triage-YYYY-MM-DD/report.md
 ```
 
-If any trackers were skipped during posting because their component was not a Node team component or their OCP version did not match the active version filter (see [report-findings](../skills/report-findings/SKILL.md) Step 2), print a warning line before the report path, e.g. "⚠️ Skipped N trackers during posting (K non-Node-component, J wrong version) — see posting-audit.log". Omit this line entirely when the skip count is 0.
+If any trackers were skipped during posting because their component was not a Node team component or their OCP version did not match the auto-detected latest version (see [report-findings](../skills/report-findings/SKILL.md) Step 2), print a warning line before the report path, e.g. "⚠️ Skipped N trackers during posting (K non-Node-component, J wrong version) — see posting-audit.log". Omit this line entirely when the skip count is 0.
 
 Omit empty sections (e.g., if there are no Uncertain CVEs, skip that heading). Each section heading must be bold or visually distinct from the CVE entries beneath it. The "Present" section groups both "Present but not exploitable" and "Present but not reachable" analysis results together, since both mean no urgent action is needed. The detailed classification is preserved in the per-CVE report and Jira comments. Only show the "(M unassigned)" count when M > 0.
 
-The headline format depends on the version scope and whether cached results were used. On first run (all CVEs are new): "Node CVE Triage (N CVEs analyzed, OCP 5.0)". On subsequent runs with cached results: "Node CVE Triage (N CVEs, M new, OCP 5.0)". If classifications changed since the last run, also show "K updated". If `--version all` was used, replace the version with "all versions".
+The headline format depends on whether cached results were used. On first run (all CVEs are new): "Node CVE Triage (N CVEs analyzed, OCP 5.0)". On subsequent runs with cached results: "Node CVE Triage (N CVEs, M new, OCP 5.0)". If classifications changed since the last run, also show "K updated".
 
 ## Arguments
 
 - `--component <name>`: Filter to a single specific OCPBUGS component. Must match a Node team component name exactly (e.g., "Node / CRI-O"). Optional. **If omitted, ALL Node team components are included, and only Node team components — never all OCPBUGS components.**
-- `--version <value>`: Control which OCP versions are triaged. Default: `latest`. Accepted values:
-  - `latest` (default): auto-detect the highest OCP version from the query results and triage only that version. The sustaining team handles older versions.
-  - A specific version (e.g., `5.0`, `4.19`): triage only trackers matching that exact OCP version.
-  - `all`: triage trackers for all OCP versions. Use when you need a full cross-version analysis (e.g., for a critical CVE where you want to see which older branches are also affected).
 - `--notify-jira`: Post analysis as a comment on each Jira tracker issue. Requires `JIRA_API_TOKEN`. Also enables cross-run caching via Jira comments.
 - `--notify-slack`: Send a summary to Slack. Requires either `$SLACK_API_TOKEN` + `$SLACK_CHANNEL` (enables threading) or `$SLACK_WEBHOOK` (no threading).
 - `--days N`: Only include CVEs created or updated in the last N days. Default: all open CVEs.
@@ -316,17 +303,7 @@ The headline format depends on the version scope and whether cached results were
    claude --print "/node-cve:triage --notify-jira --notify-slack"
    ```
 
-4. **Triage a specific OCP version**:
-   ```text
-   /node-cve:triage --version 5.0 --notify-jira
-   ```
-
-5. **Full cross-version analysis (all OCP versions)**:
-   ```text
-   /node-cve:triage --version all
-   ```
-
-6. **Recent CVEs only (last 7 days)**:
+4. **Recent CVEs only (last 7 days)**:
    ```text
    /node-cve:triage --days 7 --notify-slack
    ```
@@ -334,11 +311,10 @@ The headline format depends on the version scope and whether cached results were
 ## Notes
 
 - The Jira query uses OCPBUGS component names from the [node-team shared components reference](../../node-team/skills/node/references/shared/components.md).
-- **Version scope:** By default (`--version latest`), the command only triages CVE trackers for the latest OCP version (auto-detected from query results as the highest numeric `major.minor` version). The sustaining team owns triage for all earlier versions. Use `--version all` only when you need a full cross-version analysis. The latest version is determined at runtime, so the default stays correct as new OCP releases ship without requiring changes to this plugin.
+- **Version scope:** The command always triages only the latest OCP version, auto-detected from query results as the highest numeric `major.minor` version. The sustaining team owns triage for all earlier versions. The latest version is determined at runtime, so it stays correct as new OCP releases ship without requiring changes to this plugin.
 - **Cross-team safeguard:** The command filters to Node team components at query time (Phase 1) AND re-validates each tracker's component immediately before posting any Jira comment (Phase 3). Never write or run an ad-hoc Jira search scoped only by CVE ID to find trackers to comment on — a CVE can span 200+ trackers across dozens of unrelated OpenShift teams, and a CVE-ID-only search will return all of them. Always reuse the already-filtered `tracker_keys` from Phase 1. Any tracker that fails the component or version re-validation is skipped and logged in `posting-audit.log`, never posted to.
-- Each CVE typically has multiple tracker issues (one per OCP version). The command deduplicates by CVE ID and, unless `--version all` is used, filters to the target version's trackers before analysis.
+- Each CVE typically has multiple tracker issues (one per OCP version). The command deduplicates by CVE ID and filters to the latest version's trackers before analysis.
 - Analysis targets downstream forks only (e.g., openshift/cri-o). If the downstream fork or branch does not exist, the CVE is classified as Uncertain. Dependency versions and Go toolchain versions differ across releases, so version-specific branches are used.
-- Each version tracker receives the analysis result specific to its release branch. When multiple branches are analyzed (`--version all`), the overall classification for a CVE is the most severe result across all analyzed branches.
 - Large repos like openshift/kubernetes may take longer to analyze. The command uses `--depth 1` clones for speed.
 - Reachability analysis is performed by Claude reading the source code directly, not by external tools. This works across Go, Rust, and C codebases.
 - Jira comments use Atlassian wiki markup (not Markdown).

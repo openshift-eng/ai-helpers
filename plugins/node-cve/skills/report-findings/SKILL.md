@@ -32,11 +32,11 @@ The canonical Node team component list lives in the [node-team shared components
 
 ## OCP Version Safeguard
 
-**This skill may ONLY post comments to trackers whose OCP version matches the active version filter.** The OCP sustaining team owns triage and remediation for all versions except the latest in-development release. Posting Node-team reachability analysis to older-version trackers creates noise for the sustaining team and duplicates their work.
+**This skill may ONLY post comments to trackers whose OCP version matches the auto-detected latest version.** The OCP sustaining team owns triage and remediation for all versions except the latest in-development release. Posting Node-team reachability analysis to older-version trackers creates noise for the sustaining team and duplicates their work.
 
-The `--version` flag (default: `latest`) controls which version is in scope. The `query-open-cves` skill (Phase 1) applies this filter during query processing, but this skill re-validates at posting time as defense-in-depth — the same principle as the component safeguard above. The version filter value and the auto-detected latest version are passed through from Phase 1 via the `version_filter` and `version_filter_mode` fields in the CVE query results.
+The `query-open-cves` skill (Phase 1) auto-detects the latest OCP version and filters trackers to it, but this skill re-validates at posting time as defense-in-depth — the same principle as the component safeguard above. The auto-detected version is passed through from Phase 1 via the `version_filter` field in the CVE query results.
 
-**At posting time, re-validate each tracker's OCP version** (extracted from the tracker summary via regex `\[openshift-([^\]]+)\]`) against the active version filter. If the tracker's version does not match, skip it and log the reason in the posting audit log. When `--version all` is active, this check is a no-op (all versions pass).
+**At posting time, re-validate each tracker's OCP version** (extracted from the tracker summary via regex `\[openshift-([^\]]+)\]`) against `version_filter`. If the tracker's version does not match (after stripping `.z` suffixes from both sides for comparison), skip it and log the reason in the posting audit log.
 
 If you ever find yourself constructing a new JQL query or Jira search specifically to find trackers to comment on, STOP — that is the anti-pattern that caused this incident. Reuse the already-filtered tracker list from Phase 1 instead.
 
@@ -49,7 +49,7 @@ Write the report to `.work/node-cve/triage-YYYY-MM-DD/report.md`:
 ```markdown
 # Node CVE Triage Report - YYYY-MM-DD
 
-**Version scope:** OCP <version> (<mode>)
+**Version scope:** OCP <version> (auto-detected)
 
 ## Summary
 
@@ -107,7 +107,7 @@ List CVEs that are Reachable or Uncertain with unassigned owners. These need imm
 # canonical Node team component list from the shared components reference
 # (link above), NOT a hardcoded list.
 # version_matches_filter() checks the tracker's OCP version (from its summary)
-# against the active version filter from Phase 1.
+# against version_filter from Phase 1, after stripping .z suffixes from both.
 for tracker_key in $TRACKER_KEYS; do
   # Single API call per tracker to minimize rate-limiting risk
   output=$(jira issue view "$tracker_key" --plain --no-headers --columns COMPONENT,SUMMARY | tail -1)
@@ -134,9 +134,9 @@ done
 
 **Component validation:** A component is considered a Node team component only if it matches an entry in the "Jira Components (OCPBUGS)" list (plus Driver Toolkit, Machine Config Operator) in the shared components reference. **Check the COMPONENT field only — do not treat a `pscomponent:` label as an alternative pass condition.** `pscomponent:` labels are used in Phase 1/Phase 2 for CVE discovery and repo mapping, not for determining tracker ownership; a non-Node tracker (e.g. component "Security") could incidentally carry a `pscomponent:cri-o` label, and accepting that as a pass would silently reintroduce the exact cross-team contamination this safeguard exists to prevent.
 
-**Version validation:** A tracker's OCP version is extracted from its summary using regex `\[openshift-([^\]]+)\]`. The version must match the active version filter (`version_filter` from Phase 1). When the filter mode is `latest` or a specific version, only trackers whose extracted OCP version matches (after stripping `.z` suffixes for comparison) pass validation. When the filter mode is `all`, this check is a no-op — all versions pass.
+**Version validation:** A tracker's OCP version is extracted from its summary using regex `\[openshift-([^\]]+)\]`. The version must match `version_filter` from Phase 1, after stripping `.z` suffixes from both sides for comparison (so tracker version `4.14.z` matches filter `4.14`, and `version_filter` itself is already stored in stripped `major.minor` form).
 
-If a tracker fails either check, **skip it and log the reason** — never post "just in case." Both checks must run even when `--component` or `--version` was explicitly passed, and even if Phase 1 already filtered, since this is the last line of defense before an irreversible write. Rate limit: sleep 1 second between validation calls, same as the posting calls below, since a CVE with N trackers makes N validation calls before posting even starts.
+If a tracker fails either check, **skip it and log the reason** — never post "just in case." Both checks must run even when `--component` was explicitly passed, and even if Phase 1 already filtered, since this is the last line of defense before an irreversible write. Rate limit: sleep 1 second between validation calls, same as the posting calls below, since a CVE with N trackers makes N validation calls before posting even starts.
 
 For each unique CVE, post a comment on every **validated** tracker issue. Each tracker issue receives the analysis result for its specific OCP version/branch (not a blanket result). Use Atlassian wiki markup (not Markdown):
 
@@ -193,7 +193,7 @@ Search the output for comments containing `[node-cve:triage|`. This pattern anch
 ```bash
 {
   echo "=== Node CVE Triage Posting Audit — $(date +%Y-%m-%d) ==="
-  echo "Version filter: $VERSION_FILTER ($VERSION_FILTER_MODE)"
+  echo "Version filter: $VERSION_FILTER (auto-detected)"
   echo "CVEs processed: $CVE_COUNT"
   echo "Trackers commented: $POSTED_COUNT"
   echo "Trackers skipped (non-Node component): $SKIPPED_COMPONENT_COUNT"
@@ -346,7 +346,6 @@ Write `cves.json` to `.work/node-cve/triage-YYYY-MM-DD/cves.json` containing the
 {
   "date": "YYYY-MM-DD",
   "version_filter": "5.0",
-  "version_filter_mode": "latest",
   "total_cves": 6,
   "cves": [
     {
@@ -396,7 +395,6 @@ Ensure all generated files exist under `.work/node-cve/triage-YYYY-MM-DD/`:
   "skill": "report-findings",
   "status": "success",
   "version_filter": "5.0",
-  "version_filter_mode": "latest",
   "report_path": ".work/node-cve/triage-2026-05-20/report.md",
   "jira_comments_posted": 6,
   "jira_comments_failed": 0,
@@ -416,7 +414,7 @@ Ensure all generated files exist under `.work/node-cve/triage-YYYY-MM-DD/`:
 ## Error Handling
 
 - Non-Node-team component detected on a tracker: skip that tracker and log it in the audit log (see Step 2). Never post to it. Do not fail the entire command — other trackers for the same CVE may still be valid Node team trackers.
-- OCP version mismatch detected on a tracker: skip that tracker and log it in the audit log (see Step 2). The sustaining team owns older versions. Do not fail the entire command — this is expected behavior when `--version latest` filters out older trackers.
+- OCP version mismatch detected on a tracker: skip that tracker and log it in the audit log (see Step 2). The sustaining team owns older versions. Do not fail the entire command — this is expected behavior when the auto-detected latest version filters out older trackers.
 - Jira comment failures: log and continue. Do not fail the entire command because one tracker issue is inaccessible.
 - Slack failure: log warning. Common causes: invalid token/webhook URL, missing channel permissions, network issues, payload too large (Slack limit: 3000 chars per text block).
 - If the Slack payload exceeds the character limit, truncate the CVE list and add "... and N more. See full report."

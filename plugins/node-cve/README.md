@@ -14,7 +14,7 @@ Requires the `node-team` plugin (installed automatically as a dependency).
 
 ## Command
 
-### `/node-cve:triage [--component <name>] [--version latest|<ver>|all] [--notify-jira] [--notify-slack] [--days N]`
+### `/node-cve:triage [--component <name>] [--notify-jira] [--notify-slack] [--days N]`
 
 Triage all open CVEs for Node team components with automated reachability analysis.
 
@@ -36,7 +36,6 @@ Triage all open CVEs for Node team components with automated reachability analys
 
 **Arguments:**
 - `--component <name>`: Filter to a single specific component (e.g., "Node / CRI-O"). If omitted, ALL Node team components are included — and only Node team components, never all OCPBUGS components.
-- `--version <value>`: Control which OCP versions are triaged. Default: `latest` (auto-detects the highest OCP version from query results). Use a specific version (e.g., `5.0`) or `all` for full cross-version analysis.
 - `--notify-jira`: Post analysis results as comments on Jira tracker issues (also enables cross-run caching)
 - `--notify-slack`: Send summary to Slack (API token for threading, or webhook for simple messages)
 - `--days N`: Only include CVEs updated in the last N days (default: all open)
@@ -119,10 +118,10 @@ This design follows an incident (2026-07-15) where a CVE with 200+ multi-team tr
 
 Each CVE has tracker issues for every affected OCP version (e.g., 4.12.z through 5.0). The OCP sustaining team owns triage for all versions except the latest in-development release. The Node team should only triage the latest version.
 
-1. **Version filter at query time (Phase 1):** After deduplication, trackers are filtered to the target OCP version. By default (`--version latest`), the plugin auto-detects the highest OCP version from the query results. Only trackers matching that version are retained.
-2. **Version re-validation at posting time (Phase 3):** Immediately before posting, each tracker's OCP version (from its summary) is re-checked against the active version filter. Trackers that don't match are skipped and recorded in `posting-audit.log`.
+1. **Version filter at query time (Phase 1):** After deduplication, trackers are filtered to the auto-detected latest OCP version (the highest numeric `major.minor` from query results). Only trackers matching that version are retained.
+2. **Version re-validation at posting time (Phase 3):** Immediately before posting, each tracker's OCP version (from its summary) is re-checked against the auto-detected version. Trackers that don't match are skipped and recorded in `posting-audit.log`.
 
-See [report-findings](skills/report-findings/SKILL.md) for the full validation logic, and never construct a CVE-ID-only Jira search as a shortcut for finding trackers to comment on — always reuse the already-filtered tracker list from Phase 1.
+See [report-findings](skills/report-findings/SKILL.md) for the full validation logic (including `.z` suffix handling), and never construct a CVE-ID-only Jira search as a shortcut for finding trackers to comment on — always reuse the already-filtered tracker list from Phase 1.
 
 ## Node Team Components
 
