@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "utils",
+  "version": "0.0.13",
+  "description": "A generic utilities plugin serving as a catch-all for various helper commands and agents",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

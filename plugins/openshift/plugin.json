@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "openshift",
+  "version": "0.0.7",
+  "description": "OpenShift development utilities and helpers",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

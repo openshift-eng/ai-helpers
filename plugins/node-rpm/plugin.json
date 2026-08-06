@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "node-rpm",
+  "version": "0.0.2",
+  "description": "RPM package management for OpenShift Node team components",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

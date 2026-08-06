@@ -38,6 +38,14 @@ test: ## Run all tests
 lint: ## Run plugin linter (verbose, strict mode)
 	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z $(SKILLSAW_IMAGE) .
 
+.PHONY: sync-agent-plugins
+sync-agent-plugins: ## Create missing Agent Plugins manifests and MCP configurations
+	python3 scripts/sync_agent_plugins.py
+
+.PHONY: check-agent-plugins
+check-agent-plugins: ## Verify Claude and Agent Plugins metadata is synchronized
+	python3 scripts/sync_agent_plugins.py --check
+
 .PHONY: lint-pull
 lint-pull: ## Pull the configured skillsaw image
 	$(CONTAINER_RUNTIME) pull $(SKILLSAW_IMAGE)

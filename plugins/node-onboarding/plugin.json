@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "node-onboarding",
+  "version": "0.0.2",
+  "description": "Interactive onboarding workflows for new OpenShift Node team members",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

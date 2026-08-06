@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "operator-dashboard",
+  "version": "1.0.0",
+  "description": "Generate OpenShift Console operator dashboard: CRD discovery, list/detail components from templates",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "sosreport",
+  "version": "0.0.2",
+  "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
+  "author": {
+    "name": "github.com/arkadeepsen"
+  }
+}

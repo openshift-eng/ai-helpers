@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "node-tuning",
+  "version": "1.0.1",
+  "description": "Automatically create and apply tuned profile",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agendas",
+  "version": "0.0.3",
+  "description": "A plugin to create various meeting agendas",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "olm-team",
+  "version": "0.2.0",
+  "description": "OLM team development utilities and onboarding tools",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

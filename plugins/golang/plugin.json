@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "golang",
+  "version": "0.3.2",
+  "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, and CVE dependency patching",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

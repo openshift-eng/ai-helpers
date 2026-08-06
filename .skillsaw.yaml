@@ -97,6 +97,11 @@ rules:
     enabled: true
     severity: error
 
+  # First-party plugins expose both Claude Code and portable Agent Plugins metadata
+  agent-plugin-manifests-required:
+    enabled: true
+    severity: error
+
   # Agent color frontmatter must be hex or opencode preset (not CSS names)
   opencode-agent-color:
     enabled: true
@@ -104,6 +109,7 @@ rules:
 
 # Load custom rules from these files
 custom-rules:
+  - ".skillsaw/agent_plugin_manifests_rule.py"
   - ".skillsaw/plugindocs_rule.py"
   - ".skillsaw/owners_rule.py"
   - ".skillsaw/opencode_color_rule.py"

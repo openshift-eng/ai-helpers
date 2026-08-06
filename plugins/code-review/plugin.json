@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "code-review",
+  "version": "0.0.15",
+  "description": "Automated code quality review with language-aware analysis, pre-commit verification, and multi-specialist deep review",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

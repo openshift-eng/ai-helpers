@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "node-cve",
+  "version": "0.0.7",
+  "description": "CVE triage for OpenShift Node team components",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

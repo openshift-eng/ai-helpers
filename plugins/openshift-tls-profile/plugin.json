@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "openshift-tls-profile",
+  "version": "0.0.2",
+  "description": "Implementation requirements and details for OpenShift TLS security profiles",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
