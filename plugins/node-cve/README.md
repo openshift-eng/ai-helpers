@@ -27,11 +27,12 @@ Triage all open CVEs for Node team components with automated reachability analys
 
 1. Queries OCPBUGS for open Vulnerability issues across all Node team components (CRI-O, Kubelet, MCO, etc.)
 2. Deduplicates by CVE ID (each CVE has multiple version trackers)
-3. Clones affected repositories at all version-specific release branches and analyzes source code for reachability
-4. Classifies each CVE: Reachable, Present but not exploitable, Present but not reachable, Unaffected, or Uncertain
-5. Generates a triage report with confidence levels and recommended actions
-6. Posts analysis comments to Jira tracker issues (with `--notify-jira`)
-7. Sends a threaded summary to Slack (with `--notify-slack`)
+3. Filters to the latest OCP version (auto-detected as the highest numeric version from query results, e.g., `5.0`). Older versions are owned by the sustaining team.
+4. Clones affected repositories at the latest version's release branch and analyzes source code for reachability
+5. Classifies each CVE: Reachable, Present but not exploitable, Present but not reachable, Unaffected, or Uncertain
+6. Generates a triage report with confidence levels and recommended actions
+7. Posts analysis comments to Jira tracker issues (with `--notify-jira`)
+8. Sends a threaded summary to Slack (with `--notify-slack`)
 
 **Arguments:**
 - `--component <name>`: Filter to a single specific component (e.g., "Node / CRI-O"). If omitted, ALL Node team components are included — and only Node team components, never all OCPBUGS components.
@@ -102,12 +103,25 @@ spec:
 
 ## Safeguards
 
-Many CVEs (especially Go stdlib or vendored-dependency vulnerabilities) have tracker issues across dozens of OpenShift teams — not just Node. Posting Node-specific reachability analysis to another team's tracker is confusing and erodes trust in the automation. The plugin implements two layers of defense against this:
+The plugin implements two safeguards, each with query-time and posting-time validation, to ensure triage analysis is only posted where it belongs:
+
+### Component safeguard (cross-team protection)
+
+Many CVEs (especially Go stdlib or vendored-dependency vulnerabilities) have tracker issues across dozens of OpenShift teams — not just Node. Posting Node-specific reachability analysis to another team's tracker is confusing and erodes trust in the automation.
 
 1. **Component filter at query time (Phase 1):** Every Jira query — whether or not `--component` is passed — is scoped with `component in (...)` to the Node team component list from the [shared components reference](../node-team/skills/node/references/shared/components.md). "No `--component` flag" means "all Node team components," never "no filter."
 2. **Component re-validation at posting time (Phase 3):** Immediately before posting any `--notify-jira` comment, each tracker's component is re-checked against the Node team list, independent of Phase 1's filtering. Trackers that don't match are skipped and recorded in `posting-audit.log` instead of being commented on.
 
-This two-layer design follows an incident (2026-07-15) where a CVE with 200+ multi-team trackers had Node-specific analysis posted to non-Node trackers (HyperShift, Storage, Networking, Installer, etc.) because a downstream step re-searched Jira by CVE ID alone, without a component filter. See [report-findings](skills/report-findings/SKILL.md) for the full validation logic, and never construct a CVE-ID-only Jira search as a shortcut for finding trackers to comment on — always reuse the already-filtered tracker list from Phase 1.
+This design follows an incident (2026-07-15) where a CVE with 200+ multi-team trackers had Node-specific analysis posted to non-Node trackers because a downstream step re-searched Jira by CVE ID alone without a component filter.
+
+### Version safeguard (cross-version protection)
+
+Each CVE has tracker issues for every affected OCP version (e.g., 4.12.z through 5.0). The OCP sustaining team owns triage for all versions except the latest in-development release. The Node team should only triage the latest version.
+
+1. **Version filter at query time (Phase 1):** After deduplication, trackers are filtered to the auto-detected latest OCP version (the highest numeric `major.minor` from query results). Only trackers matching that version are retained.
+2. **Version re-validation at posting time (Phase 3):** Immediately before posting, each tracker's OCP version (from its summary) is re-checked against the auto-detected version. Trackers that don't match are skipped and recorded in `posting-audit.log`.
+
+See [report-findings](skills/report-findings/SKILL.md) for the full validation logic (including `.z` suffix handling), and never construct a CVE-ID-only Jira search as a shortcut for finding trackers to comment on — always reuse the already-filtered tracker list from Phase 1.
 
 ## Node Team Components
 

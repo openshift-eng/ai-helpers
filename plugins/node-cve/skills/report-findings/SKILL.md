@@ -27,7 +27,16 @@ The canonical Node team component list lives in the [node-team shared components
 
 **Only post to tracker keys that are:**
 1. Present in the `tracker_keys` list of the CVE record produced by `query-open-cves` (Phase 1), AND
-2. Re-validated against the Node team component list immediately before posting (see Step 2 below).
+2. Re-validated against the Node team component list immediately before posting (see Step 2 below), AND
+3. Re-validated against the active OCP version filter (see "OCP Version Safeguard" below and Step 2).
+
+## OCP Version Safeguard
+
+**This skill may ONLY post comments to trackers whose OCP version matches the auto-detected latest version.** The OCP sustaining team owns triage and remediation for all versions except the latest in-development release. Posting Node-team reachability analysis to older-version trackers creates noise for the sustaining team and duplicates their work.
+
+The `query-open-cves` skill (Phase 1) auto-detects the latest OCP version and filters trackers to it, but this skill re-validates at posting time as defense-in-depth — the same principle as the component safeguard above. The auto-detected version is passed through from Phase 1 via the `version_filter` field in the CVE query results.
+
+**At posting time, re-validate each tracker's OCP version** (extracted from the tracker summary via regex `\[openshift-([^\]]+)\]`) against `version_filter`. If the tracker's version does not match (after stripping `.z` suffixes from both sides for comparison), skip it and log the reason in the posting audit log.
 
 If you ever find yourself constructing a new JQL query or Jira search specifically to find trackers to comment on, STOP — that is the anti-pattern that caused this incident. Reuse the already-filtered tracker list from Phase 1 instead.
 
@@ -39,6 +48,8 @@ Write the report to `.work/node-cve/triage-YYYY-MM-DD/report.md`:
 
 ```markdown
 # Node CVE Triage Report - YYYY-MM-DD
+
+**Version scope:** OCP <version> (auto-detected)
 
 ## Summary
 
@@ -65,19 +76,16 @@ List CVEs that are Reachable or Uncertain with unassigned owners. These need imm
 | Overall classification | Reachable / Present but not exploitable / Present but not reachable / Unaffected / Uncertain |
 | Overall confidence | High / Medium / Low |
 | Assignee | <name or Unassigned> |
-| Affected versions | 4.12.z - 4.19 |
-| Tracker issues | [OCPBUGS-XXXXX](https://redhat.atlassian.net/browse/OCPBUGS-XXXXX), [OCPBUGS-XXXXX](https://redhat.atlassian.net/browse/OCPBUGS-XXXXX), ... |
+| OCP version | 5.0 |
+| Tracker issues | [OCPBUGS-XXXXX](https://redhat.atlassian.net/browse/OCPBUGS-XXXXX) |
 
-**Per-branch results:**
+**Analysis result:**
 
 | Branch | OCP Version | Classification | Confidence |
 |--------|-------------|----------------|------------|
-| release-1.28 | 4.15 | Reachable | High |
-| release-1.29 | 4.16 | Reachable | High |
-| release-1.30 | 4.17 | Unaffected | High |
-| ... | ... | ... | ... |
+| release-1.36 | 5.0 | Reachable | High |
 
-**Evidence (worst-case branch):**
+**Evidence:**
 <source code analysis summary>
 <call path if found>
 
@@ -89,14 +97,20 @@ List CVEs that are Reachable or Uncertain with unassigned owners. These need imm
 
 ### Step 2: Post Jira comments (if --notify-jira)
 
-**VALIDATION (MANDATORY, before posting anything):** For each unique CVE, take its `tracker_keys` list from Phase 1 (`query-open-cves`) and re-validate every tracker's component immediately before posting — do not trust cached or upstream filtering alone:
+**VALIDATION (MANDATORY, before posting anything):** For each unique CVE, take its `tracker_keys` list from Phase 1 (`query-open-cves`) and re-validate every tracker against both the component list and the version filter immediately before posting — do not trust cached or upstream filtering alone:
 
 ```bash
 # component_is_node_team() checks the tracker's COMPONENT field against the
 # canonical Node team component list from the shared components reference
 # (link above), NOT a hardcoded list.
+# version_matches_filter() checks the tracker's OCP version (from its summary)
+# against version_filter from Phase 1, after stripping .z suffixes from both.
 for tracker_key in $TRACKER_KEYS; do
-  component=$(jira issue view "$tracker_key" --plain --no-headers --columns COMPONENT | tail -1)
+  # Single API call per tracker to minimize rate-limiting risk
+  output=$(jira issue view "$tracker_key" --plain --no-headers --columns COMPONENT,SUMMARY | tail -1)
+  component=$(echo "$output" | awk -F'\t' '{print $1}')
+  summary=$(echo "$output" | awk -F'\t' '{print $2}')
+  ocp_version=$(echo "$summary" | grep -oP '\[openshift-\K[^\]]+')
 
   if ! component_is_node_team "$component"; then
     echo "⚠️  SKIPPING $tracker_key: component '$component' is not a Node team component" | tee -a "$SKIPPED_LOG"
@@ -104,14 +118,24 @@ for tracker_key in $TRACKER_KEYS; do
     continue
   fi
 
-  # Component validated — proceed with posting for $tracker_key
+  if ! version_matches_filter "$ocp_version" "$VERSION_FILTER"; then
+    echo "⚠️  SKIPPING $tracker_key: OCP version '$ocp_version' does not match version filter '$VERSION_FILTER'" | tee -a "$SKIPPED_LOG"
+    sleep 1
+    continue
+  fi
+
+  # Component and version validated — proceed with posting for $tracker_key
   sleep 1
 done
 ```
 
-A component is considered a Node team component only if it matches an entry in the "Jira Components (OCPBUGS)" list (plus Driver Toolkit, Machine Config Operator) in the shared components reference. **Check the COMPONENT field only — do not treat a `pscomponent:` label as an alternative pass condition.** `pscomponent:` labels are used in Phase 1/Phase 2 for CVE discovery and repo mapping, not for determining tracker ownership; a non-Node tracker (e.g. component "Security") could incidentally carry a `pscomponent:cri-o` label, and accepting that as a pass would silently reintroduce the exact cross-team contamination this safeguard exists to prevent. If a tracker's component cannot be confidently classified as Node team, **skip it and log the reason** — never post "just in case." This check must run even when `--component` was passed, and even if Phase 1 already filtered by component, since this is the last line of defense before an irreversible write to another team's tracker. Rate limit: sleep 1 second between validation calls, same as the posting calls below, since a CVE with N trackers makes N validation calls before posting even starts.
+**Component validation:** A component is considered a Node team component only if it matches an entry in the "Jira Components (OCPBUGS)" list (plus Driver Toolkit, Machine Config Operator) in the shared components reference. **Check the COMPONENT field only — do not treat a `pscomponent:` label as an alternative pass condition.** `pscomponent:` labels are used in Phase 1/Phase 2 for CVE discovery and repo mapping, not for determining tracker ownership; a non-Node tracker (e.g. component "Security") could incidentally carry a `pscomponent:cri-o` label, and accepting that as a pass would silently reintroduce the exact cross-team contamination this safeguard exists to prevent.
 
-For each unique CVE, post a comment on every **validated** tracker issue. Each tracker issue receives the analysis result for its specific OCP version/branch (not a blanket result). Use Atlassian wiki markup (not Markdown):
+**Version validation:** A tracker's OCP version is extracted from its summary using regex `\[openshift-([^\]]+)\]`. The version must match `version_filter` from Phase 1, after stripping `.z` suffixes from both sides for comparison (so tracker version `4.14.z` matches filter `4.14`, and `version_filter` itself is already stored in stripped `major.minor` form).
+
+If a tracker fails either check, **skip it and log the reason** — never post "just in case." Both checks must run even when `--component` was explicitly passed, and even if Phase 1 already filtered, since this is the last line of defense before an irreversible write. Rate limit: sleep 1 second between validation calls, same as the posting calls below, since a CVE with N trackers makes N validation calls before posting even starts.
+
+For each unique CVE, post a comment on every **validated** tracker issue. Each tracker receives the analysis result for the latest OCP version. Use Atlassian wiki markup (not Markdown):
 
 ```bash
 jira issue comment add OCPBUGS-XXXXX "$(cat <<'COMMENT'
@@ -120,19 +144,14 @@ h3. Automated CVE Reachability Analysis
 ||Field||Value||
 |CVE|CVE-XXXX-XXXXX|
 |Repository|[openshift/cri-o|https://github.com/openshift/cri-o]|
-|Branch|release-1.31|
+|Branch|release-1.36|
+|OCP Version|5.0|
 |Classification|Reachable / Present but not exploitable / Present but not reachable / Unaffected / Uncertain|
 |Confidence|High / Medium / Low|
 
-h4. Results across all analyzed branches
-||Branch||OCP Version||Classification||Confidence||
-|release-1.28|4.15|Reachable|High|
-|release-1.29|4.16|Reachable|High|
-|release-1.30|4.17|Unaffected|High|
-
 h4. Evidence
 {noformat}
-<source code analysis summary for this tracker's specific branch>
+<source code analysis summary>
 {noformat}
 
 h4. Recommended Action
@@ -158,24 +177,26 @@ Search the output for comments containing `[node-cve:triage|`. This pattern anch
 
 **Important:**
 - Rate limit: sleep 1 second between Jira API calls to avoid HTTP 429 throttling
-- Post to ALL **validated** tracker issues for a CVE (all version trackers), each with its version-specific result
+- Post to every **validated** tracker issue for a CVE
 - If commenting fails on a specific issue (e.g., permissions), log a warning and continue
 
-**POST-POSTING AUDIT (MANDATORY when --notify-jira is used):** Write an audit log to `.work/node-cve/triage-$(date +%Y-%m-%d)/posting-audit.log` summarizing what was posted and what was skipped, so cross-team contamination is caught immediately instead of discovered days later:
+**POST-POSTING AUDIT (MANDATORY when --notify-jira is used):** Write an audit log to `.work/node-cve/triage-$(date +%Y-%m-%d)/posting-audit.log` summarizing what was posted and what was skipped, so cross-team or cross-version contamination is caught immediately instead of discovered days later:
 
 ```bash
 {
   echo "=== Node CVE Triage Posting Audit — $(date +%Y-%m-%d) ==="
+  echo "Version filter: $VERSION_FILTER (auto-detected)"
   echo "CVEs processed: $CVE_COUNT"
   echo "Trackers commented: $POSTED_COUNT"
-  echo "Trackers skipped (non-Node component): $SKIPPED_COUNT"
+  echo "Trackers skipped (non-Node component): $SKIPPED_COMPONENT_COUNT"
+  echo "Trackers skipped (version mismatch): $SKIPPED_VERSION_COUNT"
   echo ""
-  echo "Skipped trackers (tracker, component, reason):"
+  echo "Skipped trackers (tracker, component/version, reason):"
   cat "$SKIPPED_LOG"
 } > ".work/node-cve/triage-$(date +%Y-%m-%d)/posting-audit.log"
 ```
 
-If `$SKIPPED_COUNT` is greater than zero, print a visible warning in the command summary output (Phase 4) so the operator notices immediately, e.g. "⚠️ Skipped N non-Node-component trackers — see posting-audit.log". A non-zero skip count is expected and healthy for multi-team CVEs; it means the safeguard is working. A skip count that is unexpectedly large relative to Phase 1's tracker count may indicate a bug and should be investigated before re-running.
+If any trackers were skipped, print a visible warning in the command summary output (Phase 4) so the operator notices immediately, e.g. "⚠️ Skipped N trackers during posting (K non-Node-component, J wrong version) — see posting-audit.log". A non-zero skip count is expected and healthy — for component skips it means the cross-team safeguard is working as intended, and for version skips it means older-version trackers are being left to the sustaining team as required.
 
 ### Step 3: Send Slack notification (if --notify-slack)
 
@@ -316,6 +337,7 @@ Write `cves.json` to `.work/node-cve/triage-YYYY-MM-DD/cves.json` containing the
 ```json
 {
   "date": "YYYY-MM-DD",
+  "version_filter": "5.0",
   "total_cves": 6,
   "cves": [
     {
@@ -327,23 +349,10 @@ Write `cves.json` to `.work/node-cve/triage-YYYY-MM-DD/cves.json` containing the
       "overall_confidence": "HIGH",
       "assignee": "...",
       "tracker_keys": ["OCPBUGS-XXXXX"],
-      "affected_versions": ["4.12.z", "4.19"],
-      "per_branch_results": [
-        {
-          "branch": "release-1.28",
-          "ocp_version": "4.15",
-          "classification": "REACHABLE",
-          "confidence": "HIGH",
-          "evidence_summary": "..."
-        },
-        {
-          "branch": "release-1.30",
-          "ocp_version": "4.17",
-          "classification": "NOT_AFFECTED",
-          "confidence": "HIGH",
-          "evidence_summary": "..."
-        }
-      ],
+      "affected_versions": ["5.0"],
+      "branch": "release-1.36",
+      "ocp_version": "5.0",
+      "evidence_summary": "...",
       "recommended_action": "..."
     }
   ]
@@ -364,14 +373,17 @@ Ensure all generated files exist under `.work/node-cve/triage-YYYY-MM-DD/`:
 {
   "skill": "report-findings",
   "status": "success",
+  "version_filter": "5.0",
   "report_path": ".work/node-cve/triage-2026-05-20/report.md",
-  "jira_comments_posted": 45,
+  "jira_comments_posted": 6,
   "jira_comments_failed": 0,
   "jira_trackers_skipped_non_node_component": 0,
+  "jira_trackers_skipped_version_mismatch": 0,
   "slack_notified": true,
   "artifacts": [
     ".work/node-cve/triage-2026-05-20/report.md",
-    ".work/node-cve/triage-2026-05-20/cves.json"
+    ".work/node-cve/triage-2026-05-20/cves.json",
+    ".work/node-cve/triage-2026-05-20/posting-audit.log"
   ]
 }
 ```
@@ -381,6 +393,7 @@ Ensure all generated files exist under `.work/node-cve/triage-YYYY-MM-DD/`:
 ## Error Handling
 
 - Non-Node-team component detected on a tracker: skip that tracker and log it in the audit log (see Step 2). Never post to it. Do not fail the entire command — other trackers for the same CVE may still be valid Node team trackers.
+- OCP version mismatch detected on a tracker: skip that tracker and log it in the audit log (see Step 2). The sustaining team owns older versions. Do not fail the entire command — this is expected behavior when the auto-detected latest version filters out older trackers.
 - Jira comment failures: log and continue. Do not fail the entire command because one tracker issue is inaccessible.
 - Slack failure: log warning. Common causes: invalid token/webhook URL, missing channel permissions, network issues, payload too large (Slack limit: 3000 chars per text block).
 - If the Slack payload exceeds the character limit, truncate the CVE list and add "... and N more. See full report."
