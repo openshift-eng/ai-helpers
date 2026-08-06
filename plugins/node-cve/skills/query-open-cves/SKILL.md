@@ -72,7 +72,33 @@ A single CVE may span multiple components (e.g., both "Node / CRI-O" and "Machin
 
 Use the highest version tracker for the "primary" assignee and status (issues on newer versions are typically more actively managed).
 
-### Step 5: Identify unassigned CVEs
+### Step 5: Filter by OCP version
+
+Apply the `--version` filter to scope trackers to the target OCP version. This prevents the Node team from triaging versions owned by the sustaining team.
+
+**If `--version latest` (default when omitted):**
+
+1. Collect all OCP versions extracted from tracker summaries in Step 3 (e.g., `4.12.z`, `4.14.z`, `4.17`, `4.18`, `4.19`, `5.0`).
+2. Determine the latest version by sorting numerically:
+   - Strip trailing `.z` suffixes for comparison purposes (`.z` indicates a z-stream release, which is always an older maintenance stream).
+   - Parse each version as `(major, minor)` — e.g., `5.0` → `(5, 0)`, `4.19` → `(4, 19)`, `4.12.z` → `(4, 12)`.
+   - Sort descending by major, then by minor. The first entry is the latest version.
+   - Example: given `[4.12.z, 4.14.z, 4.17, 4.18, 4.19, 5.0]`, the latest is `5.0`.
+3. For each CVE record from Step 4, remove tracker issues whose OCP version does not match the latest version:
+   - Remove non-matching entries from `tracker_keys` and `affected_versions`.
+   - If a CVE has no remaining trackers after filtering, exclude it entirely — it has no tracker for the latest version and is therefore a sustaining-team concern only.
+4. Print: "Version filter: <version> (auto-detected). Older versions are triaged by the sustaining team."
+
+**If `--version <specific>` (e.g., `--version 5.0`):**
+
+Same filtering logic as above, but use the user-specified version instead of auto-detecting. If no trackers match the specified version, print: "No open CVEs for Node team components at version <version>."
+
+**If `--version all`:**
+
+Skip filtering. All versions are retained (legacy behavior).
+Print: "Version filter: all (all versions included)."
+
+### Step 6: Identify unassigned CVEs
 
 Flag CVEs where:
 - Assignee is a bot account (e.g., "ocp-sustaining-blocked-trackers") or empty
@@ -85,7 +111,10 @@ Flag CVEs where:
 {
   "skill": "query-open-cves",
   "status": "success",
-  "total_trackers": 45,
+  "version_filter": "5.0",
+  "version_filter_mode": "latest",
+  "total_trackers": 8,
+  "total_trackers_before_version_filter": 45,
   "unique_cves": 6,
   "cves": [
     {
@@ -95,13 +124,15 @@ Flag CVEs where:
       "status": "New",
       "assignee": "ocp-sustaining-blocked-trackers",
       "is_unassigned": true,
-      "tracker_keys": ["OCPBUGS-85948", "..."],
-      "affected_versions": ["4.12.z", "..."],
+      "tracker_keys": ["OCPBUGS-85948"],
+      "affected_versions": ["5.0"],
       "labels": ["pscomponent:cri-o"]
     }
   ]
 }
 ```
+
+When `--version all` is used, `version_filter` is `"all"`, `version_filter_mode` is `"all"`, and `total_trackers_before_version_filter` equals `total_trackers` (no filtering applied).
 
 ## Error Handling
 
