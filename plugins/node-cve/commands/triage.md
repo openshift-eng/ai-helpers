@@ -8,7 +8,7 @@ node-cve:triage
 
 ## Synopsis
 ```text
-/node-cve:triage [--component "Node / CRI-O"] [--version latest] [--notify-jira] [--notify-slack] [--days 7]
+/node-cve:triage [--component "Node / CRI-O"] [--version latest|<ver>|all] [--notify-jira] [--notify-slack] [--days 7]
 ```
 
 ## Description
@@ -334,7 +334,7 @@ The headline format depends on the version scope and whether cached results were
 ## Notes
 
 - The Jira query uses OCPBUGS component names from the [node-team shared components reference](../../node-team/skills/node/references/shared/components.md).
-- **Version scope:** By default (`--version latest`), the command only triages CVE trackers for the latest OCP version (currently 5.0). The sustaining team owns triage for all earlier versions. Use `--version all` only when you need a full cross-version analysis. The latest version is auto-detected from the query results (highest OCP version number), so the default stays correct as new OCP releases ship without requiring changes to this plugin.
+- **Version scope:** By default (`--version latest`), the command only triages CVE trackers for the latest OCP version (auto-detected from query results as the highest numeric `major.minor` version). The sustaining team owns triage for all earlier versions. Use `--version all` only when you need a full cross-version analysis. The latest version is determined at runtime, so the default stays correct as new OCP releases ship without requiring changes to this plugin.
 - **Cross-team safeguard:** The command filters to Node team components at query time (Phase 1) AND re-validates each tracker's component immediately before posting any Jira comment (Phase 3). Never write or run an ad-hoc Jira search scoped only by CVE ID to find trackers to comment on — a CVE can span 200+ trackers across dozens of unrelated OpenShift teams, and a CVE-ID-only search will return all of them. Always reuse the already-filtered `tracker_keys` from Phase 1. Any tracker that fails the component or version re-validation is skipped and logged in `posting-audit.log`, never posted to.
 - Each CVE typically has multiple tracker issues (one per OCP version). The command deduplicates by CVE ID and, unless `--version all` is used, filters to the target version's trackers before analysis.
 - Analysis targets downstream forks only (e.g., openshift/cri-o). If the downstream fork or branch does not exist, the CVE is classified as Uncertain. Dependency versions and Go toolchain versions differ across releases, so version-specific branches are used.

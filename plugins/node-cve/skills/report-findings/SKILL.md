@@ -204,7 +204,7 @@ Search the output for comments containing `[node-cve:triage|`. This pattern anch
 } > ".work/node-cve/triage-$(date +%Y-%m-%d)/posting-audit.log"
 ```
 
-If any trackers were skipped, print a visible warning in the command summary output (Phase 4) so the operator notices immediately, e.g. "⚠️ Skipped N trackers during posting (K non-Node-component, J wrong version) — see posting-audit.log". A non-zero skip count is expected and healthy — for component skips it means the cross-team safeguard is working, and for version skips it means older-version trackers are correctly being left to the sustaining team.
+If any trackers were skipped, print a visible warning in the command summary output (Phase 4) so the operator notices immediately, e.g. "⚠️ Skipped N trackers during posting (K non-Node-component, J wrong version) — see posting-audit.log". A non-zero skip count is expected and healthy — for component skips it means the cross-team safeguard is working as intended, and for version skips it means older-version trackers are being left to the sustaining team as required.
 
 ### Step 3: Send Slack notification (if --notify-slack)
 
@@ -405,7 +405,8 @@ Ensure all generated files exist under `.work/node-cve/triage-YYYY-MM-DD/`:
   "slack_notified": true,
   "artifacts": [
     ".work/node-cve/triage-2026-05-20/report.md",
-    ".work/node-cve/triage-2026-05-20/cves.json"
+    ".work/node-cve/triage-2026-05-20/cves.json",
+    ".work/node-cve/triage-2026-05-20/posting-audit.log"
   ]
 }
 ```

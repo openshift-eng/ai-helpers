@@ -78,16 +78,19 @@ Apply the `--version` filter to scope trackers to the target OCP version. This p
 
 **If `--version latest` (default when omitted):**
 
-1. Collect all OCP versions extracted from tracker summaries in Step 3 (e.g., `4.12.z`, `4.14.z`, `4.17`, `4.18`, `4.19`, `5.0`).
-2. Determine the latest version by sorting numerically:
+1. If Step 2 returned zero Jira rows, skip version filtering — there are no trackers to filter. Return an empty CVE list with `version_filter: "latest"` and `version_filter_mode: "latest"`.
+2. Collect all OCP versions extracted from tracker summaries in Step 3 (e.g., `4.12.z`, `4.14.z`, `4.17`, `4.18`, `4.19`, `5.0`).
+3. **Discard non-numeric versions:** Any version string that cannot be parsed as a numeric `major.minor` pair (e.g., `latest`, `nightly`, or other non-version labels) must be discarded with a warning — do not treat it as a valid OCP version. Only versions matching the pattern `<digits>.<digits>` (optionally followed by `.z`) are valid.
+4. Determine the latest version by sorting the remaining valid versions numerically:
    - Strip trailing `.z` suffixes for comparison purposes (`.z` indicates a z-stream release, which is always an older maintenance stream).
    - Parse each version as `(major, minor)` — e.g., `5.0` → `(5, 0)`, `4.19` → `(4, 19)`, `4.12.z` → `(4, 12)`.
    - Sort descending by major, then by minor. The first entry is the latest version.
    - Example: given `[4.12.z, 4.14.z, 4.17, 4.18, 4.19, 5.0]`, the latest is `5.0`.
-3. For each CVE record from Step 4, remove tracker issues whose OCP version does not match the latest version:
+5. For each CVE record from Step 4, remove tracker issues whose OCP version does not match the latest version:
    - Remove non-matching entries from `tracker_keys` and `affected_versions`.
    - If a CVE has no remaining trackers after filtering, exclude it entirely — it has no tracker for the latest version and is therefore a sustaining-team concern only.
-4. Print: "Version filter: <version> (auto-detected). Older versions are triaged by the sustaining team."
+6. After filtering, recompute each CVE record's `assignee`, `status`, and `is_unassigned` from the highest-version tracker that remains in the filtered set, since the pre-filter values may have come from a tracker that was removed.
+7. Print: "Version filter: <version> (auto-detected). Older versions are triaged by the sustaining team."
 
 **If `--version <specific>` (e.g., `--version 5.0`):**
 
