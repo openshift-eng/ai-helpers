@@ -116,8 +116,8 @@ rules:
     enabled: true
     severity: error
 
-  # First-party plugins expose both Claude Code and portable Agent Plugins metadata
-  agent-plugin-manifests-required:
+  # Every plugin must expose portable Agent Plugins metadata alongside its source manifest
+  agent-plugin-required:
     enabled: true
     severity: error
 
@@ -128,7 +128,6 @@ rules:
 
 # Load custom rules from these files
 custom-rules:
-  - ".skillsaw/agent_plugin_manifests_rule.py"
   - ".skillsaw/plugindocs_rule.py"
   - ".skillsaw/owners_rule.py"
   - ".skillsaw/opencode_color_rule.py"

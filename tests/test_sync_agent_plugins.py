@@ -1,8 +1,6 @@
-import json
 import importlib.util
+import json
 from pathlib import Path
-
-from skillsaw import RepositoryContext
 
 
 _SYNC_SCRIPT = Path(__file__).parent.parent / "scripts" / "sync_agent_plugins.py"
@@ -61,58 +59,14 @@ def _add_marketplace(temp_dir, *names):
     )
 
 
-class TestAgentPluginManifestsRequired:
-    def test_both_manifests_are_valid(self, temp_dir, agent_plugin_manifests_rule):
-        _make_plugin(temp_dir)
-        ctx = RepositoryContext(temp_dir)
-        assert agent_plugin_manifests_rule().check(ctx) == []
+def test_sync_agent_plugins_preserves_portable_extensions(temp_dir):
+    plugin_dir = _make_plugin(temp_dir)
+    _add_marketplace(temp_dir, "test-plugin")
+    portable = json.loads((plugin_dir / "plugin.json").read_text())
+    portable["extensions"] = {"com.example": {"enabled": True}}
+    (plugin_dir / "plugin.json").write_text(json.dumps(portable))
 
-    def test_missing_portable_manifest(self, temp_dir, agent_plugin_manifests_rule):
-        _make_plugin(temp_dir, portable=False)
-        ctx = RepositoryContext(temp_dir)
-        violations = agent_plugin_manifests_rule().check(ctx)
-        assert len(violations) == 1
-        assert "missing its Agent Plugins manifest" in violations[0].message
-
-    def test_marketplace_detects_missing_claude_manifest(
-        self, temp_dir, agent_plugin_manifests_rule
-    ):
-        _make_plugin(temp_dir, claude=False)
-        _add_marketplace(temp_dir, "test-plugin")
-        ctx = RepositoryContext(temp_dir)
-        violations = agent_plugin_manifests_rule().check(ctx)
-        assert any("missing its Claude manifest" in v.message for v in violations)
-
-    def test_metadata_must_match(self, temp_dir, agent_plugin_manifests_rule):
-        plugin_dir = _make_plugin(temp_dir)
-        portable = json.loads((plugin_dir / "plugin.json").read_text())
-        portable["description"] = "different"
-        (plugin_dir / "plugin.json").write_text(json.dumps(portable))
-        ctx = RepositoryContext(temp_dir)
-        violations = agent_plugin_manifests_rule().check(ctx)
-        assert len(violations) == 1
-        assert "unsynchronized 'description'" in violations[0].message
-
-    def test_portable_extensions_are_preserved(self, temp_dir, agent_plugin_manifests_rule):
-        plugin_dir = _make_plugin(temp_dir)
-        _add_marketplace(temp_dir, "test-plugin")
-        portable = json.loads((plugin_dir / "plugin.json").read_text())
-        portable["extensions"] = {"com.example": {"enabled": True}}
-        (plugin_dir / "plugin.json").write_text(json.dumps(portable))
-
-        assert sync_agent_plugins(temp_dir, check=True) == 0
-        ctx = RepositoryContext(temp_dir)
-        assert agent_plugin_manifests_rule().check(ctx) == []
-
-    def test_mcp_requires_portable_copy(self, temp_dir, agent_plugin_manifests_rule):
-        plugin_dir = _make_plugin(temp_dir)
-        (plugin_dir / ".mcp.json").write_text(
-            json.dumps({"mcpServers": {"example": {"command": "example"}}})
-        )
-        ctx = RepositoryContext(temp_dir)
-        violations = agent_plugin_manifests_rule().check(ctx)
-        assert len(violations) == 1
-        assert "no portable mcp.json" in violations[0].message
+    assert sync_agent_plugins(temp_dir, check=True) == 0
 
 
 def test_sync_agent_plugins_creates_manifest_and_translates_mcp(temp_dir):
