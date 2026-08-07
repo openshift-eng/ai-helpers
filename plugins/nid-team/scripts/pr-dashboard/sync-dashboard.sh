@@ -55,40 +55,6 @@ ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.lo
 echo "Found $ITEM_COUNT items"
 echo ""
 
-# --- Operation A: Populate PR Author ---
-# GitHub Projects doesn't have a built-in Author column, so we use a free-text
-# field and populate it with display names from the team map (or raw login).
-echo "--- Operation A: Populate PR Author ---"
-
-echo "$ITEMS_JSON" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for item in data['items']:
-    pr_author = item.get('pR Author', '')
-    if not pr_author and item.get('content', {}).get('type') == 'PullRequest':
-        repo = item['content']['repository']
-        number = item['content']['number']
-        item_id = item['id']
-        print(f'{item_id}\t{repo}\t{number}')
-" | while IFS=$'\t' read -r item_id repo number; do
-    author=$(gh pr view "$number" -R "$repo" --json author -q '.author.login' 2>/dev/null || echo "")
-    if [ -z "$author" ]; then
-        echo "  SKIP: Could not get author for $repo#$number"
-        continue
-    fi
-    display="${USERNAME_TO_DISPLAY[$author]:-$author}"
-    echo "  SET: $repo#$number → $display"
-    if ! gh project item-edit \
-        --project-id "$PROJECT_ID" \
-        --id "$item_id" \
-        --field-id "$FIELD_PR_AUTHOR" \
-        --text "$display"; then
-        echo "  ERROR: failed to set PR Author for $repo#$number" >&2
-    fi
-done
-
-echo ""
-
 # --- Operation B: Sync Reviewers → GitHub Assignees ---
 # We can't modify PR assignees via the API (org permissions), so this syncs by
 # commenting /assign on the PR. The Primary/Secondary Reviewer columns on the
@@ -337,6 +303,41 @@ if [ "$SHARED_ADDED" -gt 0 ] || [ "$BUGPR_ADDED" -gt 0 ] || [ "$DOCS_ADDED" -gt 
     echo "Now $ITEM_COUNT items"
     echo ""
 fi
+
+# --- Operation A: Populate PR Author ---
+# GitHub Projects doesn't have a built-in Author column, so we use a free-text
+# field and populate it with display names from the team map (or raw login).
+# Runs after C/C2/F so newly added items get their author set in one pass.
+echo "--- Operation A: Populate PR Author ---"
+
+echo "$ITEMS_JSON" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for item in data['items']:
+    pr_author = item.get('pR Author', '')
+    if not pr_author and item.get('content', {}).get('type') == 'PullRequest':
+        repo = item['content']['repository']
+        number = item['content']['number']
+        item_id = item['id']
+        print(f'{item_id}\t{repo}\t{number}')
+" | while IFS=$'\t' read -r item_id repo number; do
+    author=$(gh pr view "$number" -R "$repo" --json author -q '.author.login' 2>/dev/null || echo "")
+    if [ -z "$author" ]; then
+        echo "  SKIP: Could not get author for $repo#$number"
+        continue
+    fi
+    display="${USERNAME_TO_DISPLAY[$author]:-$author}"
+    echo "  SET: $repo#$number → $display"
+    if ! gh project item-edit \
+        --project-id "$PROJECT_ID" \
+        --id "$item_id" \
+        --field-id "$FIELD_PR_AUTHOR" \
+        --text "$display"; then
+        echo "  ERROR: failed to set PR Author for $repo#$number" >&2
+    fi
+done
+
+echo ""
 
 # --- Operation D: Set Area for deterministic repos ---
 # Area represents which sub-area of the team owns a PR: GWAPI, Router, DNS,
