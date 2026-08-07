@@ -542,6 +542,11 @@ def main(argv=None):
             variant_combos = [
                 dict(combo, **{mk: val}) for combo in variant_combos for val in mv
             ]
+        max_combos = 20
+        if len(variant_combos) > max_combos:
+            print("Error: %d variant combinations exceeds limit of %d" % (
+                len(variant_combos), max_combos), file=sys.stderr)
+            sys.exit(1)
         for combo in variant_combos:
             query_variants = dict(variants, **combo)
             filter_dict = build_sippy_filter(query_variants, since_ms)
@@ -551,6 +556,8 @@ def main(argv=None):
                 if pid not in seen_prow_ids:
                     seen_prow_ids.add(pid)
                     rows.append(r)
+        rows.sort(key=lambda r: r.get("timestamp", 0), reverse=True)
+        rows = rows[:args.limit]
     else:
         filter_dict = build_sippy_filter(variants, since_ms)
         rows = fetch_runs(release, filter_dict, args.limit)
