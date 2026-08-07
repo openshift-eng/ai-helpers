@@ -119,6 +119,19 @@ def test_parse_grafana_url_all_variants():
     assert result["backend"] == "kube-api-reused-connections"
 
 
+def test_parse_grafana_url_featureset_ipmode_os():
+    url = (
+        "https://grafana-loki.ci.openshift.org/d/abc/dash"
+        "?var-platform=aws&var-backend=kube-api-new-connections"
+        "&var-releases=5.0&var-featureset=techpreview"
+        "&var-ipmode=ipv6&var-os=rhcos10"
+    )
+    result = parse_grafana_url(url)
+    assert result["featureset"] == "techpreview"
+    assert result["ipmode"] == "ipv6"
+    assert result["os"] == "rhcos10"
+
+
 def test_parse_backend_new_connections():
     base, conn = parse_backend("host-to-host-new-connections")
     assert base == "host-to-host"

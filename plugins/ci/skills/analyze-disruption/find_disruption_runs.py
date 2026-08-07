@@ -31,6 +31,14 @@ GRAFANA_TO_VARIANT = {
     "topologies": "Topology",
     "networks": "Network",
     "upgrade_type": "Upgrade",
+    "featureset": "FeatureSet",
+    "ipmode": "NetworkStack",
+    "os": "OS",
+}
+
+GRAFANA_DISPLAY_ONLY = {
+    "master_nodes_updated", "percentile", "lookback", "min_disruption_regression",
+    "min_disruption_job_list", "min_relevance", "orgId",
 }
 
 
@@ -530,6 +538,11 @@ def main(argv=None):
         val = cli_overrides.get(gkey) or grafana_params.get(gkey)
         if val:
             variants[variant_key] = val
+
+    known_keys = set(GRAFANA_TO_VARIANT) | GRAFANA_DISPLAY_ONLY | {"releases", "backend", "_dashboard_name"}
+    for gkey in grafana_params:
+        if gkey not in known_keys:
+            print("Warning: Grafana parameter '%s' not mapped to a Sippy filter, ignoring" % gkey, file=sys.stderr)
 
     since_ms = int((time.time() - args.since_hours * 3600) * 1000)
 
