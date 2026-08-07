@@ -1,0 +1,9 @@
+module: "google.golang.org/grpc"
+fix_version: "v1.75.1"
+cve: "CVE-2026-33186"
+ticket: "OCPBUGS-83972"
+project_go_version: "1.25.0"
+fix_go_version: "1.23.1"
+scenario: >
+  Path A direct update on a single-module repo. After modifying go.mod
+  to update the dependency version, list the commands to run in order.

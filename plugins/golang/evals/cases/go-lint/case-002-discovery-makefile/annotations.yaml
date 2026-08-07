@@ -1,0 +1,10 @@
+expected_command: "make lint"
+expected_discovery_source: "Makefile"
+expected_checked_claudemd_first: true
+expected_does_not_use: ["golangci-lint run ./..."]
+notes: >
+  No CLAUDE.md exists. Makefile has a `lint` target. Discovery cascade
+  says: check CLAUDE.md first (not found), then check Makefile for lint
+  or verify-lint targets (found `lint`), use it. Models fail by:
+  skipping the Makefile check and going straight to direct invocation,
+  or not checking for CLAUDE.md first.

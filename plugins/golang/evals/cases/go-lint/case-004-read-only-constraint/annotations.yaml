@@ -1,0 +1,10 @@
+expected_no_file_modifications: true
+expected_reports_issues: true
+expected_suggests_lint_fix: true
+expected_does_not_fix: true
+notes: >
+  The go-lint skill says "This skill is read-only. Never modify files or
+  attempt fixes. Use the golang:lint-fix skill for that." Tests that the
+  model reports issues AND directs to lint-fix, but does NOT edit any Go
+  files. Models fail by: "helpfully" fixing the issues when only asked
+  to lint, or not mentioning the lint-fix skill.

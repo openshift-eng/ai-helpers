@@ -1,0 +1,11 @@
+expected_uses_existing_constant: true
+expected_does_not_create_duplicate: true
+expected_uses_default_timeout: true
+notes: >
+  The skill says "Before adding a new constant to fix a magic-number
+  lint error, check whether an equivalent constant already exists in
+  the package or its imports." DefaultTimeout = 30 already exists.
+  The fix for Timeout should use DefaultTimeout. MaxRetries is also 30
+  but semantically different — a new constant (like DefaultMaxRetries)
+  may be appropriate there. Models fail by: creating a second `const
+  thirtyValue = 30` or similar, ignoring the existing constant entirely.

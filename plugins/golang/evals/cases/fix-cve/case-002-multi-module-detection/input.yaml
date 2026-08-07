@@ -1,0 +1,13 @@
+module: "google.golang.org/grpc"
+fix_version: "v1.75.1"
+cve: "CVE-2026-33186"
+ticket: "OCPBUGS-83972"
+project_go_version: "1.25.0"
+fix_go_version: "1.23.1"
+repo_structure_section: |
+  Repo structure:
+  ./go.mod                    (contains google.golang.org/grpc v1.71.0)
+  ./api/go.mod                (contains google.golang.org/grpc v1.70.0)
+  ./staging/src/k8s.io/go.mod (does NOT contain google.golang.org/grpc)
+  ./vendor/github.com/foo/go.mod (in vendor — must be excluded)
+  ./test/e2e/go.mod           (contains google.golang.org/grpc v1.71.0)
