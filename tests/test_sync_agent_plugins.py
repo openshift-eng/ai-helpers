@@ -66,7 +66,9 @@ def test_sync_agent_plugins_preserves_portable_extensions(temp_dir):
     portable["extensions"] = {"com.example": {"enabled": True}}
     (plugin_dir / "plugin.json").write_text(json.dumps(portable))
 
-    assert sync_agent_plugins(temp_dir, check=True) == 0
+    assert sync_agent_plugins(temp_dir, check=False) == 0
+    synced = json.loads((plugin_dir / "plugin.json").read_text())
+    assert synced["extensions"] == {"com.example": {"enabled": True}}
 
 
 def test_sync_agent_plugins_creates_manifest_and_translates_mcp(temp_dir):

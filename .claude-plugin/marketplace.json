@@ -80,7 +80,7 @@
       "name": "hello-world",
       "source": "./plugins/hello-world",
       "description": "Hello World Plugin",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "category": "tooling",
       "keywords": [
         "example",
@@ -159,7 +159,7 @@
       "name": "sosreport",
       "source": "./plugins/sosreport",
       "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "category": "debugging",
       "keywords": [
         "sosreport",
@@ -270,7 +270,7 @@
       "name": "must-gather",
       "source": "./plugins/must-gather",
       "description": "A plugin to analyze and report on must-gather data",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "category": "debugging",
       "keywords": [
         "must-gather",
@@ -294,7 +294,7 @@
       "name": "compliance",
       "source": "./plugins/compliance",
       "description": "Security compliance and vulnerability analysis tools for Go projects",
-      "version": "0.0.3",
+      "version": "0.0.4",
       "category": "security",
       "keywords": [
         "cve",
@@ -441,7 +441,7 @@
       "name": "ote-migration",
       "source": "./plugins/ote-migration",
       "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "category": "development",
       "keywords": [
         "ote",
@@ -501,7 +501,7 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.14",
+      "version": "1.1.15",
       "category": "bundle",
       "keywords": [
         "openshift",

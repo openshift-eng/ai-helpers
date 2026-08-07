@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "ote-migration",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
   "author": {
     "name": "github.com/openshift-eng"
