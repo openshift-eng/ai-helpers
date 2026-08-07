@@ -1,0 +1,12 @@
+type: epic
+project_key: CNTRLPLANE
+summary: "Multi-cluster metrics aggregation"
+flags: "--parent CNTRLPLANE-500"
+interactive_responses: |
+  Objective: Enable aggregation of metrics across multiple managed clusters into a unified view
+  Scope: Prometheus federation, custom metrics pipeline, dashboard integration
+  Acceptance criteria:
+    1. Metrics from up to 50 managed clusters aggregated within 5 minutes
+    2. Custom dashboards show cross-cluster resource utilization
+    3. Alert rules can reference metrics from any managed cluster
+  Timeframe: 2-3 sprints

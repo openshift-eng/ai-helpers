@@ -1,0 +1,12 @@
+type: feature
+project_key: CNTRLPLANE
+summary: "Advanced search capabilities for cluster fleet management"
+flags: ""
+interactive_responses: |
+  Market problem: Platform engineers managing 100+ clusters cannot efficiently find and filter clusters by custom attributes, leading to operational delays
+  Strategic value: Reduces mean time to cluster identification from 15 minutes to under 30 seconds, directly impacting incident response time
+  Success criteria:
+    - 80% of fleet management users adopt search within 3 months
+    - Average search latency under 500ms for fleets of 500+ clusters
+    - Support for at least 20 filterable attributes including custom labels
+  Timeline: Spans releases 4.22 through 4.23

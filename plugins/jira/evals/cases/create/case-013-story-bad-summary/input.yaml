@@ -1,0 +1,9 @@
+type: story
+project_key: CNTRLPLANE
+summary: "As a cluster admin, I want to configure ImageTagMirrorSet in HostedCluster CRs so that I can enable tag-based image proxying"
+flags: ""
+interactive_responses: |
+  Use suggested summary: yes
+  Who: cluster administrators
+  What: configure ImageTagMirrorSet in HostedCluster custom resources
+  Why: enable tag-based image proxying for disconnected environments

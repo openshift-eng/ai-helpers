@@ -1,0 +1,15 @@
+type: bug
+project_key: OCPBUGS
+summary: "NodePort service intermittently unreachable on OVN-Kubernetes clusters"
+flags: "--version 4.21"
+interactive_responses: |
+  Affects version: 4.21
+  Target version: openshift-4.21
+  Reproducibility: Sometimes
+  Steps to reproduce:
+    1. Create a NodePort service on an OVN-Kubernetes cluster
+    2. Access the service via node IP and allocated port
+    3. Repeat access every 5 seconds for 10 minutes
+  Actual results: Approximately 5% of requests fail with connection refused
+  Expected results: All requests succeed consistently
+  Additional info: Issue is specific to OVN-Kubernetes; does not reproduce with OpenShift SDN

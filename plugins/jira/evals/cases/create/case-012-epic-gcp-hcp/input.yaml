@@ -1,0 +1,25 @@
+type: epic
+project_key: GCP
+summary: "Implement CMEK support for GCP hosted control plane storage"
+flags: ""
+interactive_responses: |
+  Use case: Enterprise customers require Customer-Managed Encryption Keys for all data at rest in hosted control planes
+  Current state: All etcd and PV storage uses Google-managed encryption keys with no option for customer control
+  Desired state: Customers can provide their own Cloud KMS keys for encrypting etcd data and persistent volumes in hosted control planes
+  Scope included:
+    - KMS key configuration during cluster creation
+    - Key rotation support
+    - Encryption status visibility in cluster dashboard
+  Scope excluded:
+    - Bring-your-own-HSM support
+    - Cross-region key replication
+  Story breakdown:
+    - Configure KMS key binding for etcd encryption
+    - Add PV encryption with customer KMS keys
+    - Build key rotation automation
+    - Add encryption status to cluster dashboard
+    - Write e2e tests for CMEK lifecycle
+  Acceptance criteria:
+    - Clusters created with customer KMS keys have all data encrypted with those keys
+    - Key rotation completes without cluster downtime
+    - Encryption status visible in cluster details API

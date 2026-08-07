@@ -1,0 +1,8 @@
+type: story
+project_key: CNTRLPLANE
+summary: "Enable private API server for ARO HCP clusters"
+flags: "--version 4.22"
+interactive_responses: |
+  Who: ARO HCP cluster administrators
+  What: configure private API server endpoints for hosted control planes on Azure
+  Why: meet enterprise network isolation requirements for regulated workloads

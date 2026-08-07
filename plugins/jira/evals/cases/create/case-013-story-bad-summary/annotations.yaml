@@ -1,0 +1,21 @@
+expected_issue_type: Story
+expected_project_key: CNTRLPLANE
+expected_conventions: [cntrlplane]
+expected_labels: ["ai-generated-jira"]
+expected_security: "Red Hat Employee"
+expected_content_format: markdown
+expected_component: null
+expected_version_field: null
+expected_version_format: null
+expected_affects_version: null
+expected_custom_fields: {}
+expected_validation_warnings: ["summary_starts_with_as_a"]
+expected_creation_blocked: false
+description_template: story
+notes: >
+  Tests summary validation — the summary starts with "As a" which is
+  an anti-pattern (user story format belongs in description, not summary).
+  The skill should detect this and warn in validation-results.json.
+  The interactive response says to use the suggested summary, so the
+  planned-call.json summary should be corrected to something concise like
+  "Enable ImageTagMirrorSet configuration in HostedCluster CRs".

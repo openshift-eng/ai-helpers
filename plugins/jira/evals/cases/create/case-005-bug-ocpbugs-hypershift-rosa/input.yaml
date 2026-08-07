@@ -1,0 +1,15 @@
+type: bug
+project_key: OCPBUGS
+summary: "ROSA HCP cluster upgrade fails with OLM operator timeout"
+flags: ""
+interactive_responses: |
+  Affects version: 4.21
+  Target version: openshift-4.22
+  Reproducibility: Sometimes
+  Steps to reproduce:
+    1. Create ROSA HCP cluster on version 4.21
+    2. Initiate upgrade to 4.22
+    3. Wait for upgrade to complete
+  Actual results: Upgrade stalls at 60% with OLM operator timeout after 30 minutes
+  Expected results: Upgrade completes successfully within 45 minutes
+  Additional info: Affects approximately 30% of upgrade attempts on clusters with 5+ installed operators

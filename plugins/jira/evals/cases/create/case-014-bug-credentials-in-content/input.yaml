@@ -1,0 +1,15 @@
+type: bug
+project_key: OCPBUGS
+summary: "OAuth token refresh fails silently on managed clusters"
+flags: ""
+interactive_responses: |
+  Affects version: 4.22
+  Target version: openshift-4.22
+  Reproducibility: Always
+  Steps to reproduce:
+    1. Configure OAuth with token AKIAIOSFODNN7EXAMPLE and secret wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+    2. Wait for token expiry (1 hour)
+    3. Attempt API call with expired token
+  Actual results: API call hangs indefinitely, no error returned
+  Expected results: Token refreshed automatically or clear error returned
+  Additional info: Cluster kubeconfig contains the service account token

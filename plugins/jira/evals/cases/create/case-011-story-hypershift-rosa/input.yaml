@@ -1,0 +1,8 @@
+type: story
+project_key: CNTRLPLANE
+summary: "Implement node auto-repair for ROSA HCP worker nodes"
+flags: "--version 4.22"
+interactive_responses: |
+  Who: ROSA HCP cluster operators
+  What: automatically detect and replace unhealthy worker nodes in hosted clusters on AWS
+  Why: minimize manual intervention and reduce cluster downtime caused by node failures
