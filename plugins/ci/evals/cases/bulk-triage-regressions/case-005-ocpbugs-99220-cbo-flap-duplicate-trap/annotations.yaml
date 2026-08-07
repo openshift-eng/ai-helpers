@@ -1,0 +1,84 @@
+expected_bucket_count: 2
+
+primary_signature_regex: "baremetal|metal3|cluster-baremetal|Progressing.*(flap|transition)|not stable"
+
+accepted_owning_components:
+  - "bare metal hardware provisioning"
+  - "cluster-baremetal-operator"
+
+expected_triage_type: "product"
+
+expected_primary_classification: "permafail"
+
+expected_jira_regex: "OCPBUGS-99220"
+
+# KNOWN MODEL GAP (not a skill defect): claude-opus-4-6 — the target model —
+# does not surface OCPBUGS-99220 here, so expected_jira_found fails for this
+# case on that model and its threshold is relaxed to 0.8 in the eval config.
+# Benchmarked 2026-08: the same miss occurs with the full pre-slimming case
+# catalog, so it is not fixable by adding a narrative or rule; fable-5 and
+# opus-5 find the bug. The gap is in executing the Phase 4 component-scoped
+# JIRA listing (`component = "..." AND created >= -21d`) instead of relying on
+# keyword search. Treat a regression here as a model/methodology signal, and
+# restore the 1.0 threshold once the target model passes it.
+
+banned_fix_patterns: []
+
+ground_truth: |
+  Metal IPI serial-virtualmedia install-wrapper regression 42994 ("install
+  should succeed: overall", 5.0-main), snapshot truncated to the duty-time
+  state of 2026-07-25 (27 runs, 2026-07-06 .. 2026-07-21). Two distinct
+  cause windows:
+  - 2026-07-06 .. ~2026-07-13: metal IPI install failures caused by Go
+    1.24.10 toolchain download failures in the baremetalds-devscripts setup
+    (OCPBUGS-97996, Test Infrastructure, ci-infra type — a known CI event).
+  - 2026-07-19 .. 2026-07-21 (the PRIMARY bucket of this case): the
+    baremetal ClusterOperator never stabilizes — "install should succeed"
+    fails on CO stability with the baremetal operator re-transitioning
+    Progressing at ~1 Hz ("Applying metal3 resources" churn from
+    metal3-static-ip-manager), on the order of 1600+ transitions in 30
+    minutes, visible in the install log's condition lines
+    (LastTransitionTime / DurationSinceTransition ~1s). This is a PERMAFAIL
+    sync-loop product bug, not a "slow rollout that self-resolved": runs
+    look healthy at gather time, which historically seduced a duty run into
+    classifying it "self-resolved slow rollout" from a 3-run sample.
+  - The owning component's bug already exists: OCPBUGS-99220 "Do not
+    require metal3-static-ip-manager to progress in vmedia" (Bare Metal
+    Hardware Provisioning / cluster-baremetal-operator, created
+    2026-07-20 — inside the failure window, on the owning component,
+    with developer vocabulary sharing no keywords with the CI-side
+    symptom). Its fix merging matches the cessation of failures after
+    2026-07-21. A duty run historically filed a DUPLICATE bug because it
+    relied on keyword search instead of a component-scoped JIRA listing and
+    the owning-repo merge-history check.
+
+banned_conclusions:
+  - "the baremetal CO flap was a slow rollout that self-resolved (the
+    install log shows ~1 Hz Progressing re-transitions — 1600+ in 30
+    minutes — a permafail sync-loop; 'healthy at gather time' proves
+    nothing)"
+  - "no existing bug covers this; file a new bug (OCPBUGS-99220 exists on
+    the owning component, created inside the failure window; a
+    component-scoped JIRA listing regardless of keywords finds it)"
+  - "resolved by unidentified payload change (banned phrase unless the
+    owning-repo merge-history check ran and came back empty — here it
+    identifies the fix)"
+
+notes: |
+  Source: cases 4 and 6 in the skill's references/case-notes.md,
+  OCPBUGS-99220 and OCPBUGS-97996. This case tests three behaviors at once:
+  (1) cause-timeline splitting — the toolchain ci-infra window (2026-07-06
+  .. 07-13) must be a separate bucket from the CBO flap window (07-19 ..
+  07-21), hence expected_bucket_count 2; (2) counting condition transitions
+  before classifying flap vs slow-rollout — the primary bucket must be
+  classification "permafail" with the ~1 Hz transition evidence quoted;
+  (3) duplicate avoidance via developer-vocabulary-immune search — the
+  verdict/report must reference OCPBUGS-99220 (expected_jira_regex), found
+  via component-scoped JIRA listing ("project = OCPBUGS AND component =
+  ... AND created >= -21d") or the cluster-baremetal-operator merge-history
+  check at the cessation boundary, not via keyword search.
+
+  The toolchain bucket is judged leniently: ci-infra type with a
+  toolchain/devscripts download mechanism is correct; referencing
+  OCPBUGS-97996 is a bonus. Scoring emphasis is on the primary (CBO flap)
+  bucket.
