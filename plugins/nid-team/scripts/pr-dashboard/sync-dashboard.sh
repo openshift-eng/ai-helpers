@@ -241,6 +241,48 @@ done
 
 echo ""
 
+# --- Operation C2: Add shared repo PRs linked to team bugs (any author) ---
+# Operation C only finds team-authored PRs. This catches PRs by non-team
+# members (sustaining, external contributors) working on our bugs.
+# Gets our bug keys from Jira filter 23465, then searches each shared repo
+# once for all open PRs with OCPBUGS- in the title and matches locally.
+# This uses ~10 search API calls instead of bugs × repos.
+echo "--- Operation C2: Add shared repo PRs for team bugs ---"
+
+BUG_KEYS_FILE=$(mktemp)
+acli jira workitem search --filter 23465 --fields "key" --csv --limit 500 2>/dev/null | tail -n +2 | cut -d',' -f1 | grep "OCPBUGS" > "$BUG_KEYS_FILE" 2>/dev/null || true
+BUG_COUNT=$(wc -l < "$BUG_KEYS_FILE" | tr -d ' ')
+echo "  Found $BUG_COUNT bugs in filter 23465"
+
+BUGPR_ADDED=0
+for repo in "${SHARED_REPOS[@]}"; do
+    prs=$(gh pr list --repo "$repo" --state open --search "OCPBUGS- in:title" --json url,title --limit 200 -q '.[] | .url + "|" + .title' 2>/dev/null || true)
+    [ -z "$prs" ] && continue
+    while IFS='|' read -r url pr_title; do
+        [ -z "$url" ] && continue
+        if echo "$EXISTING_URLS" | grep -qFx "$url"; then
+            continue
+        fi
+        matched_key=$(echo "$pr_title" | grep -oE 'OCPBUGS-[0-9]+' | head -1 || true)
+        [ -z "$matched_key" ] && continue
+        if ! grep -qFx "$matched_key" "$BUG_KEYS_FILE"; then
+            continue
+        fi
+        echo "  ADD: $url ($matched_key)"
+        if ! gh project item-add "$PROJECT_NUM" --owner "$OWNER" --url "$url"; then
+            echo "  ERROR: failed to add $url" >&2
+            continue
+        fi
+        EXISTING_URLS="$EXISTING_URLS
+$url"
+        BUGPR_ADDED=$((BUGPR_ADDED + 1))
+    done <<< "$prs"
+done
+
+rm -f "$BUG_KEYS_FILE"
+
+echo ""
+
 # --- Operation F: Add docs PRs linked to team's Jira issues ---
 # Docs PRs are written by the docs team, not us, but we need to review them.
 # We can't filter openshift-docs PRs by author (they're not our team) or by
@@ -288,7 +330,7 @@ done
 echo ""
 
 # Re-fetch items if we added new ones
-if [ "$SHARED_ADDED" -gt 0 ] || [ "$DOCS_ADDED" -gt 0 ]; then
+if [ "$SHARED_ADDED" -gt 0 ] || [ "$BUGPR_ADDED" -gt 0 ] || [ "$DOCS_ADDED" -gt 0 ]; then
     echo "Re-fetching project items after additions..."
     ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
     ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['items']))")
@@ -656,6 +698,7 @@ rm -f "$PRIORITY_FILE"
 echo ""
 echo "=== Sync Complete ==="
 echo "  Shared PRs added: $SHARED_ADDED"
+echo "  Bug PRs added (non-team): $BUGPR_ADDED"
 echo "  Docs PRs added: $DOCS_ADDED"
 echo "$ITEMS_JSON" | python3 -c "
 import json, sys
