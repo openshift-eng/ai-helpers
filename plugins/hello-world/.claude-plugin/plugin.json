@@ -3,6 +3,6 @@
   "description": "A hello world plugin",
   "version": "1.0.3",
   "author": {
-    "name": "Developer"
+    "name": "github.com/openshift-eng"
   }
 }

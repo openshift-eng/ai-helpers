@@ -10,8 +10,6 @@ from skillsaw import RepositoryContext, Rule, RuleViolation, Severity
 from skillsaw.lint_target import PluginNode
 
 
-PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
-MCP_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
 PORTABLE_METADATA_FIELDS = (
     "name",
     "version",
@@ -120,8 +118,8 @@ class AgentPluginManifestsRequiredRule(Rule):
                     file_path=plugin_dir / "mcp.json",
                 )
             )
-        elif (plugin_dir / "mcp.json").is_file():
-            violations.extend(self._check_mcp(plugin_dir / "mcp.json"))
+        # skillsaw 0.18.0's native agent-plugin-mcp-valid rule owns schema
+        # and server-entry validation; this rule enforces the paired file.
 
         return violations
 
@@ -139,37 +137,6 @@ class AgentPluginManifestsRequiredRule(Rule):
     ) -> List[RuleViolation]:
         violations: List[RuleViolation] = []
         portable_path = plugin_dir / "plugin.json"
-
-        if portable.get("$schema") != PLUGIN_SCHEMA:
-            violations.append(
-                self.violation(
-                    f"Plugin '{plugin_dir.name}' must target Agent Plugins schema 1.0.0",
-                    file_path=portable_path,
-                )
-            )
-
-        allowed_fields = {
-            "$schema",
-            *PORTABLE_METADATA_FIELDS,
-            "extensions",
-        }
-        unknown_fields = sorted(set(portable) - allowed_fields)
-        if unknown_fields:
-            violations.append(
-                self.violation(
-                    f"Plugin '{plugin_dir.name}' has unsupported portable manifest "
-                    f"fields: {', '.join(unknown_fields)}",
-                    file_path=portable_path,
-                )
-            )
-
-        if not isinstance(portable.get("name"), str) or not portable["name"]:
-            violations.append(
-                self.violation(
-                    "Agent Plugins plugin.json must define a non-empty name",
-                    file_path=portable_path,
-                )
-            )
 
         for field in PORTABLE_METADATA_FIELDS:
             if field in claude and portable.get(field) != self._portable_value(field, claude[field]):
@@ -189,39 +156,3 @@ class AgentPluginManifestsRequiredRule(Rule):
         if field == "author" and isinstance(value, dict):
             return {key: value[key] for key in ("name", "email", "url") if key in value}
         return value
-
-    def _check_mcp(self, path: Path) -> List[RuleViolation]:
-        value = self._load_object(path)
-        if value is None:
-            return [
-                self.violation(
-                    "Portable mcp.json must contain a JSON object",
-                    file_path=path,
-                )
-            ]
-
-        violations: List[RuleViolation] = []
-        if value.get("$schema") != MCP_SCHEMA:
-            violations.append(
-                self.violation(
-                    "Portable mcp.json must target Agent Plugins schema 1.0.0",
-                    file_path=path,
-                )
-            )
-        if not isinstance(value.get("mcpServers"), dict):
-            violations.append(
-                self.violation(
-                    "Portable mcp.json must define an mcpServers object",
-                    file_path=path,
-                )
-            )
-        unknown_fields = sorted(set(value) - {"$schema", "mcpServers"})
-        if unknown_fields:
-            violations.append(
-                self.violation(
-                    "Portable mcp.json has unsupported top-level fields: "
-                    + ", ".join(unknown_fields),
-                    file_path=path,
-                )
-            )
-        return violations

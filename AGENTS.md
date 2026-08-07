@@ -10,8 +10,8 @@ plugins/{plugin-name}/
 │   └── plugin.json               # Required: name, description, version, author
 ├── plugin.json                   # Required: Agent Plugins v1 manifest
 ├── commands/
-│   └── {command-name}.md         # Required: at least one command
-├── skills/                        # Optional
+│   └── {command-name}.md         # Optional: Claude-specific commands
+├── skills/                        # Optional: portable skills
 │   └── {skill-name}/
 │       └── SKILL.md
 ├── mcp.json                      # Optional: Agent Plugins MCP configuration
@@ -19,6 +19,10 @@ plugins/{plugin-name}/
 ```
 
 Canonical example: `plugins/hello-world/`
+
+Every plugin must provide at least one command or skill. Portable Agent
+Plugins expose the directly packaged skills and MCP servers; commands remain
+Claude-specific.
 
 ## Development Commands
 

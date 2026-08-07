@@ -4,6 +4,6 @@
   "version": "0.0.2",
   "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
   "author": {
-    "name": "github.com/arkadeepsen"
+    "name": "github.com/openshift-eng"
   }
 }

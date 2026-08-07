@@ -93,6 +93,17 @@ class TestAgentPluginManifestsRequired:
         assert len(violations) == 1
         assert "unsynchronized 'description'" in violations[0].message
 
+    def test_portable_extensions_are_preserved(self, temp_dir, agent_plugin_manifests_rule):
+        plugin_dir = _make_plugin(temp_dir)
+        _add_marketplace(temp_dir, "test-plugin")
+        portable = json.loads((plugin_dir / "plugin.json").read_text())
+        portable["extensions"] = {"com.example": {"enabled": True}}
+        (plugin_dir / "plugin.json").write_text(json.dumps(portable))
+
+        assert sync_agent_plugins(temp_dir, check=True) == 0
+        ctx = RepositoryContext(temp_dir)
+        assert agent_plugin_manifests_rule().check(ctx) == []
+
     def test_mcp_requires_portable_copy(self, temp_dir, agent_plugin_manifests_rule):
         plugin_dir = _make_plugin(temp_dir)
         (plugin_dir / ".mcp.json").write_text(

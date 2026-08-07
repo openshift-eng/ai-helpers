@@ -180,11 +180,11 @@ def sync_plugin_manifest(plugin_dir: Path, check: bool) -> list[str]:
 
     assert portable is not None
     expected = portable_manifest_from_claude(claude)
-    if portable != expected:
-        errors.append(
-            f"{plugin_dir.name}: {portable_path} differs from the Claude manifest; "
-            "run the sync after resolving the conflicting metadata"
-        )
+    for field, value in expected.items():
+        if portable.get(field) != value:
+            errors.append(
+                f"{plugin_dir.name}: {portable_path} differs in synchronized field {field!r}"
+            )
 
     return errors
 

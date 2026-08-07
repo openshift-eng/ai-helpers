@@ -4,6 +4,6 @@
   "version": "0.0.2",
   "description": "A plugin to analyze and report on must-gather data",
   "author": {
-    "name": "openshift"
+    "name": "github.com/openshift-eng"
   }
 }

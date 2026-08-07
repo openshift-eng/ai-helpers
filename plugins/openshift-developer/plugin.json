@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "openshift-developer",
   "version": "1.1.14",
-  "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
+  "description": "OpenShift engineering workflows for reviews, test plans, pull requests, and Jira-driven fixes",
   "author": {
     "name": "github.com/openshift-eng"
   }

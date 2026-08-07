@@ -4,6 +4,6 @@
   "version": "0.0.3",
   "description": "Security compliance and vulnerability analysis tools for Go projects",
   "author": {
-    "name": "chiragkyal"
+    "name": "github.com/openshift-eng"
   }
 }
