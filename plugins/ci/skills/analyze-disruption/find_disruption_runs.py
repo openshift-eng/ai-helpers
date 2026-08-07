@@ -35,14 +35,18 @@ GRAFANA_TO_VARIANT = {
 
 
 def parse_grafana_url(url):
-    """Extract var-* parameters from a Grafana dashboard URL."""
+    """Extract var-* parameters from a Grafana dashboard URL.
+
+    Multi-value params (e.g. var-platform=azure&var-platform=gcp) are stored
+    as comma-joined strings so downstream code stays simple.
+    """
     parsed = urllib.parse.urlparse(url)
     params = urllib.parse.parse_qs(parsed.query)
     result = {}
     for key, values in params.items():
         if key.startswith("var-"):
             name = key[4:]
-            result[name] = values[0]
+            result[name] = ",".join(values) if len(values) > 1 else values[0]
 
     dashboard_name = ""
     path_parts = parsed.path.rstrip("/").split("/")
@@ -528,8 +532,28 @@ def main(argv=None):
             variants[variant_key] = val
 
     since_ms = int((time.time() - args.since_hours * 3600) * 1000)
-    filter_dict = build_sippy_filter(variants, since_ms)
-    rows = fetch_runs(release, filter_dict, args.limit)
+
+    multi_keys = [(k, v.split(",")) for k, v in variants.items() if "," in v]
+    if multi_keys:
+        seen_prow_ids = set()
+        rows = []
+        variant_combos = [{}]
+        for mk, mv in multi_keys:
+            variant_combos = [
+                dict(combo, **{mk: val}) for combo in variant_combos for val in mv
+            ]
+        for combo in variant_combos:
+            query_variants = dict(variants, **combo)
+            filter_dict = build_sippy_filter(query_variants, since_ms)
+            batch = fetch_runs(release, filter_dict, args.limit)
+            for r in batch:
+                pid = str(r.get("prow_id", ""))
+                if pid not in seen_prow_ids:
+                    seen_prow_ids.add(pid)
+                    rows.append(r)
+    else:
+        filter_dict = build_sippy_filter(variants, since_ms)
+        rows = fetch_runs(release, filter_dict, args.limit)
 
     if not rows:
         filters_desc = ", ".join("%s:%s" % (k, v) for k, v in variants.items())

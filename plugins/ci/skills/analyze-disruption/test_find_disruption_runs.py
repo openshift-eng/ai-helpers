@@ -31,6 +31,22 @@ def test_parse_grafana_url_extracts_vars():
     assert "orgId" not in result
 
 
+def test_parse_grafana_url_multi_value():
+    url = (
+        "https://grafana-loki.ci.openshift.org/d/abc/dash"
+        "?var-platform=azure&var-platform=gcp"
+        "&var-backend=host-to-host-new-connections"
+        "&var-releases=5.0&var-ipmode=ipv6&var-ipmode=ipv4"
+        "&var-os=rhcos10&var-os=rhcos9"
+    )
+    result = parse_grafana_url(url)
+    assert result["platform"] == "azure,gcp"
+    assert result["backend"] == "host-to-host-new-connections"
+    assert result["ipmode"] == "ipv6,ipv4"
+    assert result["os"] == "rhcos10,rhcos9"
+    assert result["releases"] == "5.0"
+
+
 def test_parse_grafana_url_all_variants():
     url = (
         "https://grafana-loki.ci.openshift.org/d/abc/dash"
