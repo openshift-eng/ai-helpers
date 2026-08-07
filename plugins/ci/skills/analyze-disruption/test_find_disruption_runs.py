@@ -6,6 +6,7 @@ from unittest.mock import patch
 from find_disruption_runs import (
     extract_disruption_failures,
     fetch_disruption_data,
+    main,
     max_disruption_for_backend,
     parse_backend,
     parse_grafana_url,
@@ -31,6 +32,75 @@ def test_parse_grafana_url_extracts_vars():
     assert "orgId" not in result
 
 
+def test_parse_grafana_url_multi_value():
+    url = (
+        "https://grafana-loki.ci.openshift.org/d/abc/dash"
+        "?var-platform=azure&var-platform=gcp"
+        "&var-backend=host-to-host-new-connections"
+        "&var-releases=5.0&var-ipmode=ipv6&var-ipmode=ipv4"
+        "&var-os=rhcos10&var-os=rhcos9"
+    )
+    result = parse_grafana_url(url)
+    assert result["platform"] == "azure,gcp"
+    assert result["backend"] == "host-to-host-new-connections"
+    assert result["ipmode"] == "ipv6,ipv4"
+    assert result["os"] == "rhcos10,rhcos9"
+    assert result["releases"] == "5.0"
+
+
+@patch("find_disruption_runs.fetch_disruption_data", return_value={})
+@patch("find_disruption_runs.fetch_runs")
+def test_multi_value_queries_and_dedup(mock_fetch_runs, _mock_disruption):
+    """Multi-value params expand into separate queries, dedup by prow_id, sort by timestamp, and cap at --limit."""
+    import io
+    from contextlib import redirect_stdout
+
+    base_ts = 1722988800000  # epoch ms
+    azure_rows = [
+        {"prow_id": "A1", "timestamp": base_ts + 50000, "job": "azure-job"},
+        {"prow_id": "A2", "timestamp": base_ts + 30000, "job": "azure-job"},
+        {"prow_id": "SHARED", "timestamp": base_ts + 10000, "job": "shared-job"},
+    ]
+    gcp_rows = [
+        {"prow_id": "G1", "timestamp": base_ts + 40000, "job": "gcp-job"},
+        {"prow_id": "SHARED", "timestamp": base_ts + 10000, "job": "shared-job"},
+        {"prow_id": "G2", "timestamp": base_ts + 5000, "job": "gcp-job"},
+    ]
+    mock_fetch_runs.side_effect = [azure_rows, gcp_rows]
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        main([
+            "--grafana-url",
+            "https://grafana-loki.ci.openshift.org/d/abc/dash"
+            "?var-platform=azure&var-platform=gcp"
+            "&var-backend=kube-api-new-connections&var-releases=5.0",
+            "--format", "json", "--limit", "4",
+        ])
+    output = json.loads(buf.getvalue())
+
+    # Both platform values were queried
+    assert mock_fetch_runs.call_count == 2
+    platforms_queried = set()
+    for call in mock_fetch_runs.call_args_list:
+        filter_dict = call[0][1]  # positional: (release, filter_dict, limit)
+        for item in filter_dict["items"]:
+            if "Platform:" in item["value"]:
+                platforms_queried.add(item["value"])
+    assert platforms_queried == {"Platform:azure", "Platform:gcp"}
+
+    # Dedup: SHARED appears once; limit enforced (5 unique -> capped to 4)
+    prow_ids = [r["build_id"] for r in output]
+    assert len(prow_ids) == 4
+    assert len(set(prow_ids)) == 4
+    assert "SHARED" in prow_ids
+
+    # Sorted by timestamp descending (epoch ms numbers)
+    timestamps = [r["timestamp"] for r in output]
+    assert timestamps == sorted(timestamps, reverse=True)
+    assert timestamps[0] > timestamps[-1]
+
+
 def test_parse_grafana_url_all_variants():
     url = (
         "https://grafana-loki.ci.openshift.org/d/abc/dash"
@@ -47,6 +117,19 @@ def test_parse_grafana_url_all_variants():
     assert result["upgrade_type"] == "minor"
     assert result["releases"] == "4.18"
     assert result["backend"] == "kube-api-reused-connections"
+
+
+def test_parse_grafana_url_featureset_ipmode_os():
+    url = (
+        "https://grafana-loki.ci.openshift.org/d/abc/dash"
+        "?var-platform=aws&var-backend=kube-api-new-connections"
+        "&var-releases=5.0&var-featureset=techpreview"
+        "&var-ipmode=ipv6&var-os=rhcos10"
+    )
+    result = parse_grafana_url(url)
+    assert result["featureset"] == "techpreview"
+    assert result["ipmode"] == "ipv6"
+    assert result["os"] == "rhcos10"
 
 
 def test_parse_backend_new_connections():

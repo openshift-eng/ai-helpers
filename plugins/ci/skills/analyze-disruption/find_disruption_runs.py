@@ -31,18 +31,30 @@ GRAFANA_TO_VARIANT = {
     "topologies": "Topology",
     "networks": "Network",
     "upgrade_type": "Upgrade",
+    "featureset": "FeatureSet",
+    "ipmode": "NetworkStack",
+    "os": "OS",
+}
+
+GRAFANA_DISPLAY_ONLY = {
+    "master_nodes_updated", "percentile", "lookback", "min_disruption_regression",
+    "min_disruption_job_list", "min_relevance", "orgId",
 }
 
 
 def parse_grafana_url(url):
-    """Extract var-* parameters from a Grafana dashboard URL."""
+    """Extract var-* parameters from a Grafana dashboard URL.
+
+    Multi-value params (e.g. var-platform=azure&var-platform=gcp) are stored
+    as comma-joined strings so downstream code stays simple.
+    """
     parsed = urllib.parse.urlparse(url)
     params = urllib.parse.parse_qs(parsed.query)
     result = {}
     for key, values in params.items():
         if key.startswith("var-"):
             name = key[4:]
-            result[name] = values[0]
+            result[name] = ",".join(values) if len(values) > 1 else values[0]
 
     dashboard_name = ""
     path_parts = parsed.path.rstrip("/").split("/")
@@ -527,9 +539,41 @@ def main(argv=None):
         if val:
             variants[variant_key] = val
 
+    known_keys = set(GRAFANA_TO_VARIANT) | GRAFANA_DISPLAY_ONLY | {"releases", "backend", "_dashboard_name"}
+    for gkey in grafana_params:
+        if gkey not in known_keys:
+            print("Warning: Grafana parameter '%s' not mapped to a Sippy filter, ignoring" % gkey, file=sys.stderr)
+
     since_ms = int((time.time() - args.since_hours * 3600) * 1000)
-    filter_dict = build_sippy_filter(variants, since_ms)
-    rows = fetch_runs(release, filter_dict, args.limit)
+
+    multi_keys = [(k, v.split(",")) for k, v in variants.items() if "," in v]
+    if multi_keys:
+        seen_prow_ids = set()
+        rows = []
+        variant_combos = [{}]
+        for mk, mv in multi_keys:
+            variant_combos = [
+                dict(combo, **{mk: val}) for combo in variant_combos for val in mv
+            ]
+        max_combos = 20
+        if len(variant_combos) > max_combos:
+            print("Error: %d variant combinations exceeds limit of %d" % (
+                len(variant_combos), max_combos), file=sys.stderr)
+            sys.exit(1)
+        for combo in variant_combos:
+            query_variants = dict(variants, **combo)
+            filter_dict = build_sippy_filter(query_variants, since_ms)
+            batch = fetch_runs(release, filter_dict, args.limit)
+            for r in batch:
+                pid = str(r.get("prow_id", ""))
+                if pid not in seen_prow_ids:
+                    seen_prow_ids.add(pid)
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get("timestamp", 0), reverse=True)
+        rows = rows[:args.limit]
+    else:
+        filter_dict = build_sippy_filter(variants, since_ms)
+        rows = fetch_runs(release, filter_dict, args.limit)
 
     if not rows:
         filters_desc = ", ".join("%s:%s" % (k, v) for k, v in variants.items())
