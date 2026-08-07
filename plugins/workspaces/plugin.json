@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "workspaces",
+  "version": "1.0.1",
+  "description": "Manage isolated git worktree workspaces for multi-repo development",
+  "author": {
+    "name": "github.com/openshift-eng"
+  },
+  "keywords": [
+    "git",
+    "worktree",
+    "workspace",
+    "multi-repo"
+  ]
+}

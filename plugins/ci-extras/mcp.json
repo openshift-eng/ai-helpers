@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "openshift-ci-mcp": {
+      "type": "stdio",
+      "command": "go",
+      "args": [
+        "run",
+        "github.com/openshift-eng/openshift-ci-mcp/cmd/openshift-ci-mcp@latest"
+      ]
+    }
+  }
+}

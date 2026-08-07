@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "prow-agent",
+  "version": "0.0.6",
+  "description": "Utilities for Claude Code sessions running inside Prow CI jobs",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

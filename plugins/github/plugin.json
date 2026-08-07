@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "github",
+  "version": "0.3.0",
+  "description": "GitHub utilities for image uploads, asset management, and PR automation",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

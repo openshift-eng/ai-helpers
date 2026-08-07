@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "snowflake",
+  "version": "0.5.1",
+  "description": "Snowflake data analysis commands for engineering metrics and reports",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

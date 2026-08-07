@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "console",
+  "version": "0.0.1",
+  "description": "OpenShift Console dynamic plugin development utilities",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

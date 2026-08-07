@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ci-extras",
+  "version": "0.0.2",
+  "description": "MCP server and extended tooling for OpenShift CI data access",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

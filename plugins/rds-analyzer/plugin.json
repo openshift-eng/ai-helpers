@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "rds-analyzer",
+  "version": "0.0.2",
+  "description": "Reference Design Specification (RDS) Analyzer workflow: cluster-compare JSON to deviation reports (text/HTML/reporting) and Jira follow-up",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
