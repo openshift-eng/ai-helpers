@@ -3,12 +3,8 @@
 # Container runtime (podman or docker)
 CONTAINER_RUNTIME ?= $(shell command -v podman 2>/dev/null || echo docker)
 
-# skillsaw image (version shared with the Python development dependency)
-SKILLSAW_VERSION := $(shell awk -F '==' '/^skillsaw==[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$$/ { version = $$2; count++ } END { if (count == 1) print version }' requirements-dev.txt)
-ifeq ($(strip $(SKILLSAW_VERSION)),)
-$(error requirements-dev.txt must contain exactly one skillsaw==X.Y.Z requirement)
-endif
-SKILLSAW_IMAGE ?= ghcr.io/stbenjam/skillsaw:$(SKILLSAW_VERSION)
+# skillsaw image
+SKILLSAW_IMAGE = ghcr.io/stbenjam/skillsaw:0.14.1
 
 # Detect if SELinux is enforcing and add security option
 SELINUX_OPT := $(shell if command -v getenforce >/dev/null 2>&1 && [ "$$(getenforce 2>/dev/null)" = "Enforcing" ]; then echo "--security-opt label=disable"; fi)
@@ -39,7 +35,7 @@ lint: ## Run plugin linter (verbose, strict mode)
 	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z $(SKILLSAW_IMAGE) .
 
 .PHONY: lint-pull
-lint-pull: ## Pull the configured skillsaw image
+lint-pull: ## Pull the latest skillsaw image
 	$(CONTAINER_RUNTIME) pull $(SKILLSAW_IMAGE)
 
 .PHONY: update

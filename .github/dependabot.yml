@@ -1,34 +1,6 @@
 version: 2
-multi-ecosystem-groups:
-  skillsaw:
-    schedule:
-      interval: "weekly"
-    labels:
-      - "area/dependency"
-      - "ok-to-test"
-
 updates:
   - package-ecosystem: "github-actions"
-    directory: "/"
-    patterns:
-      - "stbenjam/skillsaw*"
-    multi-ecosystem-group: "skillsaw"
-
-  - package-ecosystem: "pip"
-    directory: "/"
-    patterns:
-      - "skillsaw"
-    multi-ecosystem-group: "skillsaw"
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "area/dependency"
-      - "ok-to-test"
-
-  - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"

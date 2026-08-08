@@ -541,7 +541,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.82",
+      "version": "0.0.74",
       "has_readme": true,
       "commands": [
         {
@@ -551,6 +551,14 @@ footer a { color: var(--primary); }
           "description_html": "Add a wait step to a CI workflow for debugging test failures",
           "synopsis": "/ci:add-debug-wait \u003cworkflow-or-job-name\u003e [timeout]",
           "body_html": "\u003cp\u003eThe \u003ccode\u003eci:add-debug-wait\u003c/code\u003e command adds a \u003ccode\u003ewait\u003c/code\u003e step to a CI job/workflow for debugging test failures.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eWhat it does:\u003c/strong\u003e\u003cbr\u003e1. Takes job name, OCP version, and optional timeout as input\u003cbr\u003e2. Finds and edits the job config or workflow file\u003cbr\u003e3. Adds \u003ccode\u003e- ref: wait\u003c/code\u003e before the last test step (with optional timeout configuration)\u003cbr\u003e4. Creates a git commit\u003cbr\u003e5. Pushes the commit to your fork (\u003ccode\u003eorigin\u003c/code\u003e remote)\u003cbr\u003e6. Creates a PR via \u003ccode\u003egh\u003c/code\u003e\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eThat&#x27;s it!\u003c/strong\u003e Simple, fast, and automated.\u003c/p\u003e"
+        },
+        {
+          "name": "analyze-disruption",
+          "full_name": "ci:analyze-disruption",
+          "description": "Analyze and compare disruption across one or more Prow CI job runs",
+          "description_html": "Analyze and compare disruption across one or more Prow CI job runs",
+          "synopsis": "Analyze disruption events across one or more CI job runs, comparing backends to identify root causes:\n```text\n/ci:analyze-disruption \u003cprowjob-url-1\u003e [prowjob-url-2 ...] [--backends backend1,backend2,...]\n```",
+          "body_html": "\u003cp\u003eAnalyze disruption recorded in Prow CI job runs by downloading interval/timeline data, audit logs, and pod logs, then comparing disruption events across backends and job runs to identify patterns and root causes.\u003c/p\u003e\u003cp\u003eThe command accepts:\u003cbr\u003e- One or more Prow job URLs (required, at least 1)\u003cbr\u003e- An optional \u003ccode\u003e--backends\u003c/code\u003e flag with a comma-separated list of backend names to focus on\u003c/p\u003e\u003cp\u003eWhen multiple job runs are provided, the command compares and contrasts disruption patterns across runs to find commonalities that point to systemic issues vs one-off infrastructure problems.\u003c/p\u003e\u003cp\u003e### What It Does\u003c/p\u003e\u003cp\u003e1. \u003cstrong\u003eDownloads interval/timeline data\u003c/strong\u003e for each job run and locates the disruption section\u003cbr\u003e2. \u003cstrong\u003eIdentifies disruption intervals\u003c/strong\u003e by hovering-equivalent inspection of failed request messages\u003cbr\u003e3. \u003cstrong\u003eCorrelates with cluster activity\u003c/strong\u003e — what else was happening when disruption occurred\u003cbr\u003e4. \u003cstrong\u003eClassifies disruption by backend type\u003c/strong\u003e:\u003cbr\u003e   - \u003cstrong\u003eCache backends\u003c/strong\u003e (e.g., \u003ccode\u003e\u003cem\u003e-cache-\u003c/em\u003e\u003c/code\u003e) — implies etcd problems or global networking issues\u003cbr\u003e   - \u003cstrong\u003eNon-cache backends\u003c/strong\u003e — implies the actual component or cluster networking had problems\u003cbr\u003e   - \u003cstrong\u003e\u003ccode\u003eci-cluster-network-liveness\u003c/code\u003e\u003c/strong\u003e — canary backend polling a static external endpoint from the test cluster; significant disruption here means the test infrastructure itself had network issues, making actual measured disruption much less valuable for that run\u003cbr\u003e   - \u003cstrong\u003eCloud network-liveness backends\u003c/strong\u003e — monitor connectivity from the test cluster to static cloud backends; used to detect cloud-provider-level issues\u003cbr\u003e5. \u003cstrong\u003eAnalyzes audit logs\u003c/strong\u003e for kube-api, oauth-api, and openshift-api samplers to determine if requests were received (issue inside cluster) or missing (issue between test cluster and load balancer)\u003cbr\u003e6. \u003cstrong\u003eReviews pod logs\u003c/strong\u003e for etcd-specific messages (leader changes, write delays)\u003cbr\u003e7. \u003cstrong\u003eChecks for high CPU\u003c/strong\u003e correlation with mass disruption events\u003cbr\u003e8. \u003cstrong\u003eCross-run comparison\u003c/strong\u003e (when multiple runs provided) — identifies which disruption patterns are consistent vs isolated\u003c/p\u003e\u003cp\u003e### Backend Interpretation Guide\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003eCache backends disrupted\u003c/strong\u003e → likely etcd or global networking problem\u003cbr\u003e- \u003cstrong\u003eNon-cache backends disrupted\u003c/strong\u003e → likely component-specific or cluster networking problem\u003cbr\u003e- \u003cstrong\u003eci-cluster-network-liveness disrupted\u003c/strong\u003e → test infrastructure network issues; discount disruption from that run\u003cbr\u003e- \u003cstrong\u003eCloud network-liveness disrupted\u003c/strong\u003e → cloud provider issues\u003cbr\u003e- \u003cstrong\u003eAll backends disrupted simultaneously\u003c/strong\u003e → likely node-level issue (high CPU, node shutdown)\u003c/p\u003e\u003cp\u003e### Responsibility Routing\u003c/p\u003e\u003cp\u003eDisruption responsibility spans multiple teams. The more detail tracked down, the better the routing:\u003cbr\u003e- \u003cstrong\u003eNetworking team\u003c/strong\u003e — network-related disruptions, any disruptions related to the network or connectivity\u003cbr\u003e- \u003cstrong\u003eWorkloads team\u003c/strong\u003e — pod lifecycle, readiness probe issues\u003cbr\u003e- \u003cstrong\u003eAPI Server team\u003c/strong\u003e — API server disruption, audit log gaps\u003cbr\u003e- \u003cstrong\u003eNode team\u003c/strong\u003e — node shutdown sequencing, kubelet behavior, high CPU\u003c/p\u003e"
         },
         {
           "name": "analyze-pr-reverts",
@@ -727,21 +735,9 @@ footer a { color: var(--primary); }
           "meta": ""
         },
         {
-          "name": "bulk-triage-regressions",
-          "description": "Use this skill for Component Readiness triage duty - holistically analyze and triage all untriaged regressions for a set of components in a view, clustering them into root-cause buckets",
-          "description_html": "Use this skill for Component Readiness triage duty - holistically analyze and triage all untriaged regressions for a set of components in a view, clustering them into root-cause buckets",
-          "meta": ""
-        },
-        {
           "name": "detect-permafail",
           "description": "Analyze consecutive job failures to determine if they represent a permafail pattern versus flaky failures",
           "description_html": "Analyze consecutive job failures to determine if they represent a permafail pattern versus flaky failures",
-          "meta": ""
-        },
-        {
-          "name": "diagnose-job-run-symptoms",
-          "description": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run, in plain language, given only the Prow URL",
-          "description_html": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run, in plain language, given only the Prow URL",
           "meta": ""
         },
         {
@@ -766,12 +762,6 @@ footer a { color: var(--primary); }
           "name": "fetch-payloads",
           "description": "Fetch recent release payloads from the OpenShift release controller",
           "description_html": "Fetch recent release payloads from the OpenShift release controller",
-          "meta": ""
-        },
-        {
-          "name": "fetch-prow-job-runs",
-          "description": "List Prow job runs from the Sippy API using its real filter syntax — find run IDs by job name, variant, result, or time window",
-          "description_html": "List Prow job runs from the Sippy API using its real filter syntax — find run IDs by job name, variant, result, or time window",
           "meta": ""
         },
         {
@@ -808,24 +798,6 @@ footer a { color: var(--primary); }
           "name": "fetch-test-runs",
           "description": "Fetch test runs from Sippy API including outputs for AI-based similarity analysis",
           "description_html": "Fetch test runs from Sippy API including outputs for AI-based similarity analysis",
-          "meta": ""
-        },
-        {
-          "name": "list-symptoms",
-          "description": "List, search, and inspect Sippy Symptoms and Labels — known CI failure signatures — via the public Sippy API",
-          "description_html": "List, search, and inspect Sippy Symptoms and Labels — known CI failure signatures — via the public Sippy API",
-          "meta": ""
-        },
-        {
-          "name": "manage-labels",
-          "description": "Create, update, or delete Sippy job run Labels (the human-readable tags applied by Symptoms) via the authenticated Sippy API",
-          "description_html": "Create, update, or delete Sippy job run Labels (the human-readable tags applied by Symptoms) via the authenticated Sippy API",
-          "meta": ""
-        },
-        {
-          "name": "manage-symptoms",
-          "description": "Create, update, or delete Sippy Symptoms — known CI failure signatures that automatically label job runs — via the authenticated Sippy API",
-          "description_html": "Create, update, or delete Sippy Symptoms — known CI failure signatures that automatically label job runs — via the authenticated Sippy API",
           "meta": ""
         },
         {
@@ -874,12 +846,6 @@ footer a { color: var(--primary); }
           "name": "prow-job-analyze-resource",
           "description": "Analyze Kubernetes resource lifecycle in Prow CI job artifacts by parsing audit logs and pod logs from GCS, generating interactive HTML reports with timelines",
           "description_html": "Analyze Kubernetes resource lifecycle in Prow CI job artifacts by parsing audit logs and pod logs from GCS, generating interactive HTML reports with timelines",
-          "meta": ""
-        },
-        {
-          "name": "reevaluate-job-runs",
-          "description": "Retroactively re-run Sippy Symptom detection on completed Prow CI job runs to apply or preview failure Labels",
-          "description_html": "Retroactively re-run Sippy Symptom detection on completed Prow CI job runs to apply or preview failure Labels",
           "meta": ""
         },
         {
@@ -1490,7 +1456,7 @@ footer a { color: var(--primary); }
     {
       "name": "jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.9.1",
+      "version": "0.8.6",
       "has_readme": true,
       "commands": [
         {
@@ -1598,6 +1564,14 @@ footer a { color: var(--primary); }
           "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:setup-gh2jira\u003c/code\u003e command guides you through the complete installation and configuration of the \u003ca href=\"https://github.com/oceanc80/gh2jira\"\u003egh2jira utility\u003c/a\u003e, which enables cloning and reconciling GitHub issues with Jira. This command:\u003c/p\u003e\u003cp\u003e- Checks for and installs required dependencies (Go)\u003cbr\u003e- Clones and builds the gh2jira utility\u003cbr\u003e- Guides you through creating GitHub and Jira API Tokens\u003cbr\u003e- Creates and configures \u003ccode\u003etokenstore.yaml\u003c/code\u003e with your credentials\u003cbr\u003e- Optionally creates \u003ccode\u003eprofiles.yaml\u003c/code\u003e for project shortcuts\u003cbr\u003e- Creates default \u003ccode\u003eworkflows.yaml\u003c/code\u003e for state mapping\u003cbr\u003e- Adds gh2jira to your PATH for easy access\u003c/p\u003e"
         },
         {
+          "name": "solve",
+          "full_name": "jira:solve",
+          "description": "Analyze a JIRA issue and create a pull request to solve it.",
+          "description_html": "Analyze a JIRA issue and create a pull request to solve it.",
+          "synopsis": "/jira:solve \u003cjira-issue-id\u003e [remote] [--ci]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:solve\u003c/code\u003e command analyzes a JIRA issue and creates a pull request to solve it.\u003c/p\u003e\u003cp\u003eThis command takes a JIRA URL, fetches the issue description and requirements, analyzes the codebase to understand how to implement the solution, and creates a comprehensive pull request with the necessary changes.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eUsage Examples:\u003c/strong\u003e\u003c/p\u003e\u003cp\u003e1. \u003cstrong\u003eSolve a specific JIRA issue\u003c/strong\u003e:\u003cbr\u003e   ``\u003ccode\u003e\u003cbr\u003e   /jira:solve OCPBUGS-12345 origin\u003cbr\u003e   \u003c/code\u003e``\u003c/p\u003e"
+        },
+        {
           "name": "status-rollup",
           "full_name": "jira:status-rollup",
           "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
@@ -1620,14 +1594,6 @@ footer a { color: var(--primary); }
           "description_html": "Validate proposed release blockers using Red Hat OpenShift release blocker criteria",
           "synopsis": "```\n/jira:validate-blockers [target-version] [component-filter] [--bug issue-key]\n```\n\n**Note**: `target-version` is required unless `--bug` is provided.",
           "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:validate-blockers\u003c/code\u003e command helps release managers make data-driven decisions on proposed release blockers. It analyzes bugs with &quot;Release Blocker = Proposed&quot; status using Red Hat OpenShift release blocker criteria and provides clear APPROVE/REJECT/DISCUSS recommendations with detailed justification.\u003c/p\u003e\u003cp\u003eThis command is essential for:\u003cbr\u003e- Validating proposed release blockers\u003cbr\u003e- Making blocker approval/rejection decisions\u003cbr\u003e- Understanding why a bug should or shouldn&#x27;t block a release\u003cbr\u003e- Reviewing blocker criteria compliance\u003c/p\u003e"
-        },
-        {
-          "name": "validate-bug",
-          "full_name": "jira:validate-bug",
-          "description": "Diagnose and fix jira/invalid-bug on PRs — runs the same 7 checks as the jira-lifecycle-plugin",
-          "description_html": "Diagnose and fix jira/invalid-bug on PRs — runs the same 7 checks as the jira-lifecycle-plugin",
-          "synopsis": "/jira:validate-bug \u003cPR-URL | PR-number | JIRA-key\u003e [--branch release-4.X|main|master]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:validate-bug\u003c/code\u003e command diagnoses why the Prow \u003ccode\u003ejira/invalid-bug\u003c/code\u003e label was applied to a PR. It runs the same 7 validation checks as the \u003ca href=\"https://github.com/openshift-eng/jira-lifecycle-plugin\"\u003ejira-lifecycle-plugin\u003c/a\u003e, reports pass/fail for each check, and offers to fix failing checks via JIRA MCP tools.\u003c/p\u003e\u003cp\u003eThis command is essential for:\u003cbr\u003e- Diagnosing why a PR is stuck with \u003ccode\u003ejira/invalid-bug\u003c/code\u003e\u003cbr\u003e- Understanding which JIRA fields need correction\u003cbr\u003e- Fixing JIRA bugs in-place without manual field hunting\u003cbr\u003e- Batch-diagnosing multiple blocked PRs\u003c/p\u003e"
         }
       ],
       "skills": [
@@ -1702,12 +1668,6 @@ footer a { color: var(--primary); }
           "description": "Shared engine for analyzing Jira issue activity and generating status summaries",
           "description_html": "Shared engine for analyzing Jira issue activity and generating status summaries",
           "meta": ""
-        },
-        {
-          "name": "validate-bug",
-          "description": "Diagnose and fix jira/invalid-bug on PRs by running the same 7 checks as the jira-lifecycle-plugin",
-          "description_html": "Diagnose and fix jira/invalid-bug on PRs by running the same 7 checks as the jira-lifecycle-plugin",
-          "meta": ""
         }
       ],
       "agents": [],
@@ -1731,6 +1691,25 @@ footer a { color: var(--primary); }
       "author": {
         "name": "github.com/openshift-eng"
       }
+    },
+    {
+      "name": "k8s-rebase",
+      "description": "Automate Kubernetes dependency rebases for Go projects that consume k8s.io/* packages. Scans go.mod, derives version bumps, runs codegen, updates version references, and guides agent-driven fixups with antagonistic review.",
+      "version": "0.2.1",
+      "has_readme": true,
+      "commands": [],
+      "skills": [
+        {
+          "name": "k8s-rebase",
+          "description": "Rebase a Go project to a new Kubernetes version by bumping all k8s.io/* dependencies, running codegen, updating version references, fixing build breakage with antagonistic review, and presenting a gh pr create command.",
+          "description_html": "Rebase a Go project to a new Kubernetes version by bumping all k8s.io/* dependencies, running codegen, updating version references, fixing build breakage with antagonistic review, and presenting a gh pr create command.",
+          "meta": "Tools: Bash, Read, Agent"
+        }
+      ],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": []
     },
     {
       "name": "marketplace-ops",
@@ -1926,7 +1905,7 @@ footer a { color: var(--primary); }
     {
       "name": "node-cve",
       "description": "CVE triage for OpenShift Node team components",
-      "version": "0.0.7",
+      "version": "0.0.6",
       "has_readme": true,
       "commands": [
         {
@@ -2492,7 +2471,7 @@ footer a { color: var(--primary); }
     {
       "name": "openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.14",
+      "version": "1.1.13",
       "has_readme": true,
       "commands": [],
       "skills": [
@@ -2829,7 +2808,7 @@ footer a { color: var(--primary); }
     {
       "name": "teams",
       "description": "Team structure knowledge and health analysis commands for OpenShift teams",
-      "version": "0.0.16",
+      "version": "0.0.15",
       "has_readme": true,
       "commands": [
         {

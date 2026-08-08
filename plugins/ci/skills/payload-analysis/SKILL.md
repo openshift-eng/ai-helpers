@@ -156,29 +156,6 @@ unavailable rather than empty evidence.
 
 #### 3.4: Test Failure Details
 
-Only `test_failures.blocking[]` contains failures that can reject the payload. **`test_failures.informing[]` and `test_failures.flakes[]` cannot fail a job or reject a payload** — never score them as candidate causes, never use them to derive a failure mode's originating payload, and never propose a revert for them.
-
-**"Informing job" ≠ "informing test."** These are two completely different
-concepts that share a name:
-
-- **Informing job** (`informing_jobs.failed_jobs[]`): a CI *job* that runs
-  for visibility but does not gate the payload. Its pass/fail status is
-  job-level. An informing job can still contain blocking tests.
-- **Informing test** (`test_failures.informing[]`): an individual *test case*
-  with `lifecycle="informing"`. It can appear inside any job — blocking or
-  informing. Its results never count toward `test_failure_count`.
-
-Never combine informing-job counts with informing-test lists. When
-reporting informing/flake tests, list individual test names from
-`test_failures.informing[]` / `test_failures.flakes[]` — do NOT report
-informing *job* failure counts in the same section.
-
-Report informing and flake tests in their own section of the report, under a heading that says so, with this caveat:
-
-> These tests do not by themselves cause job failures or payload rejections. The only potential impact is if the test itself affects cluster health — for example if it breaks an operator or does something otherwise catastrophic.
-
-Keep them visible: informing tests are new tests being stabilized, and a badly-behaved test can occasionally damage the cluster it runs on. Investigate one only when there is evidence of that, and say plainly that it is not a rejection cause.
-
 From `summary.json` → `test_failures.blocking[]`:
 - `test_name`, `jobs`, `first_failed_in`, `payloads_failing`
 - `failure_message`, `failure_text` (full, not truncated)

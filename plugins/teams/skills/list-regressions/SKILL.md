@@ -62,9 +62,7 @@ Execute the script with appropriate arguments:
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --view 4.17-main
 
-# Filter by specific components (case-insensitive, hierarchy-aware:
-# "Installer" also matches "Installer / openshift-installer";
-# "Networking" matches "Networking / ovn-kubernetes", "Networking / router", ...)
+# Filter by specific components
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --view 4.21-main \
   --components Monitoring "kube-apiserver"
