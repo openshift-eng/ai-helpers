@@ -248,6 +248,22 @@ For each failed job's `streak.originating_payload`, find the matching entry in `
 
 For each failed job, identify the matching RHCOS variant's RPM changes (if any) based on the job's `rhcos_version` field and the RHCOS tag mapping above. These changes are used as additional context in Step 4 and as potential suspects in Step 6.
 
+#### 3.7b: RHCOS RPM Changelogs
+
+`rhcos_changes[]` names the packages that changed and their version bumps, but not *what* changed inside those packages. The snapshot's **RPM changelog diffs** fill that gap — they contain the actual changelog entries each version bump added (bug fixes, CVEs, behavioral changes).
+
+The data is available in two forms:
+
+1. **Inline in `summary.json`** — `rpm_changelogs[]` at the top level. The baseline entry (the one with `is_baseline: true`) carries its content inline under `diff`: `diff.changed[]` with `package`, `old`, `new`, and `changelog` (the entries the new version added); `diff.added[]` / `diff.removed[]` with `package` and `version`. This covers the full target-vs-baseline diff without a file read.
+
+2. **Per-hop report files** — `rpm_changelogs[]` entries also have a `changelogs` path pointing at `<target-tag>/rpm-changelogs/<variant>/<older-tag>.md`. Read these to find which intermediate payload introduced a specific package bump (useful when the originating payload for a failure is not the baseline). `payloads[]` entries for the target payload and for payloads whose RPMDBs could not be extracted have no `rpm_changelogs[]` at all — the field is absent, not empty. An intermediate hop where the RHCOS image did not change shows `changed: 0, added: 0, removed: 0`; use this to pinpoint which hop introduced a given RHCOS bump.
+
+**Subpackage deduplication.** Multiple binary RPMs are often built from the same source RPM (SRPM) and share identical changelogs. When `diff.changed[]` contains several packages with the same version bump and the same changelog text, they come from one SRPM — read the changelog once and treat them as a single logical change, not separate suspects.
+
+**Variant-specific changelogs differ.** The RHCOS 9 and RHCOS 10 variants carry different packages with different changelogs, even in the same payload chain. When a failure is variant-isolated, compare the changelog entries between the two variants: a change that appears in only one variant's packages is a stronger signal for explaining a variant-isolated failure.
+
+**How to use changelog text.** When a failure correlates with an RHCOS RPM change (Step 6.1b), read the changelog entries for the suspect package. The text often names the exact bug fix, feature, or behavioral change that landed — this can confirm or rule out the package as a regression culprit far more decisively than a version bump alone.
+
 ### Step 4: Investigate Each Failed Job in Parallel
 
 For each failed blocking job in the **target payload**, launch a **parallel subagent** to investigate the failure. Pass the subagent the Prow URL and all previous attempt URLs from Step 3.2.
@@ -265,6 +281,8 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 > **RHCOS version**: This job's cluster runs on **<rhcos_version>**. <rhcos_context>
 >
 > **RHCOS RPM changes**: Read `<summary_json_path>` and find the entry in `payloads[]` whose `tag` equals `<originating_payload_tag>`. If that entry has an `rhcos_changes[]` array, look up the RHCOS variant matching this job's `rhcos_version` using the tag mapping: `rhel-coreos` → `rhcos9`/`rhcos9-default`, `rhel-coreos-10` → `rhcos10`/`rhcos10-default`, both apply to `rhcos9_10`. Check whether any changed, added, or removed RPM packages overlap with the failure's root cause. If the failure involves OS-level components (kernel, bootloader, systemd, SELinux, rpm-ostree, cri-o, crun, runc, networking) and matching packages changed, note the potential correlation in your ANALYSIS_RESULT.
+>
+> **RHCOS RPM changelogs**: When you find a suspect RPM package via `rhcos_changes[]`, read the changelog text to see *what* actually changed in that package — use it as evidence to support or rule out the package as the regression culprit. To read the baseline changelog: in `<summary_json_path>`, find `rpm_changelogs[]` at the top level → the entry with `is_baseline: true` for the matching variant — its `diff.changed[]` entries each have a `changelog` field with the entries the new version added. For the originating payload's hop specifically: find `rpm_changelogs[]` in `payloads[]` for `<originating_payload_tag>` matching the variant, and read the file at its `changelogs` path (relative to `<snapshot_dir>`). Note that multiple binary RPMs built from the same source RPM share identical changelogs — when several packages have the same version bump and changelog, read it once and treat them as a single change. A changelog entry that describes a change in the subsystem or behavior seen in the failure is strong evidence; a changelog about an unrelated subsystem rules the package out even though its version changed.
 >
 > Use the `ci:prow-job-analysis` skill for this investigation. It is the single entry point for every failed job: it identifies the job type, classifies the failure, and routes to the correct specialized reference — install, metal/bare-metal, test, upgrade, and more — internally. Do NOT pre-classify the failure yourself. Perform the full analysis, including downloading and analyzing must-gather when it is available.
 >
@@ -298,12 +316,13 @@ ANALYSIS_RESULT:
 - rhcos_version: rhcos9|rhcos10|rhcos9_10|rhcos9-default|rhcos10-default
 - rhcos_rpm_correlation: none|possible|likely
 - rhcos_rpm_suspect_packages: <comma-separated package names if correlation is possible or likely, or "none">
+- rhcos_rpm_changelog_evidence: <for each suspect package, the specific changelog entry that relates to the failure, or "none" if the changelog was read but contained no relevant entries, or "unavailable" if no changelog data exists>
 ```
 
 The `rhcos_rpm_correlation` field indicates whether the failure may be related to RHCOS RPM changes found in `summary.json`:
 - `none` — no correlation found, or no RHCOS RPM changes exist for this job's variant
-- `possible` — the failure involves OS-level components that overlap with changed packages, but the link is not definitive
-- `likely` — error messages or failure behavior directly point to functionality provided by a changed RPM package
+- `possible` — the failure involves OS-level components that overlap with changed packages, but the link is not definitive (changelog may or may not contain relevant entries)
+- `likely` — error messages or failure behavior directly point to functionality provided by a changed RPM package, **especially when the RPM changelog text describes a change in the exact subsystem or behavior seen in the failure**
 
 **Note for aggregated jobs**: Since only the final attempt is examined (retries re-run aggregation only), set `retries_consistent: only_final_examined` and `retry_summary: "Aggregated job — only final attempt examined (retries re-run aggregation only)"`.
 
@@ -430,13 +449,20 @@ After scoring PR candidates, check for RHCOS RPM change correlation. A failure c
 
 When both PR candidates AND RHCOS RPM changes are plausible causes, include both. The PR candidate scoring is unchanged; RHCOS suspects are additive context, not alternatives. It is possible for a failure to be caused by an interaction between a PR change and an RHCOS change.
 
+**Use RPM changelog text to sharpen correlation.** When a package is flagged as a suspect based on version change alone, read its changelog entries (Step 3.7b) before finalizing the correlation level. A changelog entry that describes a change in the exact subsystem or behavior seen in the failure elevates `possible` to `likely`. Conversely, a changelog that only describes unrelated changes downgrades the suspicion — the version bump is coincidental. Record the relevant changelog entry in the suspect's `rationale` when it provides evidence.
+
+**Subpackage dedup.** Multiple binary RPMs built from the same source RPM share identical changelogs. When several packages have the same version bump and the same changelog, record one suspect and cite the relevant changelog entry — do not list each subpackage as a separate suspect.
+
+**Pinpointing which hop introduced the RHCOS change.** The top-level `rpm_changelogs[]` entries include intermediate hops — some may show `changed: 0` (no RPM changes between those two payloads), while others show the actual bump. When the originating payload for a failure mode differs from the baseline, check the intermediate hop's changelog to confirm the RPM change landed in that specific hop, not earlier. This narrows the timing correlation.
+
 For each RHCOS RPM suspect, record:
 - `rhcos_tag`: the RHCOS image stream tag (e.g., `rhel-coreos-10`)
 - `rhcos_name`: human-readable name (e.g., "Red Hat Enterprise Linux CoreOS 10.2")
 - `package`: the RPM package name
 - `old_version`, `new_version`: the version change
+- `changelog_evidence`: the specific changelog entry or entries that relate to the failure (verbatim text from the RPM changelog diff), or `"none"` if the changelog does not contain entries relevant to the failure mode
 - `failing_jobs`: list of job names where this package change may be relevant
-- `rationale`: why this package is suspected (e.g., "systemd update correlates with variant-isolated boot timeout in RHCOS 10 jobs")
+- `rationale`: why this package is suspected — cite the changelog entry when it provides evidence (e.g., "systemd 256.4→256.7 changelog includes 'fix race condition in mount unit ordering' — correlates with mount timeout in RHCOS 10 jobs")
 
 #### 6.2: Propose Revert Candidates
 
@@ -603,6 +629,16 @@ Include this section after the failed job details when any payload in the chain 
         <td>{comma-separated job names}</td><td>{rationale}</td>
       </tr>
     </table>
+
+    <!-- When changelog evidence exists for any suspect -->
+    <details>
+      <summary>RPM Changelog Evidence</summary>
+      <div class="changelog-evidence">
+        <h4>{package} ({old_version} → {new_version})</h4>
+        <pre>{verbatim changelog entries from the RPM changelog diff}</pre>
+        <!-- Repeat for each suspect with changelog_evidence != "none" -->
+      </div>
+    </details>
   </div>
 
   <!-- Always include full RPM diffs when RHCOS changes exist in any originating payload -->
@@ -748,6 +784,8 @@ Use this prompt for the reviewer:
 > 4. **Wrong reference for failure type**: Did the analysis route to the correct reference — install (and metal for metal jobs) for install failures, and the test/flaky-test reference for test failures? Using the wrong reference produces misdirected analysis.
 >
 > 5. **Missing RHCOS RPM correlation**: If RHCOS RPM changes exist in the originating payload and failures are variant-isolated or involve OS-level components, was the correlation checked? Were relevant packages surfaced as suspects?
+>
+> 6. **Unused RPM changelog evidence**: If RHCOS RPM suspects were identified, were the RPM changelog entries read and cited as evidence? A suspect package whose changelog was not consulted is an incomplete investigation — the changelog text can confirm or rule out the package decisively. Check that `changelog_evidence` is populated for each suspect and that the rationale cites the relevant entry.
 >
 > **Rules**:
 > - Do NOT suggest lowering confidence scores. If the rubric signals fired (error message match, new failure, component exclusivity), the score is correct. Period.
