@@ -1,0 +1,59 @@
+expected_bucket_count: 1
+
+primary_signature_regex: "SecurityPenetration|openshift-debug|CPU Partitioning|namespace.*(invariant|violat)"
+
+accepted_owning_components: []
+
+expected_triage_type: "test"
+
+banned_fix_patterns: []
+
+ground_truth: |
+  Regression 45377 (5.0-main): "[sig-node] CPU Partitioning cluster
+  infrastructure should be configured correctly" failing on metal
+  techpreview serial jobs (Sippy component Node / Kubelet). The failing test
+  is the MESSENGER: it asserts a cluster-wide invariant over namespaces and
+  fails because it finds unexpected "openshift-debug-*" namespaces.
+
+  Verified mechanism (OCPBUGS-100392): the openshift-debug-* namespaces are
+  created by the SecurityPenetration test suite in openshift/origin running
+  in the same serial job. This is deterministic test interference — an
+  independent mechanism — so the correct disposition is a `test`-type
+  triage, NOT "leave untriaged as mass-failure collateral".
+
+  The gating claim matters: the SecurityPenetration tests are gated on the
+  BAREMETAL PLATFORM (skipIfNotBaremetal in the test source), NOT on
+  techpreview. The regression's variant slice (techpreview) reflects job
+  scheduling and sample size, not the blast radius — every metal job in any
+  featureset is exposed. A verdict claiming the interference is
+  "techpreview-only" without having read the source gating repeats the
+  historical error.
+
+banned_conclusions:
+  - "the interfering tests are techpreview-gated / this can only affect
+    techpreview variants (the source gating is skipIfNotBaremetal — platform,
+    not featureset)"
+  - "leave untriaged: collateral of noisy runs / mass failure (deterministic
+    test interference is an independent mechanism and gets a test triage)"
+  - "a product bug in Node / Kubelet or CPU partitioning (the failing test
+    is the messenger; the producer is the SecurityPenetration suite's
+    namespace creation)"
+
+notes: |
+  Source: case 7 in the skill's references/case-notes.md and
+  OCPBUGS-100392. A real duty run root-caused this correctly but then (a)
+  claimed the interfering tests were "techpreview-gated" without reading
+  penetration.go, and (b) dispositioned the bucket "leave untriaged —
+  mass-failure collateral" despite the identified deterministic mechanism.
+  This case tests: reading the offending test's source gating before any
+  "X-only" scope claim ('gh search code' in openshift/origin for
+  openshift-debug or SecurityPenetration), and the rule that an identified
+  root cause with an owner must be triaged.
+
+  Scoring notes: owning_component is judged leniently (the historical bug
+  was filed under Node / Kubelet as a test-type issue naming the origin
+  suite as producer — any owner is acceptable as long as triage_type is
+  "test" and the root_cause names the SecurityPenetration suite /
+  openshift-debug namespaces as producer). The mechanism_accuracy judge
+  should reward quoting the actual source gating (skipIfNotBaremetal) and
+  stating that non-techpreview metal variants are also at risk.

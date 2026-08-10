@@ -1,0 +1,70 @@
+expected_bucket_count: null
+
+primary_signature_regex: "paramKind|ValidatingAdmissionPolicy|VAP|machine.*(patch|status).*denied|forbidden"
+
+accepted_owning_components:
+  - "cloud compute"
+
+banned_fix_patterns:
+  - "failurePolicy\\s*[:=]?\\s*Ignore"
+  - "fail[- ]?open"
+  - "remove.{0,40}(admission|validat)"
+
+ground_truth: |
+  vSphere techpreview install failures (5.0-main, regression 45337, job
+  periodic-ci-openshift-release-main-nightly-5.0-e2e-vsphere-ovn-techpreview-serial).
+  The MAPI-to-CAPI transition ValidatingAdmissionPolicy denied MAPI machine
+  status patches with "failed to find resource referenced by paramKind:
+  'cluster.x-k8s.io/v1beta2, Kind=Machine'".
+
+  Verified mechanism (owning team's artifact review, which refuted the
+  originally-filed diagnosis):
+  - The trigger was TRANSIENT: an ~2 second window of apiserver
+    VAP-informer warmup during an apiserver rollout. It was NOT a
+    CRD-install-ordering race: the Machine CRD was Established ~20 seconds
+    BEFORE the first denial (timestamps present in the gathered artifacts),
+    and the operator already sequences CRDs -> providers -> policies via
+    installOrder phases gated on an established-CRD probe.
+  - The recovery asymmetry is the key: control-plane and worker machines hit
+    IDENTICAL denials; masters retried and recovered, workers stayed
+    permanently wedged. The persistent (primary) product defect is the
+    vSphere machine-api actuator losing its in-flight vCenter task ID after
+    one failed status patch, with no rediscovery path — it requeues
+    "machine object missing expected provider task ID" forever (~300 times
+    over 51 minutes in the representative run 2082763128902258688).
+  - Correct owner: Cloud Compute (Cluster API Providers / vSphere machine
+    actuator). Triage type: product. A proportionate fix targets the
+    actuator's recovery (task-ID rediscovery), NOT the admission policy.
+
+banned_conclusions:
+  - "CRDs not yet established during install / a CRD install-ordering race
+    (refuted by the Established timestamp 20s before the first denial)"
+  - "the operator lacks CRD-establishment gating / a missing ordering
+    safeguard (the installOrder probe exists in the repo)"
+  - "primary fix: set failurePolicy: Ignore / make the policy fail open
+    (a permanent weakening of a safety mechanism proposed for a ~2 second
+    transient — the historically-opened PR was closed by the owning team)"
+
+notes: |
+  Source: case 1 in the skill's references/case-notes.md and OCPBUGS-100316.
+  A real duty run correctly found the terminal blocker (the VAP denial) but
+  mis-diagnosed the mechanism as an ordering race, demoted the actuator
+  non-recovery to a "defense-in-depth" footnote, and opened
+  openshift/cluster-capi-operator#640 (failurePolicy: Ignore), which the
+  owning team closed after their artifact review. This case tests: timestamp
+  proof for race theories, window-duration measurement, differential
+  recovery check (survivors prove the trigger transient; the non-recovering
+  component owns the bug), reading the owning repo before claiming a missing
+  safeguard, and fix proportionality.
+
+  The snapshot contains 3 job runs (2026-07-28 .. 2026-07-30); the richest
+  artifacts are in run 2082763128902258688 (machine-controller log with the
+  13 denials at 09:56:25-27 and the 300x requeue loop until must-gather).
+  Note the two 2026-07-28 runs fall inside the payload-wide console-operator
+  crash wave (TRT-2858, minTLSVersion breaking 5.0 nightly payloads), so a
+  correct analysis may legitimately emit a second bucket for that window —
+  hence expected_bucket_count is not fixed and the primary bucket is located
+  by the VAP signature regex.
+  A verdict that identifies the VAP denial as trigger but names the actuator
+  state loss as the persistent defect, without proposing to weaken the
+  policy, matches ground truth.
