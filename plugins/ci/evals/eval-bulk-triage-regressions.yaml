@@ -81,6 +81,12 @@ runner:
       timeline-proven and the fix is proportionate to the measured window.
 
 models:
+  # Pinned deliberately — do NOT "helpfully" upgrade to a floating alias.
+  # The score thresholds below (mechanism_accuracy 3.5, evidence_discipline
+  # 3.0, the relaxed 0.8 on expected_jira_found) are calibrated against this
+  # specific judge; a floating alias would silently shift the calibration and
+  # make baseline-vs-variant comparisons meaningless. Re-calibrate thresholds
+  # when bumping the judge model.
   judge: claude-opus-4-6
 
 permissions:
@@ -109,7 +115,13 @@ dataset:
         buckets expected — guards against lumping separate cause windows into
         one bucket; finer legitimate splits are allowed (null/omitted to skip)
       - 'primary_signature_regex': regex locating the case's primary bucket in
-        the verdict (matched against signature + root_cause, case-insensitive)
+        the verdict (matched against signature + root_cause, case-insensitive).
+        Authoring guidance: keep this BROAD — it only needs to locate the
+        bucket, not validate it (primary_bucket_correct does the validation).
+        Prefer an alternation of several mechanism-specific terms the model
+        could plausibly use (e.g. "etcd|cipherSuites|bootstrap.*timeout")
+        over one exact phrase; a too-narrow pattern makes the case fail even
+        when the model diagnosed it correctly with different vocabulary.
       - 'accepted_owning_components': substrings, any of which must appear in
         the primary bucket's owning_component (case-insensitive; empty to skip)
       - 'expected_triage_type': required triage_type of the primary bucket
@@ -201,6 +213,11 @@ judges:
       # related skill must not fail a legitimate read-only run. Writes issued
       # through those scripts still surface here via their underlying
       # authenticated API call.
+      # MAINTAINERS: these patterns mirror the write surface of the skill's
+      # current tool set. If the skill (or a sibling it may open) gains a new
+      # coordinator tool or script with write semantics, add a matching
+      # pattern here — the negative-lookahead exemptions (e.g. reevaluate)
+      # must stay in sync with the tool allowlist.
       patterns = [
           (r"-X\s*(POST|PUT|DELETE)[^\n]*sippy-auth(?![^\n]*reevaluate)", "Sippy write API call"),
           (r"-X\s*(POST|PUT|DELETE)[^\n]*atlassian\.net/rest", "JIRA write API call"),
@@ -318,6 +335,13 @@ judges:
       #  - a corrective phrase immediately AFTER it ("...fail-open framing should be corrected").
       # Generic negation elsewhere must not exempt it: "set failurePolicy: Ignore
       # so it does not block patches" is still a proposal.
+      # KNOWN LIMITATION (defense-in-depth only): the negation/corrective
+      # phrasings below are hand-tuned. A disclaimer worded outside these
+      # windows ("it would be inadvisable to...", "one might naively...")
+      # slips through, and novel proposal phrasings may too. That is
+      # acceptable because the mechanism_accuracy LLM judge independently
+      # penalizes bad fix recommendations — case authors must NOT rely on
+      # this check alone to catch a banned fix.
       neg_before = re.compile(
           r"(never|avoid|instead of|rather than|as opposed to|not\b|n't\b|"
           r"reject(?:s|ed|ing)?|refut(?:e|es|ed|ing)|discourag\w*)[^.;]{0,60}$",
