@@ -66,8 +66,8 @@ Before creating, also verify the Risk issue type exists in the GCP project via `
 
 ScriptRunner automatically populates these when Probability and Impact are saved. **Never include them in the MCP create or edit call:**
 
-- `customfield_10976` — Risk Score (Probability × Impact)
-- `customfield_10974` — Risk Score Assessment (qualitative narrative from score)
+- `customfield_10976` — Risk Score (calculated by ScriptRunner using non-linear impact weights; range 1–250)
+- `customfield_10974` — Risk Score Assessment (Low / Low Med / Medium / Med Hi / High — derived from score)
 
 ## Optional Fields
 
