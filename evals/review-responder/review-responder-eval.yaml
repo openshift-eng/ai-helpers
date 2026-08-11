@@ -1,0 +1,16 @@
+name: review-responder-eval
+init:
+  repo: openshift-trt/sippy-eval
+dataset:
+  path: cases
+collect:
+  bot_replies: true
+  comment_map: true
+judges:
+  - name: expected_files_changed
+  - name: reply_posted
+  - name: scope_creep_declined
+  - name: no_secrets
+thresholds:
+  no_secrets:
+    min_pass_rate: 1.0
