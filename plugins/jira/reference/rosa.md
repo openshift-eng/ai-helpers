@@ -80,9 +80,9 @@ Same fields as Feature. Initiatives and Features share a single ranked list in t
 | Color Status | `customfield_10507` | On Track / At Risk / Off Track | `{"value": "On Track"}` |
 | Blocked | `customfield_10517` | Whether the issue is blocked | `{"value": "True"}` |
 | Blocked Reason | `customfield_10518` | Why it's blocked | Free text |
-| Size | `customfield_10502` | T-shirt size per [HP sizing guide](https://docs.google.com/document/d/1WKXGPmBES3M6h3bfMSGRBqY3A2iTxM_dxi5Hac8W1qs/edit) | `{"value": "M"}` |
-| Target Start | `customfield_10502` | Planned start date | `"YYYY-MM-DD"` |
-| Target End | `customfield_10503` | Planned end date | `"YYYY-MM-DD"` |
+| Size | `customfield_10795` | T-shirt size per [HP sizing guide](https://docs.google.com/document/d/1WKXGPmBES3M6h3bfMSGRBqY3A2iTxM_dxi5Hac8W1qs/edit) | `{"value": "M"}` |
+| Target Start | `customfield_10022` | Planned start date | `"YYYY-MM-DD"` |
+| Target End | `customfield_10023` | Planned end date | `"YYYY-MM-DD"` |
 
 ### Feature & Initiative Workflow
 
@@ -107,7 +107,7 @@ To Do → Refinement → Analysis → Backlog → In Progress → Release Pendin
 ROSA uses a **prepend** model — new updates go at the top, preserving history.
 
 ```text
-{YYYY-MM-DD}: Color Status: {Green|Yellow|Red}
+{YYYY-MM-DD}: Color Status: {On Track|At Risk|Off Track}
 - {What happened this week}
 - {Progress or blockers}
 - Risks: {risk or "None at this time"}
@@ -139,7 +139,7 @@ ROSA uses **positional rank** in the [Portfolio Plan](https://issues.redhat.com/
 
 Features and Initiatives share a single ranked list. To compare:
 - Same list → higher position wins
-- Both are Epics under different Features → compare parent Feature positions
+- Both are Epics under different Features or Initiatives → compare parent positions
 
 Ranking is refined during the weekly Feature/Initiative Discovery meeting.
 
@@ -214,7 +214,8 @@ Components in ROSAENG are synced from the [org repo component list](https://gitl
 
 ### Team Directory
 
-Each team has a dedicated board filtered by `project = ROSAENG AND Team = "[ROSA] <team>"`.
+Each team has a dedicated board filtered by `project = ROSAENG AND Team = "<team-uuid>"`.
+The UI renders the friendly name (e.g., "[ROSA] Coffee") but board filters use the UUID.
 
 | Team | Board Type | Board ID | Jira Team ID |
 |------|-----------|----------|-------------|
@@ -244,7 +245,7 @@ project = ROSAENG AND Team = "b1d72bb9-7e1c-4fc4-96f0-44eb3aebea7e" ORDER BY Ran
 The UI renders the friendly name (e.g., "[ROSA] Coffee") but JQL requires the UUID.
 
 **Board URL pattern:**
-```
+```text
 https://redhat.atlassian.net/jira/software/c/projects/ROSAENG/boards/<BOARD_ID>
 ```
 
