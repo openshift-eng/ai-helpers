@@ -1,0 +1,5 @@
+repo_url: https://github.com/ovn-kubernetes/ovn-kubernetes-mcp
+from_commit: 6c4c629e0d2df23f8a3a57b54a74d7a56c6672d9
+version: "1.36.2"
+known_good_url: https://github.com/dfarrell07/ovn-kubernetes-mcp.git
+known_good_ref: d52c78aa75753776ece3672f1bcc58f2640bdfed

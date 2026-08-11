@@ -1,0 +1,5 @@
+repo_url: https://github.com/openshift/cluster-network-operator
+from_commit: 5b0900b506434f265d1535dd459c32ac53898de3
+version: "1.35.3"
+known_good_url: https://github.com/openshift/cluster-network-operator
+known_good_ref: 3689d5ca55f440b337cae5b7d97014e99e40535e

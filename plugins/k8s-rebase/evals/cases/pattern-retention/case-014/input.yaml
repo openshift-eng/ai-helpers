@@ -1,0 +1,5 @@
+repo_url: https://github.com/openshift/ingress-node-firewall
+from_commit: 1c7880a7aa38192761538fb98446acca09509e09
+version: "1.35.3"
+known_good_url: https://github.com/openshift/ingress-node-firewall
+known_good_ref: 4000494782a01c010358b442a0b0c2829779ee2d

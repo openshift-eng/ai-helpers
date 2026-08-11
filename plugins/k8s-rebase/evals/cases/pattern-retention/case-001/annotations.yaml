@@ -1,0 +1,6 @@
+notes: >
+  ovn-org/ovn-kubernetes — largest, most complex repo in the matrix.
+  Sub-module layout: go-controller/ is the primary Go module; the bulk
+  of go.mod and source changes live there. Large vendor tree means
+  vendor/modules.txt changes are substantial. OpenShift-specific files
+  live under openshift/ — touching them is a scope-creep signal.
