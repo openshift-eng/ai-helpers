@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "hcp",
+  "version": "0.0.2",
+  "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

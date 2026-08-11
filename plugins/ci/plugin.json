@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ci",
+  "version": "0.0.82",
+  "description": "Tools for working with OpenShift CI and analyzing Prow job results",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

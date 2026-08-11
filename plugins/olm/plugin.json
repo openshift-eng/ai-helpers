@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "olm",
+  "version": "0.1.2",
+  "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

@@ -33,11 +33,14 @@ jobs:
           # Find the merge-base between PR head and base branch
           base=$(git merge-base "$remote/${{ github.event.pull_request.base.ref }}" HEAD)
 
-          # Find plugins with changes (excluding README.md, SKILL.md, and OWNERS files)
+          # Find plugins with changes. The portable root plugin.json is generated
+          # metadata and does not require a Claude plugin version bump; portable
+          # mcp.json changes do because they alter plugin behavior.
           changed_plugins=$(git diff --name-only "$base" HEAD -- 'plugins/' | \
             grep -v 'README.md$' | \
             grep -v 'SKILL.md$' | \
             grep -v 'OWNERS$' | \
+            grep -vE '^plugins/[^/]+/plugin\.json$' | \
             cut -d'/' -f2 | sort -u)
 
           if [ -z "$changed_plugins" ]; then

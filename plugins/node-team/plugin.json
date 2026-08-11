@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "node-team",
+  "version": "1.0.0",
+  "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks across kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira, Red Hat KB/support cases, Prometheus, and platform docs.",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

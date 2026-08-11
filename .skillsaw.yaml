@@ -1,9 +1,19 @@
 # skillsaw configuration
 # https://github.com/stbenjam/skillsaw
-version: "0.14.1"
+version: "0.18.0"
 strict: true
 
 rules:
+  # Agent Plugins plugin.json must conform to the 1.0.0 schema
+  agent-plugin-json-valid:
+    enabled: true
+    severity: error
+
+  # Agent Plugins mcp.json must conform to the 1.0.0 schema and semantics
+  agent-plugin-mcp-valid:
+    enabled: true
+    severity: error
+
   # Supply chain protection rules
   hooks-dangerous:
     enabled: true
@@ -49,6 +59,10 @@ rules:
   # SKILL.md must have valid frontmatter with name and description
   agentskill-rename-refs:
     enabled: true
+  # This repository intentionally keeps auxiliary skill files that are not
+  # imported by a SKILL.md entry point.
+  agentskill-unreferenced-files:
+    enabled: false
   content-weak-language:
     enabled: true
   content-cognitive-chunks:
@@ -60,10 +74,6 @@ rules:
   # TODO: ai-helpers has many skills way over budget, including one with 20K tokens
   context-budget:
     enabled: false
-  # Detect critical instructions in the middle of files where LLM attention is lowest
-  content-critical-position: # unsure if actually useful here
-    enabled: false
-
   # Detect potential API keys, tokens, and passwords in instruction files
   content-embedded-secrets:
     enabled: true
@@ -87,6 +97,15 @@ rules:
     enabled: false
     severity: warning
 
+  # These broad quality rules are not part of this repository's current
+  # migration policy; keep the existing strict lint signal focused.
+  content-repeated-directive:
+    enabled: false
+  content-unclosed-fence:
+    enabled: false
+  content-description-routing:
+    enabled: false
+
   # .coderabbit.yaml must be valid YAML
   coderabbit-yaml-valid:
     enabled: true
@@ -94,6 +113,11 @@ rules:
 
   # Every plugin must have an OWNERS file
   plugin-owners-required:
+    enabled: true
+    severity: error
+
+  # Every plugin must expose portable Agent Plugins metadata alongside its source manifest
+  agent-plugin-required:
     enabled: true
     severity: error
 

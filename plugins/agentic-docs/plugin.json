@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agentic-docs",
+  "version": "1.4.0",
+  "description": "Create and maintain AI-optimized documentation for OpenShift",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

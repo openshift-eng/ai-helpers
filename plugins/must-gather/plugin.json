@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "must-gather",
+  "version": "0.0.3",
+  "description": "A plugin to analyze and report on must-gather data",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

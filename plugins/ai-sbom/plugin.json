@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ai-sbom",
+  "version": "0.0.1",
+  "description": "Generate AI Software Bill of Materials (SBOM) declarations for PR descriptions",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

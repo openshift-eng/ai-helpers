@@ -4,6 +4,8 @@
 
 A collection of Claude Code plugins to automate and assist with various development tasks.
 
+First-party plugins also include portable [Agent Plugins](https://agent-plugins.org/) v1 manifests. The portable surface currently includes skills and MCP servers; Claude-specific commands, agents, hooks, and dependency bundles remain in the Claude manifest. Run `make sync-agent-plugins` to create or synchronize the portable metadata.
+
 [Discover available plugins](https://openshift-eng.github.io/ai-helpers/)
 
 ## Installation

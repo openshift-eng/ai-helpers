@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "marketplace-ops",
+  "version": "0.1.2",
+  "description": "Maintenance commands for Claude Code plugin marketplaces",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

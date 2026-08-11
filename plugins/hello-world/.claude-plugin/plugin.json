@@ -1,8 +1,8 @@
 {
   "name": "hello-world",
   "description": "A hello world plugin",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": {
-    "name": "Developer"
+    "name": "github.com/openshift-eng"
   }
 }
