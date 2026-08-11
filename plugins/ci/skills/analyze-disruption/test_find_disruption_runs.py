@@ -101,6 +101,50 @@ def test_multi_value_queries_and_dedup(mock_fetch_runs, _mock_disruption):
     assert timestamps[0] > timestamps[-1]
 
 
+@patch("find_disruption_runs.fetch_disruption_data", return_value={})
+@patch("find_disruption_runs.fetch_runs", return_value=[])
+def test_multi_value_backend_rejected(_mock_fetch, _mock_disruption):
+    """Multi-value var-backend should error, not silently produce garbage."""
+    import io
+    from contextlib import redirect_stderr
+
+    buf = io.StringIO()
+    try:
+        with redirect_stderr(buf):
+            main([
+                "--grafana-url",
+                "https://grafana-loki.ci.openshift.org/d/abc/dash"
+                "?var-backend=host-to-host-new-connections&var-backend=kube-api-new-connections"
+                "&var-releases=5.0",
+            ])
+        assert False, "should have exited"
+    except SystemExit as e:
+        assert e.code == 1
+    assert "multiple backends not supported" in buf.getvalue()
+
+
+@patch("find_disruption_runs.fetch_disruption_data", return_value={})
+@patch("find_disruption_runs.fetch_runs", return_value=[])
+def test_multi_value_release_rejected(_mock_fetch, _mock_disruption):
+    """Multi-value var-releases should error, not silently query nonsense."""
+    import io
+    from contextlib import redirect_stderr
+
+    buf = io.StringIO()
+    try:
+        with redirect_stderr(buf):
+            main([
+                "--grafana-url",
+                "https://grafana-loki.ci.openshift.org/d/abc/dash"
+                "?var-releases=5.0&var-releases=5.1"
+                "&var-backend=kube-api-new-connections",
+            ])
+        assert False, "should have exited"
+    except SystemExit as e:
+        assert e.code == 1
+    assert "multiple releases not supported" in buf.getvalue()
+
+
 def test_parse_grafana_url_all_variants():
     url = (
         "https://grafana-loki.ci.openshift.org/d/abc/dash"

@@ -13,6 +13,7 @@ Output formats:
     --format json    Machine-readable JSON array
 """
 import argparse
+import itertools
 import json
 import math
 import re
@@ -522,6 +523,12 @@ def main(argv=None):
     if not backend:
         print("Error: --backend is required (or provide --grafana-url with var-backend)", file=sys.stderr)
         sys.exit(1)
+    if "," in release:
+        print("Error: multiple releases not supported (got '%s'). Use a single release." % release, file=sys.stderr)
+        sys.exit(1)
+    if "," in backend:
+        print("Error: multiple backends not supported (got '%s'). Use a single backend." % backend, file=sys.stderr)
+        sys.exit(1)
 
     base_backend, _conn_type = parse_backend(backend)
 
@@ -550,11 +557,9 @@ def main(argv=None):
     if multi_keys:
         seen_prow_ids = set()
         rows = []
-        variant_combos = [{}]
-        for mk, mv in multi_keys:
-            variant_combos = [
-                dict(combo, **{mk: val}) for combo in variant_combos for val in mv
-            ]
+        keys = [k for k, _ in multi_keys]
+        vals = [v for _, v in multi_keys]
+        variant_combos = [dict(zip(keys, combo)) for combo in itertools.product(*vals)]
         max_combos = 20
         if len(variant_combos) > max_combos:
             print("Error: %d variant combinations exceeds limit of %d" % (
