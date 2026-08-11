@@ -6,8 +6,11 @@ import yaml
 
 REQUIRED_METADATA = ["payload_tag", "version", "stream", "architecture"]
 REQUIRED_JOB_FIELDS = ["job_name", "failure_type", "root_cause_summary"]
-REQUIRED_CANDIDATE_FIELDS = ["pr_url", "confidence_score", "failing_jobs"]
-REQUIRED_RHCOS_SUSPECT_FIELDS = ["rhcos_tag", "package", "failing_jobs"]
+REQUIRED_CANDIDATE_FIELDS = ["type", "confidence_score", "rationale", "failing_jobs", "actions"]
+REQUIRED_CANDIDATE_FIELDS_BY_TYPE = {
+    "pr": ["pr_url"],
+    "rhcos_rpm": ["package", "rhcos_tag", "changelog_evidence"],
+}
 
 
 def validate(path):
@@ -60,21 +63,23 @@ def validate(path):
             for field in REQUIRED_CANDIDATE_FIELDS:
                 if field not in cand:
                     errors.append(f"candidates[{i}] missing '{field}'")
-
-    rhcos_suspects = data.get("rhcos_suspects")
-    if rhcos_suspects is not None:
-        if not isinstance(rhcos_suspects, list):
-            errors.append("'rhcos_suspects' is not a list")
-        else:
-            for i, suspect in enumerate(rhcos_suspects):
-                if not isinstance(suspect, dict):
-                    errors.append(f"rhcos_suspects[{i}] is not an object")
-                    continue
-                for field in REQUIRED_RHCOS_SUSPECT_FIELDS:
-                    if field not in suspect:
-                        errors.append(
-                            f"rhcos_suspects[{i}] missing '{field}'"
-                        )
+            cand_type = cand.get("type")
+            if not isinstance(cand_type, str):
+                if "type" in cand:
+                    errors.append(f"candidates[{i}] has invalid type {cand_type!r}")
+                continue
+            if cand_type not in REQUIRED_CANDIDATE_FIELDS_BY_TYPE:
+                if "type" in cand:
+                    errors.append(
+                        f"candidates[{i}] has unknown type '{cand_type}' "
+                        f"(expected one of {sorted(REQUIRED_CANDIDATE_FIELDS_BY_TYPE)})"
+                    )
+                continue
+            for field in REQUIRED_CANDIDATE_FIELDS_BY_TYPE[cand_type]:
+                if field not in cand:
+                    errors.append(
+                        f"candidates[{i}] (type '{cand_type}') missing '{field}'"
+                    )
 
     if errors:
         print(f"FAIL: {len(errors)} error(s)")
@@ -83,11 +88,11 @@ def validate(path):
         return 1
 
     jobs = len(data.get("failing_jobs", []))
-    cands = len(data.get("candidates", []))
-    suspects = len(data.get("rhcos_suspects", []))
-    parts = [f"{jobs} failing jobs", f"{cands} candidates"]
-    if suspects:
-        parts.append(f"{suspects} RHCOS suspects")
+    candidates = data.get("candidates", [])
+    rhcos_rpm_cands = sum(1 for c in candidates if c.get("type") == "rhcos_rpm")
+    parts = [f"{jobs} failing jobs", f"{len(candidates)} candidates"]
+    if rhcos_rpm_cands:
+        parts.append(f"{rhcos_rpm_cands} RHCOS RPM candidates")
     print(f"OK: {', '.join(parts)}")
     return 0
 

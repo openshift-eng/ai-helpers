@@ -28,11 +28,12 @@ if __name__ == "__main__":
     cases = [
         ("valid full schema", f"{TESTDATA}/valid.yaml", 0),
         ("valid no candidates", f"{TESTDATA}/valid_no_candidates.yaml", 0),
-        ("valid with rhcos suspects", f"{TESTDATA}/valid_with_rhcos_suspects.yaml", 0),
+        ("valid with rhcos rpm candidate", f"{TESTDATA}/valid_with_rhcos_rpm_candidate.yaml", 0),
         ("invalid flat schema (no metadata wrapper)", f"{TESTDATA}/invalid_flat_schema.yaml", 1),
         ("invalid metadata is string", f"{TESTDATA}/invalid_metadata_string.yaml", 1),
         ("invalid missing job/candidate fields", f"{TESTDATA}/invalid_missing_job_fields.yaml", 1),
-        ("invalid rhcos suspects missing fields", f"{TESTDATA}/invalid_rhcos_suspects.yaml", 1),
+        ("invalid rhcos rpm candidate missing fields", f"{TESTDATA}/invalid_rhcos_rpm_candidate.yaml", 1),
+        ("invalid candidate type not a string", f"{TESTDATA}/invalid_candidate_type_not_string.yaml", 1),
         ("file not found", f"{TESTDATA}/nonexistent.yaml", 1),
     ]
 

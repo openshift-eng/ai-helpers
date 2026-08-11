@@ -16,10 +16,12 @@ failing_jobs:
     originating_payload_tag: "4.22.0-0.nightly-2026-02-20-150000"
 
 candidates:
-  - pr_url: "https://github.com/openshift/cno/pull/2037"
+  - type: "pr"
+    pr_url: "https://github.com/openshift/cno/pull/2037"
     pr_number: 2037
     component: "cluster-network-operator"
     confidence_score: 95
+    rationale: "temporal match + component match + error references code changed"
     failing_jobs:
       - "periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn"
     actions: []
