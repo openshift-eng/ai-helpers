@@ -1,0 +1,32 @@
+version: "1.35.3"
+max_concurrent: 3
+
+# from_commit must be the merge-base of main and the known_good —
+# the commit the human started from when they did the rebase.
+# known_good must be the rebase commit or its PR merge, not a
+# later unrelated commit on main.
+
+repos:
+  ovn-org/ovn-kubernetes:
+    known_good: aa0858b167f0e8a414763795f57c7162cb2ad55d
+    from_commit: 1df941622c274340098682cd412f98d9140f33ae
+  ovn-kubernetes/ovn-kubernetes-mcp:
+    known_good: 47c72f75684f435efe28ea3c20e1589430cd603c
+    from_commit: 36ac87c1aec7bc8f62e47ecbe161a1c972945773
+  openshift/multus-cni:
+    known_good: d801f0f40708aab4570bcb0a8b23473b5cb0a926
+    from_commit: 7063fb6206da981701dd6bde05972b19c90393a4
+  openshift/ingress-node-firewall:
+    # No complete human-produced 1.35 rebase exists. The only human
+    # 1.35-era commit (9214e506) was a deps-only side effect of TLS
+    # compliance work — it left k8s.io/kubernetes at v1.32.3, didn't
+    # migrate klog v1, and skipped codegen/CI updates. The repo went
+    # straight from that partial bump to a 1.36 rebase (PR #713).
+    # Gates-only verdict (no court comparison).
+    from_commit: 1c7880a7aa38192761538fb98446acca09509e09
+  openshift/cloud-network-config-controller:
+    known_good: e846a6c960d2c0f976ff00fc944b854b322ffbe7
+    from_commit: 035723854d7b53fb85783d521368d0002d212e47
+  openshift/cluster-network-operator:
+    known_good: 3689d5ca55f440b337cae5b7d97014e99e40535e
+    from_commit: 5b0900b506434f265d1535dd459c32ac53898de3

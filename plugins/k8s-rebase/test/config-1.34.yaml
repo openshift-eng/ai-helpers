@@ -1,0 +1,16 @@
+version: "1.34.1"
+max_concurrent: 3
+
+repos:
+  ovn-org/ovn-kubernetes:
+    known_good: 74e5e6f47aa7af9f797e3cc9579f2ac298c292ff
+    from_commit: a32f638885c5ad1241b4c28c1c91d8a1f2bbc5a6
+  openshift/multus-cni:
+    known_good: 82f486cd936f4956e52ea040dab5ba1f13e3f335
+    from_commit: cf0f68ec2b5fe9bc72d0da325e02cf63968747fe
+  openshift/cloud-network-config-controller:
+    known_good: 8039d969a77fc41685b9b94b1fa984d5ca4dd305
+    from_commit: 83847568457908f24554c15d5bb5cc4c70dbcdb5
+  openshift/cluster-network-operator:
+    known_good: b8cdede8e30935d8f43d741254e58f1b937c69bf
+    from_commit: 05d6f46ffb2cd54b72aa4c864a0a5fb82d3fa7c2
