@@ -21,6 +21,7 @@ In both layouts the eval's README lives at ``cases/../README.md`` (i.e. the
 directory that contains ``cases``), which is where each case must be registered.
 """
 
+import os
 import re
 from pathlib import Path
 from typing import List, Tuple
@@ -31,16 +32,19 @@ CASE_NAME_RE = re.compile(r"^case-\d+$")
 _SKIP_PARTS = {".git", "node_modules", "__pycache__"}
 
 
-def _cases_dirs(root_path: Path) -> List[Path]:
-    """All directories named 'cases' that live under an 'evals' ancestor."""
+def _included_dir(path: Path, context: RepositoryContext) -> bool:
+    return path.name not in _SKIP_PARTS and not context.is_path_excluded(path)
+
+
+def _cases_dirs(context: RepositoryContext) -> List[Path]:
+    """Find eval 'cases' directories without walking excluded subtrees."""
     result = []
-    for path in root_path.rglob("cases"):
-        if not path.is_dir():
-            continue
-        parts = set(path.parts)
-        if parts & _SKIP_PARTS:
-            continue
-        if "evals" in path.parts:
+    for current, directories, _files in os.walk(context.root_path):
+        path = Path(current)
+        directories[:] = [
+            name for name in directories if _included_dir(path / name, context)
+        ]
+        if path.name == "cases" and "evals" in path.relative_to(context.root_path).parts:
             result.append(path)
     return sorted(result)
 
@@ -57,7 +61,7 @@ def _looks_like_case(d: Path) -> bool:
     return (d / "input.yaml").is_file() or d.name.startswith("case-")
 
 
-def _cases_in(cases_dir: Path) -> List[Path]:
+def _cases_in(cases_dir: Path, context: RepositoryContext) -> List[Path]:
     """Return the case directories under a 'cases' dir, handling both layouts.
 
     Flat layout: the case directories are direct children of ``cases``. Grouped
@@ -66,26 +70,31 @@ def _cases_in(cases_dir: Path) -> List[Path]:
     as a group and its case children are collected.
     """
     cases = []
-    for child in sorted(d for d in cases_dir.iterdir() if d.is_dir()):
+    for child in sorted(
+        d for d in cases_dir.iterdir() if d.is_dir() and _included_dir(d, context)
+    ):
         if _looks_like_case(child):
             cases.append(child)
         else:
             cases.extend(
-                sorted(c for c in child.iterdir() if c.is_dir() and _looks_like_case(c))
+                sorted(
+                    c for c in child.iterdir()
+                    if c.is_dir() and _included_dir(c, context) and _looks_like_case(c)
+                )
             )
     return cases
 
 
-def _all_cases(root_path: Path) -> List[Tuple[Path, Path]]:
+def _all_cases(context: RepositoryContext) -> List[Tuple[Path, Path]]:
     """Yield (case_dir, eval_root) pairs across the repository.
 
     ``eval_root`` is the directory containing ``cases`` — where the README that
     indexes the cases must live.
     """
     pairs = []
-    for cases_dir in _cases_dirs(root_path):
+    for cases_dir in _cases_dirs(context):
         eval_root = cases_dir.parent
-        for case_dir in _cases_in(cases_dir):
+        for case_dir in _cases_in(cases_dir, context):
             pairs.append((case_dir, eval_root))
     return pairs
 
@@ -110,7 +119,7 @@ class EvalCaseNameRule(Rule):
 
     def check(self, context: RepositoryContext) -> List[RuleViolation]:
         violations: List[RuleViolation] = []
-        for case_dir, _eval_root in _all_cases(context.root_path):
+        for case_dir, _eval_root in _all_cases(context):
             if not CASE_NAME_RE.match(case_dir.name):
                 violations.append(
                     self.violation(
@@ -145,7 +154,7 @@ class EvalCaseRegisteredRule(Rule):
         readme_cache: dict = {}
         missing_readme_reported: set = set()
 
-        for case_dir, eval_root in _all_cases(context.root_path):
+        for case_dir, eval_root in _all_cases(context):
             readme = eval_root / "README.md"
             if not readme.is_file():
                 if eval_root not in missing_readme_reported:

@@ -32,3 +32,9 @@ def owners_rule():
 def opencode_color_rule():
     mod = _load_rule_module("opencode_color_rule.py")
     return mod.OpencodeAgentColorRule
+
+
+@pytest.fixture(params=["EvalCaseNameRule", "EvalCaseRegisteredRule"])
+def eval_case_rule(request):
+    mod = _load_rule_module("eval_case_rule.py")
+    return getattr(mod, request.param)()
