@@ -25,7 +25,7 @@ Evaluate the user's description before proceeding. If it does not qualify as a R
 
 Write the summary as a one-line risk statement using this pattern:
 
-```
+```text
 <event> could <consequence> due to <root cause>
 ```
 

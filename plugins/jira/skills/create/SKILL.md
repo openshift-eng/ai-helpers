@@ -170,7 +170,7 @@ Did you mean "story"?
 ### Missing Project Key
 
 ```plaintext
-Project key is required for stories/tasks/epics/features/initiatives.
+Project key is required for stories/tasks/epics/features/initiatives/risks.
 
 Usage: /jira:create story PROJECT-KEY "summary"
 ```
