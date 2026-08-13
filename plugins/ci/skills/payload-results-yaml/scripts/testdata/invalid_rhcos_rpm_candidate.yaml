@@ -9,9 +9,8 @@ failing_jobs:
     failure_type: "test"
     root_cause_summary: "test failure"
 
-candidates: []
-
-rhcos_suspects:
-  - rhcos_name: "Missing required fields"
+candidates:
+  - type: "rhcos_rpm"
+    rhcos_name: "Missing required fields"
     old_version: "1.0"
     new_version: "2.0"

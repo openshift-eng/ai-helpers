@@ -58,7 +58,8 @@ failing_jobs:
     failure_pattern: "F"
 
 candidates:
-  - pr_url: "https://github.com/openshift/cno/pull/2037"
+  - type: "pr"
+    pr_url: "https://github.com/openshift/cno/pull/2037"
     pr_number: 2037
     component: "cluster-network-operator"
     title: "Fix OVN gateway mode selection"
@@ -78,16 +79,18 @@ candidates:
           - command: "/payload-job periodic-ci-...-e2e-aws-ovn"
             test_url: "https://pr-payload-tests.ci.openshift.org/runs/ci/..."
             test_prow_url: "https://prow.ci.openshift.org/view/gs/..."
-
-rhcos_suspects:
-  - rhcos_tag: "rhel-coreos-10"
+  - type: "rhcos_rpm"
+    rhcos_tag: "rhel-coreos-10"
     rhcos_name: "Red Hat Enterprise Linux CoreOS 10.2"
     package: "systemd"
     old_version: "257-23.el10"
     new_version: "257-23.el10_2.2"
+    confidence_score: 70
+    changelog_evidence: "systemd 257-23.el10_2.2: fix boot ordering race with local-fs-pre.target"
+    rationale: "systemd update correlates with variant-isolated boot timeout in RHCOS 10 jobs"
     failing_jobs:
       - "periodic-ci-...-e2e-metal-ipi-ovn-ipv4"
-    rationale: "systemd update correlates with variant-isolated boot timeout in RHCOS 10 jobs"
+    actions: []
 ```
 
 ### `metadata`
@@ -122,9 +125,21 @@ All failed blocking jobs in the payload. Written once by `payload-analysis`. Nev
 
 ### `candidates[]`
 
-Each entry represents a PR identified as a candidate cause of payload failures. Top-level candidate fields are written once by `payload-analysis` and are read-only to downstream skills. The `actions` sub-array is mutable (see below).
+Each entry represents a PR or an RHCOS RPM change identified as a candidate cause of payload failures. Top-level candidate fields are written once by `payload-analysis` and are read-only to downstream skills. The `actions` sub-array is mutable (see below).
 
 Candidates reference failing jobs by `job_name` via the `failing_jobs` string array, linking back to the top-level `failing_jobs[]` entries.
+
+**Common fields** (required on every candidate, regardless of `type`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | `"pr"` or `"rhcos_rpm"` — determines which type-specific fields below apply |
+| `confidence_score` | int | 0-100 confidence that this candidate caused the failures |
+| `rationale` | string | Explanation of why this candidate is suspected, with itemized rubric signals |
+| `failing_jobs` | array of strings | Job names from the top-level `failing_jobs[]` that this candidate is blamed for |
+| `actions` | array | Actions taken on this candidate (see below). `rhcos_rpm` candidates cannot be reverted, so this is normally `[]` for them |
+
+**`type: "pr"` fields:**
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -132,10 +147,19 @@ Candidates reference failing jobs by `job_name` via the `failing_jobs` string ar
 | `pr_number` | int | PR number |
 | `component` | string | OCP component name |
 | `title` | string | PR title |
-| `confidence_score` | int | 0-100 confidence that this PR caused the failures |
-| `rationale` | string | Explanation of why this PR is a candidate |
-| `failing_jobs` | array of strings | Job names from the top-level `failing_jobs[]` that this candidate is blamed for |
-| `actions` | array | Actions taken on this candidate (see below) |
+
+**`type: "rhcos_rpm"` fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rhcos_tag` | string | RHCOS image stream tag (`rhel-coreos` or `rhel-coreos-10`) |
+| `rhcos_name` | string | Human-readable RHCOS version name |
+| `package` | string | RPM package name (or the logical source package when subpackages are deduped) |
+| `old_version` | string | Previous RPM version |
+| `new_version` | string | New RPM version |
+| `changelog_evidence` | string | The specific changelog entry or entries relating to the failure, or `"none"` |
+
+RHCOS RPM candidates cannot be reverted through the normal PR process — downstream skills that stage or filter reverts (e.g. `stage-payload-reverts`, `/ci:payload-revert`) MUST exclude candidates with `type: "rhcos_rpm"`, regardless of `confidence_score`.
 
 ### `candidates[].actions[]`
 
@@ -176,35 +200,19 @@ Payload validation jobs triggered against the revert PR.
 | `test_url` | string | pr-payload-tests URL for the run |
 | `test_prow_url` | string | Prow URL for the resulting test run |
 
-### `rhcos_suspects[]` (optional)
-
-RHCOS RPM package updates suspected of contributing to failures. Written once by `payload-analysis` when RHCOS RPM changes correlate with job failures (see Step 6.1b of the payload-analysis skill). This array is separate from `candidates[]` because RHCOS changes cannot be reverted through the PR revert mechanism — they are informational for manual investigation.
-
-An empty array or absent key means no RHCOS RPM changes were suspected.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `rhcos_tag` | string | RHCOS image stream tag (`rhel-coreos` or `rhel-coreos-10`) |
-| `rhcos_name` | string | Human-readable RHCOS version name |
-| `package` | string | RPM package name |
-| `old_version` | string | Previous RPM version |
-| `new_version` | string | New RPM version |
-| `failing_jobs` | array of strings | Job names from `failing_jobs[]` where this package change may be relevant |
-| `rationale` | string | Why this package is suspected |
-
 ## Operations
 
 ### Create (used by `payload-analysis`)
 
-Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, `candidates`, and optionally `rhcos_suspects` populated. All failed blocking jobs are recorded in `failing_jobs`. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`. If RHCOS RPM suspects were identified, include them in `rhcos_suspects[]`.
+Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, and `candidates` populated. All failed blocking jobs are recorded in `failing_jobs`. Every candidate carries a `type` (`"pr"` or `"rhcos_rpm"`). Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis for a `type: "pr"` candidate, append an action with `type: "revert"` and `status: "open"` or `"merged"`.
 
 ### Read Candidates (used by `payload-revert`, `payload-experiment`)
 
-Read the file. Filter candidates by `confidence_score` range. Exclude candidates that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). Return matching candidates. Use the top-level `failing_jobs[]` to look up full job details for each candidate's `failing_jobs` references.
+Read the file. Filter candidates by `type: "pr"` and `confidence_score` range — `rhcos_rpm` candidates cannot be reverted or experimented on and MUST be excluded. Exclude candidates that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). Return matching candidates. Use the top-level `failing_jobs[]` to look up full job details for each candidate's `failing_jobs` references.
 
 ### Append Action (used by `stage-payload-reverts`, `payload-experimental-reverts`)
 
-For a given candidate (matched by `pr_url`), append a new entry to its `actions` array. Do not modify existing action entries.
+For a given `type: "pr"` candidate (matched by `pr_url`), append a new entry to its `actions` array. Do not modify existing action entries.
 
 ### Update Action Status (used by `payload-experimental-reverts` Phase 2)
 

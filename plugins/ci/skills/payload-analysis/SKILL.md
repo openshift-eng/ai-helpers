@@ -235,7 +235,7 @@ This step catches failures caused by CI tooling changes (mirror URL migrations, 
 
 #### 3.7: RHCOS RPM Changes
 
-For each failed job's `streak.originating_payload`, find the matching entry in `summary.json` → `payloads[]` and check for `rhcos_changes[]`. This array (when present) contains per-RHCOS-variant RPM diffs showing which packages changed in the underlying RHCOS image for that payload:
+For each failed job's `streak.originating_payload`, find the matching entry in `summary.json` → `payloads[]` and check for `rhcos_changes[]`. This array (when present) contains per-RHCOS-variant RPM diffs showing which packages changed in the underlying RHCOS image for that payload. As with candidate PRs (3.3), treat this as a **preliminary** lookup only — re-derive the originating payload **per failure mode** from `test_failures.blocking[].first_failed_in` (Step 5) before scoring, since the job-level streak can predate the actual regression:
 
 - `name`: Human-readable version (e.g., "Red Hat Enterprise Linux CoreOS 10.2")
 - `tag`: Image stream tag — maps to job RHCOS variants:
@@ -246,7 +246,21 @@ For each failed job's `streak.originating_payload`, find the matching entry in `
 - `added`: newly added packages (when present)
 - `removed`: removed packages (when present)
 
-For each failed job, identify the matching RHCOS variant's RPM changes (if any) based on the job's `rhcos_version` field and the RHCOS tag mapping above. These changes are used as additional context in Step 4 and as potential suspects in Step 6.
+For each failed job, identify the matching RHCOS variant's RPM changes (if any), from the failure mode's `first_failed_in` payload, based on the job's `rhcos_version` field and the RHCOS tag mapping above. These changes are used as additional context in Step 4 and as scored candidates in Step 6.
+
+#### 3.7b: RHCOS RPM Changelogs
+
+`rhcos_changes[]` names the packages that changed and their version bumps, but not *what* changed inside those packages. The snapshot's **RPM changelog diffs** fill that gap — they contain the actual changelog entries each version bump added, and serve as **the RHCOS equivalent of PR diffs**: just as you read a PR's `code.diff` to understand what a component change did, you read an RPM's changelog to understand what a package bump introduced. In Step 6.1, RHCOS RPM changes with changelogs are scored as candidates alongside PRs.
+
+The data is available in two forms:
+
+1. **Inline in `summary.json`** — `rpm_changelogs[]` at the top level. The baseline entry (the one with `is_baseline: true`) carries its content inline under `diff`: `diff.changed[]` with `package`, `old`, `new`, and `changelog` (the entries the new version added); `diff.added[]` / `diff.removed[]` with `package` and `version`. This covers the full target-vs-baseline diff without a file read.
+
+2. **Per-hop report files** — `rpm_changelogs[]` entries also have a `changelogs` path pointing at `<target-tag>/rpm-changelogs/<variant>/<older-tag>.md`. Read these to find which intermediate payload introduced a specific package bump (useful when the originating payload for a failure is not the baseline). `payloads[]` entries for the target payload and for payloads whose RPMDBs could not be extracted have no `rpm_changelogs[]` at all — the field is absent, not empty. An intermediate hop where the RHCOS image did not change shows `changed: 0, added: 0, removed: 0`; use this to pinpoint which hop introduced a given RHCOS bump.
+
+**Subpackage deduplication.** Multiple binary RPMs are often built from the same source RPM (SRPM) and share identical changelogs. When `diff.changed[]` contains several packages with the same version bump and the same changelog text, they come from one SRPM — read the changelog once and treat them as a single logical change, not separate candidates.
+
+**Variant-specific changelogs differ.** The RHCOS 9 and RHCOS 10 variants carry different packages with different changelogs, even in the same payload chain. When a failure is variant-isolated, compare the changelog entries between the two variants: a change that appears in only one variant's packages is a stronger signal for explaining a variant-isolated failure.
 
 ### Step 4: Investigate Each Failed Job in Parallel
 
@@ -264,7 +278,7 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 >
 > **RHCOS version**: This job's cluster runs on **<rhcos_version>**. <rhcos_context>
 >
-> **RHCOS RPM changes**: Read `<summary_json_path>` and find the entry in `payloads[]` whose `tag` equals `<originating_payload_tag>`. If that entry has an `rhcos_changes[]` array, look up the RHCOS variant matching this job's `rhcos_version` using the tag mapping: `rhel-coreos` → `rhcos9`/`rhcos9-default`, `rhel-coreos-10` → `rhcos10`/`rhcos10-default`, both apply to `rhcos9_10`. Check whether any changed, added, or removed RPM packages overlap with the failure's root cause. If the failure involves OS-level components (kernel, bootloader, systemd, SELinux, rpm-ostree, cri-o, crun, runc, networking) and matching packages changed, note the potential correlation in your ANALYSIS_RESULT.
+> **RHCOS RPM changes and changelogs**: Read `<summary_json_path>` and find the entry in `payloads[]` whose `tag` equals `<originating_payload_tag>`. If that entry has an `rhcos_changes[]` array, look up the RHCOS variant matching this job's `rhcos_version` using the tag mapping: `rhel-coreos` → `rhcos9`/`rhcos9-default`, `rhel-coreos-10` → `rhcos10`/`rhcos10-default`, both apply to `rhcos9_10`. Check whether any changed, added, or removed RPM packages overlap with the failure's root cause. If the failure involves OS-level components (kernel, bootloader, systemd, SELinux, rpm-ostree, cri-o, crun, runc, networking) and matching packages changed, **read the RPM changelog** to see what actually changed — the changelog is the RPM equivalent of a PR's `code.diff`. To find it: in `<summary_json_path>`, check `rpm_changelogs[]` at the top level for the baseline entry (`is_baseline: true`) for the matching variant — its `diff.changed[]` entries each have a `changelog` field. For the originating payload's hop specifically: find `rpm_changelogs[]` in `payloads[]` for `<originating_payload_tag>` matching the variant, and read the file at its `changelogs` path (relative to `<snapshot_dir>`). Multiple binary RPMs built from the same source RPM share identical changelogs — read it once. A changelog entry that describes a change in the subsystem or behavior seen in the failure is strong evidence; a changelog about unrelated subsystems rules the package out. Note the correlation level and any relevant changelog entries in your ANALYSIS_RESULT.
 >
 > Use the `ci:prow-job-analysis` skill for this investigation. It is the single entry point for every failed job: it identifies the job type, classifies the failure, and routes to the correct specialized reference — install, metal/bare-metal, test, upgrade, and more — internally. Do NOT pre-classify the failure yourself. Perform the full analysis, including downloading and analyzing must-gather when it is available.
 >
@@ -281,7 +295,7 @@ Where `<rhcos_version>` is the `rhcos_version` field from the snapshot's failed 
 - For **`rhcos10`** or **`rhcos10-default`**: "RHCOS 10 is based on RHEL 10 with a different kernel, systemd, SELinux policy, and package versions than RHCOS 9. If the failure involves OS-level components (kernel, bootloader, rpm-ostree, MCO, Ignition), consider whether RHEL 10 differences could be the root cause."
 - For **`rhcos9_10`** (heterogeneous): "This is a heterogeneous cluster with both RHCOS 9 and RHCOS 10 nodes. Failures may be specific to one node variant — check whether failing nodes are RHCOS 9 or RHCOS 10 when node-level logs are available."
 
-`<summary_json_path>` is the absolute path to the snapshot's `summary.json` file, and `<originating_payload_tag>` is the `streak.originating_payload` value from the failed job entry.
+`<summary_json_path>` is the absolute path to the snapshot's `summary.json` file, and `<originating_payload_tag>` is the failure mode's `first_failed_in` value (Step 3.3/Step 5) — not the job-level `streak.originating_payload`, which can predate the regression when a job has multiple failure modes.
 
 **Structured Return Format**: Instruct each subagent to include an `ANALYSIS_RESULT` block at the end of its response:
 
@@ -298,12 +312,13 @@ ANALYSIS_RESULT:
 - rhcos_version: rhcos9|rhcos10|rhcos9_10|rhcos9-default|rhcos10-default
 - rhcos_rpm_correlation: none|possible|likely
 - rhcos_rpm_suspect_packages: <comma-separated package names if correlation is possible or likely, or "none">
+- rhcos_rpm_changelog_evidence: <for each suspect package, the specific changelog entry that relates to the failure, or "none" if the changelog was read but contained no relevant entries, or "unavailable" if no changelog data exists in the snapshot>
 ```
 
 The `rhcos_rpm_correlation` field indicates whether the failure may be related to RHCOS RPM changes found in `summary.json`:
 - `none` — no correlation found, or no RHCOS RPM changes exist for this job's variant
-- `possible` — the failure involves OS-level components that overlap with changed packages, but the link is not definitive
-- `likely` — error messages or failure behavior directly point to functionality provided by a changed RPM package
+- `possible` — the failure involves OS-level components that overlap with changed packages, but the link is not definitive (changelog may or may not contain relevant entries)
+- `likely` — error messages or failure behavior directly point to functionality provided by a changed RPM package, **especially when the RPM changelog text describes a change in the exact subsystem or behavior seen in the failure**
 
 **Note for aggregated jobs**: Since only the final attempt is examined (retries re-run aggregation only), set `retries_consistent: only_final_examined` and `retry_summary: "Aggregated job — only final attempt examined (retries re-run aggregation only)"`.
 
@@ -370,23 +385,26 @@ Wait for all subagents to complete and collect their analysis results. For each 
 - **Streak data** (from snapshot: `streak_length`, `originating_payload`, `failure_pattern`)
 - **Candidate PRs** (from snapshot: originating payload's `prs[]`)
 
-#### 6.1: Correlate Failures with Candidate PRs
+#### 6.1: Correlate Failures with Candidates
 
-For each failed job, cross-reference the failure analysis from the subagent with the candidate PRs from the originating payload. Read the PR's `code.diff` file (at the path from `summary.json` → `payloads[].prs[].diff`) to check for code-level correlation.
+For each failed job, cross-reference the failure analysis from the subagent with both the **candidate PRs** and the **RHCOS RPM changes** from the originating payload:
+
+- **PRs**: from `summary.json` → `payloads[].prs[]`. Read the PR's `code.diff` file to check for code-level correlation.
+- **RHCOS RPM changes**: from `summary.json` → `payloads[].rhcos_changes[]` for the originating payload, filtered to the RHCOS variant matching the job's `rhcos_version`. Read the RPM changelog (Step 3.7b) to check for content-level correlation — the changelog is the RPM equivalent of a PR's `code.diff`.
 
 If a subagent traced the root cause to a PR outside the payload (e.g., an `openshift/release` PR that modified a CI step registry script), include that PR as a candidate.
 
-**Before scoring, mechanically enumerate every distinct failure mode for each job — do not score only the dominant one.** A single job can fail for more than one reason (e.g., an install timeout *and* an unrelated test regression). For each failed job, first write out each distinct failure mode the subagent identified as an explicit list, then run every candidate PR through the rubric **once per failure mode** — a PR that explains failure mode A does not automatically explain failure mode B. Do not collapse a job down to its loudest symptom and score only that. Any failure mode you dismiss as a flake (or as pre-existing) MUST cite the specific evidence for that dismissal — a passing retry with no code change, the same test failing on the *accepted* baseline, or a known-flaky test ID — never an unsupported "intermittent" label.
+**Before scoring, mechanically enumerate every distinct failure mode for each job — do not score only the dominant one.** A single job can fail for more than one reason (e.g., an install timeout *and* an unrelated test regression). For each failed job, first write out each distinct failure mode the subagent identified as an explicit list, then run every candidate through the rubric **once per failure mode** — a candidate that explains failure mode A does not automatically explain failure mode B. Do not collapse a job down to its loudest symptom and score only that. Any failure mode you dismiss as a flake (or as pre-existing) MUST cite the specific evidence for that dismissal — a passing retry with no code change, the same test failing on the *accepted* baseline, or a known-flaky test ID — never an unsupported "intermittent" label.
 
-Score each (failed job, failure mode, candidate PR) tuple using the following weighted rubric:
+Score each (failed job, failure mode, candidate) tuple using the following weighted rubric. The rubric applies to both PR candidates and RHCOS RPM candidates — for RPM candidates, read the RPM changelog where the rubric says "PR's diff":
 
 | Signal | Weight | Criteria |
 |--------|--------|----------|
-| New failure mode | +30 | This failure mode was not present in previous payloads **and** is plausibly attributable to code that changed (some PR touches the implicated code path). A brand-new symptom with no changed code behind it does not earn this signal (see infrastructure exclusion below). |
-| Component exclusivity | +10 to +30 | The failure involves a component modified by this PR. **Sole modifier of the affected component = +30** — this tier already covers the "only one candidate PR touches the component" case, so do not also count it separately. 2-3 PRs modify the component = +20; 4+ PRs modify it = +10. |
-| Error message match | +10 to +40 | Tiered by how directly the failure output links to the PR's diff. **Direct match = +40**: an error string, symbol, function name, or identifier from the failure appears verbatim in the PR's diff. **Same code path = +20-30**: the PR modifies the function or execution flow that produced the error, but the exact message is not in the diff. **Same subsystem only = +10**: the PR touches the same subsystem/component but not the specific failing code path. |
-| Multi-job correlation | +10 | The same PR is a candidate for this failure mode in multiple independent jobs |
-| Presubmit coverage gap | +10 | The failing job tests a scenario not covered by the PR's presubmit tests |
+| New failure mode | +30 | This failure mode was not present in previous payloads **and** is plausibly attributable to something that changed (a PR touches the implicated code path, or an RPM changelog describes a change in the implicated subsystem). A brand-new symptom with no changed code or package behind it does not earn this signal (see infrastructure exclusion below). |
+| Component exclusivity | +10 to +30 | The failure involves a component or subsystem modified by this candidate. **Sole modifier = +30**; 2-3 candidates modify the component = +20; 4+ = +10. For RPM candidates, "component" is the OS-level subsystem the package provides (e.g., a kernel bump is the sole modifier of networking if no PR also touches networking). Count PR and RPM candidates together when determining exclusivity tiers. |
+| Error message match | +10 to +40 | Tiered by how directly the failure output links to the candidate's diff (PR diff or RPM changelog). **Direct match = +40**: an error string, symbol, function name, or identifier from the failure appears verbatim in the diff/changelog. **Same code path / subsystem behavior = +20-30**: the candidate modifies the function, execution flow, or subsystem behavior that produced the error, but the exact message is not in the diff/changelog. **Same subsystem only = +10**: the candidate touches the same subsystem/component but not the specific failing code path. |
+| Multi-job correlation | +10 | The same candidate is implicated in this failure mode across multiple independent jobs |
+| Presubmit coverage gap | +10 | The failing job tests a scenario not covered by the candidate's presubmit tests. (Not applicable to RPM candidates — RPM changes do not run presubmit CI.) |
 
 Maximum possible score is 120, capped at 100. Record the numeric score alongside qualitative rationale.
 
@@ -409,34 +427,35 @@ Record this breakdown in the candidate's `rationale` field in the YAML/JSON outp
 
 The recorded confidence score MUST equal `min(100, sum of itemized signals)`, each signal at exactly its defined weight, one line of evidence per claimed signal. No unclaimed points, no unlisted signals.
 
-**Apply the rubric mechanically, then verify the top-tier claims.** Sum the weights for each signal that fires on concrete evidence. Do NOT adjust the score downward based on speculative counter-arguments like "if this were the sole cause, other jobs would also fail" or "this could be a coincidence" — if the error messages reference the PR's changes, that's a match, and the fact that some other jobs didn't fail doesn't negate it. **But when the raw sum exceeds the cap** (you claimed a maximum tier on more than one signal at once), re-verify each maximum-tier claim before recording: is the error-message match a true verbatim string/symbol match (+40), or really only same-subsystem (+10)? Is this genuinely the *sole* modifier of the component (+30)? Downgrade any tier that does not survive this check. This self-skepticism pass removes tier inflation without weakening genuinely strong matches. Trust the rubric — it exists to prevent both over- and under-attribution.
+**Apply the rubric mechanically, then verify the top-tier claims.** Sum the weights for each signal that fires on concrete evidence. Do NOT adjust the score downward based on speculative counter-arguments like "if this were the sole cause, other jobs would also fail" or "this could be a coincidence" — if the error messages reference the candidate's changes, that's a match, and the fact that some other jobs didn't fail doesn't negate it. **But when the raw sum exceeds the cap** (you claimed a maximum tier on more than one signal at once), re-verify each maximum-tier claim before recording: is the error-message match a true verbatim string/symbol match (+40), or really only same-subsystem (+10)? Is this genuinely the *sole* modifier of the component (+30)? Downgrade any tier that does not survive this check. This self-skepticism pass removes tier inflation without weakening genuinely strong matches. Trust the rubric — it exists to prevent both over- and under-attribution.
 
-**Infrastructure exclusion — do not let unrelated PRs accumulate points.** The rubric measures *product-code causation*. When the root cause is affirmatively infrastructure (Step 6.4 definition) or an affirmatively-identified CI-config change (Step 3.6), payload component PRs with **no error-message and no code-path correlation** to the failure must score **at or near zero**. Do not award "new failure mode" or bare "component exclusivity" points to a PR that merely happens to be present in the payload — "new failure mode" fires only when the failure is plausibly attributable to code that changed. A new symptom whose actual cause is a lease timeout, a quota block, or a step-registry edit is not evidence against an unrelated component PR.
+**Infrastructure exclusion — do not let unrelated candidates accumulate points.** The rubric measures *product-code causation*. When the root cause is affirmatively infrastructure (Step 6.4 definition) or an affirmatively-identified CI-config change (Step 3.6), payload component PRs and RHCOS RPM changes with **no error-message and no code-path correlation** to the failure must score **at or near zero**. Do not award "new failure mode" or bare "component exclusivity" points to a candidate that merely happens to be present in the payload — "new failure mode" fires only when the failure is plausibly attributable to something that changed. A new symptom whose actual cause is a lease timeout, a quota block, or a step-registry edit is not evidence against an unrelated candidate.
 
-**"Intermittent" and "flake" are conclusions requiring evidence, not default labels.** Before dismissing a failure as a flake, confirm affirmative evidence for it (e.g., the same job passed on retry with no code change, or it is a known-flaky test that also fails on *accepted* payloads). First check whether any candidate PR touches the failing code path: a reproducible failure in code that changed is a regression, not a flake, even if it does not reproduce on every run.
+**"Intermittent" and "flake" are conclusions requiring evidence, not default labels.** Before dismissing a failure as a flake, confirm affirmative evidence for it (e.g., the same job passed on retry with no code change, or it is a known-flaky test that also fails on *accepted* payloads). First check whether any candidate touches the failing code path: a reproducible failure in code that changed is a regression, not a flake, even if it does not reproduce on every run.
 
-**When a failed job ends up with zero causally-linked candidates, state why — explicitly, per job.** An empty candidate list is itself a claim: that no payload PR and no CI-infrastructure change (Step 3.6) is causally linked to the failure. Justify it rather than leaving it blank. For each such job, record a one-line rationale explaining why no payload PR explains the failure (e.g., "root cause is a Boskos lease timeout — no component PR touches the failing path"; "failure also reproduces on the accepted baseline payload, so it predates every candidate PR in this originating payload"). State the cross-job correlation explicitly: note whether the same failure mode appears in other failing jobs (pointing to shared infrastructure or a common dependency) or is isolated to this one. A silent empty candidate list is indistinguishable from an un-investigated job and is not acceptable.
+**When a failed job ends up with zero causally-linked candidates, state why — explicitly, per job.** An empty candidate list is itself a claim: that no payload PR, no RHCOS RPM change, and no CI-infrastructure change (Step 3.6) is causally linked to the failure. Justify it rather than leaving it blank. For each such job, record a one-line rationale explaining why no candidate explains the failure (e.g., "root cause is a Boskos lease timeout — no candidate touches the failing path"; "failure also reproduces on the accepted baseline payload, so it predates every candidate in this originating payload"). State the cross-job correlation explicitly: note whether the same failure mode appears in other failing jobs (pointing to shared infrastructure or a common dependency) or is isolated to this one. A silent empty candidate list is indistinguishable from an un-investigated job and is not acceptable.
 
-#### 6.1b: RHCOS RPM Change Correlation
+#### 6.1b: RHCOS RPM Candidate Notes
 
-After scoring PR candidates, check for RHCOS RPM change correlation. A failure correlates with RHCOS RPM changes when ANY of the following hold:
+RHCOS RPM changes are scored as candidates using the same rubric as PRs. The following notes cover how they differ in practice.
 
-1. The subagent's `rhcos_rpm_correlation` is `possible` or `likely`
-2. The failure is variant-isolated (e.g., appears only in RHCOS 10 jobs) AND the matching RHCOS variant has RPM changes in the originating payload
-3. The root cause involves OS-level components (kernel, systemd, SELinux, cri-o, crun, runc, networking, bootloader, rpm-ostree, MCO, Ignition) AND matching RHCOS RPM changes exist in the originating payload
-4. No high-confidence PR candidates exist (all scores < 50) AND RHCOS RPM changes exist in the originating payload — in this case, the RPM changes are the most plausible explanation
+**RHCOS RPM changes are NOT revert candidates.** They cannot be easily reverted from the payload. Even when an RPM candidate scores >= 85, do NOT propose it as a revert in Step 6.2. Instead, surface it as an **"RHCOS RPM candidate"** requiring manual investigation by the RHCOS or platform team. Include it in the `candidates[]` output with `type: "rhcos_rpm"` (see below) so downstream tooling can distinguish it from PR candidates.
 
-**RHCOS RPM changes are NOT revert candidates.** They cannot be easily reverted from the payload. Do NOT propose reverts for RHCOS changes. Instead, surface them as **"RHCOS RPM suspects"** — informational entries for manual investigation by the RHCOS or platform team.
+**Subpackage dedup.** Multiple binary RPMs built from the same source RPM share identical changelogs. When several packages have the same version bump and the same changelog, score one candidate for the logical change — do not list each subpackage separately.
 
-When both PR candidates AND RHCOS RPM changes are plausible causes, include both. The PR candidate scoring is unchanged; RHCOS suspects are additive context, not alternatives. It is possible for a failure to be caused by an interaction between a PR change and an RHCOS change.
+**Pinpointing which hop introduced the RHCOS change.** The top-level `rpm_changelogs[]` entries include intermediate hops — some may show `changed: 0` (no RPM changes between those two payloads), while others show the actual bump. When the originating payload for a failure mode differs from the baseline, check the intermediate hop's changelog to confirm the RPM change landed in that specific hop, not earlier. This narrows the timing correlation.
 
-For each RHCOS RPM suspect, record:
+**Variant isolation as a signal.** When a failure mode appears only in jobs of one RHCOS variant and not the other (see Cross-Platform and Cross-Job Failure Pattern Recognition), and the matching variant has RPM changes, this is strong supporting evidence for the RPM candidate — it behaves like component exclusivity for the variant-specific subsystem.
+
+For each RHCOS RPM candidate in `candidates[]`, record the standard fields (`confidence_score`, `rationale` with itemized signals, `failing_jobs`) plus:
+- `type`: `"rhcos_rpm"` (distinguishes from PR candidates, which have `type: "pr"`)
 - `rhcos_tag`: the RHCOS image stream tag (e.g., `rhel-coreos-10`)
 - `rhcos_name`: human-readable name (e.g., "Red Hat Enterprise Linux CoreOS 10.2")
-- `package`: the RPM package name
+- `package`: the RPM package name (or the logical source package when subpackages are deduped)
 - `old_version`, `new_version`: the version change
-- `failing_jobs`: list of job names where this package change may be relevant
-- `rationale`: why this package is suspected (e.g., "systemd update correlates with variant-isolated boot timeout in RHCOS 10 jobs")
+- `changelog_evidence`: the specific changelog entry or entries that relate to the failure (verbatim text from the RPM changelog diff), or `"none"` if the changelog does not contain entries relevant to the failure mode
+
+RHCOS RPM candidates have no `pr_url`, `pr_number`, `component`, or `title` — those fields are PR-only. See the `payload-results-yaml` skill for the full typed schema.
 
 #### 6.2: Propose Revert Candidates
 
@@ -450,7 +469,7 @@ Per OCP policy, PRs that break payloads MUST be reverted. When confidence is hig
 
 For each revert candidate, record: PR URL, description, component, confidence score with rationale.
 
-**Do NOT propose reverts for**: Infrastructure failures, flaky tests that also fail on accepted payloads, jobs where analysis is inconclusive.
+**Do NOT propose reverts for**: Infrastructure failures, flaky tests that also fail on accepted payloads, jobs where analysis is inconclusive, **or RHCOS RPM candidates** (which have `type: "rhcos_rpm"` — these cannot be reverted through the normal PR process; they require escalation to the RHCOS or platform team).
 
 **Special case — Kubernetes rebase version skew.** When the candidate PR is a **Kubernetes rebase** (a PR in the `openshift/kubernetes` repo, typically a rebase/version-bump onto a new upstream Kubernetes release) **AND** the failures show **kubelet version skew** — the kubelet reporting an older Kubernetes version than the kube-apiserver (e.g., kube-apiserver at `1.36.2` while nodes still run kubelet `1.35.3`) — do **NOT** mark the rebase as a revert candidate, even when its rubric score is >= 85.
 
@@ -499,9 +518,9 @@ Instead, recommend the correct action: **wait for the RHCOS with the rebuilt kub
 
 Use the `payload-results-yaml` skill to create `$OUTPUT_DIR/payload-results-{tag}.yaml` (the `$OUTPUT_DIR` captured in Step 1)
 
-This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, LOW), enabling downstream commands to filter by their own criteria. If RHCOS RPM suspects were identified in Step 6.1b, include them in the `rhcos_suspects[]` array (see the `payload-results-yaml` skill for the schema).
+This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, LOW), enabling downstream commands to filter by their own criteria. RHCOS RPM candidates (Step 6.1b) are included in `candidates[]` with `type: "rhcos_rpm"` alongside PR candidates (`type: "pr"`), not in a separate array.
 
-**Every affirmatively-identified root cause must be represented as a scored `candidates[]` entry** — including causal CI-infrastructure / step-registry changes (Step 3.6), even when the failure's `failure_type` is `infra`. A failure whose cause is known must not leave `candidates[]` empty; each entry carries its itemized rubric breakdown (Step 6.1) in its `rationale`.
+**Every affirmatively-identified root cause must be represented as a scored `candidates[]` entry** — including causal CI-infrastructure / step-registry changes (Step 3.6) and RHCOS RPM changes (Step 6.1b), even when the failure's `failure_type` is `infra`. A failure whose cause is known must not leave `candidates[]` empty; each entry carries its itemized rubric breakdown (Step 6.1) in its `rationale`.
 
 ### Step 7: Generate HTML Report
 
@@ -584,43 +603,63 @@ For each failed job, a collapsible section containing:
 
 #### 7.3b: RHCOS Changes
 
-Include this section after the failed job details when any payload in the chain has RHCOS RPM changes. If RHCOS RPM suspects were identified (Step 6.1b), show them prominently first, then include the full RPM diff in a collapsible section.
+Include this section after the failed job details when any payload in the chain has RHCOS RPM changes. If RHCOS RPM candidates were scored (Step 6.1b), show them prominently first, then include the full RPM changelog diff in a collapsible section.
+
+**Cover every relevant hop, not just one.** Failure modes can have different `first_failed_in` origins (Step 3.3/Step 5), so a single origin's diff can omit evidence for another candidate hop. Keep one "Full RHCOS RPM Changelog Diffs" section, but render the baseline diff for each variant plus one additional subsection for each distinct (originating payload, variant) pair referenced by any scored candidate or failure mode that differs from the baseline — do not create a separate collapsible section per origin.
 
 ```html
 <div class="card">
   <h2>RHCOS Changes</h2>
 
-  <!-- Only when RHCOS RPM suspects exist -->
-  <div class="rhcos-suspect">
-    <h3>Suspected RHCOS RPM Changes</h3>
-    <p>The following RHCOS package updates may be contributing to failures. These cannot be reverted
-       through the normal PR revert process — escalate to the RHCOS or platform team if confirmed.</p>
+  <!-- Only when scored RHCOS RPM candidates exist (type: "rhcos_rpm" in candidates[]) -->
+  <div class="rhcos-candidate">
+    <h3>RHCOS RPM Candidates</h3>
+    <p>The following RHCOS package updates scored as regression candidates. These cannot be reverted
+       through the normal PR revert process — escalate to the RHCOS or platform team.</p>
     <table>
-      <tr><th>Package</th><th>Old Version</th><th>New Version</th><th>Variant</th><th>Affected Jobs</th><th>Rationale</th></tr>
+      <tr><th>Package</th><th>Old Version</th><th>New Version</th><th>Variant</th><th>Score</th><th>Affected Jobs</th><th>Rationale</th></tr>
       <tr>
         <td>{package}</td><td>{old_version}</td><td>{new_version}</td>
         <td><span class="badge badge-{rhcos9|rhcos10}">{variant}</span></td>
-        <td>{comma-separated job names}</td><td>{rationale}</td>
+        <td>{score}</td>
+        <td>{comma-separated job names}</td><td>{rationale with itemized signals}</td>
       </tr>
     </table>
+
+    <!-- When changelog evidence exists for any candidate -->
+    <details>
+      <summary>RPM Changelog Evidence</summary>
+      <div class="changelog-evidence">
+        <h4>{package} ({old_version} → {new_version})</h4>
+        <pre>{verbatim changelog entries from the RPM changelog diff}</pre>
+        <!-- Repeat for each candidate with changelog_evidence != "none" -->
+      </div>
+    </details>
   </div>
 
-  <!-- Always include full RPM diffs when RHCOS changes exist in any originating payload -->
+  <!-- Always include full RPM changelog diffs when RHCOS changes exist in any originating payload -->
   <details>
-    <summary>Full RHCOS RPM Diffs ({originating_payload_tag})</summary>
-    <h4>{rhcos_name} ({rhcos_tag})</h4>
+    <summary>Full RHCOS RPM Changelog Diffs</summary>
+    <h4>{rhcos_name} ({rhcos_tag}) — baseline ({baseline_tag})</h4>
     <table>
       <tr><th>Package</th><th>Old Version</th><th>New Version</th></tr>
-      <!-- List all changed packages -->
+      <!-- List all changed packages from the baseline diff -->
     </table>
     <!-- Repeat for each RHCOS variant with changes -->
+
+    <!-- One additional subsection per distinct (originating payload, variant) pair referenced by a candidate or failure mode, when that origin differs from the baseline -->
+    <h4>{rhcos_name} ({rhcos_tag}) — hop at {originating_payload_tag}</h4>
+    <table>
+      <tr><th>Package</th><th>Old Version</th><th>New Version</th></tr>
+      <!-- List all changed packages from that hop's diff -->
+    </table>
   </details>
 </div>
 ```
 
-Add this CSS for RHCOS suspect styling:
+Add this CSS for RHCOS candidate styling:
 ```css
-.rhcos-suspect { background: rgba(188,140,255,0.1); border-left: 4px solid var(--purple); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; }
+.rhcos-candidate { background: rgba(188,140,255,0.1); border-left: 4px solid var(--purple); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; }
 ```
 
 #### 7.4: Recommended Reverts
@@ -723,7 +762,7 @@ The reviewer should receive **only** the following (NOT the full conversation hi
 2. The scored candidate list with per-component rubric breakdowns from Step 6
 3. The `ANALYSIS_RESULT` blocks from all subagents in Step 4
 4. The revert recommendations (if any)
-5. The RHCOS RPM suspects (if any)
+5. The RHCOS RPM candidates (if any, identified by `type: "rhcos_rpm"` in the scored candidates)
 
 Use this prompt for the reviewer:
 
@@ -747,7 +786,7 @@ Use this prompt for the reviewer:
 >
 > 4. **Wrong reference for failure type**: Did the analysis route to the correct reference — install (and metal for metal jobs) for install failures, and the test/flaky-test reference for test failures? Using the wrong reference produces misdirected analysis.
 >
-> 5. **Missing RHCOS RPM correlation**: If RHCOS RPM changes exist in the originating payload and failures are variant-isolated or involve OS-level components, was the correlation checked? Were relevant packages surfaced as suspects?
+> 5. **Missing RHCOS RPM candidates**: If RHCOS RPM changes exist in the originating payload and failures are variant-isolated or involve OS-level components, were the RPM changes scored as candidates alongside PRs? Were the RPM changelogs read and cited as evidence in the rubric breakdown? An RHCOS RPM change whose changelog was not consulted is like a PR candidate whose `code.diff` was never read — an incomplete investigation.
 >
 > **Rules**:
 > - Do NOT suggest lowering confidence scores. If the rubric signals fired (error message match, new failure, component exclusivity), the score is correct. Period.

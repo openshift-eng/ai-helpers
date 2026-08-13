@@ -112,8 +112,8 @@ changed in the OS.
   failure's subsystem (kernel / systemd / cri-o / NetworkManager / SELinux) is the correlation.
 
 **RHCOS RPM changes are not revert candidates** — they cannot be pulled out of a payload like a
-PR. Surface them as **RHCOS RPM suspects** for the RHCOS/platform team, with the variant, the
-package NEVRA delta, and a rationale. Full suspect-scoring workflow:
+PR. Surface them as **RHCOS RPM candidates** for the RHCOS/platform team, with the variant, the
+package NEVRA delta, and a rationale. Full candidate-scoring workflow:
 [payload-analysis](../../payload-analysis/SKILL.md).
 
 ## Identifying the RHCOS Version on a Node

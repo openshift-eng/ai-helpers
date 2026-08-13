@@ -1,0 +1,18 @@
+metadata:
+  payload_tag: "5.0.0-0.nightly-2026-06-17-095118"
+  version: "5.0"
+  stream: "nightly"
+  architecture: "amd64"
+
+failing_jobs:
+  - job_name: "test-job"
+    failure_type: "test"
+    root_cause_summary: "test failure"
+
+candidates:
+  - type: ["pr", "rhcos_rpm"]
+    confidence_score: 90
+    rationale: "malformed type field"
+    failing_jobs:
+      - "test-job"
+    actions: []
