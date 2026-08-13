@@ -453,3 +453,5 @@ thresholds:
     min_mean: 3.0
   required_skill_invocations:
     min_pass_rate: 1.0
+  expected_outcomes:
+    min_pass_rate: 1.0
