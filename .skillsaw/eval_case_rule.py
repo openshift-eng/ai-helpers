@@ -1,44 +1,82 @@
 """
-Custom skillsaw rules for the evals/ directory.
+Custom skillsaw rules for eval case directories.
 
 Eval case directory names are visible to the model under test, so they must not
 leak what is being tested. These two rules enforce that:
 
-1. eval-case-name       — every case directory is named `case-NNNN` (4 digits) only.
+1. eval-case-name       — every case directory is named `case-NNN` (digits only).
 2. eval-case-registered — every case is registered in its eval's README index.
 
-An "eval" is any directory directly under `evals/` that contains a `cases/`
-subdirectory. Its cases are the immediate subdirectories of `cases/`.
+Discovery
+---------
+A "cases" directory is any directory named ``cases`` that has an ancestor
+directory named ``evals``. Two layouts are supported:
+
+* Flat (top-level ``evals/<name>/cases/case-NNNN``): the case directories are
+  the direct children of ``cases``.
+* Grouped (``plugins/<p>/evals/cases/<group>/case-NNNN``): ``cases`` holds
+  group directories, and the case directories are their children.
+
+In both layouts the eval's README lives at ``cases/../README.md`` (i.e. the
+directory that contains ``cases``), which is where each case must be registered.
 """
 
 import re
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 from skillsaw import RepositoryContext, Rule, RuleViolation, Severity
 
-CASE_NAME_RE = re.compile(r"^case-\d{4}$")
+CASE_NAME_RE = re.compile(r"^case-\d+$")
+_SKIP_PARTS = {".git", "node_modules", "__pycache__"}
 
 
-def _eval_roots(root_path: Path) -> List[Path]:
-    """Return eval directories (children of evals/ that contain a cases/ dir)."""
-    evals_dir = root_path / "evals"
-    if not evals_dir.is_dir():
-        return []
-    return sorted(
-        child
-        for child in evals_dir.iterdir()
-        if child.is_dir() and (child / "cases").is_dir()
-    )
+def _cases_dirs(root_path: Path) -> List[Path]:
+    """All directories named 'cases' that live under an 'evals' ancestor."""
+    result = []
+    for path in root_path.rglob("cases"):
+        if not path.is_dir():
+            continue
+        parts = set(path.parts)
+        if parts & _SKIP_PARTS:
+            continue
+        if "evals" in path.parts:
+            result.append(path)
+    return sorted(result)
 
 
-def _case_dirs(eval_root: Path) -> List[Path]:
-    """Return the case directories for a single eval."""
-    return sorted(c for c in (eval_root / "cases").iterdir() if c.is_dir())
+def _cases_in(cases_dir: Path) -> List[Path]:
+    """Return the case directories under a 'cases' dir, handling both layouts.
+
+    Flat layout: a direct child is named ``case-*`` → the direct children are
+    the cases. Grouped layout: no direct child is named ``case-*`` → the direct
+    children are groups and their children are the cases.
+    """
+    direct = sorted(d for d in cases_dir.iterdir() if d.is_dir())
+    if any(d.name.startswith("case") for d in direct):
+        return direct
+    cases = []
+    for group in direct:
+        cases.extend(sorted(c for c in group.iterdir() if c.is_dir()))
+    return cases
+
+
+def _all_cases(root_path: Path) -> List[Tuple[Path, Path]]:
+    """Yield (case_dir, eval_root) pairs across the repository.
+
+    ``eval_root`` is the directory containing ``cases`` — where the README that
+    indexes the cases must live.
+    """
+    pairs = []
+    for cases_dir in _cases_dirs(root_path):
+        eval_root = cases_dir.parent
+        for case_dir in _cases_in(cases_dir):
+            pairs.append((case_dir, eval_root))
+    return pairs
 
 
 class EvalCaseNameRule(Rule):
-    """Eval case directories must be named `case-NNNN` (4 digits) with no slug."""
+    """Eval case directories must be named `case-NNN` (digits only, no slug)."""
 
     @property
     def rule_id(self) -> str:
@@ -47,8 +85,9 @@ class EvalCaseNameRule(Rule):
     @property
     def description(self) -> str:
         return (
-            "Eval case directories must be named 'case-NNNN' (four digits) only. "
-            "A descriptive slug leaks what is being tested to the model under test."
+            "Eval case directories must be named 'case-NNN' (the word 'case', a "
+            "hyphen, then digits only). A descriptive slug leaks what is being "
+            "tested to the model under test."
         )
 
     def default_severity(self) -> Severity:
@@ -56,18 +95,16 @@ class EvalCaseNameRule(Rule):
 
     def check(self, context: RepositoryContext) -> List[RuleViolation]:
         violations: List[RuleViolation] = []
-
-        for eval_root in _eval_roots(context.root_path):
-            for case_dir in _case_dirs(eval_root):
-                if not CASE_NAME_RE.match(case_dir.name):
-                    violations.append(
-                        self.violation(
-                            f"Eval case directory '{case_dir.name}' must be named "
-                            f"'case-NNNN' (four digits) only, e.g. 'case-0001'.",
-                            file_path=case_dir,
-                        )
+        for case_dir, _eval_root in _all_cases(context.root_path):
+            if not CASE_NAME_RE.match(case_dir.name):
+                violations.append(
+                    self.violation(
+                        f"Eval case directory '{case_dir.name}' must be named "
+                        f"'case-NNN' (digits only, no descriptive slug), e.g. "
+                        f"'case-001'.",
+                        file_path=case_dir,
                     )
-
+                )
         return violations
 
 
@@ -81,8 +118,8 @@ class EvalCaseRegisteredRule(Rule):
     @property
     def description(self) -> str:
         return (
-            "Every eval case must be listed by name in its eval's README.md, "
-            "since the case directory name is opaque."
+            "Every eval case must be listed by name in the README.md at the eval "
+            "root, since the case directory name is opaque."
         )
 
     def default_severity(self) -> Severity:
@@ -90,33 +127,40 @@ class EvalCaseRegisteredRule(Rule):
 
     def check(self, context: RepositoryContext) -> List[RuleViolation]:
         violations: List[RuleViolation] = []
+        readme_cache: dict = {}
+        missing_readme_reported: set = set()
 
-        for eval_root in _eval_roots(context.root_path):
+        for case_dir, eval_root in _all_cases(context.root_path):
             readme = eval_root / "README.md"
             if not readme.is_file():
-                violations.append(
-                    self.violation(
-                        f"Eval '{eval_root.name}' is missing a README.md to index "
-                        f"its cases.",
-                        file_path=readme,
-                    )
-                )
-                continue
-
-            text = readme.read_text(encoding="utf-8", errors="replace")
-            for case_dir in _case_dirs(eval_root):
-                # Match the case name as a whole token so 'case-0001' does not
-                # satisfy 'case-00010', etc.
-                pattern = re.compile(
-                    r"(?<![\w-])" + re.escape(case_dir.name) + r"(?![\w-])"
-                )
-                if not pattern.search(text):
+                if eval_root not in missing_readme_reported:
+                    missing_readme_reported.add(eval_root)
+                    rel = eval_root.relative_to(context.root_path)
                     violations.append(
                         self.violation(
-                            f"Eval case '{case_dir.name}' is not registered in "
-                            f"{eval_root.name}/README.md. Add it to the case index.",
-                            file_path=case_dir,
+                            f"Eval '{rel}' is missing a README.md to index its cases.",
+                            file_path=readme,
                         )
                     )
+                continue
 
+            text = readme_cache.get(readme)
+            if text is None:
+                text = readme.read_text(encoding="utf-8", errors="replace")
+                readme_cache[readme] = text
+
+            # Match the case name as a whole token so 'case-0001' does not
+            # satisfy 'case-00010', etc.
+            pattern = re.compile(
+                r"(?<![\w-])" + re.escape(case_dir.name) + r"(?![\w-])"
+            )
+            if not pattern.search(text):
+                rel = eval_root.relative_to(context.root_path)
+                violations.append(
+                    self.violation(
+                        f"Eval case '{case_dir.name}' is not registered in "
+                        f"{rel}/README.md. Add it to the case index.",
+                        file_path=case_dir,
+                    )
+                )
         return violations

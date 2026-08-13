@@ -1,5 +1,5 @@
 difficulty: easy-medium
-based_on_jira_solver_case: case-0003
+based_on_jira_solver_case: case-003
 description: >
   Tests review-responder behavior on a deliberately incomplete fix for TRT-2660.
   The head branch fixes component_report.go but misses test_details.go and the
