@@ -1,7 +1,7 @@
 {
   "name": "code-review",
   "description": "Automated code quality review with language-aware analysis, pre-commit verification, and multi-specialist deep review",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "author": {
     "name": "github.com/openshift-eng"
   }

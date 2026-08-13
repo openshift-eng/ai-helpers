@@ -92,7 +92,7 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.9.1",
+      "version": "0.9.2",
       "category": "productivity",
       "keywords": [
         "jira",
@@ -105,7 +105,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.83",
+      "version": "0.0.84",
       "category": "ci",
       "keywords": [
         "prow",
@@ -414,7 +414,7 @@
       "name": "code-review",
       "source": "./plugins/code-review",
       "description": "Automated code quality review with language-aware analysis, pre-commit verification, and multi-specialist deep review",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "category": "development",
       "keywords": [
         "code-review",
@@ -501,7 +501,7 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.14",
+      "version": "1.1.15",
       "category": "bundle",
       "keywords": [
         "openshift",

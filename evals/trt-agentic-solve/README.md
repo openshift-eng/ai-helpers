@@ -25,6 +25,10 @@ automatically.
 
 ## Cases
 
+Case directories are named `case-NNN` only, with no descriptive slug, so the
+name does not reveal the fix to the agent under test. This index records what
+each case tests.
+
 Each case corresponds to a real JIRA issue that was solved by the agent and
 merged. The eval repo has two branches per case:
 
@@ -33,11 +37,11 @@ merged. The eval repo has two branches per case:
 
 | Case | JIRA | Difficulty | Description |
 |------|------|-----------|-------------|
-| 001 | TRT-2698 | Medium | Add MCP server tests to make target |
-| 002 | TRT-2753 | Easy | Fix trailing slash routing |
-| 003 | TRT-2660 | Easy-Medium | Fix null explanations crash (Go+JS) |
-| 004 | TRT-2678 | Medium | MCP server ready check |
-| 005 | TRT-2795 | Easy | Fix variant filter comparison |
+| case-001 | TRT-2698 | Medium | Add MCP server tests to make target |
+| case-002 | TRT-2753 | Easy | Fix trailing slash routing |
+| case-003 | TRT-2660 | Easy-Medium | Fix null explanations crash (Go+JS) |
+| case-004 | TRT-2678 | Medium | MCP server ready check |
+| case-005 | TRT-2795 | Easy | Fix variant filter comparison |
 
 ## Adding a new case
 
@@ -51,12 +55,14 @@ merged. The eval repo has two branches per case:
    git branch eval/case-N-expected <expected-sha>
    git push origin eval/case-N-base eval/case-N-expected
    ```
-5. Snapshot the JIRA issue:
+5. Pick the next free `case-NNN` number and snapshot the JIRA issue into it:
    ```bash
+   mkdir -p cases/case-NNN
    curl -sf "https://redhat.atlassian.net/rest/api/2/issue/TRT-XXXX?fields=summary,description,status,labels,comment,issuetype,priority" \
-     > cases/case-N-<slug>/jira-issue.json
+     > cases/case-NNN/jira-issue.json
    ```
 6. Create `input.yaml` and `annotations.yaml` following the existing cases
+7. Register the case in the **Cases** table above
 
 ## Running the eval
 
@@ -65,7 +71,7 @@ Trigger via Gangway with case and model overrides:
 ```bash
 # Run a specific case with a specific model
 gangway trigger --job periodic-ci-openshift-release-main-jira-solver-eval-jira-solver-eval \
-  --env MULTISTAGE_PARAM_OVERRIDE_EVAL_CASE=case-002-trt-2753-trailing-slash \
+  --env MULTISTAGE_PARAM_OVERRIDE_EVAL_CASE=case-002 \
   --env MULTISTAGE_PARAM_OVERRIDE_CLAUDE_MODEL=claude-sonnet-4-6
 ```
 
