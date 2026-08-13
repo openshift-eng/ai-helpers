@@ -102,11 +102,21 @@ rules:
     enabled: true
     severity: error
 
+  # Eval case directories must be named case-NNNN (no answer-leaking slug)
+  eval-case-name:
+    enabled: true
+    severity: error
+  # Every eval case must be registered in its eval's README index
+  eval-case-registered:
+    enabled: true
+    severity: error
+
 # Load custom rules from these files
 custom-rules:
   - ".skillsaw/plugindocs_rule.py"
   - ".skillsaw/owners_rule.py"
   - ".skillsaw/opencode_color_rule.py"
+  - ".skillsaw/eval_case_rule.py"
 
 # Exclude patterns (glob format)
 # Use exclude: [] to disable all excludes including defaults

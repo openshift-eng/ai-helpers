@@ -25,6 +25,12 @@ automatically.
 
 ## Cases
 
+Case directories are named `case-NNNN` **only** — no descriptive slug. The
+agent under test sees the case directory name, so an informative name (e.g.
+`case-002-trailing-slash`) would leak the answer. The index below is the
+authoritative record of what each opaque case tests. Every case must appear
+here; the `eval-case-registered` skillsaw rule enforces it.
+
 Each case corresponds to a real JIRA issue that was solved by the agent and
 merged. The eval repo has two branches per case:
 
@@ -33,11 +39,11 @@ merged. The eval repo has two branches per case:
 
 | Case | JIRA | Difficulty | Description |
 |------|------|-----------|-------------|
-| 001 | TRT-2698 | Medium | Add MCP server tests to make target |
-| 002 | TRT-2753 | Easy | Fix trailing slash routing |
-| 003 | TRT-2660 | Easy-Medium | Fix null explanations crash (Go+JS) |
-| 004 | TRT-2678 | Medium | MCP server ready check |
-| 005 | TRT-2795 | Easy | Fix variant filter comparison |
+| case-0001 | TRT-2698 | Medium | Add MCP server tests to make target |
+| case-0002 | TRT-2753 | Easy | Fix trailing slash routing |
+| case-0003 | TRT-2660 | Easy-Medium | Fix null explanations crash (Go+JS) |
+| case-0004 | TRT-2678 | Medium | MCP server ready check |
+| case-0005 | TRT-2795 | Easy | Fix variant filter comparison |
 
 ## Adding a new case
 
@@ -51,12 +57,16 @@ merged. The eval repo has two branches per case:
    git branch eval/case-N-expected <expected-sha>
    git push origin eval/case-N-base eval/case-N-expected
    ```
-5. Snapshot the JIRA issue:
+5. Pick the next free `case-NNNN` number and snapshot the JIRA issue into it:
    ```bash
    curl -sf "https://redhat.atlassian.net/rest/api/2/issue/TRT-XXXX?fields=summary,description,status,labels,comment,issuetype,priority" \
-     > cases/case-N-<slug>/jira-issue.json
+     > cases/case-NNNN/jira-issue.json
    ```
+   The directory name must be `case-NNNN` only (no slug) so the case name
+   does not reveal the answer to the agent under test.
 6. Create `input.yaml` and `annotations.yaml` following the existing cases
+7. Register the case in the **Cases** table above. The `eval-case-name` and
+   `eval-case-registered` skillsaw rules fail the build otherwise.
 
 ## Running the eval
 
@@ -65,7 +75,7 @@ Trigger via Gangway with case and model overrides:
 ```bash
 # Run a specific case with a specific model
 gangway trigger --job periodic-ci-openshift-release-main-jira-solver-eval-jira-solver-eval \
-  --env MULTISTAGE_PARAM_OVERRIDE_EVAL_CASE=case-002-trt-2753-trailing-slash \
+  --env MULTISTAGE_PARAM_OVERRIDE_EVAL_CASE=case-0002 \
   --env MULTISTAGE_PARAM_OVERRIDE_CLAUDE_MODEL=claude-sonnet-4-6
 ```
 
