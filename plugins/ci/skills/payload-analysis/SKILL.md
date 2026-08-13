@@ -77,7 +77,12 @@ The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25
 
 The analysis requires a local snapshot produced by the `payload-snapshot` skill. Search for an existing snapshot in this order:
 
-1. **Explicit `--snapshot-dir DIR`**: If provided, look for `DIR/summary.json`. If not found, exit with an error.
+1. **Explicit `--snapshot-dir DIR`**: First look for `DIR/summary.json`. Historical
+   archives may wrap a snapshot as `<tag>/<version>/<stream>/summary.json`; when
+   the direct file is absent, search below `DIR` for `summary.json`. If exactly
+   one match exists, use its parent as `SNAPSHOT_DIR`. If there are no matches,
+   exit with a missing-snapshot error. If there is more than one, exit with an
+   ambiguity error and list the matches rather than choosing one silently.
 2. **Current directory**: Check if `./summary.json` exists and its `payload_tag` field matches the requested tag.
 3. **Standard relative path**: Check if `payload/<version>/<stream>/summary.json` exists and matches the tag.
 
@@ -781,6 +786,13 @@ Before presenting, confirm that **all Step 4 investigation subagents and the Ste
 4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.
 
 If any check fails, fix it before presenting.
+
+When `AGENT_EVAL_OUTPUT_DIR` is set, copy the three verified canonical files
+there **after** the self-check so an external evaluation harness can collect
+them. Resolve a relative value beneath `$OUTPUT_DIR`; use an absolute value as
+given. Create the destination directory if needed, and leave the canonical
+files at `$OUTPUT_DIR` in place. Copy only the three exact filenames checked
+above, never a glob.
 
 Then tell the user:
    - Path to each saved file

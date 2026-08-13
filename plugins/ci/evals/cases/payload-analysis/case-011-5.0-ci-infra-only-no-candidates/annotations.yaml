@@ -1,5 +1,5 @@
 expected_phase: Rejected
-expected_failed_job_count: 1
+expected_failed_job_count: 2
 has_revert_candidates: false
 force_accept_expected: false
 
