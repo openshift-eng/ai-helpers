@@ -1,0 +1,46 @@
+{
+  "name": "network-policy-audit",
+  "version": "1.0.0",
+  "description": "Automated NetworkPolicy review, optimization, and compliance for OpenShift/Kubernetes clusters",
+  "author": {
+    "name": "github.com/openshift-eng",
+    "email": "shbehera@redhat.com"
+  },
+  "repository": "https://github.com/openshift-eng/ai-helpers",
+  "tags": [
+    "networking",
+    "security",
+    "kubernetes",
+    "openshift",
+    "audit",
+    "compliance",
+    "ovn-kubernetes",
+    "network-policy"
+  ],
+  "requires": {
+    "python": ">=3.9",
+    "kubernetes": ">=28.1.0",
+    "pyyaml": ">=6.0"
+  },
+  "commands": [
+    {
+      "name": "analyze",
+      "description": "Comprehensive NetworkPolicy security, performance, and compliance analysis",
+      "arguments": "[namespace|--cluster-wide] [--mode=security|performance|compliance]"
+    }
+  ],
+  "permissions": {
+    "kubernetes": {
+      "resources": [
+        "networkpolicies",
+        "pods",
+        "services",
+        "namespaces"
+      ],
+      "verbs": [
+        "get",
+        "list"
+      ]
+    }
+  }
+}

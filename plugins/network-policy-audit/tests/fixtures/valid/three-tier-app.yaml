@@ -1,0 +1,24 @@
+# Valid NetworkPolicy: Three-tier application
+# Based on: TC-VNP-004
+# Purpose: Demonstrates multi-tier architecture with proper selectors (BUG-001 verification)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-tier-isolation
+  namespace: app-namespace
+  annotations:
+    policy.kubernetes.io/description: "Backend tier allows traffic only from frontend tier"
+spec:
+  podSelector:
+    matchLabels:
+      tier: backend
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: frontend
+    ports:
+    - protocol: TCP
+      port: 8080

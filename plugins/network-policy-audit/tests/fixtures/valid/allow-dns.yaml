@@ -1,0 +1,27 @@
+# Valid NetworkPolicy: Allow DNS
+# Based on: Common pattern for allowing DNS resolution
+# Purpose: Demonstrates proper DNS allowlist policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: example-namespace
+  annotations:
+    policy.kubernetes.io/description: "Allow DNS resolution to kube-dns/coredns"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
