@@ -45,19 +45,34 @@ def _cases_dirs(root_path: Path) -> List[Path]:
     return sorted(result)
 
 
+def _looks_like_case(d: Path) -> bool:
+    """A case directory holds a case (has input.yaml) or claims to by name.
+
+    Detection must not depend solely on the name — that is what we validate —
+    so a misnamed directory (e.g. ``cases/payment-regression/``) is still
+    recognised as a case via its ``input.yaml`` and flagged. The name prefix is
+    also honoured so a ``case-*`` dir missing ``input.yaml`` is not silently
+    skipped.
+    """
+    return (d / "input.yaml").is_file() or d.name.startswith("case-")
+
+
 def _cases_in(cases_dir: Path) -> List[Path]:
     """Return the case directories under a 'cases' dir, handling both layouts.
 
-    Flat layout: a direct child is named ``case-*`` → the direct children are
-    the cases. Grouped layout: no direct child is named ``case-*`` → the direct
-    children are groups and their children are the cases.
+    Flat layout: the case directories are direct children of ``cases``. Grouped
+    layout: ``cases`` holds group directories whose children are the cases. A
+    direct child that is itself a case is taken as-is; otherwise it is treated
+    as a group and its case children are collected.
     """
-    direct = sorted(d for d in cases_dir.iterdir() if d.is_dir())
-    if any(d.name.startswith("case") for d in direct):
-        return direct
     cases = []
-    for group in direct:
-        cases.extend(sorted(c for c in group.iterdir() if c.is_dir()))
+    for child in sorted(d for d in cases_dir.iterdir() if d.is_dir()):
+        if _looks_like_case(child):
+            cases.append(child)
+        else:
+            cases.extend(
+                sorted(c for c in child.iterdir() if c.is_dir() and _looks_like_case(c))
+            )
     return cases
 
 
