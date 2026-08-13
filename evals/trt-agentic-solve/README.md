@@ -57,6 +57,7 @@ merged. The eval repo has two branches per case:
    ```
 5. Pick the next free `case-NNN` number and snapshot the JIRA issue into it:
    ```bash
+   mkdir -p cases/case-NNN
    curl -sf "https://redhat.atlassian.net/rest/api/2/issue/TRT-XXXX?fields=summary,description,status,labels,comment,issuetype,priority" \
      > cases/case-NNN/jira-issue.json
    ```

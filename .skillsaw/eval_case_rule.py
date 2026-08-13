@@ -149,17 +149,20 @@ class EvalCaseRegisteredRule(Rule):
                 text = readme.read_text(encoding="utf-8", errors="replace")
                 readme_cache[readme] = text
 
-            # Match the case name as a whole token so 'case-0001' does not
-            # satisfy 'case-00010', etc.
-            pattern = re.compile(
-                r"(?<![\w-])" + re.escape(case_dir.name) + r"(?![\w-])"
+            # Require the case to be the first cell of a Markdown table row
+            # (the index), so a passing prose mention does not count as
+            # registration. re.escape keeps the interpolated name literal.
+            row = re.compile(
+                r"^\s*\|\s*" + re.escape(case_dir.name) + r"\s*\|",
+                re.MULTILINE,
             )
-            if not pattern.search(text):
+            if not row.search(text):
                 rel = eval_root.relative_to(context.root_path)
                 violations.append(
                     self.violation(
                         f"Eval case '{case_dir.name}' is not registered in "
-                        f"{rel}/README.md. Add it to the case index.",
+                        f"{rel}/README.md. Add it as a row in the case index "
+                        f"table (e.g. '| {case_dir.name} | ... |').",
                         file_path=case_dir,
                     )
                 )
