@@ -20,6 +20,7 @@ Syncs the NI&D PR Review GitHub Project board (https://github.com/orgs/openshift
 ## Prerequisites
 
 - GitHub CLI (`gh`) authenticated with `read:project` and `project` scopes
+- `acli` (Jira CLI) installed and authenticated with access to OCPBUGS project
 - Access to the openshift org
 
 ## Implementation
@@ -101,24 +102,37 @@ gh project item-list 28 --owner openshift --format json --limit 500 | python3 -c
 import json, sys, subprocess, datetime
 data = json.load(sys.stdin)
 one_week_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)
-count = 0
+results = []
 for item in data['items']:
     c = item.get('content', {})
     if c.get('type') != 'PullRequest': continue
     if item.get('primary Reviewer', ''): continue
-    r = subprocess.run(['gh','pr','view',str(c['number']),'-R',c['repository'],'--json','state,mergedAt','-q','.state + \" \" + .mergedAt'], capture_output=True, text=True)
+    repo = c.get('repository', '')
+    number = c.get('number', '')
+    title = c.get('title', '')
+    r = subprocess.run(['gh','pr','view',str(number),'-R',repo,'--json','state,mergedAt','-q','.state + \" \" + .mergedAt'], capture_output=True, text=True)
     parts = r.stdout.strip().split(' ', 1)
     if len(parts) == 2 and parts[0] == 'MERGED':
         try:
             merged_at = datetime.datetime.fromisoformat(parts[1].replace('Z', '+00:00'))
             if merged_at >= one_week_ago:
-                count += 1
+                results.append((repo, number, title, merged_at.strftime('%Y-%m-%d')))
         except: pass
-print(count)
+print(len(results))
+for repo, number, title, date in results:
+    short_repo = repo.split('/')[-1]
+    print(f'{short_repo}#{number}|{repo}|{title}|{date}')
 "
 ```
 
-Output the result as: **PRs Merged Without an Assigned Reviewer in the last week: {count}**
+Output the result as a header and bulleted list with clickable links:
+
+**PRs Merged Without an Assigned Reviewer in the last week: {count}**
+
+- [router#818 — OCPBUGS-86729: Prevent SSRF via FQDN-typed EndpointSlices](https://github.com/openshift/router/pull/818) (2026-08-10)
+- [release#83065 — NE-2788: drop TechPreview from haproxy28 presubmits](https://github.com/openshift/release/pull/83065) (2026-08-10)
+
+If the count is 0, just show the header with 0 and no bullet list.
 
 End with instructions: "Use `/copy` to copy the assignments above and paste into the PR Scrub doc."
 

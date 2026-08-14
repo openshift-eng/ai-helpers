@@ -15,7 +15,7 @@ source "$SCRIPT_DIR/config.sh"
 # Build a space-separated string of deterministic repos for Python to parse
 DETERMINISTIC_REPOS=$(printf '%s ' "${!REPO_TO_AREA[@]}")
 
-echo "Fetching project items..."
+echo "Fetching project items..." >&2
 ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
 
 echo "Fetching changed files..." >&2
@@ -35,7 +35,7 @@ for item in data['items']:
 ")
 
 ITEM_COUNT=$(echo "$ITEMS" | grep -c '|' || true)
-echo "Found $ITEM_COUNT items needing classification"
+echo "Found $ITEM_COUNT items needing classification" >&2
 
 echo "---"
 echo "UNCLASSIFIED_ITEMS"
