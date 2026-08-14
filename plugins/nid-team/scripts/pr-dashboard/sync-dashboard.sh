@@ -706,7 +706,6 @@ import json, sys
 deterministic = {$(printf '"%s",' "${!REPO_TO_AREA[@]}")}
 data = json.load(sys.stdin)
 area_count = 0
-priority_count = 0
 for item in data['items']:
     if item.get('content', {}).get('type') != 'PullRequest':
         continue
@@ -716,3 +715,28 @@ for item in data['items']:
         area_count += 1
 print(f'  Items without Area (need AI classification): {area_count}')
 "
+
+# --- Post project status update ---
+echo ""
+echo "--- Posting project status update ---"
+
+TOTAL_ADDED=$((SHARED_ADDED + BUGPR_ADDED + DOCS_ADDED))
+STATUS_BODY="**Dashboard synced** ($(date '+%b %-d, %Y %H:%M %Z'))"
+if [ "$TOTAL_ADDED" -gt 0 ]; then
+    STATUS_BODY="$STATUS_BODY\n- $TOTAL_ADDED PRs added ($SHARED_ADDED shared, $BUGPR_ADDED bug, $DOCS_ADDED docs)"
+fi
+STATUS_BODY="$STATUS_BODY\n- $ITEM_COUNT total items on board"
+
+ESCAPED_BODY=$(printf "$STATUS_BODY" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+
+gh api graphql -f query="
+  mutation {
+    createProjectV2StatusUpdate(input: {
+      projectId: \"$PROJECT_ID\"
+      status: ON_TRACK
+      body: $ESCAPED_BODY
+    }) {
+      statusUpdate { id }
+    }
+  }
+" > /dev/null 2>&1 && echo "  Status update posted" || echo "  WARNING: Failed to post status update"
