@@ -5,8 +5,8 @@ Project-specific conventions for working with Jira issues in the ROSA and ROSAEN
 ## When to Use
 
 Use this file when:
-- Creating or updating issues in the **ROSA** or **ROSAENG** projects
-- Working with Features or Initiatives and their child execution work
+- Creating issues in **ROSA** or **ROSAENG** via `/jira:create`
+- Updating issues or working with Features/Initiatives and their child execution work
 - Running `/jira:update-weekly-status` for ROSA Features/Initiatives
 
 ## Project Information
@@ -38,6 +38,8 @@ HPSTRAT       Outcome                          (strategic, multi-quarter)
 - **Initiatives** deliver value *to Red Hat* — engineering-driven improvements (tech debt, tooling, infrastructure) with clear completion criteria.
 - Both are parented under HPSTRAT Outcomes via the Parent Link field.
 - Both parent Epics in the ROSAENG project.
+
+**Risk** issues can be created in either ROSA or ROSAENG — see the Risk conventions reference (in progress, tracked in [#687](https://github.com/openshift-eng/ai-helpers/pull/687)).
 
 Supplementary projects for specific workflows:
 - **OCPBUGS** — Bug reports against OpenShift (ROSA HCP, OSD, ARO). See [OCPBUGS conventions](ocpbugs.md).
@@ -193,7 +195,7 @@ Teams choose which statuses to show on their boards.
 | Field | Custom Field ID | Usage | Format |
 |-------|-----------------|-------|--------|
 | Team | `customfield_10001` | Mandatory — drives board routing, automation, reporting | UUID (see Team Directory) |
-| Activity Type | `customfield_10464` | Mandatory — Sankey capacity categorization | String value |
+| Activity Type | `customfield_10464` | Mandatory — Sankey capacity categorization | `{"value": "Product / Portfolio Work"}` |
 | Story Points | `customfield_10028` | Strongly encouraged — Fibonacci scale | Float (e.g., `3.0`) |
 | Epic Name | `customfield_10011` | Required for Epics — must match summary | String |
 | Sprint | `customfield_10020` | Sprint assignment (Scrum teams) | Sprint object |
@@ -382,6 +384,16 @@ createJiraIssue(
 ```
 
 ---
+
+## Maintenance
+
+| Section | Upstream Source |
+|---------|---------------|
+| Work item types, workflows, feature roles | [ROSA Engineering Handbook](https://gitlab.cee.redhat.com/hybrid-platforms/org/-/tree/main/rosa-org/engineering-handbook) |
+| Team directory, component mappings | [Org repo](https://gitlab.cee.redhat.com/hybrid-platforms/org/-/tree/main/config/structures/hybrid_platforms/rosa/teams) |
+| Custom field IDs | Jira Cloud REST API (`/rest/api/3/field`) |
+
+When teams form, disband, or rename, update the Team Directory table using the org repo as the source of truth.
 
 ## Related Conventions
 
