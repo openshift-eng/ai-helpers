@@ -162,6 +162,20 @@ Initiatives represent internal/architectural work at the same hierarchy as Featu
 
 Sections: Problem Statement, Proposed Approach, Internal Impact, Success Criteria, Scope and Epics, Timeline and Milestones, plus project-specific metadata
 
+### Risk Template
+
+Source: [jira-risk-template.md](https://github.com/openshift-online/gcp-hcp/blob/main/docs/jira-risk-template.md)
+
+Risks track uncertain future events that could negatively affect the project. Use the Risk issue type (not a Story or Task) when there is genuine uncertainty about whether/how the event will occur and the trigger is outside the team's full control.
+
+**Summary format**: `<event> could <consequence> due to <root cause>`
+
+**Description format**: italic inline labels — `_What could go wrong:_`, `_What triggers it:_`, `_What would be affected:_`, `_Mitigation/contingency plan:_` (optional), `_Originally raised: YYYY-MM-DD. Raised by: Name._`
+
+**Required fields**: Risk Probability (`customfield_10642`), Risk Impact (`customfield_10842`) — set via fetched option IDs, not value names. Risk Score (`customfield_10976`) and Risk Score Assessment (`customfield_10974`) are auto-calculated by ScriptRunner; do not set them.
+
+See [risk-tracking-process.md](https://github.com/openshift-online/gcp-hcp/blob/main/docs/risk-tracking-process.md) for probability/impact scales, qualifying criteria, and lifecycle workflow.
+
 ### Definition of Done
 
 Source: [definition-of-done.md](https://github.com/openshift-online/gcp-hcp/blob/main/docs/definition-of-done.md)
@@ -216,6 +230,7 @@ Sections of this reference file are sourced from upstream files in openshift-onl
 | Epic Template | docs/jira-epic-template.md |
 | Feature Template | docs/jira-feature-template.md |
 | Initiative Template | docs/jira-initiative-template.md |
+| Risk Template | docs/jira-risk-template.md |
 | Definition of Done | docs/definition-of-done.md |
 | Priority Scheme (OJA-PRIS-001) | Red Hat internal (team-agnostic) |
 
