@@ -2,7 +2,7 @@ FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS 
 ENV ART_DNF_WRAPPER_POLICY=append
 COPY images/repos/claude-code-latest.repo /etc/yum.repos.d/
 COPY images/repos/RPM-GPG-KEY-claude-code /etc/pki/rpm-gpg/
-RUN rm /etc/yum.repos.d/ubi.repo && \
+RUN rm -f /etc/yum.repos.d/ubi.repo && \
     dnf install -y --disablerepo='*-ppc64le' --disablerepo='*-s390x' --disablerepo='claude-code' --enablerepo='claude-code-latest' claude-code && \
     dnf clean all
 
@@ -10,7 +10,7 @@ FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22
 
 # Copy external rpm repos into the image, and tell the ART wrapper to append them
 ENV ART_DNF_WRAPPER_POLICY=append
-RUN rm /etc/yum.repos.d/ubi.repo
+RUN rm -f /etc/yum.repos.d/ubi.repo
 COPY images/repos/*.repo /etc/yum.repos.d/
 COPY images/repos/RPM-GPG-KEY-* /etc/pki/rpm-gpg/
 
