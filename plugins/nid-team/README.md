@@ -6,7 +6,6 @@ Development and workflow tools for the Network Ingress & DNS team.
 
 - GitHub CLI (`gh`) authenticated with `read:project` and `project` scopes
 - `acli` CLI for Jira access
-- Google Docs MCP server configured (for PR Scrub doc updates)
 
 ## Installation
 
