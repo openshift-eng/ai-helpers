@@ -1,7 +1,5 @@
 #!/bin/bash
 # Sends reminder comments on high-priority assigned PRs that have gone inactive.
-# Determines who is blocking (author vs reviewer) based on the last human activity,
-# excluding bot activity and mechanical Prow commands (/assign, /label, etc.).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -142,23 +140,7 @@ has_hold = 'do-not-merge/hold' in pr_labels
 has_lgtm = 'lgtm' in pr_labels
 has_approved = 'approved' in pr_labels
 
-if author_is_bot:
-    waiting_on = 'reviewer'
-    reason = f'bot PR, last human activity was {days_inactive} days ago' if last_who else 'bot PR with no human review activity'
-elif needs_rebase:
-    waiting_on = 'author'
-    reason = 'needs-rebase'
-elif last_who and (last_who == author or last_type == 'pushed commits'):
-    waiting_on = 'reviewer'
-    reason = f'author pushed/commented {days_inactive} days ago with no review since'
-elif last_who:
-    waiting_on = 'author'
-    reason = f'reviewer commented {days_inactive} days ago with no author response'
-else:
-    waiting_on = 'reviewer'
-    reason = f'no human activity since PR opened {age_days} days ago'
-
-print(f'NUDGE|{age_days}|{created.strftime(\"%b %-d\")}|{days_inactive}|{last_info}|{waiting_on}|{reason}|{author}|{int(needs_rebase)}|{int(has_hold)}|{int(has_lgtm)}|{int(has_approved)}')
+print(f'NUDGE|{age_days}|{created.strftime(\"%b %-d\")}|{days_inactive}|{last_info}|{author}|{int(needs_rebase)}|{int(has_hold)}|{int(has_lgtm)}|{int(has_approved)}')
 " 2>/dev/null || echo "SKIP")
 
     if [ "$result" = "SKIP" ] || [ -z "$result" ]; then
@@ -166,7 +148,7 @@ print(f'NUDGE|{age_days}|{created.strftime(\"%b %-d\")}|{days_inactive}|{last_in
         continue
     fi
 
-    IFS='|' read -r _ age_days created_str days_inactive last_info waiting_on reason pr_author needs_rebase has_hold has_lgtm has_approved <<< "$result"
+    IFS='|' read -r _ age_days created_str days_inactive last_info pr_author needs_rebase has_hold has_lgtm has_approved <<< "$result"
 
     primary_login="${FULLNAME_TO_USERNAME[$primary]:-$primary}"
     secondary_login=""
@@ -179,29 +161,21 @@ print(f'NUDGE|{age_days}|{created.strftime(\"%b %-d\")}|{days_inactive}|{last_in
 
 • Open for: $age_days days (since $created_str)"
 
+    comment="$comment
+• Author: @$pr_author"
+
     if [ -n "$primary" ] && [ "$primary" != "Other" ]; then
-        comment="$comment
-• Primary Reviewer: @$primary_login"
-    fi
-    if [ -n "$secondary_login" ]; then
-        comment="$comment
-• Secondary Reviewer: @$secondary_login"
+        if [ -n "$secondary_login" ]; then
+            comment="$comment
+• Reviewers: @$primary_login, @$secondary_login"
+        else
+            comment="$comment
+• Reviewer: @$primary_login"
+        fi
     fi
 
     comment="$comment
 • Last human activity: $last_info"
-
-    if [ "$waiting_on" = "reviewer" ]; then
-        reviewers="@$primary_login"
-        if [ -n "$secondary_login" ]; then
-            reviewers="$reviewers, @$secondary_login"
-        fi
-        comment="$comment
-• Waiting on: Reviewers ($reviewers) — $reason"
-    else
-        comment="$comment
-• Waiting on: Author (@$pr_author) — $reason"
-    fi
 
     if [ "$needs_rebase" = "1" ]; then
         comment="$comment
@@ -236,7 +210,7 @@ _This is an experimental automated reminder. Contact @gcs278 if there are any is
         echo "$comment"
         echo ""
     else
-        echo "  NUDGE: $repo#$number → $waiting_on ($reason)"
+        echo "  NUDGE: $repo#$number (inactive ${days_inactive}d)"
         gh pr comment "$url" --body "$comment"
     fi
 

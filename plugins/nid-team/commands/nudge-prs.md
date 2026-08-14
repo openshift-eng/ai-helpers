@@ -15,7 +15,7 @@ nid-team:nudge-prs
 
 ## Description
 
-Sends automated reminder comments on PRs that are assigned (Status=Assigned), high priority (PR Priority=High or Urgent), and have had no human activity for a configurable number of days. Determines whether the author or reviewer is blocking and @-mentions them in the comment.
+Sends automated reminder comments on PRs that are assigned (Status=Assigned), high priority (PR Priority=High or Urgent), and have had no human activity for a configurable number of days.
 
 ## Implementation
 
@@ -44,9 +44,8 @@ Bot comments and mechanical Prow commands do NOT reset the inactivity clock.
 ### What the comment includes
 
 - How long the PR has been open
-- Primary and Secondary Reviewer @-mentions
+- Author and Reviewer @-mentions
 - Last human activity (who and when)
-- Who is blocking (author or reviewer) and why
 - needs-rebase and do-not-merge/hold warnings
 - lgtm/approved label status
 
