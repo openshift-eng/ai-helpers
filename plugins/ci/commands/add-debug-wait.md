@@ -694,16 +694,20 @@ Returns: PR URL
 /ci:add-debug-wait tempo-upstream-tests 8h
 ```
 
-User selects to remove `install-operators` and `distributed-tracing-tests-tempo-upstream`.
+User selects to remove `- ref: install-operators` and `- ref: distributed-tracing-tests-tempo-upstream`.
+The `- as: install` step (operator bundle install) is kept since the user did not select it for removal.
 
-Result (removes steps + their orphaned env vars `OPERATORS` and `SKIP_TESTS`):
+Result (removes selected refs + their orphaned env vars `OPERATORS` and `SKIP_TESTS`):
 ```yaml
 env:
   BASE_DOMAIN: devobscluster.devcluster.openshift.com
   TIMEOUT: +8 hours
 test:
 - as: install
-  ...
+  cli: latest
+  commands: |
+    oc create namespace openshift-tempo-operator
+    ...
 - ref: wait
 ```
 
