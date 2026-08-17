@@ -92,7 +92,7 @@ gh pr view <number> --repo openshift/release --json title,state,statusCheckRollu
 
 ### Step 4: Determine the Build Cluster
 
-From the matching check, extract the `targetUrl` which points to the Prow job page. Determine the build cluster using one of two methods:
+From the matching check, extract the `targetUrl` which points to the Prow job page. Determine the build cluster using one of three methods:
 
 **Method A — Via GCS prowjob.json** (preferred when `gsutil` is installed and the job uses public `prow.ci.openshift.org`):
 
@@ -137,7 +137,7 @@ This happens when:
 
 In this case, ask the user to provide the **OpenShift console URL** from the build cluster where the job is running. The user can find this on the Prow job page (qe-private-deck) — it typically shows a link to the build cluster console or displays the cluster name in the job metadata.
 
-```
+```text
 Unable to determine the build cluster automatically:
 - GCS bucket "qe-private-deck" requires authentication
 - Job config has no cluster: field (dynamically assigned)
