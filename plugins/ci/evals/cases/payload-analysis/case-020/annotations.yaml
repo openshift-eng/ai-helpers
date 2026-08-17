@@ -1,0 +1,85 @@
+expected_phase: Rejected
+expected_failed_job_count: 2
+has_revert_candidates: false
+force_accept_expected: false
+analysis_cutoff: "2026-07-29T13:32:49Z"
+
+expected_candidates: []
+
+forbidden_revert_candidates:
+  - "https://github.com/openshift/ovn-kubernetes/pull/3298"
+  - "https://github.com/openshift/cloud-provider-azure/pull/164"
+
+required_claims:
+  - name: "GCP infrastructure trigger precedes fallout"
+    any_of:
+      - "external vip reachability precedes"
+      - "vips were externally unreachable"
+      - "pre-upgrade network reachability loss"
+  - name: "Azure DNS trigger"
+    any_of:
+      - "dns 429"
+      - "dns throttling"
+  - name: "Azure provisioning failure precedes disk attach"
+    any_of:
+      - "osprovisioningtimedout"
+      - "provisioning timeout"
+  - name: "terminal symptoms are not the initial trigger"
+    any_of:
+      - "cleanup fallout"
+      - "amplifies the failure"
+      - "terminal symptom"
+
+must_not_conclude:
+  - "openshift/ovn-kubernetes PR #3298 caused the GCP external-container panic and should be reverted"
+  - "openshift/cloud-provider-azure PR #164 introduced the empty VirtualMachine update and should be reverted"
+  - "The informing 0/10 OVN helper test is the blocking cause of the aggregated GCP job"
+  - "Every error in a compound failure must be folded into one broad signature and attributed to a nearby PR"
+
+distractors:
+  - "OVN PR #3298 is the only nearby ovn-kubernetes change and the artifacts include a panic in an OVN external-container helper"
+  - "Azure PR #164 migrated SDK call sites and the terminal disk-attach trace contains an Azure LocationRequired error"
+  - "The GCP job contains both pre-upgrade network reachability loss and cleanup invariant failures, which can look like independent product regressions"
+  - "The AKS job has a four-payload job streak even though the causal chain and terminal symptom vary across constituent runs"
+
+key_evidence:
+  - fact: >-
+      PR #3298 changed neither the panicking external-container adapter, the test
+      call site, nor the annotation controlling lifecycle. The helper failure is
+      informing and therefore cannot reject the payload.
+    artifacts:
+      - "5.0/nightly/5.0.0-0.nightly-2026-07-28-081944/ovn-kubernetes, ovn-kubernetes-microshift/prs/3298/code.diff"
+      - "5.0/nightly/5.0.0-0.nightly-2026-07-29-055948/jobs/blocking/aggregated-gcp-ovn-rt-upgrade-5.0-major/junit/results.json"
+  - fact: >-
+      Five distinct GCP VIPs were externally unreachable for roughly 701-713
+      seconds before upgrade. Setup then panicked, cleanup was skipped, and leaked
+      resources triggered downstream invariants. These are ordered roles in a
+      causal chain, not proof that the informing test or PR #3298 was the trigger.
+    artifacts:
+      - "5.0/nightly/5.0.0-0.nightly-2026-07-29-055948/jobs/blocking/aggregated-gcp-ovn-rt-upgrade-5.0-major/junit/junit-aggregated.xml"
+  - fact: >-
+      PR #164 did not change the empty VirtualMachine update that produced
+      LocationRequired; base and head contain the same call. The AKS chain begins
+      with Azure DNS 429 throttling, delayed ignition DNS, and
+      OSProvisioningTimedOut before the CSI attach path amplifies the failure.
+    artifacts:
+      - "5.0/nightly/5.0.0-0.nightly-2026-07-28-081944/azure-cloud-controller-manager, azure-cloud-node-manager/prs/164/code.diff"
+      - "5.0/nightly/5.0.0-0.nightly-2026-07-29-055948/jobs/blocking/aggregated-hypershift-aks-conformance-5.0/junit/junit-aggregated.xml"
+
+discriminating_signal: >-
+  Decompose each job into minimal atomic signatures and preserve causal order.
+  For GCP, external VIP reachability precedes setup panic and cleanup fallout.
+  For AKS, DNS throttling precedes provisioning timeout and the CSI empty-VM PUT.
+  A candidate must change the executed trigger path; neither #3298 nor #164 does.
+
+notes: >
+  Compound infrastructure and resilience case. The Payload Agent recommended
+  openshift/ovn-kubernetes#3298 and openshift/cloud-provider-azure#164 at 90.
+  Both are false causal attributions. The correct analysis can still identify
+  product resilience and diagnostic defects: the external-container adapter
+  should return a capability error rather than panic, cleanup must survive setup
+  failure, HyperShift should gate on DNS readiness, and the Azure cloud provider
+  must not send an empty VM update after a provisioning failure. Those follow-up
+  fixes do not make the nearby payload PRs valid reverts. Source Payload Agent
+  analysis:
+  https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-main-claude-payload-agent/2082347184044380160/artifacts/claude-payload-agent/openshift-claude-payload-agent/artifacts/payload-analysis-5.0.0-0.nightly-2026-07-29-055948-summary.html

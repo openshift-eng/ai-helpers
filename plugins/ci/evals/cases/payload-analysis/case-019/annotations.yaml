@@ -1,0 +1,81 @@
+expected_phase: Rejected
+expected_failed_job_count: 3
+has_revert_candidates: false
+force_accept_expected: false
+analysis_cutoff: "2026-07-25T16:05:26Z"
+
+expected_candidates: []
+
+forbidden_revert_candidates:
+  - "https://github.com/openshift/api/pull/2920"
+  - "https://github.com/openshift/api/pull/2923"
+
+required_claims:
+  - name: "disjoint interval arithmetic defect"
+    any_of:
+      - "disjoint waiting"
+      - "healthy gaps"
+      - "interval union"
+      - "sum of actual intervals"
+      - "summed waiting time"
+  - name: "test framework rather than product regression"
+    any_of:
+      - "test-framework arithmetic defect"
+      - "monitor test computes duration"
+      - "test defect"
+
+must_not_conclude:
+  - "openshift/api PR #2920 caused ClusterOperator availability regressions and should be reverted"
+  - "openshift/api PR #2923 caused ClusterOperator availability regressions and should be reverted"
+  - "A job-level F F F or F F F F streak establishes that the same operator degradation signature began in the earliest failed payload"
+  - "A test failure should be classified as infrastructure merely because the operator under observation was unhealthy"
+
+distractors:
+  - "Both API PRs merged near the job-level failure streak and change API declarations that appear in payload metadata"
+  - "The monitor report prints 3-to-59-minute waiting spans, apparently exceeding its three-minute failure threshold"
+  - "The failing AWS and Azure upgrade jobs mention multiple ClusterOperators, encouraging broad component attribution"
+  - "The same test name fails across consecutive payloads even though the atomic interval signature and affected operator differ"
+
+key_evidence:
+  - fact: >-
+      The Origin monitor test computes duration from the earliest interval start
+      to the latest interval end. It counts healthy gaps between disjoint waiting
+      episodes as waiting time instead of summing the union of actual intervals.
+    artifacts:
+      - "openshift/origin pkg/monitortests/clusterversionoperator/legacycvomonitests/operators.go"
+      - "aggregated AWS and Azure e2e-timelines_spyglass JSON artifacts referenced by the snapshot"
+  - fact: >-
+      Across 13 raw AWS and Azure failures, actual summed waiting time is only
+      13-150 seconds and no individual episode exceeds 150 seconds, but the test
+      reports false spans of 3m27s-58m53s. One representative AWS result combines
+      a 15-second interval at 11:48:50-11:49:05 with a later point at 12:34:04
+      and reports 45m14s.
+    artifacts:
+      - "periodic-ci-openshift-release-main-ci-5.0-upgrade-from-stable-4.22-e2e-aws-ovn-upgrade/2080964774497095680/artifacts/e2e-aws-ovn-upgrade/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_20260725-113839.json"
+      - "periodic-ci-openshift-release-main-ci-5.0-upgrade-from-stable-4.22-e2e-azure-ovn-upgrade/2080964703600775168/artifacts/e2e-azure-ovn-upgrade/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_20260725-113832.json"
+  - fact: >-
+      PR #2920 is a feature-gate promotion and PR #2923 adds a DevPreview BGP
+      API for bare metal; neither explains default AWS and Azure operator
+      intervals. Experimental revert jobs continued to fail frequently for both
+      PRs, directly falsifying the recommendations.
+    artifacts:
+      - "5.0/ci/5.0.0-0.ci-2026-07-24-135543/cluster-config-api/prs/2920/code.diff"
+      - "5.0/ci/5.0.0-0.ci-2026-07-24-075533/cluster-config-api/prs/2923/code.diff"
+
+discriminating_signal: >-
+  Reconstruct and merge the actual intervals. Healthy gaps must not contribute
+  to waiting duration. Once the interval union is used, the alleged three-minute
+  operator regression disappears, and neither API PR has an executed causal path
+  in the failing default AWS/Azure configurations.
+
+notes: >
+  False-revert case targeting the difference between job onset, test-name onset,
+  and minimal failure-signature onset. The true cause is a deterministic Origin
+  test-framework arithmetic defect, not an infrastructure incident and not a
+  regression from either payload API PR. The Payload Agent recommended
+  openshift/api#2920 and #2923 at 90. Experimental revert PRs #2953 and #2954 did
+  not restore the jobs: #2953 yielded AWS 0/5 and Azure 1/5 passes; #2954 yielded
+  AWS 3/5 and Azure 2/5 passes. Correct output has no payload revert candidate,
+  explains the interval-union defect, and separates unrelated HyperShift noise.
+  Source Payload Agent analysis:
+  https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-main-claude-payload-agent/2080964771632386048/artifacts/claude-payload-agent/openshift-claude-payload-agent/artifacts/payload-analysis-5.0.0-0.ci-2026-07-25-102741-summary.html
