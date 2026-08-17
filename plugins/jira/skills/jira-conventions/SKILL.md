@@ -1,6 +1,6 @@
 ---
 name: jira-conventions
-description: Project and team-specific Jira conventions for CNTRLPLANE, OCPBUGS, GCP, HyperShift, and hosted control plane issues
+description: Project and team-specific Jira conventions for CNTRLPLANE, OCPBUGS, GCP, ROSA, ROSAENG, HyperShift, and hosted control plane issues
 ---
 
 # Jira Conventions Router
@@ -18,6 +18,8 @@ Match on project key, component, or summary keywords. Load the corresponding ref
 | **CNTRLPLANE** | Red Hat OpenShift Control Planes — features, epics, stories, tasks | [CNTRLPLANE conventions](../../reference/cntrlplane.md) |
 | **OCPBUGS** | OpenShift Bugs — bug reports only | [OCPBUGS conventions](../../reference/ocpbugs.md) |
 | **GCP** | GCP Hosted Control Planes (Hypershift on GKE) — stories, epics, tasks, bugs, features | [GCP HCP conventions](../../reference/gcp-hcp.md) |
+| **ROSA** | Red Hat OpenShift on AWS — features, initiatives, epics, bugs, vulnerabilities | [ROSA conventions](../../reference/rosa.md) |
+| **ROSAENG** | ROSA Engineering — features, initiatives, epics, bugs, vulnerabilities | [ROSA conventions](../../reference/rosa.md) |
 
 ### By Team / Keywords
 
