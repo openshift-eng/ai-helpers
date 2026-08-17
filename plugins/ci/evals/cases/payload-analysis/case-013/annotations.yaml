@@ -2,6 +2,7 @@ expected_phase: Accepted
 expected_failed_job_count: 1
 has_revert_candidates: false
 force_accept_expected: false
+analysis_cutoff: "2026-05-13T15:35:28Z"
 notes: >
   Edge case: payload was Accepted despite 1 failed blocking job
   (hypershift-ovn-conformance-4.20). Tests that the skill correctly handles

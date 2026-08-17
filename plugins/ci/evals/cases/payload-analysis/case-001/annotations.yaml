@@ -2,6 +2,7 @@ expected_phase: Rejected
 expected_failed_job_count: 3
 has_revert_candidates: true
 force_accept_expected: false
+analysis_cutoff: "2026-03-27T04:56:37Z"
 
 expected_candidates:
   - pr_url: "https://github.com/openshift/cluster-authentication-operator/pull/839"
