@@ -18,10 +18,10 @@ The `ci:add-debug-wait` command adds a `wait` step to a CI job/workflow for debu
 **What it does:**
 1. Takes job name, OCP version, and optional timeout as input
 2. Finds and edits the job config or workflow file
-3. Adds `- ref: wait` before the last test step (with optional timeout configuration)
-4. Creates a git commit
-5. Pushes the commit to your fork (`origin` remote)
-6. Creates a PR via `gh`
+3. Asks if any existing test steps should be removed (and cleans up orphaned env vars)
+4. Adds `- ref: wait` before the last remaining test step (with optional timeout configuration)
+5. Runs `make update` to validate and regenerate Prow jobs
+6. Creates a git commit, pushes to your fork, and creates a PR via `gh`
 
 **That's it!** Simple, fast, and automated.
 
@@ -245,6 +245,8 @@ Searching for the workflow: ${workflow_name}
 ```
 → Fall back to searching for workflow (Priority 2 in Step 3)
 
+**Ask about removing existing test steps**: Display the `test:` steps and ask the user if any should be removed (common when only the cluster + wait step is needed). If steps are removed, also remove any env vars in the `env:` section that were only used by those steps (e.g., `OPERATORS`, `SKIP_TESTS`) to avoid `make update` validation errors about undeclared parameters.
+
 → Continue to **Step 5a: Show Diff for Job Config**
 
 ### Step 4b: Analyze Workflow File
@@ -304,6 +306,8 @@ Or with custom timeout:
     post:
       - chain: cucushift-installer-rehearse-aws-ipi-deprovision
 ```
+
+**Ask about removing existing test steps**: Same as Step 4a — display and ask. For workflow files, warn that removing steps affects ALL jobs using this workflow.
 
 → Continue to **Step 5b: Modify Workflow File**
 
@@ -407,13 +411,17 @@ git checkout -b "${branch_name}"
 # Modify the file (add wait step using the implementation below)
 # Add '- ref: wait' as the first step in the test: section
 
-# Stage change
-git add <workflow-file>
+# Run make update to validate config and regenerate Prow jobs
+make update
+
+# Stage all changes (config file + any generated files from make update)
+git add <config-file> <any-other-changed-files>
 
 # Commit
 git commit -m "[Debug] Add wait step to ${workflow_name} for OCP ${ocp_version}
 
 This adds a wait step to enable debugging of test failures in OCP ${ocp_version}.
+${removed_steps:+Removes ${removed_steps} steps and their associated orphaned env vars.}
 
 The wait step pauses the workflow before tests run, allowing QE to:
 - SSH into the test environment
@@ -518,6 +526,7 @@ gh pr create --repo openshift/release --title "[Debug] Add wait step to ${job_na
 - Adds a wait step to enable debugging of test failures in OCP ${ocp_version}
 - Job: ${job_name}
 - Timeout: ${timeout:-default (3h)}
+${removed_steps:+- Removed steps: ${removed_steps} and their associated orphaned env vars}
 
 The wait step pauses the workflow before tests run, allowing QE to:
 - SSH into the test environment
@@ -675,6 +684,27 @@ test:
   timeout: 24h0m0s
   best_effort: true
 - chain: baremetalds-ipi-test
+```
+
+Returns: PR URL
+
+### Example 4: With Step Removal (Job Config)
+
+```bash
+/ci:add-debug-wait tempo-upstream-tests 8h
+```
+
+User selects to remove `install-operators` and `distributed-tracing-tests-tempo-upstream`.
+
+Result (removes steps + their orphaned env vars `OPERATORS` and `SKIP_TESTS`):
+```yaml
+env:
+  BASE_DOMAIN: devobscluster.devcluster.openshift.com
+  TIMEOUT: +8 hours
+test:
+- as: install
+  ...
+- ref: wait
 ```
 
 Returns: PR URL
