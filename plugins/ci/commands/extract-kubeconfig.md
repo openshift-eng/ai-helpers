@@ -21,7 +21,7 @@ The command accepts:
 **What it does:**
 1. Validates the PR URL and checks ownership
 2. Finds running (PENDING) jobs on the PR
-3. Determines the build cluster (via GCS for public jobs, via job config for qe-private-deck jobs, or by asking the user for the console URL as a last resort)
+3. Determines the build cluster (via GCS for public jobs, via job config for qe-private-deck jobs, or by asking the user for the console URL or cluster name as a last resort)
 4. Logs into the build cluster and finds the CI namespace
 5. Checks step status via pod statuses to verify the cluster is ready
 6. Extracts the kubeconfig (and nested kubeconfig for HyperShift) from the running pod
@@ -153,6 +153,8 @@ Extract the cluster name from the console URL:
 - Extract `<cluster>` (e.g., `build09`, `build01`, `build11`)
 
 If the user provides a plain cluster name (e.g., `build09`) instead of a URL, use it directly.
+
+**Validate the cluster identifier** before constructing the login URL. The cluster name must match the pattern `build[0-9]+` (e.g., `build01`, `build09`, `build12`). Reject any input that does not match — this prevents credential redirection to unexpected hosts.
 
 Construct the API server URL: `https://api.<cluster>.ci.devcluster.openshift.com:6443`
 
