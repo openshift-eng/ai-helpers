@@ -1,7 +1,7 @@
 ---
 name: payload-analysis
 description: Analyze a payload snapshot to identify root causes of blocking job failures, score candidate PRs, and produce an HTML report with revert recommendations
-argument-hint: "<payload-tag> [--snapshot-dir DIR]"
+argument-hint: "<payload-tag> [--snapshot-dir DIR] [--as-of TIMESTAMP]"
 ---
 
 # Payload Analysis
@@ -72,6 +72,18 @@ The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25
   - `4.22.0-0.nightly-2026-02-25-152806` → `amd64`
   - `4.22.0-0.nightly-arm64-2026-02-25-152806` → `arm64`
   - `4.22.0-0.nightly-ppc64le-2026-02-25-152806` → `ppc64le`
+
+**Optional flags:**
+- `--snapshot-dir DIR`: Use an existing snapshot directory (Step 2).
+- `--as-of TIMESTAMP`: An RFC 3339 UTC cutoff (e.g. `2026-07-23T07:44:48Z`). When present, this is a **point-in-time analysis**: reason only from evidence that existed at or before this instant, as if you were analyzing the payload the moment it completed.
+
+**Point-in-time boundary.** When `--as-of` is set, treat it as a hard cutoff for every piece of evidence, direct or delegated:
+- Do **not** use later reverts, follow-up comments, subsequent payload outcomes, or the present-day absence of a revert as causal evidence. A PR that was later reverted, or never reverted, tells you nothing about causality as of the cutoff.
+- Timestamp-bound every external lookup. When checking GitHub PRs, step-registry history (Step 3.6), or existing revert PRs (Step 6.3), ignore any commit, PR, comment, or review created after the cutoff.
+- Pass the cutoff to every subagent you dispatch and instruct it to discard post-cutoff artifacts and discussion.
+- If a lookup returns only post-cutoff results, treat that evidence as unavailable rather than as a finding.
+
+When `--as-of` is omitted, analyze against present-day evidence as usual.
 
 ### Step 2: Locate or Create Snapshot
 
@@ -191,7 +203,7 @@ For deeper context, read `build_log.json` (at the `build_log` path) for any fail
 
 For each failed job, check whether changes to the CI step-registry in the `openshift/release` repo correlate with the failure. These changes (modified step scripts, updated URLs, changed environment variables) will never appear in the snapshot's component PR list because they are not payload component changes — but they can break jobs just as effectively.
 
-Extract the date from the `originating_payload` tag (format: `<version>-0.<stream>-YYYY-MM-DD-HHMMSS` or `<version>-0.<stream>-<arch>-YYYY-MM-DD-HHMMSS` for non-amd64). The date is always the last `YYYY-MM-DD` segment before the `HHMMSS` suffix (e.g., `2026-06-16` from `5.0.0-0.nightly-2026-06-16-185706` or `5.0.0-0.nightly-arm64-2026-06-16-185706`). Compute a time window: `since` = originating date minus 1 day at `T00:00:00Z`; `until` = originating date plus 1 day at `T23:59:59Z`.
+Extract the date from the `originating_payload` tag (format: `<version>-0.<stream>-YYYY-MM-DD-HHMMSS` or `<version>-0.<stream>-<arch>-YYYY-MM-DD-HHMMSS` for non-amd64). The date is always the last `YYYY-MM-DD` segment before the `HHMMSS` suffix (e.g., `2026-06-16` from `5.0.0-0.nightly-2026-06-16-185706` or `5.0.0-0.nightly-arm64-2026-06-16-185706`). Compute a time window: `since` = originating date minus 1 day at `T00:00:00Z`; `until` = originating date plus 1 day at `T23:59:59Z`. **Under `--as-of` (Step 1), cap `until` at the cutoff timestamp** so the query never returns commits newer than the payload completion.
 
 **First, get all step-registry commits in the time window:**
 
@@ -491,6 +503,8 @@ If a revert PR is found:
 - **Merged**: Note when it merged relative to the payload. If after the payload was cut, the fix is expected in the next payload. Do not recommend reverting again.
 - **Open**: Mention the existing revert PR and link to it.
 - **Closed (not merged)**: Ignore.
+
+**Under `--as-of` (Step 1):** ignore any revert PR created after the cutoff, and never treat the existence — or absence — of a later revert as evidence for or against a candidate. A point-in-time analysis must stand on evidence that existed when the payload completed, not on how the revert played out afterward.
 
 #### 6.4: Determine Force-Accept Recommendation
 
