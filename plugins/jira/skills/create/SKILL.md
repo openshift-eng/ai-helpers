@@ -129,7 +129,7 @@ Level -1: Sub-task
 
 ### Parent Field
 
-Use `{"parent": {"key": "PARENT-KEY"}}` in `additional_fields` for all parent-child relationships (Story→Epic, Task→Epic, Bug→Epic, Epic→Feature, Epic→Initiative, Feature→Outcome, Initiative→Outcome).
+Use `{"parent": {"key": "PARENT-KEY"}}` in `additional_fields` for all parent-child relationships (Story→Epic, Task→Epic, Bug→Epic, Spike→Epic, Epic→Feature, Epic→Initiative, Feature→Outcome, Initiative→Outcome).
 
 ### Pre-Validation (when `--parent` is provided)
 
