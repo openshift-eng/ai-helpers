@@ -727,7 +727,7 @@ if [ "$TOTAL_ADDED" -gt 0 ]; then
 fi
 STATUS_BODY="$STATUS_BODY\n- $ITEM_COUNT total items on board"
 
-ESCAPED_BODY=$(printf "$STATUS_BODY" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+ESCAPED_BODY=$(printf "%b\n" "$STATUS_BODY" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
 
 gh api graphql -f query="
   mutation {
