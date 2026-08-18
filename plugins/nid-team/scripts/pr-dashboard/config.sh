@@ -5,45 +5,47 @@
 # =============================================================================
 
 # =============================================================================
-# TEAM CONFIGURATION
-# Update these when team membership changes.
+# BASH COMPATIBILITY
+# Associative arrays (declare -A) require bash 4+, but macOS ships bash 3.2.
+# We define team/area data once as pipe-delimited tables (below) and expose it
+# through accessor functions. When bash 4+ is available we build associative
+# arrays for O(1) lookups; on bash 3.2 the accessors fall back to scanning the
+# tables. Either way the sourcing scripts call the same functions.
 # =============================================================================
+if [ "${BASH_VERSINFO:-0}" -ge 4 ]; then
+    HAVE_ASSOC=1
+else
+    HAVE_ASSOC=0
+fi
 
-TEAM_USERNAMES=("candita" "gcs278" "Miciah" "rfredette" "Thealisyed" "grzpiotrowski" "rikatz" "davidesalerno" "bentito" "jcmoraisjr" "aswinsuryan" "melvinjoseph86" "rhamini3")
+# =============================================================================
+# TEAM CONFIGURATION
+# Single source of truth: one row per member as  login|display|fullname
+#   login    — GitHub login
+#   display  — short display name (PR Author column)
+#   fullname — Primary/Secondary Reviewer dropdown label
+# Update this table when team membership changes.
+# =============================================================================
+TEAM_DATA="\
+candita|Candace H.|Candace Holman
+gcs278|Grant S.|Grant Spence
+Miciah|Miciah M.|Miciah Masters
+rfredette|Ryan F.|Ryan Fredette
+Thealisyed|Ali S.|Ali Syed
+grzpiotrowski|Grzegorz P.|Grzegorz Piotrowski
+rikatz|Ricardo K.|Ricardo Katz
+davidesalerno|Davide S.|Davide Salerno
+bentito|Brett T.|Brett Tofel
+jcmoraisjr|Joao M.|Joao Morais
+aswinsuryan|Aswin S.|Aswin Suryanarayanan
+melvinjoseph86|Melvin J.|Melvin Joseph
+rhamini3|Ishmam A.|Ishmam Amin"
 
-# GitHub login → short display name (used for PR Author column)
-declare -A USERNAME_TO_DISPLAY=(
-    ["candita"]="Candace H."
-    ["gcs278"]="Grant S."
-    ["Miciah"]="Miciah M."
-    ["rfredette"]="Ryan F."
-    ["Thealisyed"]="Ali S."
-    ["grzpiotrowski"]="Grzegorz P."
-    ["rikatz"]="Ricardo K."
-    ["davidesalerno"]="Davide S."
-    ["bentito"]="Brett T."
-    ["jcmoraisjr"]="Joao M."
-    ["aswinsuryan"]="Aswin S."
-    ["melvinjoseph86"]="Melvin J."
-    ["rhamini3"]="Ishmam A."
-)
-
-# Full name → GitHub login (used to match Primary/Secondary Reviewer dropdown)
-declare -A FULLNAME_TO_USERNAME=(
-    ["Candace Holman"]="candita"
-    ["Grant Spence"]="gcs278"
-    ["Miciah Masters"]="Miciah"
-    ["Ryan Fredette"]="rfredette"
-    ["Ali Syed"]="Thealisyed"
-    ["Grzegorz Piotrowski"]="grzpiotrowski"
-    ["Ricardo Katz"]="rikatz"
-    ["Davide Salerno"]="davidesalerno"
-    ["Brett Tofel"]="bentito"
-    ["Joao Morais"]="jcmoraisjr"
-    ["Aswin Suryanarayanan"]="aswinsuryan"
-    ["Melvin Joseph"]="melvinjoseph86"
-    ["Ishmam Amin"]="rhamini3"
-)
+# Derive the plain login list (indexed arrays work on all bash versions).
+TEAM_USERNAMES=()
+while IFS='|' read -r _login _disp _full; do
+    [ -n "$_login" ] && TEAM_USERNAMES+=("$_login")
+done <<< "$TEAM_DATA"
 
 BOT_USERNAMES="openshift-bot openshift-cherrypick-robot"
 
@@ -102,21 +104,88 @@ AREA_ALBO="a6184328"
 AREA_ROUTER="667048b1"
 AREA_AI="9f9c29ab"
 
-# Repo → Area mapping (deterministic cases only)
-# Any repo NOT in this map is considered ambiguous and needs AI classification.
-declare -A REPO_TO_AREA=(
-    ["openshift/external-dns"]="$AREA_EXTERNAL_DNS"
-    ["openshift/external-dns-operator"]="$AREA_EXTERNAL_DNS"
-    ["openshift/aws-load-balancer-operator"]="$AREA_ALBO"
-    ["openshift/aws-load-balancer-controller"]="$AREA_ALBO"
-    ["openshift/cluster-dns-operator"]="$AREA_DNS"
-    ["openshift/coredns"]="$AREA_DNS"
-    ["openshift/coredns-ocp-dnsnameresolver"]="$AREA_DNS"
-    ["openshift-eng/ai-helpers"]="$AREA_AI"
-    ["openshift/openshift-mcp-server"]="$AREA_AI"
-)
+# Repo → Area mapping (deterministic cases only), as  repo|area_option_id
+# Any repo NOT in this table is considered ambiguous and needs AI classification.
+REPO_AREA_DATA="\
+openshift/external-dns|$AREA_EXTERNAL_DNS
+openshift/external-dns-operator|$AREA_EXTERNAL_DNS
+openshift/aws-load-balancer-operator|$AREA_ALBO
+openshift/aws-load-balancer-controller|$AREA_ALBO
+openshift/cluster-dns-operator|$AREA_DNS
+openshift/coredns|$AREA_DNS
+openshift/coredns-ocp-dnsnameresolver|$AREA_DNS
+openshift-eng/ai-helpers|$AREA_AI
+openshift/openshift-mcp-server|$AREA_AI"
 
-# Helper: check if a repo is ambiguous (not in REPO_TO_AREA)
-is_ambiguous_repo() {
-    [ -z "${REPO_TO_AREA[$1]+x}" ]
-}
+# =============================================================================
+# LOOKUP ACCESSORS
+# On bash 4+ these use associative arrays; on bash 3.2 they scan the tables.
+# =============================================================================
+if [ "$HAVE_ASSOC" = 1 ]; then
+    declare -A _DISPLAY_BY_LOGIN _LOGIN_BY_DISPLAY _LOGIN_BY_FULLNAME _AREA_BY_REPO
+    while IFS='|' read -r _login _disp _full; do
+        [ -n "$_login" ] || continue
+        _DISPLAY_BY_LOGIN["$_login"]="$_disp"
+        _LOGIN_BY_DISPLAY["$_disp"]="$_login"
+        _LOGIN_BY_FULLNAME["$_full"]="$_login"
+    done <<< "$TEAM_DATA"
+    while IFS='|' read -r _repo _area; do
+        [ -n "$_repo" ] || continue
+        _AREA_BY_REPO["$_repo"]="$_area"
+    done <<< "$REPO_AREA_DATA"
+
+    display_name()         { echo "${_DISPLAY_BY_LOGIN[$1]:-$1}"; }
+    login_for_display()    { echo "${_LOGIN_BY_DISPLAY[$1]:-}"; }
+    login_for_fullname()   { echo "${_LOGIN_BY_FULLNAME[$1]:-}"; }
+    area_for_repo()        { echo "${_AREA_BY_REPO[$1]:-}"; }
+    is_ambiguous_repo()    { [ -z "${_AREA_BY_REPO[$1]+x}" ]; }
+    deterministic_repos()  { printf '%s\n' "${!_AREA_BY_REPO[@]}"; }
+else
+    # login → display name (falls back to the login when not a team member)
+    display_name() {
+        local login disp full
+        while IFS='|' read -r login disp full; do
+            [ "$login" = "$1" ] && { echo "$disp"; return; }
+        done <<< "$TEAM_DATA"
+        echo "$1"
+    }
+    # display name → login ("" if not found)
+    login_for_display() {
+        local login disp full
+        while IFS='|' read -r login disp full; do
+            [ "$disp" = "$1" ] && { echo "$login"; return; }
+        done <<< "$TEAM_DATA"
+        echo ""
+    }
+    # full name → login ("" if not found)
+    login_for_fullname() {
+        local login disp full
+        while IFS='|' read -r login disp full; do
+            [ "$full" = "$1" ] && { echo "$login"; return; }
+        done <<< "$TEAM_DATA"
+        echo ""
+    }
+    # repo → area option id ("" if not deterministic)
+    area_for_repo() {
+        local repo area
+        while IFS='|' read -r repo area; do
+            [ "$repo" = "$1" ] && { echo "$area"; return; }
+        done <<< "$REPO_AREA_DATA"
+        echo ""
+    }
+    # true (0) when the repo is not in the deterministic table
+    is_ambiguous_repo() {
+        local repo area
+        while IFS='|' read -r repo area; do
+            [ "$repo" = "$1" ] && return 1
+        done <<< "$REPO_AREA_DATA"
+        return 0
+    }
+    # print each deterministic repo, one per line
+    deterministic_repos() {
+        local repo area
+        while IFS='|' read -r repo area; do
+            [ -n "$repo" ] && echo "$repo"
+        done <<< "$REPO_AREA_DATA"
+    }
+fi
