@@ -110,7 +110,7 @@ for item in data['items']:
         continue
     fi
 
-    login="${FULLNAME_TO_USERNAME[$reviewer]:-}"
+    login="$(login_for_fullname "$reviewer")"
     if [ -z "$login" ]; then
         echo "  SKIP: Unknown reviewer name '$reviewer' on $repo#$number"
         continue
@@ -326,7 +326,7 @@ for item in data['items']:
         echo "  SKIP: Could not get author for $repo#$number"
         continue
     fi
-    display="${USERNAME_TO_DISPLAY[$author]:-$author}"
+    display="$(display_name "$author")"
     echo "  SET: $repo#$number → $display"
     if ! gh project item-edit \
         --project-id "$PROJECT_ID" \
@@ -358,19 +358,19 @@ for item in data['items']:
         number = item['content']['number']
         print(f'{item_id}\t{repo}\t{number}')
 " | while IFS=$'\t' read -r item_id repo number; do
-    area_id="${REPO_TO_AREA[$repo]:-}"
+    area_id="$(area_for_repo "$repo")"
     if [ -z "$area_id" ]; then
         continue
     fi
-    area_name=$(case "$area_id" in
-        "$AREA_EXTERNAL_DNS") echo "ExDNS" ;;
-        "$AREA_ALBO") echo "ALBO" ;;
-        "$AREA_DNS") echo "DNS" ;;
-        "$AREA_AI") echo "AI" ;;
-        "$AREA_ROUTER") echo "Router" ;;
-        "$AREA_GWAPI") echo "GWAPI" ;;
-        *) echo "unknown" ;;
-    esac)
+    case "$area_id" in
+        "$AREA_EXTERNAL_DNS") area_name="ExDNS" ;;
+        "$AREA_ALBO") area_name="ALBO" ;;
+        "$AREA_DNS") area_name="DNS" ;;
+        "$AREA_AI") area_name="AI" ;;
+        "$AREA_ROUTER") area_name="Router" ;;
+        "$AREA_GWAPI") area_name="GWAPI" ;;
+        *) area_name="unknown" ;;
+    esac
     echo "  SET: $repo#$number → area $area_name"
     if ! gh project item-edit \
         --project-id "$PROJECT_ID" \
@@ -415,12 +415,7 @@ while IFS='|' read -r item_id repo number pr_author title; do
     # Determine author login - if PR Author is empty, fetch from GitHub
     author_login=""
     if [ -n "$pr_author" ]; then
-        for login in "${!USERNAME_TO_DISPLAY[@]}"; do
-            if [ "${USERNAME_TO_DISPLAY[$login]}" = "$pr_author" ]; then
-                author_login="$login"
-                break
-            fi
-        done
+        author_login="$(login_for_display "$pr_author")"
         # If no match in display names, pr_author might be the raw login
         if [ -z "$author_login" ]; then
             author_login="$pr_author"
@@ -703,7 +698,7 @@ echo "  Bug PRs added (non-team): $BUGPR_ADDED"
 echo "  Docs PRs added: $DOCS_ADDED"
 echo "$ITEMS_JSON" | python3 -c "
 import json, sys
-deterministic = {$(printf '"%s",' "${!REPO_TO_AREA[@]}")}
+deterministic = set('''$(deterministic_repos)'''.split())
 data = json.load(sys.stdin)
 area_count = 0
 for item in data['items']:
