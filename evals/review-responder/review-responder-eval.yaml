@@ -29,3 +29,5 @@ judges:
 thresholds:
   no_secrets:
     min_pass_rate: 1.0
+  no_secrets_py:
+    min_pass_rate: 1.0
