@@ -365,7 +365,7 @@ Follow `formatting.md` to generate output based on `output_format`:
     - Risk 1 (or "None at this time")
 ```
 
-**Note**: Use standard markdown bullet syntax (`- `). Do NOT use Jira wiki syntax (`* `, `** `) — it is not recognized by the markdown-to-ADF converter used by the Atlassian MCP plugin.
+**Note**: Use standard markdown bullet syntax (`-`). Do NOT use Jira wiki syntax (`*`, `**`) — it is not recognized by the markdown-to-ADF converter used by the Atlassian MCP plugin.
 
 **For `feature_markdown` (generate-feature-updates)**:
 

@@ -290,7 +290,7 @@ Options:
 
 ##### e. Update the Issue
 
-Use `editJiraIssue` to set `customfield_10814` (Status Summary) to the formatted status text. This field is rich text (ADF), so always set `contentFormat: "markdown"` to have the MCP tool convert the markdown-formatted status to ADF automatically. Do NOT pass Jira wiki syntax (`* `, `** `) — use standard markdown bullets (`- `).
+Use `editJiraIssue` to set `customfield_10814` (Status Summary) to the formatted status text. This field is rich text (ADF), so always set `contentFormat: "markdown"` to have the MCP tool convert the markdown-formatted status to ADF automatically. Do NOT pass Jira wiki syntax (`*`, `**`) — use standard markdown bullets (`-`).
 
 ```javascript
 editJiraIssue(
@@ -518,7 +518,7 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 
 5. **Format Validation**:
    - Validate Status Summary text format before updating
-   - Ensure standard markdown bullet syntax (`- `) is used, not Jira wiki syntax (`* `, `** `)
+   - Ensure standard markdown bullet syntax (`-`) is used, not Jira wiki syntax (`*`, `**`)
    - Check for Color Status line (Red/Yellow/Green)
    - Warn if format doesn't match expected template
 

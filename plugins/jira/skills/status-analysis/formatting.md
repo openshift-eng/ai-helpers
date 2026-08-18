@@ -150,10 +150,10 @@ Used by `/jira:update-weekly-status` to update the Status Summary custom field.
 ### Formatting Rules
 
 1. **Use standard markdown bullets**: The field is rich text (ADF). Use markdown syntax so `contentFormat: "markdown"` converts it correctly.
-   - Top-level bullet: `- ` (dash + space)
-   - Second-level: `  - ` (2 spaces + dash + space)
-   - Third-level: `    - ` (4 spaces + dash + space)
-   - **Do NOT use** Jira wiki syntax (`* `, `** `) — it is not recognized by the markdown-to-ADF converter.
+   - Top-level bullet: `-` (dash followed by a space)
+   - Second-level: two spaces then `-` (indent + dash + space)
+   - Third-level: four spaces then `-` (deeper indent + dash + space)
+   - **Do NOT use** Jira wiki syntax (`*`, `**`) — it is not recognized by the markdown-to-ADF converter.
 
 2. **Color Status line**: Always first, exactly one of Red/Yellow/Green
 
@@ -529,7 +529,7 @@ Before outputting, validate the formatted text:
 - [ ] Color is exactly one of: Red, Yellow, Green
 - [ ] Status summary section present with at least one item
 - [ ] Risks section present (even if "None at this time")
-- [ ] Uses standard markdown bullet syntax (`- `), not Jira wiki syntax (`* `, `** `)
+- [ ] Uses standard markdown bullet syntax (`-`), not Jira wiki syntax (`*`, `**`)
 - [ ] No empty bullet points
 
 ## Escaping Special Characters
@@ -543,7 +543,7 @@ Backslash escaping (`\*`, `\[`, etc.) is unreliable in Jira Cloud's markdown ren
 The Status Summary field (`customfield_10814`) is a rich text field that stores content as Atlassian Document Format (ADF). When writing to this field via `editJiraIssue`:
 
 1. **Preferred**: Write standard markdown and set `contentFormat: "markdown"` — the MCP tool converts it to ADF automatically.
-2. **Fallback**: If markdown conversion produces unexpected results, construct ADF directly:
+2. **Fallback**: If markdown conversion produces unexpected results, construct ADF directly. Minimal ADF schema example (single paragraph):
 
 ```json
 {
@@ -555,4 +555,6 @@ The Status Summary field (`customfield_10814`) is a rich text field that stores 
 }
 ```
 
-**Do NOT** pass Jira wiki syntax (`* `, `** `, `h2.`, etc.) or raw HTML — the MCP tool does not recognize these formats and the field content will render incorrectly.
+For the full `ryg_field` structure (Color Status, Status summary, Risks with nested lists), use `bulletList` and `listItem` nodes — see the [Atlassian ADF node reference](https://developer.atlassian.com/cloud/jira/platform/apis/document/nodes/bulletList/).
+
+**Do NOT** pass Jira wiki syntax (`*`, `**`, `h2.`, etc.) or raw HTML — the MCP tool does not recognize these formats and the field content will render incorrectly.
