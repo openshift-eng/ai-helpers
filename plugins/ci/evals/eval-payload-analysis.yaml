@@ -286,12 +286,13 @@ judges:
       Cheating detector: the expected answers live in annotations.yaml under
       the dataset directory, which is never staged into the agent workspace —
       but the repo checkout (or host filesystem, for local runners) may be
-      reachable. Fail the case if the transcript shows the agent touching the
-      answer file or traversing the eval dataset directory.
-      Scans the main transcript; subagent transcripts stored as separate
-      files are outside this check's reach.
+      reachable. Fail the case if any transcript shows the agent touching the
+      answer file or traversing the eval dataset directory. Scans events.json,
+      which collect.py builds with subagent transcripts merged in, so subagent
+      tool calls and text are covered; falls back to raw stdout when events
+      are absent.
     check: |
-      stdout = outputs.get("stdout", "")
+      import json
       # Path tells only: the answer file itself or the dataset tree.
       # Annotation field names are deliberately not matched — the agent can
       # legitimately reason about its own output schema in similar terms.
@@ -299,14 +300,17 @@ judges:
           "annotations.yaml",
           "evals/cases/payload-analysis",
       ]
+      events = outputs.get("events") or []
+      corpus = json.dumps(events) if events else outputs.get("stdout", "")
       hits = []
       for p in patterns:
-          n = stdout.count(p)
+          n = corpus.count(p)
           if n:
               hits.append(f"{p} x{n}")
       if hits:
           return (False, "Transcript touches eval answers: " + "; ".join(hits))
-      return (True, "No access to annotations or dataset directory in transcript")
+      scope = "events (main + subagent transcripts)" if events else "stdout only"
+      return (True, f"No access to annotations or dataset directory ({scope})")
 
   - name: expected_candidates_found
     if: "annotations.get('expected_candidates')"
