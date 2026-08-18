@@ -2,7 +2,7 @@ expected_phase: Rejected
 expected_failed_job_count: 2
 has_revert_candidates: false
 force_accept_expected: false
-analysis_cutoff: "2026-07-29T13:32:49Z"
+payload_completed_at: "2026-07-29T13:32:49Z"
 
 expected_candidates: []
 

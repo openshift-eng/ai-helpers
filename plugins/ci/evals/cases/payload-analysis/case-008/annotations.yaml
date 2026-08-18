@@ -1,8 +1,8 @@
-expected_phase: ""
+expected_phase: Rejected
 expected_failed_job_count: 2
 has_revert_candidates: true
 force_accept_expected: false
-analysis_cutoff: "2026-04-28T03:07:53Z"
+payload_completed_at: "2026-04-28T03:07:53Z"
 
 expected_candidates:
   - pr_url: "https://github.com/openshift/cluster-monitoring-operator/pull/2814"
@@ -16,5 +16,4 @@ expected_candidates:
 notes: >
   True positive from the CMO monitoring regression series. CMO #2814
   (MON-4517: Minimal and telemetry CP monitors) introduced monitoring
-  test failures. Reverted by #2901 on 2026-04-28. Expected phase is
-  empty because the payload was not formally Rejected.
+  test failures. Reverted by #2901 on 2026-04-28.

@@ -7,6 +7,7 @@ execution:
   arguments: "{payload_tag} --snapshot-dir $EVAL_SNAPSHOT_DIR/{payload_tag} --as-of {payload_completed_at}"
   timeout: 3600
   max_budget_usd: 25.0
+  parallelism: 3
   env:
     EVAL_SNAPSHOT_DIR: $EVAL_SNAPSHOT_DIR
     GITHUB_TOKEN: $GITHUB_TOKEN
@@ -50,6 +51,9 @@ permissions:
 
 mlflow:
   experiment: ci-payload-analysis-eval
+  tags:
+    plugin: ci
+    skill: payload-analysis
 
 dataset:
   path: plugins/ci/evals/cases/payload-analysis
@@ -66,11 +70,19 @@ dataset:
       - 'expected_failed_job_count': integer
       - 'has_revert_candidates': boolean
       - 'force_accept_expected': boolean
-      - 'analysis_cutoff': the same ISO-8601 timestamp as payload_completed_at,
-        used by the point_in_time_integrity judge to detect post-hoc leakage
+      - 'payload_completed_at': the same ISO-8601 cutoff as in input.yaml.
+        Duplicated because the harness only exposes annotations.yaml to
+        judges; used by the point_in_time_integrity judge to detect
+        post-hoc leakage. Must always match the input.yaml value.
       - 'expected_candidates': list of expected revert candidates with pr_url,
         component, min_confidence, expected_confidence, description,
-        expected_failing_jobs
+        expected_failing_jobs. An explicit empty list means the correct
+        analysis recommends NO revert — any candidate at or above the
+        revert threshold is a false positive.
+      - 'expected_ci_config_issues' (optional): openshift/release CI-config
+        culprits (pr_url, repo, description, expected_failing_jobs). These
+        never appear in payload changelogs, so identifying them requires
+        the step-registry lookup path.
       - 'notes': free text context
 
     Snapshots are stored as tar.gz archives in
@@ -266,6 +278,138 @@ judges:
           return (False, f"Missing Skill calls: {', '.join(missing)}. Found: {', '.join(found)}")
       return (True, f"Both required skills invoked: {', '.join(found)}")
 
+  - name: expected_candidates_found
+    if: "annotations.get('expected_candidates')"
+    description: |
+      Deterministic check that every expected revert candidate appears in the
+      results YAML at or above its min_confidence. Skipped for cases that
+      expect no candidates.
+    check: |
+      import yaml, os
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      yf = [v for k, v in all_f.items() if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")]
+      if not yf:
+          return (False, "No payload results YAML found")
+      data = yaml.safe_load(yf[0]) or {}
+      cands = {}
+      for c in data.get("candidates", []) or []:
+          cands[str(c.get("pr_url", "")).rstrip("/")] = c
+      missing = []
+      low = []
+      expected = outputs.get("annotations", {}).get("expected_candidates", []) or []
+      for exp in expected:
+          url = str(exp.get("pr_url", "")).rstrip("/")
+          got = cands.get(url)
+          if got is None:
+              missing.append(url)
+              continue
+          try:
+              score = float(got.get("confidence_score", 0))
+          except (TypeError, ValueError):
+              score = 0.0
+          if score < float(exp.get("min_confidence", 0)):
+              low.append(f"{url} scored {score:g} < min {exp.get('min_confidence')}")
+      problems = []
+      if missing:
+          problems.append("missing: " + ", ".join(missing))
+      if low:
+          problems.append("under-confidence: " + "; ".join(low))
+      if problems:
+          return (False, "; ".join(problems))
+      return (True, f"All {len(expected)} expected candidate(s) found at/above min confidence")
+
+  - name: no_unexpected_reverts
+    description: |
+      Deterministic false-revert gate: no candidate may reach the revert
+      threshold (>= 85) unless its pr_url is listed in expected_candidates
+      or expected_ci_config_issues. RHCOS RPM candidates are exempt — the
+      skill scores them but never proposes reverting them. This is the hard
+      check behind the adversarial false-revert cases.
+    check: |
+      import yaml, os
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      yf = [v for k, v in all_f.items() if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")]
+      if not yf:
+          return (False, "No payload results YAML found")
+      data = yaml.safe_load(yf[0]) or {}
+      ann = outputs.get("annotations", {})
+      allowed = set()
+      for key in ("expected_candidates", "expected_ci_config_issues"):
+          for c in ann.get(key, []) or []:
+              allowed.add(str(c.get("pr_url", "")).rstrip("/"))
+      REVERT_THRESHOLD = 85
+      rogue = []
+      for c in data.get("candidates", []) or []:
+          if str(c.get("type", "")) == "rhcos_rpm":
+              continue
+          try:
+              score = float(c.get("confidence_score", 0))
+          except (TypeError, ValueError):
+              continue
+          url = str(c.get("pr_url", "")).rstrip("/")
+          if score >= REVERT_THRESHOLD and url not in allowed:
+              rogue.append(f"{url} @ {score:g}")
+      if rogue:
+          return (False, "False revert candidate(s) at/above threshold: " + "; ".join(rogue))
+      return (True, "No candidate at/above revert threshold outside the expected set")
+
+  - name: failed_job_count_matches
+    if: "annotations.get('expected_failed_job_count') is not None"
+    description: |
+      Deterministic check that the number of failing jobs in the results YAML
+      matches expected_failed_job_count (tolerance of 1 for aggregated-job
+      counting differences).
+    check: |
+      import yaml, os
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      yf = [v for k, v in all_f.items() if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")]
+      if not yf:
+          return (False, "No payload results YAML found")
+      data = yaml.safe_load(yf[0]) or {}
+      expected = int(outputs.get("annotations", {}).get("expected_failed_job_count", 0))
+      actual = len(data.get("failing_jobs", []) or [])
+      if abs(actual - expected) <= 1:
+          return (True, f"{actual} failing job(s) reported (expected {expected})")
+      return (False, f"{actual} failing job(s) reported, expected {expected}")
+
+  - name: force_accept_matches
+    description: |
+      Deterministic check that metadata.force_accept_recommended in the
+      results YAML matches force_accept_expected.
+    check: |
+      import yaml, os
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      yf = [v for k, v in all_f.items() if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")]
+      if not yf:
+          return (False, "No payload results YAML found")
+      data = yaml.safe_load(yf[0]) or {}
+      expected = bool(outputs.get("annotations", {}).get("force_accept_expected", False))
+      actual = bool((data.get("metadata", {}) or {}).get("force_accept_recommended", False))
+      if actual == expected:
+          return (True, f"force_accept_recommended={actual} as expected")
+      return (False, f"force_accept_recommended={actual}, expected {expected}")
+
+  - name: expected_phase_matches
+    if: "annotations.get('expected_phase')"
+    description: |
+      Deterministic check that the payload phase reported in the autodl JSON
+      rows matches expected_phase. Skipped when the case declares no
+      terminal phase.
+    check: |
+      import json
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      jf = [v for k, v in all_f.items() if k.endswith("-autodl.json")]
+      if not jf:
+          return (False, "No autodl JSON found")
+      data = json.loads(jf[0])
+      phases = {str(r.get("phase", "")).lower() for r in data.get("rows", []) or [] if r.get("phase")}
+      expected = str(outputs.get("annotations", {}).get("expected_phase", "")).lower()
+      if not phases:
+          return (False, "No phase value present in autodl rows")
+      if phases == {expected}:
+          return (True, f"phase={expected} in all rows")
+      return (False, f"autodl phase(s) {sorted(phases)} != expected '{expected}'")
+
   - name: analysis_quality
     description: |
       LLM judge to assess root cause analysis depth, PR correlation accuracy,
@@ -328,19 +472,21 @@ judges:
     description: |
       LLM judge to assess whether the confidence scoring rubric was correctly
       applied and expected revert candidates identified. Uses only YAML results
-      and autodl JSON, not the full output tree.
+      and autodl JSON, not the full output tree. The skill's SKILL.md is
+      attached as context so the rubric is judged against its current
+      definition instead of a copy that can drift.
+    context:
+      - plugins/ci/skills/payload-analysis/SKILL.md
     prompt: |
       You are evaluating whether the payload analysis skill correctly identified
       revert candidates and applied its confidence scoring rubric.
 
-      The rubric awards points for:
-      - New failure mode: +30 (this specific failure wasn't present in prior payloads)
-      - Component exclusivity: +10 to +30 (fewer PRs touching same component = higher)
-      - Error message match: +40 (errors directly reference code changed by the PR)
-      - Multi-job correlation: +10 (same PR is candidate for multiple failed jobs)
-      - Presubmit coverage gap: +10 (failing scenario not in PR's presubmit tests)
-      - Single candidate: +10 (only one PR touches the affected component)
-      Maximum: 130 (capped at 100). Revert threshold: >= 85.
+      The rubric is defined in the attached SKILL.md (Step 6). It is the source
+      of truth: signals are itemized per candidate (new failure mode, component
+      exclusivity, tiered error message match, multi-job correlation, presubmit
+      coverage gap), the sum is capped at 100, and candidates scoring >= 85
+      become revert candidates. Do not assume a different weighting than the
+      attached document.
 
       Review the YAML results file:
 
@@ -362,37 +508,44 @@ judges:
 
       {{ annotations }}
 
-      If expected_candidates are listed in annotations, those PRs should be
-      identified with confidence >= min_confidence and linked to the
-      expected_failing_jobs. If expected_candidates is empty, no false positive
-      revert recommendations should appear.
+      Two failure directions matter equally:
+      - Missed reverts: every entry in expected_candidates must be identified
+        at or above its min_confidence and linked to its expected_failing_jobs.
+      - False reverts: when expected_candidates is empty, the correct output
+        has NO candidate at or above the revert threshold. Recommending a
+        revert in that situation is the worst outcome, not a near miss.
 
       Evaluate on a 1-5 scale:
 
-      Score 1: No scoring applied, or scores are arbitrary. Expected revert
-               candidates (from annotations) are completely missed.
+      Score 1: Wrong verdict in either direction — a candidate at/above the
+               revert threshold that is not in expected_candidates (including
+               any revert recommendation when expected_candidates is empty),
+               OR all expected candidates missed, OR no scoring applied at all.
       Score 2: Some expected candidates identified but confidence scores are way
-               off (>20 points from expected) or key failing job linkages are
-               missing.
-      Score 3: All expected high-confidence candidates (min_confidence >= 85) are
-               identified above threshold, but scores may be off by 10-20 points
-               or rubric components not itemized.
-      Score 4: All expected candidates identified with scores within 10 points of
+               off (>20 points from expected), key failing-job linkages are
+               missing, or an unexpected candidate is scored just below
+               threshold on weak evidence.
+      Score 3: Correct revert/no-revert verdict, but scores are off by 10-20
+               points, rubric signals are not itemized per candidate, or
+               dismissals of non-candidates are asserted without cited evidence.
+      Score 4: Correct verdict with scores within 10 points of
                expected_confidence. Rubric correctly applied with itemized
                breakdown. Most expected failing jobs correctly linked.
                Infrastructure failures correctly distinguished from product
                failures.
-      Score 5: All expected candidates identified with scores within 5 points of
-               expected_confidence. Rubric meticulously applied — each component
-               score justified with specific evidence. All expected failing jobs
-               correctly linked. No false positive revert recommendations for
-               unrelated PRs. Cross-job correlation signal clearly documented.
+      Score 5: Correct verdict with scores within 5 points of
+               expected_confidence. Rubric meticulously applied — each signal
+               justified with specific evidence per the attached SKILL.md.
+               All expected failing jobs correctly linked. For no-revert cases,
+               each dismissed candidate's exoneration is backed by concrete
+               evidence rather than assertion.
 
   - name: point_in_time_integrity
+    if: "annotations.get('payload_completed_at')"
     description: |
       LLM judge assessing whether conclusions use only evidence that existed
-      when the payload completed, without post-hoc outcome leakage. Only scored
-      for cases that declare an analysis_cutoff.
+      when the payload completed, without post-hoc outcome leakage. Skipped
+      (not scored) for cases without a payload_completed_at cutoff.
     prompt: |
       You are the evaluation-integrity judge for a historical OpenShift payload
       analysis. The analysis must reconstruct what a release engineer could
@@ -418,12 +571,9 @@ judges:
 
       {{ annotations }}
 
-      If the annotations do not include an 'analysis_cutoff', this case is not a
-      point-in-time case: return the maximum score without further analysis.
-
       Judge evidence provenance, not whether hindsight happened to produce the
       right answer. Evidence is admissible only when its event or observation
-      timestamp is at or before `analysis_cutoff`. SHA-pinning alone does not
+      timestamp is at or before `payload_completed_at`. SHA-pinning alone does not
       make code contemporaneous: the cited commit must have existed by the
       cutoff. CI artifacts and previous agent reports are admissible only when
       their Prow jobs completed by the cutoff. Missing provenance caps the score
@@ -473,4 +623,14 @@ thresholds:
   point_in_time_integrity:
     min_mean: 4.0
   required_skill_invocations:
+    min_pass_rate: 1.0
+  expected_candidates_found:
+    min_pass_rate: 1.0
+  no_unexpected_reverts:
+    min_pass_rate: 1.0
+  failed_job_count_matches:
+    min_pass_rate: 1.0
+  force_accept_matches:
+    min_pass_rate: 1.0
+  expected_phase_matches:
     min_pass_rate: 1.0

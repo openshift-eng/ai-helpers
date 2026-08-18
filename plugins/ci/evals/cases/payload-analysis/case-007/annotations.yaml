@@ -2,7 +2,7 @@ expected_phase: Rejected
 expected_failed_job_count: 3
 has_revert_candidates: true
 force_accept_expected: false
-analysis_cutoff: "2026-03-19T01:17:31Z"
+payload_completed_at: "2026-03-19T01:17:31Z"
 
 expected_candidates:
   - pr_url: "https://github.com/openshift/operator-framework-olm/pull/1256"
