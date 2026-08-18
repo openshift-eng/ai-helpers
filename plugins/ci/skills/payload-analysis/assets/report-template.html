@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<!--
+  Payload Analysis report template.
+
+  Fill-in-the-blanks contract:
+  - {placeholder} slots are replaced with computed values. Every remaining
+    placeholder is a defect (checked in Step 10).
+  - Blocks bounded by "BEGIN: name" / "END: name" comments are conditional or
+    repeatable; the comment states the rule. Remove the marker comments (and
+    any block whose condition is false) from the final report.
+  - {phase_class} is one of: hero-rejected | hero-accepted | hero-ready.
+  - Confidence meters: set the inline width to the candidate's score,
+    e.g. style="width:92%". History cells: one <i> per payload, class "f"
+    (failed) or "s" (succeeded), title="<payload_tag>".
+  - Do not restructure, reorder, or restyle: sections appear in this order and
+    the CSS below is the complete stylesheet. See references/report-guide.md
+    for how to derive each value.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payload Analysis: {payload_tag}</title>
+<style>
+:root {
+  --bg: #0a0e14; --surface: #10161f; --raised: #161e2a; --border: #263243;
+  --text: #e8edf4; --muted: #8b98a9; --faint: #5c6878;
+  --green: #3fb950; --red: #f85149; --orange: #d29922;
+  --blue: #58a6ff; --purple: #bc8cff;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 1.5rem 3rem; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible, button:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 2px;
+}
+p { margin: 0.4rem 0; }
+code, pre, .mono { font-family: var(--mono); }
+code { font-size: 0.85em; background: var(--raised); padding: 0.1em 0.35em; border-radius: 4px; }
+pre {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.85rem 1.1rem; overflow-x: auto; white-space: pre-wrap;
+  font-size: 0.85em; line-height: 1.5;
+}
+pre code { background: none; padding: 0; }
+
+/* ---------- hero ---------- */
+.hero {
+  position: relative; overflow: hidden; margin: 1.5rem 0 1.25rem;
+  border: 1px solid var(--border); border-radius: 14px;
+  padding: 2.25rem 2rem 1.75rem; background: var(--surface);
+}
+.hero::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 60% 90% at 12% 0%, var(--glow) 0%, transparent 60%);
+}
+.hero-rejected { --phase: var(--red); --glow: rgba(248,81,73,0.16); }
+.hero-accepted { --phase: var(--green); --glow: rgba(63,185,80,0.14); }
+.hero-ready { --phase: var(--orange); --glow: rgba(210,153,34,0.14); }
+.hero .eyebrow { color: var(--muted); }
+.phase-word {
+  margin: 0.2rem 0 0.4rem; font-size: clamp(2.4rem, 6vw, 3.6rem);
+  font-weight: 800; letter-spacing: 0.04em; line-height: 1;
+  color: var(--phase); text-transform: uppercase;
+}
+.hero .tag {
+  font-family: var(--mono); font-size: clamp(1rem, 2.4vw, 1.35rem);
+  color: var(--text); letter-spacing: -0.01em; word-break: break-all;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.1rem; }
+.chip {
+  font-family: var(--mono); font-size: 0.75rem; color: var(--muted);
+  background: var(--raised); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0.25rem 0.75rem;
+}
+.chip b { color: var(--text); font-weight: 600; }
+
+/* ---------- stat tiles ---------- */
+.tiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem; margin: 1.25rem 0;
+}
+.tile {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 0.85rem 1rem 0.75rem;
+}
+.tile .v {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 1.7rem; font-weight: 700; line-height: 1.15;
+}
+.tile .v small { font-size: 0.95rem; font-weight: 500; color: var(--muted); }
+.tile .l {
+  font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); margin-top: 0.25rem;
+}
+.tile-bad .v { color: var(--red); }
+.tile-warn .v { color: var(--orange); }
+
+/* ---------- sections ---------- */
+.eyebrow {
+  display: flex; align-items: center; gap: 0.6rem;
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--faint); margin: 2rem 0 0.5rem;
+}
+.eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+h2 { font-size: 1.3rem; margin: 0.25rem 0 0.75rem; letter-spacing: -0.01em; }
+h3 { font-size: 1.02rem; margin: 1rem 0 0.4rem; }
+h4 {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); margin: 1rem 0 0.35rem;
+}
+.card, .verdict {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 1.1rem 1.35rem; margin: 0.9rem 0;
+}
+.verdict-revert { border-left: 4px solid var(--red); }
+.verdict-none { border-left: 4px solid var(--faint); }
+.verdict-infra { border-left: 4px solid var(--orange); }
+
+/* ---------- tables ---------- */
+.tblwrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; margin: 0.6rem 0; font-size: 0.88rem; }
+th {
+  text-align: left; padding: 0.4rem 0.7rem; border-bottom: 2px solid var(--border);
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--muted);
+}
+td { padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tbody tr { transition: background 0.12s ease; }
+tbody tr:hover { background: rgba(88,166,255,0.04); }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- status & badges ---------- */
+.pill {
+  display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap;
+  font-size: 0.74rem; font-weight: 700; letter-spacing: 0.05em;
+  padding: 0.16rem 0.6rem; border-radius: 999px;
+}
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill-fail { color: var(--red); background: rgba(248,81,73,0.12); }
+.pill-pass { color: var(--green); background: rgba(63,185,80,0.12); }
+.badge {
+  display: inline-block; padding: 0.12rem 0.55rem; border-radius: 999px;
+  font-size: 0.72rem; font-weight: 600; margin-left: 0.4rem; white-space: nowrap;
+}
+.badge-new { background: rgba(248,81,73,0.14); color: var(--red); }
+.badge-persistent { background: rgba(210,153,34,0.14); color: var(--orange); }
+.badge-rhcos9 { background: rgba(139,152,169,0.14); color: var(--muted); }
+.badge-rhcos10 { background: rgba(188,140,255,0.14); color: var(--purple); }
+.badge-rhcos-mixed { background: rgba(210,153,34,0.14); color: var(--orange); }
+.badge.variant-isolated { border: 1px solid currentColor; }
+
+/* history cells: solid = failed, faint outline = succeeded (luminance, not hue-alone) */
+.hist { display: inline-flex; gap: 3px; }
+.hist i {
+  width: 12px; height: 12px; border-radius: 3px; display: inline-block;
+}
+.hist i.f { background: var(--red); }
+.hist i.s { background: rgba(63,185,80,0.22); border: 1px solid rgba(63,185,80,0.5); }
+
+/* confidence meter: number + bar, never color alone */
+.score { display: flex; align-items: center; gap: 0.55rem; min-width: 120px; }
+.score b {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 0.95rem; font-weight: 700;
+}
+.meter { flex: 1; height: 4px; border-radius: 2px; background: var(--raised); overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 2px; background: var(--red); }
+.meter-mid i { background: var(--orange); }
+.meter-low i { background: var(--faint); }
+
+/* ---------- failed job details ---------- */
+details {
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--red); border-radius: 10px; margin: 0.7rem 0;
+}
+details.neutral { border-left-color: var(--border); }
+summary {
+  cursor: pointer; padding: 0.8rem 1.1rem; font-weight: 600;
+  list-style: none; display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem;
+  transition: background 0.12s ease;
+}
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: "▸"; color: var(--faint); margin-right: 0.55rem;
+  transition: transform 0.15s ease; display: inline-block;
+}
+details[open] > summary::before { transform: rotate(90deg); }
+summary:hover { background: rgba(88,166,255,0.04); }
+.job-name { font-family: var(--mono); font-size: 0.92rem; }
+.detail-body { padding: 0.35rem 1.35rem 1.1rem; border-top: 1px solid var(--border); }
+.analysis { margin: 0.4rem 0; }
+.symptoms { color: var(--muted); }
+
+/* ---------- callouts ---------- */
+.variant-callout, .rhcos-candidate {
+  background: rgba(188,140,255,0.08); border-left: 3px solid var(--purple);
+  padding: 0.8rem 1.1rem; border-radius: 0 8px 8px 0; margin: 0.75rem 0;
+}
+.variant-callout { font-size: 0.9rem; }
+.revert-prompt {
+  background: rgba(88,166,255,0.07); border-left: 3px solid var(--blue);
+  padding: 0.8rem 1.1rem; border-radius: 0 8px 8px 0; margin: 0.75rem 0;
+}
+.revert-prompt button {
+  float: right; background: var(--raised); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 0.25rem 0.8rem; cursor: pointer; font-size: 0.8rem;
+  transition: border-color 0.12s ease;
+}
+.revert-prompt button:hover { border-color: var(--blue); }
+.changelog-evidence h4 { color: var(--text); text-transform: none; letter-spacing: 0; font-size: 0.9rem; font-family: var(--mono); }
+
+footer {
+  margin-top: 2.5rem; padding-top: 1.1rem; border-top: 1px solid var(--border);
+  color: var(--faint); font-size: 0.83rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero {phase_class}">
+  <div class="eyebrow">Payload Analysis</div>
+  <div class="phase-word">{phase}</div>
+  <div class="tag"><a href="{release_url}" target="_blank">{payload_tag}</a></div>
+  <div class="chips">
+    <span class="chip">arch <b>{architecture}</b></span>
+    <span class="chip">stream <b>{stream}</b></span>
+    <span class="chip">generated <b>{timestamp}</b></span>
+    <span class="chip">snapshot <b>{snapshot_dir}</b></span>
+  </div>
+</header>
+
+<div class="tiles">
+  <div class="tile tile-bad">
+    <div class="v">{failed}<small> / {total_blocking}</small></div>
+    <div class="l">Blocking jobs failed</div>
+  </div>
+  <div class="tile tile-bad">
+    <div class="v">{new_failures}</div>
+    <div class="l">New failures</div>
+  </div>
+  <div class="tile">
+    <div class="v">{persistent_failures}</div>
+    <div class="l">Persistent failures</div>
+  </div>
+  <div class="tile tile-warn">
+    <div class="v">{consecutive_rejection_count}</div>
+    <div class="l">Consecutive rejections</div>
+  </div>
+  <div class="tile">
+    <div class="v">{hours_since_baseline}<small>h</small></div>
+    <div class="l">Since last accepted</div>
+  </div>
+</div>
+
+<div class="card">
+  <h4>Chain context</h4>
+  <p>Chain: {chain_length} payloads since <a href="{baseline_url}" target="_blank" class="mono">{baseline_tag}</a> ({hours_since_baseline}h ago).</p>
+  <p>Per-job persistence: {per_job_persistence}</p>
+</div>
+
+<div class="eyebrow">Verdict</div>
+
+<!-- BEGIN: revert-verdict — include only when revert candidates exist (score >= 85); otherwise use the no-revert-verdict block instead -->
+<div class="verdict verdict-revert">
+  <h2>Recommended Reverts</h2>
+  <p><strong>OCP Policy: PRs that break payloads MUST be reverted.</strong></p>
+  <div class="tblwrap">
+  <table>
+    <tr><th>PR</th><th>Component</th><th>Description</th><th>Confidence</th><th>Caused Failure In</th><th>Failing Since</th><th>Rationale</th></tr>
+    <!-- BEGIN: revert-row — one row per revert candidate; meter width = score -->
+    <tr>
+      <td><a class="mono" href="{pr_url}" target="_blank">{pr_number}</a></td>
+      <td>{component}</td><td>{description}</td>
+      <td><span class="score"><b>{score}</b><span class="meter"><i style="width:{score}%"></i></span></span></td>
+      <td>{caused_failure_in}</td>
+      <td class="mono">{failing_since}</td>
+      <td>{rationale_with_itemized_signals}</td>
+    </tr>
+    <!-- END: revert-row -->
+  </table>
+  </div>
+  <h3>Automated Reverts</h3>
+  <div class="revert-prompt">
+    <button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent.trim())">Copy</button>
+    <pre>/ci:payload-revert {payload_tag}</pre>
+  </div>
+</div>
+<!-- END: revert-verdict -->
+
+<!-- BEGIN: no-revert-verdict — include only when NO revert candidates exist -->
+<div class="verdict verdict-none">
+  <strong>No Recommended Reverts</strong>
+  <p>No PRs were identified with sufficient confidence for revert recommendation.</p>
+</div>
+<!-- END: no-revert-verdict -->
+
+<!-- BEGIN: force-accept-verdict — include only when Step 6.4 recommends force-accept -->
+<div class="verdict verdict-infra">
+  <strong>Force-Accept Recommended</strong>
+  <p>All blocking job failures are temporary infrastructure issues and no payload has been
+     accepted in this stream for more than 18 hours.</p>
+  <p>Baseline: <a href="{baseline_url}" target="_blank" class="mono">{baseline_tag}</a> ({hours_since_baseline}h ago)</p>
+</div>
+<!-- END: force-accept-verdict -->
+
+<div class="eyebrow">Evidence</div>
+
+<div class="card">
+  <h2>Blocking Jobs</h2>
+  <div class="tblwrap">
+  <table>
+    <tr><th>Job Name</th><th>RHCOS</th><th>Status</th><th>Streak</th><th>History</th><th>First Failed In</th></tr>
+    <!-- BEGIN: job-row — one row per blocking job (passed and failed); history: one <i> per payload, newest first, class f|s, title = payload tag -->
+    <tr>
+      <td><a class="mono" href="{prow_url}" target="_blank">{job_name}</a></td>
+      <td><span class="badge badge-{rhcos9|rhcos10|rhcos-mixed}">{rhcos_label}</span></td>
+      <td><span class="pill pill-{fail|pass}">{FAILED|PASSED}</span></td>
+      <td class="num">{streak_or_na}</td>
+      <td><span class="hist"><i class="{f|s}" title="{payload_tag}"></i></span></td>
+      <td><a class="mono" href="{originating_payload_url}" target="_blank">{originating_payload_tag_or_na}</a></td>
+    </tr>
+    <!-- END: job-row -->
+  </table>
+  </div>
+</div>
+
+<h2>Failed Job Details</h2>
+<!-- BEGIN: failed-job — one collapsible block per failed blocking job -->
+<details>
+  <summary>
+    <span class="job-name">{job_name}</span>
+    <span class="badge badge-{new|persistent}">{New Failure|Failing for N payloads}</span>
+    <span class="badge badge-{rhcos9|rhcos10|rhcos-mixed}">{RHCOS 9|RHCOS 10|RHCOS 9+10}</span>
+  </summary>
+  <div class="detail-body">
+    <h4>Prow Job</h4>
+    <p><a href="{prow_url}" target="_blank">{prow_url}</a> | <a href="{gcs_url}" target="_blank">GCS Artifacts</a></p>
+
+    <!-- BEGIN: variant-callout — include only when this failure is variant-isolated -->
+    <div class="variant-callout">
+      This failure is isolated to RHCOS {version} jobs and does not appear in RHCOS {other_version} jobs,
+      indicating an OS-variant-specific root cause (e.g., kernel, systemd, SELinux, or package differences
+      between RHEL 9 and RHEL 10).
+    </div>
+    <!-- END: variant-callout -->
+
+    <h4>Failure Analysis</h4>
+    <div class="analysis">{analysis_from_subagent}</div>
+
+    <!-- BEGIN: known-symptoms — include only when symptoms are not "none" -->
+    <h4>Known Symptoms Seen</h4>
+    <p class="symptoms">{comma_separated_symptom_summaries}</p>
+    <!-- END: known-symptoms -->
+
+    <h4>First Failed In</h4>
+    <p><a class="mono" href="{originating_payload_url}" target="_blank">{originating_payload_tag}</a></p>
+
+    <h4>Candidate PRs (introduced in {originating_payload_tag})</h4>
+    <div class="tblwrap">
+    <table>
+      <tr><th>Component</th><th>PR</th><th>Description</th><th>Confidence</th></tr>
+      <!-- BEGIN: candidate-row — one row per scored candidate for this job; meter class: none >=85, meter-mid 50-84, meter-low <50 -->
+      <tr>
+        <td>{component}</td>
+        <td><a class="mono" href="{pr_url}" target="_blank">{pr_number}</a></td>
+        <td>{description}</td>
+        <td><span class="score"><b>{score}</b><span class="meter {|meter-mid|meter-low}"><i style="width:{score}%"></i></span></span></td>
+      </tr>
+      <!-- END: candidate-row -->
+    </table>
+    </div>
+  </div>
+</details>
+<!-- END: failed-job -->
+
+<div class="eyebrow">Context</div>
+
+<!-- BEGIN: informing-tests — include only when informing/flake test failures exist -->
+<div class="card">
+  <h2>Informing and Flake Tests</h2>
+  <p>These tests do not by themselves cause job failures or payload rejections. The only potential
+     impact is if the test itself affects cluster health — for example if it breaks an operator or
+     does something otherwise catastrophic.</p>
+  <div class="tblwrap">
+  <table>
+    <tr><th>Test Name</th><th>Lifecycle</th><th>Jobs</th></tr>
+    <!-- BEGIN: informing-row — one row per informing/flake test from test_failures.informing[]/flakes[] -->
+    <tr><td>{test_name}</td><td>{informing|flake}</td><td class="mono">{jobs}</td></tr>
+    <!-- END: informing-row -->
+  </table>
+  </div>
+</div>
+<!-- END: informing-tests -->
+
+<!-- BEGIN: rhcos-changes — include only when any payload in the chain has RHCOS RPM changes -->
+<div class="card">
+  <h2>RHCOS Changes</h2>
+
+  <!-- BEGIN: rhcos-candidates — include only when scored RHCOS RPM candidates exist (type: "rhcos_rpm") -->
+  <div class="rhcos-candidate">
+    <h3>RHCOS RPM Candidates</h3>
+    <p>The following RHCOS package updates scored as regression candidates. These cannot be reverted
+       through the normal PR revert process — escalate to the RHCOS or platform team.</p>
+    <div class="tblwrap">
+    <table>
+      <tr><th>Package</th><th>Old Version</th><th>New Version</th><th>Variant</th><th>Confidence</th><th>Affected Jobs</th><th>Rationale</th></tr>
+      <!-- BEGIN: rhcos-candidate-row — one row per RHCOS RPM candidate; meter class as in candidate-row -->
+      <tr>
+        <td class="mono">{package}</td><td class="mono">{old_version}</td><td class="mono">{new_version}</td>
+        <td><span class="badge badge-{rhcos9|rhcos10}">{variant}</span></td>
+        <td><span class="score"><b>{score}</b><span class="meter {|meter-mid|meter-low}"><i style="width:{score}%"></i></span></span></td>
+        <td class="mono">{comma_separated_job_names}</td><td>{rationale_with_itemized_signals}</td>
+      </tr>
+      <!-- END: rhcos-candidate-row -->
+    </table>
+    </div>
+
+    <!-- BEGIN: changelog-evidence — include only when changelog evidence exists for any candidate -->
+    <details class="neutral">
+      <summary>RPM Changelog Evidence</summary>
+      <div class="detail-body changelog-evidence">
+        <!-- BEGIN: changelog-entry — one per candidate with changelog_evidence != "none" -->
+        <h4>{package} ({old_version} → {new_version})</h4>
+        <pre>{verbatim_changelog_entries}</pre>
+        <!-- END: changelog-entry -->
+      </div>
+    </details>
+    <!-- END: changelog-evidence -->
+  </div>
+  <!-- END: rhcos-candidates -->
+
+  <details class="neutral">
+    <summary>Full RHCOS RPM Changelog Diffs</summary>
+    <div class="detail-body">
+      <!-- BEGIN: rhcos-baseline-diff — one per RHCOS variant with changes vs the baseline -->
+      <h4>{rhcos_name} ({rhcos_tag}) — baseline ({baseline_tag})</h4>
+      <div class="tblwrap">
+      <table>
+        <tr><th>Package</th><th>Old Version</th><th>New Version</th></tr>
+        <!-- one row per changed package from the baseline diff -->
+      </table>
+      </div>
+      <!-- END: rhcos-baseline-diff -->
+      <!-- BEGIN: rhcos-hop-diff — one per distinct (originating payload, variant) pair referenced by a scored candidate or failure mode that differs from the baseline -->
+      <h4>{rhcos_name} ({rhcos_tag}) — hop at {originating_payload_tag}</h4>
+      <div class="tblwrap">
+      <table>
+        <tr><th>Package</th><th>Old Version</th><th>New Version</th></tr>
+        <!-- one row per changed package from that hop's diff -->
+      </table>
+      </div>
+      <!-- END: rhcos-hop-diff -->
+    </div>
+  </details>
+</div>
+<!-- END: rhcos-changes -->
+
+<div class="eyebrow">Audit</div>
+
+<div class="card">
+  <h2>Adversarial Review</h2>
+  <p>{review_summary}</p>
+  <!-- BEGIN: review-issues — include only when the reviewer identified issues -->
+  <h4>Issues Found</h4>
+  <ul>
+    <!-- BEGIN: review-issue — one per issue -->
+    <li>{issue_description} — {action_taken}</li>
+    <!-- END: review-issue -->
+  </ul>
+  <!-- END: review-issues -->
+</div>
+
+<footer>
+  <p>Generated by <code>ci:payload-analysis</code> from snapshot {snapshot_dir}.
+     Structured outputs: <code>payload-results-{sanitized_tag}.yaml</code> (consumed by
+     <code>/ci:payload-revert</code> and <code>/ci:payload-experiment</code>) and
+     <code>payload-analysis-{sanitized_tag}-autodl.json</code>.</p>
+</footer>
+
+</div>
+</body>
+</html>

@@ -39,18 +39,22 @@ Use this skill when you need to:
    /ci:payload-analysis 4.22.0-0.nightly-arm64-2026-02-25-152806
    ```
 
-## Required Skills
-
-Before starting, you **MUST** load the following skills (they define output schemas used in Steps 6 and 8):
-
-1. **`payload-results-yaml`** — schema for the payload results YAML file
-2. **`payload-autodl-json`** — schema for the autodl JSON data file
-
 ## Prerequisites
 
 1. **Python 3** (3.10 or later) — for running the snapshot script if needed
 2. **gcloud CLI** — for subagent artifact download (must-gather, pod logs)
 3. **GitHub CLI (`gh`)** — for step-registry change detection (Step 3.6) and checking existing revert PRs (Step 6.3)
+
+## Bundled Resources
+
+Load these only at the step that needs them — not up front:
+
+- **`references/investigation-subagent.md`** — the verbatim per-job subagent prompt and `ANALYSIS_RESULT` format (Step 4)
+- **`references/report-guide.md`** — per-section content rules for the HTML report (Step 7)
+- **`references/completeness-review.md`** — the completeness-reviewer prompt and response handling (Step 9)
+- **`assets/report-template.html`** — the fill-in-the-blanks HTML report template (Step 7)
+
+The `payload-results-yaml` and `payload-autodl-json` skills define the structured output schemas; load each via the Skill tool at its point of use (Steps 6.5 and 8).
 
 ## Implementation Steps
 
@@ -185,11 +189,7 @@ reporting informing/flake tests, list individual test names from
 `test_failures.informing[]` / `test_failures.flakes[]` — do NOT report
 informing *job* failure counts in the same section.
 
-Report informing and flake tests in their own section of the report, under a heading that says so, with this caveat:
-
-> These tests do not by themselves cause job failures or payload rejections. The only potential impact is if the test itself affects cluster health — for example if it breaks an operator or does something otherwise catastrophic.
-
-Keep them visible: informing tests are new tests being stabilized, and a badly-behaved test can occasionally damage the cluster it runs on. Investigate one only when there is evidence of that, and say plainly that it is not a rejection cause.
+Report informing and flake tests in their own section of the report (the template's informing-tests block carries the standard caveat). Keep them visible: informing tests are new tests being stabilized, and a badly-behaved test can occasionally damage the cluster it runs on. Investigate one only when there is evidence of that, and say plainly that it is not a rejection cause.
 
 From `summary.json` → `test_failures.blocking[]`:
 - `test_name`, `jobs`, `first_failed_in`, `payloads_failing`
@@ -280,59 +280,7 @@ For each failed blocking job in the **target payload**, launch a **parallel suba
 
 Almost all blocking jobs install a cluster and then run tests, so the job name alone does not tell you the failure type. Each subagent therefore runs the `ci:prow-job-analysis` skill, which classifies the failure and routes to the correct specialized reference internally.
 
-You MUST use the following prompt verbatim (substituting the placeholder values) when launching each subagent. Do NOT paraphrase, shorten, or write your own prompt — the specific instructions below are critical for analysis quality:
-
-> Analyze the failure at <prow_url>. This job had <N> retries. The previous attempt URLs are: <previous_attempt_urls>.
->
-> **Aggregated jobs**: If this is an aggregated job (has `aggregated-` prefix or an `aggregator` step), retries only re-run the aggregation analysis — they do NOT re-run the underlying test jobs. Therefore, only examine the most recent attempt; previous attempts contain the same underlying results and do not provide additional signal.
->
-> **Non-aggregated jobs**: **Examine the final attempt first**, then compare with previous attempts to determine whether all retries failed the same way. If retries show different failure modes, note this — it distinguishes consistent regressions from intermittent/infrastructure issues. Consistent failures across all attempts strongly indicate a product regression rather than flakiness.
->
-> **RHCOS version**: This job's cluster runs on **<rhcos_version>**. <rhcos_context>
->
-> **RHCOS RPM changes and changelogs**: Read `<summary_json_path>` and find the entry in `payloads[]` whose `tag` equals `<originating_payload_tag>`. If that entry has an `rhcos_changes[]` array, look up the RHCOS variant matching this job's `rhcos_version` using the tag mapping: `rhel-coreos` → `rhcos9`/`rhcos9-default`, `rhel-coreos-10` → `rhcos10`/`rhcos10-default`, both apply to `rhcos9_10`. Check whether any changed, added, or removed RPM packages overlap with the failure's root cause. If the failure involves OS-level components (kernel, bootloader, systemd, SELinux, rpm-ostree, cri-o, crun, runc, networking) and matching packages changed, **read the RPM changelog** to see what actually changed — the changelog is the RPM equivalent of a PR's `code.diff`. To find it: in `<summary_json_path>`, check `rpm_changelogs[]` at the top level for the baseline entry (`is_baseline: true`) for the matching variant — its `diff.changed[]` entries each have a `changelog` field. For the originating payload's hop specifically: find `rpm_changelogs[]` in `payloads[]` for `<originating_payload_tag>` matching the variant, and read the file at its `changelogs` path (relative to `<snapshot_dir>`). Multiple binary RPMs built from the same source RPM share identical changelogs — read it once. A changelog entry that describes a change in the subsystem or behavior seen in the failure is strong evidence; a changelog about unrelated subsystems rules the package out. Note the correlation level and any relevant changelog entries in your ANALYSIS_RESULT.
->
-> Use the `ci:prow-job-analysis` skill for this investigation. It is the single entry point for every failed job: it identifies the job type, classifies the failure, and routes to the correct specialized reference — install, metal/bare-metal, test, upgrade, and more — internally. Do NOT pre-classify the failure yourself. Perform the full analysis, including downloading and analyzing must-gather when it is available.
->
-> **IMPORTANT** — Trace every failure to its specific root cause by examining actual logs. Never stop at high-level symptoms like "0 nodes ready", "operator degraded", or "containers are crash-looping". Download and read the actual log bundles, pod logs, and container previous logs. Cite specific error messages. The root cause must be actionable, not a restatement of the symptom.
->
-> **Do NOT classify a failure as "infrastructure flake" or "transient" unless you have affirmative evidence** of an infrastructure problem (cloud API errors, quota exceeded, network timeouts from the cloud provider, Boskos lease failures, CI platform outages). The absence of an obvious code-level explanation does NOT make something infrastructure — it means you need to investigate deeper. Default to treating failures as potential product regressions until evidence proves otherwise.
->
-> Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
->
-> If the job is an aggregated job (has `aggregated-` prefix in the name or an `aggregator` container/step), also return the **underlying job name** (e.g., `periodic-ci-openshift-release-main-ci-4.22-e2e-aws-upgrade-ovn-single-node`). This is found in the junit-aggregated.xml artifacts — each `<testcase>` has `<system-out>` YAML data with a `humanurl` field linking to individual runs whose URL path contains the underlying job name. The underlying job name cannot be derived from the aggregated job name — it must be extracted from the artifacts.
-
-Where `<rhcos_version>` is the `rhcos_version` field from the snapshot's failed job entry, `<rhcos_context>` is one of:
-- For **`rhcos9`** or **`rhcos9-default`**: "RHCOS 9 is based on RHEL 9 — the standard CoreOS variant for this OCP version."
-- For **`rhcos10`** or **`rhcos10-default`**: "RHCOS 10 is based on RHEL 10 with a different kernel, systemd, SELinux policy, and package versions than RHCOS 9. If the failure involves OS-level components (kernel, bootloader, rpm-ostree, MCO, Ignition), consider whether RHEL 10 differences could be the root cause."
-- For **`rhcos9_10`** (heterogeneous): "This is a heterogeneous cluster with both RHCOS 9 and RHCOS 10 nodes. Failures may be specific to one node variant — check whether failing nodes are RHCOS 9 or RHCOS 10 when node-level logs are available."
-
-`<summary_json_path>` is the absolute path to the snapshot's `summary.json` file, and `<originating_payload_tag>` is the failure mode's `first_failed_in` value (Step 3.3/Step 5) — not the job-level `streak.originating_payload`, which can predate the regression when a job has multiple failure modes.
-
-**Structured Return Format**: Instruct each subagent to include an `ANALYSIS_RESULT` block at the end of its response:
-
-```
-ANALYSIS_RESULT:
-- failure_type: install|test|upgrade|infra
-- root_cause_summary: <one-line summary>
-- affected_components: <comma-separated list of affected operators/components>
-- key_error_patterns: <comma-separated key error strings for matching>
-- known_symptoms: <comma-separated symptom summaries from job_labels, or "none">
-- underlying_job_name: <for aggregated jobs only, extracted from junit artifacts>
-- retries_consistent: yes|no|no_retries|only_final_examined
-- retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure", or "no retries" when there was only a single attempt>
-- rhcos_version: rhcos9|rhcos10|rhcos9_10|rhcos9-default|rhcos10-default
-- rhcos_rpm_correlation: none|possible|likely
-- rhcos_rpm_suspect_packages: <comma-separated package names if correlation is possible or likely, or "none">
-- rhcos_rpm_changelog_evidence: <for each suspect package, the specific changelog entry that relates to the failure, or "none" if the changelog was read but contained no relevant entries, or "unavailable" if no changelog data exists in the snapshot>
-```
-
-The `rhcos_rpm_correlation` field indicates whether the failure may be related to RHCOS RPM changes found in `summary.json`:
-- `none` — no correlation found, or no RHCOS RPM changes exist for this job's variant
-- `possible` — the failure involves OS-level components that overlap with changed packages, but the link is not definitive (changelog may or may not contain relevant entries)
-- `likely` — error messages or failure behavior directly point to functionality provided by a changed RPM package, **especially when the RPM changelog text describes a change in the exact subsystem or behavior seen in the failure**
-
-**Note for aggregated jobs**: Since only the final attempt is examined (retries re-run aggregation only), set `retries_consistent: only_final_examined` and `retry_summary: "Aggregated job — only final attempt examined (retries re-run aggregation only)"`.
+Read `references/investigation-subagent.md` (in this skill's directory) for the **required subagent prompt**, its placeholder definitions, and the mandatory `ANALYSIS_RESULT` structured return format. Use that prompt verbatim (substituting the placeholder values) — do NOT paraphrase, shorten, or write a different prompt; the specific instructions in it are critical for analysis quality.
 
 **Important**: Launch ALL subagents in parallel for maximum speed. Do NOT set the `model` parameter — let subagents inherit the parent model, as these analysis tasks require a capable model.
 
@@ -530,7 +478,7 @@ Instead, recommend the correct action: **wait for the RHCOS with the rebuilt kub
 
 #### 6.5: Write Payload Results YAML
 
-Use the `payload-results-yaml` skill to create `$OUTPUT_DIR/payload-results-{tag}.yaml` (the `$OUTPUT_DIR` captured in Step 1)
+Load the `payload-results-yaml` skill now (via the Skill tool) — this is its point of use — and follow it to create `$OUTPUT_DIR/payload-results-{tag}.yaml` (the `$OUTPUT_DIR` captured in Step 1).
 
 This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, LOW), enabling downstream commands to filter by their own criteria. RHCOS RPM candidates (Step 6.1b) are included in `candidates[]` with `type: "rhcos_rpm"` alongside PR candidates (`type: "pr"`), not in a separate array.
 
@@ -538,231 +486,26 @@ This file contains ALL scored candidates across all confidence tiers (HIGH, MEDI
 
 ### Step 7: Generate HTML Report
 
-Create a self-contained HTML file named `payload-analysis-<tag>-summary.html` in `$OUTPUT_DIR` (the directory captured in Step 1). The tag should be sanitized for use as a filename.
+Create a self-contained HTML file named `payload-analysis-<sanitized_tag>-summary.html` in `$OUTPUT_DIR` (the directory captured in Step 1).
 
-The report must include the following sections:
+Produce it by filling the bundled template — do NOT write the HTML structure or CSS from scratch; the template is the single source of truth for section order, markup, and styling, which keeps reports consistent across runs:
 
-#### 7.1: Header and Executive Summary
+1. Locate the template:
 
-```html
-<h1>Payload Analysis: {payload_tag}</h1>
-<div class="metadata">
-  <p>Architecture: {architecture} | Stream: {stream} | Generated: {timestamp}</p>
-  <p>Release Controller: <a href="{release_url}">{payload_tag}</a></p>
-  <p>Snapshot: {snapshot_dir}</p>
-</div>
+   ```bash
+   TEMPLATE="${CLAUDE_PLUGIN_ROOT}/skills/payload-analysis/assets/report-template.html"
+   if [ ! -f "$TEMPLATE" ]; then
+     TEMPLATE=$(find ~/.claude/plugins -type f -path "*/ci/skills/payload-analysis/assets/report-template.html" 2>/dev/null | sort | head -1)
+   fi
+   ```
 
-<div class="executive-summary">
-  <h2>Executive Summary</h2>
-  <p>Phase: {phase}</p>
-  <p>{total_blocking} blocking jobs: {succeeded} passed, {failed} failed</p>
-  <p>{new_failures} new failure(s), {persistent_failures} persistent failure(s)</p>
-  <p>Chain: {chain_length} payloads, {hours_since_baseline}h since baseline</p>
-  <p>Consecutive rejections in this stream: {consecutive_rejection_count}</p>
-  <p>Last accepted: <a href="{baseline_url}">{baseline_tag}</a> ({hours_since_baseline}h ago)</p>
-  <p>Per-job persistence: {for each failed job — "job_name: failing N consecutive payloads"}</p>
-</div>
-```
+2. Read `references/report-guide.md` (in this skill's directory) for the per-section content rules: how to derive each `{placeholder}` value and when to include, drop, or repeat the marked `BEGIN`/`END` blocks.
 
-**Payload-chain context** surfaces the streak at a glance — include all of the fields above. Derive them from the snapshot: `consecutive_rejection_count` is the number of consecutive non-`Accepted` payloads in the chain up to and including this one (the chain runs from the last accepted baseline forward — see `chain_length` and the `payloads[]` phases); the last accepted payload is `baseline_tag`, cut `hours_since_baseline` hours ago; per-job persistence is each failed job's `streak.streak_length` (how many consecutive payloads that specific job has been failing). Render `phase` verbatim from Step 3.1.
-
-#### 7.2: Blocking Jobs Summary Table
-
-A table showing ALL blocking jobs with columns:
-- Job Name
-- RHCOS (the RHCOS version badge for this job from the snapshot's `rhcos_version` field: use `badge-rhcos9` / `badge-rhcos10` / `badge-rhcos-mixed` CSS classes; `rhcos9-default` renders with `badge-rhcos9`, `rhcos10-default` renders with `badge-rhcos10`. When a failure is variant-isolated, add a `variant-isolated` class to highlight the badge)
-- Status (color-coded: green for passed, red for failed)
-- Streak (consecutive failing payloads; "N/A" for passed)
-- History (the `failure_pattern` from the snapshot, e.g., "F F F S F F", with color-coded markers)
-- First Failed In (originating payload tag, linked to release controller)
-
-#### 7.3: Failed Job Details
-
-For each failed job, a collapsible section containing:
-
-```html
-<details>
-  <summary class="failed-job">
-    <span class="job-name">{job_name}</span>
-    <span class="badge badge-{new|persistent}">{New Failure|Failing for N payloads}</span>
-    <span class="badge badge-{rhcos9|rhcos10|rhcos-mixed}">{RHCOS 9|RHCOS 10|RHCOS 9+10}</span>
-  </summary>
-  <div class="detail-body">
-    <h4>Prow Job</h4>
-    <p><a href="{prow_url}">{prow_url}</a> | <a href="{gcs_url}">GCS Artifacts</a></p>
-
-    <!-- Only include when failure is variant-isolated (see Cross-Job Pattern Recognition) -->
-    <div class="variant-callout">
-      This failure is isolated to RHCOS {version} jobs and does not appear in RHCOS {other_version} jobs,
-      indicating an OS-variant-specific root cause (e.g., kernel, systemd, SELinux, or package differences
-      between RHEL 9 and RHEL 10).
-    </div>
-
-    <h4>Failure Analysis</h4>
-    <div class="analysis">{analysis_from_subagent}</div>
-
-    <h4>Known Symptoms Seen</h4>
-    <p class="symptoms">{comma-separated symptom summaries, or omit if "none"}</p>
-
-    <h4>First Failed In</h4>
-    <p><a href="{originating_payload_url}">{originating_payload_tag}</a></p>
-
-    <h4>Candidate PRs (introduced in {originating_payload_tag})</h4>
-    <table>
-      <tr><th>Component</th><th>PR</th><th>Description</th><th>Score</th></tr>
-    </table>
-  </div>
-</details>
-```
-
-#### 7.3b: RHCOS Changes
-
-Include this section after the failed job details when any payload in the chain has RHCOS RPM changes. If RHCOS RPM candidates were scored (Step 6.1b), show them prominently first, then include the full RPM changelog diff in a collapsible section.
-
-**Cover every relevant hop, not just one.** Failure modes can have different `first_failed_in` origins (Step 3.3/Step 5), so a single origin's diff can omit evidence for another candidate hop. Keep one "Full RHCOS RPM Changelog Diffs" section, but render the baseline diff for each variant plus one additional subsection for each distinct (originating payload, variant) pair referenced by any scored candidate or failure mode that differs from the baseline — do not create a separate collapsible section per origin.
-
-```html
-<div class="card">
-  <h2>RHCOS Changes</h2>
-
-  <!-- Only when scored RHCOS RPM candidates exist (type: "rhcos_rpm" in candidates[]) -->
-  <div class="rhcos-candidate">
-    <h3>RHCOS RPM Candidates</h3>
-    <p>The following RHCOS package updates scored as regression candidates. These cannot be reverted
-       through the normal PR revert process — escalate to the RHCOS or platform team.</p>
-    <table>
-      <tr><th>Package</th><th>Old Version</th><th>New Version</th><th>Variant</th><th>Score</th><th>Affected Jobs</th><th>Rationale</th></tr>
-      <tr>
-        <td>{package}</td><td>{old_version}</td><td>{new_version}</td>
-        <td><span class="badge badge-{rhcos9|rhcos10}">{variant}</span></td>
-        <td>{score}</td>
-        <td>{comma-separated job names}</td><td>{rationale with itemized signals}</td>
-      </tr>
-    </table>
-
-    <!-- When changelog evidence exists for any candidate -->
-    <details>
-      <summary>RPM Changelog Evidence</summary>
-      <div class="changelog-evidence">
-        <h4>{package} ({old_version} → {new_version})</h4>
-        <pre>{verbatim changelog entries from the RPM changelog diff}</pre>
-        <!-- Repeat for each candidate with changelog_evidence != "none" -->
-      </div>
-    </details>
-  </div>
-
-  <!-- Always include full RPM changelog diffs when RHCOS changes exist in any originating payload -->
-  <details>
-    <summary>Full RHCOS RPM Changelog Diffs</summary>
-    <h4>{rhcos_name} ({rhcos_tag}) — baseline ({baseline_tag})</h4>
-    <table>
-      <tr><th>Package</th><th>Old Version</th><th>New Version</th></tr>
-      <!-- List all changed packages from the baseline diff -->
-    </table>
-    <!-- Repeat for each RHCOS variant with changes -->
-
-    <!-- One additional subsection per distinct (originating payload, variant) pair referenced by a candidate or failure mode, when that origin differs from the baseline -->
-    <h4>{rhcos_name} ({rhcos_tag}) — hop at {originating_payload_tag}</h4>
-    <table>
-      <tr><th>Package</th><th>Old Version</th><th>New Version</th></tr>
-      <!-- List all changed packages from that hop's diff -->
-    </table>
-  </details>
-</div>
-```
-
-Add this CSS for RHCOS candidate styling:
-```css
-.rhcos-candidate { background: rgba(188,140,255,0.1); border-left: 4px solid var(--purple); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; }
-```
-
-#### 7.4: Recommended Reverts
-
-Include this section **before** the per-job details, immediately after the executive summary.
-
-If revert candidates were identified (score >= 85):
-
-```html
-<div class="verdict verdict-revert">
-  <h2>Recommended Reverts</h2>
-  <p><strong>OCP Policy: PRs that break payloads MUST be reverted.</strong></p>
-  <table>
-    <tr><th>PR</th><th>Component</th><th>Description</th><th>Caused Failure In</th><th>Failing Since</th><th>Rationale</th></tr>
-  </table>
-  <h3>Automated Reverts</h3>
-  <div class="revert-prompt">
-    <button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent.trim())">Copy</button>
-    <pre>/ci:payload-revert {payload_tag}</pre>
-  </div>
-</div>
-```
-
-If no revert candidates:
-
-```html
-<div class="verdict verdict-none">
-  <strong>No Recommended Reverts</strong>
-  <p>No PRs were identified with sufficient confidence for revert recommendation.</p>
-</div>
-```
-
-#### 7.5: Force-Accept Recommendation
-
-If recommended (Step 6.4):
-
-```html
-<div class="verdict verdict-infra">
-  <strong>Force-Accept Recommended</strong>
-  <p>All blocking job failures are temporary infrastructure issues and no payload has been
-     accepted in this stream for more than 18 hours.</p>
-  <p>Baseline: <a href="{baseline_url}">{baseline_tag}</a> ({hours_since_baseline}h ago)</p>
-</div>
-```
-
-#### 7.6: Review Notes
-
-Include this section at the end of the report, before the footer:
-
-```html
-<div class="card">
-  <h2>Adversarial Review</h2>
-  <p>{review_summary}</p>
-  <!-- If reviewer identified issues: -->
-  <h4>Issues Found</h4>
-  <ul>
-    <li>{issue_description} — {action_taken}</li>
-  </ul>
-</div>
-```
-
-#### 7.7: Styling
-
-The HTML must be fully self-contained with embedded CSS. Use a GitHub-inspired dark mode design. Use CSS variables for the color palette:
-
-```css
-:root {
-  --bg: #0d1117; --surface: #161b22; --border: #30363d;
-  --text: #e6edf3; --text-muted: #8b949e;
-  --green: #3fb950; --red: #f85149; --orange: #d29922;
-  --blue: #58a6ff; --purple: #bc8cff;
-}
-```
-
-Follow the styling conventions from the existing report format. All `<a>` links must use `target="_blank"`.
-
-Include these RHCOS-specific styles:
-
-```css
-.badge-rhcos9 { background: rgba(139,148,158,0.15); color: var(--text-muted); font-size: 0.75rem; }
-.badge-rhcos10 { background: rgba(188,140,255,0.15); color: var(--purple); font-size: 0.75rem; }
-.badge-rhcos-mixed { background: rgba(210,153,34,0.15); color: var(--orange); font-size: 0.75rem; }
-.badge.variant-isolated { border: 1px solid currentColor; }
-.variant-callout { background: rgba(188,140,255,0.1); border-left: 4px solid var(--purple); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; font-size: 0.9rem; }
-```
+3. Copy the template to the output path and fill it: replace every placeholder, expand repeatable blocks once per item, remove blocks whose condition is false, and strip the marker comments. No unfilled `{placeholder}` or `BEGIN`/`END` marker may remain (verified in Step 10).
 
 ### Step 8: Generate JSON Data File
 
-Use the `payload-autodl-json` skill to produce `$OUTPUT_DIR/payload-analysis-<sanitized_tag>-autodl.json` (the `$OUTPUT_DIR` captured in Step 1).
+Load the `payload-autodl-json` skill now (via the Skill tool) — this is its point of use — and follow it to produce `$OUTPUT_DIR/payload-analysis-<sanitized_tag>-autodl.json` (the `$OUTPUT_DIR` captured in Step 1).
 
 See the `payload-autodl-json` skill for the complete schema, row cardinality rules, and field rules.
 
@@ -770,56 +513,12 @@ See the `payload-autodl-json` skill for the complete schema, row cardinality rul
 
 After generating the initial report and output files, launch a **dedicated subagent** to check that the analysis is complete and well-supported. The reviewer catches lazy or shallow work — it does NOT challenge or re-score rubric-based confidence scores.
 
-The reviewer should receive **only** the following (NOT the full conversation history):
+Read `references/completeness-review.md` (in this skill's directory) for the reviewer's inputs, the required reviewer prompt, and how to act on its response. Two invariants worth restating here:
 
-1. The `summary.json` snapshot data (payload metadata, failed jobs, streaks, test regressions, RHCOS changes)
-2. The scored candidate list with per-component rubric breakdowns from Step 6
-3. The `ANALYSIS_RESULT` blocks from all subagents in Step 4
-4. The revert recommendations (if any)
-5. The RHCOS RPM candidates (if any, identified by `type: "rhcos_rpm"` in the scored candidates)
-
-Use this prompt for the reviewer:
-
-> You are a completeness reviewer for a payload failure analysis. Your job is to catch gaps in coverage and shallow analysis — NOT to challenge correct conclusions or lower confidence scores.
->
-> **Snapshot data**: {summary.json contents — metadata, failed jobs with streaks, test regressions}
->
-> **Subagent analyses**: {ANALYSIS_RESULT blocks for each failed job}
->
-> **Scored candidates**: {list of (job, PR, score, rubric breakdown) tuples}
->
-> **Revert recommendations**: {list of PRs recommended for revert, or "none"}
->
-> Check for these specific problems:
->
-> 1. **Missing skill invocations**: Was the `prow-job-analysis` skill actually loaded and used? A subagent that improvises without loading the appropriate skill produces shallow analysis.
->
-> 2. **Shallow root causes**: Do root cause summaries cite specific error messages, code paths, or log excerpts? Or do they just restate test names and job status? "Test X failed" is not a root cause. "Test X failed because pod Y OOMKilled at 512Mi limit after PR Z increased memory usage in function F" is a root cause.
->
-> 3. **Incomplete coverage**: Are there failed jobs with no subagent analysis or with only a one-line summary? Every failed blocking job deserves a thorough investigation.
->
-> 4. **Wrong reference for failure type**: Did the analysis route to the correct reference — install (and metal for metal jobs) for install failures, and the test/flaky-test reference for test failures? Using the wrong reference produces misdirected analysis.
->
-> 5. **Missing RHCOS RPM candidates**: If RHCOS RPM changes exist in the originating payload and failures are variant-isolated or involve OS-level components, were the RPM changes scored as candidates alongside PRs? Were the RPM changelogs read and cited as evidence in the rubric breakdown? An RHCOS RPM change whose changelog was not consulted is like a PR candidate whose `code.diff` was never read — an incomplete investigation.
->
-> **Rules**:
-> - Do NOT suggest lowering confidence scores. If the rubric signals fired (error message match, new failure, component exclusivity), the score is correct. Period.
-> - Do NOT suggest that a failure "might be infrastructure" when there is positive evidence linking it to a PR. Infrastructure classification requires affirmative evidence (cloud API errors, quota limits, network timeouts) — not just uncertainty about the code change.
-> - Do NOT second-guess revert recommendations. When confidence >= 85 based on the rubric, the revert is warranted per OCP policy.
->
-> For each issue found, provide:
-> - **Issue**: One-line description
-> - **Affected job(s)**: Which jobs are affected
-> - **Recommendation**: Re-run subagent with correct skill, deepen analysis, or add missing coverage
->
-> If the analysis is thorough, say so: "Analysis is complete — all jobs investigated with appropriate skills and specific root causes identified."
-
-After receiving the reviewer's response:
-
-- If coverage gaps are found (missing skill invocation, shallow analysis, wrong skill): re-run the affected subagent analyses, then re-score. Update the HTML report and YAML/JSON files.
-- If the analysis is already thorough: note this in the report.
+- The reviewer receives **only** the curated inputs listed in the reference — never the full conversation history.
 - **Never lower rubric-based confidence scores** based on the reviewer's response. The rubric is mechanical — if the signals fired, the score stands.
-- Populate the "Adversarial Review" section (Step 7.6) in the HTML report with the reviewer's findings and any actions taken.
+
+After acting on the response, populate the "Adversarial Review" section of the HTML report with the reviewer's findings and any actions taken.
 
 ### Step 10: Final Self-Check, Save, and Present
 
@@ -829,7 +528,7 @@ Before presenting, confirm that **all Step 4 investigation subagents and the Ste
    - HTML report: `$OUTPUT_DIR/payload-analysis-<sanitized_tag>-summary.html`
    - JSON data file: `$OUTPUT_DIR/payload-analysis-<sanitized_tag>-autodl.json`
    - Payload results YAML: `$OUTPUT_DIR/payload-results-<sanitized_tag>.yaml`
-2. **The HTML contains every required section** from Step 7: header + executive summary (including the payload-chain context from Step 7.1), recommended reverts (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs summary table, a collapsible details block for **every** failed job, the RHCOS Changes section when any payload has RHCOS changes, and the Adversarial Review section.
+2. **The HTML contains every required section** from the Step 7 template: the phase hero and stat tiles, the chain-context card, the revert verdict (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs table, a collapsible details block for **every** failed job, the informing/flake tests section when such tests exist, the RHCOS Changes section when any payload has RHCOS changes, and the Adversarial Review section. No unfilled `{placeholder}` and no `BEGIN`/`END` marker comments remain.
 3. **Cross-output consistency**: phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
 4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.
 
