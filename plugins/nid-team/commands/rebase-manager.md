@@ -34,7 +34,10 @@ Run the rebase manager script:
 python3 <extension_path>/plugins/nid-team/rebase/rebase_manager.py [--tag <tag>] [--auto] [--dryrun]
 ```
 
-*Note to Executing Agent:* When running this command inside a target repository (e.g., `openshift/coredns`) where the `plugins/nid-team/rebase/rebase_manager.py` file is not locally present, you must locate the script within the linked global extension directory at `~/.gemini/extensions/ai-helpers/plugins/nid-team/rebase/rebase_manager.py` and execute it from there, while maintaining the target repository as your current working directory.
+*Note to Executing Agent (Gemini or Claude):* When running this command inside a target repository (e.g., `openshift/coredns`) where the `plugins/nid-team/rebase/rebase_manager.py` file is not locally present, you must locate the script within your respective global plugin/extension directory or local cloned `ai-helpers` repository path:
+- For Gemini CLI: Look in `~/.gemini/extensions/ai-helpers/plugins/nid-team/rebase/rebase_manager.py`
+- For Claude Code: Look in your active plugins/extensions directory (e.g., `~/.claude/plugins/` or standard Claude plugin paths) or find it under your cloned `ai-helpers` development workspace path.
+Once located, execute the script from that path while maintaining the target repository as your current working directory.
 
 ### Arguments
 
