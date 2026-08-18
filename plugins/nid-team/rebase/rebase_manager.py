@@ -114,9 +114,38 @@ class RebaseManager:
                 gitignore.write_text(f"{entry}\n")
 
     def detect_active_pr(self):
-        """Check GitHub for open rebase PRs."""
+        """Check GitHub for open rebase PRs matching the current target version branch."""
         try:
-            # Search for open PRs with "Rebase to" in title from current repo
+            # 1. Determine the target version we are interested in
+            target = self.target_tag
+            if not target:
+                # If we are currently on a local rebase branch, infer the target version from it
+                try:
+                    current_branch = self.run_cmd(["git", "branch", "--show-current"])
+                    if current_branch.startswith("rebase-"):
+                        target = current_branch.replace("rebase-", "")
+                        log_info(f"Currently on branch {current_branch}. Target rebase version is {target}.")
+                except Exception:
+                    pass
+
+            if not target:
+                # Fallback: find the latest upstream tag
+                try:
+                    tags = self.get_upstream_tags()
+                    if tags:
+                        target = tags[-1]
+                        log_info(f"Target rebase version tag is inferred as {target}.")
+                except Exception:
+                    pass
+
+            if not target:
+                log_warn("Could not determine target rebase version. Querying general rebase PRs.")
+                # Fallback to loose title search if target version cannot be resolved
+                expected_branch = None
+            else:
+                expected_branch = f"rebase-{target}"
+
+            # 2. Search for open PRs from current repo
             prs_json = self.run_cmd([
                 "gh", "pr", "list",
                 "--repo", self.repo_name,
@@ -126,7 +155,13 @@ class RebaseManager:
             prs = json.loads(prs_json)
             for pr in prs:
                 if "Rebase to " in pr["title"]:
-                    return pr
+                    if expected_branch:
+                        # Match branch name exactly to avoid matching stale past drafts
+                        if pr["headRefName"] == expected_branch:
+                            return pr
+                    else:
+                        # Loose matching if branch is unknown
+                        return pr
             return None
         except Exception as e:
             log_warn(f"Failed to query GitHub PRs: {e}")
@@ -500,8 +535,7 @@ Below is the default analysis of downstream changes currently carried on `{self.
         try:
             # Gets review comments & issue comments
             comments_json = self.run_cmd([
-                "gh", "api", f"repos/{self.repo_name}/issues/{pr_num}/comments",
-                "--json", "id,body,author,createdAt"
+                "gh", "api", f"repos/{self.repo_name}/issues/{pr_num}/comments"
             ])
             comments = json.loads(comments_json)
         except Exception as e:
@@ -512,7 +546,7 @@ Below is the default analysis of downstream changes currently carried on `{self.
         human_comments = []
         bot_logins = ["coderabbitai", "openshift-bot", "openshift-cherrypick-robot", "openshift-ci", "openshift-ci-robot", "github-actions"]
         for c in comments:
-            author = c.get("author", {}).get("login", "")
+            author = c.get("user", {}).get("login", "")
             if author and author not in bot_logins and "[bot]" not in author:
                 human_comments.append(c)
 
@@ -527,7 +561,7 @@ Below is the default analysis of downstream changes currently carried on `{self.
         # An expert AI-helper using this skill will read the file and comments and perform
         # surgical code edits. Here we outline what was processed.
         for c in human_comments:
-            author = c["author"]["login"]
+            author = c["user"]["login"]
             body = c["body"]
             log_info(f"Feedback from @{author}: '{body[:80]}...'")
             
@@ -557,7 +591,7 @@ Below is the default analysis of downstream changes currently carried on `{self.
             checks_json = self.run_cmd([
                 "gh", "pr", "checks", str(pr_num),
                 "-R", self.repo_name,
-                "--json", "name,state,status,url"
+                "--json", "name,state,link"
             ])
             checks = json.loads(checks_json)
             
@@ -575,7 +609,7 @@ Below is the default analysis of downstream changes currently carried on `{self.
                     passed += 1
                 elif state in ["FAILURE", "ERROR"]:
                     failed += 1
-                    log_warn(f"❌ CI Job Failed: {name} ({check.get('url')})")
+                    log_warn(f"❌ CI Job Failed: {name} ({check.get('link')})")
                 else:
                     pending += 1
             
