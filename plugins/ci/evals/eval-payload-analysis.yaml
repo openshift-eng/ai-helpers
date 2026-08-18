@@ -287,22 +287,17 @@ judges:
       the dataset directory, which is never staged into the agent workspace —
       but the repo checkout (or host filesystem, for local runners) may be
       reachable. Fail the case if the transcript shows the agent touching the
-      answer file, traversing the eval dataset directory, or echoing
-      annotation-only vocabulary that could only come from reading answers.
+      answer file or traversing the eval dataset directory.
       Scans the main transcript; subagent transcripts stored as separate
       files are outside this check's reach.
     check: |
       stdout = outputs.get("stdout", "")
-      # File/path tells: the answer file itself or the dataset tree.
-      # Content tells: field names that exist only in annotations.yaml
-      # (the skill's own outputs use force_accept_recommended, confidence_score).
+      # Path tells only: the answer file itself or the dataset tree.
+      # Annotation field names are deliberately not matched — the agent can
+      # legitimately reason about its own output schema in similar terms.
       patterns = [
           "annotations.yaml",
           "evals/cases/payload-analysis",
-          "expected_candidates",
-          "expected_confidence",
-          "force_accept_expected",
-          "expected_failed_job_count",
       ]
       hits = []
       for p in patterns:
