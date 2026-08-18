@@ -24,18 +24,36 @@ def fetch_url(url):
 def gh_api(path):
     result = subprocess.run(
         ["gh", "api", path],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True, text=True, timeout=120,
     )
     if result.returncode != 0:
         raise RuntimeError(f"gh api {path} failed: {result.stderr.strip()}")
     return json.loads(result.stdout)
 
 
+def gh_api_paginated(path):
+    """Fetch all pages and flatten into a single list."""
+    result = subprocess.run(
+        ["gh", "api", "--paginate", "--slurp", path],
+        capture_output=True, text=True, timeout=120,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"gh api {path} failed: {result.stderr.strip()}")
+    pages = json.loads(result.stdout)
+    items = []
+    for page in pages:
+        if isinstance(page, list):
+            items.extend(page)
+        else:
+            items.append(page)
+    return items
+
+
 def fetch_pr_data(repo, pr_num):
     """Two GitHub API calls per PR: pulls/{n} + commits/{sha}/status."""
     pr_meta = gh_api(f"repos/{repo}/pulls/{pr_num}")
     sha = pr_meta["head"]["sha"]
-    status_data = gh_api(f"repos/{repo}/commits/{sha}/status")
+    status_data = gh_api(f"repos/{repo}/commits/{sha}/status?per_page=100")
     return pr_num, pr_meta, status_data
 
 
@@ -93,12 +111,12 @@ def match_tide_queries(tide_queries, repo, branch, pr_labels_set):
         required = sorted(tq.get("labels", []), key=len)
         forbidden = sorted(tq.get("missingLabels", []), key=len)
 
-        labels = [{"name": l, "have": l in pr_labels_set} for l in required]
-        missing_labels = [{"name": l, "have": l in pr_labels_set} for l in forbidden]
+        labels = [{"name": label, "have": label in pr_labels_set} for label in required]
+        missing_labels = [{"name": label, "have": label in pr_labels_set} for label in forbidden]
 
         total = len(labels) + len(missing_labels)
         if total > 0:
-            hits = sum(1 for l in labels if l["have"]) + sum(1 for l in missing_labels if not l["have"])
+            hits = sum(1 for label in labels if label["have"]) + sum(1 for label in missing_labels if not label["have"])
             score = hits / total
         else:
             score = 1.0
@@ -141,7 +159,7 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
                 s.get("target_url") or None,
             ))
 
-    pr_labels_set = {l["name"] for l in pr_meta.get("labels", [])}
+    pr_labels_set = {label["name"] for label in pr_meta.get("labels", [])}
     queries = match_tide_queries(tide_queries, repo, branch, pr_labels_set)
     best = queries[0] if queries else None
 
@@ -150,12 +168,12 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
         labels_section = {
             "met": abs(best["score"] - 1.0) < 1e-9,
             "required": {
-                "have": [l["name"] for l in best["labels"] if l["have"]],
-                "missing": [l["name"] for l in best["labels"] if not l["have"]],
+                "have": [label["name"] for label in best["labels"] if label["have"]],
+                "missing": [label["name"] for label in best["labels"] if not label["have"]],
             },
             "forbidden": {
-                "have": [l["name"] for l in best["missingLabels"] if l["have"]],
-                "clear": [l["name"] for l in best["missingLabels"] if not l["have"]],
+                "have": [label["name"] for label in best["missingLabels"] if label["have"]],
+                "clear": [label["name"] for label in best["missingLabels"] if not label["have"]],
             },
         }
     else:
@@ -173,8 +191,8 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
 
     blockers = []
     if best:
-        blockers += [f"missing required label: {l['name']}" for l in best["labels"] if not l["have"]]
-        blockers += [f"has forbidden label: {l['name']}" for l in best["missingLabels"] if l["have"]]
+        blockers += [f"missing required label: {label['name']}" for label in best["labels"] if not label["have"]]
+        blockers += [f"has forbidden label: {label['name']}" for label in best["missingLabels"] if label["have"]]
     else:
         blockers.append("no Tide query matches this branch")
 
@@ -194,7 +212,7 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
         "state": pr_meta["state"],
         "mergeable": pr_meta.get("mergeable"),
         "tide": tide_status,
-        "tide_details": blockers,
+        "blockers": blockers,
         "labels": labels_section,
         "required_jobs": required_jobs,
     }
@@ -202,7 +220,7 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
 
 def list_open_prs(repo, author):
     """List open PR numbers for an author in a repo."""
-    data = gh_api(f"repos/{repo}/pulls?state=open&per_page=100")
+    data = gh_api_paginated(f"repos/{repo}/pulls?state=open&per_page=100")
     return [pr["number"] for pr in data if pr["user"]["login"] == author]
 
 
@@ -226,7 +244,7 @@ def main():
             return
 
     # Phase 1: fetch tide.js + PR data in parallel
-    with ThreadPoolExecutor(max_workers=1 + len(pr_numbers)) as pool:
+    with ThreadPoolExecutor(max_workers=16) as pool:
         future_tide = pool.submit(fetch_url, "https://prow.ci.openshift.org/tide.js")
         pr_futures = {
             pool.submit(fetch_pr_data, repo, pr_num): pr_num
@@ -243,7 +261,7 @@ def main():
     # Phase 2: fetch presubmit configs for unique branches
     branches = {pr_data[n][0]["base"]["ref"] for n in pr_numbers}
     presubmit_configs = {}
-    with ThreadPoolExecutor(max_workers=max(1, len(branches))) as pool:
+    with ThreadPoolExecutor(max_workers=16) as pool:
         branch_futures = {
             pool.submit(fetch_presubmit_config, repo, b): b for b in branches
         }

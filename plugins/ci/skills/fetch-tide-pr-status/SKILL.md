@@ -1,6 +1,6 @@
 ---
 name: fetch-tide-pr-status
-description: Fetch PR merge status — labels, required jobs, and Tide verdict
+description: Use when checking what's blocking a PR from merging in OpenShift CI — evaluates Tide merge requirements, required/forbidden labels, and required job statuses.
 ---
 
 # Fetch Tide PR Status
@@ -39,7 +39,7 @@ JSON array, one object per PR:
     "state": "open",
     "mergeable": true,
     "tide": "Not mergeable. Needs jira/valid-bug label.",
-    "tide_details": [
+    "blockers": [
       "missing required label: jira/valid-bug",
       "has forbidden label: jira/invalid-bug",
       "job not passing: ci/prow/e2e-aws-ovn (running)"
@@ -63,9 +63,8 @@ JSON array, one object per PR:
 ]
 ```
 
-**`tide`** — Tide's own verdict. **`tide_details`** — everything preventing merge (empty = ready). **`required_jobs`** — non-optional jobs from openshift/release config. If the config could not be fetched, contains a single `{"error": "..."}` entry.
+**`tide`** — Tide's own verdict. **`blockers`** — what's preventing merge. **`required_jobs`** — non-optional jobs from openshift/release config; if the config could not be fetched, contains a single `{"error": "..."}` entry instead of jobs (not reflected in `blockers`).
 
-Job states: `success`, `failure` (+ `url`), `running` (+ `description`), `awaiting_pipeline`, `error` (+ `description`).
 
 ## Data Sources
 
