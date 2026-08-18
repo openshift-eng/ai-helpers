@@ -71,17 +71,21 @@ class RebaseManager:
             return self.run_cmd(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"])
         except Exception:
             # Fallback to git remote parsing
-            try:
-                remote_v = self.run_cmd(["git", "remote", "get-url", "openshift"])
-            except Exception:
+            for remote in ["openshift", "upstream", "origin"]:
                 try:
-                    remote_v = self.run_cmd(["git", "remote", "get-url", "origin"])
+                    remote_v = self.run_cmd(["git", "remote", "get-url", remote])
+                    break
                 except Exception:
-                    return "unknown/repository"
+                    continue
+            else:
+                return "unknown/repository"
             
-            # Extract owner/repo
-            if "github.com" in remote_v:
-                parts = remote_v.split("github.com/")[-1].replace(".git", "").split("/")
+            # Normalize and extract owner/repo
+            url = remote_v.replace("git@github.com:", "github.com/")
+            url = url.replace("https://github.com/", "github.com/")
+            url = url.replace("http://github.com/", "github.com/")
+            if "github.com/" in url:
+                parts = url.split("github.com/")[-1].replace(".git", "").split("/")
                 if len(parts) >= 2:
                     return f"{parts[0]}/{parts[1]}"
             return "unknown/repository"
@@ -116,8 +120,30 @@ class RebaseManager:
     def detect_active_pr(self):
         """Check GitHub for open rebase PRs matching the current target version branch."""
         try:
-            # 1. Determine the target version we are interested in
+            # 1. Search for open PRs from current repo
+            prs_json = self.run_cmd([
+                "gh", "pr", "list",
+                "--repo", self.repo_name,
+                "--state", "open",
+                "--json", "number,title,isDraft,headRefName,url"
+            ])
+            prs = json.loads(prs_json)
+
+            # 2. Determine the target version we are interested in
             target = self.target_tag
+            if not target:
+                # First, check if there is an active PR and extract version from its title
+                for pr in prs:
+                    if "Rebase to " in pr["title"]:
+                        words = pr["title"].split()
+                        for word in reversed(words):
+                            if word.startswith("v") and any(char.isdigit() for char in word):
+                                target = word
+                                log_info(f"Inferred target version {target} from active PR title: {pr['title']}")
+                                break
+                        if target:
+                            break
+
             if not target:
                 # If we are currently on a local rebase branch, infer the target version from it
                 try:
@@ -145,19 +171,12 @@ class RebaseManager:
             else:
                 expected_branch = f"rebase-{target}"
 
-            # 2. Search for open PRs from current repo
-            prs_json = self.run_cmd([
-                "gh", "pr", "list",
-                "--repo", self.repo_name,
-                "--state", "open",
-                "--json", "number,title,isDraft,headRefName,url"
-            ])
-            prs = json.loads(prs_json)
             for pr in prs:
                 if "Rebase to " in pr["title"]:
                     if expected_branch:
-                        # Match branch name exactly to avoid matching stale past drafts
-                        if pr["headRefName"] == expected_branch:
+                        # Match branch name flexibly to avoid matching stale past drafts
+                        possible_branches = [expected_branch, expected_branch.replace("rebase-", "rebase-to-")]
+                        if pr["headRefName"] in possible_branches:
                             return pr
                     else:
                         # Loose matching if branch is unknown
@@ -169,6 +188,18 @@ class RebaseManager:
 
     def determine_phase(self, active_pr):
         """Determine current workflow phase based on local state and remote PR."""
+        # Get current local branch
+        try:
+            current_branch = self.run_cmd(["git", "branch", "--show-current"])
+        except Exception:
+            current_branch = "unknown"
+
+        # If --auto is specified and we are on the main branch, we always force PHASE_1_DISCOVERY
+        # to bypass any stale draft PRs and allow rebuilding the rebase from scratch.
+        if self.auto and current_branch == self.get_main_branch():
+            log_info(f"Currently on main branch '{current_branch}' with --auto. Bypassing draft PR check to start fresh.")
+            return "PHASE_1_DISCOVERY"
+
         if active_pr:
             if active_pr["isDraft"]:
                 return "PHASE_2_ACTIVE_DRAFT"
@@ -191,7 +222,7 @@ class RebaseManager:
         for tag in tags_raw.split("\n"):
             tag = tag.strip()
             # Filter stable releases (starts with v, doesn't contain rc, alpha, beta, dev)
-            if tag.startswith("v") and not any(x in tag.lower() for x in ["rc", "alpha", "beta", "dev"]):
+            if tag.startswith("v") and "." in tag and not any(x in tag.lower() for x in ["rc", "alpha", "beta", "dev"]):
                 tags.append(tag)
         
         # Sort tags (simple semver string sort or native sort)
