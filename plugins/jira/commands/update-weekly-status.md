@@ -227,7 +227,7 @@ Using the pre-gathered data, apply the activity analysis rules from `activity-an
 
 Format using `ryg_field` template:
 
-```
+```markdown
 - Color Status: {Red, Yellow, Green}
   - Status summary:
     - Thing 1 that happened since last week
@@ -290,7 +290,18 @@ Options:
 
 ##### e. Update the Issue
 
-Use `editJiraIssue` with `contentFormat: "markdown"` to set `customfield_10814` (Status Summary) to the formatted status text.
+Use `editJiraIssue` to set `customfield_10814` (Status Summary) to the formatted status text. This field is rich text (ADF), so always set `contentFormat: "markdown"` to have the MCP tool convert the markdown-formatted status to ADF automatically. Do NOT pass Jira wiki syntax (`* `, `** `) — use standard markdown bullets (`- `).
+
+```javascript
+editJiraIssue(
+  cloudId: "redhat.atlassian.net",
+  issueIdOrKey: "{ISSUE_KEY}",
+  fields: {"customfield_10814": "{markdown-formatted-status-text}"},
+  contentFormat: "markdown"
+)
+```
+
+If the update fails or renders incorrectly, fall back to constructing ADF directly (see `formatting.md` § Status Summary Field).
 
 Display confirmation: `✓ Updated {ISSUE-KEY}`
 
@@ -507,7 +518,7 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 
 5. **Format Validation**:
    - Validate Status Summary text format before updating
-   - Ensure markdown bullet point structure is maintained
+   - Ensure standard markdown bullet syntax (`- `) is used, not Jira wiki syntax (`* `, `** `)
    - Check for Color Status line (Red/Yellow/Green)
    - Warn if format doesn't match expected template
 

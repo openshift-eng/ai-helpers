@@ -137,22 +137,23 @@ Used by `/jira:update-weekly-status` to update the Status Summary custom field.
 
 ### Template
 
-```
-* Color Status: {Red|Yellow|Green}
- * Status summary:
-     ** {achievement-or-progress-1}
-     ** {achievement-or-progress-2}
-     ** {achievement-or-progress-N}
- * Risks:
-     ** {risk-1-or-"None at this time"}
+```markdown
+- Color Status: {Red|Yellow|Green}
+  - Status summary:
+    - {achievement-or-progress-1}
+    - {achievement-or-progress-2}
+    - {achievement-or-progress-N}
+  - Risks:
+    - {risk-1-or-"None at this time"}
 ```
 
 ### Formatting Rules
 
-1. **Exact spacing matters**: The field may have specific formatting requirements
-   - Top-level bullet: `* ` (asterisk + space)
-   - Second-level: ` * ` (space + asterisk + space)
-   - Third-level: `     ** ` (5 spaces + double asterisk + space)
+1. **Use standard markdown bullets**: The field is rich text (ADF). Use markdown syntax so `contentFormat: "markdown"` converts it correctly.
+   - Top-level bullet: `- ` (dash + space)
+   - Second-level: `  - ` (2 spaces + dash + space)
+   - Third-level: `    - ` (4 spaces + dash + space)
+   - **Do NOT use** Jira wiki syntax (`* `, `** `) — it is not recognized by the markdown-to-ADF converter.
 
 2. **Color Status line**: Always first, exactly one of Red/Yellow/Green
 
@@ -192,38 +193,38 @@ Used by `/jira:update-weekly-status` to update the Status Summary custom field.
 ### Example Outputs
 
 **Green Status**:
-```
-* Color Status: Green
- * Status summary:
-     ** PR #456 merged adding OAuth2 token validation with comprehensive unit tests
-     ** AUTH-102 completed: token refresh mechanism implemented and tested
-     ** AUTH-103 in progress: session handling refactor, draft PR submitted for review
- * Risks:
-     ** None at this time
+```markdown
+- Color Status: Green
+  - Status summary:
+    - PR #456 merged adding OAuth2 token validation with comprehensive unit tests
+    - AUTH-102 completed: token refresh mechanism implemented and tested
+    - AUTH-103 in progress: session handling refactor, draft PR submitted for review
+  - Risks:
+    - None at this time
 ```
 
 **Yellow Status**:
-```
-* Color Status: Yellow
- * Status summary:
-     ** UI-201 design review completed, implementation 60% complete
-     ** AUTH-103 draft PR open but awaiting review capacity from team
-     ** Made progress on auth integration but slower than planned
- * Risks:
-     ** Review bandwidth may delay merge to next week
-     ** Upstream API deprecation notice received - may need refactor
+```markdown
+- Color Status: Yellow
+  - Status summary:
+    - UI-201 design review completed, implementation 60% complete
+    - AUTH-103 draft PR open but awaiting review capacity from team
+    - Made progress on auth integration but slower than planned
+  - Risks:
+    - Review bandwidth may delay merge to next week
+    - Upstream API deprecation notice received - may need refactor
 ```
 
 **Red Status**:
-```
-* Color Status: Red
- * Status summary:
-     ** AUTH-104 blocked on Azure subscription approval for 2 weeks
-     ** No PRs merged this period due to blocker
-     ** Escalated to infrastructure team, awaiting response
- * Risks:
-     ** Deadline at risk if subscription not approved by Friday
-     ** May need to descope Azure AD integration from initial release
+```markdown
+- Color Status: Red
+  - Status summary:
+    - AUTH-104 blocked on Azure subscription approval for 2 weeks
+    - No PRs merged this period due to blocker
+    - Escalated to infrastructure team, awaiting response
+  - Risks:
+    - Deadline at risk if subscription not approved by Friday
+    - May need to descope Azure AD integration from initial release
 ```
 
 ## Format: feature_markdown
@@ -420,8 +421,8 @@ def format_ryg_field(issue_data, config):
     output = []
     health = issue_data.analysis.health.capitalize()  # Green, Yellow, Red
 
-    output.append(f"* Color Status: {health}")
-    output.append(" * Status summary:")
+    output.append(f"- Color Status: {health}")
+    output.append("  - Status summary:")
 
     # Combine achievements and in-progress items
     items = []
@@ -431,15 +432,15 @@ def format_ryg_field(issue_data, config):
         items.append(progress.description)
 
     for item in items:
-        output.append(f"     ** {item}")
+        output.append(f"    - {item}")
 
     # Risks section
-    output.append(" * Risks:")
+    output.append("  - Risks:")
     if issue_data.analysis.risks:
         for risk in issue_data.analysis.risks[:2]:  # Limit to top 2
-            output.append(f"     ** {risk.description}")
+            output.append(f"    - {risk.description}")
     else:
-        output.append("     ** None at this time")
+        output.append("    - None at this time")
 
     return "\n".join(output)
 ```
@@ -524,11 +525,11 @@ Before outputting, validate the formatted text:
 
 ### ryg_field validation
 
-- [ ] Starts with `* Color Status:` line
+- [ ] Starts with `- Color Status:` line
 - [ ] Color is exactly one of: Red, Yellow, Green
 - [ ] Status summary section present with at least one item
 - [ ] Risks section present (even if "None at this time")
-- [ ] Indentation matches expected format
+- [ ] Uses standard markdown bullet syntax (`- `), not Jira wiki syntax (`* `, `** `)
 - [ ] No empty bullet points
 
 ## Escaping Special Characters
@@ -539,7 +540,19 @@ Backslash escaping (`\*`, `\[`, etc.) is unreliable in Jira Cloud's markdown ren
 
 ### Status Summary Field
 
-The Status Summary field (`customfield_10814`) is a plain string:
-- Avoid HTML tags
-- Keep text plain and readable
-- No special escaping needed
+The Status Summary field (`customfield_10814`) is a rich text field that stores content as Atlassian Document Format (ADF). When writing to this field via `editJiraIssue`:
+
+1. **Preferred**: Write standard markdown and set `contentFormat: "markdown"` — the MCP tool converts it to ADF automatically.
+2. **Fallback**: If markdown conversion produces unexpected results, construct ADF directly:
+
+```json
+{
+  "version": 1,
+  "type": "doc",
+  "content": [
+    {"type": "paragraph", "content": [{"type": "text", "text": "your text here"}]}
+  ]
+}
+```
+
+**Do NOT** pass Jira wiki syntax (`* `, `** `, `h2.`, etc.) or raw HTML — the MCP tool does not recognize these formats and the field content will render incorrectly.
