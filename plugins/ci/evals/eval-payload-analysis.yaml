@@ -95,10 +95,10 @@ outputs:
     schema: |
       The skill writes three files to the workspace root (not a subdirectory):
       1. payload-analysis-{sanitized_tag}-summary.html — self-contained HTML report
-         built from the skill's assets/report-template.html: phase hero, stat tiles,
-         chain context, recommended reverts (or no-revert verdict), optional
-         force-accept recommendation, blocking jobs table, and per-job collapsible
-         failure details. Dark styling with embedded CSS.
+         built from the skill's assets/report-template.html: executive summary,
+         blocking jobs summary table, recommended reverts (or no-revert verdict),
+         optional force-accept recommendation, and per-job collapsible failure
+         details. Uses GitHub dark mode styling with embedded CSS.
       2. payload-results-{sanitized_tag}.yaml — structured YAML with:
          - metadata: payload_tag, version, stream, architecture, release_controller_url,
            analyzed_at, force_accept_recommended

@@ -528,7 +528,7 @@ Before presenting, confirm that **all Step 4 investigation subagents and the Ste
    - HTML report: `$OUTPUT_DIR/payload-analysis-<sanitized_tag>-summary.html`
    - JSON data file: `$OUTPUT_DIR/payload-analysis-<sanitized_tag>-autodl.json`
    - Payload results YAML: `$OUTPUT_DIR/payload-results-<sanitized_tag>.yaml`
-2. **The HTML contains every required section** from the Step 7 template: the phase hero and stat tiles, the chain-context card, the revert verdict (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs table, a collapsible details block for **every** failed job, the informing/flake tests section when such tests exist, the RHCOS Changes section when any payload has RHCOS changes, and the Adversarial Review section. No unfilled `{placeholder}` and no `BEGIN`/`END` marker comments remain.
+2. **The HTML contains every required section** from the Step 7 template: header + executive summary (including the payload-chain context), the revert verdict (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs summary table, a collapsible details block for **every** failed job, the RHCOS Changes section when any payload has RHCOS changes, the informing-tests section when such tests exist, and the Adversarial Review section. No unfilled `{placeholder}` and no `BEGIN`/`END` marker comments remain.
 3. **Cross-output consistency**: phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
 4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.
 
