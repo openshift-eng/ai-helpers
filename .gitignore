@@ -46,3 +46,7 @@ venv/
 # Various logs and metrics tracking info
 *.log
 .anonymous_id
+
+# Local eval run output and harness state (never commit)
+/eval/
+/tmp/

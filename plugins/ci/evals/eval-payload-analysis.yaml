@@ -1,8 +1,7 @@
 name: ci-payload-analysis-eval
 description: Evaluate the payload-analysis skill's ability to analyze OCP payload snapshots, trace root causes, correlate with PRs, and produce actionable HTML reports with revert recommendations
-skill: ci:payload-analysis
-
 execution:
+  skill: ci:payload-analysis
   mode: case
   arguments: "{payload_tag} --snapshot-dir $EVAL_SNAPSHOT_DIR/{payload_tag} --as-of {payload_completed_at}"
   timeout: 3600
@@ -425,6 +424,7 @@ judges:
       return (False, f"autodl phase(s) {sorted(phases)} != expected '{expected}'")
 
   - name: analysis_quality
+    score_range: [1, 5]
     description: |
       LLM judge to assess root cause analysis depth, PR correlation accuracy,
       and overall report quality. Uses only YAML results and HTML report, not
@@ -483,6 +483,7 @@ judges:
       - Does the HTML report contain actionable information?
 
   - name: revert_scoring_accuracy
+    score_range: [1, 5]
     description: |
       LLM judge to assess whether the confidence scoring rubric was correctly
       applied and expected revert candidates identified. Uses only YAML results
@@ -555,6 +556,7 @@ judges:
                evidence rather than assertion.
 
   - name: point_in_time_integrity
+    score_range: [1, 5]
     if: "annotations.get('payload_completed_at')"
     description: |
       LLM judge assessing whether conclusions use only evidence that existed
