@@ -104,8 +104,9 @@ outputs:
          - failing_jobs[]: job_name, prow_url, is_aggregated, underlying_job_name,
            failure_type, root_cause_summary, streak_length, originating_payload_tag,
            failure_pattern
-         - candidates[]: pr_url, pr_number, component, title, confidence_score,
-           rationale, failing_jobs[], actions[]
+         - candidates[]: type ("pr" or "rhcos_rpm"), component, confidence_score,
+           rationale, failing_jobs[], actions[]; type "pr" entries also carry
+           pr_url, pr_number, title
       3. payload-analysis-{sanitized_tag}-autodl.json — flat denormalized JSON object
          with table_name, schema, and rows array. One row per (failed blocking job,
          candidate PR) pair. All row values are strings. Fields include payload_tag,
@@ -183,9 +184,11 @@ judges:
           if jmissing:
               return (False, f"failing_jobs[0] missing: {', '.join(jmissing)}")
       if cands:
-          required_cand_fields = ["pr_url", "confidence_score", "failing_jobs"]
+          required_cand_fields = ["type", "confidence_score", "failing_jobs"]
           c0 = cands[0]
           cmissing = [f for f in required_cand_fields if f not in c0]
+          if c0.get("type") != "rhcos_rpm" and "pr_url" not in c0:
+              cmissing.append("pr_url")
           if cmissing:
               return (False, f"candidates[0] missing: {', '.join(cmissing)}")
       return (True, f"Valid: {len(jobs)} failing jobs, {len(cands)} candidates")
@@ -296,6 +299,7 @@ judges:
           cands[str(c.get("pr_url", "")).rstrip("/")] = c
       missing = []
       low = []
+      unlinked = []
       expected = outputs.get("annotations", {}).get("expected_candidates", []) or []
       for exp in expected:
           url = str(exp.get("pr_url", "")).rstrip("/")
@@ -309,14 +313,23 @@ judges:
               score = 0.0
           if score < float(exp.get("min_confidence", 0)):
               low.append(f"{url} scored {score:g} < min {exp.get('min_confidence')}")
+          # Substring match: annotations use short job names, results use
+          # full periodic job names.
+          got_jobs = [str(j) for j in (got.get("failing_jobs") or [])]
+          bad = [j for j in (exp.get("expected_failing_jobs") or [])
+                 if not any(str(j) in gj for gj in got_jobs)]
+          if bad:
+              unlinked.append(f"{url} not linked to: {', '.join(bad)}")
       problems = []
       if missing:
           problems.append("missing: " + ", ".join(missing))
       if low:
           problems.append("under-confidence: " + "; ".join(low))
+      if unlinked:
+          problems.append("job linkage: " + "; ".join(unlinked))
       if problems:
           return (False, "; ".join(problems))
-      return (True, f"All {len(expected)} expected candidate(s) found at/above min confidence")
+      return (True, f"All {len(expected)} expected candidate(s) found at/above min confidence with required job links")
 
   - name: no_unexpected_reverts
     description: |

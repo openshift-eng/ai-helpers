@@ -203,12 +203,12 @@ For deeper context, read `build_log.json` (at the `build_log` path) for any fail
 
 For each failed job, check whether changes to the CI step-registry in the `openshift/release` repo correlate with the failure. These changes (modified step scripts, updated URLs, changed environment variables) will never appear in the snapshot's component PR list because they are not payload component changes — but they can break jobs just as effectively.
 
-Extract the date from the `originating_payload` tag (format: `<version>-0.<stream>-YYYY-MM-DD-HHMMSS` or `<version>-0.<stream>-<arch>-YYYY-MM-DD-HHMMSS` for non-amd64). The date is always the last `YYYY-MM-DD` segment before the `HHMMSS` suffix (e.g., `2026-06-16` from `5.0.0-0.nightly-2026-06-16-185706` or `5.0.0-0.nightly-arm64-2026-06-16-185706`). Compute a time window: `since` = originating date minus 1 day at `T00:00:00Z`; `until` = originating date plus 1 day at `T23:59:59Z`. **Under `--as-of` (Step 1), cap `until` at the cutoff timestamp** so the query never returns commits newer than the payload completion.
+Extract the date from the `originating_payload` tag (format: `<version>-0.<stream>-YYYY-MM-DD-HHMMSS` or `<version>-0.<stream>-<arch>-YYYY-MM-DD-HHMMSS` for non-amd64). The date is always the last `YYYY-MM-DD` segment before the `HHMMSS` suffix (e.g., `2026-06-16` from `5.0.0-0.nightly-2026-06-16-185706` or `5.0.0-0.nightly-arm64-2026-06-16-185706`). Compute a time window: `since` = originating date minus 1 day at `T00:00:00Z`; `until_timestamp` = originating date plus 1 day at `T23:59:59Z`. **Under `--as-of` (Step 1), set `until_timestamp` to the earlier of that value and the cutoff** so the query never returns commits newer than the payload completion. `until_timestamp` is always a complete RFC 3339 value passed to the query as-is — never append a time suffix to it.
 
 **First, get all step-registry commits in the time window:**
 
 ```bash
-gh api "repos/openshift/release/commits?path=ci-operator/step-registry&since=<since_date>T00:00:00Z&until=<until_date>T23:59:59Z&per_page=100" \
+gh api "repos/openshift/release/commits?path=ci-operator/step-registry&since=<since_date>T00:00:00Z&until=<until_timestamp>&per_page=100" \
     --jq '.[] | {sha: .sha[0:11], date: .commit.committer.date, message: (.commit.message | split("\n")[0])}'
 ```
 
@@ -233,7 +233,7 @@ gh pr view <pr_number> --repo openshift/release --json number,title,url,mergedAt
 **After Step 4 subagent results are available**, do a targeted search using the specific step that failed. From the subagent's build log analysis, identify the step-registry path of the step that actually errored (e.g., `gather/must-gather`, `baremetalds/devscripts/proxy`, `ipi/install/install`). Search for recent changes to that exact step and to related steps in the same workflow chain:
 
 ```bash
-gh api "repos/openshift/release/commits?path=ci-operator/step-registry/<step_subpath>&since=<since_date>T00:00:00Z&until=<until_date>T23:59:59Z&per_page=10" \
+gh api "repos/openshift/release/commits?path=ci-operator/step-registry/<step_subpath>&since=<since_date>T00:00:00Z&until=<until_timestamp>&per_page=10" \
     --jq '.[] | {sha: .sha[0:11], date: .commit.committer.date, message: (.commit.message | split("\n")[0])}'
 ```
 
@@ -496,7 +496,7 @@ The kubelet binary is built **from** the `openshift/kubernetes` source. After a 
 For each revert candidate:
 
 ```bash
-gh pr list --repo <org>/<repo> --search "revert <pr_number>" --json number,title,url,state,mergedAt --limit 5
+gh pr list --repo <org>/<repo> --search "revert <pr_number>" --json number,title,url,state,createdAt,mergedAt --limit 5
 ```
 
 If a revert PR is found:
@@ -504,7 +504,7 @@ If a revert PR is found:
 - **Open**: Mention the existing revert PR and link to it.
 - **Closed (not merged)**: Ignore.
 
-**Under `--as-of` (Step 1):** ignore any revert PR created after the cutoff, and never treat the existence — or absence — of a later revert as evidence for or against a candidate. A point-in-time analysis must stand on evidence that existed when the payload completed, not on how the revert played out afterward.
+**Under `--as-of` (Step 1):** ignore any revert PR whose `createdAt` is after the cutoff. For a revert PR created before the cutoff, use only its status as of the cutoff: if `mergedAt` is after the cutoff (or it merged or closed later), treat it as still **Open** — the current `state` and `mergedAt` are present-day values, not point-in-time facts. Never treat the existence — or absence — of a later revert as evidence for or against a candidate. A point-in-time analysis must stand on evidence that existed when the payload completed, not on how the revert played out afterward.
 
 #### 6.4: Determine Force-Accept Recommendation
 
