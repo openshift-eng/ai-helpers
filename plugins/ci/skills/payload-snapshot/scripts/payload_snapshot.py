@@ -71,6 +71,8 @@ class PayloadTag:
         4.18.0-0.ci-2026-01-15-114134                   -> amd64, OCP ci stream
         4.22.0-0.okd-scos-nightly-2026-06-10-015300     -> amd64, OKD SCOS nightly
         4.22.0-0.okd-scos-2026-06-10-003203             -> amd64, OKD SCOS ci stream
+        4.22.0-okd-scos.7                               -> amd64, OKD SCOS stable
+        5.0.0-okd-scos.ec.7                             -> amd64, OKD SCOS next
     """
 
     raw: str
@@ -80,35 +82,66 @@ class PayloadTag:
     stream_name: str
     timestamp: str
 
+    @property
+    def is_okd(self) -> bool:
+        return "scos" in self.stream_name or self.stream.startswith("okd")
+
     @classmethod
-    def parse(cls, tag: str) -> "PayloadTag":
-        """Parse a payload tag string into its components."""
+    def parse(cls, tag: str, release_stream: str = "") -> "PayloadTag":
+        """Parse a payload tag string into its components.
+
+        For stable/next streams (e.g. 4-scos-stable, 5-scos-next), the stream
+        name cannot be derived from the tag — pass it via *release_stream*.
+        """
         m = re.match(r"^(.+)-(\d{4}-\d{2}-\d{2}-\d{6})$", tag)
-        if not m:
-            raise ValueError(f"Cannot parse payload tag: {tag}")
+        if m:
+            stream_name = m.group(1)
+            timestamp = m.group(2)
 
-        stream_name = m.group(1)
-        timestamp = m.group(2)
+            sm = re.match(
+                r"^(\d+\.\d+)\.0-0\.([\w-]+?)(?:-(arm64|ppc64le|s390x|multi))?$",
+                stream_name,
+            )
+            if not sm:
+                raise ValueError(f"Cannot parse stream name: {stream_name}")
 
-        sm = re.match(
-            r"^(\d+\.\d+)\.0-0\.([\w-]+?)(?:-(arm64|ppc64le|s390x|multi))?$",
-            stream_name,
-        )
-        if not sm:
-            raise ValueError(f"Cannot parse stream name: {stream_name}")
+            version = sm.group(1)
+            stream = sm.group(2)
+            architecture = sm.group(3) or "amd64"
+            if release_stream:
+                stream_name = release_stream
 
-        version = sm.group(1)
-        stream = sm.group(2)
-        architecture = sm.group(3) or "amd64"
+            return cls(
+                raw=tag,
+                version=version,
+                stream=stream,
+                architecture=architecture,
+                stream_name=stream_name,
+                timestamp=timestamp,
+            )
 
-        return cls(
-            raw=tag,
-            version=version,
-            stream=stream,
-            architecture=architecture,
-            stream_name=stream_name,
-            timestamp=timestamp,
-        )
+        if release_stream:
+            vm = re.match(r"^(\d+\.\d+)", tag)
+            if not vm:
+                raise ValueError(f"Cannot parse version from tag: {tag}")
+            version = vm.group(1)
+            stream_name = release_stream
+            if stream_name.endswith("-stable"):
+                stream = "stable"
+            elif stream_name.endswith("-next"):
+                stream = "next"
+            else:
+                stream = stream_name
+            return cls(
+                raw=tag,
+                version=version,
+                stream=stream,
+                architecture="amd64",
+                stream_name=stream_name,
+                timestamp="",
+            )
+
+        raise ValueError(f"Cannot parse payload tag: {tag}")
 
 
 # ---------------------------------------------------------------------------
@@ -197,9 +230,10 @@ def try_fetch_json(url: str, timeout: int = 10) -> Optional[dict]:
 class ReleaseController:
     """Client for the OpenShift release controller API."""
 
-    def __init__(self, architecture: str = "amd64", stream: str = ""):
+    def __init__(self, architecture: str = "amd64", stream: str = "",
+                 is_okd: bool = False):
         self.architecture = architecture
-        if stream.startswith("okd"):
+        if is_okd or stream.startswith("okd"):
             self.domain = f"{architecture}.origin.releases.ci.openshift.org"
         else:
             self.domain = f"{architecture}.ocp.releases.ci.openshift.org"
@@ -576,7 +610,7 @@ class HybridPayloadChain:
             self.sources[tag_name] = "release-controller"
             return self.rc.fetch_release(self.stream_name, tag_name)
 
-        tag = PayloadTag.parse(tag_name)
+        tag = PayloadTag.parse(tag_name, release_stream=self.stream_name)
         self.sources[tag_name] = "sippy"
         return self.sippy.build_synthetic_payload(tag_name, tag)
 
@@ -2368,7 +2402,8 @@ class Snapshotter:
         self.use_sippy = use_sippy
         self.collect_rpmdb = collect_rpmdb
         self.collect_rpm_changelogs = collect_rpm_changelogs
-        self.rc = ReleaseController(tag.architecture, stream=tag.stream)
+        self.rc = ReleaseController(tag.architecture, stream=tag.stream,
+                                    is_okd=tag.is_okd)
         self.sippy = SippyClient(
             tag.version, architecture=tag.architecture, stream=tag.stream
         )
@@ -2471,7 +2506,8 @@ class Snapshotter:
             if payload_source == "sippy":
                 if not os.path.exists(payload_path):
                     _log(f"  Fetching payload details from Sippy: {tag_name}")
-                    tag_obj = PayloadTag.parse(tag_name)
+                    tag_obj = PayloadTag.parse(
+                        tag_name, release_stream=self.tag.stream_name)
                     data = self.sippy.build_synthetic_payload(tag_name, tag_obj)
                     os.makedirs(os.path.dirname(payload_path), exist_ok=True)
                     _write_json(payload_path, data)
@@ -3951,6 +3987,14 @@ def main() -> None:
               "the older payloads in the chain"),
     )
     parser.add_argument(
+        "--release-stream", default="",
+        help=(
+            "Override the release stream name for API calls. Required for "
+            "stable/next streams where the stream name cannot be derived "
+            "from the tag (e.g. 4-scos-stable, 5-scos-next)."
+        ),
+    )
+    parser.add_argument(
         "--sippy", action="store_true",
         help=(
             "Force Sippy for all payload metadata (default: prefer release "
@@ -3961,7 +4005,8 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        tag = PayloadTag.parse(args.payload_tag)
+        tag = PayloadTag.parse(args.payload_tag,
+                               release_stream=args.release_stream)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(2)
