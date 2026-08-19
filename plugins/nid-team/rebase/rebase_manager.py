@@ -491,7 +491,9 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
             print("You can manually adjust decisions in `.rebase/commits.tsv` if needed.")
             print("Once ready, run the tool again to execute Phase 2.\n")
         else:
-            log_info(f"Dry-run: Report content preview:\n{report_content[:700]}...")
+            print(f"\n{BLUE}=== DRY-RUN: GENERATED PR DESCRIPTION / AGENDA PREVIEW ==={RESET}\n")
+            print(report_content)
+            print(f"\n{BLUE}=== END OF DRY-RUN PREVIEW ==={RESET}\n")
 
     def run_phase_1(self):
         """Phase 1: Discovery & Tag Comparison."""
