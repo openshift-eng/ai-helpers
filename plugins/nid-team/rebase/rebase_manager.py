@@ -210,12 +210,16 @@ class RebaseManager:
         except Exception:
             current_branch = "unknown"
 
-        # If --auto is specified and we are on the main branch, we always force PHASE_1_DISCOVERY
-        # to bypass any stale draft PRs and allow rebuilding the rebase from scratch.
+        # If --auto is specified and we are on the main branch, we force PHASE_1_DISCOVERY
+        # only if commits.tsv does not exist yet. If it does exist, we transition to PHASE_2.
         # We split on "/" to compare local branch name (e.g. 'master') with the base of the remote main branch (e.g. 'openshift/master').
         if self.auto and current_branch == self.get_main_branch().split("/")[-1]:
-            log_info(f"Currently on main branch '{current_branch}' with --auto. Bypassing draft PR check to start fresh.")
-            return "PHASE_1_DISCOVERY"
+            if not self.commits_file.exists():
+                log_info(f"Currently on main branch '{current_branch}' with --auto and no existing commits.tsv. Bypassing draft PR check to start fresh.")
+                return "PHASE_1_DISCOVERY"
+            else:
+                log_info("Found existing `.rebase/commits.tsv` state file. Proceeding to PHASE_2_ACTIVE_DRAFT for local rebase execution.")
+                return "PHASE_2_ACTIVE_DRAFT"
 
         if active_pr:
             if active_pr["isDraft"]:
@@ -228,6 +232,11 @@ class RebaseManager:
         has_rebase_branch = any("rebase-" in line for line in local_branches.split("\n"))
         
         if has_rebase_branch:
+            return "PHASE_2_ACTIVE_DRAFT"
+            
+        # Check if .rebase/commits.tsv exists, indicating Phase 1 is done and report was reviewed
+        if self.commits_file.exists():
+            log_info("Found existing `.rebase/commits.tsv` state file. Transitioning to PHASE_2_ACTIVE_DRAFT for local rebase execution.")
             return "PHASE_2_ACTIVE_DRAFT"
             
         return "PHASE_1_DISCOVERY"
@@ -398,10 +407,6 @@ Below is the default analysis of downstream changes currently carried on `{self.
             return
             
         self.generate_release_report(current_version, target_version)
-        
-        if self.auto:
-            log_info("Auto flag provided. Transitioning immediately to Phase 2...")
-            self.run_phase_2(target_version)
 
     def run_phase_2(self, target_version=None):
         """Phase 2: Active Draft Rebase & PR Feedback Loop."""
