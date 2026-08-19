@@ -1,7 +1,7 @@
 {
   "name": "console",
   "description": "OpenShift Console dynamic plugin development utilities",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": {
     "name": "github.com/openshift-eng"
   }
