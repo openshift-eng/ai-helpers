@@ -37,4 +37,22 @@ judges:
   - name: function_overlap_py
     module: prow_agent_eval.judges
     function: check_function_overlap
-thresholds: {}
+thresholds:
+  branch_created_py:
+    min_pass_rate: 1.0
+  pr_exists_py:
+    min_pass_rate: 1.0
+  build_passed_py:
+    min_pass_rate: 1.0
+  test_passed_py:
+    min_pass_rate: 1.0
+  file_overlap_py:
+    min_pass_rate: 1.0
+  golden_files_covered_py:
+    min_pass_rate: 1.0
+  pr_description_exists_py:
+    min_pass_rate: 1.0
+  diff_size_ratio_py:
+    min_pass_rate: 1.0
+  function_overlap_py:
+    min_pass_rate: 1.0
