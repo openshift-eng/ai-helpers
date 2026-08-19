@@ -27,16 +27,28 @@ def log_error(msg):
     print(f"{RED}[ERROR]{RESET} {msg}")
 
 class RebaseManager:
-    def __init__(self, target_tag=None, auto=False, dry_run=False):
+    def __init__(self, target_tag=None, auto=False, dry_run=False, start_over=False):
         self.target_tag = target_tag
         self.auto = auto
         self.dry_run = dry_run
+        self.start_over = start_over
         
         # Paths
         self.cwd = Path(os.getcwd())
         self.rebase_dir = self.cwd / ".rebase"
         self.report_file = self.rebase_dir / "release-report.md"
         self.commits_file = self.rebase_dir / "commits.tsv"
+        
+        if self.start_over:
+            log_info("Start-over flag provided. Wiping local .rebase state store.")
+            if self.rebase_dir.exists() and not self.dry_run:
+                try:
+                    for f in self.rebase_dir.iterdir():
+                        f.unlink()
+                    self.rebase_dir.rmdir()
+                    log_success("Wiped `.rebase/` state folder.")
+                except Exception as e:
+                    log_warn(f"Failed to cleanly wipe `.rebase/` directory: {e}")
         
         # Git / GH metadata
         self.repo_name = self.get_github_repo_name()
@@ -188,6 +200,10 @@ class RebaseManager:
 
     def determine_phase(self, active_pr):
         """Determine current workflow phase based on local state and remote PR."""
+        if self.start_over:
+            log_info("Start-over flag provided. Forcing PHASE_1_DISCOVERY to rebuild rebase from scratch.")
+            return "PHASE_1_DISCOVERY"
+
         # Get current local branch
         try:
             current_branch = self.run_cmd(["git", "branch", "--show-current"])
@@ -223,7 +239,7 @@ class RebaseManager:
         for tag in tags_raw.split("\n"):
             tag = tag.strip()
             # Filter stable releases (starts with v, doesn't contain rc, alpha, beta, dev)
-            if tag.startswith("v") and "." in tag and not any(x in tag.lower() for x in ["rc", "alpha", "beta", "dev"]):
+            if tag.startswith("v") and "." in tag and not tag.startswith("v3.") and not any(x in tag.lower() for x in ["rc", "alpha", "beta", "dev"]):
                 tags.append(tag)
         
         # Sort tags (simple semver string sort or native sort)
@@ -393,6 +409,12 @@ Below is the default analysis of downstream changes currently carried on `{self.
         
         active_pr = self.detect_active_pr()
         
+        if self.start_over and not target_version and active_pr:
+            # Infer from active PR head branch (e.g. rebase-to-v1.13.2 or rebase-v1.13.2)
+            ref = active_pr["headRefName"]
+            target_version = ref.replace("rebase-to-", "").replace("rebase-", "")
+            log_info(f"Inferred target version '{target_version}' from active PR head branch: '{ref}'")
+
         if not active_pr and not target_version:
             # Need to infer target_version from branch name if we have a local rebase branch
             local_branches = self.run_cmd(["git", "branch"])
@@ -404,6 +426,11 @@ Below is the default analysis of downstream changes currently carried on `{self.
                 log_error("No active PR or local rebase branch found. Run Phase 1 first.")
                 return
 
+        if self.start_over:
+            log_info("Start-over flag provided. Forcing fresh local rebase execution.")
+            self.execute_local_rebase(target_version, active_pr)
+            return
+
         # Step 1: Initial Rebase and Draft PR Creation (if no PR exists yet)
         if not active_pr:
             self.execute_local_rebase(target_version)
@@ -412,7 +439,7 @@ Below is the default analysis of downstream changes currently carried on `{self.
             log_info(f"Found active Draft PR: #{active_pr['number']} ({active_pr['url']})")
             self.process_pr_feedback(active_pr)
 
-    def execute_local_rebase(self, target_version):
+    def execute_local_rebase(self, target_version, active_pr=None):
         """Do the actual local checkout, ours-merge, cherry-picking, tidying, and PR opening."""
         branch_name = f"rebase-{target_version}"
         log_info(f"Initiating local rebase to tag '{target_version}' on branch '{branch_name}'")
@@ -538,25 +565,40 @@ Below is the default analysis of downstream changes currently carried on `{self.
         if not verification_passed:
             pr_body = "⚠️ **WARNING: Local verification builds/tests failed on initial rebase. Please inspect CI.**\n\n" + pr_body
             
-        log_info("Creating Draft Pull Request on GitHub...")
-        try:
-            # Title pattern
-            pr_title = f"Rebase to {target_version} for OCP DNS/Ingress"
-            pr_url = self.run_cmd([
-                "gh", "pr", "create",
-                "--repo", self.repo_name,
-                "--title", pr_title,
-                "--body", pr_body,
-                "--draft",
-                "--head", branch_name
-            ])
-            log_success(f"Draft Pull Request successfully created: {pr_url}")
-            print(f"\n{GREEN}== REBASE PR OPEN =={RESET}")
-            print(f"URL: {pr_url}")
-            print("The PR description serves as the Rebase Approval meeting agenda.")
-            print("To provide feedback, leave comments on the PR and re-run this tool to apply fixes.\n")
-        except Exception as e:
-            log_error(f"Failed to create PR: {e}")
+        if active_pr:
+            log_info(f"Draft PR #{active_pr['number']} is already open. Updating its description and commits...")
+            try:
+                self.run_cmd([
+                    "gh", "pr", "edit", str(active_pr["number"]),
+                    "-R", self.repo_name,
+                    "--body", pr_body
+                ])
+                log_success(f"Successfully updated Draft PR #{active_pr['number']} description!")
+                print(f"\n{GREEN}== REBASE PR UPDATED =={RESET}")
+                print(f"URL: {active_pr['url']}")
+                print("The PR description serves as the Rebase Approval meeting agenda.\n")
+            except Exception as e:
+                log_warn(f"Failed to update Draft PR description: {e}")
+        else:
+            log_info("Creating Draft Pull Request on GitHub...")
+            try:
+                # Title pattern
+                pr_title = f"Rebase to {target_version} for OCP DNS/Ingress"
+                pr_url = self.run_cmd([
+                    "gh", "pr", "create",
+                    "--repo", self.repo_name,
+                    "--title", pr_title,
+                    "--body", pr_body,
+                    "--draft",
+                    "--head", branch_name
+                ])
+                log_success(f"Draft Pull Request successfully created: {pr_url}")
+                print(f"\n{GREEN}== REBASE PR OPEN =={RESET}")
+                print(f"URL: {pr_url}")
+                print("The PR description serves as the Rebase Approval meeting agenda.")
+                print("To provide feedback, leave comments on the PR and re-run this tool to apply fixes.\n")
+            except Exception as e:
+                log_error(f"Failed to create PR: {e}")
 
     def process_pr_feedback(self, active_pr):
         """Fetch comments, apply code/rebase alterations, and post reply resolutions."""
@@ -729,10 +771,11 @@ def main():
     parser.add_argument("--tag", help="Specify target upstream tag version (e.g. v1.11.3)")
     parser.add_argument("--auto", action="store_true", help="Auto-approve Phase 1 report and proceed immediately to Phase 2 rebase")
     parser.add_argument("--dryrun", action="store_true", help="Do a dry-run execution without write side-effects")
+    parser.add_argument("--start-over", action="store_true", help="Clear the .rebase state folder and force-rebuild the rebase branch/Draft PR from scratch")
     args = parser.parse_args()
 
     # Create Manager
-    manager = RebaseManager(target_tag=args.tag, auto=args.auto, dry_run=args.dryrun)
+    manager = RebaseManager(target_tag=args.tag, auto=args.auto, dry_run=args.dryrun, start_over=args.start_over)
     
     # 1. Determine active PR status
     active_pr = manager.detect_active_pr()

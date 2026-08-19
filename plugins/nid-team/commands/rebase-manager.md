@@ -1,6 +1,6 @@
 ---
 description: Automate and manage the lifecycle of an upstream rebase following the 3-Phase NID rebase workflow
-argument-hint: "[--tag <tag>] [--auto] [--dryrun]"
+argument-hint: "[--tag <tag>] [--auto] [--dryrun] [--start-over]"
 ---
 
 ## Name
@@ -10,7 +10,7 @@ nid-team:rebase-manager
 ## Synopsis
 
 ```bash
-/nid-team:rebase-manager [--tag <tag>] [--auto] [--dryrun]
+/nid-team:rebase-manager [--tag <tag>] [--auto] [--dryrun] [--start-over]
 ```
 
 ## Description
@@ -46,6 +46,7 @@ Once located, execute the script from that path while maintaining the target rep
 | `--tag` | auto | Force a specific upstream tag to rebase onto (skips auto-discovery of latest tag) |
 | `--auto` | off | Auto-approve Phase 1 release report and proceed immediately to Phase 2 rebase and Draft PR creation |
 | `--dryrun`| off | Run checks and show what actions would be performed without creating branches, modifying code, or calling writing GitHub APIs |
+| `--start-over`| off | Wipe any local `.rebase` folder state and force-rebuild the local rebase branch, force-pushing to overwrite/refresh the Draft PR |
 
 ## Examples
 
