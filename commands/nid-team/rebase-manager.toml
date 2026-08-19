@@ -37,9 +37,10 @@ python3 <extension_path>/plugins/nid-team/rebase/rebase_manager.py [--tag <tag>]
 ```
 
 *Note to Executing Agent (Gemini or Gemini):* When running this command inside a target repository (e.g., `openshift/coredns`) where the `plugins/nid-team/rebase/rebase_manager.py` file is not locally present, you must locate the script within your respective global plugin/extension directory or local cloned `ai-helpers` repository path:
-- For Gemini CLI: Look in `~/.gemini/extensions/ai-helpers/plugins/nid-team/rebase/rebase_manager.py`
+- Active development path: `/Users/btofel/workspace/ai-helpers/plugins/nid-team/rebase/rebase_manager.py`
+- For Gemini CLI: Look in `~/.gemini/extensions/ai-helpers/plugins/nid-team/rebase/rebase_manager.py` or the active development path above.
 - For Gemini CLI: Look in your active plugins/extensions directory (e.g., `~/.gemini/plugins/` or standard Gemini extension paths) or find it under your cloned `ai-helpers` development workspace path.
-Once located, execute the script from that path while maintaining the target repository as your current working directory.
+Once located, execute the script from that path using its absolute path while maintaining the target repository as your current working directory.
 
 ### Arguments
 
