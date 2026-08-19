@@ -129,17 +129,29 @@ class RebaseManager:
             if not self.dry_run:
                 gitignore.write_text(f"{entry}\n")
 
+    def get_current_github_user(self):
+        """Fetch the current authenticated GitHub user's login."""
+        try:
+            return self.run_cmd(["gh", "api", "user", "--json", "login", "-q", ".login"])
+        except Exception:
+            return ""
+
     def detect_active_pr(self):
-        """Check GitHub for open rebase PRs matching the current target version branch."""
+        """Check GitHub for open rebase PRs matching the current target version branch and authored by us."""
         try:
             # 1. Search for open PRs from current repo
             prs_json = self.run_cmd([
                 "gh", "pr", "list",
                 "--repo", self.repo_name,
                 "--state", "open",
-                "--json", "number,title,isDraft,headRefName,url"
+                "--json", "number,title,isDraft,headRefName,url,author"
             ])
             prs = json.loads(prs_json)
+
+            # Filter PRs to only those authored by the current authenticated user
+            current_user = self.get_current_github_user()
+            if current_user:
+                prs = [pr for pr in prs if pr.get("author", {}).get("login") == current_user]
 
             # 2. Determine the target version we are interested in
             target = self.target_tag
@@ -887,6 +899,12 @@ def main():
     # Create Manager
     manager = RebaseManager(target_tag=args.tag, auto=args.auto, dry_run=args.dryrun, start_over=args.start_over)
     
+    # If dryrun is requested, always force PHASE_1_DISCOVERY to print the full would-be PR description
+    if args.dryrun:
+        log_info("Dry-run requested. Simulating PHASE_1_DISCOVERY to output the full, domain-grouped PR description / meeting agenda.")
+        manager.run_phase_1()
+        return
+
     # 1. Determine active PR status
     active_pr = manager.detect_active_pr()
     
