@@ -87,7 +87,8 @@ The eval-judge step produces:
 - `pr_description_exists` — PR description file is non-empty
 
 **Diff-based scoring (0.0-1.0):**
-- `file_overlap` — Jaccard similarity of files changed
+- `file_overlap` — Jaccard similarity of files changed (default cases)
+- `golden_files_covered` — golden-branch file coverage (`case-002` only; extra test files OK)
 - `diff_size_ratio` — ratio of Claude's diff size to expected
 - `function_overlap` — overlap of modified functions/methods
 
