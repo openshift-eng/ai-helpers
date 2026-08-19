@@ -1071,7 +1071,7 @@ class StatusDataGatherer:
                 obj = link.get("object", {})
                 url = obj.get("url", "")
                 title = obj.get("title", "")
-                if url and "github.com" in url and "/pull" in url:
+                if url and self.PR_PATTERN.fullmatch(url):
                     # Check if the PR title references a descendant issue
                     references_descendant = any(desc_key in title for desc_key in desc_keys)
                     if references_descendant:
