@@ -196,7 +196,8 @@ class RebaseManager:
 
         # If --auto is specified and we are on the main branch, we always force PHASE_1_DISCOVERY
         # to bypass any stale draft PRs and allow rebuilding the rebase from scratch.
-        if self.auto and current_branch == self.get_main_branch():
+        # We split on "/" to compare local branch name (e.g. 'master') with the base of the remote main branch (e.g. 'openshift/master').
+        if self.auto and current_branch == self.get_main_branch().split("/")[-1]:
             log_info(f"Currently on main branch '{current_branch}' with --auto. Bypassing draft PR check to start fresh.")
             return "PHASE_1_DISCOVERY"
 
