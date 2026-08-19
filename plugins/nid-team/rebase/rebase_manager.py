@@ -489,15 +489,16 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
 *Edit `.rebase/commits.tsv` locally to adjust decisions, then re-run to execute Phase 2.*
 """
 
-        # Write files
+        # Write files (Always write local state files to .rebase/ even under dry-run so the developer can review them on disk)
+        self.report_file.write_text(report_content)
+        with open(self.commits_file, "w", newline="") as f:
+            writer = csv.writer(f, delimiter="\t")
+            writer.writerows(commits_data)
+            
+        log_success(f"Grouped Release report written to {self.report_file}")
+        log_success(f"Carried commits table written to {self.commits_file}")
+
         if not self.dry_run:
-            self.report_file.write_text(report_content)
-            with open(self.commits_file, "w", newline="") as f:
-                writer = csv.writer(f, delimiter="\t")
-                writer.writerows(commits_data)
-                
-            log_success(f"Grouped Release report written to {self.report_file}")
-            log_success(f"Carried commits table written to {self.commits_file}")
             print(f"\n{YELLOW}== ACTION REQUIRED =={RESET}")
             print(f"Please review the grouped release report in {report_file_url(self.report_file)}")
             print("You can manually adjust decisions in `.rebase/commits.tsv` if needed.")
