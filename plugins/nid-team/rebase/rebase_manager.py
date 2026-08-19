@@ -552,7 +552,22 @@ Below is the default analysis of downstream changes currently carried on `{self.
             log_warn(f"Verification tests failed: {e}. Opening Draft PR anyway with warning flags.")
             verification_passed = False
 
-        # 7. Push branch and open Draft PR
+        # Compose PR Body using Report
+        pr_body = self.report_file.read_text() if self.report_file.exists() else "Rebase onto " + target_version
+        if not verification_passed:
+            pr_body = "⚠️ **WARNING: Local verification builds/tests failed on initial rebase. Please inspect CI.**\n\n" + pr_body
+            
+        # 7. Push branch and open Draft PR (or update existing PR if start_over is used)
+        if not active_pr:
+            log_success(f"Local rebase and verification tests for '{target_version}' completed successfully on branch '{branch_name}'!")
+            print(f"\n{YELLOW}== LOCAL REBASE COMPLETE (WAITING) =={RESET}")
+            print(f"Since no active Draft PR was found on GitHub, the tool has stopped here for your review.")
+            print(f"Please inspect the local branch '{branch_name}', resolve any skews, and run tests.")
+            print("When you are ready, you can push the branch and open a Draft PR manually:")
+            print(f"  git push origin {branch_name}")
+            print(f"  gh pr create --draft --repo {self.repo_name} --title \"Rebase to {target_version} for OCP DNS/Ingress\" -F .rebase/release-report.md\n")
+            return
+
         log_info(f"Pushing branch {branch_name} to origin...")
         try:
             self.run_cmd(["git", "push", "-f", "origin", branch_name])
@@ -560,45 +575,19 @@ Below is the default analysis of downstream changes currently carried on `{self.
             log_error(f"Failed to push branch: {e}")
             return
 
-        # Compose PR Body using Report
-        pr_body = self.report_file.read_text() if self.report_file.exists() else "Rebase onto " + target_version
-        if not verification_passed:
-            pr_body = "⚠️ **WARNING: Local verification builds/tests failed on initial rebase. Please inspect CI.**\n\n" + pr_body
-            
-        if active_pr:
-            log_info(f"Draft PR #{active_pr['number']} is already open. Updating its description and commits...")
-            try:
-                self.run_cmd([
-                    "gh", "pr", "edit", str(active_pr["number"]),
-                    "-R", self.repo_name,
-                    "--body", pr_body
-                ])
-                log_success(f"Successfully updated Draft PR #{active_pr['number']} description!")
-                print(f"\n{GREEN}== REBASE PR UPDATED =={RESET}")
-                print(f"URL: {active_pr['url']}")
-                print("The PR description serves as the Rebase Approval meeting agenda.\n")
-            except Exception as e:
-                log_warn(f"Failed to update Draft PR description: {e}")
-        else:
-            log_info("Creating Draft Pull Request on GitHub...")
-            try:
-                # Title pattern
-                pr_title = f"Rebase to {target_version} for OCP DNS/Ingress"
-                pr_url = self.run_cmd([
-                    "gh", "pr", "create",
-                    "--repo", self.repo_name,
-                    "--title", pr_title,
-                    "--body", pr_body,
-                    "--draft",
-                    "--head", branch_name
-                ])
-                log_success(f"Draft Pull Request successfully created: {pr_url}")
-                print(f"\n{GREEN}== REBASE PR OPEN =={RESET}")
-                print(f"URL: {pr_url}")
-                print("The PR description serves as the Rebase Approval meeting agenda.")
-                print("To provide feedback, leave comments on the PR and re-run this tool to apply fixes.\n")
-            except Exception as e:
-                log_error(f"Failed to create PR: {e}")
+        log_info(f"Draft PR #{active_pr['number']} is already open. Updating its description and commits...")
+        try:
+            self.run_cmd([
+                "gh", "pr", "edit", str(active_pr["number"]),
+                "-R", self.repo_name,
+                "--body", pr_body
+            ])
+            log_success(f"Successfully updated Draft PR #{active_pr['number']} description!")
+            print(f"\n{GREEN}== REBASE PR UPDATED =={RESET}")
+            print(f"URL: {active_pr['url']}")
+            print("The PR description serves as the Rebase Approval meeting agenda.\n")
+        except Exception as e:
+            log_warn(f"Failed to update Draft PR description: {e}")
 
     def process_pr_feedback(self, active_pr):
         """Fetch comments, apply code/rebase alterations, and post reply resolutions."""
