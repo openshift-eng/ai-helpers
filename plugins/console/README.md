@@ -20,6 +20,23 @@ Analyzes the plugin's current dependencies, fetches breaking changes and release
 - `gh` CLI (authenticated)
 - Internet access
 
+## Commands
+
+### `ci-triage`
+
+Triage failing CI on an OpenShift Console PR, it helps you specially to classify each failure as PR-related or unrelated.
+
+```text
+/console:ci-triage [PR-number]
+```
+
+Fetches Prow job logs, extracts specific error messages, cross-references them against the PR's changed files, and produces an actionable triage table. Helps Console contributors quickly understand what they need to fix versus what they can `/retest`.
+
+#### Prerequisites
+
+- `gh` CLI (authenticated)
+- Internet access
+
 ## License
 
 See [LICENSE](../../LICENSE) for details.
