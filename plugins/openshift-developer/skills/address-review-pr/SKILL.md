@@ -208,10 +208,15 @@ If the refresh fails, continue anyway — the token may still be valid for short
 #### 4a. Post all replies
 
 - **Template**: `Done. [1-line what changed]. [Optional 1-line why]`
-- Post reply:
-  ```
-  gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments/<comment_id>/replies -f body="<reply>"
-  ```
+- Use the endpoint that matches the comment type (see Response Rules — never both):
+  - **Inline review comments** (`pulls/<PR_NUMBER>/comments`):
+    ```
+    gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments/<comment_id>/replies -f body="<reply>"
+    ```
+  - **PR conversation comments** (`issues/<PR_NUMBER>/comments`):
+    ```
+    gh api repos/{owner}/{repo}/issues/<PR_NUMBER>/comments -f body="<reply>"
+    ```
 - **All replies must include**: `---\n*AI-assisted response via Claude Code*`
 
 #### 4b. Push once
@@ -273,3 +278,6 @@ Where `<type>` is one of: `issue_comment`, `review_thread`, or `review_comment`
 1. **One response per feedback**: Inline review comments reply inline only. General PR comments reply as general comment only. NEVER both.
 2. **Code changes require explicit request**: Only modify code for imperative language ("change", "fix", "remove"). For questions — reply with explanation only.
 3. **Check before acting**: Questions ("Why did you...?") get explanations, not code changes.
+
+## See Also
+- `has-review-work` — read-only gate: unanswered authorized comments or new CI failures

@@ -3,7 +3,7 @@
 Check if bot has already replied to a PR comment or review thread.
 
 Usage:
-    check_replied.py <owner> <repo> <pr_number> <comment_id> --type <issue_comment|review_thread|review_comment>
+    check_replied.py <owner> <repo> <pr_number> <id> --type <issue_comment|review|review_comment|review_thread>
 
 Returns:
     Exit 0: Safe to reply (no existing bot reply found)
@@ -67,6 +67,7 @@ def check_review_thread(owner: str, repo: str, pr_number: int, thread_id: str) -
           reviewThreads(first: 100, after: $cursor) {
             nodes {
               id
+              isResolved
               comments(first: 100) {
                 nodes {
                   id
@@ -124,9 +125,16 @@ def check_review_thread(owner: str, repo: str, pr_number: int, thread_id: str) -
 
     if not target_thread:
         return {
-            "safe_to_reply": True,
+            "safe_to_reply": False,
             "reason": "thread_not_found",
             "message": f"Thread {thread_id} not found - may have been resolved"
+        }
+
+    if target_thread.get("isResolved"):
+        return {
+            "safe_to_reply": False,
+            "reason": "thread_resolved",
+            "message": f"Thread {thread_id} is resolved"
         }
 
     # Check if any bot reply exists in the thread
@@ -212,6 +220,67 @@ def check_issue_comment(owner: str, repo: str, pr_number: int, comment_id: str) 
     }
 
 
+def check_review(owner: str, repo: str, pr_number: int, review_id: str) -> dict:
+    """Check if bot already replied after a PR review body (REST numeric review id)."""
+    try:
+        review = run_gh([
+            "api", f"repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}"
+        ])
+    except RuntimeError as e:
+        return {
+            "safe_to_reply": False,
+            "reason": "review_not_found",
+            "message": str(e)
+        }
+
+    if not review:
+        return {
+            "safe_to_reply": False,
+            "reason": "review_not_found",
+            "message": f"Review {review_id} not found"
+        }
+
+    submitted_at = review.get("submitted_at")
+    if not submitted_at:
+        return {
+            "safe_to_reply": False,
+            "reason": "review_not_found",
+            "message": f"Review {review_id} has no submitted_at"
+        }
+
+    try:
+        comments = run_gh([
+            "api", f"repos/{owner}/{repo}/issues/{pr_number}/comments", "--paginate"
+        ])
+    except RuntimeError as e:
+        return {
+            "safe_to_reply": False,
+            "reason": "api_error",
+            "message": str(e)
+        }
+
+    for comment in comments or []:
+        if comment.get("created_at", "") <= submitted_at:
+            continue
+        author = comment["user"]["login"] if comment.get("user") else ""
+        body = comment.get("body", "")
+        if is_bot_reply(author, body):
+            return {
+                "safe_to_reply": False,
+                "reason": "bot_replied_after",
+                "existing_reply": {
+                    "author": author,
+                    "created_at": comment["created_at"],
+                    "body_preview": body[:200] if body else ""
+                }
+            }
+
+    return {
+        "safe_to_reply": True,
+        "reason": "no_bot_reply_after"
+    }
+
+
 def check_review_comment(owner: str, repo: str, pr_number: int, comment_id: str) -> dict:
     """Check if bot already replied to a review comment (inline code comment)."""
     try:
@@ -277,10 +346,13 @@ def main():
     parser.add_argument("owner", help="Repository owner (e.g., 'openshift')")
     parser.add_argument("repo", help="Repository name (e.g., 'hypershift')")
     parser.add_argument("pr_number", type=int, help="Pull request number")
-    parser.add_argument("comment_id", help="Comment or thread ID to check")
+    parser.add_argument(
+        "comment_id",
+        help="REST numeric id (issue_comment, review, review_comment) or GraphQL global thread id (review_thread)",
+    )
     parser.add_argument(
         "--type",
-        choices=["issue_comment", "review_thread", "review_comment"],
+        choices=["issue_comment", "review", "review_comment", "review_thread"],
         required=True,
         help="Type of comment to check"
     )
@@ -292,6 +364,8 @@ def main():
             result = check_review_thread(args.owner, args.repo, args.pr_number, args.comment_id)
         elif args.type == "issue_comment":
             result = check_issue_comment(args.owner, args.repo, args.pr_number, args.comment_id)
+        elif args.type == "review":
+            result = check_review(args.owner, args.repo, args.pr_number, args.comment_id)
         elif args.type == "review_comment":
             result = check_review_comment(args.owner, args.repo, args.pr_number, args.comment_id)
         else:

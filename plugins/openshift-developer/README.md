@@ -43,6 +43,7 @@ Repeat steps 4-5 until the PR is approved.
 - **address-review-precommit** — Fix code review findings in the current branch before committing: applies fixes, runs verification, and pushes.
 - **code-review:pr** — Review an open PR for correctness and improvements. (via `code-review` plugin)
 - **address-review-pr** — Fetch and address all PR review comments: categorizes by priority, makes code changes, posts replies, and pushes.
+- **has-review-work** — Read-only gate: whether a PR has unanswered authorized review comments or new CI failures.
 
 ### Hooks
 
