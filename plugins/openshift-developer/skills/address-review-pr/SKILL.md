@@ -208,10 +208,15 @@ If the refresh fails, continue anyway — the token may still be valid for short
 #### 4a. Post all replies
 
 - **Template**: `Done. [1-line what changed]. [Optional 1-line why]`
-- Post reply:
-  ```
-  gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments/<comment_id>/replies -f body="<reply>"
-  ```
+- Use the endpoint that matches the comment type (see Response Rules — never both):
+  - **Inline review comments** (`pulls/<PR_NUMBER>/comments`):
+    ```
+    gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments/<comment_id>/replies -f body="<reply>"
+    ```
+  - **PR conversation comments** (`issues/<PR_NUMBER>/comments`):
+    ```
+    gh api repos/{owner}/{repo}/issues/<PR_NUMBER>/comments -f body="<reply>"
+    ```
 - **All replies must include**: `---\n*AI-assisted response via Claude Code*`
 
 #### 4b. Push once
