@@ -37,16 +37,28 @@ Resolve PR number and repository into named variables before any shell commands.
 3. **Failing checks**: Each check object uses `{name, state, bucket, link}` — the same shape `has-review-work` emits in `FAILING_CHECKS`.
 
    - If `--failing-checks` is provided, parse it as a JSON array of those objects.
-   - If any object omits `link`, merge links from:
+   - If any object omits `link`, merge links from a guarded `gh pr checks` capture (non-zero exit is normal when checks fail; only fail on missing/invalid JSON):
 
      ```sh
-     gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link
+     CHECKS_JSON=""
+     CHECKS_EXIT=0
+     CHECKS_JSON=$(gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link 2>/dev/null) || CHECKS_EXIT=$?
+     if [ -z "$CHECKS_JSON" ] || ! printf '%s' "$CHECKS_JSON" | jq -e 'type == "array"' >/dev/null 2>&1; then
+       echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
+       exit 1
+     fi
      ```
 
-   - Otherwise fetch failing checks directly:
+   - Otherwise fetch failing checks with the same guarded capture:
 
      ```sh
-     gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link
+     CHECKS_JSON=""
+     CHECKS_EXIT=0
+     CHECKS_JSON=$(gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link 2>/dev/null) || CHECKS_EXIT=$?
+     if [ -z "$CHECKS_JSON" ] || ! printf '%s' "$CHECKS_JSON" | jq -e 'type == "array"' >/dev/null 2>&1; then
+       echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
+       exit 1
+     fi
      ```
 
    Keep checks where `bucket == "fail"`. Ignore `tide`.
@@ -55,29 +67,39 @@ Resolve PR number and repository into named variables before any shell commands.
 
 5. **PR diff context** (required for triage; fail closed if unavailable):
 
-   Discover the repository's configured remote — do not assume `origin`. Prefer the current branch's tracking remote, then `upstream`, then `origin`, then the first configured remote:
+   Resolve the PR base branch and head commit, then diff base..head. Discover the repository's configured remote — do not assume `origin`. Guard each probe so `set -e` does not abort the fallback chain:
 
    ```sh
    BASE_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json baseRefName -q .baseRefName)
+   HEAD_SHA=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefOid -q .headRefOid)
 
-   TRACKING_REMOTE=$(git config "branch.$(git rev-parse --abbrev-ref HEAD).remote" 2>/dev/null)
+   TRACKING_REMOTE=""
+   TRACKING_REMOTE=$(git config "branch.$(git rev-parse --abbrev-ref HEAD 2>/dev/null).remote" 2>/dev/null) || true
    if [ -z "$TRACKING_REMOTE" ]; then
-     TRACKING_REMOTE=$(git remote | grep -m1 '^upstream$')
+     TRACKING_REMOTE=$(git remote 2>/dev/null | grep -m1 '^upstream$' || true)
    fi
    if [ -z "$TRACKING_REMOTE" ]; then
-     TRACKING_REMOTE=$(git remote | grep -m1 '^origin$')
+     TRACKING_REMOTE=$(git remote 2>/dev/null | grep -m1 '^origin$' || true)
    fi
    if [ -z "$TRACKING_REMOTE" ]; then
-     TRACKING_REMOTE=$(git remote | head -1)
+     TRACKING_REMOTE=$(git remote 2>/dev/null | head -1 || true)
    fi
    if [ -z "$TRACKING_REMOTE" ]; then
      echo "ERROR: no git remote configured" >&2
      exit 1
    fi
 
+   CURRENT_HEAD=$(git rev-parse HEAD 2>/dev/null || true)
+   if [ "$CURRENT_HEAD" != "$HEAD_SHA" ]; then
+     git fetch "$TRACKING_REMOTE" "${HEAD_SHA}" || exit 1
+     DIFF_HEAD="${HEAD_SHA}"
+   else
+     DIFF_HEAD="HEAD"
+   fi
+
    git fetch "$TRACKING_REMOTE" "${BASE_BRANCH}" || exit 1
-   git diff "${TRACKING_REMOTE}/${BASE_BRANCH}" --stat || exit 1
-   git diff "${TRACKING_REMOTE}/${BASE_BRANCH}" --name-only || exit 1
+   git diff "${TRACKING_REMOTE}/${BASE_BRANCH}...${DIFF_HEAD}" --stat || exit 1
+   git diff "${TRACKING_REMOTE}/${BASE_BRANCH}...${DIFF_HEAD}" --name-only || exit 1
    ```
 
    Do not continue triage if fetch or either diff command fails.
@@ -86,9 +108,9 @@ Resolve PR number and repository into named variables before any shell commands.
 
 For each failing check, gather evidence and classify. Use `ci:prow-job-analysis` for Prow/OpenShift CI jobs and the flaky-test-identification reference for classification signals.
 
-1. **Get the job URL** from the check object's `link` field (populated in Step 0). Skip checks with no Prow URL (e.g. GitHub Actions-only) — triage from available logs/output instead.
+1. **Get the job URL** from the check object's `link` field (populated in Step 0). When the link is a Prow/OpenShift CI URL, use `ci:prow-job-analysis` (step 2). When it is not a Prow URL (e.g. GitHub Actions-only), skip Prow analysis only — still triage and classify the check from available logs/output and include it in the Step 3 summary and any PR report.
 
-2. **Analyze the failure** using `ci:prow-job-analysis` with the Prow URL. Identify:
+2. **Analyze the failure** using `ci:prow-job-analysis` when a Prow URL is available. Otherwise use whatever log/output the check link or scenario provides. Identify:
    - Failed step or test name
    - Error message
    - ci-operator failure reason (if any)

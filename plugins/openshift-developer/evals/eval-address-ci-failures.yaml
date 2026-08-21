@@ -1,10 +1,9 @@
 name: address-ci-failures-eval
 description: Evaluate the address-ci-failures skill's ability to classify CI failures and decide fix vs report per TRT-2831 guardrails
-skill: openshift-developer:address-ci-failures
 
 execution:
   mode: case
-  arguments: "{prompt}"
+  prompt: "{prompt}"
   timeout: 120
   max_budget_usd: 1.00
 
@@ -12,7 +11,12 @@ runner:
   type: claude-code
   plugin_dirs:
     - plugins/openshift-developer
+    - plugins/ci
+    - plugins/golang
   system_prompt: |
+    Read the file skill.md in the current working directory first. It contains the
+    address-ci-failures triage methodology and TRT-2831 guardrails.
+
     Analyze the CI failure scenario provided and write your triage decision to a file
     called analysis.json in the current working directory. The file must contain
     valid JSON with exactly these fields:
@@ -22,16 +26,20 @@ runner:
     - rationale: string — brief explanation citing evidence from the scenario
     Do not wrap the JSON in markdown code fences in the file.
 
+    These cases are static scenarios only. Do not use Bash or run live gh/git/CI
+    commands. Apply the skill rules to the scenario text in the prompt, then write
+    analysis.json.
+
 models:
-  judge: claude-opus-4-6
+  skill: opus
+  judge: opus
 
 permissions:
   allow:
     - "Read"
     - "Write"
-    - "Skill"
-    - "Bash"
   deny:
+    - "Bash"
     - "Agent"
     - "mcp__*"
 
@@ -40,6 +48,9 @@ mlflow:
 
 dataset:
   path: cases/address-ci-failures
+  workspace:
+    files:
+      - skill.md
   schema: |
     Each case directory contains:
     - input.yaml: YAML file with fields:

@@ -118,13 +118,19 @@ Read the JSON `reason` as well as the exit code:
 
 ### CI failures
 
-`gh pr checks` exits non-zero when checks fail; still use stdout JSON.
+`gh pr checks` exits non-zero when checks fail; capture stdout without letting a non-zero status abort the script. Accept non-zero exit when valid JSON is returned; fail only on missing or invalid JSON.
 
 ```sh
-gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link
+CHECKS_JSON=""
+CHECKS_EXIT=0
+CHECKS_JSON=$(gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link 2>/dev/null) || CHECKS_EXIT=$?
+if [ -z "$CHECKS_JSON" ] || ! printf '%s' "$CHECKS_JSON" | jq -e 'type == "array"' >/dev/null 2>&1; then
+  echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
+  exit 1
+fi
 ```
 
-Failing checks are those with `bucket == "fail"`. Build a JSON array of objects with `name`, `state`, `bucket`, and `link` (Prow/job URL when available). Pass the full objects in `FAILING_CHECKS` for `address-ci-failures`.
+Failing checks are those with `bucket == "fail"`. Ignore `tide` — it is not an actionable CI failure. Build a JSON array of objects with `name`, `state`, `bucket`, and `link` (Prow/job URL when available). Pass only these actionable failures in `FAILING_CHECKS` for `address-ci-failures`.
 
 Parse the caller's previous `FAILING_CHECKS` as that same JSON array (not a space-separated string). Compare the sorted name sets:
 
