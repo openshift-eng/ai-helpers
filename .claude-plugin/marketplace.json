@@ -92,7 +92,7 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.9.2",
+      "version": "0.9.4",
       "category": "productivity",
       "keywords": [
         "jira",
@@ -453,7 +453,7 @@
       "name": "console",
       "source": "./plugins/console",
       "description": "OpenShift Console dynamic plugin development utilities",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "category": "development",
       "keywords": [
         "console",
@@ -501,7 +501,7 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.15",
+      "version": "1.1.17",
       "category": "bundle",
       "keywords": [
         "openshift",
@@ -563,7 +563,7 @@
       "name": "nid-team",
       "source": "./plugins/nid-team",
       "description": "Development and workflow tools for the Network Ingress & DNS team",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "development",
       "keywords": [
         "nid",

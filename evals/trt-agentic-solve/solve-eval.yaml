@@ -9,11 +9,50 @@ collect:
   expected_branch_diff: true
 judges:
   - name: branch_created
+    module: prow_agent_eval.judges
+    function: check_branch_created
   - name: pr_exists
+    module: prow_agent_eval.judges
+    function: check_pr_exists
   - name: build_passed
+    module: prow_agent_eval.judges
+    function: check_build_passed
   - name: test_passed
+    module: prow_agent_eval.judges
+    function: check_test_passed
   - name: file_overlap
+    module: prow_agent_eval.judges
+    function: check_file_overlap
+    if: not annotations.get('golden_files_overlap')
+  - name: golden_files_covered
+    module: prow_agent_eval.judges
+    function: check_golden_files_covered
+    if: annotations.get('golden_files_overlap')
   - name: pr_description_exists
+    module: prow_agent_eval.judges
+    function: check_pr_description_exists
   - name: diff_size_ratio
+    module: prow_agent_eval.judges
+    function: check_diff_size_ratio
   - name: function_overlap
-thresholds: {}
+    module: prow_agent_eval.judges
+    function: check_function_overlap
+thresholds:
+  branch_created:
+    min_pass_rate: 1.0
+  pr_exists:
+    min_pass_rate: 1.0
+  build_passed:
+    min_pass_rate: 1.0
+  test_passed:
+    min_pass_rate: 1.0
+  file_overlap:
+    min_pass_rate: 1.0
+  golden_files_covered:
+    min_pass_rate: 1.0
+  pr_description_exists:
+    min_pass_rate: 1.0
+  diff_size_ratio:
+    min_pass_rate: 1.0
+  function_overlap:
+    min_pass_rate: 1.0

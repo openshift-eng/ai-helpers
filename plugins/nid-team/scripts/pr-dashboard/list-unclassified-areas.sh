@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/config.sh"
 
 # Build a space-separated string of deterministic repos for Python to parse
-DETERMINISTIC_REPOS=$(printf '%s ' "${!REPO_TO_AREA[@]}")
+DETERMINISTIC_REPOS=$(deterministic_repos | tr '\n' ' ')
 
 echo "Fetching project items..." >&2
 ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
