@@ -91,10 +91,6 @@ dataset:
         expected_failing_jobs. An explicit empty list means the correct
         analysis recommends NO revert — any candidate at or above the
         revert threshold is a false positive.
-      - 'expected_ci_config_issues' (optional): openshift/release CI-config
-        culprits (pr_url, repo, description, expected_failing_jobs). These
-        never appear in payload changelogs, so identifying them requires
-        the step-registry lookup path.
       - 'notes': free text context
 
     Snapshots are stored as tar.gz archives in
@@ -506,8 +502,8 @@ judges:
   - name: no_unexpected_reverts
     description: |
       Deterministic false-revert gate: no candidate may reach the revert
-      threshold (>= 85) unless its pr_url is listed in expected_candidates
-      or expected_ci_config_issues. RHCOS RPM candidates are exempt — the
+      threshold (>= 85) unless its pr_url is listed in expected_candidates.
+      RHCOS RPM candidates are exempt — the
       skill scores them but never proposes reverting them. This is the hard
       check behind the adversarial false-revert cases.
     check: |
@@ -519,9 +515,8 @@ judges:
       data = yaml.safe_load(yf[0]) or {}
       ann = outputs.get("annotations", {})
       allowed = set()
-      for key in ("expected_candidates", "expected_ci_config_issues"):
-          for c in ann.get(key, []) or []:
-              allowed.add(str(c.get("pr_url", "")).rstrip("/"))
+      for c in ann.get("expected_candidates", []) or []:
+          allowed.add(str(c.get("pr_url", "")).rstrip("/"))
       REVERT_THRESHOLD = 85
       rogue = []
       for c in data.get("candidates", []) or []:
