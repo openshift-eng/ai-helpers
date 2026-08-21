@@ -420,7 +420,7 @@ Below is the structured analysis of the {len(carries)} downstream carry commits 
                 report_content += f"| `{sha}` | {msg} | **{decision}** | {reason} |\n"
             report_content += "\n</details>\n\n"
         
-        report_content += """### 2. Build, CI, and Packaging (Dockerfiles, Prow config, Make targets)
+        report_content += f"""### 2. Build, CI, and Packaging (Dockerfiles, Prow config, Make targets)
 **Review Focus:** Release, ART, & CI/operator owners to sign off on packaging and automation toggles.
 *   **Summary:** We are carrying **{len(build_carries)}** packaging, Dockerfile, and Prow configuration commits. These represent standard OpenShift releases metadata, make target shims, and base-image overrides (e.g. updating base images to match `ocp-build-data` config).
 *   **Action Required:** Reconcile downstream Dockerfiles with any upstream base-image changes, and verify `make test` targets align with CI rehearsals.
