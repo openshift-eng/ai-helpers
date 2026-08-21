@@ -42,6 +42,10 @@ runner:
     absence of a revert as causal evidence. Timestamp-bound every external
     lookup and ignore results newer than the cutoff.
 
+    If $TMPDIR is set, use it for all temporary files and downloaded artifacts
+    (logs, must-gather, gcloud/gsutil/curl output) instead of /tmp. Instruct
+    every subagent to do the same.
+
 models:
   judge: claude-opus-4-8
 
@@ -442,13 +446,15 @@ judges:
       return (True, f"No model refusal detected ({scope})")
 
   - name: expected_candidates_found
-    if: "annotations.get('expected_candidates') is not None"
+    if: "annotations.get('expected_candidates') is not None or annotations.get('has_revert_candidates') is False"
     description: |
       Deterministic check that every expected revert candidate appears in the
-      results YAML at or above its min_confidence. An explicit empty list is a
-      valid no-revert expectation and passes vacuously (nothing to miss); the
-      false-positive direction is enforced separately by no_unexpected_reverts.
-      Skipped only when a case omits expected_candidates entirely.
+      results YAML at or above its min_confidence. A no-revert case is a valid
+      expectation and passes vacuously (nothing to miss); the false-positive
+      direction is enforced separately by no_unexpected_reverts. A case declares
+      no-revert either explicitly (expected_candidates: []) or implicitly
+      (has_revert_candidates: false with the key omitted) — both are scored.
+      Skipped only when a case defines neither expectation.
     check: |
       import yaml, os
       all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
