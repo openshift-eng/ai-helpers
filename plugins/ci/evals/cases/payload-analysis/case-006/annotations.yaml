@@ -8,7 +8,6 @@ expected_candidates:
   - pr_url: "https://github.com/openshift/hypershift/pull/7790"
     component: "hypershift"
     min_confidence: 85
-    expected_confidence: 95
     description: "Added guest cluster metrics forwarder feature and EnsureMetricsForwarderWorking test; HCCO silently skips deployment creation when prerequisites missing"
     expected_failing_jobs:
       - "e2e-aks"
@@ -16,7 +15,6 @@ expected_candidates:
   - pr_url: "https://github.com/openshift/hypershift/pull/8138"
     component: "hypershift"
     min_confidence: 40
-    expected_confidence: 50
     description: "Reverted AWS guest resource cleanup timeout extension, causing intermittent teardown timeouts"
     expected_failing_jobs:
       - "e2e-aws"

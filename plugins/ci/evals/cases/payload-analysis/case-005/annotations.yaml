@@ -8,7 +8,6 @@ expected_candidates:
   - pr_url: "https://github.com/openshift/cloud-credential-operator/pull/978"
     component: "cloud-credential-operator"
     min_confidence: 85
-    expected_confidence: 95
     description: "Set operator condition to Progressing when pod identity webhook pods are updating, causing CCO Progressing=True during MCO rolling phase"
     expected_failing_jobs:
       - "aws-ovn-upgrade"

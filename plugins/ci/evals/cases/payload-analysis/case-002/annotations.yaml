@@ -8,7 +8,6 @@ expected_candidates:
   - pr_url: "https://github.com/openshift/origin/pull/31006"
     component: "tests"
     min_confidence: 85
-    expected_confidence: 95
     description: "add oc-mirror to extensionBinaries — caused widespread test failures across serial, techpreview, metal, and upgrade jobs"
     expected_failing_jobs:
       - "aws-ovn-serial"

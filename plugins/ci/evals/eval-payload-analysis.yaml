@@ -87,7 +87,7 @@ dataset:
         judges; used by the point_in_time_integrity judge to detect
         post-hoc leakage. Must always match the input.yaml value.
       - 'expected_candidates': list of expected revert candidates with pr_url,
-        component, min_confidence, expected_confidence, description,
+        component, min_confidence, description,
         expected_failing_jobs. An explicit empty list means the correct
         analysis recommends NO revert — any candidate at or above the
         revert threshold is a false positive.
@@ -692,10 +692,6 @@ judges:
 
       Score the revert decision: which candidate(s) to revert, the confidence
       assigned to each, and their failing-job linkage.
-
-      expected_confidence is a reference floor. A correctly-identified
-      candidate scored at or above expected_confidence, up to the 100 cap,
-      receives full confidence credit.
 
       A correct result means every expected candidate is proposed for revert
       with a score of 85 or above, or no revert is proposed when none is

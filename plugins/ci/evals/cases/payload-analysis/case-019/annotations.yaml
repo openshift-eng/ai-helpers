@@ -8,7 +8,6 @@ expected_candidates:
   - pr_url: "https://github.com/openshift/cluster-version-operator/pull/1427"
     component: "cluster-version-operator"
     min_confidence: 85
-    expected_confidence: 85
     description: "OTA-1997 changed the CVO's own Deployment manifest to reference a Go template field (agentic-skills image) that only the 5.0 CVO understands; during a 4.22->5.0 major upgrade the 4.22 CVO cannot render it and silently skips the CVO Deployment manifest, stranding a 4.22 CVO that re-applies 4.22 operator Deployments"
     expected_failing_jobs:
       - "aws-ovn-upgrade"

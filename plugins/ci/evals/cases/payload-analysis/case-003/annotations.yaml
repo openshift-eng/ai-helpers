@@ -8,7 +8,6 @@ expected_candidates:
   - pr_url: "https://github.com/openshift/cluster-network-operator/pull/2959"
     component: "cluster-network-operator"
     min_confidence: 80
-    expected_confidence: 90
     description: "Added remaining CNO NetworkPolicies that blocked egress from cloud-network-config-controller, causing CrashLoopBackOff due to API server timeout"
     expected_failing_jobs:
       - "aws-ovn-upgrade"
