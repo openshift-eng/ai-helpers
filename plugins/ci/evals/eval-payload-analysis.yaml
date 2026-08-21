@@ -694,9 +694,11 @@ judges:
       Score the revert decision: which candidate(s) to revert, the confidence
       assigned to each, and their failing-job linkage.
 
-      A correct result means every expected candidate is proposed for revert
-      with a score of 85 or above, or no revert is proposed when none is
-      expected.
+      A candidate scored 85 or above is a proposed revert; below 85 is a
+      low-confidence maybe that triggers no action and is ignored.
+
+      - Every expected revert must score 85 or above; below that is a mistake.
+      - An extra candidate counts as a false revert only at 85 or above.
 
       Evaluate on a 1-5 scale:
 
