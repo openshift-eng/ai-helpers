@@ -595,7 +595,7 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
         is_resuming = False
         if branch_exists:
             try:
-                ahead = self.run_cmd(["git", "log", f"{target_version}..{branch_name}", "--oneline"])
+                ahead = self.run_cmd(["git", "log", "--first-parent", f"{target_version}..{branch_name}", "--oneline"])
                 if ahead.strip():
                     is_resuming = True
             except Exception:
@@ -642,7 +642,7 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
             # Check if commit message is already present in branch history
             commit_exists = False
             try:
-                log_out = self.run_cmd(["git", "log", f"{target_version}..HEAD", "--format=%s"])
+                log_out = self.run_cmd(["git", "log", "--first-parent", f"{target_version}..HEAD", "--format=%s"])
                 if msg in log_out:
                     commit_exists = True
             except Exception:
@@ -668,7 +668,7 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
         # 4. Perform the squash of configuration carries
         squash_done = False
         try:
-            log_out = self.run_cmd(["git", "log", f"{target_version}..HEAD", "--format=%s"])
+            log_out = self.run_cmd(["git", "log", "--first-parent", f"{target_version}..HEAD", "--format=%s"])
             if "UPSTREAM: <carry>: Add and update OpenShift configurations" in log_out:
                 squash_done = True
         except Exception:
