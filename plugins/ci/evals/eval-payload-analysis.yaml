@@ -690,37 +690,35 @@ judges:
 
       {{ annotations }}
 
-      Two failure directions matter equally:
-      - Missed reverts: every entry in expected_candidates must be identified
-        at or above its min_confidence and linked to its expected_failing_jobs.
-      - False reverts: when expected_candidates is empty, the correct output
-        has NO candidate at or above the revert threshold. Recommending a
-        revert in that situation is the worst outcome, not a near miss.
+      Score the revert decision: which candidate(s) to revert, the confidence
+      assigned to each, and their failing-job linkage.
+
+      expected_confidence is a reference floor. A correctly-identified
+      candidate scored at or above expected_confidence, up to the 100 cap,
+      receives full confidence credit.
+
+      A correct result means every expected candidate is proposed for revert
+      with a score of 85 or above, or no revert is proposed when none is
+      expected.
 
       Evaluate on a 1-5 scale:
 
-      Score 1: Wrong verdict in either direction — a candidate at/above the
-               revert threshold that is not in expected_candidates (including
-               any revert recommendation when expected_candidates is empty),
-               OR all expected candidates missed, OR no scoring applied at all.
-      Score 2: Some expected candidates identified but confidence scores are way
-               off (>20 points from expected), key failing-job linkages are
-               missing, or an unexpected candidate is scored just below
-               threshold on weak evidence.
-      Score 3: Correct revert/no-revert verdict, but scores are off by 10-20
-               points, rubric signals are not itemized per candidate, or
-               dismissals of non-candidates are asserted without cited evidence.
-      Score 4: Correct verdict with scores within 10 points of
-               expected_confidence. Rubric correctly applied with itemized
-               breakdown. Most expected failing jobs correctly linked.
-               Infrastructure failures correctly distinguished from product
-               failures.
-      Score 5: Correct verdict with scores within 5 points of
-               expected_confidence. Rubric meticulously applied — each signal
-               justified with specific evidence per the attached SKILL.md.
-               All expected failing jobs correctly linked. For no-revert cases,
-               each dismissed candidate's exoneration is backed by concrete
-               evidence rather than assertion.
+      Score 5: A 100% correct result. Every expected revert is identified and
+               scored 85 or above with the correct failing-job links, and no
+               unexpected revert is proposed — or no revert is proposed when
+               none is expected.
+      Score 4: Every expected revert is identified with the correct failing-job
+               links and no unexpected reverts, but with one small mistake —
+               one expected revert scored just below 85, or one factual error
+               in the failing-job linkage.
+      Score 3: Every expected revert is identified with the correct failing-job
+               links and no unexpected reverts, but with larger scoring errors
+               such as multiple confidence scores being wrong.
+      Score 2: At least one expected revert is missed, or a false revert is
+               proposed, but the result is still supported by some investigation
+               and evidence.
+      Score 1: Expected reverts are missed or fabricated with little or no
+               supporting investigation or evidence — the result is wrong.
 
   - name: point_in_time_integrity
     score_range: [1, 5]
