@@ -87,7 +87,7 @@ dataset:
         judges; used by the point_in_time_integrity judge to detect
         post-hoc leakage. Must always match the input.yaml value.
       - 'expected_candidates': list of expected revert candidates with pr_url,
-        component, min_confidence, description,
+        component, description,
         expected_failing_jobs. An explicit empty list means the correct
         analysis recommends NO revert — any candidate at or above the
         revert threshold is a false positive.
@@ -445,7 +445,7 @@ judges:
     if: "annotations.get('expected_candidates') is not None or annotations.get('has_revert_candidates') is False"
     description: |
       Deterministic check that every expected revert candidate appears in the
-      results YAML at or above its min_confidence. A no-revert case is a valid
+      results YAML at or above the revert threshold (85). A no-revert case is a valid
       expectation and passes vacuously (nothing to miss); the false-positive
       direction is enforced separately by no_unexpected_reverts. A case declares
       no-revert either explicitly (expected_candidates: []) or implicitly
@@ -453,6 +453,7 @@ judges:
       Skipped only when a case defines neither expectation.
     check: |
       import yaml, os
+      REVERT_THRESHOLD = 85
       all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
       yf = [v for k, v in all_f.items() if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")]
       if not yf:
@@ -475,8 +476,8 @@ judges:
               score = float(got.get("confidence_score", 0))
           except (TypeError, ValueError):
               score = 0.0
-          if score < float(exp.get("min_confidence", 0)):
-              low.append(f"{url} scored {score:g} < min {exp.get('min_confidence')}")
+          if score < REVERT_THRESHOLD:
+              low.append(f"{url} scored {score:g} < revert threshold {REVERT_THRESHOLD}")
           # Bidirectional substring match: the model may legitimately report
           # either the short job stem (e2e-aws-ovn) or the full periodic name
           # (periodic-ci-...-e2e-aws-ovn), and annotations may use either form.

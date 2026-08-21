@@ -7,14 +7,12 @@ payload_completed_at: "2026-03-27T04:56:37Z"
 expected_candidates:
   - pr_url: "https://github.com/openshift/cluster-authentication-operator/pull/839"
     component: "cluster-authentication-operator"
-    min_confidence: 85
     description: "Ginkgo v2 migration broke test binary stdout output, corrupting JSON test listing in openshift-tests"
     expected_failing_jobs:
       - "metal-ipi-ovn-ipv4"
       - "metal-ipi-ovn-ipv6"
   - pr_url: "https://github.com/openshift/release/pull/76852"
     component: "openshift/release"
-    min_confidence: 85
     description: "Changed vSphere VCM default lease to multi-tenant, breaking UPI workflows that require single-tenant leases"
     expected_failing_jobs:
       - "install-analysis-all"
