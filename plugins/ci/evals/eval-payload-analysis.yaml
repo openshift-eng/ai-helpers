@@ -435,11 +435,13 @@ judges:
       return (True, f"No model refusal detected ({scope})")
 
   - name: expected_candidates_found
-    if: "annotations.get('expected_candidates')"
+    if: "annotations.get('expected_candidates') is not None"
     description: |
       Deterministic check that every expected revert candidate appears in the
-      results YAML at or above its min_confidence. Skipped for cases that
-      expect no candidates.
+      results YAML at or above its min_confidence. An explicit empty list is a
+      valid no-revert expectation and passes vacuously (nothing to miss); the
+      false-positive direction is enforced separately by no_unexpected_reverts.
+      Skipped only when a case omits expected_candidates entirely.
     check: |
       import yaml, os
       all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
