@@ -229,7 +229,7 @@ Include commit hashes for fixes and comment URLs for reports.
    ```
 
 ## See Also
-- `has-review-work` — read-only gate that detects new CI failures
+- `has-review-work` — read-only gate that sets `CI_WORK` for new CI failures
 - `address-review-pr` — handles reviewer comments (not CI failures)
 - `ci:prow-job-analysis` — analyze Prow job logs and artifacts
 - `github:check-pr-ci-status` — CI status helper with previous-failure tracking

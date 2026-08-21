@@ -282,5 +282,5 @@ Where `<type>` is one of: `issue_comment`, `review_thread`, or `review_comment`
 3. **Check before acting**: Questions ("Why did you...?") get explanations, not code changes.
 
 ## See Also
-- `has-review-work` — read-only gate: unanswered authorized comments or new CI failures
+- `has-review-work` — read-only gate: `COMMENT_WORK` for unanswered authorized comments, `CI_WORK` for new CI failures
 - `address-ci-failures` — triage and fix PR-caused CI failures (or report non-actionable ones)
