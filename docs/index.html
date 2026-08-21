@@ -541,7 +541,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.85",
+      "version": "0.0.89",
       "has_readme": true,
       "commands": [
         {
@@ -2558,6 +2558,12 @@ footer a { color: var(--primary); }
           "name": "generate-test-plan",
           "description": "Generate a comprehensive manual testing guide from a Jira issue, GitHub PR URLs, or both. Use when the user wants test steps, a QE test plan, or a testing guide for code changes.",
           "description_html": "Generate a comprehensive manual testing guide from a Jira issue, GitHub PR URLs, or both. Use when the user wants test steps, a QE test plan, or a testing guide for code changes.",
+          "meta": ""
+        },
+        {
+          "name": "has-review-work",
+          "description": "Decide whether a GitHub PR has unanswered authorized review comments or new CI failures worth a follow-up agent. Use when gating a review-responder loop, polling a PR for actionable feedback, or checking if address-review-pr should run.",
+          "description_html": "Decide whether a GitHub PR has unanswered authorized review comments or new CI failures worth a follow-up agent. Use when gating a review-responder loop, polling a PR for actionable feedback, or checking if address-review-pr should run.",
           "meta": ""
         },
         {
