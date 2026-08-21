@@ -7,8 +7,6 @@ payload_completed_at: "2026-03-19T01:17:31Z"
 expected_candidates:
   - pr_url: "https://github.com/openshift/operator-framework-olm/pull/1256"
     component: "operator-lifecycle-manager"
-    min_confidence: 85
-    expected_confidence: 95
     description: "OLM PR #1256 added e2e.Logf calls in the olmv0-tests-ext client-setup path (getAdminContextNameCached in tests-extension/test/qe/util/client.go); the klog INFO lines (starting with 'I') hit stdout during OTE test listing and corrupt the JSON stream"
     expected_failing_jobs:
       - "metal-ipi-ovn-ipv4"

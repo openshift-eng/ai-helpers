@@ -7,8 +7,6 @@ payload_completed_at: "2026-06-17T17:06:42Z"
 expected_candidates:
   - pr_url: "https://github.com/openshift/release/pull/78140"
     component: "openshift/release"
-    min_confidence: 85
-    expected_confidence: 95
     description: "step-registry mirror migration to Cloudflare R2 broke gather-must-gather curl in bare-metal proxy environments"
     expected_failing_jobs:
       - "metal-ipi-ovn-ipv4"

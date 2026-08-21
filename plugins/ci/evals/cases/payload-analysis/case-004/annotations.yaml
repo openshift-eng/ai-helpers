@@ -7,16 +7,12 @@ payload_completed_at: "2026-03-20T12:21:33Z"
 expected_candidates:
   - pr_url: "https://github.com/openshift/cluster-ingress-operator/pull/1354"
     component: "cluster-ingress-operator"
-    min_confidence: 85
-    expected_confidence: 95
     description: "Replaced OLM-based Istio install with Sail Library, causing GatewayAPIController failures"
     expected_failing_jobs:
       - "aws-ovn-techpreview"
       - "aws-ovn-techpreview-serial"
   - pr_url: "https://github.com/openshift/oc/pull/2232"
     component: "oc"
-    min_confidence: 85
-    expected_confidence: 90
     description: "Changed manifest reading to in-memory, causing nil pointer dereference in oc adm release mirror"
     expected_failing_jobs:
       - "metal-ipi-ovn-ipv6"

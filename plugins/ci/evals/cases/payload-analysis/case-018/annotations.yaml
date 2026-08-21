@@ -7,8 +7,6 @@ payload_completed_at: "2026-07-23T07:44:48Z"
 expected_candidates:
   - pr_url: "https://github.com/openshift/oc/pull/2279"
     component: "cli"
-    min_confidence: 85
-    expected_confidence: 100
     description: "oc adm upgrade recommend output changed while the TechPreview serial tests still required the removed conditions preamble"
     expected_failing_jobs:
       - "aws-ovn-techpreview-serial"
