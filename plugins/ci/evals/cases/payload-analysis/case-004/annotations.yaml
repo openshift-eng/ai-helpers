@@ -2,6 +2,7 @@ expected_phase: Rejected
 expected_failed_job_count: 3
 has_revert_candidates: true
 force_accept_expected: false
+payload_completed_at: "2026-03-20T12:21:33Z"
 
 expected_candidates:
   - pr_url: "https://github.com/openshift/cluster-ingress-operator/pull/1354"
@@ -10,8 +11,8 @@ expected_candidates:
     expected_confidence: 95
     description: "Replaced OLM-based Istio install with Sail Library, causing GatewayAPIController failures"
     expected_failing_jobs:
-      - "e2e-aws-ovn-techpreview"
-      - "e2e-aws-ovn-techpreview-serial"
+      - "aws-ovn-techpreview"
+      - "aws-ovn-techpreview-serial"
   - pr_url: "https://github.com/openshift/oc/pull/2232"
     component: "oc"
     min_confidence: 85

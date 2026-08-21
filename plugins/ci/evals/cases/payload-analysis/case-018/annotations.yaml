@@ -1,0 +1,29 @@
+expected_phase: Rejected
+expected_failed_job_count: 4
+has_revert_candidates: true
+force_accept_expected: false
+payload_completed_at: "2026-07-23T07:44:48Z"
+
+expected_candidates:
+  - pr_url: "https://github.com/openshift/oc/pull/2279"
+    component: "cli"
+    min_confidence: 85
+    expected_confidence: 100
+    description: "oc adm upgrade recommend output changed while the TechPreview serial tests still required the removed conditions preamble"
+    expected_failing_jobs:
+      - "aws-ovn-techpreview-serial"
+
+notes: >
+  Mixed true-positive and false-positive case. The original Payload Agent
+  correctly recommended openshift/oc#2279 at 100 for two TechPreview serial
+  failures, but also recommended openshift/hypershift#8871 at 95 for the
+  aggregated HyperShift failure. The latter attribution is false: it substitutes
+  job-level temporal onset for the underlying signature onset and never proves
+  the claimed target etcd rollout. The true defect is cross-tenant evidence
+  contamination in the Origin etcd monitor query — the target etcd-0 pod had
+  restartCount=0 and was created with the TLS arguments present from first
+  startup, so PR #8871 caused no rollout, while the monitor query aggregates
+  away namespace and can attribute another HostedCluster's leader election to
+  etcd-0. Keep the independently proven oc #2279 recommendation and reject
+  HyperShift #8871. Source Payload Agent analysis:
+  https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-main-claude-payload-agent/2080077739515187200/artifacts/claude-payload-agent/openshift-claude-payload-agent/artifacts/payload-analysis-5.0.0-0.nightly-2026-07-22-233611-summary.html

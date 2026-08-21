@@ -1,12 +1,12 @@
 name: ci-payload-analysis-eval
 description: Evaluate the payload-analysis skill's ability to analyze OCP payload snapshots, trace root causes, correlate with PRs, and produce actionable HTML reports with revert recommendations
-skill: ci:payload-analysis
-
 execution:
+  skill: ci:payload-analysis
   mode: case
-  arguments: "{payload_tag} --snapshot-dir $EVAL_SNAPSHOT_DIR/{payload_tag}"
+  arguments: "{payload_tag} --snapshot-dir $EVAL_SNAPSHOT_DIR/{payload_tag} --as-of {payload_completed_at}"
   timeout: 3600
   max_budget_usd: 25.0
+  parallelism: 3
   env:
     EVAL_SNAPSHOT_DIR: $EVAL_SNAPSHOT_DIR
     GITHUB_TOKEN: $GITHUB_TOKEN
@@ -15,6 +15,13 @@ runner:
   type: claude-code
   plugin_dirs:
     - plugins/ci
+  # Codex-only: keep the workspace-write filesystem sandbox but allow network
+  # egress so the skill can reach GCS/Prow, GitHub, and Sippy. The default
+  # workspace-write policy blocks DNS/network entirely, which starves the
+  # snapshot-backed analysis of the live lookups it still needs. Ignored by the
+  # claude-code runner (which does not read runner.settings).
+  settings:
+    sandbox_workspace_write.network_access: true
   system_prompt: |
     You are a diligent senior OpenShift release engineer triaging failures.
 
@@ -30,14 +37,17 @@ runner:
     structured output files. NEVER write these files directly — the skills
     enforce the canonical schema.
 
-    When searching external sources (GitHub, Prow, GCS) for CI configuration
-    changes or PRs not found in the snapshot changelog, constrain searches to
-    changes merged before the payload creation timestamp. The payload tag
-    encodes its creation date (e.g., 4.22.0-0.nightly-2026-03-26-231124 was
-    created on 2026-03-26).
+    Perform a point-in-time analysis as of the `--as-of` timestamp. Do not use
+    later reverts, comments, subsequent payload outcomes, or the present-day
+    absence of a revert as causal evidence. Timestamp-bound every external
+    lookup and ignore results newer than the cutoff.
+
+    If $TMPDIR is set, use it for all temporary files and downloaded artifacts
+    (logs, must-gather, gcloud/gsutil/curl output) instead of /tmp. Instruct
+    every subagent to do the same.
 
 models:
-  judge: claude-opus-4-6
+  judge: claude-opus-4-8
 
 permissions:
   allow:
@@ -51,22 +61,40 @@ permissions:
 
 mlflow:
   experiment: ci-payload-analysis-eval
+  tags:
+    plugin: ci
+    skill: payload-analysis
 
 dataset:
-  path: plugins/ci/evals/cases/payload-analysis
+  # Resolved relative to this config file's directory (plugins/ci/evals),
+  # not the repo root — see EvalConfig.resolve_path.
+  path: cases/payload-analysis
   schema: |
     Each case directory contains:
     - input.yaml: YAML file with fields:
       - 'payload_tag' — a real payload tag from amd64.ocp.releases.ci.openshift.org
         (e.g., '5.0.0-0.nightly-2026-05-30-072431')
+      - 'payload_completed_at' — exact ISO-8601 evidence cutoff, derived from
+        the latest blocking-job completion in the payload. Passed to the skill
+        as '--as-of' so the analysis stays point-in-time.
     - annotations.yaml: Expected outcomes and metadata for scoring:
       - 'expected_phase': Rejected|Ready|Accepted
       - 'expected_failed_job_count': integer
       - 'has_revert_candidates': boolean
       - 'force_accept_expected': boolean
+      - 'payload_completed_at': the same ISO-8601 cutoff as in input.yaml.
+        Duplicated because the harness only exposes annotations.yaml to
+        judges; used by the point_in_time_integrity judge to detect
+        post-hoc leakage. Must always match the input.yaml value.
       - 'expected_candidates': list of expected revert candidates with pr_url,
         component, min_confidence, expected_confidence, description,
-        expected_failing_jobs
+        expected_failing_jobs. An explicit empty list means the correct
+        analysis recommends NO revert — any candidate at or above the
+        revert threshold is a false positive.
+      - 'expected_ci_config_issues' (optional): openshift/release CI-config
+        culprits (pr_url, repo, description, expected_failing_jobs). These
+        never appear in payload changelogs, so identifying them requires
+        the step-registry lookup path.
       - 'notes': free text context
 
     Snapshots are stored as tar.gz archives in
@@ -79,17 +107,19 @@ outputs:
     schema: |
       The skill writes three files to the workspace root (not a subdirectory):
       1. payload-analysis-{sanitized_tag}-summary.html — self-contained HTML report
-         with executive summary, blocking jobs summary table, recommended reverts
-         (or no-revert verdict), optional force-accept recommendation, and per-job
-         collapsible failure details. Uses GitHub dark mode styling with embedded CSS.
+         built from the skill's assets/report-template.html: executive summary,
+         blocking jobs summary table, recommended reverts (or no-revert verdict),
+         optional force-accept recommendation, and per-job collapsible failure
+         details. Uses GitHub dark mode styling with embedded CSS.
       2. payload-results-{sanitized_tag}.yaml — structured YAML with:
          - metadata: payload_tag, version, stream, architecture, release_controller_url,
            analyzed_at, force_accept_recommended
          - failing_jobs[]: job_name, prow_url, is_aggregated, underlying_job_name,
            failure_type, root_cause_summary, streak_length, originating_payload_tag,
            failure_pattern
-         - candidates[]: pr_url, pr_number, component, title, confidence_score,
-           rationale, failing_jobs[], actions[]
+         - candidates[]: type ("pr" or "rhcos_rpm"), component, confidence_score,
+           rationale, failing_jobs[], actions[]; type "pr" entries also carry
+           pr_url, pr_number, title
       3. payload-analysis-{sanitized_tag}-autodl.json — flat denormalized JSON object
          with table_name, schema, and rows array. One row per (failed blocking job,
          candidate PR) pair. All row values are strings. Fields include payload_tag,
@@ -167,9 +197,11 @@ judges:
           if jmissing:
               return (False, f"failing_jobs[0] missing: {', '.join(jmissing)}")
       if cands:
-          required_cand_fields = ["pr_url", "confidence_score", "failing_jobs"]
+          required_cand_fields = ["type", "confidence_score", "failing_jobs"]
           c0 = cands[0]
           cmissing = [f for f in required_cand_fields if f not in c0]
+          if c0.get("type") != "rhcos_rpm" and "pr_url" not in c0:
+              cmissing.append("pr_url")
           if cmissing:
               return (False, f"candidates[0] missing: {', '.join(cmissing)}")
       return (True, f"Valid: {len(jobs)} failing jobs, {len(cands)} candidates")
@@ -238,31 +270,333 @@ judges:
 
   - name: required_skill_invocations
     description: |
-      Verify that payload-results-yaml and payload-autodl-json skills were
-      invoked via the Skill tool during execution.
+      Verify that the payload-results-yaml and payload-autodl-json skills were
+      actually used to produce the structured output (rather than the files
+      being hand-written). Harness-neutral: Claude Code exposes skills as a
+      `Skill` tool call, while Codex has no Skill tool and instead loads the
+      skill body into the transcript — so each skill counts as evidenced by
+      EITHER signal.
     check: |
       import json
-      stdout = outputs.get("stdout", "")
+      # skill name (Claude Code Skill tool) -> canonical body heading (the
+      # skill's SKILL.md H1, which is loaded into the transcript by harnesses
+      # without a Skill tool, e.g. Codex).
+      required = {
+          "ci:payload-results-yaml": "# Payload Results YAML",
+          "ci:payload-autodl-json": "# Payload Autodl JSON",
+      }
+      events = outputs.get("events") or []
+
+      # Signal A: normalized `Skill` tool invocations (Claude Code). Prefer the
+      # canonical event stream (merges subagent transcripts); fall back to raw
+      # Claude Code stdout JSONL when no events were collected.
       invoked = set()
-      for line in stdout.splitlines():
-          try:
-              entry = json.loads(line)
-          except (json.JSONDecodeError, ValueError):
-              continue
-          if entry.get("type") != "assistant":
-              continue
-          for block in entry.get("message", {}).get("content", []):
-              if block.get("type") == "tool_use" and block.get("name") == "Skill":
-                  skill = block.get("input", {}).get("skill", "")
-                  invoked.add(skill)
-      required = ["ci:payload-results-yaml", "ci:payload-autodl-json"]
-      found = [s for s in required if s in invoked]
-      missing = [s for s in required if s not in invoked]
+      for entry in events:
+          for tool in entry.get("tools", []) or []:
+              if tool.get("name") == "Skill":
+                  name = (tool.get("input") or {}).get("skill", "")
+                  if name:
+                      invoked.add(name)
+      if not events:
+          for line in (outputs.get("stdout") or "").splitlines():
+              try:
+                  entry = json.loads(line)
+              except (json.JSONDecodeError, ValueError):
+                  continue
+              if entry.get("type") != "assistant":
+                  continue
+              for block in entry.get("message", {}).get("content", []):
+                  if block.get("type") == "tool_use" and block.get("name") == "Skill":
+                      name = block.get("input", {}).get("skill", "")
+                      if name:
+                          invoked.add(name)
+
+      # Signal B: the skill body was loaded (harnesses without a Skill tool) —
+      # its canonical heading appears in the transcript corpus.
+      corpus = json.dumps(events) if events else (outputs.get("stdout") or "")
+
+      found, missing = [], []
+      for skill, heading in required.items():
+          if skill in invoked or heading in corpus:
+              found.append(skill)
+          else:
+              missing.append(skill)
       if missing:
-          return (False, f"Missing Skill calls: {', '.join(missing)}. Found: {', '.join(found)}")
-      return (True, f"Both required skills invoked: {', '.join(found)}")
+          return (False, f"Skill not evidenced (no Skill call or loaded body): {', '.join(missing)}. Found: {', '.join(found) or 'none'}")
+      return (True, f"Both skills evidenced (Skill tool or loaded body): {', '.join(found)}")
+
+  - name: no_answer_access
+    description: |
+      Cheating detector: the expected answers live in annotations.yaml under
+      the dataset directory, which is never staged into the agent workspace —
+      but the repo checkout (or host filesystem, for local runners) may be
+      reachable. Fail the case if any transcript shows the agent touching the
+      answer file or traversing the eval dataset directory. Scans events.json,
+      which collect.py builds with subagent transcripts merged in, so subagent
+      tool calls and text are covered; falls back to raw stdout when events
+      are absent.
+    check: |
+      import json
+      # Path tells only: the answer file itself or the dataset tree.
+      # Annotation field names are deliberately not matched — the agent can
+      # legitimately reason about its own output schema in similar terms.
+      patterns = [
+          "annotations.yaml",
+          "evals/cases/payload-analysis",
+      ]
+      events = outputs.get("events") or []
+      corpus = json.dumps(events) if events else outputs.get("stdout", "")
+      hits = []
+      for p in patterns:
+          n = corpus.count(p)
+          if n:
+              hits.append(f"{p} x{n}")
+      if hits:
+          return (False, "Transcript touches eval answers: " + "; ".join(hits))
+      scope = "events (main + subagent transcripts)" if events else "stdout only"
+      return (True, f"No access to annotations or dataset directory ({scope})")
+
+  - name: no_model_refusal
+    description: |
+      Environment/model signal (NOT a skill-quality signal): fail the case if
+      the agent or any subagent hit an API-level model refusal — the model's
+      safeguards flagged the request — during the run. Making refusals explicit
+      here stops them from masquerading downstream as a confusing "missing
+      output files" failure.
+
+      Claude Code only for now. A refusal reaches the captured corpus as a
+      system record (subtype model_refusal_fallback / model_refusal_no_fallback)
+      plus a synthetic assistant turn (model "<synthetic>", stop_reason
+      "refusal") carrying "safeguards flagged" text. Field naming differs across
+      capture surfaces (snake_case in CLI stream-json stdout; the merged flat
+      `events` schema drops model/stop_reason but preserves the system subtype),
+      so detection matches stable structured markers on whichever surface was
+      given. The <synthetic> 429 rate-limit record (stop_reason "stop_sequence",
+      not "refusal") must NOT trip this judge.
+
+      TODO(codex): Codex can also refuse, but its refusal-capture shape is not
+      yet known, and none of the Claude Code markers above apply. When the
+      capture is not a Claude Code run this judge abstains (returns no score)
+      rather than emit a misleading pass; revisit once a Codex refusal sample
+      exists. Reuses the no_answer_access corpus-access idiom.
+    check: |
+      import json
+      events = outputs.get("events") or []
+      if events:
+          corpus = json.dumps(events)
+          records = [e for e in events if isinstance(e, dict)]
+          scope = "events (main + subagent transcripts)"
+      else:
+          corpus = outputs.get("stdout", "")
+          records = []
+          for line in corpus.splitlines():
+              try:
+                  obj = json.loads(line)
+              except (json.JSONDecodeError, ValueError):
+                  continue
+              if isinstance(obj, dict):
+                  records.append(obj)
+          scope = "stdout only"
+
+      # Claude Code always emits a system/init record; Codex emits none. Absent
+      # that signature we cannot recognize a refusal, so abstain (no score)
+      # instead of returning a misleading pass.
+      is_claude_code = any(r.get("type") == "system" for r in records)
+      if not is_claude_code:
+          return (None, f"Not a Claude Code capture ({scope}); refusal detection "
+                        "not implemented for this harness — abstaining")
+
+      hits = []
+      category = None
+      for r in records:
+          # Marker A: system refusal subtypes (survive in both stdout and the
+          # flat events schema). Matched structurally on the subtype field so
+          # the token merely appearing in agent prose cannot trip it.
+          if r.get("type") == "system" and str(
+                  r.get("subtype", "")).startswith("model_refusal"):
+              hits.append(r.get("subtype"))
+          # Marker B: a synthetic assistant turn explicitly stopped for refusal.
+          # Pairing model "<synthetic>" with stop_reason "refusal" on the same
+          # record excludes the <synthetic> 429 record (stop_reason
+          # "stop_sequence"). Only reliable where raw message fields survive
+          # (stdout / raw session JSONL); the flat events schema drops them.
+          msg = r.get("message") if isinstance(r.get("message"), dict) else r
+          model = msg.get("model") or r.get("model")
+          stop = (msg.get("stop_reason") or msg.get("stopReason")
+                  or r.get("stop_reason") or r.get("stopReason"))
+          if model == "<synthetic>" and stop == "refusal":
+              hits.append('synthetic assistant stop_reason="refusal"')
+              det = msg.get("stop_details") or msg.get("stopDetails") or {}
+              if isinstance(det, dict):
+                  category = category or det.get("category")
+              category = (category or msg.get("apiRefusalCategory")
+                          or msg.get("api_refusal_category"))
+
+      # Marker C: human-readable refusal text, kept as corroboration only —
+      # reported when A/B already fired, never as a standalone trigger, since
+      # the phrase could in principle appear in the agent's own prose.
+      if hits and "safeguards flagged" in corpus:
+          hits.append('"safeguards flagged" text')
+
+      if hits:
+          dedup = list(dict.fromkeys(h for h in hits if h))
+          cat = f" (category: {category})" if category else ""
+          return (False, f"Model refusal detected in {scope}{cat}: "
+                         + "; ".join(dedup))
+      return (True, f"No model refusal detected ({scope})")
+
+  - name: expected_candidates_found
+    if: "annotations.get('expected_candidates') is not None or annotations.get('has_revert_candidates') is False"
+    description: |
+      Deterministic check that every expected revert candidate appears in the
+      results YAML at or above its min_confidence. A no-revert case is a valid
+      expectation and passes vacuously (nothing to miss); the false-positive
+      direction is enforced separately by no_unexpected_reverts. A case declares
+      no-revert either explicitly (expected_candidates: []) or implicitly
+      (has_revert_candidates: false with the key omitted) — both are scored.
+      Skipped only when a case defines neither expectation.
+    check: |
+      import yaml, os
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      yf = [v for k, v in all_f.items() if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")]
+      if not yf:
+          return (False, "No payload results YAML found")
+      data = yaml.safe_load(yf[0]) or {}
+      cands = {}
+      for c in data.get("candidates", []) or []:
+          cands[str(c.get("pr_url", "")).rstrip("/")] = c
+      missing = []
+      low = []
+      unlinked = []
+      expected = outputs.get("annotations", {}).get("expected_candidates", []) or []
+      for exp in expected:
+          url = str(exp.get("pr_url", "")).rstrip("/")
+          got = cands.get(url)
+          if got is None:
+              missing.append(url)
+              continue
+          try:
+              score = float(got.get("confidence_score", 0))
+          except (TypeError, ValueError):
+              score = 0.0
+          if score < float(exp.get("min_confidence", 0)):
+              low.append(f"{url} scored {score:g} < min {exp.get('min_confidence')}")
+          # Bidirectional substring match: the model may legitimately report
+          # either the short job stem (e2e-aws-ovn) or the full periodic name
+          # (periodic-ci-...-e2e-aws-ovn), and annotations may use either form.
+          # Accept a link when either string contains the other. Empty strings
+          # never match (guarded) so a blank job entry can't satisfy the check.
+          got_jobs = [str(j) for j in (got.get("failing_jobs") or [])]
+          bad = [j for j in (exp.get("expected_failing_jobs") or [])
+                 if not any(str(j) and gj and (str(j) in gj or gj in str(j))
+                            for gj in got_jobs)]
+          if bad:
+              unlinked.append(f"{url} not linked to: {', '.join(bad)}")
+      problems = []
+      if missing:
+          problems.append("missing: " + ", ".join(missing))
+      if low:
+          problems.append("under-confidence: " + "; ".join(low))
+      if unlinked:
+          problems.append("job linkage: " + "; ".join(unlinked))
+      if problems:
+          return (False, "; ".join(problems))
+      return (True, f"All {len(expected)} expected candidate(s) found at/above min confidence with required job links")
+
+  - name: no_unexpected_reverts
+    description: |
+      Deterministic false-revert gate: no candidate may reach the revert
+      threshold (>= 85) unless its pr_url is listed in expected_candidates
+      or expected_ci_config_issues. RHCOS RPM candidates are exempt — the
+      skill scores them but never proposes reverting them. This is the hard
+      check behind the adversarial false-revert cases.
+    check: |
+      import yaml, os
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      yf = [v for k, v in all_f.items() if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")]
+      if not yf:
+          return (False, "No payload results YAML found")
+      data = yaml.safe_load(yf[0]) or {}
+      ann = outputs.get("annotations", {})
+      allowed = set()
+      for key in ("expected_candidates", "expected_ci_config_issues"):
+          for c in ann.get(key, []) or []:
+              allowed.add(str(c.get("pr_url", "")).rstrip("/"))
+      REVERT_THRESHOLD = 85
+      rogue = []
+      for c in data.get("candidates", []) or []:
+          if str(c.get("type", "")) == "rhcos_rpm":
+              continue
+          try:
+              score = float(c.get("confidence_score", 0))
+          except (TypeError, ValueError):
+              continue
+          url = str(c.get("pr_url", "")).rstrip("/")
+          if score >= REVERT_THRESHOLD and url not in allowed:
+              rogue.append(f"{url} @ {score:g}")
+      if rogue:
+          return (False, "False revert candidate(s) at/above threshold: " + "; ".join(rogue))
+      return (True, "No candidate at/above revert threshold outside the expected set")
+
+  - name: failed_job_count_matches
+    if: "annotations.get('expected_failed_job_count') is not None"
+    description: |
+      Deterministic check that the number of failing jobs in the results YAML
+      matches expected_failed_job_count (tolerance of 1 for aggregated-job
+      counting differences).
+    check: |
+      import yaml, os
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      yf = [v for k, v in all_f.items() if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")]
+      if not yf:
+          return (False, "No payload results YAML found")
+      data = yaml.safe_load(yf[0]) or {}
+      expected = int(outputs.get("annotations", {}).get("expected_failed_job_count", 0))
+      actual = len(data.get("failing_jobs", []) or [])
+      if abs(actual - expected) <= 1:
+          return (True, f"{actual} failing job(s) reported (expected {expected})")
+      return (False, f"{actual} failing job(s) reported, expected {expected}")
+
+  - name: force_accept_matches
+    description: |
+      Deterministic check that metadata.force_accept_recommended in the
+      results YAML matches force_accept_expected.
+    check: |
+      import yaml, os
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      yf = [v for k, v in all_f.items() if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")]
+      if not yf:
+          return (False, "No payload results YAML found")
+      data = yaml.safe_load(yf[0]) or {}
+      expected = bool(outputs.get("annotations", {}).get("force_accept_expected", False))
+      actual = bool((data.get("metadata", {}) or {}).get("force_accept_recommended", False))
+      if actual == expected:
+          return (True, f"force_accept_recommended={actual} as expected")
+      return (False, f"force_accept_recommended={actual}, expected {expected}")
+
+  - name: expected_phase_matches
+    if: "annotations.get('expected_phase')"
+    description: |
+      Deterministic check that the payload phase reported in the autodl JSON
+      rows matches expected_phase. Skipped when the case declares no
+      terminal phase.
+    check: |
+      import json
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      jf = [v for k, v in all_f.items() if k.endswith("-autodl.json")]
+      if not jf:
+          return (False, "No autodl JSON found")
+      data = json.loads(jf[0])
+      phases = {str(r.get("phase", "")).lower() for r in data.get("rows", []) or [] if r.get("phase")}
+      expected = str(outputs.get("annotations", {}).get("expected_phase", "")).lower()
+      if not phases:
+          return (False, "No phase value present in autodl rows")
+      if phases == {expected}:
+          return (True, f"phase={expected} in all rows")
+      return (False, f"autodl phase(s) {sorted(phases)} != expected '{expected}'")
 
   - name: analysis_quality
+    score_range: [1, 5]
     description: |
       LLM judge to assess root cause analysis depth, PR correlation accuracy,
       and overall report quality. Uses only YAML results and HTML report, not
@@ -321,22 +655,25 @@ judges:
       - Does the HTML report contain actionable information?
 
   - name: revert_scoring_accuracy
+    score_range: [1, 5]
     description: |
       LLM judge to assess whether the confidence scoring rubric was correctly
       applied and expected revert candidates identified. Uses only YAML results
-      and autodl JSON, not the full output tree.
+      and autodl JSON, not the full output tree. The skill's SKILL.md is
+      attached as context so the rubric is judged against its current
+      definition instead of a copy that can drift.
+    context:
+      - plugins/ci/skills/payload-analysis/SKILL.md
     prompt: |
       You are evaluating whether the payload analysis skill correctly identified
       revert candidates and applied its confidence scoring rubric.
 
-      The rubric awards points for:
-      - New failure mode: +30 (this specific failure wasn't present in prior payloads)
-      - Component exclusivity: +10 to +30 (fewer PRs touching same component = higher)
-      - Error message match: +40 (errors directly reference code changed by the PR)
-      - Multi-job correlation: +10 (same PR is candidate for multiple failed jobs)
-      - Presubmit coverage gap: +10 (failing scenario not in PR's presubmit tests)
-      - Single candidate: +10 (only one PR touches the affected component)
-      Maximum: 130 (capped at 100). Revert threshold: >= 85.
+      The rubric is defined in the attached SKILL.md (Step 6). It is the source
+      of truth: signals are itemized per candidate (new failure mode, component
+      exclusivity, tiered error message match, multi-job correlation, presubmit
+      coverage gap), the sum is capped at 100, and candidates scoring >= 85
+      become revert candidates. Do not assume a different weighting than the
+      attached document.
 
       Review the YAML results file:
 
@@ -358,31 +695,105 @@ judges:
 
       {{ annotations }}
 
-      If expected_candidates are listed in annotations, those PRs should be
-      identified with confidence >= min_confidence and linked to the
-      expected_failing_jobs. If expected_candidates is empty, no false positive
-      revert recommendations should appear.
+      Two failure directions matter equally:
+      - Missed reverts: every entry in expected_candidates must be identified
+        at or above its min_confidence and linked to its expected_failing_jobs.
+      - False reverts: when expected_candidates is empty, the correct output
+        has NO candidate at or above the revert threshold. Recommending a
+        revert in that situation is the worst outcome, not a near miss.
 
       Evaluate on a 1-5 scale:
 
-      Score 1: No scoring applied, or scores are arbitrary. Expected revert
-               candidates (from annotations) are completely missed.
+      Score 1: Wrong verdict in either direction — a candidate at/above the
+               revert threshold that is not in expected_candidates (including
+               any revert recommendation when expected_candidates is empty),
+               OR all expected candidates missed, OR no scoring applied at all.
       Score 2: Some expected candidates identified but confidence scores are way
-               off (>20 points from expected) or key failing job linkages are
-               missing.
-      Score 3: All expected high-confidence candidates (min_confidence >= 85) are
-               identified above threshold, but scores may be off by 10-20 points
-               or rubric components not itemized.
-      Score 4: All expected candidates identified with scores within 10 points of
+               off (>20 points from expected), key failing-job linkages are
+               missing, or an unexpected candidate is scored just below
+               threshold on weak evidence.
+      Score 3: Correct revert/no-revert verdict, but scores are off by 10-20
+               points, rubric signals are not itemized per candidate, or
+               dismissals of non-candidates are asserted without cited evidence.
+      Score 4: Correct verdict with scores within 10 points of
                expected_confidence. Rubric correctly applied with itemized
                breakdown. Most expected failing jobs correctly linked.
                Infrastructure failures correctly distinguished from product
                failures.
-      Score 5: All expected candidates identified with scores within 5 points of
-               expected_confidence. Rubric meticulously applied — each component
-               score justified with specific evidence. All expected failing jobs
-               correctly linked. No false positive revert recommendations for
-               unrelated PRs. Cross-job correlation signal clearly documented.
+      Score 5: Correct verdict with scores within 5 points of
+               expected_confidence. Rubric meticulously applied — each signal
+               justified with specific evidence per the attached SKILL.md.
+               All expected failing jobs correctly linked. For no-revert cases,
+               each dismissed candidate's exoneration is backed by concrete
+               evidence rather than assertion.
+
+  - name: point_in_time_integrity
+    score_range: [1, 5]
+    if: "annotations.get('payload_completed_at')"
+    description: |
+      LLM judge assessing whether conclusions use only evidence that existed
+      when the payload completed, without post-hoc outcome leakage. Skipped
+      (not scored) for cases without a payload_completed_at cutoff.
+    prompt: |
+      You are the evaluation-integrity judge for a historical OpenShift payload
+      analysis. The analysis must reconstruct what a release engineer could
+      have concluded at the payload completion timestamp in the annotations.
+
+      Review the YAML results:
+
+      {% for path, content in outputs.files.items() if path.endswith('.yaml') and 'payload-results' in path %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Review the HTML report:
+
+      {% for path, content in outputs.files.items() if path.endswith('-summary.html') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Case metadata and exact cutoff:
+
+      {{ annotations }}
+
+      Judge evidence provenance, not whether hindsight happened to produce the
+      right answer. Evidence is admissible only when its event or observation
+      timestamp is at or before `payload_completed_at`. SHA-pinning alone does not
+      make code contemporaneous: the cited commit must have existed by the
+      cutoff. CI artifacts and previous agent reports are admissible only when
+      their Prow jobs completed by the cutoff. Missing provenance caps the score
+      at 3. The report's later generation timestamp is harmless.
+
+      Treat these as post-hoc leakage when they occur after the cutoff:
+      - a later revert, its merge, or its experimental CI results;
+      - subsequent payload pass/fail outcomes;
+      - GitHub comments, reviews, status changes, or incident conclusions;
+      - present-day PR state or reasoning that a PR must be innocent because it
+        still has not been reverted;
+      - a previous payload-agent analysis generated after the cutoff.
+
+      Also flag suspicious certainty whose only plausible basis is one of those
+      later facts, even when the report does not cite it candidly. Do not penalize
+      a conclusion independently established from contemporaneous logs, diffs,
+      and causal ordering merely because annotations also mention later
+      confirmation.
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: A central diagnosis or revert decision explicitly depends on
+               post-cutoff evidence or leaked expected answers.
+      Score 2: Material post-cutoff evidence influences the result, even though
+               some contemporaneous evidence is present.
+      Score 3: No clear cheating, but important external evidence is undated or
+               provenance is too ambiguous to verify the cutoff.
+      Score 4: Point-in-time reasoning is clean; material evidence is
+               contemporaneous and later facts are excluded.
+      Score 5: Excellent temporal discipline — the cutoff is stated, evidence
+               provenance is auditable, and the report explicitly avoids or
+               quarantines tempting post-hoc signals.
 
 thresholds:
   output_files_exist:
@@ -394,8 +805,24 @@ thresholds:
   html_report_structure:
     min_pass_rate: 1.0
   analysis_quality:
-    min_mean: 3.5
+    min_mean: 4.5
   revert_scoring_accuracy:
-    min_mean: 3.0
+    min_mean: 4.5
+  point_in_time_integrity:
+    min_mean: 4.0
   required_skill_invocations:
+    min_pass_rate: 1.0
+  no_answer_access:
+    min_pass_rate: 1.0
+  no_model_refusal:
+    min_pass_rate: 1.0
+  expected_candidates_found:
+    min_pass_rate: 1.0
+  no_unexpected_reverts:
+    min_pass_rate: 1.0
+  failed_job_count_matches:
+    min_pass_rate: 1.0
+  force_accept_matches:
+    min_pass_rate: 1.0
+  expected_phase_matches:
     min_pass_rate: 1.0

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<!--
+  Payload Analysis report template — canonical structure and styling of the
+  production Payload Agent report.
+
+  Fill-in-the-blanks contract:
+  - {placeholder} slots are replaced with computed values. Every remaining
+    placeholder is a defect (checked in Step 10).
+  - Blocks bounded by "BEGIN: name" / "END: name" comments are conditional or
+    repeatable; the comment states the rule. Remove the marker comments (and
+    any block whose condition is false) from the final report, along with this
+    contract comment.
+  - Scores use the class tiers: score-high (>= 85), score-medium (50-84),
+    score-low (< 50). History patterns are S/F letters in per-letter spans,
+    newest first. See references/report-guide.md for how to derive each value.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payload Analysis: {payload_tag}</title>
+<style>
+:root {
+  --bg: #0d1117; --surface: #161b22; --border: #30363d;
+  --text: #e6edf3; --text-muted: #8b949e;
+  --green: #3fb950; --red: #f85149; --orange: #d29922;
+  --blue: #58a6ff; --purple: #bc8cff;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+h2 { font-size: 1.35rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
+h4 { font-size: 1rem; margin-bottom: 0.4rem; color: var(--text-muted); }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+p { margin-bottom: 0.5rem; }
+.metadata { color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.25rem; margin-bottom: 1.25rem; }
+.executive-summary { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.25rem; margin-bottom: 1.25rem; }
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 1rem; font-size: 0.75rem; font-weight: 600; margin-left: 0.5rem; }
+.badge-new { background: rgba(248,81,73,0.15); color: var(--red); }
+.badge-persistent { background: rgba(210,153,34,0.15); color: var(--orange); }
+.badge-passed { background: rgba(63,185,80,0.15); color: var(--green); }
+.badge-failed { background: rgba(248,81,73,0.15); color: var(--red); }
+.badge-rhcos9 { background: rgba(139,148,158,0.15); color: var(--text-muted); font-size: 0.75rem; }
+.badge-rhcos10 { background: rgba(188,140,255,0.15); color: var(--purple); font-size: 0.75rem; }
+.badge-rhcos-mixed { background: rgba(210,153,34,0.15); color: var(--orange); font-size: 0.75rem; }
+.badge.variant-isolated { border: 1px solid currentColor; }
+.variant-callout { background: rgba(188,140,255,0.1); border-left: 4px solid var(--purple); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; font-size: 0.9rem; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem; }
+th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+td { vertical-align: top; }
+.status-passed { color: var(--green); font-weight: 600; }
+.status-failed { color: var(--red); font-weight: 600; }
+.pattern { font-family: monospace; letter-spacing: 0.2rem; }
+.pattern .f { color: var(--red); }
+.pattern .s { color: var(--green); }
+details { margin-bottom: 0.75rem; }
+summary { cursor: pointer; padding: 0.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; font-weight: 600; }
+summary:hover { background: #1c2129; }
+.detail-body { padding: 1rem; border: 1px solid var(--border); border-top: none; border-radius: 0 0 0.5rem 0.5rem; background: var(--surface); }
+.analysis { background: #1c2129; padding: 1rem; border-radius: 0.3rem; font-size: 0.9rem; white-space: pre-wrap; word-wrap: break-word; margin-bottom: 1rem; }
+pre { background: #1c2129; padding: 0.75rem; border-radius: 0.3rem; overflow-x: auto; font-size: 0.85rem; margin-bottom: 0.75rem; }
+code { font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 0.85rem; }
+.verdict { padding: 1rem 1.25rem; border-radius: 0.5rem; margin-bottom: 1.25rem; }
+.verdict-revert { background: rgba(248,81,73,0.1); border: 1px solid var(--red); }
+.verdict-none { background: var(--surface); border: 1px solid var(--border); }
+.verdict-infra { background: rgba(210,153,34,0.1); border: 1px solid var(--orange); }
+.revert-prompt { margin-top: 0.75rem; }
+.revert-prompt button { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: 0.3rem 0.75rem; border-radius: 0.3rem; cursor: pointer; font-size: 0.8rem; margin-bottom: 0.25rem; }
+.revert-prompt button:hover { background: #1c2129; }
+.score-high { color: var(--red); font-weight: 700; }
+.score-medium { color: var(--orange); font-weight: 700; }
+.score-low { color: var(--text-muted); }
+.informing-note { background: rgba(88,166,255,0.1); border-left: 4px solid var(--blue); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; font-size: 0.9rem; }
+.rhcos-candidate { background: rgba(188,140,255,0.1); border-left: 4px solid var(--purple); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; }
+.footer { color: var(--text-muted); font-size: 0.8rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<h1>Payload Analysis: {payload_tag}</h1>
+<div class="metadata">
+  <p>Architecture: {architecture} | Stream: {stream} | Generated: {timestamp}</p>
+  <p>Release Controller: <a target="_blank" href="{release_url}">{payload_tag}</a></p>
+  <p>Snapshot: {snapshot_dir}</p>
+</div>
+
+<div class="executive-summary">
+  <h2>Executive Summary</h2>
+  <p><strong>Phase: {phase}</strong></p>
+  <p>{total_blocking} blocking jobs: {succeeded} passed, {failed} failed</p>
+  <p>{new_failures} new failure(s), {persistent_failures} persistent failure(s)</p>
+  <p>Chain: {chain_length} payloads, {hours_since_baseline}h since baseline</p>
+  <p>Consecutive rejections in this stream: <strong>{consecutive_rejection_count}</strong></p>
+  <p>Last accepted: <a target="_blank" href="{baseline_url}">{baseline_tag}</a> ({hours_since_baseline}h ago)</p>
+  <p>Per-job persistence:</p>
+  <ul>
+    <!-- BEGIN: persistence-item — one per failed job -->
+    <li><code>{job_name}</code>: failing {streak_length} consecutive payload(s)</li>
+    <!-- END: persistence-item -->
+  </ul>
+</div>
+
+<!-- BEGIN: revert-verdict — include only when revert candidates exist (score >= 85); otherwise use the no-revert-verdict block instead -->
+<div class="verdict verdict-revert">
+  <h2>Recommended Reverts</h2>
+  <p><strong>OCP Policy: PRs that break payloads MUST be reverted.</strong></p>
+  <table>
+    <tr><th>PR</th><th>Component</th><th>Description</th><th>Caused Failure In</th><th>Failing Since</th><th>Score</th><th>Rationale</th></tr>
+    <!-- BEGIN: revert-row — one row per revert candidate -->
+    <tr>
+      <td><a target="_blank" href="{pr_url}">#{pr_number}</a></td>
+      <td>{component}</td>
+      <td>{description}</td>
+      <td>{caused_failure_in}</td>
+      <td><a target="_blank" href="{originating_payload_url}">{originating_payload_tag}</a></td>
+      <td class="score-high">{score}</td>
+      <td>{rationale_with_itemized_signals_separated_by_br}</td>
+    </tr>
+    <!-- END: revert-row -->
+  </table>
+  <h3>Automated Reverts</h3>
+  <div class="revert-prompt">
+    <button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent.trim())">Copy</button>
+    <pre>/ci:payload-revert {payload_tag}</pre>
+  </div>
+</div>
+<!-- END: revert-verdict -->
+
+<!-- BEGIN: no-revert-verdict — include only when NO revert candidates exist -->
+<div class="verdict verdict-none">
+  <strong>No Recommended Reverts</strong>
+  <p>No PRs were identified with sufficient confidence for revert recommendation.</p>
+</div>
+<!-- END: no-revert-verdict -->
+
+<!-- BEGIN: force-accept-verdict — include only when Step 6.4 recommends force-accept -->
+<div class="verdict verdict-infra">
+  <strong>Force-Accept Recommended</strong>
+  <p>All blocking job failures are temporary infrastructure issues and no payload has been
+     accepted in this stream for more than 18 hours.</p>
+  <p>Baseline: <a target="_blank" href="{baseline_url}">{baseline_tag}</a> ({hours_since_baseline}h ago)</p>
+</div>
+<!-- END: force-accept-verdict -->
+
+<!-- Blocking Jobs Summary Table -->
+<div class="card">
+  <h2>Blocking Jobs Summary</h2>
+  <table>
+    <tr><th>Job Name</th><th>RHCOS</th><th>Status</th><th>Streak</th><th>History</th><th>First Failed In</th></tr>
+    <!-- BEGIN: job-row — one row per blocking job (passed and failed); history letters newest first -->
+    <tr>
+      <td><code>{job_name}</code></td>
+      <td><span class="badge badge-{rhcos9|rhcos10|rhcos-mixed}">{RHCOS 9|RHCOS 10|RHCOS 9+10}</span></td>
+      <td class="status-{passed|failed}">{Passed|Failed}</td>
+      <td>{streak_or_na}</td>
+      <td class="pattern"><span class="{s|f}">{S|F}</span></td>
+      <td><a target="_blank" href="{originating_payload_url}">{originating_payload_tag_or_na}</a></td>
+    </tr>
+    <!-- END: job-row -->
+  </table>
+</div>
+
+<!-- Failed Job Details -->
+<h2>Failed Job Details</h2>
+
+<!-- BEGIN: failed-job — one collapsible block per failed blocking job -->
+<details>
+  <summary>
+    <span class="job-name">{job_name}</span>
+    <span class="badge badge-{new|persistent}">{New Failure|Failing for N payloads}</span>
+    <span class="badge badge-{rhcos9|rhcos10|rhcos-mixed}">{RHCOS 9|RHCOS 10|RHCOS 9+10}</span>
+  </summary>
+  <div class="detail-body">
+    <h4>Prow Job</h4>
+    <p><a target="_blank" href="{prow_url}">Prow</a> | <a target="_blank" href="{gcs_url}">GCS Artifacts</a>{ | Underlying job: <code>underlying_job_name</code> — aggregated jobs only}</p>
+
+    <!-- BEGIN: variant-callout — include only when this failure is variant-isolated -->
+    <div class="variant-callout">
+      This failure is isolated to RHCOS {version} jobs and does not appear in RHCOS {other_version} jobs,
+      indicating an OS-variant-specific root cause (e.g., kernel, systemd, SELinux, or package differences
+      between RHEL 9 and RHEL 10).
+    </div>
+    <!-- END: variant-callout -->
+
+    <h4>Failure Analysis</h4>
+    <div class="analysis">{analysis_from_subagent}</div>
+
+    <!-- BEGIN: known-symptoms — include only when symptoms are not "none" -->
+    <h4>Known Symptoms Seen</h4>
+    <p>{comma_separated_symptom_summaries}</p>
+    <!-- END: known-symptoms -->
+
+    <h4>First Failed In</h4>
+    <p><a target="_blank" href="{originating_payload_url}">{originating_payload_tag}</a></p>
+
+    <!-- BEGIN: candidates-table — include when the originating payload has candidates; otherwise use candidates-none -->
+    <h4>Candidate PRs (introduced in {originating_payload_tag})</h4>
+    <table>
+      <tr><th>Component</th><th>PR</th><th>Description</th><th>Score</th></tr>
+      <!-- BEGIN: candidate-row — one row per scored candidate; class: score-high >=85, score-medium 50-84, score-low <50 -->
+      <tr>
+        <td>{component}</td>
+        <td><a target="_blank" href="{pr_url}">#{pr_number}</a></td>
+        <td>{description}</td>
+        <td class="score-{high|medium|low}">{score}</td>
+      </tr>
+      <!-- END: candidate-row -->
+    </table>
+    <!-- END: candidates-table -->
+
+    <!-- BEGIN: candidates-none — include when no candidates exist; the prose must state WHY (Step 6.1) -->
+    <h4>Candidate PRs</h4>
+    <p>{why_no_candidate_explains_this_failure}</p>
+    <!-- END: candidates-none -->
+  </div>
+</details>
+<!-- END: failed-job -->
+
+<!-- BEGIN: rhcos-changes — include only when any payload in the chain has RHCOS RPM changes -->
+<div class="card">
+  <h2>RHCOS Changes</h2>
+  <p>{one_sentence_rhcos_correlation_summary}</p>
+
+  <!-- BEGIN: rhcos-candidates — include only when scored RHCOS RPM candidates exist (type: "rhcos_rpm") -->
+  <div class="rhcos-candidate">
+    <h3>RHCOS RPM Candidates</h3>
+    <p>The following RHCOS package updates scored as regression candidates. These cannot be reverted
+       through the normal PR revert process — escalate to the RHCOS or platform team.</p>
+    <table>
+      <tr><th>Package</th><th>Old Version</th><th>New Version</th><th>Variant</th><th>Score</th><th>Affected Jobs</th><th>Rationale</th></tr>
+      <!-- BEGIN: rhcos-candidate-row — one row per RHCOS RPM candidate -->
+      <tr>
+        <td>{package}</td><td>{old_version}</td><td>{new_version}</td>
+        <td><span class="badge badge-{rhcos9|rhcos10}">{variant}</span></td>
+        <td class="score-{high|medium|low}">{score}</td>
+        <td>{comma_separated_job_names}</td>
+        <td>{rationale_with_itemized_signals_separated_by_br}</td>
+      </tr>
+      <!-- END: rhcos-candidate-row -->
+    </table>
+
+    <!-- BEGIN: changelog-evidence — include only when changelog evidence exists for any candidate -->
+    <details>
+      <summary>RPM Changelog Evidence</summary>
+      <div class="detail-body">
+        <!-- BEGIN: changelog-entry — one per candidate with changelog_evidence != "none" -->
+        <h4>{package} ({old_version} → {new_version})</h4>
+        <pre>{verbatim_changelog_entries}</pre>
+        <!-- END: changelog-entry -->
+      </div>
+    </details>
+    <!-- END: changelog-evidence -->
+  </div>
+  <!-- END: rhcos-candidates -->
+
+  <details>
+    <summary>Full RHCOS RPM Changelog Diffs</summary>
+    <!-- BEGIN: rhcos-baseline-diff — one per RHCOS variant with changes vs the baseline -->
+    <h4>{rhcos_name} ({rhcos_tag}) — baseline ({baseline_tag})</h4>
+    <table>
+      <tr><th>Package</th><th>Old Version</th><th>New Version</th></tr>
+      <!-- one row per changed package from the baseline diff -->
+    </table>
+    <p style="font-size:0.85rem; color:var(--text-muted);">{one_line_changelog_theme_summary}</p>
+    <!-- END: rhcos-baseline-diff -->
+    <!-- BEGIN: rhcos-hop-diff — one per distinct (originating payload, variant) pair referenced by a scored candidate or failure mode that differs from the baseline -->
+    <h4>{rhcos_name} ({rhcos_tag}) — hop at {originating_payload_tag}</h4>
+    <table>
+      <tr><th>Package</th><th>Old Version</th><th>New Version</th></tr>
+      <!-- one row per changed package from that hop's diff -->
+    </table>
+    <!-- END: rhcos-hop-diff -->
+  </details>
+</div>
+<!-- END: rhcos-changes -->
+
+<!-- BEGIN: informing-tests — include only when informing/flake test failures exist -->
+<div class="card">
+  <h2>Informing Test Failures</h2>
+  <div class="informing-note">
+    These tests do not by themselves cause job failures or payload rejections. The only potential
+    impact is if the test itself affects cluster health — for example if it breaks an operator or
+    does something otherwise catastrophic.
+  </div>
+  <table>
+    <tr><th>Test</th><th>Job</th><th>Result</th></tr>
+    <!-- BEGIN: informing-row — one row per informing/flake test from test_failures.informing[]/flakes[] -->
+    <tr>
+      <td><code>{test_name}</code></td>
+      <td>{job_name}</td>
+      <td>{result — e.g. "0/9 passes (informing)" or "flake"}</td>
+    </tr>
+    <!-- END: informing-row -->
+  </table>
+</div>
+<!-- END: informing-tests -->
+
+<!-- Adversarial Review -->
+<div class="card">
+  <h2>Adversarial Review</h2>
+  <p>{review_summary}</p>
+  <!-- BEGIN: review-issues — include only when the reviewer identified issues -->
+  <h4>Issues Found</h4>
+  <ul>
+    <!-- BEGIN: review-issue — one per issue -->
+    <li>{issue_description} — {action_taken}</li>
+    <!-- END: review-issue -->
+  </ul>
+  <!-- END: review-issues -->
+</div>
+
+<div class="footer">
+  <p>Generated by Claude payload-analysis skill | <code>/ci:payload-revert</code> and <code>/ci:payload-experiment</code> can consume the YAML for automated actions</p>
+</div>
+
+</body>
+</html>

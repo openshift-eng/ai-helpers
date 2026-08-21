@@ -2,8 +2,21 @@ expected_phase: Rejected
 expected_failed_job_count: 4
 has_revert_candidates: false
 force_accept_expected: false
+payload_completed_at: "2026-05-14T16:40:01Z"
+
+expected_candidates: []
+
 notes: >
-  Complex case: 4 failed blocking jobs (aws-ovn-serial, aws-ovn-single-node-upgrade,
-  aws-ovn-upgrade, and one more). Tests the skill's ability to launch parallel
-  subagents, correlate multiple failures, and identify patterns across job families.
-  Previous payload was accepted, so these may be new failures.
+  External-service infrastructure incident affecting multiple job families.
+  All 4 failed blocking jobs (e2e-aws-ovn-serial, e2e-aws-upgrade-ovn-single-node,
+  e2e-aws-ovn-upgrade, upgrade-from-stable-4.17-e2e-gcp-ovn-rt-upgrade) share the
+  same root cause: the external console.redhat.com Insights API Gateway returned
+  HTTP 500 ("Incorrect Insights API Gateway secret" / "Invalid Configuration"),
+  driving the insights operator Available=False/Degraded and stalling the
+  upgrade jobs. This is an external-service outage, not a payload code change —
+  the correct outcome is zero revert candidates. Low-confidence unrelated
+  candidates (e.g., cluster-network-operator#3006 at <= 40) are acceptable as
+  long as none reaches the revert threshold. Tests parallel subagent
+  correlation: the agent must recognize four superficially different job
+  failures (serial test failure vs. upgrade stalls) as one shared external
+  cause rather than attributing them to payload PRs.
