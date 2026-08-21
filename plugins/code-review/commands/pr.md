@@ -1,6 +1,6 @@
 ---
 description: "Automated PR code quality review with language-aware analysis and project-specific profiles"
-argument-hint: "<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+argument-hint: "<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests] [--serial]"
 example: "/code-review:pr https://github.com/openshift/hypershift/pull/8262 --language golang --profile hypershift"
 ---
 
@@ -9,7 +9,7 @@ code-review:pr
 
 ## Synopsis
 ```
-/code-review:pr <pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]
+/code-review:pr <pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests] [--serial]
 ```
 
 ## Description
@@ -27,12 +27,13 @@ The two layers compose: `--language go --profile hypershift` applies both Go idi
 
 ### Step 0 — Parse Arguments & Load Skills
 
-- Parse `$ARGUMENTS` for the following:
+- Parse the arguments provided by the user (available as `$ARGUMENTS`, `$INPUT`, or directly in the user's message) for the following:
   - **PR identifier** (required, first positional argument): Either a full GitHub PR URL (e.g., `https://github.com/owner/repo/pull/123`) or a PR number (e.g., `123`). When only a number is provided, the current repository's remote is used.
   - `--language <lang>`: Language skill to load (e.g., `go`, `python`, `rust`, `typescript`, `java`)
   - `--profile <name>`: Project profile skill to load (e.g., `hypershift`)
   - `--skip-build`: Skip build verification step
   - `--skip-tests`: Skip unit test coverage review step
+  - `--serial`: Force serial inline execution mode regardless of available tools. Useful for testing or when running on models with small context windows.
 - If no PR identifier is provided, ask the user for one.
 - If `--language` is not specified, auto-detect the primary language from the file extensions of changed files (determined in Step 1):
   - `.go` -> `go`
@@ -41,26 +42,112 @@ The two layers compose: `--language go --profile hypershift` applies both Go idi
   - `.ts`, `.tsx` -> `typescript`
   - `.java` -> `java`
   - If mixed or unrecognized, proceed without a language skill
-- Check for the language skill file at `skills/lang-<lang>/SKILL.md` relative to the plugin root directory. If the skill exists, read it and store its content for use by sub-agents. If it does not exist, inform the user and proceed with a generic review.
-- If `--profile` is specified, check for the profile skill file at `skills/profile-<name>/SKILL.md` relative to the plugin root directory. If the skill exists, read it and store its content for use by sub-agents. If it does not exist, warn the user and proceed without profile-specific checks.
+- Check for the language skill. Search by directory name pattern (not file content):
+  ```bash
+  find ~/.agents ~/.pi/agent ~/.claude -type d \( -name "lang-<lang>" -o -name "<lang>-code-review" \) 2>/dev/null
+  ```
+  Replace `<lang>` with the actual language value (e.g., `go`, `python`). If a directory is found, read its `SKILL.md`. If multiple matches, prefer the one under a `code-review` path.
+  If no directory is found, print: `⚠ Language skill for '<lang>' not found. Proceeding with generic review.` and continue without language-specific guidance.
+- If `--profile` is specified, search for the profile skill the same way:
+  ```bash
+  find ~/.agents ~/.pi/agent ~/.claude -type d \( -name "profile-<name>" -o -name "<name>-code-review" \) 2>/dev/null
+  ```
+  Replace `<name>` with the actual profile value (e.g., `hypershift`). If found, read its `SKILL.md`.
+  If no directory is found, print: `⚠ Profile skill for '<name>' not found. Proceeding without profile-specific checks.` and continue.
 
 ### Step 1 — Fetch PR Diff & Identify Changed Files
 
-- Use `gh pr diff <pr-identifier>` to fetch the full PR diff.
-- Use `gh pr view <pr-identifier> --json files --jq '.files[].path'` to get the list of changed files.
-- Also fetch the PR metadata for context: `gh pr view <pr-identifier> --json title,body,baseRefName,headRefName,author`.
+- Fetch the PR metadata: `gh pr view <pr-identifier> --json title,body,baseRefName,headRefName,author`.
+- Fetch the list of changed files: `gh pr view <pr-identifier> --json files --jq '.files[].path'`.
+- Fetch the full PR diff: `gh pr diff <pr-identifier>`.
+- **In serial mode**: write the outputs to disk immediately (this avoids a second API call in Step 2):
+  ```bash
+  mkdir -p /tmp/code-review-<pr-number>
+  gh pr view <pr-identifier> --json files --jq '.files[].path' > /tmp/code-review-<pr-number>/files.txt
+  gh pr diff <pr-identifier> > /tmp/code-review-<pr-number>/diff.patch
+  ```
 - Focus the review exclusively on changed files. Do not review unchanged files.
-- Categorize files by type: source code, test files, configuration, documentation.
+- Categorize files by type: source code, test files, configuration/generated, documentation.
 - If no source code files are changed (e.g., only docs or config), note this and adjust the review scope accordingly.
-- Store the changed file list and the full diff — they are passed to every sub-agent in the next step.
+- Store the changed file list and the full diff — they are passed to every review dimension in the next step.
 
-**Important**: The review is performed against the PR diff, not the local working tree. Sub-agents should analyze the diff content to understand what changed. However, they may read local files for additional context (e.g., to understand how a changed function fits into the broader codebase), as long as the local checkout is on the PR branch or a compatible state.
+**Diff filtering (serial and subagent modes)**: Large PRs often include generated artifacts (CRDs, `zz_generated` files, vendored code) that inflate the diff without adding review value. In serial and subagent modes, where context or prompt size is constrained, split the diff by category after categorizing files:
 
-### Step 2 — Launch Parallel Review Sub-Agents
+1. Write categorized file lists: `source-files.txt`, `test-files.txt`, `generated-files.txt`, `docs-files.txt`
+2. Extract source-only diff using `awk` (POSIX, no dependencies):
+   ```bash
+   awk '
+     BEGIN { while((getline f < "source-files.txt")>0) files[f]=1 }
+     /^diff --git/ { found=0; path=$NF; sub(/^b\//, "", path); if(path in files) found=1 }
+     found
+   ' diff.patch > diff-source.patch
+   ```
+3. Repeat for `test-files.txt` → `diff-tests.patch` if needed
+4. Pass `diff-source.patch` (+ `diff-tests.patch` for the Unit Test dimension) to each dimension instead of the full diff
 
-After identifying changed files, launch the following reviews concurrently. Launch ALL sub-agents in parallel (single message with multiple Task tool calls) for maximum speed. Each sub-agent should be given `subagent_type: "general-purpose"`. Do NOT set the `model` parameter — let sub-agents inherit the parent model, as these analysis tasks require a capable model. Pass each sub-agent the list of changed files, the full PR diff, the loaded language skill content (if any), and the loaded profile skill content (if any) in its prompt.
+In Agent mode (Claude Code), the full diff can be passed directly since sub-agents have their own context windows.
 
-#### Sub-agent: Unit Test Coverage
+**Important**: The review is performed against the PR diff, not the local working tree. Each review dimension should analyze the diff content to understand what changed. However, it may read local files for additional context (e.g., to understand how a changed function fits into the broader codebase), as long as the local checkout is on the PR branch or a compatible state.
+
+### Step 2 — Run Review Dimensions
+
+After identifying changed files, run the following review dimensions. Each dimension produces findings as structured text. Pass each dimension the list of changed files, the PR diff (filtered `diff-source.patch` in serial/subagent modes, full diff in Agent mode), the loaded language skill content (if any), and the loaded profile skill content (if any).
+
+#### Execution mode — detect and adapt
+
+If `--serial` is specified, skip detection and use mode 3 (serial inline) directly.
+
+Otherwise, detect which execution mode is available, then run all dimensions using that mode. Check in this order and use the **first** that matches:
+
+1. **Parallel sub-agents (Agent tool)** — If the `Agent` tool is available (Claude Code, Claude Desktop), launch ALL dimensions in parallel in a single message with multiple Agent tool calls. Use `subagent_type: "general-purpose"`. Do NOT set the `model` parameter — let sub-agents inherit the parent model.
+
+2. **Parallel sub-agents (subagent tool)** — If the `Agent` tool is NOT available but the `subagent` tool IS available (Pi with pi-subagents extension), launch all dimensions in parallel using `runs.all()`. Each worker starts with zero context, so embed ALL required data in each worker's prompt: the full diff, changed file list, language skill content, profile skill content, and the dimension-specific instructions.
+   ```
+   subagent({
+     agents: [
+       { type: "worker", prompt: "Review this PR diff for unit test coverage.\n\n## Changed files\n<file-list>\n\n## Diff\n<full-diff>\n\n## Language guidance\n<lang-skill-content>\n\n## Instructions\n<dimension-instructions>" },
+       { type: "worker", prompt: "Review this PR diff for idiomatic code.\n\n## Changed files\n..." },
+       { type: "worker", prompt: "Review this PR diff for DRY compliance.\n\n## Changed files\n..." },
+       { type: "worker", prompt: "Review this PR diff for SOLID principles.\n\n## Changed files\n..." },
+       // ...profile dimensions if applicable
+     ]
+   })
+   ```
+   Collect all results from the returned array.
+
+3. **Serial inline (no sub-agents)** — If neither `Agent` nor `subagent` tools are available, OR if `--serial` was specified. You MUST follow these exact steps in order:
+
+   **3.1** The temp directory, diff, and file list were already written to disk in Step 1. Verify they exist:
+   ```bash
+   ls /tmp/code-review-<pr-number>/diff.patch /tmp/code-review-<pr-number>/files.txt
+   ```
+
+   **3.2** Filter the diff to source-only. Exclude files that are clearly generated or vendored by **path pattern**, not by extension (e.g., `features.md` is source code in some repos):
+   ```bash
+   # Exclude generated/vendored/build artifacts by path pattern
+   grep -v -E '(zz_generated|vendor/|payload-manifests/|node_modules/|\.lock$|\.sum$|go\.sum|package-lock)' \
+       /tmp/code-review-<pr-number>/files.txt > /tmp/code-review-<pr-number>/source-files.txt
+
+   # Extract source-only diff
+   awk '
+     BEGIN { while((getline f < "/tmp/code-review-<pr-number>/source-files.txt")>0) files[f]=1 }
+     /^diff --git/ { found=0; path=$NF; sub(/^b\//, "", path); if(path in files) found=1 }
+     found
+   ' /tmp/code-review-<pr-number>/diff.patch > /tmp/code-review-<pr-number>/diff-source.patch
+   ```
+   If `diff-source.patch` is empty (no source files after filtering), use `diff.patch` as fallback.
+
+   **3.3** For EACH dimension (unit-tests, idiomatic, dry, solid), do the following loop:
+   1. Read `/tmp/code-review-<pr-number>/diff-source.patch` (use `diff.patch` as fallback if `diff-source.patch` is empty)
+   2. Perform the dimension analysis
+   3. Write the findings to `/tmp/code-review-<pr-number>/<dimension-name>.md` using the Write tool. File names: `unit-tests.md`, `idiomatic.md`, `dry.md`, `solid.md`, `profile-<sme-name>.md`
+   4. Move to the next dimension
+
+   **3.4** After ALL dimensions are done, proceed to Step 3 (Build Verification). Do NOT skip writing the temp files — Step 4 reads them back.
+
+The dimension definitions and output format are the same regardless of execution mode. Only the dispatch mechanism changes.
+
+#### Dimension: Unit Test Coverage
 Skip if `--skip-tests` is specified.
 - For each new or modified source file, check if a corresponding test file exists.
 - For each new exported/public function with non-trivial logic, verify that tests exist.
@@ -70,13 +157,13 @@ Skip if `--skip-tests` is specified.
 - **If a profile is loaded**, apply its additional test conventions.
 - Return findings as structured text.
 
-#### Sub-agent: Idiomatic Code
+#### Dimension: Idiomatic Code
 - **If a language skill is loaded**, apply its idiomatic code guidance to the changed files.
 - **If no language skill is loaded**, perform a general review: error handling, naming, clarity, complexity.
 - **If a profile is loaded**, follow the profile's instructions to discover and apply any repo-local agents or skills it references. For example, the hypershift profile points to `.claude/agents/` — read the agents, pick the relevant ones based on changed files, and use their guidance.
 - Return findings as structured text.
 
-#### Sub-agent: DRY Principle
+#### Dimension: DRY Principle
 - Check for code duplication within and across changed files.
 - Look for repeated patterns that could be extracted into shared functions or utilities.
 - Identify copy-paste code that introduces maintenance risk.
@@ -84,7 +171,7 @@ Skip if `--skip-tests` is specified.
 - **If a profile is loaded**, check for proper use of project-specific shared utilities (e.g., hypershift's `support/` package).
 - Return findings as structured text.
 
-#### Sub-agent: SOLID Principles
+#### Dimension: SOLID Principles
 - Apply SOLID principles proportionally to the scope of the changes:
   - **SRP**: Does each new function/type/module have one clear responsibility?
   - **OCP**: Are changes extending behavior without modifying stable abstractions?
@@ -94,23 +181,20 @@ Skip if `--skip-tests` is specified.
 - **If a profile is loaded**, apply any project-specific structural patterns it defines.
 - Return findings as structured text.
 
-#### Sub-agents: Profile-Specific Reviews (only if profile is loaded)
+#### Dimension: Profile-Specific Reviews (only if profile is loaded)
   - Read the profile skill to discover which SME agents are required.
-  - Launch **one sub-agent per SME agent** listed in the profile. For example,
-    if the profile lists control-plane-sme, data-plane-sme, api-sme,
-    cloud-provider-sme, and hcp-architect-sme, launch five separate sub-agents
-    in parallel, each using the corresponding `subagent_type`.
-  - Each sub-agent must receive:
+  - In **Agent mode**: launch **one sub-agent per SME agent** listed in the profile, each using the corresponding `subagent_type`. All run in parallel with each other and with the other dimensions.
+  - In **subagent mode**: add one `{ type: "worker", prompt: "..." }` entry per SME to the `runs.all()` call alongside the other dimensions.
+  - In **serial mode**: run each SME review sequentially inline after the core dimensions.
+  - Each SME review must receive:
     - The complete diff
     - PR title and description (if available)
     - The Jira ticket context (if available)
     - A prompt asking it to review the changes from its domain perspective.
-  - All profile sub-agents run in parallel with each other and with the other
-    Step 2 sub-agents.
 
 ### Step 3 — Build Verification
 
-This step can run in parallel with the review sub-agents in Step 2 since it is independent. Skip if `--skip-build` is specified.
+This step can run in parallel with Step 2 (in Agent/subagent mode) or after it (in serial mode), since it is independent. Skip if `--skip-build` is specified.
 
 **Important**: Before running a build, ensure the local checkout matches the PR state. Use `gh pr checkout <pr-identifier>` to check out the PR branch locally if needed. Ask the user for confirmation before switching branches.
 
@@ -131,19 +215,38 @@ Run build verification in the following priority order:
 
 ### Step 4 — Collect Results & Generate Report
 
-After all sub-agents and build verification complete, aggregate findings into a structured report:
+After all review dimensions and build verification complete, aggregate findings into a structured report.
+
+**In serial mode**, you MUST follow these steps:
+
+**4.1** Read each dimension's findings from the temp files:
+```
+Read /tmp/code-review-<pr-number>/unit-tests.md
+Read /tmp/code-review-<pr-number>/idiomatic.md
+Read /tmp/code-review-<pr-number>/dry.md
+Read /tmp/code-review-<pr-number>/solid.md
+Read /tmp/code-review-<pr-number>/profile-*.md (if any exist)
+```
+
+**4.2** Assemble the final report with the following sections, using the content read from the temp files:
 
 1. **PR Info**: PR title, author, base branch, and link.
 2. **Files Reviewed**: List all files reviewed, categorized by type.
-3. **Unit Test Coverage**: Findings from the Unit Test Coverage sub-agent. Note if skipped.
-4. **Idiomatic [Language] Code**: Findings from the Idiomatic Code sub-agent (use detected/specified language name, or "Code" if no language).
-5. **DRY Compliance**: Findings from the DRY Principle sub-agent.
-6. **SOLID Compliance**: Findings from the SOLID Principles sub-agent.
+3. **Unit Test Coverage**: Content from `unit-tests.md`. Note if skipped.
+4. **Idiomatic [Language] Code**: Content from `idiomatic.md` (use detected/specified language name, or "Code" if no language).
+5. **DRY Compliance**: Content from `dry.md`.
+6. **SOLID Compliance**: Content from `solid.md`.
 7. **Build Verification**: Build result (pass/fail/skipped).
-8. **Profile-Specific Checks**: Findings from the Profile-Specific Review sub-agent (only if profile loaded).
+8. **Profile-Specific Checks**: Content from `profile-*.md` files (only if profile loaded).
 9. **Overall Verdict**: PASS, FAIL, or PASS WITH RECOMMENDATIONS.
 10. **Required Actions**: Issues that must be fixed before merging (blocking).
 11. **Recommended Improvements**: Suggestions that are not blocking but would improve code quality.
+
+**4.3** Write the final assembled report to `/tmp/code-review-<pr-number>/report.md` using the Write tool.
+
+**4.4** Do NOT delete the temp directory. Leave `/tmp/code-review-<pr-number>/` intact so the user can inspect the intermediate findings and the final report.
+
+In **Agent/subagent mode**, findings are already available from tool responses — skip 4.1, assemble the report directly from the responses using the same section structure.
 
 ### Critical Rules
 
@@ -204,4 +307,5 @@ After all sub-agents and build verification complete, aggregate findings into a 
 - `--language <lang>`: Language skill to load. Currently shipped: `go`. Planned: `python`, `rust`, `typescript`, `java`. If omitted, auto-detected from changed file extensions.
 - `--profile <name>`: Project profile skill to load. Loads `skills/profile-<name>/SKILL.md` for project-specific conventions. If omitted, no profile-specific checks are applied.
 - `--skip-build`: Skip the build verification step (Step 3). Useful for documentation-only changes or when build infrastructure is not available locally.
-- `--skip-tests`: Skip the unit test coverage review step (Unit Test Coverage sub-agent). Useful when changes do not affect testable code.
+- `--skip-tests`: Skip the unit test coverage review dimension. Useful when changes do not affect testable code.
+- `--serial`: Force serial inline execution mode (mode 3) regardless of available tools. Dimensions run sequentially with findings persisted to temp files. Useful for testing or on models with small context windows.
