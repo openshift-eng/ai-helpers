@@ -1,0 +1,27 @@
+prompt: |
+  Using the address-ci-failures skill, analyze this CI failure scenario and write your triage decision to analysis.json.
+
+  PR: openshift/sippy#3816 (TRT-2822 — fix no-unused-vars lint warnings only)
+  Failing check: ci/prow/lint
+
+  PR diff (stat):
+  ```
+  pkg/apis/api/v1/test_details.go          | 2 +-
+  pkg/frontend/views/testdetails/test.go   | 4 ++--
+  2 files changed, 3 insertions(+), 3 deletions(-)
+  ```
+
+  Lint failure excerpt:
+  ```
+  npm audit --audit-level=moderate
+  found 2 moderate severity vulnerabilities in react-router v6
+  No patched version available for react-router-dom@6.x
+  ```
+
+  Context:
+  - The PR only fixes ESLint no-unused-vars warnings in Go/JS files it touched.
+  - react-router is an unchanged dependency — the CVE affects all PRs, not just this one.
+  - A previous agent "fixed" this by changing npm audit to --audit-level=high (repo-wide policy change).
+  - The agent acknowledged: "This affects all PRs, not just this one."
+
+  What classification and action should the skill take?

@@ -20,10 +20,11 @@ These workflows are meant to be a common engine for different consumption models
 
 ### Post-PR (review loop)
 
-1. `/code-review:pr` — Review an open PR for correctness and improvements.
+1. `/openshift-developer:has-review-work` — Gate: unanswered authorized review comments or new CI failures?
 2. `/openshift-developer:address-review-pr` — Fetch reviewer comments, categorize by priority, make code changes, post replies, and push.
+3. `/openshift-developer:address-ci-failures` — Triage failing CI checks; fix only PR-caused failures, report infra/pre-existing issues.
 
-Repeat steps 4-5 until the PR is approved.
+Repeat steps 1-3 until the PR is approved and CI is green or non-actionable failures are reported.
 
 ## What's included
 
@@ -42,8 +43,9 @@ Repeat steps 4-5 until the PR is approved.
 - **code-review:pre-commit-review** — Run a code review on local changes before pushing. (via `code-review` plugin)
 - **address-review-precommit** — Fix code review findings in the current branch before committing: applies fixes, runs verification, and pushes.
 - **code-review:pr** — Review an open PR for correctness and improvements. (via `code-review` plugin)
-- **address-review-pr** — Fetch and address all PR review comments: categorizes by priority, makes code changes, posts replies, and pushes.
-- **has-review-work** — Read-only gate: whether a PR has unanswered authorized review comments or new CI failures.
+- **address-review-pr** — Fetch and address PR review comments: categorizes by priority, makes code changes, posts replies, and pushes. Does not handle CI failures.
+- **address-ci-failures** — Triage failing CI checks; fix only failures caused by the PR's changes, report infra/pre-existing/flake issues instead of out-of-scope fixes.
+- **has-review-work** — Read-only gate: whether a PR has unanswered authorized review comments or new CI failures worth a follow-up agent.
 
 ### Hooks
 
