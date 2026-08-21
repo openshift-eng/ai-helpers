@@ -343,6 +343,95 @@ judges:
       scope = "events (main + subagent transcripts)" if events else "stdout only"
       return (True, f"No access to annotations or dataset directory ({scope})")
 
+  - name: no_model_refusal
+    description: |
+      Environment/model signal (NOT a skill-quality signal): fail the case if
+      the agent or any subagent hit an API-level model refusal — the model's
+      safeguards flagged the request — during the run. Making refusals explicit
+      here stops them from masquerading downstream as a confusing "missing
+      output files" failure.
+
+      Claude Code only for now. A refusal reaches the captured corpus as a
+      system record (subtype model_refusal_fallback / model_refusal_no_fallback)
+      plus a synthetic assistant turn (model "<synthetic>", stop_reason
+      "refusal") carrying "safeguards flagged" text. Field naming differs across
+      capture surfaces (snake_case in CLI stream-json stdout; the merged flat
+      `events` schema drops model/stop_reason but preserves the system subtype),
+      so detection matches stable structured markers on whichever surface was
+      given. The <synthetic> 429 rate-limit record (stop_reason "stop_sequence",
+      not "refusal") must NOT trip this judge.
+
+      TODO(codex): Codex can also refuse, but its refusal-capture shape is not
+      yet known, and none of the Claude Code markers above apply. When the
+      capture is not a Claude Code run this judge abstains (returns no score)
+      rather than emit a misleading pass; revisit once a Codex refusal sample
+      exists. Reuses the no_answer_access corpus-access idiom.
+    check: |
+      import json
+      events = outputs.get("events") or []
+      if events:
+          corpus = json.dumps(events)
+          records = [e for e in events if isinstance(e, dict)]
+          scope = "events (main + subagent transcripts)"
+      else:
+          corpus = outputs.get("stdout", "")
+          records = []
+          for line in corpus.splitlines():
+              try:
+                  obj = json.loads(line)
+              except (json.JSONDecodeError, ValueError):
+                  continue
+              if isinstance(obj, dict):
+                  records.append(obj)
+          scope = "stdout only"
+
+      # Claude Code always emits a system/init record; Codex emits none. Absent
+      # that signature we cannot recognize a refusal, so abstain (no score)
+      # instead of returning a misleading pass.
+      is_claude_code = any(r.get("type") == "system" for r in records)
+      if not is_claude_code:
+          return (None, f"Not a Claude Code capture ({scope}); refusal detection "
+                        "not implemented for this harness — abstaining")
+
+      hits = []
+      category = None
+      for r in records:
+          # Marker A: system refusal subtypes (survive in both stdout and the
+          # flat events schema). Matched structurally on the subtype field so
+          # the token merely appearing in agent prose cannot trip it.
+          if r.get("type") == "system" and str(
+                  r.get("subtype", "")).startswith("model_refusal"):
+              hits.append(r.get("subtype"))
+          # Marker B: a synthetic assistant turn explicitly stopped for refusal.
+          # Pairing model "<synthetic>" with stop_reason "refusal" on the same
+          # record excludes the <synthetic> 429 record (stop_reason
+          # "stop_sequence"). Only reliable where raw message fields survive
+          # (stdout / raw session JSONL); the flat events schema drops them.
+          msg = r.get("message") if isinstance(r.get("message"), dict) else r
+          model = msg.get("model") or r.get("model")
+          stop = (msg.get("stop_reason") or msg.get("stopReason")
+                  or r.get("stop_reason") or r.get("stopReason"))
+          if model == "<synthetic>" and stop == "refusal":
+              hits.append('synthetic assistant stop_reason="refusal"')
+              det = msg.get("stop_details") or msg.get("stopDetails") or {}
+              if isinstance(det, dict):
+                  category = category or det.get("category")
+              category = (category or msg.get("apiRefusalCategory")
+                          or msg.get("api_refusal_category"))
+
+      # Marker C: human-readable refusal text, kept as corroboration only —
+      # reported when A/B already fired, never as a standalone trigger, since
+      # the phrase could in principle appear in the agent's own prose.
+      if hits and "safeguards flagged" in corpus:
+          hits.append('"safeguards flagged" text')
+
+      if hits:
+          dedup = list(dict.fromkeys(h for h in hits if h))
+          cat = f" (category: {category})" if category else ""
+          return (False, f"Model refusal detected in {scope}{cat}: "
+                         + "; ".join(dedup))
+      return (True, f"No model refusal detected ({scope})")
+
   - name: expected_candidates_found
     if: "annotations.get('expected_candidates')"
     description: |
@@ -707,6 +796,8 @@ thresholds:
   required_skill_invocations:
     min_pass_rate: 1.0
   no_answer_access:
+    min_pass_rate: 1.0
+  no_model_refusal:
     min_pass_rate: 1.0
   expected_candidates_found:
     min_pass_rate: 1.0
