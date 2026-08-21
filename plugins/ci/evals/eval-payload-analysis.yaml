@@ -55,7 +55,9 @@ mlflow:
     skill: payload-analysis
 
 dataset:
-  path: plugins/ci/evals/cases/payload-analysis
+  # Resolved relative to this config file's directory (plugins/ci/evals),
+  # not the repo root — see EvalConfig.resolve_path.
+  path: cases/payload-analysis
   schema: |
     Each case directory contains:
     - input.yaml: YAML file with fields:
