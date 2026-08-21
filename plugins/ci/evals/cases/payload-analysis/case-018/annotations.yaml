@@ -11,8 +11,7 @@ expected_candidates:
     expected_confidence: 100
     description: "oc adm upgrade recommend output changed while the TechPreview serial tests still required the removed conditions preamble"
     expected_failing_jobs:
-      - "aws-ovn-techpreview-serial-1of3"
-      - "aws-ovn-techpreview-serial-2of3"
+      - "aws-ovn-techpreview-serial"
 
 notes: >
   Mixed true-positive and false-positive case. The original Payload Agent

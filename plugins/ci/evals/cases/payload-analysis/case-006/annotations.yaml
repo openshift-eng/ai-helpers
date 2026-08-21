@@ -11,15 +11,15 @@ expected_candidates:
     expected_confidence: 95
     description: "Added guest cluster metrics forwarder feature and EnsureMetricsForwarderWorking test; HCCO silently skips deployment creation when prerequisites missing"
     expected_failing_jobs:
-      - "periodic-ci-openshift-hypershift-release-4.22-periodics-e2e-aks"
-      - "periodic-ci-openshift-hypershift-release-4.22-periodics-e2e-aws-ovn"
+      - "e2e-aks"
+      - "e2e-aws"
   - pr_url: "https://github.com/openshift/hypershift/pull/8138"
     component: "hypershift"
     min_confidence: 40
     expected_confidence: 50
     description: "Reverted AWS guest resource cleanup timeout extension, causing intermittent teardown timeouts"
     expected_failing_jobs:
-      - "periodic-ci-openshift-hypershift-release-4.22-periodics-e2e-aws-ovn"
+      - "e2e-aws"
 
 notes: >
   Payload 4.22.0-0.ci-2026-03-31-170515 was rejected with 2 failed

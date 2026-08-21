@@ -1,23 +1,36 @@
 expected_phase: Rejected
 expected_failed_job_count: 3
-has_revert_candidates: false
+has_revert_candidates: true
 force_accept_expected: false
 payload_completed_at: "2026-07-25T16:05:26Z"
 
-expected_candidates: []
+expected_candidates:
+  - pr_url: "https://github.com/openshift/cluster-version-operator/pull/1427"
+    component: "cluster-version-operator"
+    min_confidence: 85
+    expected_confidence: 85
+    description: "OTA-1997 changed the CVO's own Deployment manifest to reference a Go template field (agentic-skills image) that only the 5.0 CVO understands; during a 4.22->5.0 major upgrade the 4.22 CVO cannot render it and silently skips the CVO Deployment manifest, stranding a 4.22 CVO that re-applies 4.22 operator Deployments"
+    expected_failing_jobs:
+      - "aws-ovn-upgrade"
+      - "azure-ovn-upgrade"
 
 notes: >
-  False-revert case targeting the difference between job onset, test-name onset,
-  and minimal failure-signature onset. The true cause is a deterministic Origin
-  test-framework arithmetic defect, not an infrastructure incident and not a
-  regression from either payload API PR. The Origin monitor test computes
-  duration from the earliest interval start to the latest interval end, counting
-  healthy gaps between disjoint waiting episodes as waiting time instead of
-  summing the union of actual intervals; once the intervals are merged, the
-  alleged three-minute operator regression disappears. The Payload Agent
-  recommended openshift/api#2920 and #2923 at 90, but experimental revert PRs
-  #2953 and #2954 did not restore the jobs (#2953 yielded AWS 0/5 and Azure 1/5
-  passes; #2954 yielded AWS 3/5 and Azure 2/5 passes), directly falsifying the
-  recommendations. Correct output has no payload revert candidate. Source
-  Payload Agent analysis:
+  Real regression that must be identified through a discrimination trap. The
+  aggregated aws/azure 4.22->5.0 major-upgrade jobs fail with the CVO log
+  "Skipping manifest 0000_00_cluster-version-operator_30_deployment.yaml:
+  template rendering failed ... manifest:77:27 ... can't evaluate field Images",
+  the .Images "agentic-skills" template field introduced by
+  openshift/cluster-version-operator#1427 (OTA-1997). The old 4.22 CVO loads the
+  5.0 payload, cannot render the new field, and silently skips its own Deployment,
+  so it never self-updates and keeps re-applying 4.22 operator Deployments. The
+  presubmit gap is that #1427's presubmits were same-minor upgrades; only a major
+  4.22->5.0 upgrade exercises old-CVO rendering of the new manifest. This was
+  quick-reverted by openshift/cluster-version-operator#1431 (TRT-2842) the next
+  day and re-landed correctly as #1433, confirming #1427 as the cause. Two red
+  herrings must be rejected: openshift/api#2920 and #2923 (experimental revert
+  PRs #2953/#2954 did not restore the jobs, falsifying them), and the reading
+  that the apparent long operator waits are only a disjoint-interval arithmetic
+  artifact in the Origin monitor test (the monitor may over-count, but a real
+  breaking change existed and was reverted). Correct output recommends reverting
+  #1427 and rejects the api PRs. Source Payload Agent analysis:
   https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-main-claude-payload-agent/2080964771632386048/artifacts/claude-payload-agent/openshift-claude-payload-agent/artifacts/payload-analysis-5.0.0-0.ci-2026-07-25-102741-summary.html

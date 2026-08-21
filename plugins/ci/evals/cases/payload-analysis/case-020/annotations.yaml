@@ -1,7 +1,7 @@
 expected_phase: Rejected
 expected_failed_job_count: 2
 has_revert_candidates: false
-force_accept_expected: false
+force_accept_expected: true
 payload_completed_at: "2026-07-29T13:32:49Z"
 
 expected_candidates: []
@@ -18,5 +18,11 @@ notes: >
   429 throttling precedes provisioning timeout before the CSI attach path
   amplifies the failure. The correct analysis distinguishes triggers from
   amplifiers, detectors, and cleanup fallout, and recommends no payload revert.
-  Source Payload Agent analysis:
+  Because both triggers are temporary, self-resolving infrastructure issues
+  (Azure has logged cloud-API throttling — 429 Throttled / OSProvisioningTimedOut;
+  GCP is a transient external VIP reachability loss confirmed by cross-version
+  correlation, not a payload regression), no more than 2 blocking jobs failed,
+  and the stream has had no accepted payload for 48.4h (>= the 18h threshold),
+  force-accept is the correct recommendation per Step 6.4: force_accept_expected
+  is true. Source Payload Agent analysis:
   https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-main-claude-payload-agent/2082347184044380160/artifacts/claude-payload-agent/openshift-claude-payload-agent/artifacts/payload-analysis-5.0.0-0.nightly-2026-07-29-055948-summary.html

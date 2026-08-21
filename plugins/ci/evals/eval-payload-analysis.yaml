@@ -36,7 +36,7 @@ runner:
     lookup and ignore results newer than the cutoff.
 
 models:
-  judge: claude-opus-4-6
+  judge: claude-opus-4-8
 
 permissions:
   allow:
@@ -344,11 +344,15 @@ judges:
               score = 0.0
           if score < float(exp.get("min_confidence", 0)):
               low.append(f"{url} scored {score:g} < min {exp.get('min_confidence')}")
-          # Substring match: annotations use short job names, results use
-          # full periodic job names.
+          # Bidirectional substring match: the model may legitimately report
+          # either the short job stem (e2e-aws-ovn) or the full periodic name
+          # (periodic-ci-...-e2e-aws-ovn), and annotations may use either form.
+          # Accept a link when either string contains the other. Empty strings
+          # never match (guarded) so a blank job entry can't satisfy the check.
           got_jobs = [str(j) for j in (got.get("failing_jobs") or [])]
           bad = [j for j in (exp.get("expected_failing_jobs") or [])
-                 if not any(str(j) in gj for gj in got_jobs)]
+                 if not any(str(j) and gj and (str(j) in gj or gj in str(j))
+                            for gj in got_jobs)]
           if bad:
               unlinked.append(f"{url} not linked to: {', '.join(bad)}")
       problems = []

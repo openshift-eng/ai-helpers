@@ -11,7 +11,7 @@ expected_candidates:
     expected_confidence: 95
     description: "Minimal and telemetry CP monitors change caused monitoring test regressions"
     expected_failing_jobs:
-      - "e2e-aws-ovn"
+      - "aws-ovn-techpreview-serial"
 
 notes: >
   True positive from the CMO monitoring regression series. CMO #2814
