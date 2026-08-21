@@ -132,7 +132,7 @@ class RebaseManager:
     def get_current_github_user(self):
         """Fetch the current authenticated GitHub user's login."""
         try:
-            return self.run_cmd(["gh", "api", "user", "--json", "login", "-q", ".login"])
+            return self.run_cmd(["gh", "api", "user", "--jq", ".login"])
         except Exception:
             return ""
 
@@ -333,13 +333,16 @@ class RebaseManager:
             "--no-merges", "--reverse", "--pretty=tformat:%h|%s"
         ])
         
-        carries = []
+        carries_map = {} # Maps message -> sha (keeping most recent because git log is --reverse)
         if carries_raw:
             for line in carries_raw.split("\n"):
                 if "|" in line:
                     sha, msg = line.split("|", 1)
                     if "UPSTREAM:" in msg:
-                        carries.append((sha, msg))
+                        carries_map[msg] = sha
+
+        # Rebuild chronological list from the deduped map
+        carries = [(sha, msg) for msg, sha in carries_map.items()]
 
         # 3. Categorize and group carries
         commits_data = [["Sha", "Message", "Decision"]]
@@ -403,40 +406,40 @@ Below is the structured analysis of the {len(carries)} downstream carry commits 
 *   **Summary:** We are carrying **{len(deps_carries)}** dependency and toolchain alignment commits. These are highly repetitive configuration changes (such as pinning Go versions, tracking `vendor/` tree ignores, and pulling in CVE security updates). 
 *   **Action Required:** Redo `go mod vendor` post-rebase and ensure `GOTOOLCHAIN=local` is set to compile with the downstream environment.
 
-<details>
-<summary><b>🔍 Click to expand itemized commits audit table (Toolchain & Dependencies)</b></summary>
-
 """
         if not deps_carries:
-            report_content += "*No carries detected in this functional domain.*\n"
+            report_content += "*No carries detected in this functional domain.*\n\n"
         else:
-            report_content += "| Carry SHA | Commit Message | Default Action | Reason |\n| :--- | :--- | :--- | :--- |\n"
+            report_content += """<details>
+<summary><b>🔍 Click to expand itemized commits audit table (Toolchain & Dependencies)</b></summary>
+
+| Carry SHA | Commit Message | Default Action | Reason |
+| :--- | :--- | :--- | :--- |
+"""
             for sha, msg, decision, reason in deps_carries:
                 report_content += f"| `{sha}` | {msg} | **{decision}** | {reason} |\n"
+            report_content += "\n</details>\n\n"
         
-        report_content += """
-</details>
-
-### 2. Build, CI, and Packaging (Dockerfiles, Prow config, Make targets)
+        report_content += """### 2. Build, CI, and Packaging (Dockerfiles, Prow config, Make targets)
 **Review Focus:** Release, ART, & CI/operator owners to sign off on packaging and automation toggles.
 *   **Summary:** We are carrying **{len(build_carries)}** packaging, Dockerfile, and Prow configuration commits. These represent standard OpenShift releases metadata, make target shims, and base-image overrides (e.g. updating base images to match `ocp-build-data` config).
 *   **Action Required:** Reconcile downstream Dockerfiles with any upstream base-image changes, and verify `make test` targets align with CI rehearsals.
 
-<details>
-<summary><b>🔍 Click to expand itemized commits audit table (Build, CI, and Packaging)</b></summary>
-
 """
         if not build_carries:
-            report_content += "*No carries detected in this functional domain.*\n"
+            report_content += "*No carries detected in this functional domain.*\n\n"
         else:
-            report_content += "| Carry SHA | Commit Message | Default Action | Reason |\n| :--- | :--- | :--- | :--- |\n"
+            report_content += """<details>
+<summary><b>🔍 Click to expand itemized commits audit table (Build, CI, and Packaging)</b></summary>
+
+| Carry SHA | Commit Message | Default Action | Reason |
+| :--- | :--- | :--- | :--- |
+"""
             for sha, msg, decision, reason in build_carries:
                 report_content += f"| `{sha}` | {msg} | **{decision}** | {reason} |\n"
-        
-        report_content += """
-</details>
+            report_content += "\n</details>\n\n"
 
-### 3. Core DNS & Custom Extensions (ocp_dnsnameresolver, other plugins)
+        report_content += """### 3. Core DNS & Custom Extensions (ocp_dnsnameresolver, other plugins)
 **Review Focus:** DNS Operator sub-team to vet custom DNS extensions and routing plugins.
 *   **Description:** Integrates OpenShift-specific CoreDNS external plugins (e.g., `ocp_dnsnameresolver`, `coredns-mdns`) and custom plugin-chaining configuration rules. These represent critical custom logic that must be reviewed carefully during the meeting.
 
@@ -579,23 +582,44 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
             log_warn(f"Dry-run: Would checkout {branch_name}, merge -s ours, apply carries, tidy vendor, and open Draft PR.")
             return
             
-        # 1. Create and checkout the branch based on the upstream tag
+        # 1. Check if the branch already exists and has commits ahead of target_version
+        branch_exists = False
         try:
-            self.run_cmd(["git", "checkout", "-b", branch_name, target_version])
+            self.run_cmd(["git", "show-ref", "--verify", f"refs/heads/{branch_name}"])
+            branch_exists = True
         except Exception:
-            log_info(f"Branch {branch_name} already exists. Checking it out.")
-            self.run_cmd(["git", "checkout", branch_name])
+            pass
 
-        # 2. Ours-merge openshift/master to establish the baseline
-        try:
-            log_info(f"Merging {self.main_branch} using strategy 'ours'...")
-            self.run_cmd([
-                "git", "merge", "-s", "ours", self.main_branch,
-                "-m", f"UPSTREAM: <merge>: Merge {self.main_branch} baseline into {branch_name}"
-            ])
-        except Exception as e:
-            log_error(f"Failed ours-merge baseline: {e}")
-            return
+        is_resuming = False
+        if branch_exists:
+            try:
+                ahead = self.run_cmd(["git", "log", f"{target_version}..{branch_name}", "--oneline"])
+                if ahead.strip():
+                    is_resuming = True
+            except Exception:
+                pass
+
+        if is_resuming:
+            log_info(f"Branch {branch_name} already exists and contains commits. Resuming rebase process.")
+            self.run_cmd(["git", "checkout", branch_name])
+        else:
+            log_info(f"Creating fresh branch {branch_name} from {target_version}...")
+            try:
+                self.run_cmd(["git", "checkout", "-b", branch_name, target_version])
+            except Exception:
+                self.run_cmd(["git", "checkout", branch_name])
+                self.run_cmd(["git", "reset", "--hard", target_version])
+
+            # 2. Ours-merge openshift/master to establish the baseline
+            try:
+                log_info(f"Merging {self.main_branch} using strategy 'ours'...")
+                self.run_cmd([
+                    "git", "merge", "-s", "ours", self.main_branch,
+                    "-m", f"UPSTREAM: <merge>: Merge {self.main_branch} baseline into {branch_name}"
+                ])
+            except Exception as e:
+                log_error(f"Failed ours-merge baseline: {e}")
+                return
 
         # 3. Apply custom decisions from commits.tsv
         if not self.commits_file.exists():
@@ -613,6 +637,19 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
 
         squash_shas = []
         for sha, msg, decision in decisions:
+            # Check if commit message is already present in branch history
+            commit_exists = False
+            try:
+                log_out = self.run_cmd(["git", "log", f"{target_version}..HEAD", "--format=%s"])
+                if msg in log_out:
+                    commit_exists = True
+            except Exception:
+                pass
+
+            if commit_exists:
+                log_info(f"Commit '{msg}' is already applied. Skipping.")
+                continue
+
             if decision == "cherry-pick":
                 log_info(f"Cherry-picking carry: {sha} ({msg})")
                 try:
@@ -627,7 +664,15 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
                 log_info(f"Skipping (dropping) carry: {sha} ({msg})")
 
         # 4. Perform the squash of configuration carries
-        if squash_shas:
+        squash_done = False
+        try:
+            log_out = self.run_cmd(["git", "log", f"{target_version}..HEAD", "--format=%s"])
+            if "UPSTREAM: <carry>: Add and update OpenShift configurations" in log_out:
+                squash_done = True
+        except Exception:
+            pass
+
+        if squash_shas and not squash_done:
             log_info(f"Cherry-picking and squashing {len(squash_shas)} configuration carries...")
             # We cherry-pick them to get their contents onto the index
             for sha, msg in squash_shas:
@@ -690,14 +735,36 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
             
         # 7. Push branch and open Draft PR (or update existing PR if start_over is used)
         if not active_pr:
-            log_success(f"Local rebase and verification tests for '{target_version}' completed successfully on branch '{branch_name}'!")
-            print(f"\n{YELLOW}== LOCAL REBASE COMPLETE (WAITING) =={RESET}")
-            print(f"Since no active Draft PR was found on GitHub, the tool has stopped here for your review.")
-            print(f"Please inspect the local branch '{branch_name}', resolve any skews, and run tests.")
-            print("When you are ready, you can push the branch and open a Draft PR manually:")
-            print(f"  git push origin {branch_name}")
-            print(f"  gh pr create --draft --repo {self.repo_name} --title \"Rebase to {target_version} for OCP DNS/Ingress\" -F .rebase/release-report.md\n")
-            return
+            if self.auto:
+                log_info(f"Auto-pushing branch {branch_name} to origin...")
+                try:
+                    self.run_cmd(["git", "push", "-f", "origin", branch_name])
+                    log_success("Successfully pushed branch.")
+                except Exception as e:
+                    log_error(f"Failed to push branch: {e}")
+                    return
+                
+                log_info("Auto-creating Draft PR on GitHub...")
+                try:
+                    pr_url = self.run_cmd([
+                        "gh", "pr", "create", "--draft",
+                        "--repo", self.repo_name,
+                        "--title", f"Rebase to {target_version} for OCP DNS/Ingress",
+                        "-F", str(self.report_file)
+                    ])
+                    log_success(f"Successfully created Draft PR: {pr_url.strip()}")
+                except Exception as e:
+                    log_error(f"Failed to create Draft PR: {e}")
+                return
+            else:
+                log_success(f"Local rebase and verification tests for '{target_version}' completed successfully on branch '{branch_name}'!")
+                print(f"\n{YELLOW}== LOCAL REBASE COMPLETE (WAITING) =={RESET}")
+                print(f"Since no active Draft PR was found on GitHub, the tool has stopped here for your review.")
+                print(f"Please inspect the local branch '{branch_name}', resolve any skews, and run tests.")
+                print("When you are ready, you can push the branch and open a Draft PR manually:")
+                print(f"  git push origin {branch_name}")
+                print(f"  gh pr create --draft --repo {self.repo_name} --title \"Rebase to {target_version} for OCP DNS/Ingress\" -F .rebase/release-report.md\n")
+                return
 
         log_info(f"Pushing branch {branch_name} to origin...")
         try:
