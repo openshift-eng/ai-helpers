@@ -20,32 +20,73 @@ When `--ci` is passed: NEVER ask interactive questions or wait for user input. M
 
 ### Step 0: Resolve PR and failing checks
 
-1. **PR number**: Use `$1` if provided, otherwise `gh pr view --json number -q .number` for the current branch.
-2. **Repository**: Use `$2` if provided (`owner/repo`), otherwise `gh repo view --json nameWithOwner -q .nameWithOwner`.
-3. **Failing checks**: If `--failing-checks` is provided, parse it as a JSON array of `{name, state, bucket}` objects (same shape as `has-review-work` emits). Otherwise fetch:
+Resolve PR number and repository into named variables before any shell commands. Quote those variables in every `gh` and `git` invocation — never pass raw `$1` or `$2` to commands.
+
+1. **PR number**: If argument `$1` is provided, set `PR_NUMBER="$1"`. Otherwise:
 
    ```sh
-   gh pr checks $1 --repo $2 --json name,state,bucket,link
+   PR_NUMBER=$(gh pr view --json number -q .number)
    ```
+
+2. **Repository**: If argument `$2` is provided (`owner/repo`), set `REPO="$2"`. Otherwise:
+
+   ```sh
+   REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+   ```
+
+3. **Failing checks**: Each check object uses `{name, state, bucket, link}` — the same shape `has-review-work` emits in `FAILING_CHECKS`.
+
+   - If `--failing-checks` is provided, parse it as a JSON array of those objects.
+   - If any object omits `link`, merge links from:
+
+     ```sh
+     gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link
+     ```
+
+   - Otherwise fetch failing checks directly:
+
+     ```sh
+     gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link
+     ```
 
    Keep checks where `bucket == "fail"`. Ignore `tide`.
 
 4. If no failing checks remain, report that and stop.
 
-5. **PR diff context** (required for triage):
+5. **PR diff context** (required for triage; fail closed if unavailable):
+
+   Discover the repository's configured remote — do not assume `origin`. Prefer the current branch's tracking remote, then `upstream`, then `origin`, then the first configured remote:
 
    ```sh
-   BASE_BRANCH=$(gh pr view $1 --repo $2 --json baseRefName -q .baseRefName)
-   git fetch origin "${BASE_BRANCH}" 2>/dev/null || true
-   git diff "origin/${BASE_BRANCH}" --stat
-   git diff "origin/${BASE_BRANCH}" --name-only
+   BASE_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json baseRefName -q .baseRefName)
+
+   TRACKING_REMOTE=$(git config "branch.$(git rev-parse --abbrev-ref HEAD).remote" 2>/dev/null)
+   if [ -z "$TRACKING_REMOTE" ]; then
+     TRACKING_REMOTE=$(git remote | grep -m1 '^upstream$')
+   fi
+   if [ -z "$TRACKING_REMOTE" ]; then
+     TRACKING_REMOTE=$(git remote | grep -m1 '^origin$')
+   fi
+   if [ -z "$TRACKING_REMOTE" ]; then
+     TRACKING_REMOTE=$(git remote | head -1)
+   fi
+   if [ -z "$TRACKING_REMOTE" ]; then
+     echo "ERROR: no git remote configured" >&2
+     exit 1
+   fi
+
+   git fetch "$TRACKING_REMOTE" "${BASE_BRANCH}" || exit 1
+   git diff "${TRACKING_REMOTE}/${BASE_BRANCH}" --stat || exit 1
+   git diff "${TRACKING_REMOTE}/${BASE_BRANCH}" --name-only || exit 1
    ```
+
+   Do not continue triage if fetch or either diff command fails.
 
 ### Step 1: Triage each failing check (mandatory before any code change)
 
 For each failing check, gather evidence and classify. Use `ci:prow-job-analysis` for Prow/OpenShift CI jobs and the flaky-test-identification reference for classification signals.
 
-1. **Get the job URL** from `gh pr checks` (`link` field). Skip checks with no Prow URL (e.g. GitHub Actions-only) — triage from available logs/output instead.
+1. **Get the job URL** from the check object's `link` field (populated in Step 0). Skip checks with no Prow URL (e.g. GitHub Actions-only) — triage from available logs/output instead.
 
 2. **Analyze the failure** using `ci:prow-job-analysis` with the Prow URL. Identify:
    - Failed step or test name
@@ -82,10 +123,25 @@ For each failing check, gather evidence and classify. Use `ci:prow-job-analysis`
 #### Not PR-caused failures
 
 1. Do **not** change application code, CI configuration, generated files, or repo-wide tooling policy.
-2. Post a **PR conversation comment** (not inline) for each non-actionable failure:
+2. Post a **PR conversation comment** (not inline) for each non-actionable failure. Build the report body as data in a safely quoted variable (or a temp file), then pass it through `gh api` — do not interpolate report text directly into shell source or unquoted command arguments:
 
    ```sh
-   gh api repos/{owner}/{repo}/issues/{pr_number}/comments -f body="<report>"
+   OWNER="${REPO%%/*}"
+   REPO_NAME="${REPO#*/}"
+
+   REPORT_BODY='**CI failure (not fixing):** ci/prow/lint
+
+   **Classification:** pre_existing
+
+   **Evidence:** ...
+
+   **Action needed:** Human or infra follow-up required — not addressed in this PR.
+
+   ---
+   *AI-assisted response via Claude Code*'
+
+   jq -n --arg body "$REPORT_BODY" '{body: $body}' |
+     gh api "repos/${OWNER}/${REPO_NAME}/issues/${PR_NUMBER}/comments" --input -
    ```
 
    Report template:
@@ -126,7 +182,7 @@ Include commit hashes for fixes and comment URLs for reports.
 ## Arguments
 - `$1`: PR number (optional — current branch if omitted)
 - `$2`: `owner/repo` (optional — current repo if omitted)
-- `--failing-checks`: JSON array of `{name, state, bucket}` objects from `has-review-work`
+- `--failing-checks`: JSON array of `{name, state, bucket, link}` objects from `has-review-work`
 - `--ci`: Non-interactive CI automation mode; no push; when uncertain, report instead of fix
 
 ## Examples
@@ -138,7 +194,7 @@ Include commit hashes for fixes and comment URLs for reports.
 
 2. **Process checks from has-review-work gate output**:
    ```text
-   /openshift-developer:address-ci-failures 3816 openshift/sippy --failing-checks '[{"name":"ci/prow/lint","state":"FAILURE","bucket":"fail"}]' --ci
+   /openshift-developer:address-ci-failures 3816 openshift/sippy --failing-checks '[{"name":"ci/prow/lint","state":"FAILURE","bucket":"fail","link":"https://prow.ci.openshift.org/view/..."}]' --ci
    ```
 
 3. **Investigate a specific PR interactively**:

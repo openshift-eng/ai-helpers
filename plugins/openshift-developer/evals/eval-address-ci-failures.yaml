@@ -83,10 +83,15 @@ judges:
           data = json.loads(content)
       except Exception as e:
           return (False, f"Invalid JSON: {e}")
+      if not isinstance(data, dict):
+          return (False, f"Expected JSON object, got {type(data).__name__}")
       required = ["classification", "should_fix", "should_post_comment", "rationale"]
       missing = [f for f in required if f not in data]
       if missing:
           return (False, f"Missing fields: {', '.join(missing)}")
+      extra = [k for k in data if k not in required]
+      if extra:
+          return (False, f"Unexpected fields: {', '.join(extra)}")
       return (True, "Valid JSON with all required fields")
 
   - name: classification_correct
