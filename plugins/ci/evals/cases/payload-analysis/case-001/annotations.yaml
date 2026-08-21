@@ -12,7 +12,6 @@ expected_candidates:
       - "metal-ipi-ovn-ipv4"
       - "metal-ipi-ovn-ipv6"
   - pr_url: "https://github.com/openshift/release/pull/76852"
-    component: "openshift/release"
     description: "Changed vSphere VCM default lease to multi-tenant, breaking UPI workflows that require single-tenant leases"
     expected_failing_jobs:
       - "install-analysis-all"
