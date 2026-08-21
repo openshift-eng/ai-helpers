@@ -257,29 +257,60 @@ judges:
 
   - name: required_skill_invocations
     description: |
-      Verify that payload-results-yaml and payload-autodl-json skills were
-      invoked via the Skill tool during execution.
+      Verify that the payload-results-yaml and payload-autodl-json skills were
+      actually used to produce the structured output (rather than the files
+      being hand-written). Harness-neutral: Claude Code exposes skills as a
+      `Skill` tool call, while Codex has no Skill tool and instead loads the
+      skill body into the transcript — so each skill counts as evidenced by
+      EITHER signal.
     check: |
       import json
-      stdout = outputs.get("stdout", "")
+      # skill name (Claude Code Skill tool) -> canonical body heading (the
+      # skill's SKILL.md H1, which is loaded into the transcript by harnesses
+      # without a Skill tool, e.g. Codex).
+      required = {
+          "ci:payload-results-yaml": "# Payload Results YAML",
+          "ci:payload-autodl-json": "# Payload Autodl JSON",
+      }
+      events = outputs.get("events") or []
+
+      # Signal A: normalized `Skill` tool invocations (Claude Code). Prefer the
+      # canonical event stream (merges subagent transcripts); fall back to raw
+      # Claude Code stdout JSONL when no events were collected.
       invoked = set()
-      for line in stdout.splitlines():
-          try:
-              entry = json.loads(line)
-          except (json.JSONDecodeError, ValueError):
-              continue
-          if entry.get("type") != "assistant":
-              continue
-          for block in entry.get("message", {}).get("content", []):
-              if block.get("type") == "tool_use" and block.get("name") == "Skill":
-                  skill = block.get("input", {}).get("skill", "")
-                  invoked.add(skill)
-      required = ["ci:payload-results-yaml", "ci:payload-autodl-json"]
-      found = [s for s in required if s in invoked]
-      missing = [s for s in required if s not in invoked]
+      for entry in events:
+          for tool in entry.get("tools", []) or []:
+              if tool.get("name") == "Skill":
+                  name = (tool.get("input") or {}).get("skill", "")
+                  if name:
+                      invoked.add(name)
+      if not events:
+          for line in (outputs.get("stdout") or "").splitlines():
+              try:
+                  entry = json.loads(line)
+              except (json.JSONDecodeError, ValueError):
+                  continue
+              if entry.get("type") != "assistant":
+                  continue
+              for block in entry.get("message", {}).get("content", []):
+                  if block.get("type") == "tool_use" and block.get("name") == "Skill":
+                      name = block.get("input", {}).get("skill", "")
+                      if name:
+                          invoked.add(name)
+
+      # Signal B: the skill body was loaded (harnesses without a Skill tool) —
+      # its canonical heading appears in the transcript corpus.
+      corpus = json.dumps(events) if events else (outputs.get("stdout") or "")
+
+      found, missing = [], []
+      for skill, heading in required.items():
+          if skill in invoked or heading in corpus:
+              found.append(skill)
+          else:
+              missing.append(skill)
       if missing:
-          return (False, f"Missing Skill calls: {', '.join(missing)}. Found: {', '.join(found)}")
-      return (True, f"Both required skills invoked: {', '.join(found)}")
+          return (False, f"Skill not evidenced (no Skill call or loaded body): {', '.join(missing)}. Found: {', '.join(found) or 'none'}")
+      return (True, f"Both skills evidenced (Skill tool or loaded body): {', '.join(found)}")
 
   - name: no_answer_access
     description: |
