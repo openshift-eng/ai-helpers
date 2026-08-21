@@ -668,9 +668,9 @@ thresholds:
   html_report_structure:
     min_pass_rate: 1.0
   analysis_quality:
-    min_mean: 3.5
+    min_mean: 4.5
   revert_scoring_accuracy:
-    min_mean: 3.0
+    min_mean: 4.5
   point_in_time_integrity:
     min_mean: 4.0
   required_skill_invocations:
