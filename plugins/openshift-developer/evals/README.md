@@ -24,6 +24,17 @@ comments correctly, prioritizes, and formats replies.
 | case-013 | Response — question, no change |
 | case-014 | Response — imperative change |
 
+## address-ci-failures (`cases/address-ci-failures`)
+
+Whether the address-ci-failures skill correctly classifies CI failures and
+decides fix vs report per TRT-2831 guardrails.
+
+| Case | Description |
+|------|-------------|
+| case-001 | Pre-existing npm audit CVE on unchanged deps (TRT-2831 canonical) |
+| case-002 | PR-caused unit test failure in modified file |
+| case-003 | Infrastructure failure (pod_pending) |
+
 ## solve (`cases/solve`)
 
 End-to-end jira-solve pipeline against a snapshot branch with a known-good PR.

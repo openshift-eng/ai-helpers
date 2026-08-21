@@ -2532,10 +2532,16 @@ footer a { color: var(--primary); }
     {
       "name": "openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.17",
+      "version": "1.1.18",
       "has_readme": true,
       "commands": [],
       "skills": [
+        {
+          "name": "address-ci-failures",
+          "description": "Triage and fix PR CI failures caused by the PR's own changes. Use when has-review-work detects new failing checks, when a PR has CI regressions to investigate, or when deciding whether to fix vs report a CI failure.",
+          "description_html": "Triage and fix PR CI failures caused by the PR&#x27;s own changes. Use when has-review-work detects new failing checks, when a PR has CI regressions to investigate, or when deciding whether to fix vs report a CI failure.",
+          "meta": ""
+        },
         {
           "name": "address-review-pr",
           "description": "Fetch and address all PR review comments — categorize by priority, make code changes, post replies, and push. Use when the user wants to address, respond to, or work through PR review feedback.",
@@ -2562,8 +2568,8 @@ footer a { color: var(--primary); }
         },
         {
           "name": "has-review-work",
-          "description": "Decide whether a GitHub PR has unanswered authorized review comments or new CI failures worth a follow-up agent. Use when gating a review-responder loop, polling a PR for actionable feedback, or checking if address-review-pr should run.",
-          "description_html": "Decide whether a GitHub PR has unanswered authorized review comments or new CI failures worth a follow-up agent. Use when gating a review-responder loop, polling a PR for actionable feedback, or checking if address-review-pr should run.",
+          "description": "Decide whether a GitHub PR has unanswered authorized review comments or new CI failures worth a follow-up agent. Use when gating a review-responder loop, polling a PR for actionable feedback, or checking if address-review-pr or address-ci-failures should run.",
+          "description_html": "Decide whether a GitHub PR has unanswered authorized review comments or new CI failures worth a follow-up agent. Use when gating a review-responder loop, polling a PR for actionable feedback, or checking if address-review-pr or address-ci-failures should run.",
           "meta": ""
         },
         {

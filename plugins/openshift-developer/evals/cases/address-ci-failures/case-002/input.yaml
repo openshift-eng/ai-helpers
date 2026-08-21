@@ -1,0 +1,28 @@
+prompt: |
+  Using the address-ci-failures skill, analyze this CI failure scenario and write your triage decision to analysis.json.
+
+  PR: openshift/hypershift#7538
+  Failing check: ci/prow/unit
+
+  PR diff (name-only):
+  ```
+  api/hypershift/v1beta1/hostedcluster_types.go
+  control-plane-operator/controllers/hostedcluster/hostedcluster_controller.go
+  control-plane-operator/controllers/hostedcluster/hostedcluster_controller_test.go
+  ```
+
+  Unit test failure excerpt:
+  ```
+  --- FAIL: TestReconcileHostedCluster (0.12s)
+      hostedcluster_controller_test.go:142: expected status.Ready=True, got Ready=False
+  FAIL
+  FAIL  github.com/openshift/hypershift/control-plane-operator/controllers/hostedcluster  0.456s
+  ```
+
+  Context:
+  - The PR modifies hostedcluster_controller.go and its _test.go in the same package.
+  - The failing test is in a file the PR changed.
+  - Error is a logic assertion failure, not infra or flake signals.
+  - No ci-operator failure reason; cluster was never involved.
+
+  What classification and action should the skill take?

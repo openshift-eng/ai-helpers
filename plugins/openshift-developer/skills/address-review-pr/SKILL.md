@@ -14,6 +14,8 @@ openshift-developer:address-review-pr
 ## Description
 Automates addressing PR review comments by fetching all comments from a pull request, categorizing them by priority (blocking, change requests, questions, suggestions), and systematically addressing each one. Intelligently filters out outdated comments, bot-generated content, and oversized responses to optimize context usage. Handles code changes, posts replies to reviewers, and maintains a clean git history by amending relevant commits rather than creating unnecessary new ones.
 
+Does not handle CI failures — use `address-ci-failures` for that.
+
 When `--ci` is passed: NEVER ask interactive questions or wait for user input. Make autonomous decisions. When in doubt, proceed with the safest action.
 
 ## Implementation
@@ -281,3 +283,4 @@ Where `<type>` is one of: `issue_comment`, `review_thread`, or `review_comment`
 
 ## See Also
 - `has-review-work` — read-only gate: unanswered authorized comments or new CI failures
+- `address-ci-failures` — triage and fix PR-caused CI failures (or report non-actionable ones)
