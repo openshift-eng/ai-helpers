@@ -18,10 +18,10 @@ import json
 import math
 import re
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
 
 SIPPY_BASE = "https://sippy.dptools.openshift.org/api/jobs/runs"
 SIPPY_DISRUPTION_URL = "https://sippy.dptools.openshift.org/api/jobs/runs/disruption"
@@ -83,16 +83,48 @@ def parse_backend(backend_value):
     return backend_value, None
 
 
-def build_sippy_filter(variants, since_ms):
-    """Build Sippy filter dict from variant key-value pairs."""
+def _parse_timestamp(value):
+    """Parse a Sippy `timestamp` value to a timezone-aware UTC datetime.
+
+    Accepts an RFC 3339 string (e.g. "2026-08-14T00:01:05Z") or a numeric
+    epoch-milliseconds value. Booleans are not treated as numeric and fall
+    through to the sentinel. Any UTC offset in a string is normalized to UTC,
+    and a string carrying no timezone is interpreted as UTC, so the returned
+    datetime is always UTC. Anything else — None, empty, unparseable, or a
+    non-finite or out-of-range numeric (infinity, NaN, or a magnitude too large
+    for the platform) — returns the epoch (1970-01-01 UTC) as a safe sentinel so
+    the dedup arithmetic and sorting below keep working instead of raising.
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            return datetime.fromtimestamp(value / 1000, tz=timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            return datetime(1970, 1, 1, tzinfo=timezone.utc)
+    if isinstance(value, str) and value:
+        try:
+            dt = datetime.fromisoformat(value)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
+        except ValueError:
+            return datetime(1970, 1, 1, tzinfo=timezone.utc)
+    return datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def build_sippy_filter(variants, since):
+    """Build Sippy filter dict from variant key-value pairs.
+
+    `since`, when set, is a datetime; Sippy's `timestamp` column is a
+    timestamptz, so it is formatted to an RFC 3339 UTC string here.
+    """
     items = []
     for key, value in variants.items():
         items.append(
             {"columnField": "variants", "operatorValue": "has entry", "value": "%s:%s" % (key, value)}
         )
-    if since_ms is not None:
+    if since is not None:
         items.append(
-            {"columnField": "timestamp", "operatorValue": ">", "value": str(since_ms)}
+            {"columnField": "timestamp", "operatorValue": ">", "value": since.isoformat().replace("+00:00", "Z")}
         )
     return {"items": items, "linkOperator": "and"}
 
@@ -228,7 +260,7 @@ def select_representative_runs(rows, disruption_data, base_backend, n=5):
         enriched.append({
             "index": i,
             "job": row.get("job", ""),
-            "timestamp": row.get("timestamp", 0),
+            "timestamp": _parse_timestamp(row.get("timestamp", "")),
             "disruption_seconds": get_disruption(row),
         })
 
@@ -240,7 +272,7 @@ def select_representative_runs(rows, disruption_data, base_backend, n=5):
     groups = [[by_job_ts[0]]]
     for entry in by_job_ts[1:]:
         prev = groups[-1][-1]
-        if entry["job"] == prev["job"] and abs(entry["timestamp"] - prev["timestamp"]) <= 60000:
+        if entry["job"] == prev["job"] and abs((entry["timestamp"] - prev["timestamp"]).total_seconds()) <= 60:
             groups[-1].append(entry)
         else:
             groups.append([entry])
@@ -251,7 +283,7 @@ def select_representative_runs(rows, disruption_data, base_backend, n=5):
     clusters = [[by_ts[0]]]
     for entry in by_ts[1:]:
         anchor = clusters[-1][0]
-        if abs(entry["timestamp"] - anchor["timestamp"]) <= 5000:
+        if abs((entry["timestamp"] - anchor["timestamp"]).total_seconds()) <= 5:
             clusters[-1].append(entry)
         else:
             clusters.append([entry])
@@ -322,7 +354,7 @@ def select_representative_runs(rows, disruption_data, base_backend, n=5):
 
     # Phase 6.5: Reserve one slot for a clean comparison (0s disruption) when available.
     # Only pick a clean run from a job that is actually in the selected set — a clean run
-    # from a job that has disrupted runs in the pool but wasn't selected is not useful.
+    # from a job that has disrupted runs in the pool but is not in that set is not useful.
     idx_to_job = {c["index"]: c["job"] for c in candidates}
     selected_jobs = set(idx_to_job[idx] for idx in selected if idx in idx_to_job)
     clean = [c for c in zero_runs if c["job"] in selected_jobs]
@@ -365,10 +397,16 @@ def _select_by_job_diversity(candidates, n):
     return selected
 
 
-def format_timestamp(ts_millis):
-    """Convert epoch milliseconds to human-readable date string."""
-    ts_sec = ts_millis / 1000.0
-    return time.strftime("%Y-%m-%d %H:%M", time.gmtime(ts_sec))
+def format_timestamp(ts):
+    """Reformat an RFC 3339 timestamp to a shorter display form (YYYY-MM-DD HH:MM).
+
+    A missing timestamp — None or an empty string — returns an empty string
+    rather than a 1970 epoch date, since callers pass "" when the timestamp is
+    absent. A numeric 0 is a valid epoch-ms value and formats normally.
+    """
+    if ts is None or ts == "":
+        return ""
+    return _parse_timestamp(ts).strftime("%Y-%m-%d %H:%M")
 
 
 def print_table(rows, grafana_params, base_backend, disruption_data, selected_indices=None):
@@ -415,7 +453,7 @@ def print_table(rows, grafana_params, base_backend, disruption_data, selected_in
         job = row.get("job", "?")
         prow_id = row.get("prow_id", "?")
         result = row.get("overall_result", "?")
-        ts = format_timestamp(row.get("timestamp", 0))
+        ts = format_timestamp(row.get("timestamp", ""))
         disruption = extract_disruption_failures(row.get("failed_test_names"))
         disruption_str = ", ".join(disruption) if disruption else "—"
 
@@ -469,7 +507,7 @@ def print_json(rows, base_backend, disruption_data, selected_indices=None):
             "url": row.get("url"),
             "overall_result": row.get("overall_result"),
             "timestamp": row.get("timestamp"),
-            "timestamp_human": format_timestamp(row.get("timestamp", 0)),
+            "timestamp_human": format_timestamp(row.get("timestamp", "")),
             "disruption_seconds": secs,
             "disruption_backends": entries,
             "disruption_failures": disruption,
@@ -551,7 +589,8 @@ def main(argv=None):
         if gkey not in known_keys:
             print("Warning: Grafana parameter '%s' not mapped to a Sippy filter, ignoring" % gkey, file=sys.stderr)
 
-    since_ms = int((time.time() - args.since_hours * 3600) * 1000)
+    # Lookback cutoff; build_sippy_filter formats it to RFC 3339 for the query.
+    since = datetime.now(timezone.utc) - timedelta(hours=args.since_hours)
 
     multi_keys = [(k, v.split(",")) for k, v in variants.items() if "," in v]
     if multi_keys:
@@ -567,17 +606,18 @@ def main(argv=None):
             sys.exit(1)
         for combo in variant_combos:
             query_variants = dict(variants, **combo)
-            filter_dict = build_sippy_filter(query_variants, since_ms)
+            filter_dict = build_sippy_filter(query_variants, since)
             batch = fetch_runs(release, filter_dict, args.limit)
             for r in batch:
                 pid = str(r.get("prow_id", ""))
                 if pid not in seen_prow_ids:
                     seen_prow_ids.add(pid)
                     rows.append(r)
-        rows.sort(key=lambda r: r.get("timestamp", 0), reverse=True)
+        # Sort the merged rows newest-first by timestamp, then cap at --limit.
+        rows.sort(key=lambda r: _parse_timestamp(r.get("timestamp", "")), reverse=True)
         rows = rows[:args.limit]
     else:
-        filter_dict = build_sippy_filter(variants, since_ms)
+        filter_dict = build_sippy_filter(variants, since)
         rows = fetch_runs(release, filter_dict, args.limit)
 
     if not rows:
