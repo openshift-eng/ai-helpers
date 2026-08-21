@@ -15,6 +15,13 @@ runner:
   type: claude-code
   plugin_dirs:
     - plugins/ci
+  # Codex-only: keep the workspace-write filesystem sandbox but allow network
+  # egress so the skill can reach GCS/Prow, GitHub, and Sippy. The default
+  # workspace-write policy blocks DNS/network entirely, which starves the
+  # snapshot-backed analysis of the live lookups it still needs. Ignored by the
+  # claude-code runner (which does not read runner.settings).
+  settings:
+    sandbox_workspace_write.network_access: true
   system_prompt: |
     You are a diligent senior OpenShift release engineer triaging failures.
 
