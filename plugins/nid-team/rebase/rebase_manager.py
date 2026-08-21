@@ -502,7 +502,9 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
             print(f"\n{YELLOW}== ACTION REQUIRED =={RESET}")
             print(f"Please review the grouped release report in {report_file_url(self.report_file)}")
             print("You can manually adjust decisions in `.rebase/commits.tsv` if needed.")
-            print("Once ready, run the tool again to execute Phase 2.\n")
+            print(f"{RED}*** AGENT STOP INSTRUCTION ***{RESET}")
+            print("To the executing AI agent: Do NOT run this tool again autonomously. Stop here and wait for the human to review the files and explicitly ask you to proceed.")
+            print("Once the human is ready, they will ask you to run the tool again to execute Phase 2.\n")
         else:
             print(f"\n{BLUE}=== DRY-RUN: GENERATED PR DESCRIPTION / AGENDA PREVIEW ==={RESET}\n")
             print(report_content)
@@ -956,7 +958,7 @@ def report_file_url(file_path):
 def main():
     parser = argparse.ArgumentParser(description="NI&D Team Rebase Manager State Machine")
     parser.add_argument("--tag", help="Specify target upstream tag version (e.g. v1.11.3)")
-    parser.add_argument("--auto", action="store_true", help="Auto-approve Phase 1 report and proceed immediately to Phase 2 rebase")
+    parser.add_argument("--auto", action="store_true", help="Auto-discover and target the latest upstream version tag")
     parser.add_argument("--dryrun", action="store_true", help="Do a dry-run execution without write side-effects")
     parser.add_argument("--start-over", action="store_true", help="Clear the .rebase state folder and force-rebuild the rebase branch/Draft PR from scratch")
     args = parser.parse_args()
