@@ -44,6 +44,7 @@ Optional context (from the caller prompt, not flags):
 
 - Agent GitHub login — comments from this account are ignored. If omitted, use `gh api user --jq .login`.
 - Previous `FAILING_CHECKS` JSON array (same shape as this skill emits). If omitted, any failing check is new. Older callers may omit `link`; compare by check name only.
+- Previous `HEAD_REF_OID` for the PR (same value as `gh pr view ... --json headRefOid`). When the current `headRefOid` differs, discard the previous `FAILING_CHECKS` comparison state — failures from an earlier commit must not be treated as already processed.
 
 ### Fetch comments
 
@@ -132,10 +133,18 @@ fi
 
 Failing checks are those with `bucket == "fail"`. Ignore `tide` — it is not an actionable CI failure. Build a JSON array of objects with `name`, `state`, `bucket`, and `link` (Prow/job URL when available). Pass only these actionable failures in `FAILING_CHECKS` for `address-ci-failures`.
 
-Parse the caller's previous `FAILING_CHECKS` as that same JSON array (not a space-separated string). Compare the sorted name sets:
+Resolve the PR head commit and compare against the caller's previous poll state:
 
-- Set changed (including first time any failure appears) → new CI work
-- Same names as previous → not new CI work
+```sh
+HEAD_SHA=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefOid -q .headRefOid)
+```
+
+Parse the caller's previous `FAILING_CHECKS` as that same JSON array (not a space-separated string). Compare the sorted name sets **only when** the current `HEAD_SHA` matches the caller's previous `HEAD_REF_OID`:
+
+- `HEAD_SHA` changed since previous poll → all current actionable failures are new CI work (ignore previous `FAILING_CHECKS` names)
+- Same `HEAD_SHA` and name set changed → new CI work
+- Same `HEAD_SHA` and same names as previous → not new CI work
+- No previous `FAILING_CHECKS` → any actionable failure is new CI work
 
 ### Output
 

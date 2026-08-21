@@ -1,1 +1,1 @@
-../../../skills/address-ci-failures/SKILL.md
+../../../../skills/address-ci-failures/SKILL.md
