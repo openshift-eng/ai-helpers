@@ -1,0 +1,17 @@
+expected_affected_modules:
+  - "./go.mod"
+  - "./api/go.mod"
+  - "./test/e2e/go.mod"
+expected_excluded_modules:
+  - "./vendor/github.com/foo/go.mod"
+  - "./staging/src/k8s.io/go.mod"
+expected_vendor_excluded: true
+expected_non_dependent_excluded: true
+notes: >
+  Tests multi-module detection: find all go.mod files, exclude vendor/,
+  then grep each for the target module. Only go.mod files that actually
+  reference google.golang.org/grpc are affected. The vendor/ go.mod must
+  be excluded by the -not -path "*/vendor/*" filter. The staging go.mod
+  exists but doesn't import grpc so must be excluded. Models commonly
+  fail by: including vendor paths, or not checking each go.mod for the
+  target module (treating all go.mod files as affected).

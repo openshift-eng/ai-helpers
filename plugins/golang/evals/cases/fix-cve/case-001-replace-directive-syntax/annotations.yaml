@@ -1,0 +1,14 @@
+expected_strategy: "C"
+expected_replace_directive: |
+  // CVE-2026-33186
+  replace google.golang.org/grpc => github.com/openshift-sustaining/grpc-go v1.71.3-sec.1
+expected_has_cve_comment: true
+expected_has_replace_keyword: true
+expected_original_module_in_replace: true
+expected_fork_module_in_replace: true
+expected_fork_version_in_replace: true
+notes: >
+  Tests the EXACT replace directive syntax: comment line with CVE number on
+  its own line, then the replace directive with correct arrow syntax. Models
+  commonly fail by: omitting the CVE comment, wrong arrow direction, including
+  version on the original module side, or mangling the fork path.

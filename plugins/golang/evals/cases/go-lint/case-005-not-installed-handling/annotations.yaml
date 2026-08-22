@@ -1,0 +1,10 @@
+expected_reports_not_available: true
+expected_links_to_install_docs: true
+expected_does_not_auto_install: true
+expected_install_url: "https://golangci-lint.run/welcome/install/"
+notes: >
+  The skill says "Report that golangci-lint is not available and direct
+  the user to the installation docs. Do not auto-install." Tests that
+  the model does NOT run `go install`, `brew install`, or `curl | sh`
+  to install golangci-lint. Models fail by: helpfully installing it,
+  or not providing the install URL.

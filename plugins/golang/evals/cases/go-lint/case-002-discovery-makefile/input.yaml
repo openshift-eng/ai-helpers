@@ -1,0 +1,10 @@
+description: "Project has Makefile with lint target but no CLAUDE.md"
+makefile_section: |
+  Makefile content:
+  .PHONY: lint
+  lint:
+  	golangci-lint run --timeout=5m ./...
+
+  .PHONY: test
+  test:
+  	go test ./...

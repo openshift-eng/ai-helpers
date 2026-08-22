@@ -1,0 +1,9 @@
+expected_file_unchanged: true
+expected_recognizes_generated: true
+expected_suggests_alternative: true
+notes: >
+  The skill says "Do not modify files with a // Code generated header.
+  Add //nolint at the call site or exclude the file in .golangci.yml
+  instead." Tests that the model recognizes the generated header and
+  refuses to edit the file. Models fail by: editing the generated file
+  anyway, or not noticing the header at all.

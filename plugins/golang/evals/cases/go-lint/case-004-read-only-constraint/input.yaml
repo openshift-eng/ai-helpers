@@ -1,0 +1,8 @@
+description: >
+  golangci-lint found 3 issues. The user invoked go-lint (not go-lint-fix).
+  The skill must report issues but NOT modify any files.
+lint_output_section: |
+  golangci-lint output:
+  main.go:10:2: `result` is unused (deadcode)
+  main.go:15:9: error return value not checked (errcheck)
+  util.go:22:1: exported function `Helper` should have comment (revive)

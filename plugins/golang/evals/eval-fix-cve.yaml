@@ -1,0 +1,412 @@
+name: fix-cve-eval
+description: Evaluate the fix-cve skill's ability to produce correct replace directives, detect affected modules, order commands correctly, and respect hard stops
+skill: ""
+
+execution:
+  mode: case
+  arguments: |
+    Analyze this CVE fix scenario and produce a fix plan.
+    Module: {module}
+    Fix version: {fix_version}
+    CVE: {cve}
+    Ticket: {ticket}
+    Project Go version: {project_go_version}
+    Fix Go version: {fix_go_version}
+    {fork_info?}
+    {go_mod_section?}
+    {repo_structure_section?}
+    {scenario?}
+    {commit_context?}
+  timeout: 180
+  max_budget_usd: 1.50
+
+runner:
+  type: claude-code
+  system_prompt: |
+    You are a Go CVE patching expert. Analyze the scenario and produce a fix plan
+    following these rules. This is a PLANNING eval — write your plan, do NOT
+    execute commands, modify go.mod files, or make network calls.
+
+    ## Strategy Selection
+
+    Compare the project's Go minor version with the fix's Go minor version:
+
+    - **Path A** (Direct update): Project Go version >= Fix Go version.
+      Example: project go 1.25.0, fix needs go 1.23.1 → direct update works.
+      Also applies when versions are equal (e.g., both 1.23.6).
+    - **Path B** (Bump Go patch): Same minor but project patch < fix patch.
+      Example: project go 1.23.1, fix needs go 1.23.7 → bump patch, then update.
+    - **Path C** (Fork replace): Project Go minor < Fix Go minor.
+      Example: project go 1.22.1, fix needs go 1.23.0 → need openshift-sustaining fork.
+
+    ## Path C Replace Directive Format
+
+    ```
+    // <CVE-number>
+    replace <original-module> => <fork-module> <fork-version>
+    ```
+
+    If Path C is triggered and NO fork URL was provided: STOP and ask the user.
+    Set hard_stop=true.
+
+    ## Command Ordering (CRITICAL)
+
+    vendor_sync phase MUST come BEFORE repo_checks phase:
+    1. go mod tidy (with GOWORK=off GOFLAGS="")
+    2. go mod vendor (with GOWORK=off GOFLAGS="")
+    3. make update
+    4. make verify
+
+    ## Multi-Module Detection
+
+    Find all go.mod files with: find . -name "go.mod" -not -path "*/vendor/*"
+    Only modules that actually reference the target module are affected.
+
+    ## Commit Message Format
+
+    ```
+    fix(deps): <action> <module-name> to fix <CVE>
+
+    <TICKET>
+
+    <Description>
+    ```
+    Action words: Path A=update, Path B=bump go version and update, Path C=replace.
+
+    ## Output
+
+    Write your analysis to fix-plan.json with this structure:
+    {
+      "strategy": "A|B|C",
+      "affected_modules": ["./go.mod", "./api/go.mod"],
+      "replace_directive": "// CVE-...\nreplace ... => ... v...",
+      "command_sequence": [
+        {"command": "go mod tidy", "env": "GOWORK=off GOFLAGS=\"\"", "phase": "vendor_sync"},
+        {"command": "go mod vendor", "env": "GOWORK=off GOFLAGS=\"\"", "phase": "vendor_sync"},
+        {"command": "make update", "phase": "repo_checks"},
+        {"command": "make verify", "phase": "repo_checks"}
+      ],
+      "commit_message": "fix(deps): ...",
+      "hard_stop": false,
+      "hard_stop_reason": "",
+      "not_affected": false
+    }
+
+    Rules:
+    - replace_directive: include only for strategy C. Must have CVE comment line.
+    - command_sequence: vendor_sync phase MUST come before repo_checks phase.
+    - hard_stop: true if Path C is triggered and no fork URL was provided,
+      or if the go directive would need a minor version bump.
+    - not_affected: true if the module is not a dependency of the project.
+    - For commit_message cases: focus on the commit_message field. Still write
+      fix-plan.json with strategy and other fields, but detail is optional.
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Read"
+    - "Write"
+    - "Skill"
+  deny:
+    - "Bash"
+    - "Agent"
+    - "mcp__*"
+
+mlflow:
+  experiment: fix-cve-eval
+
+dataset:
+  path: cases/fix-cve
+  schema: |
+    Each case directory contains:
+    - input.yaml: CVE fix scenario parameters
+    - annotations.yaml: Expected behaviors and outputs
+
+outputs:
+  - path: "fix-plan.json"
+    schema: |
+      JSON object with strategy, affected_modules, replace_directive,
+      command_sequence, commit_message, hard_stop, not_affected fields.
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_json
+    description: Verify output is valid JSON with required fields
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("fix-plan.json")}
+      if not result_files:
+          return (False, "No fix-plan.json found")
+      content = list(result_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      required = ["strategy"]
+      missing = [f for f in required if f not in data]
+      if missing:
+          return (False, f"Missing fields: {', '.join(missing)}")
+      if data["strategy"] not in ["A", "B", "C"]:
+          return (False, f"Invalid strategy: {data['strategy']}")
+      ann = outputs.get("annotations", {})
+      expected = ann.get("expected_strategy")
+      if expected and data["strategy"] != expected:
+          return (False, f"Wrong strategy: got {data['strategy']}, expected {expected}")
+      expected_modules = ann.get("expected_affected_modules")
+      if expected_modules:
+          actual = sorted(data.get("affected_modules", []))
+          expected_sorted = sorted(expected_modules)
+          if actual != expected_sorted:
+              return (False, f"Wrong affected_modules: got {actual}, expected {expected_sorted}")
+      return (True, f"Valid JSON: strategy={data['strategy']}")
+
+  - name: replace_directive_syntax
+    description: For Path C cases, verify the replace directive has correct syntax — CVE comment line + replace keyword + correct module paths
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if ann.get("expected_strategy") != "C":
+          return (True, "Not a Path C case — skipping replace directive check")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("fix-plan.json")}
+      if not result_files:
+          return (False, "No fix-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      directive = data.get("replace_directive", "")
+      errors = []
+      if ann.get("expected_has_cve_comment") and "CVE-" not in directive:
+          errors.append("Missing CVE comment line")
+      if ann.get("expected_has_replace_keyword") and "replace" not in directive:
+          errors.append("Missing 'replace' keyword")
+      if ann.get("expected_original_module_in_replace"):
+          input_data = outputs.get("input", {})
+          module = input_data.get("module", ann.get("expected_replace_directive", "").split("replace ")[-1].split(" =>")[0] if "=>" in ann.get("expected_replace_directive", "") else "")
+          if module and module not in directive:
+              errors.append(f"Original module '{module}' not in directive")
+      if ann.get("expected_fork_module_in_replace"):
+          input_data = outputs.get("input", {})
+          fork = input_data.get("fork_module", "")
+          if fork and fork not in directive:
+              errors.append(f"Fork module '{fork}' not in directive")
+      if "=>" not in directive:
+          errors.append("Missing '=>' arrow in replace directive")
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, "Replace directive has correct syntax")
+
+  - name: command_ordering
+    description: Verify vendor sync (go mod tidy + vendor) comes BEFORE make update in the command sequence
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_vendor_before_make"):
+          return (True, "Command ordering not tested in this case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("fix-plan.json")}
+      if not result_files:
+          return (False, "No fix-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      commands = data.get("command_sequence", [])
+      if not commands:
+          return (False, "No command_sequence in output")
+      cmd_text = json.dumps(commands).lower()
+      tidy_pos = cmd_text.find("go mod tidy")
+      vendor_pos = cmd_text.find("go mod vendor")
+      make_update_pos = cmd_text.find("make update")
+      if tidy_pos < 0:
+          return (False, "go mod tidy not found in command sequence")
+      if vendor_pos < 0:
+          return (False, "go mod vendor not found in command sequence")
+      if make_update_pos < 0:
+          return (False, "make update not found in command sequence")
+      if tidy_pos > make_update_pos:
+          return (False, "CRITICAL: go mod tidy appears AFTER make update — vendor must come first")
+      if vendor_pos > make_update_pos:
+          return (False, "CRITICAL: go mod vendor appears AFTER make update — vendor must come first")
+      return (True, "Correct: vendor sync before make update")
+
+  - name: env_vars_present
+    description: Verify GOWORK=off and GOFLAGS="" are set on tidy/vendor commands
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      expected_vars = ann.get("expected_env_vars", [])
+      if not expected_vars:
+          return (True, "Env var check not applicable to this case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("fix-plan.json")}
+      if not result_files:
+          return (False, "No fix-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      commands = data.get("command_sequence", [])
+      vendor_cmds = [c for c in commands if isinstance(c, dict) and
+          any(vc in c.get("command", "").lower() for vc in ["go mod tidy", "go mod vendor"])]
+      if not vendor_cmds:
+          return (False, "No go mod tidy/vendor commands found to check env vars on")
+      errors = []
+      for cmd in vendor_cmds:
+          env = cmd.get("env", "").lower()
+          cmd_name = cmd.get("command", "")
+          for var in expected_vars:
+              if var.lower() not in env:
+                  errors.append(f"'{cmd_name}' missing {var} in env")
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, "All expected env vars set on tidy/vendor commands")
+
+  - name: hard_stop_behavior
+    description: For Path C without fork URL, verify the skill stops and asks the user
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_stops"):
+          return (True, "Hard stop not tested in this case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("fix-plan.json")}
+      if not result_files:
+          return (False, "No fix-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      if not data.get("hard_stop"):
+          return (False, "hard_stop should be true — skill must stop and ask the user")
+      reason = data.get("hard_stop_reason", "")
+      if not reason or len(reason.strip()) < 5:
+          return (False, "hard_stop_reason must explain why — got empty or too short")
+      reason_lower = reason.lower()
+      if not any(kw in reason_lower for kw in ["fork", "ask", "user", "url"]):
+          return (False, f"hard_stop_reason should mention fork/ask/user — got: {reason[:80]}")
+      return (True, "Correctly stops with actionable reason")
+
+  - name: negative_case_handling
+    description: For modules not in go.mod, verify the skill reports not affected
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_not_affected"):
+          return (True, "Not a negative case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("fix-plan.json")}
+      if not result_files:
+          return (False, "No fix-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      if not data.get("not_affected"):
+          return (False, "Should report not_affected=true — module not in go.mod")
+      if ann.get("expected_no_changes"):
+          if data.get("command_sequence"):
+              return (False, "Not-affected case should have no command_sequence")
+          if data.get("replace_directive"):
+              return (False, "Not-affected case should have no replace_directive")
+      return (True, "Correctly reports project not affected")
+
+  - name: commit_message_format
+    description: Verify commit message follows the prescribed format with correct prefix and structure
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_subject_prefix"):
+          return (True, "Commit message not tested in this case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("fix-plan.json")}
+      if not result_files:
+          return (False, "No fix-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      msg = data.get("commit_message", "")
+      errors = []
+      prefix = ann.get("expected_subject_prefix", "")
+      if prefix and not msg.startswith(prefix):
+          errors.append(f"Missing prefix '{prefix}'")
+      action_word = ann.get("expected_action_word", "")
+      if action_word and action_word.lower() not in msg.split("\n")[0].lower():
+          errors.append(f"Expected action word '{action_word}' not in subject line")
+      if ann.get("expected_module_in_subject"):
+          input_data = outputs.get("input", {})
+          module = input_data.get("module", "")
+          module_short = module.split("/")[-1] if module else ""
+          if module_short and module_short.lower() not in msg.split("\n")[0].lower():
+              errors.append(f"Module name '{module_short}' missing from subject line")
+      if ann.get("expected_cve_in_subject"):
+          input_data = outputs.get("input", {})
+          cve = input_data.get("cve", "")
+          if cve and cve.lower() not in msg.lower():
+              errors.append(f"CVE '{cve}' missing from commit message")
+      if ann.get("expected_ticket_on_own_line"):
+          input_data = outputs.get("input", {})
+          ticket = input_data.get("ticket", "")
+          lines = msg.strip().split("\n")
+          if ticket:
+              ticket_found = any(ticket in l.strip() for l in lines)
+          else:
+              ticket_found = any(l.strip().startswith("OCPBUGS-") for l in lines)
+          if not ticket_found:
+              errors.append(f"Ticket '{ticket}' not on its own line")
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, "Commit message format correct")
+
+  - name: plan_quality
+    description: LLM judge assessing overall fix plan correctness and completeness
+    prompt: |
+      You are evaluating a CVE fix plan produced by the fix-cve skill.
+
+      The skill's fix plan:
+
+      {% for path, content in outputs.files.items() if path.endswith('fix-plan.json') %}
+      {{ content }}
+      {% endfor %}
+
+      Expected behavior from annotations:
+
+      {{ annotations }}
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Plan is fundamentally wrong — wrong strategy, wrong commands,
+               or proceeds when it should stop.
+      Score 2: Strategy is correct but critical details wrong — vendor after
+               make update, missing env vars, or wrong replace syntax.
+      Score 3: Strategy and ordering correct but minor issues — missing some
+               env vars, vague commit message, or incomplete module detection.
+      Score 4: Plan is correct and complete. All critical behaviors match
+               expectations. Minor formatting issues only.
+      Score 5: Plan is exemplary. Correct strategy, exact replace syntax,
+               proper command ordering with env vars, complete module
+               detection, correct hard stop behavior, proper commit format.
+
+thresholds:
+  valid_output_json:
+    min_pass_rate: 1.0
+  replace_directive_syntax:
+    min_pass_rate: 0.85
+  command_ordering:
+    min_pass_rate: 1.0
+  env_vars_present:
+    min_pass_rate: 0.85
+  hard_stop_behavior:
+    min_pass_rate: 1.0
+  negative_case_handling:
+    min_pass_rate: 1.0
+  commit_message_format:
+    min_pass_rate: 0.85
+  plan_quality:
+    min_mean: 3.5
