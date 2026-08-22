@@ -115,7 +115,7 @@ For each issue in `manifest.issues`, read its detailed data:
       "email": "user@example.com",
       "name": "User Name"
     },
-    "current_status_summary": "* Color Status: Green\n * Status summary:\n     ** Work in progress\n * Risks:\n     ** None",
+    "current_status_summary": "- Color Status: Green\n  - Status summary:\n    - Work in progress\n  - Risks:\n    - None",
     "last_status_summary_update": "2026-01-28T10:30:00Z"
   },
   "descendants": {
