@@ -1,0 +1,63 @@
+---
+description: Automate and manage the lifecycle of an upstream rebase following the 3-Phase NID rebase workflow
+argument-hint: "[--tag <tag>] [--auto] [--dryrun] [--start-over]"
+---
+
+## Name
+
+nid-team:rebase-manager
+
+## Synopsis
+
+```bash
+/nid-team:rebase-manager [--tag <tag>] [--auto] [--dryrun] [--start-over]
+```
+
+## Description
+
+The `/nid-team:rebase-manager` command automates, manages, and tracks upstream Git rebases for NI&D team forks (such as `openshift/coredns`). It operates in three distinct phases:
+
+1. **Phase 1: Discovery & Reporting** (No active PR or branch):
+   Compares local and upstream tags. If behind, it creates a local `.rebase/` state directory containing `.rebase/release-report.md` (changelog/impact report) and `.rebase/commits.tsv` (carry commits with pick/squash/drop decisions). Humans can manually edit decisions in `.rebase/commits.tsv`.
+   
+2. **Phase 2: Active Draft & Feedback Loop** (Draft PR open):
+   Performs the actual git rebase (incorporating any custom decisions in `.rebase/commits.tsv`), runs builds and tests, opens a Draft PR (using the release report as the meeting agenda), fetches and addresses review comments autonomously, and pushes fixes.
+   
+3. **Phase 3: Final Prow Review & Merge** (PR open, non-draft):
+   Monitors CI/Prow check status on the approved PR. Once merged, it cleans up the local `.rebase/` directory and rebase branches.
+
+## Implementation
+
+Run the rebase manager script:
+
+```bash
+python3 <extension_path>/plugins/nid-team/rebase/rebase_manager.py [--tag <tag>] [--auto] [--dryrun]
+```
+
+*Note to Executing Agent (Gemini or Claude):* When running this command inside a target repository (e.g., `openshift/coredns`) where the `plugins/nid-team/rebase/rebase_manager.py` file is not locally present, you must locate the script within your respective global plugin/extension directory or local cloned `ai-helpers` repository path:
+- Active development path: `/Users/btofel/workspace/ai-helpers/plugins/nid-team/rebase/rebase_manager.py`
+- For Gemini CLI: Look in `~/.gemini/extensions/ai-helpers/plugins/nid-team/rebase/rebase_manager.py` or the active development path above.
+- For Claude Code: Look in your active plugins/extensions directory (e.g., `~/.claude/plugins/` or standard Claude plugin paths) or find it under your cloned `ai-helpers` development workspace path.
+Once located, execute the script from that path using its absolute path while maintaining the target repository as your current working directory.
+
+### Arguments
+
+| Argument | Default | Description |
+|---|---|---|
+| `--tag` | auto | Force a specific upstream tag to rebase onto (skips auto-discovery of latest tag) |
+| `--auto` | off | Auto-approve Phase 1 release report and proceed immediately to Phase 2 rebase and Draft PR creation |
+| `--dryrun`| off | Run checks and show what actions would be performed without creating branches, modifying code, or calling writing GitHub APIs |
+| `--start-over`| off | Wipe any local `.rebase` folder state and force-rebuild the local rebase branch, force-pushing to overwrite/refresh the Draft PR |
+
+## Examples
+
+```bash
+# Discover upstream changes and write the Release Report to .rebase/
+/nid-team:rebase-manager
+
+# Run auto-discovery and automatically rebase and create a Draft PR in one go
+/nid-team:rebase-manager --auto
+
+# Force a rebase to a specific upstream version tag
+/nid-team:rebase-manager --tag v1.11.3
+```
