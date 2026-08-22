@@ -87,6 +87,11 @@ rules:
     enabled: false
     severity: warning
 
+  # False positive on consumer-only apm.yml (no .apm/ dir needed)
+  # https://github.com/stbenjam/skillsaw/issues/472
+  apm-structure-valid:
+    enabled: false
+
   # .coderabbit.yaml must be valid YAML
   coderabbit-yaml-valid:
     enabled: true

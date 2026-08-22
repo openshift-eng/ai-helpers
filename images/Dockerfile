@@ -36,9 +36,21 @@ RUN dnf install -y \
 # or compare behavior between versions, without disrupting the default entrypoint.
 COPY --from=claude-latest /usr/bin/claude /usr/local/bin/claude-latest
 
+# Install Codex CLI (OpenAI coding agent) — standalone Rust binary, no runtime deps
+ARG CODEX_VERSION=0.146.0
+ARG CODEX_SHA256=5ba3b9405543953081f661d0854d266f76e2abbe51d41349355a36de7673776a
+RUN curl -fsSL "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/codex-x86_64-unknown-linux-musl.tar.gz" \
+    -o /tmp/codex.tar.gz \
+    && echo "${CODEX_SHA256}  /tmp/codex.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/codex.tar.gz -C /usr/local/bin/ \
+    && mv /usr/local/bin/codex-x86_64-unknown-linux-musl /usr/local/bin/codex \
+    && chmod +x /usr/local/bin/codex \
+    && rm /tmp/codex.tar.gz
+
 # Install Python tools and PCP bindings
 RUN python3 -m pip install --no-cache-dir \
     agentic-ci \
+    apm-cli==0.26.0 \
     pytest \
     requests \
     pyyaml \
@@ -57,6 +69,9 @@ RUN mkdir -p /home/claude/.claude/plugins
 COPY images/claude-settings.json /home/claude/.claude/settings.json
 COPY images/known_marketplaces.json /home/claude/.claude/plugins/known_marketplaces.json
 RUN chown -R claude:root /home/claude
+
+# Deploy ai-helpers plugins as agent-skills (for Codex and other agents)
+RUN cd /opt/ai-helpers && apm install --target agent-skills --root /workspace
 
 # Create workspace directory
 RUN mkdir -p /workspace && chown -R claude:root /workspace
