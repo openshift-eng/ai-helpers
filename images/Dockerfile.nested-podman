@@ -39,21 +39,28 @@ RUN dnf install -y \
 # or compare behavior between versions, without disrupting the default entrypoint.
 COPY --from=claude-latest /usr/bin/claude /usr/local/bin/claude-latest
 
-# Install Codex CLI (OpenAI coding agent) — standalone Rust binary, no runtime deps
-ARG CODEX_VERSION=0.146.0
-ARG CODEX_SHA256=5ba3b9405543953081f661d0854d266f76e2abbe51d41349355a36de7673776a
-RUN curl -fsSL "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/codex-x86_64-unknown-linux-musl.tar.gz" \
+# Install the complete Codex CLI package, including its code-mode host and sandbox tools.
+ARG CODEX_VERSION=0.149.0
+ARG CODEX_SHA256_AMD64=1c08ba262820b78d49ea7a93f326b6b430b72e5fe46830e433edef12e5123244
+ARG CODEX_SHA256_ARM64=dac03e4db966e94f7083b9eb9f95d8b40da9d568fd2fdbb6885b0ea7d5b0d97f
+RUN case "$(uname -m)" in \
+      x86_64) CODEX_ARCH=x86_64; CODEX_SHA256="${CODEX_SHA256_AMD64}" ;; \
+      aarch64) CODEX_ARCH=aarch64; CODEX_SHA256="${CODEX_SHA256_ARM64}" ;; \
+      *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/codex-package-${CODEX_ARCH}-unknown-linux-musl.tar.gz" \
     -o /tmp/codex.tar.gz \
     && echo "${CODEX_SHA256}  /tmp/codex.tar.gz" | sha256sum -c - \
-    && tar -xzf /tmp/codex.tar.gz -C /usr/local/bin/ \
-    && mv /usr/local/bin/codex-x86_64-unknown-linux-musl /usr/local/bin/codex \
-    && chmod +x /usr/local/bin/codex \
+    && mkdir -p /opt/codex \
+    && tar -xzf /tmp/codex.tar.gz -C /opt/codex \
     && rm /tmp/codex.tar.gz
+COPY images/codex-wrapper.sh /usr/local/bin/codex
+RUN chmod 0755 /usr/local/bin/codex
+ENV PATH="/usr/local/bin:/opt/codex/bin:/opt/codex/codex-path:${PATH}"
 
 # Install Python tools and PCP bindings
 RUN python3 -m pip install --no-cache-dir \
     agentic-ci \
-    apm-cli==0.26.0 \
     pytest \
     requests \
     pyyaml \
@@ -73,8 +80,14 @@ COPY images/claude-settings.json /home/claude/.claude/settings.json
 COPY images/known_marketplaces.json /home/claude/.claude/plugins/known_marketplaces.json
 RUN chown -R claude:root /home/claude
 
-# Deploy ai-helpers plugins as agent-skills (for Codex and other agents)
-RUN cd /opt/ai-helpers && apm install --target agent-skills --root /workspace
+# Configure Codex from the same local marketplace and default plugin set as Claude Code.
+ENV CODEX_HOME="/home/claude/.codex"
+RUN mkdir -p "${CODEX_HOME}" \
+    && codex plugin marketplace add /opt/ai-helpers \
+    && codex plugin add hello-world@ai-helpers \
+    && codex plugin add jira@ai-helpers \
+    && codex plugin add ci@ai-helpers \
+    && chown -R claude:root "${CODEX_HOME}"
 
 # Create workspace directory
 RUN mkdir -p /workspace && chown -R claude:root /workspace
