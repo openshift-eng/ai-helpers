@@ -93,7 +93,7 @@ Search and analyze relevant code:
 
 By this point you have committed the fix and, unless pushing was prohibited, pushed the branch in Step 4. This step only decides whether to *also* open a pull request; do not open one if the branch was not pushed.
 
-- If `--ci` flag (`$3`) IS set: **Do NOT open a pull request under any circumstances.** This overrides every other instruction in this skill about opening or drafting a PR — do not run `gh pr create` and do not open a PR by any other means. In CI, opening the PR is the responsibility of a later pipeline step, not this skill. Output: "Skipping PR creation in CI mode — branch pushed, PR will be created by the pipeline."
+- If `--ci` flag (`$3`) IS set: **Do NOT open a pull request under any circumstances.** This overrides every other instruction in this skill about opening or drafting a PR — do not run `gh pr create` and do not open a PR by any other means. In CI, opening the PR is the responsibility of a later pipeline step, not this skill. Output: "Skipping PR creation in CI mode — PR will be created by the pipeline."
 - If `--ci` flag (`$3`) is NOT set: open a pull request with:
   - Clear title referencing JIRA issue as a prefix (e.g. `OCPBUGS-12345: ...`)
   - The PR description should satisfy the template within `.github/PULL_REQUEST_TEMPLATE.md` if the file exists
@@ -103,7 +103,7 @@ By this point you have committed the fix and, unless pushing was prohibited, pus
     Generated with [Claude Code](https://claude.com/claude-code) via openshift-developer plugin
     ```
   - Create it as a draft PR
-  - Create the PR using the branch you pushed to `$2` as the head (do not assume a remote named `origin`)
+  - Create the PR using the branch you pushed to `$2` as the head — do not assume a remote named `origin`; for a fork, pass an owner-qualified head (e.g. `gh pr create --head <fork-owner>:<branch>`)
   - Use gh cli if you need to
 
 ### Step 6: PR Description Review
@@ -130,7 +130,7 @@ By this point you have committed the fix and, unless pushing was prohibited, pus
    /openshift-developer:jira-solve OCPBUGS-12345 origin
    ```
 
-2. **Solve in CI mode (non-interactive, no PR — branch pushed for the pipeline)**:
+2. **Solve in CI mode (non-interactive, no PR — PR left to the pipeline)**:
    ```text
    /openshift-developer:jira-solve OCPBUGS-12345 origin --ci
    ```
