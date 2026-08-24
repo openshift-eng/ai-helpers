@@ -87,11 +87,11 @@ Search and analyze relevant code:
      - Example: `git commit -m"test: Add tests for X functionality" -m"Ensure the new behavior is covered by unit tests to prevent regressions"`
    - Documentation: Changes in `docs/` directory
      - Example: `git commit -m"docs: Document X feature" -m"Help users understand how to configure and use the new capability"`
-6. Push the branch with all commits against the remote specified in argument `$2`
+6. Push the feature branch (the one created in step 1) with all commits to the remote specified in argument `$2` — unless the caller's context prohibits pushing (e.g. a "do not push" directive), in which case commit locally and skip the push. Only ever push that feature branch; never push to `main`/`master`, and never force-push.
 
 ### Step 5: PR Creation
 
-You have already pushed the branch in Step 4. This step only decides whether to *also* open a pull request.
+By this point you have committed the fix and, unless pushing was prohibited, pushed the branch in Step 4. This step only decides whether to *also* open a pull request; do not open one if the branch was not pushed.
 
 - If `--ci` flag (`$3`) IS set: **Do NOT open a pull request under any circumstances.** This overrides every other instruction in this skill about opening or drafting a PR — do not run `gh pr create` and do not open a PR by any other means. In CI, opening the PR is the responsibility of a later pipeline step, not this skill. Output: "Skipping PR creation in CI mode — branch pushed, PR will be created by the pipeline."
 - If `--ci` flag (`$3`) is NOT set: open a pull request with:
@@ -103,7 +103,7 @@ You have already pushed the branch in Step 4. This step only decides whether to 
     Generated with [Claude Code](https://claude.com/claude-code) via openshift-developer plugin
     ```
   - Create it as a draft PR
-  - Create the PR against the remote origin
+  - Create the PR using the branch you pushed to `$2` as the head (do not assume a remote named `origin`)
   - Use gh cli if you need to
 
 ### Step 6: PR Description Review
