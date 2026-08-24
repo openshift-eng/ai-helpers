@@ -34,7 +34,7 @@ DESCRIPTION:
 
   The stop hook prevents exit and re-feeds the review prompt until Claude
   outputs <promise>DOCS VERIFIED</promise> — which it should only do when
-  /review-docs finds 0 critical issues and 0 warnings.
+  a fresh verification Agent reports 0 critical issues and 0 warnings.
 
 EXAMPLES:
   /generate-docs                                    # Current dir, 5 iterations
@@ -82,121 +82,78 @@ mkdir -p .claude
 
 COMPLETION_PROMISE="DOCS VERIFIED"
 
-# Resolve the review-docs skill path so the verification agent can read it directly
 SKILL_PATH="$(cd "$(dirname "$0")/../skills/review-docs" && pwd)"
 
 if [[ "$SKIP_GENERATE" == "true" ]]; then
-  PROMPT_TEXT="Follow these steps IN ORDER. Do not skip any step.
+  PROMPT_TEXT="WORKFLOW: review → fix → spawn verification Agent → read verdict → promise or loop
 
-Step 1: Run /review-docs --path \"$REPO_PATH\" --auto-fix to review the documentation.
+1. Run /review-docs --path \"$REPO_PATH\" --auto-fix
 
-Step 2: If /review-docs reports ANY critical issues or warnings, fix them:
-  a. For EACH issue, grep the entire doc set for all occurrences of the incorrect claim
-     before making any edit.
-  b. Fix ALL files that contain the incorrect claim in one pass.
-  c. After fixing detailed sections, check whether summaries or diagrams in the SAME file
-     repeat the claim in simplified form. Fix those too.
-  d. After all fixes, do a final grep to confirm no file still contains the old claim.
-  e. Write a brief corrections manifest listing each fix: what was wrong, what it was
-     changed to, and the verification source. Include this manifest in the verification
-     agent's prompt (Step 3).
+2. If issues found, fix them:
+   - Grep entire doc set for each incorrect claim before editing
+   - Fix ALL files containing the claim in one pass
+   - After fixes, grep again to confirm nothing was missed
+   - Write a corrections manifest (what was wrong → what it's now → source)
 
-Step 3 (MANDATORY — independent verification): After fixing issues, you MUST verify
-the fixes using an isolated Agent to prevent confirmation bias. Spawn a fresh
-general-purpose Agent with this prompt:
+3. SPAWN A VERIFICATION AGENT (mandatory — the stop hook checks for this):
+   Use the Agent tool to spawn a fresh general-purpose Agent with this prompt:
 
-  \"You are an independent documentation reviewer for $REPO_PATH.
-   Read the review methodology at $SKILL_PATH/SKILL.md, then follow its
-   Phase 1 through Phase 5 workflow to review the agentic documentation.
-   Skip Phase 6 entirely — do NOT fix anything, only report findings.
-   Report: coverage metrics (total claims, verified, failed, skipped),
-   issues by severity (critical/warning/minor), and a clear verdict.
-   If there are 0 critical issues AND 0 warnings, state: VERIFIED CLEAN.
-   Otherwise list every issue with its file, line, and what is wrong.
+   \"Independent documentation reviewer for $REPO_PATH.
+   Read $SKILL_PATH/SKILL.md, follow Phase 1-5 to review ai-docs/.
+   Skip Phase 6 — do NOT fix anything, only report.
+   Report: coverage metrics, issues by severity, verdict.
+   0 critical + 0 warnings = state VERIFIED CLEAN.
+   Otherwise list every issue with file, line, and what is wrong.\"
 
-   CORRECTIONS MANIFEST (from the fixer — verify these were applied consistently):
-   <paste the corrections manifest here>
+   Include the corrections manifest in the Agent prompt.
+   Each Agent MUST be a fresh spawn — never resume a previous one.
 
-   For each correction in the manifest:
-   1. Verify the docs now match the stated correction
-   2. Verify the correction is applied consistently across ALL files (grep for the concept)
-   3. Spot-check the cited verification source if accessible
-   Do NOT re-derive the correct value from scratch unless the cited source is
-   unavailable or contradicts itself.\"
-
-CRITICAL: Each verification Agent MUST be a fresh spawn (never resumed) so it
-approaches the docs with zero prior context. This is what prevents the
-confirmation bias that occurs when the same conversation reviews its own fixes.
-
-Step 4: Read the Agent's report.
-  - If the Agent reports VERIFIED CLEAN: output exactly <promise>DOCS VERIFIED</promise>
-  - If the Agent found issues: fix each reported issue, then go back to Step 3
-    (spawn a NEW fresh Agent — never resume the previous one).
+4. Read the Agent's verdict:
+   - VERIFIED CLEAN → output <promise>DOCS VERIFIED</promise>
+   - Issues found → fix them, go back to step 3 with a NEW Agent
 
 RULES:
-- NEVER verify your own fixes by running /review-docs directly — always use a fresh Agent.
-- NEVER output the promise tag without a clean Agent verification report.
-- NEVER resume a previous verification agent — always spawn a new one.
-- If the Agent reports issues you believe are false positives, investigate by reading
-  the source code yourself. If confirmed false positive, you may still output the
-  promise. If confirmed real, fix and re-verify with another Agent."
+- You MUST use the Agent tool before outputting the promise. The stop hook
+  verifies an Agent was spawned — it will reject the promise if you skip this.
+- NEVER verify your own fixes directly — always use a fresh Agent.
+- NEVER resume a previous verification Agent."
 else
-  PROMPT_TEXT="Step 1 (first iteration only): If component documentation does not yet exist at $REPO_PATH/ai-docs/, generate it with /component-docs --path \"$REPO_PATH\". If ai-docs/ already exists, skip generation.
+  PROMPT_TEXT="WORKFLOW: generate → review → fix → spawn verification Agent → verdict → promise or loop
 
-IMPORTANT: /component-docs Phase 1 asks the user an SME context question (\"Before I start, is there anything about this repo I should know that isn't obvious from the code?\"). You MUST wait for the user's response before proceeding with codebase exploration and documentation generation. Do NOT start exploring code or writing docs until the user has answered (or explicitly declined). This input shapes what you investigate.
+1. If ai-docs/ does not exist: run /component-docs --path \"$REPO_PATH\"
+   IMPORTANT: /component-docs asks an SME context question first. Wait for the
+   user's response before proceeding. Do NOT start until the user has answered.
 
-Step 2: Run /review-docs --path \"$REPO_PATH\" --auto-fix to review the documentation.
+2. Run /review-docs --path \"$REPO_PATH\" --auto-fix
 
-Step 3: If /review-docs reports ANY critical issues or warnings, fix them:
-  a. For EACH issue, grep the entire doc set for all occurrences of the incorrect claim
-     before making any edit.
-  b. Fix ALL files that contain the incorrect claim in one pass.
-  c. After fixing detailed sections, check whether summaries or diagrams in the SAME file
-     repeat the claim in simplified form. Fix those too.
-  d. After all fixes, do a final grep to confirm no file still contains the old claim.
-  e. Write a brief corrections manifest listing each fix: what was wrong, what it was
-     changed to, and the verification source. Include this manifest in the verification
-     agent's prompt (Step 4).
+3. If issues found, fix them:
+   - Grep entire doc set for each incorrect claim before editing
+   - Fix ALL files containing the claim in one pass
+   - After fixes, grep again to confirm nothing was missed
+   - Write a corrections manifest (what was wrong → what it's now → source)
 
-Step 4 (MANDATORY — independent verification): After fixing issues, you MUST verify
-the fixes using an isolated Agent to prevent confirmation bias. Spawn a fresh
-general-purpose Agent with this prompt:
+4. SPAWN A VERIFICATION AGENT (mandatory — the stop hook checks for this):
+   Use the Agent tool to spawn a fresh general-purpose Agent with this prompt:
 
-  \"You are an independent documentation reviewer for $REPO_PATH.
-   Read the review methodology at $SKILL_PATH/SKILL.md, then follow its
-   Phase 1 through Phase 5 workflow to review the agentic documentation.
-   Skip Phase 6 entirely — do NOT fix anything, only report findings.
-   Report: coverage metrics (total claims, verified, failed, skipped),
-   issues by severity (critical/warning/minor), and a clear verdict.
-   If there are 0 critical issues AND 0 warnings, state: VERIFIED CLEAN.
-   Otherwise list every issue with its file, line, and what is wrong.
+   \"Independent documentation reviewer for $REPO_PATH.
+   Read $SKILL_PATH/SKILL.md, follow Phase 1-5 to review ai-docs/.
+   Skip Phase 6 — do NOT fix anything, only report.
+   Report: coverage metrics, issues by severity, verdict.
+   0 critical + 0 warnings = state VERIFIED CLEAN.
+   Otherwise list every issue with file, line, and what is wrong.\"
 
-   CORRECTIONS MANIFEST (from the fixer — verify these were applied consistently):
-   <paste the corrections manifest here>
+   Include the corrections manifest in the Agent prompt.
+   Each Agent MUST be a fresh spawn — never resume a previous one.
 
-   For each correction in the manifest:
-   1. Verify the docs now match the stated correction
-   2. Verify the correction is applied consistently across ALL files (grep for the concept)
-   3. Spot-check the cited verification source if accessible
-   Do NOT re-derive the correct value from scratch unless the cited source is
-   unavailable or contradicts itself.\"
-
-CRITICAL: Each verification Agent MUST be a fresh spawn (never resumed) so it
-approaches the docs with zero prior context. This is what prevents the
-confirmation bias that occurs when the same conversation reviews its own fixes.
-
-Step 5: Read the Agent's report.
-  - If the Agent reports VERIFIED CLEAN: output exactly <promise>DOCS VERIFIED</promise>
-  - If the Agent found issues: fix each reported issue, then go back to Step 4
-    (spawn a NEW fresh Agent — never resume the previous one).
+5. Read the Agent's verdict:
+   - VERIFIED CLEAN → output <promise>DOCS VERIFIED</promise>
+   - Issues found → fix them, go back to step 4 with a NEW Agent
 
 RULES:
-- NEVER verify your own fixes by running /review-docs directly — always use a fresh Agent.
-- NEVER output the promise tag without a clean Agent verification report.
-- NEVER resume a previous verification agent — always spawn a new one.
-- If the Agent reports issues you believe are false positives, investigate by reading
-  the source code yourself. If confirmed false positive, you may still output the
-  promise. If confirmed real, fix and re-verify with another Agent."
+- You MUST use the Agent tool before outputting the promise. The stop hook
+  verifies an Agent was spawned — it will reject the promise if you skip this.
+- NEVER verify your own fixes directly — always use a fresh Agent.
+- NEVER resume a previous verification Agent."
 fi
 
 cat > .claude/generate-docs.local.md <<EOF
@@ -220,7 +177,7 @@ cat <<EOF
 Repository:      $REPO_PATH
 Generate docs:   $(if [[ "$SKIP_GENERATE" == "true" ]]; then echo "skipped (--review)"; else echo "yes (/component-docs)"; fi)
 Max iterations:  $MAX_ITERATIONS
-Completion:      When /review-docs finds 0 critical issues and 0 warnings
+Completion:      When verification Agent reports 0 critical issues and 0 warnings
 
 The stop hook will prevent exit and re-feed the review prompt until docs
 are verified clean. To cancel: /cancel-generate-docs

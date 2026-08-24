@@ -163,6 +163,6 @@ implementations to identify anti-patterns. List as numbered "DO NOT" items.]
 
 ## See Also
 
-- [Testing Guide](./[COMPONENT]_TESTING.md)
-- [Architecture](./architecture/components.md)
+- [Testing Guide](./TESTING.md)
+- [Architecture](./ARCHITECTURE.md)
 - [Platform Development Practices](Platform documentation)

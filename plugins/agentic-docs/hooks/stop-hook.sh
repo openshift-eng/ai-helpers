@@ -3,6 +3,7 @@
 # Generate Docs Stop Hook
 # Prevents session exit when a generate-docs loop is active
 # Re-feeds the review prompt for iterative doc verification
+# Enforces that a verification Agent was spawned before accepting the promise
 
 set -euo pipefail
 
@@ -19,6 +20,14 @@ FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
 ITERATION=$(echo "$FRONTMATTER" | grep '^iteration:' | sed 's/iteration: *//')
 MAX_ITERATIONS=$(echo "$FRONTMATTER" | grep '^max_iterations:' | sed 's/max_iterations: *//')
 COMPLETION_PROMISE=$(echo "$FRONTMATTER" | grep '^completion_promise:' | sed 's/completion_promise: *//' | sed 's/^"\(.*\)"$/\1/')
+REPO_PATH=$(echo "$FRONTMATTER" | sed -n 's/^repo_path: *"\(.*\)"$/\1/p')
+SKILL_DIR="$(cd "$(dirname "$0")/../skills/component-docs" && pwd)"
+
+cleanup_sources_dir() {
+  if [[ -n "${REPO_PATH:-}" ]]; then
+    bash "$SKILL_DIR/scripts/cleanup-sources.sh" "$REPO_PATH"
+  fi
+}
 
 if [[ ! "$ITERATION" =~ ^[0-9]+$ ]]; then
   echo "⚠️  Generate-docs: State file corrupted (iteration: '$ITERATION')" >&2
@@ -86,6 +95,41 @@ if [[ "$COMPLETION_PROMISE" != "null" ]] && [[ -n "$COMPLETION_PROMISE" ]]; then
   PROMISE_TEXT=$(echo "$LAST_OUTPUT" | perl -0777 -pe 's/.*?<promise>(.*?)<\/promise>.*/$1/s; s/^\s+|\s+$//g; s/\s+/ /g' 2>/dev/null || echo "")
 
   if [[ -n "$PROMISE_TEXT" ]] && [[ "$PROMISE_TEXT" = "$COMPLETION_PROMISE" ]]; then
+    # Enforce: check that an Agent tool was used in this iteration
+    # Look for Agent tool calls in assistant messages since the last stop hook re-feed
+    AGENT_USED=$(grep '"role":"assistant"' "$TRANSCRIPT_PATH" | grep -c '"type":"tool_use".*"name":"Agent"' 2>/dev/null || echo "0")
+
+    if [[ "$AGENT_USED" -eq 0 ]]; then
+      # Also check tool_result for subagent patterns
+      AGENT_USED=$(grep -c '"subagent_type"\|"name":"Agent"' "$TRANSCRIPT_PATH" 2>/dev/null || echo "0")
+    fi
+
+    if [[ "$AGENT_USED" -eq 0 ]]; then
+      echo "🚫 Generate-docs: Promise rejected — no verification Agent was spawned."
+      echo "   You MUST use the Agent tool to spawn an independent reviewer before"
+      echo "   outputting the promise, AND only output it when that Agent reports"
+      echo "   0 critical issues and 0 warnings (VERIFIED CLEAN)."
+      echo "   Re-read the workflow instructions."
+
+      # Don't accept — continue the loop
+      NEXT_ITERATION=$((ITERATION + 1))
+      PROMPT_TEXT=$(awk '/^---$/ && d<2{d++; next} d>=2' "$STATE_FILE")
+      TEMP_FILE="${STATE_FILE}.tmp.$$"
+      sed "s/^iteration: .*/iteration: $NEXT_ITERATION/" "$STATE_FILE" > "$TEMP_FILE"
+      mv "$TEMP_FILE" "$STATE_FILE"
+
+      jq -n \
+        --arg prompt "$PROMPT_TEXT" \
+        --arg msg "🚫 Iteration $NEXT_ITERATION/$MAX_ITERATIONS | Promise REJECTED: spawn a fresh verification Agent (Agent tool) and only output the promise when it reports 0 critical issues and 0 warnings (VERIFIED CLEAN)." \
+        '{
+          "decision": "block",
+          "reason": $prompt,
+          "systemMessage": $msg
+        }'
+      exit 0
+    fi
+
+    cleanup_sources_dir
     echo "✅ Generate-docs: All documentation verified clean after $ITERATION iteration(s)."
     rm "$STATE_FILE"
     exit 0
@@ -108,7 +152,7 @@ sed "s/^iteration: .*/iteration: $NEXT_ITERATION/" "$STATE_FILE" > "$TEMP_FILE"
 mv "$TEMP_FILE" "$STATE_FILE"
 
 if [[ "$COMPLETION_PROMISE" != "null" ]] && [[ -n "$COMPLETION_PROMISE" ]]; then
-  SYSTEM_MSG="🔄 Docs review iteration $NEXT_ITERATION/$MAX_ITERATIONS | Output <promise>$COMPLETION_PROMISE</promise> ONLY when review finds 0 critical issues and 0 warnings"
+  SYSTEM_MSG="🔄 Docs review iteration $NEXT_ITERATION/$MAX_ITERATIONS | Only output <promise>$COMPLETION_PROMISE</promise> after a fresh verification Agent reports 0 critical issues and 0 warnings (VERIFIED CLEAN)"
 else
   SYSTEM_MSG="🔄 Docs review iteration $NEXT_ITERATION"
 fi

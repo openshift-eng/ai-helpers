@@ -1,52 +1,50 @@
-# Component Name - Agentic Documentation
+# [Component Name]
 
-**Component**: [Component Full Name]  
-**Repository**: openshift/[repo-name]  
+**Repository**: openshift/[repo-name]
 
-> **Generic Platform Patterns**: See Platform documentation (openshift/enhancements/ai-docs/) for operator patterns, testing practices, security guidelines, and cross-repo ADRs.
+[1-2 sentence description of what the component does and its role in OpenShift.]
 
-## What is [Component Name]?
+> **Platform Patterns**: See openshift/enhancements repo (`dev-guide/`, `guidelines/`, `CONVENTIONS.md`) for generic platform conventions.
 
-[Brief 1-2 sentence description of what the component does]
+## Critical Warnings
 
-**Key Principle**: [Core principle or design philosophy]
-
-## Core Components
-
-- **Component1**: Purpose | **Component2**: Purpose | **Component3**: Purpose
-
-**Quick Start**: `oc describe clusteroperator/[name]` | `oc describe [primary-resource]`
-
-## Critical Patterns
-
-[2-3 most important architectural rules discovered from codebase exploration.
+[3-5 most important "never do X" rules discovered from codebase exploration.
 These should be the patterns that, if violated, produce subtly broken code.
-Use comparison tables for contrasting approaches and bold "Never" warnings.]
+Format as a numbered list with bold warnings. These must be unique to this
+component — not generic advice.]
 
-## Documentation Structure
+
+## Architecture at a Glance
+
+[One small table or 2-3 sentences capturing the key architectural choice.
+E.g., framework split, core reconciliation pattern, or resource management approach.
+Just enough to orient — details are in ARCHITECTURE.md.]
+
+## Documentation
+
+See also: [REVIEW.md](REVIEW.md) for code review rules, [.coderabbit.yaml](.coderabbit.yaml) for CodeRabbit config.
 
 ```text
 ai-docs/
-├── domain/                    # Component-specific APIs/types
-├── architecture/              # Component internals
-├── decisions/                 # Component-specific ADRs
-├── exec-plans/                # Feature planning
-├── references/
-│   └── ecosystem.md           # Links to Platform
-├── [COMPONENT]_DEVELOPMENT.md # Component dev workflows
-└── [COMPONENT]_TESTING.md     # Component test suites
-```text
+├── ARCHITECTURE.md    # Internals, integrations, behavioral contracts, design refs
+├── DEVELOPMENT.md     # Build, common tasks, mistakes
+├── TESTING.md         # Test suites and patterns
+└── ENHANCEMENTS.md    # Enhancement/KEP/design doc catalog (when present)
+```
 
-**Exec-Plans**: Use `active/` for new features. See [Platform Exec-Plans Guide](Platform documentation).
+**AI Agent Path**: ARCHITECTURE.md → DEVELOPMENT.md → TESTING.md
 
-**Platform Patterns (Platform)**: [Operator](Platform documentation) | [Testing](Platform documentation) | [Security](Platform documentation)
+## Key Files
 
-**AI Agent Path**: domain/ → architecture/ → decisions/ → [COMPONENT]_DEVELOPMENT.md
+| What | Where |
+|------|-------|
+[Top 5-8 most important files an agent needs to find quickly.
+E.g., entrypoint, controller dirs, type definitions, feature gates, error types.]
 
 ## External References
 
-- [Product Docs](https://docs.openshift.com/) | [Related Project](https://github.com/...)
+- [Product Docs](https://docs.openshift.com/) | [Upstream Project](https://github.com/...)
 
 ---
 
-**Platform Documentation**: openshift/enhancements/ai-docs/
+`CLAUDE.md` is a symlink to this file.

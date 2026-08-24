@@ -4,11 +4,11 @@ AI-optimized OpenShift documentation with progressive disclosure, reference styl
 
 ## Two-Tier Architecture
 
-**Platform Docs** (`openshift/enhancements/ai-docs/`) - **Already exists**  
-Generic patterns, testing, security, K8s/OpenShift fundamentals, cross-repo ADRs. ~34 files, 4.4k lines.
+**Platform Docs** (`openshift/enhancements`)  
+Development conventions (`dev-guide/`), coding standards (`CONVENTIONS.md`), enhancement guidelines (`guidelines/`).
 
 **Component Docs** (`{component}/ai-docs/`)  
-Component CRDs, architecture, local ADRs, exec-plans. Links to platform docs. ~15 files, 2.5k lines (58% leaner).
+Architecture, development, testing guides, enhancement catalog. Flat structure — 3-4 files in ai-docs/, plus AGENTS.md and REVIEW.md at root.
 
 ## Skills
 
@@ -30,7 +30,7 @@ cd /path/to/component-repository
 /component-docs
 ```
 
-Creates AGENTS.md + ai-docs/ with: component CRDs only, architecture, component ADRs, exec-plans, ecosystem links to platform docs, development/testing guides. Excludes generic patterns (lives in platform docs). Example: [machine-config-operator/ai-docs](https://github.com/openshift/machine-config-operator/tree/master/ai-docs).
+Creates AGENTS.md (executive briefing, 40-60 lines) + CLAUDE.md symlink + ai-docs/ with: ARCHITECTURE.md (internals, integration points, behavioral contracts, key design decisions), DEVELOPMENT.md, TESTING.md, ENHANCEMENTS.md (optional — enhancement/KEP/design doc catalog). Flat structure, no subdirectories. Excludes generic patterns (lives in platform docs).
 
 ### `/review-docs`
 Review agentic documentation for hallucinations and verify claims against authoritative sources.
@@ -40,15 +40,17 @@ cd /path/to/component-repository
 /review-docs
 ```
 
-Uses the **chai-bot MCP server** to verify documentation claims against verified OpenShift knowledge, GitHub source code, Slack history, Jira, and official docs. Detects hallucinations, outdated conventions, and missing references.
+Uses **Chai Bot** to verify documentation claims against verified OpenShift knowledge, GitHub source code, Slack history, Jira, and official docs. Chai Bot access may be provided directly by its hosted workspace or through an external MCP connection. Detects hallucinations, outdated conventions, and missing references.
 
-**Prerequisites**: Requires chai-bot MCP server configuration (see Setup below).
+**Prerequisites**: Chai Bot access is provided automatically inside its hosted workspace. External execution requires Chai Bot MCP configuration (see Setup below).
 
 ## Setup
 
-### chai-bot MCP Server (for `/review-docs`)
+### Chai Bot access (for `/review-docs`)
 
-The `/review-docs` skill requires access to the **chai-bot MCP server** configured with the **"OpenShift AI helpdesk"** persona — an AI agent with verified OpenShift knowledge.
+Inside Chai Bot's hosted workspace, use the capabilities provided by the host directly. Do not configure or use a second Chai Bot MCP connection.
+
+Outside the hosted workspace, configure the **Chai Bot MCP server** with the **"OpenShift AI helpdesk"** persona — an AI agent with verified OpenShift knowledge.
 
 **Prerequisites:**
 1. **Red Hat VPN** - Must be connected to Red Hat VPN

@@ -292,6 +292,6 @@ Example:
 
 ## See Also
 
-- [Development Guide](./[COMPONENT]_DEVELOPMENT.md)
-- [Architecture](./architecture/components.md)
+- [Development Guide](./DEVELOPMENT.md)
+- [Architecture](./ARCHITECTURE.md)
 - [Platform Testing Practices](Platform documentation)
