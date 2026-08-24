@@ -541,7 +541,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.90",
+      "version": "0.0.91",
       "has_readme": true,
       "commands": [
         {
@@ -808,6 +808,12 @@ footer a { color: var(--primary); }
           "name": "fetch-test-runs",
           "description": "Fetch test runs from Sippy API including outputs for AI-based similarity analysis",
           "description_html": "Fetch test runs from Sippy API including outputs for AI-based similarity analysis",
+          "meta": ""
+        },
+        {
+          "name": "fetch-tide-pr-status",
+          "description": "Use when checking what's blocking a PR from merging in OpenShift CI — evaluates Tide merge requirements, required/forbidden labels, and required job statuses.",
+          "description_html": "Use when checking what&#x27;s blocking a PR from merging in OpenShift CI — evaluates Tide merge requirements, required/forbidden labels, and required job statuses.",
           "meta": ""
         },
         {
