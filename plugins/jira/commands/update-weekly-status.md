@@ -230,11 +230,11 @@ Format the status content using the `ryg_field` structure. The content will be w
 **Logical structure:**
 
 - Color Status: {Red, Yellow, Green}
-  - Status summary:
-    - Thing 1 that happened since last week
-    - Thing 2 that happened since last week
-  - Risks:
-    - Risk 1 (or "None at this time")
+- Status summary:
+  - Thing 1 that happened since last week
+  - Thing 2 that happened since last week
+- Risks:
+  - Risk 1 (or "None at this time")
 
 ##### d. Present to User for Review
 

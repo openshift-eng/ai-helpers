@@ -361,11 +361,11 @@ The Status Summary field (`customfield_10814`) requires an ADF JSON document —
 **Logical content structure:**
 
 - Color Status: {Red, Yellow, Green}
-  - Status summary:
-    - Thing 1 that happened since last week
-    - Thing 2 that happened since last week
-  - Risks:
-    - Risk 1 (or "None at this time")
+- Status summary:
+  - Thing 1 that happened since last week
+  - Thing 2 that happened since last week
+- Risks:
+  - Risk 1 (or "None at this time")
 
 **For `feature_markdown` (generate-feature-updates)**:
 
