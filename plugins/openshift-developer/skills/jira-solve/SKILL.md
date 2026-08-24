@@ -87,27 +87,28 @@ Search and analyze relevant code:
      - Example: `git commit -m"test: Add tests for X functionality" -m"Ensure the new behavior is covered by unit tests to prevent regressions"`
    - Documentation: Changes in `docs/` directory
      - Example: `git commit -m"docs: Document X feature" -m"Help users understand how to configure and use the new capability"`
-6. Push the branch with all commits against the remote specified in argument `$2`
+6. Push the feature branch (the one created in step 1) with all commits to the remote specified in argument `$2` — unless the caller's context prohibits pushing (e.g. a "do not push" directive), in which case commit locally and skip the push. Only ever push that feature branch; never push to `main`/`master`, and never force-push.
 
 ### Step 5: PR Creation
 
-- If `--ci` flag (`$3`) IS set: Skip PR creation — it will be handled by a subsequent pipeline step (e.g. `/openshift-developer:create-pr`). Output: "Skipping PR creation in CI mode — branch pushed, PR will be created by the pipeline."
-- If `--ci` flag (`$3`) is NOT set:
-  - Create pull request with:
-    - Clear title referencing JIRA issue as a prefix (e.g. `OCPBUGS-12345: ...`)
-    - The PR description should satisfy the template within `.github/PULL_REQUEST_TEMPLATE.md` if the file exists
-    - Always include the following footer:
-      ```text
-      Always review AI generated responses prior to use.
-      Generated with [Claude Code](https://claude.com/claude-code) via openshift-developer plugin
-      ```
-    - Always create as draft PR
-    - Always create the PR against the remote origin
-    - Use gh cli if you need to
+By this point you have committed the fix and, unless pushing was prohibited, pushed the branch in Step 4. This step only decides whether to *also* open a pull request; do not open one if the branch was not pushed.
+
+- If `--ci` flag (`$3`) IS set: **Do NOT open a pull request under any circumstances.** This overrides every other instruction in this skill about opening or drafting a PR — do not run `gh pr create` and do not open a PR by any other means. In CI, opening the PR is the responsibility of a later pipeline step, not this skill. Output: "Skipping PR creation in CI mode — PR will be created by the pipeline."
+- If `--ci` flag (`$3`) is NOT set: open a pull request with:
+  - Clear title referencing JIRA issue as a prefix (e.g. `OCPBUGS-12345: ...`)
+  - The PR description should satisfy the template within `.github/PULL_REQUEST_TEMPLATE.md` if the file exists
+  - Always include the following footer:
+    ```text
+    Always review AI generated responses prior to use.
+    Generated with [Claude Code](https://claude.com/claude-code) via openshift-developer plugin
+    ```
+  - Create it as a draft PR
+  - Create the PR using the branch you pushed to `$2` as the head — do not assume a remote named `origin`; for a fork, pass an owner-qualified head (e.g. `gh pr create --head <fork-owner>:<branch>`)
+  - Use gh cli if you need to
 
 ### Step 6: PR Description Review
 
-- If `--ci` flag (`$3`) IS set: Skip — no PR was created in CI mode
+- If `--ci` flag (`$3`) IS set: Skip — no PR was created in CI mode.
 - If `--ci` flag (`$3`) is NOT set:
   - After creating the PR, display the PR URL and description to the user
   - Ask the user: "Please review the PR description. Would you like me to update it? (yes/no)"
@@ -120,7 +121,7 @@ Search and analyze relevant code:
 ## Arguments
 - `$1` — The JIRA issue to solve (required)
 - `$2` — The remote repository to push the branch (required)
-- `$3` — Optional `--ci` flag for non-interactive CI automation mode. When set, skips all user prompts and proceeds automatically.
+- `$3` — Optional `--ci` flag for non-interactive CI automation mode. When set, skips all user prompts, proceeds automatically, and does NOT open a pull request (PR creation is left to the pipeline).
 
 ## Examples
 
@@ -129,7 +130,7 @@ Search and analyze relevant code:
    /openshift-developer:jira-solve OCPBUGS-12345 origin
    ```
 
-2. **Solve in CI mode (non-interactive)**:
+2. **Solve in CI mode (non-interactive, no PR — PR left to the pipeline)**:
    ```text
    /openshift-developer:jira-solve OCPBUGS-12345 origin --ci
    ```
