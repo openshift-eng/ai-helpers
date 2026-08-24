@@ -137,22 +137,24 @@ Used by `/jira:update-weekly-status` to update the Status Summary custom field.
 
 ### Template
 
-```
-* Color Status: {Red|Yellow|Green}
- * Status summary:
-     ** {achievement-or-progress-1}
-     ** {achievement-or-progress-2}
-     ** {achievement-or-progress-N}
- * Risks:
-     ** {risk-1-or-"None at this time"}
-```
+This field requires ADF (Atlassian Document Format) JSON. The logical structure is a three-item bullet list:
+
+- Color Status: {Red|Yellow|Green}
+  - Status summary:
+    - {achievement-or-progress-1}
+    - {achievement-or-progress-2}
+    - {achievement-or-progress-N}
+  - Risks:
+    - {risk-1-or-"None at this time"}
+
+**ADF representation:** A `bulletList` with three `listItem` nodes. The "Status summary" and "Risks" items each contain a nested `bulletList` for their sub-items. See the [ADF template](#adf-template-for-ryg_field) below for the exact JSON structure.
 
 ### Formatting Rules
 
-1. **Exact spacing matters**: The field may have specific formatting requirements
-   - Top-level bullet: `* ` (asterisk + space)
-   - Second-level: ` * ` (space + asterisk + space)
-   - Third-level: `     ** ` (5 spaces + double asterisk + space)
+1. **Always construct ADF JSON directly**: The `customfield_10814` field requires an ADF document. Passing a plain string (even with `contentFormat: "markdown"`) will fail with `"Operation value must be an Atlassian Document"`.
+   - Use `contentFormat: "adf"` on the `editJiraIssue` call
+   - Pass the field value as a JSON object with `type: "doc"`, `version: 1`, and nested `bulletList`/`listItem`/`paragraph` nodes
+   - **Do NOT** pass plain text strings, markdown, or Jira wiki syntax — the API rejects all non-ADF values
 
 2. **Color Status line**: Always first, exactly one of Red/Yellow/Green
 
@@ -191,40 +193,36 @@ Used by `/jira:update-weekly-status` to update the Status Summary custom field.
 
 ### Example Outputs
 
-**Green Status**:
-```
-* Color Status: Green
- * Status summary:
-     ** PR #456 merged adding OAuth2 token validation with comprehensive unit tests
-     ** AUTH-102 completed: token refresh mechanism implemented and tested
-     ** AUTH-103 in progress: session handling refactor, draft PR submitted for review
- * Risks:
-     ** None at this time
-```
+The examples below show the **logical content** (what the user sees in Jira). The actual value passed to `editJiraIssue` must be the ADF JSON equivalent — see the [ADF template](#adf-template-for-ryg_field).
 
-**Yellow Status**:
-```
-* Color Status: Yellow
- * Status summary:
-     ** UI-201 design review completed, implementation 60% complete
-     ** AUTH-103 draft PR open but awaiting review capacity from team
-     ** Made progress on auth integration but slower than planned
- * Risks:
-     ** Review bandwidth may delay merge to next week
-     ** Upstream API deprecation notice received - may need refactor
-```
+**Green Status** (content):
+- Color Status: Green
+  - Status summary:
+    - PR #456 merged adding OAuth2 token validation with comprehensive unit tests
+    - AUTH-102 completed: token refresh mechanism implemented and tested
+    - AUTH-103 in progress: session handling refactor, draft PR submitted for review
+  - Risks:
+    - None at this time
 
-**Red Status**:
-```
-* Color Status: Red
- * Status summary:
-     ** AUTH-104 blocked on Azure subscription approval for 2 weeks
-     ** No PRs merged this period due to blocker
-     ** Escalated to infrastructure team, awaiting response
- * Risks:
-     ** Deadline at risk if subscription not approved by Friday
-     ** May need to descope Azure AD integration from initial release
-```
+**Yellow Status** (content):
+- Color Status: Yellow
+  - Status summary:
+    - UI-201 design review completed, implementation 60% complete
+    - AUTH-103 draft PR open but awaiting review capacity from team
+    - Made progress on auth integration but slower than planned
+  - Risks:
+    - Review bandwidth may delay merge to next week
+    - Upstream API deprecation notice received - may need refactor
+
+**Red Status** (content):
+- Color Status: Red
+  - Status summary:
+    - AUTH-104 blocked on Azure subscription approval for 2 weeks
+    - No PRs merged this period due to blocker
+    - Escalated to infrastructure team, awaiting response
+  - Risks:
+    - Deadline at risk if subscription not approved by Friday
+    - May need to descope Azure AD integration from initial release
 
 ## Format: feature_markdown
 
@@ -415,33 +413,52 @@ def format_markdown_comment(issue_data, config):
 
 ### For ryg_field format
 
+Build the ADF JSON document directly. Each text item becomes a `listItem` containing a `paragraph` with a `text` node.
+
 ```python
 def format_ryg_field(issue_data, config):
-    output = []
     health = issue_data.analysis.health.capitalize()  # Green, Yellow, Red
 
-    output.append(f"* Color Status: {health}")
-    output.append(" * Status summary:")
+    # Combine achievements and in-progress items (limit to top 3+2)
+    summary_texts = []
+    for achievement in issue_data.analysis.achievements[:3]:
+        summary_texts.append(achievement.description)
+    for progress in issue_data.analysis.in_progress[:2]:
+        summary_texts.append(progress.description)
 
-    # Combine achievements and in-progress items
-    items = []
-    for achievement in issue_data.analysis.achievements[:3]:  # Limit to top 3
-        items.append(achievement.description)
-    for progress in issue_data.analysis.in_progress[:2]:  # Add up to 2 in-progress
-        items.append(progress.description)
-
-    for item in items:
-        output.append(f"     ** {item}")
-
-    # Risks section
-    output.append(" * Risks:")
+    # Risk texts
+    risk_texts = []
     if issue_data.analysis.risks:
-        for risk in issue_data.analysis.risks[:2]:  # Limit to top 2
-            output.append(f"     ** {risk.description}")
+        for risk in issue_data.analysis.risks[:2]:
+            risk_texts.append(risk.description)
     else:
-        output.append("     ** None at this time")
+        risk_texts.append("None at this time")
 
-    return "\n".join(output)
+    # Helper: create a listItem with a single text paragraph
+    def text_item(text):
+        return {"type": "listItem", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": text}]}
+        ]}
+
+    # Helper: create a listItem with a label paragraph + nested bullet list
+    def section_item(label, child_texts):
+        return {"type": "listItem", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": label}]},
+            {"type": "bulletList", "content": [text_item(t) for t in child_texts]}
+        ]}
+
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [{
+            "type": "bulletList",
+            "content": [
+                text_item(f"Color Status: {health}"),
+                section_item("Status summary:", summary_texts),
+                section_item("Risks:", risk_texts),
+            ]
+        }]
+    }
 ```
 
 ### For feature_markdown format
@@ -524,12 +541,12 @@ Before outputting, validate the formatted text:
 
 ### ryg_field validation
 
-- [ ] Starts with `* Color Status:` line
-- [ ] Color is exactly one of: Red, Yellow, Green
-- [ ] Status summary section present with at least one item
-- [ ] Risks section present (even if "None at this time")
-- [ ] Indentation matches expected format
-- [ ] No empty bullet points
+- [ ] Value is a valid ADF JSON document with `type: "doc"` and `version: 1`
+- [ ] Top-level content is a single `bulletList` with exactly 3 `listItem` nodes
+- [ ] First item text starts with `Color Status:` followed by exactly one of: Red, Yellow, Green
+- [ ] Second item has text `Status summary:` with a nested `bulletList` containing at least one item
+- [ ] Third item has text `Risks:` with a nested `bulletList` (at least "None at this time")
+- [ ] No empty text nodes
 
 ## Escaping Special Characters
 
@@ -539,7 +556,59 @@ Backslash escaping (`\*`, `\[`, etc.) is unreliable in Jira Cloud's markdown ren
 
 ### Status Summary Field
 
-The Status Summary field (`customfield_10814`) is a plain string:
-- Avoid HTML tags
-- Keep text plain and readable
-- No special escaping needed
+The Status Summary field (`customfield_10814`) is a rich text field that stores content as Atlassian Document Format (ADF). The `contentFormat: "markdown"` parameter on `editJiraIssue` does **not** auto-convert custom field values — it only applies to standard fields like `description`. Passing a plain string for this field will fail with `"Operation value must be an Atlassian Document"`.
+
+**Always construct ADF JSON directly** and use `contentFormat: "adf"`.
+
+#### ADF template for ryg_field
+
+```json
+{
+  "type": "doc",
+  "version": 1,
+  "content": [{
+    "type": "bulletList",
+    "content": [
+      {
+        "type": "listItem",
+        "content": [{"type": "paragraph", "content": [
+          {"type": "text", "text": "Color Status: Green"}
+        ]}]
+      },
+      {
+        "type": "listItem",
+        "content": [
+          {"type": "paragraph", "content": [
+            {"type": "text", "text": "Status summary:"}
+          ]},
+          {"type": "bulletList", "content": [
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [
+              {"type": "text", "text": "Item 1 text here"}
+            ]}]},
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [
+              {"type": "text", "text": "Item 2 text here"}
+            ]}]}
+          ]}
+        ]
+      },
+      {
+        "type": "listItem",
+        "content": [
+          {"type": "paragraph", "content": [
+            {"type": "text", "text": "Risks:"}
+          ]},
+          {"type": "bulletList", "content": [
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [
+              {"type": "text", "text": "None at this time"}
+            ]}]}
+          ]}
+        ]
+      }
+    ]
+  }]
+}
+```
+
+Each status summary bullet and each risk bullet is a `listItem` containing a `paragraph` with a `text` node. Add or remove `listItem` entries in the nested `bulletList` arrays as needed.
+
+**Do NOT** pass plain strings, markdown, Jira wiki syntax (`*`, `**`, `h2.`, etc.), or raw HTML as the field value.
