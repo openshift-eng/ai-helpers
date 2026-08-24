@@ -104,9 +104,16 @@ func main() {
 > It can span multiple lines.
 ```
 
-## Auto-Linking
+## Links: Never Bare
 
-Jira issue keys (e.g., `PROJ-123`, `OCPBUGS-456`) are automatically linked by Jira regardless of formatting. Simply type the issue key in plain text and Jira will render it as a clickable link to that issue.
+Do not rely on Jira auto-linking for content submitted via the API. Issue keys (e.g., `OCPBUGS-456`) and pasted URLs typed in the Jira web editor get converted to links interactively, but the same text submitted through the REST API or MCP tools is stored as plain text and renders as **dead, unclickable text**.
+
+Always emit explicit Markdown links, in descriptions and comments alike:
+
+- Issue keys: `[OCPBUGS-456](https://redhat.atlassian.net/browse/OCPBUGS-456)`
+- URLs: `[descriptive text](https://example.com/path)` — never a bare `https://...`
+
+Before finishing, scan the content you authored for bare issue keys and bare URLs and convert them to links.
 
 ## Example Templates
 
@@ -123,11 +130,11 @@ As a `cluster admin`, I want to `configure autoscaling`, so that `I can handle t
 
 ## Additional Context
 
-This feature integrates with the existing monitoring infrastructure introduced in PROJ-100.
+This feature integrates with the existing monitoring infrastructure introduced in [PROJ-100](https://redhat.atlassian.net/browse/PROJ-100).
 
 ### Dependencies
 
-- PROJ-99 - Monitoring infrastructure
+- [PROJ-99](https://redhat.atlassian.net/browse/PROJ-99) - Monitoring infrastructure
 - Coordination with Platform team for API access
 
 ### Out of Scope
@@ -236,5 +243,5 @@ annotations:
 - All listed deployments have correct Prometheus annotations
 - Metrics endpoint is reachable from the monitoring namespace
 - Unit tests validate annotation presence
-- Documentation updated in PROJ-200
+- Documentation updated in [PROJ-200](https://redhat.atlassian.net/browse/PROJ-200)
 ````

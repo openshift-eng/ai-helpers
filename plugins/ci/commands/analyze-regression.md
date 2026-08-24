@@ -748,9 +748,9 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
 
    **If regression is NOT triaged** (no existing JIRA):
    - Component assignment (from test mappings)
-   - If step 4's test report found `open_bugs > 0`, note these existing bugs — one may be suitable for triaging this regression without filing a duplicate
+   - If step 4's test report found `open_bugs > 0`, note these existing bugs — one may be suitable for triaging this regression without filing a duplicate; when referencing them in JIRA content, link each key as `[OCPBUGS-12345](https://redhat.atlassian.net/browse/OCPBUGS-12345)`
    - Bug summary suggestion based on failure pattern (informed by step 6 pattern analysis)
-   - Bug description template including:
+   - Bug description template including (**all references must be clickable links** — Jira does not auto-link plain text submitted via the API, so never emit bare issue keys, bare regression IDs, or bare pasted URLs; use `[text](url)` markdown links):
      - Test name(s) and release — use the **full test name including all tags** (e.g., `[Suite:openshift/conformance/parallel]`, `[Serial]`, `[Conformance]`). Format each test name on its own line wrapped in Jira `{code}` blocks so that tooling can find bugs by test name:
        ```
        {code}
@@ -758,7 +758,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
        {code}
        ```
      - Test ID (`test_id` — the BigQuery/Component Readiness ID, e.g., `openshift-tests:abc123`)
-     - Regression ID(s) — the Component Readiness regression ID(s) being triaged
+     - Regression ID(s) — the Component Readiness regression ID(s) being triaged; render each ID as a link to its converted `test_details_ui_url`, e.g. `[46913](https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/test_details?...)`
      - Regression opened date
      - Affected variants
      - Failure patterns identified (permafail/flaky/resolved/recent)
@@ -768,11 +768,11 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
        - Common error message
        - Consistency percentage
        - Key debugging information (file references, resources, stack traces)
-     - **Sippy Test Details report links** - this is critical for debugging:
+     - **Sippy Test Details report links** - this is critical for debugging (format as `[text](url)` links, not pasted URLs):
        - Link for the current regression (converted `test_details_ui_url`)
        - Links for each related regression found in step 10 (each regression has its own `test_details_url` from the list-regressions data - convert each to UI URL)
      - Regression start date (if determined in step 8)
-     - Suspect PRs from payload analysis (if determined in step 9) — include PR URLs and relevance classification for LIKELY and POSSIBLY related PRs
+     - Suspect PRs from payload analysis (if determined in step 9) — include PR links formatted as `[org/repo#1234](pr-url)` and relevance classification for LIKELY and POSSIBLY related PRs
      - Related regressions (if any) with their regression IDs and test names
    - Triage type recommendation:
      - `product`: actual product issues (default)
