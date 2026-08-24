@@ -352,20 +352,20 @@ Follow `formatting.md` to generate output based on `output_format`:
 **Metrics:** X/Y issues complete (Z%)
 ```
 
-**Note**: When posting via `addCommentToJiraIssue`, always include `contentFormat: "markdown"`. When updating the Status Summary field via `editJiraIssue`, also use `contentFormat: "markdown"` with standard markdown syntax — the tool converts it to ADF.
+**Note**: When posting via `addCommentToJiraIssue`, always include `contentFormat: "markdown"`.
 
 **For `ryg_field` (update-weekly-status)**:
 
-```markdown
+The Status Summary field (`customfield_10814`) requires an ADF JSON document — `contentFormat: "markdown"` does **not** auto-convert custom field values. Always construct ADF directly and use `contentFormat: "adf"`. See the [ADF template in formatting.md](formatting.md#adf-template-for-ryg_field) for the exact structure.
+
+**Logical content structure:**
+
 - Color Status: {Red, Yellow, Green}
   - Status summary:
     - Thing 1 that happened since last week
     - Thing 2 that happened since last week
   - Risks:
     - Risk 1 (or "None at this time")
-```
-
-**Note**: Use standard markdown bullet syntax (`-`). Do NOT use Jira wiki syntax (`*`, `**`) — it is not recognized by the markdown-to-ADF converter used by the Atlassian MCP plugin.
 
 **For `feature_markdown` (generate-feature-updates)**:
 
@@ -429,7 +429,7 @@ All modules should handle these error cases:
 
 | Field Name | Field ID | Type | Purpose |
 |---|---|---|---|
-| Status Summary | `customfield_10814` | String | Stores R/Y/G status text for update-weekly-status |
+| Status Summary | `customfield_10814` | ADF (rich text) | Stores R/Y/G status as ADF JSON; requires `contentFormat: "adf"` |
 
 ## Prerequisites
 

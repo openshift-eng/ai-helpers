@@ -287,6 +287,7 @@ Options:
 - Ask: "Please provide your updated status text (maintain the bullet format):"
 - Validate format (should start with `- Color Status:`)
 - Show modified version and ask for final confirmation
+- Convert the modified text to an ADF JSON document before updating (same `bulletList`/`listItem` structure as auto-generated updates)
 
 ##### e. Update the Issue
 

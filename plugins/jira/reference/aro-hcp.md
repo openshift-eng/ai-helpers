@@ -123,12 +123,14 @@ The ARO project uses a **prepend** model for Status Summary — new updates are 
 
 ### Updating the Status Summary Field
 
+The Status Summary field (`customfield_10814`) is a rich text field that stores content as Atlassian Document Format (ADF). The `contentFormat: "markdown"` parameter does **not** auto-convert custom field values — it only applies to standard fields like `description`. Always construct ADF JSON directly and use `contentFormat: "adf"`.
+
 When writing to `customfield_10814`:
 
 1. Read the current value first (from the pre-gathered JSON `issue.current_status_summary`)
 2. Generate the new entry (date + color + bullets)
-3. Prepend the new entry to the existing text with a blank line separator
-4. Write the combined text back via `editJiraIssue`
+3. Prepend the new entry to the existing content
+4. Construct the full ADF document and write via `editJiraIssue`
 
 If the current value is null/empty, just write the new entry.
 
@@ -137,10 +139,21 @@ If the current value is null/empty, just write the new entry.
 editJiraIssue(
   cloudId: "redhat.atlassian.net",
   issueIdOrKey: "{ISSUE_KEY}",
-  fields: {"customfield_10814": "{new_entry}\n\n{existing_text}"},
-  contentFormat: "markdown"
+  contentFormat: "adf",
+  fields: {
+    "customfield_10814": {
+      "type": "doc",
+      "version": 1,
+      "content": [
+        // New entry as bulletList nodes
+        // ... followed by existing content nodes
+      ]
+    }
+  }
 )
 ```
+
+See the [ADF template in formatting.md](../skills/status-analysis/formatting.md#adf-template-for-ryg_field) for the exact node structure.
 
 **IMPORTANT**: If `editJiraIssue` fails with "Field cannot be set" error, the issue is not a Feature or Initiative. Skip it and log a warning — do not fall back to adding a comment.
 

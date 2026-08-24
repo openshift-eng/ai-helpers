@@ -425,6 +425,8 @@ def format_ryg_field(issue_data, config):
         summary_texts.append(achievement.description)
     for progress in issue_data.analysis.in_progress[:2]:
         summary_texts.append(progress.description)
+    if not summary_texts:
+        summary_texts.append("No status updates this period")
 
     # Risk texts
     risk_texts = []
@@ -509,8 +511,10 @@ def status_color_changed_in_range(issue_data):
     for entry in issue_data.changelog_in_range:
         for item in entry.get("items", []):
             if item.get("field") == "Status Summary":
-                old_color = parse_color_status(item.get("fromString", ""))
-                new_color = parse_color_status(item.get("toString", ""))
+                old_value = item.get("from", "")
+                new_value = item.get("to", "")
+                old_color = parse_color_status(old_value if isinstance(old_value, str) else "")
+                new_color = parse_color_status(new_value if isinstance(new_value, str) else "")
                 if old_color != new_color:
                     return True
     return False
