@@ -34,6 +34,7 @@ decides fix vs report per TRT-2831 guardrails.
 | case-001 | Pre-existing npm audit CVE on unchanged deps (TRT-2831 canonical) |
 | case-002 | PR-caused unit test failure in modified file |
 | case-003 | Infrastructure failure (pod_pending) |
+| case-004 | Optional job — do not fix without slam-dunk PR-caused evidence |
 
 ## solve (`cases/solve`)
 

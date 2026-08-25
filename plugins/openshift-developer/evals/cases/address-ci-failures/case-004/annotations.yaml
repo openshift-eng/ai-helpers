@@ -1,0 +1,14 @@
+expected_classification: out_of_scope
+expected_should_fix: false
+expected_should_post_comment: true
+acceptable_classifications:
+  - out_of_scope
+  - pre_existing
+  - infrastructure
+  - flake
+notes: >
+  Optional Prow job. Failure is not in a file the PR changed, and a 503 from
+  staging is not slam-dunk PR-caused. Skill must not change code to green an
+  optional job. Report instead. classification may be out_of_scope (optional
+  bar) or infra/flake/pre_existing from the 503; must not be pr_caused with
+  should_fix true.
