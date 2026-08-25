@@ -44,7 +44,7 @@ If your PR modifies plugin code (commands, skills, hooks, or plugin.json), you *
 
 Bump **once per affected plugin per pull request**. Compare each modified plugin's `plugin.json` to the version on the pull request's **base branch tip** (not the merge-base). If this PR already bumped that plugin relative to the base tip, do not bump it again.
 
-CI finds changed plugins from the merge-base (files that only changed on the base branch do not count), then requires each of those versions to be higher than the base branch tip.
+CI finds changed plugins from the merge-base among commands, skills, hooks, and plugin.json (files that only changed on the base branch do not count), then requires each of those versions to be higher than the base branch tip.
 
 ## Development Workflow
 

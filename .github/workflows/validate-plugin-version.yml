@@ -33,10 +33,9 @@ jobs:
           base_tip="$remote/${{ github.event.pull_request.base.ref }}"
           merge_base=$(git merge-base "$base_tip" HEAD)
 
-          # Plugins with PR changes vs merge-base (README.md and OWNERS do not require a bump)
+          # Commands, skills, hooks, and plugin.json vs merge-base
           changed_plugins=$(git diff --name-only "$merge_base" HEAD -- 'plugins/' | \
-            grep -v 'README.md$' | \
-            grep -v 'OWNERS$' | \
+            grep -E '^plugins/[^/]+/(commands|skills|hooks)/|^plugins/[^/]+/\.claude-plugin/plugin\.json$' | \
             cut -d'/' -f2 | sort -u)
 
           if [ -z "$changed_plugins" ]; then
