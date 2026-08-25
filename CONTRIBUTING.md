@@ -40,16 +40,18 @@ All plugins use [semantic versioning](https://semver.org/):
 - **MINOR** (0.x.0): New commands, skills, hooks, or features
 - **MAJOR** (x.0.0): Breaking changes to existing commands
 
-If your PR modifies plugin code (commands, skills, hooks, or plugin.json), you **must** bump the version in `plugins/<name>/.claude-plugin/plugin.json`. CI will fail if you forget. Documentation-only changes (README.md) do not require version bumps.
+If your PR modifies plugin code (commands, skills, hooks, or plugin.json), you **must** bump the version in that plugin's `plugins/<name>/.claude-plugin/plugin.json`. CI will fail if you forget. README.md and OWNERS changes do not require version bumps.
 
-Bump **once per pull request** — one increment versus the base branch. Do not bump again for follow-up commits on the same PR. CI only checks that the version is higher than the base branch.
+Bump **once per affected plugin per pull request**. Compare each modified plugin's `plugin.json` to the version on the pull request's **base branch tip** (not the merge-base). If this PR already bumped that plugin relative to the base tip, do not bump it again.
+
+CI finds changed plugins from the merge-base (files that only changed on the base branch do not count), then requires each of those versions to be higher than the base branch tip.
 
 ## Development Workflow
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Bump the version in `plugin.json` once if modifying plugin code (skip if this PR already bumped it)
+4. For each plugin whose commands, skills, hooks, or plugin.json you changed, bump its version once if it is not already higher than the base branch (skip if this PR already bumped it)
 5. Run `make lint` to validate plugin structure
 6. Run `make update` to regenerate docs
 7. Submit a PR

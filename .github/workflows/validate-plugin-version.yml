@@ -30,13 +30,12 @@ jobs:
           # Fetch the base branch to ensure we have it
           git fetch "$remote" "${{ github.event.pull_request.base.ref }}"
 
-          # Find the merge-base between PR head and base branch
-          base=$(git merge-base "$remote/${{ github.event.pull_request.base.ref }}" HEAD)
+          base_tip="$remote/${{ github.event.pull_request.base.ref }}"
+          merge_base=$(git merge-base "$base_tip" HEAD)
 
-          # Find plugins with changes (excluding README.md, SKILL.md, and OWNERS files)
-          changed_plugins=$(git diff --name-only "$base" HEAD -- 'plugins/' | \
+          # Plugins with PR changes vs merge-base (README.md and OWNERS do not require a bump)
+          changed_plugins=$(git diff --name-only "$merge_base" HEAD -- 'plugins/' | \
             grep -v 'README.md$' | \
-            grep -v 'SKILL.md$' | \
             grep -v 'OWNERS$' | \
             cut -d'/' -f2 | sort -u)
 
@@ -57,8 +56,8 @@ jobs:
             # Get current version
             current=$(jq -r '.version' "$plugin_json")
 
-            # Get base version
-            if git show "$base:$plugin_json" > /tmp/old_plugin.json 2>/dev/null; then
+            # Version on the base branch tip (not merge-base)
+            if git show "$base_tip:$plugin_json" > /tmp/old_plugin.json 2>/dev/null; then
               old=$(jq -r '.version' /tmp/old_plugin.json)
             else
               old="0.0.0"  # New plugin
