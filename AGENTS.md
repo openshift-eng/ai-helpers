@@ -23,7 +23,7 @@ Canonical example: `plugins/hello-world/`
 | Command | When |
 |---------|------|
 | `make lint` | Before every commit — validates structure, format, and marketplace registration |
-| Bump `version` in `plugin.json` | When modifying plugin commands or skills (not README-only changes) |
+| Bump `version` in `plugin.json` | Once per PR when modifying plugin commands or skills (not README-only). Do not bump again for later commits on the same PR. |
 | `make update` | After version bumps — syncs marketplace.json and regenerates docs |
 
 ## Contributing Rules

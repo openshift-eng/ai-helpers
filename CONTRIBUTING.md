@@ -42,12 +42,14 @@ All plugins use [semantic versioning](https://semver.org/):
 
 If your PR modifies plugin code (commands, skills, hooks, or plugin.json), you **must** bump the version in `plugins/<name>/.claude-plugin/plugin.json`. CI will fail if you forget. Documentation-only changes (README.md) do not require version bumps.
 
+Bump **once per pull request** — one increment versus the base branch. Do not bump again for follow-up commits on the same PR. CI only checks that the version is higher than the base branch.
+
 ## Development Workflow
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Bump the version in `plugin.json` if modifying plugin code
+4. Bump the version in `plugin.json` once if modifying plugin code (skip if this PR already bumped it)
 5. Run `make lint` to validate plugin structure
 6. Run `make update` to regenerate docs
 7. Submit a PR
