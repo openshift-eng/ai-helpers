@@ -28,8 +28,12 @@ BOT_SIGNATURES = [
     "github-actions[bot]",
 ]
 
-# Text signature that appears in bot replies
-REPLY_SIGNATURE = "*AI-assisted response via Claude Code*"
+# Text signatures that appear in bot replies. Keep the provider-specific
+# signature for replies created before the provider-neutral wording was adopted.
+REPLY_SIGNATURES = (
+    "*AI-assisted response*",
+    "*AI-assisted response via Claude Code*",
+)
 
 
 def run_gh(args: list[str]) -> Any:
@@ -51,8 +55,8 @@ def is_bot_reply(login: str, body: str) -> bool:
     # Check if author is a known bot (only our specific bots, not all [bot] accounts)
     if login in BOT_SIGNATURES:
         return True
-    # Check if body contains our signature (in case of different bot account)
-    if body and REPLY_SIGNATURE in body:
+    # Check if body contains one of our signatures (in case of a different bot account)
+    if body and any(signature in body for signature in REPLY_SIGNATURES):
         return True
     return False
 
