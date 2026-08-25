@@ -55,7 +55,7 @@ Creates a pull request from the current feature branch, linking it to a Jira iss
    - The following footer at the very end:
      ```text
      Always review AI generated responses prior to use.
-     Generated with [Claude Code](https://claude.com/claude-code) via openshift-developer plugin
+     AI-assisted response via openshift-developer plugin
      ```
 
 ### Step 3: Create the PR

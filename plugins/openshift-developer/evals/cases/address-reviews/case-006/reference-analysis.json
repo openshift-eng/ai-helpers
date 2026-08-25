@@ -5,6 +5,6 @@
   "should_push": false,
   "should_filter": false,
   "priority_order": null,
-  "reply_draft": "Done. Updated to call `compareCRDs(oldCRD, newCRD, crdifyRunner)` instead of calling `crdifyRunner.Run()` directly. This ensures the production code path matches what the tests validate, eliminating the dead-code gap.\n\n---\n*AI-assisted response via Claude Code*",
+  "reply_draft": "Done. Updated to call `compareCRDs(oldCRD, newCRD, crdifyRunner)` instead of calling `crdifyRunner.Run()` directly. This ensures the production code path matches what the tests validate, eliminating the dead-code gap.\n\n---\n*AI-assisted response*",
   "rationale": "This is a CHANGE_REQUEST: the reviewer identified a concrete bug where compareCRDs() is defined and tested but never called in production — the main code calls crdifyRunner.Run() directly, making the tests validate a code path that never executes. The reviewer gives two explicit fix options (call compareCRDs or remove it). This requires a code change and a reply acknowledging the fix."
 }

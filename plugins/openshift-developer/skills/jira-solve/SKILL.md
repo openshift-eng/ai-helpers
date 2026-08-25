@@ -100,7 +100,7 @@ By this point you have committed the fix and, unless pushing was prohibited, pus
   - Always include the following footer:
     ```text
     Always review AI generated responses prior to use.
-    Generated with [Claude Code](https://claude.com/claude-code) via openshift-developer plugin
+    Generated with AI assistance via openshift-developer plugin
     ```
   - Create it as a draft PR
   - Create the PR using the branch you pushed to `$2` as the head — do not assume a remote named `origin`; for a fork, pass an owner-qualified head (e.g. `gh pr create --head <fork-owner>:<branch>`)

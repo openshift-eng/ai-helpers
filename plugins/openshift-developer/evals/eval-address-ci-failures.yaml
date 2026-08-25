@@ -14,8 +14,8 @@ runner:
     - plugins/ci
     - plugins/golang
   system_prompt: |
-    Read skill.md in the current working directory, then Read the skill file path it
-    references (the address-ci-failures triage methodology and TRT-2831 guardrails).
+    Read triage-skill.md in the current working directory (the
+    address-ci-failures triage methodology and TRT-2831 guardrails).
 
     Analyze the CI failure scenario provided and write your triage decision to a file
     called analysis.json in the current working directory. The file must contain
@@ -50,7 +50,7 @@ dataset:
   path: cases/address-ci-failures
   workspace:
     files:
-      - skill.md
+      - triage-skill.md
   schema: |
     Each case directory contains:
     - input.yaml: YAML file with fields:

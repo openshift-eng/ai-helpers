@@ -219,7 +219,7 @@ If the refresh fails, continue anyway — the token may still be valid for short
     ```
     gh api repos/{owner}/{repo}/issues/<PR_NUMBER>/comments -f body="<reply>"
     ```
-- **All replies must include**: `---\n*AI-assisted response via Claude Code*`
+- **All replies must include**: `---\n*AI-assisted response*`
 
 #### 4b. Push once
 
