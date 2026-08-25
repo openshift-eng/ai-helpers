@@ -32,6 +32,12 @@ FETCH_TIMEOUT = 30
 USER_AGENT = "has-review-work/filter-optional-checks"
 GCSWEB_PREFIX = "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/"
 STORAGE_PREFIX = "https://storage.googleapis.com/"
+ALLOWED_LINK_HOSTS = frozenset(
+    {
+        "prow.ci.openshift.org",
+        urlparse(GCSWEB_PREFIX).hostname,
+    }
+)
 MAX_WORKERS = 8
 
 FetchJson = Callable[[str], dict[str, Any] | None]
@@ -51,6 +57,8 @@ def gcs_path_from_link(link: str) -> str | None:
     if not link:
         return None
     parsed = urlparse(link)
+    if parsed.scheme != "https" or parsed.hostname not in ALLOWED_LINK_HOSTS:
+        return None
     path = parsed.path.rstrip("/")
     for marker in ("/view/gs/", "/view/gcs/", "/gcs/"):
         if marker in path:

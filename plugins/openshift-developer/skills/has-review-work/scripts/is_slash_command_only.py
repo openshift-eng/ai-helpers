@@ -5,9 +5,8 @@ Usage:
     printf '%s' "$BODY" | is_slash_command_only.py
 
 Exit:
-    0  slash-command-only — skip (not review work)
+    0  slash-command-only or empty body — skip (not review work)
     1  has review text — keep
-    2  usage / empty stdin with no body (treat as skip: not work)
 """
 
 from __future__ import annotations

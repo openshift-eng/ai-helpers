@@ -60,6 +60,14 @@ class FilterOptionalChecksTest(unittest.TestCase):
     def test_gcs_path_rejects_non_prow(self):
         self.assertIsNone(gcs_path_from_link("https://coderabbit.example"))
         self.assertIsNone(gcs_path_from_link(""))
+        self.assertIsNone(
+            gcs_path_from_link("https://evil.example/view/gs/test-platform-results/logs/job/1")
+        )
+        self.assertIsNone(
+            gcs_path_from_link(
+                "http://prow.ci.openshift.org/view/gs/test-platform-results/logs/job/1"
+            )
+        )
 
     def test_prowjob_json_urls(self):
         urls = prowjob_json_urls(PROW_LINK)
