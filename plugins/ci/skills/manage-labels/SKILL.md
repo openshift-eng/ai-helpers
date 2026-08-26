@@ -23,7 +23,7 @@ Use this skill when you need to:
 1. **OpenShift CLI Authentication**: Required for authenticating to the sippy-auth API
    - Must be logged into the DPCR cluster via `oc login`
    - Cluster API: `https://api.cr.j7t7.p1.openshiftapps.com:6443`
-   - Use the `oc-auth` skill to obtain the Bearer token
+   - Retrieve the Bearer token from the matching DPCR `oc` context with `oc whoami -t`
 
 2. **Python 3**: Python 3.6 or later
    - Check: `python3 --version`
@@ -33,11 +33,11 @@ Use this skill when you need to:
 
 ### Step 1: Obtain Authentication Token
 
-Use the `oc-auth` skill to obtain a Bearer token from the DPCR cluster:
+Obtain a Bearer token directly from the matching DPCR `oc` context:
 
 ```bash
 # Get token from the DPCR cluster context
-# The oc-auth skill's curl_with_token.sh uses this cluster for sippy-auth
+# Match the context by server so another active cluster is not used accidentally
 DPCR_CLUSTER="https://api.cr.j7t7.p1.openshiftapps.com:6443"
 
 # Find the oc context for the DPCR cluster and get the token
@@ -105,7 +105,7 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
 - `action`: `create`, `update`, or `delete` (positional, required)
 
 **Options**:
-- `--token <token>`: Bearer token from the oc-auth skill (optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
+- `--token <token>`: Bearer token from the DPCR cluster (optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
 - `--id <id>`: Label ID (required for update/delete; optional for create)
 - `--title <text>`: Human-readable label title (required for create)
 - `--explanation <text>`: Markdown explanation of the label
@@ -133,7 +133,7 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
 
 ## Error Handling
 
-- **401/403**: Token missing or expired — refresh it via the `oc-auth` skill.
+- **401/403**: Token missing or expired — log in to DPCR again and refresh `SIPPY_TOKEN`.
 - **501**: You hit the read-only Sippy instance with a write; make sure the sippy-auth base URL is used (the script already does).
 - **400**: Server-side validation failure — the server's message is shown in the `detail` field of the output.
 - **Client-side validation**: Missing title, over-long ID, or invalid `hide_display_contexts` values are caught locally and reported before any request is sent (exit 1).
@@ -145,6 +145,5 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
 
 ## See Also
 
-- Related Skill: `oc-auth` (provides authentication tokens for sippy-auth)
 - Related Skill: `list-symptoms` (list/inspect labels and symptoms, no auth needed)
 - Related Skill: `manage-symptoms` (create/update/delete symptoms that apply labels)

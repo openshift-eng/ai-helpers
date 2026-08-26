@@ -538,7 +538,7 @@ Then tell the user:
    - Path to each saved file
    - Brief text summary (number of failures, new vs persistent, key candidate PRs)
    - Whether the adversarial review changed any conclusions
-   - Mention that `/ci:payload-revert` and `/ci:payload-experiment` can consume the YAML for automated actions
+   - Mention that `/ci:revert-pr <pr-url> <jira-ticket>` handles confirmed candidates and `/ci:payload-experiment` can consume the YAML for medium-confidence candidates
 
 ## Error Handling
 
@@ -577,5 +577,5 @@ Note: PR diff data not available in snapshot. Scoring based on component match a
 - Related Skill: `payload-results-yaml` — schema for the results YAML
 - Related Skill: `payload-autodl-json` — schema for the autodl JSON data file
 - Related Skill: `prow-job-analysis` — deep test/install failure investigation (used by subagents)
-- Related Command: `/ci:payload-revert` — stages reverts for high-confidence candidates
+- Related Skill: `/ci:revert-pr` — creates a revert for an individual confirmed candidate
 - Related Command: `/ci:payload-experiment` — tests medium-confidence candidates experimentally

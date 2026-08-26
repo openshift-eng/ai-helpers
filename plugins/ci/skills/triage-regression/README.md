@@ -9,14 +9,14 @@ This skill creates or updates triage records via the Sippy API. It links one or 
 Key features:
 - Create a new triage for one or more regressions
 - Update an existing triage to change details or add regressions
-- Authenticates to sippy-auth using a Bearer token from the DPCR cluster (via oc-auth skill)
+- Authenticates to sippy-auth using a Bearer token from the DPCR cluster
 - Validates triage type locally before calling the API
 - Supports `product`, `test`, `ci-infra`, and `product-infra` triage types
 
 ## Usage
 
 ```bash
-# Obtain token using oc-auth skill (DPCR cluster)
+# Obtain a token from the matching DPCR oc context
 TOKEN=$(oc whoami -t --context=<dpcr-context>)
 
 # Create a new triage for a single regression
@@ -52,7 +52,7 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 - `regression_ids`: Comma-separated list of regression IDs (integers)
 
 **Required Options**:
-- `--token <token>`: OAuth Bearer token for sippy-auth (use oc-auth skill to obtain from DPCR cluster)
+- `--token <token>`: OAuth Bearer token obtained from the DPCR cluster
 - `--url <jira_url>`: JIRA bug URL (required for create, optional for update - uses existing value)
 - `--type <triage_type>`: Triage type: `product`, `test`, `ci-infra`, `product-infra` (required for create, optional for update - uses existing value)
 
@@ -97,11 +97,10 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 
 ## Authentication
 
-This skill authenticates to `https://sippy-auth.dptools.openshift.org` using a Bearer token from the DPCR cluster (`api.cr.j7t7.p1.openshiftapps.com:6443`). Use the `oc-auth` skill to obtain the token. You must be logged into the DPCR cluster via `oc login`.
+This skill authenticates to `https://sippy-auth.dptools.openshift.org` using a Bearer token from the DPCR cluster (`api.cr.j7t7.p1.openshiftapps.com:6443`). Obtain it with `oc whoami -t` from the matching DPCR context. You must be logged into the DPCR cluster via `oc login`.
 
 ## See Also
 
 - [SKILL.md](SKILL.md) - Complete implementation guide
-- Related: `oc-auth` skill (provides authentication tokens for sippy-auth)
 - Related: `fetch-regression-details` skill (provides regression IDs and existing triage info)
 - Related: `/ci:analyze-regression` command (analyzes regressions and suggests triage)

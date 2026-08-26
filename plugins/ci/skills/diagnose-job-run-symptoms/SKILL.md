@@ -24,7 +24,7 @@ Use this skill when:
 2. **Deep mode** (`--deep`, server-side dry-run rescan): a Bearer token from the DPCR cluster.
    - Must be logged into the DPCR cluster via `oc login`
    - Cluster API: `https://api.cr.j7t7.p1.openshiftapps.com:6443`
-   - Use the `oc-auth` skill to obtain the token (see the token-acquisition snippet in `reevaluate-job-runs/SKILL.md`); prefer `export SIPPY_TOKEN=...` over `--token` — argv is visible in process listings
+   - Follow the token-acquisition snippet in `reevaluate-job-runs/SKILL.md` to retrieve it from the matching DPCR `oc` context; prefer `export SIPPY_TOKEN=...` over `--token` — argv is visible in process listings
 
 3. **Python 3**: Python 3.6 or later, standard library only.
 
@@ -59,7 +59,7 @@ If default mode finds no labels, first suggest `--deep`: the run may simply neve
 
 **Options**:
 - `--deep`: Server-side dry-run rescan via the reevaluate API (requires a token)
-- `--token <token>`: Bearer token from the oc-auth skill (only needed with `--deep`; optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
+- `--token <token>`: Bearer token from the DPCR cluster (only needed with `--deep`; optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
 - `--format json|summary`: Output format (default: summary)
 
 ## API Details
@@ -92,7 +92,7 @@ The script also cross-references `GET /api/jobs/labels` and `GET /api/jobs/sympt
 - **Bad / non-Prow URL**: Must contain `/view/gs/` and end in a numeric build ID (exit 1 client-side).
 - **GCS 404 or no `job_labels` artifacts**: The run may be too old (artifacts pruned) or was never scanned — suggest `--deep` to rescan server-side.
 - **No labels found**: Not an error — the script prints guidance (try `--deep` first, then create a new symptom via `manage-symptoms`).
-- **401/403 or HTML login page in deep mode**: Token missing/expired (the SSO proxy may return a login page instead of 401) — refresh via the `oc-auth` skill.
+- **401/403 or HTML login page in deep mode**: Token missing/expired (the SSO proxy may return a login page instead of 401) — log in to DPCR again and refresh `SIPPY_TOKEN`.
 - **HTML gateway error page or non-JSON body in deep mode**: Transient gateway error (likely 504) — retry later.
 - **Sippy API unreachable**: exit 1 with a clear message.
 
@@ -105,5 +105,4 @@ The script also cross-references `GET /api/jobs/labels` and `GET /api/jobs/sympt
 - Related Skill: `list-symptoms` (browse/search the symptom and label catalogs)
 - Related Skill: `manage-symptoms` (create a new symptom when nothing matched)
 - Related Skill: `reevaluate-job-runs` (apply symptoms retroactively to past runs)
-- Related Skill: `oc-auth` (token for deep mode)
 - Related Skill: `prow-job-analyze-test-failure` (deeper manual failure analysis)

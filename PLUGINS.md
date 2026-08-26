@@ -64,9 +64,7 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:analyze-disruption` `<prowjob-url-1> [prowjob-url-2 ...] [--backends backend1,backend2,...]`** - Analyze and compare disruption across one or more Prow CI job runs
 - **`/ci:analyze-payload` `<payload-tag> [--lookback N]`** - Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures
 - **`/ci:analyze-pr-reverts` `[limit]`** - Analyze recent PR reverts to identify patterns and recommend preventive measures
-- **`/ci:analyze-prow-job-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
 - **`/ci:analyze-regression` `<regression id>`** - Analyze details about a Component Readiness regression and suggest next steps
-- **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
 - **`/ci:check-if-jira-regression-is-ongoing` `<jira-key-or-url>`** - Check if the regression described in a Jira bug is still ongoing or has resolved
 - **`/ci:continue-session` `<prowjob-url>`** - Download and continue a Claude session from a Prow CI job's artifacts
 - **`/ci:extract-kubeconfig` `<pr-url>`** - Extract kubeconfig from a running CI job in a PR
@@ -74,8 +72,7 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:fetch-test-report` `<test-name> [release]`** - Fetch a test report from Sippy showing pass rates, test ID, and Jira component
 - **`/ci:list-step` `<workflow-or-chain-name>`** - List the step for the given workflow or chain name
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
-- **`/ci:payload-experiment` `<payload-tag>`** - Open draft revert PRs for medium-confidence payload candidates and trigger payload jobs to experimentally determine which PR is causing failures
-- **`/ci:payload-revert` `<payload-tag>`** - Stage reverts for high-confidence payload candidates identified by analyze-payload
+- **`/ci:payload-experiment` `<payload-tag>`** - Experiment with draft reverts for medium-confidence payload candidates using the revert-pr and trigger-payload-job skills
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
 - **`/ci:query-test-result` `<version> <keywords> [sippy-url]`** - Query test results from Sippy by version and test keywords
 - **`/ci:revert-pr` `<pr-url> <jira-ticket>`** - Revert a merged PR that is breaking CI or nightly payloads

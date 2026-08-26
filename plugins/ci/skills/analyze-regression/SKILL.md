@@ -898,7 +898,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
    If the user confirms, use the `triage-regression` skill to update the existing triage:
 
    ```bash
-   # Obtain auth token from DPCR cluster (oc-auth skill)
+   # Obtain auth token from the matching DPCR oc context
    TOKEN=$(oc whoami -t --context="$DPCR_CONTEXT")
 
    # Only pass the new regression IDs to add - the script automatically
@@ -961,7 +961,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
    If the user confirms, use the `triage-regression` skill to create a new triage:
 
    ```bash
-   # Obtain auth token from DPCR cluster (oc-auth skill)
+   # Obtain auth token from the matching DPCR oc context
    TOKEN=$(oc whoami -t --context="$DPCR_CONTEXT")
 
    all_regression_ids="<current_id>,<related_id_1>,<related_id_2>"
@@ -1048,7 +1048,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
    Then use the `triage-regression` skill to triage all regressions to the new bug:
 
    ```bash
-   # Obtain auth token from DPCR cluster (oc-auth skill)
+   # Obtain auth token from the matching DPCR oc context
    TOKEN=$(oc whoami -t --context="$DPCR_CONTEXT")
 
    all_regression_ids="<current_id>,<related_id_1>,<related_id_2>"
@@ -1266,7 +1266,7 @@ After the report, the command offers to triage based on findings:
 - **No bug found**: Offers to create a new JIRA bug (with test details report link) and triage all related regressions to it
 - **Already triaged**: No triage action offered (JIRA progress shown instead)
 
-Uses the `triage-regression` skill with authentication via the `oc-auth` skill (DPCR cluster).
+Uses the `triage-regression` skill with a Bearer token obtained from the matching DPCR `oc` context.
 
 ## Arguments
 
@@ -1331,7 +1331,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
   - `triage-regression`: Creates or updates triage records linking regressions to JIRA bugs
   - `add-jira-triage-link`: Adds the triage record link to the JIRA issue description after triaging
   - `set-release-blocker`: Sets the Release Blocker field to "Approved" on filed JIRA bugs
-  - `oc-auth`: Provides authentication tokens for sippy-auth API
+  - DPCR `oc` context: Provides authentication tokens for the sippy-auth API
   - `prow-job-analysis`: Analyzes GCS artifacts for individual failed install runs (used only when test name contains "install should succeed")
 - The regression details skill groups failed jobs by job name and provides pass sequences for pattern analysis
 - The regression data includes a `job_runs` array with all job runs where the failure was observed across the regression's entire life — use this for start date analysis, mass failure detection, and linking related regressions
@@ -1358,7 +1358,6 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - Related Skill: `triage-regression` - Creates or updates triage records (`plugins/ci/skills/triage-regression/SKILL.md`)
 - Related Skill: `add-jira-triage-link` - Adds triage record link to JIRA issue description (`plugins/ci/skills/add-jira-triage-link/SKILL.md`)
 - Related Skill: `set-release-blocker` - Sets Release Blocker field on JIRA bugs (`plugins/ci/skills/set-release-blocker/SKILL.md`)
-- Related Skill: `oc-auth` - Authentication tokens for sippy-auth (`plugins/ci/skills/oc-auth/SKILL.md`)
 - Related Skill: `prow-job-analysis` - Deep per-run install failure analysis via GCS artifacts (`plugins/ci/skills/prow-job-analysis/SKILL.md`)
 - Related Command: `/component-health:list-regressions` (for bulk regression data)
 - Related Command: `/component-health:analyze-regressions` (for overall component health)

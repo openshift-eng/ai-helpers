@@ -20,7 +20,7 @@ Use this skill when you need to:
 1. **OpenShift CLI Authentication**: Required for authenticating to the sippy-auth API
    - Must be logged into the DPCR cluster via `oc login`
    - Cluster API: `https://api.cr.j7t7.p1.openshiftapps.com:6443`
-   - Use the `oc-auth` skill to obtain the Bearer token
+   - Retrieve the Bearer token from the matching DPCR `oc` context with `oc whoami -t`
 
 2. **Python 3**: Python 3.6 or later
    - Check: `python3 --version`
@@ -35,11 +35,11 @@ Use this skill when you need to:
 
 ### Step 1: Obtain Authentication Token
 
-Use the `oc-auth` skill to obtain a Bearer token from the DPCR cluster:
+Obtain a Bearer token directly from the matching DPCR `oc` context:
 
 ```bash
 # Get token from the DPCR cluster context
-# The oc-auth skill's curl_with_token.sh uses this cluster for sippy-auth
+# Match the context by server so another active cluster is not used accidentally
 DPCR_CLUSTER="https://api.cr.j7t7.p1.openshiftapps.com:6443"
 
 # Find the oc context for the DPCR cluster and get the token
@@ -95,7 +95,7 @@ python3 "$script_path" 33639,33640,33641,33642 \
 - `regression_ids`: Required comma-separated list of regression IDs (integers)
 
 **Required Options**:
-- `--token <token>`: OAuth Bearer token for sippy-auth (obtained from oc-auth skill)
+- `--token <token>`: OAuth Bearer token obtained from the DPCR cluster
 - `--url <jira_url>`: JIRA bug URL (required for create, optional for update - uses existing value)
 - `--type <triage_type>`: Triage type: `product`, `test`, `ci-infra`, `product-infra` (required for create, optional for update - uses existing value)
 
@@ -303,7 +303,7 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 
 - Uses only Python standard library - no external dependencies required
 - Authenticates to `https://sippy-auth.dptools.openshift.org` using a Bearer token from the DPCR cluster
-- Use the `oc-auth` skill to obtain the token (requires `oc login` to DPCR cluster)
+- Obtain the token with `oc whoami -t` from the matching DPCR context (requires `oc login` to DPCR)
 - Validates triage type locally before making the API call
 - When creating, do not provide `--triage-id`; when updating, `--triage-id` is required
 - The API will validate that all regression IDs exist and return an error if any are missing
@@ -312,6 +312,5 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 
 ## See Also
 
-- Related Skill: `oc-auth` (provides authentication tokens for sippy-auth)
 - Related Skill: `fetch-regression-details` (provides regression IDs and existing triage info)
 - Related Command: `/ci:analyze-regression` (analyzes regressions and suggests triage)

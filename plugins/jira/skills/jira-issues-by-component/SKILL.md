@@ -202,6 +202,5 @@ This approach:
 
 ## See Also
 
-- [oc auth skill](../../../ci/skills/oc-auth/README.md) - Similar pattern for OpenShift authentication
 - [jira:issues-by-component command](../../skills/issues-by-component/SKILL.md) - Command that uses this skill
 - [CLAUDE.md](../../../../CLAUDE.md) - Plugin development guide

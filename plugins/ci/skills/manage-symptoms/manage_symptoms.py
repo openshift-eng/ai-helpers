@@ -104,7 +104,7 @@ def request(method, url, token, payload=None):
         if e.code == 501:
             hint = " (write endpoints are disabled on this instance; make sure you are using sippy-auth)"
         elif e.code in (401, 403):
-            hint = " (token missing/expired; use the oc-auth skill to obtain a fresh token)"
+            hint = " (token missing/expired; log in to DPCR and refresh SIPPY_TOKEN)"
         return {"success": False, "error": "HTTP %d: %s%s" % (e.code, e.reason, hint), "detail": detail}
     except urllib.error.URLError as e:
         return {"success": False, "error": "Failed to connect: %s" % e.reason}
@@ -113,7 +113,7 @@ def request(method, url, token, payload=None):
 def main():
     p = argparse.ArgumentParser(description="Create/update/delete Sippy symptoms")
     p.add_argument("action", choices=["create", "update", "delete"])
-    p.add_argument("--token", help="Bearer token (or set SIPPY_TOKEN env var, preferred; use oc-auth skill)")
+    p.add_argument("--token", help="DPCR Bearer token (or set SIPPY_TOKEN env var, preferred)")
     p.add_argument("--id", help="Symptom ID (required for update/delete; server-generated on create)")
     p.add_argument("--summary", help="Short unique description (required for create, max 200 chars)")
     p.add_argument("--matcher-type", choices=list(VALID_MATCHERS),
@@ -130,7 +130,7 @@ def main():
     token = resolve_token(args.token)
     if not token:
         print("Error: no token provided — pass --token or set the SIPPY_TOKEN "
-              "environment variable (preferred; use the oc-auth skill to obtain "
+              "environment variable (preferred; obtain it from the matching DPCR oc context "
               "one)", file=sys.stderr)
         return 1
 

@@ -21,7 +21,7 @@ The `query-job-status` command queries the status of a gangway job execution via
 The command accepts:
 - Execution ID (required, UUID returned when triggering a job)
 
-It makes a GET request to the gangway API and returns the current status of the job including its name, type, status, and GCS path to artifacts if available. The `curl_with_token.sh` wrapper handles all authentication automatically.
+It makes an authenticated GET request to the gangway API and returns the current status of the job including its name, type, status, and GCS path to artifacts if available.
 
 ## Implementation
 
@@ -30,14 +30,18 @@ The command performs the following steps:
 1. **Parse Arguments**:
    - $1: execution ID (required, UUID format)
 
-2. **Execute API Request**: Make a GET request to query the job status using the `oc-auth` skill's curl wrapper:
+2. **Execute API Request**: Locate the app.ci context, retrieve its token, and query the job status:
    ```bash
-   # Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
-   # app.ci cluster API: https://api.ci.l2s4.p1.openshiftapps.com:6443
-   curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -X GET \
+   APP_CI_CONTEXT=$(oc config get-contexts -o name | while read -r context; do
+     server=$(oc --context="$context" whoami --show-server 2>/dev/null || true)
+     [ "$server" = "https://api.ci.l2s4.p1.openshiftapps.com:6443" ] && { echo "$context"; break; }
+   done)
+   [ -n "$APP_CI_CONTEXT" ] || { echo "Log in to the app.ci cluster first" >&2; exit 1; }
+   APP_CI_TOKEN=$(oc --context="$APP_CI_CONTEXT" whoami -t)
+   curl -H "Authorization: Bearer $APP_CI_TOKEN" -X GET \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions/<EXECUTION_ID>
    ```
-   The `curl_with_token.sh` wrapper retrieves the OAuth token from the app.ci cluster and adds it as an Authorization header automatically, without exposing the token.
+   Do not print or persist `APP_CI_TOKEN`; unset it when the workflow finishes.
 
 3. **Display Results**: Parse and present the JSON response with:
    - `id`: The execution ID
@@ -69,14 +73,13 @@ The command performs the following steps:
 - **Error**: HTTP error, authentication failure, or invalid execution ID
 
 **Important for Claude**:
-1. **REQUIRED**: Before executing this command, you MUST ensure the `ci:oc-auth` skill is loaded by invoking it with the Skill tool. The curl_with_token.sh script depends on this skill being active.
-2. You must locate and verify curl_with_token.sh before running it, you (Claude Code) have a bug that tries to use the script from the wrong directory!
-3. Parse the JSON response and present it in a readable format
-4. Highlight the job status prominently
-5. **Always derive and display the Prow URL** when `gcs_path` is available
-6. If `gcs_path` is missing and job is not terminal, **poll automatically** — do not just offer to check again
-7. If PENDING with Prow URL, provide the link — PENDING means the job is actively running
-8. If SUCCESS/FAILURE, indicate completion status and provide the Prow link
+1. Verify that the selected `oc` context points to the app.ci API before retrieving its token.
+2. Parse the JSON response and present it in a readable format.
+3. Highlight the job status prominently.
+4. **Always derive and display the Prow URL** when `gcs_path` is available.
+5. If `gcs_path` is missing and job is not terminal, **poll automatically** — do not just offer to check again.
+6. If PENDING with Prow URL, provide the link — PENDING means the job is actively running.
+7. If SUCCESS/FAILURE, indicate completion status and provide the Prow link.
 
 ## Examples
 

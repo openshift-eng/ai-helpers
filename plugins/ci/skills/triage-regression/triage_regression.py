@@ -276,7 +276,7 @@ def main():
         print("  regression_ids   Comma-separated list of regression IDs", file=sys.stderr)
         print("", file=sys.stderr)
         print("Required Options:", file=sys.stderr)
-        print("  --token <token>        OAuth Bearer token for sippy-auth (use oc-auth skill to obtain)", file=sys.stderr)
+        print("  --token <token>        OAuth Bearer token obtained from the DPCR cluster", file=sys.stderr)
         print("  --url <jira_url>       JIRA bug URL (e.g., https://redhat.atlassian.net/browse/OCPBUGS-12345)", file=sys.stderr)
         print("  --type <triage_type>   Triage type: product, test, ci-infra, product-infra", file=sys.stderr)
         print("", file=sys.stderr)
@@ -348,7 +348,7 @@ def main():
 
     # Validate required options
     if not token:
-        print("Error: --token is required (use oc-auth skill to obtain token from DPCR cluster)", file=sys.stderr)
+        print("Error: --token is required (obtain it from the matching DPCR oc context)", file=sys.stderr)
         sys.exit(1)
     if triage_id is None:
         # Creating: url and type are required

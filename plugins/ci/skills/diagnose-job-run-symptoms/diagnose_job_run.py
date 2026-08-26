@@ -87,7 +87,7 @@ def classify_response(body):
     if body.lstrip().startswith("<"):
         if "log in" in body.lower():
             return None, ("got an SSO login page instead of JSON — token is "
-                          "missing/expired; use the oc-auth skill to refresh it")
+                          "missing/expired; log in to DPCR and refresh SIPPY_TOKEN")
         return None, "gateway returned an HTML error page (likely 504 timeout); retry later"
     try:
         return json.loads(body), None
@@ -128,14 +128,14 @@ def main():
     p.add_argument("--deep", action="store_true",
                    help="Server-side dry-run rescan via the reevaluate API (requires --token)")
     p.add_argument("--token", help="Bearer token, required with --deep "
-                   "(or set SIPPY_TOKEN env var, preferred; use oc-auth skill)")
+                   "(or set SIPPY_TOKEN env var, preferred)")
     p.add_argument("--format", choices=["json", "summary"], default="summary")
     args = p.parse_args()
 
     token = resolve_token(args.token)
     if args.deep and not token:
         print("Error: --deep requires a token — pass --token or set the SIPPY_TOKEN "
-              "environment variable (preferred; use the oc-auth skill to obtain "
+              "environment variable (preferred; obtain it from the matching DPCR oc context "
               "one)", file=sys.stderr)
         return 1
 
@@ -164,7 +164,7 @@ def main():
             with urllib.request.urlopen(req, timeout=300) as resp:
                 body = resp.read().decode("utf-8")
         except urllib.error.HTTPError as e:
-            hint = " (token expired? use oc-auth)" if e.code in (401, 403) else ""
+            hint = " (token expired? log in to DPCR and refresh SIPPY_TOKEN)" if e.code in (401, 403) else ""
             print("Error: HTTP %d: %s%s" % (e.code, e.reason, hint), file=sys.stderr)
             return 1
         except urllib.error.URLError as e:

@@ -20,7 +20,7 @@ Use this skill when you need to:
 1. **OpenShift CLI Authentication**: Required for authenticating to the sippy-auth API
    - Must be logged into the DPCR cluster via `oc login`
    - Cluster API: `https://api.cr.j7t7.p1.openshiftapps.com:6443`
-   - Use the `oc-auth` skill to obtain the Bearer token
+   - Retrieve the Bearer token from the matching DPCR `oc` context with `oc whoami -t`
 
 2. **Python 3**: Python 3.6 or later
    - Check: `python3 --version`
@@ -50,11 +50,11 @@ If a label is missing, create it first with the `manage-labels` skill. (The scri
 
 ### Step 3: Obtain Authentication Token
 
-Use the `oc-auth` skill to obtain a Bearer token from the DPCR cluster:
+Obtain a Bearer token directly from the matching DPCR `oc` context:
 
 ```bash
 # Get token from the DPCR cluster context
-# The oc-auth skill's curl_with_token.sh uses this cluster for sippy-auth
+# Match the context by server so another active cluster is not used accidentally
 DPCR_CLUSTER="https://api.cr.j7t7.p1.openshiftapps.com:6443"
 
 # Find the oc context for the DPCR cluster and get the token
@@ -133,7 +133,7 @@ Optionally test the symptom against a known-affected run with the `reevaluate-jo
 - `action`: `create`, `update`, or `delete` (positional, required)
 
 **Options**:
-- `--token <token>`: Bearer token from the oc-auth skill (optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
+- `--token <token>`: Bearer token from the DPCR cluster (optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
 - `--id <id>`: Symptom ID (required for update/delete; server-generated on create)
 - `--summary <text>`: Short unique description (required for create, max 200 characters)
 - `--matcher-type string|regex|none|cel`: How the match string is interpreted
@@ -174,7 +174,7 @@ Optionally test the symptom against a known-affected run with the `reevaluate-jo
 
 - **Client-side validation**: Missing summary, over-long summary, invalid matcher type, or missing file_pattern/match_string for the chosen matcher are caught locally before any request (exit 1).
 - **Label not found**: If a `--label-ids` value does not exist, validation fails and points you to the `manage-labels` skill to create it first.
-- **401/403**: Token missing or expired — refresh it via the `oc-auth` skill.
+- **401/403**: Token missing or expired — log in to DPCR again and refresh `SIPPY_TOKEN`.
 - **501**: You hit the read-only Sippy instance with a write; make sure the sippy-auth base URL is used (the script already does).
 - **400**: Server-side validation failure — the server's message is shown in the `detail` field of the output.
 - **Concurrent edits**: The update flow is read-merge-replace with no server-side concurrency control, so near-simultaneous edits can overwrite each other — re-check the symptom after updating if others may be editing.
@@ -185,7 +185,6 @@ Optionally test the symptom against a known-affected run with the `reevaluate-jo
 
 ## See Also
 
-- Related Skill: `oc-auth` (provides authentication tokens for sippy-auth)
 - Related Skill: `list-symptoms` (search/inspect symptoms and labels, no auth needed)
 - Related Skill: `manage-labels` (create labels before symptoms reference them)
 - Related Skill: `reevaluate-job-runs` (apply or preview symptoms on past runs)

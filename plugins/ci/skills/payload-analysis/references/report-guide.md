@@ -25,7 +25,7 @@ Every score uses the tier classes: `score-high` (>= 85), `score-medium` (50-84),
 
 Placed immediately after the executive summary, before the blocking-jobs summary:
 
-- `revert-verdict` — include when revert candidates exist (score >= 85). One `revert-row` per candidate. Keep the `/ci:payload-revert {payload_tag}` copy block.
+- `revert-verdict` — include when revert candidates exist (score >= 85). One `revert-row` per candidate. Keep the guidance to run `/ci:revert-pr <pr-url> <jira-ticket>` for each confirmed candidate.
 - `no-revert-verdict` — include when there are no revert candidates. Exactly one of these two blocks appears.
 - `force-accept-verdict` — include only when Step 6.4 recommends force-accept.
 

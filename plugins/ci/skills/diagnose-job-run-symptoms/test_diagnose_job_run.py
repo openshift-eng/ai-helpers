@@ -33,7 +33,7 @@ def test_parse_url_with_query_string_and_fragment():
 
 def test_classify_response_login_page():
     _, err = classify_response("<html><body>Please Log in to continue</body></html>")
-    assert err and "oc-auth" in err
+    assert err and "DPCR" in err
 
 def test_classify_response_other_html():
     _, err = classify_response("<html>504 Gateway Time-out</html>")

@@ -137,7 +137,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 2. **Empty/missing values** are empty strings (`""`). For int64 fields with no value, use `"0"`.
 3. **`is_new_failure`**: `"1"` for true, `"0"` for false.
 4. **`candidate_confidence_score`**: Integer 0-100, e.g. `"95"`. `"0"` when no candidate.
-5. **`revert_pr_url`**: URL of the revert PR — either a pre-existing revert discovered during analysis, or one created by `stage-payload-reverts`. `""` if no revert exists.
+5. **`revert_pr_url`**: URL of the revert PR — either a pre-existing revert discovered during analysis, or one created with `revert-pr`. `""` if no revert exists.
 6. **`revert_pr_status`**: `"open"`, `"merged"`, `"draft"`, `"closed"`, or `""` if no revert.
 7. **`schema_mapping`** is always `null`.
 8. **`chunk_size`**, **`expiration_days`**, and **`partition_column`** are always `0`, `0`, and `""`.
@@ -197,13 +197,13 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 
 Generate the full autodl JSON file with all rows populated from the analysis results. Each failed blocking job produces at least one row. Candidate fields are populated when a PR is correlated to the failure, otherwise they are empty strings / `"0"`.
 
-### Update Revert Status (used by `stage-payload-reverts`)
+### Update Revert Status
 
-After staging reverts, find rows matching `candidate_pr_url` and set:
+After creating a revert with `revert-pr`, find rows matching `candidate_pr_url` and set:
 - `revert_pr_url`: URL of the revert PR (created or pre-existing)
 - `revert_pr_status`: `"open"` (or `"draft"` if draft)
 
-### Update Experiment Status (used by `payload-experimental-reverts`)
+### Update Experiment Status
 
 **Phase 1 (dispatch):** After creating draft revert PRs, find rows matching `candidate_pr_url` and set:
 - `revert_pr_url`: URL of the draft revert PR
@@ -216,6 +216,6 @@ After staging reverts, find rows matching `candidate_pr_url` and set:
 ## See Also
 
 - Related Skill: `payload-analysis` — creates this file in Step 8
-- Related Skill: `stage-payload-reverts` — updates revert fields after staging reverts
-- Related Skill: `payload-experimental-reverts` — updates revert fields after experiments
+- Related Skill: `revert-pr` — creates reverts for confirmed candidates
+- Related Skill: `payload-experiment` — updates revert fields after experiments
 - Related Skill: `payload-results-yaml` — the YAML results file for downstream agentic actions
