@@ -1,6 +1,9 @@
 ---
 name: revert-pr
-description: Git revert workflow and Revertomatic PR template for reverting merged PRs
+description: "Revert a merged PR that is breaking CI or nightly payloads"
+argument-hint: "<pr-url> <jira-ticket>"
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # Revert PR
@@ -466,7 +469,7 @@ CC: @originalauthor
 
 ## See Also
 
-- Related Command: `/ci:revert-pr` - The user-facing command that uses this skill (`plugins/ci/commands/revert-pr.md`)
+- Related Command: `/ci:revert-pr` - The user-facing command that uses this skill (`plugins/ci/skills/revert-pr/SKILL.md`)
 - Related Skill: `fetch-jira-issue` - Fetches JIRA issue details for automatic context extraction (`plugins/ci/skills/fetch-jira-issue/SKILL.md`)
 - Revertomatic: https://github.com/stbenjam/revertomatic
 - OpenShift Quick Revert Policy: https://github.com/openshift/enhancements/blob/master/enhancements/release/improving-ci-signal.md#quick-revert

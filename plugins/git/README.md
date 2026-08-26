@@ -2,7 +2,7 @@
 
 Git workflow automation and utilities for Claude Code.
 
-## Commands
+## User-Invocable Skills
 
 ### `/git:bisect`
 
@@ -32,11 +32,10 @@ Adapt and correct a PR description based on code diffs and commit messages.
 
 Generate a summary of git repository changes and activity.
 
-See the [commands/](commands/) directory for full documentation of each command.
+See the [skills/](skills/) directory for full documentation of each skill.
 
 ## Installation
 
 ```bash
 /plugin install git@ai-helpers
 ```
-

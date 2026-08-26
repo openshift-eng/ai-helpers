@@ -102,45 +102,11 @@ rules:
     enabled: true
     severity: error
 
-  # New plugins must use skills instead of commands; existing command plugins are grandfathered.
+  # Plugins must use skills; the per-command allowlist is reserved for explicit exceptions.
   plugin-commands-prohibited:
     enabled: true
     severity: error
-    allowlist:
-      - agendas
-      - agentic-docs
-      - ai-operator-dashboard-generator
-      - bigquery
-      - ci
-      - ci-extras
-      - code-review
-      - compliance
-      - etcd
-      - git
-      - hcp
-      - hello-world
-      - jira
-      - marketplace-ops
-      - must-gather
-      - nid-team
-      - node
-      - node-bug
-      - node-cve
-      - node-onboarding
-      - node-rpm
-      - node-team
-      - node-tuning
-      - olm
-      - olm-team
-      - openshift
-      - openshift-tls-profile
-      - ote-migration
-      - rds-analyzer
-      - snowflake
-      - sosreport
-      - teams
-      - utils
-      - workspaces
+    allowlist: []
 
   # Eval case directories must be named case-NNNN (no answer-leaking slug)
   eval-case-name:

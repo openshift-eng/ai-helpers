@@ -94,7 +94,7 @@ Restart Claude Code after adding the configuration.
 - **Obtaining Snowflake access**: https://dataverse.pages.redhat.com/data-docs/data-users/
 - **Snowflake MCP setup**: https://dataverse.pages.redhat.com/ai-docs/ai-agent-user/snowflake/
 
-## Commands
+## User-Invocable Skills
 
 ### `/snowflake:activity-type-report <projects> [months]`
 

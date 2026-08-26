@@ -1,7 +1,7 @@
 from skillsaw import RepositoryContext
 
 
-def _make_plugin(temp_dir, name, *, with_commands=False):
+def _make_plugin(temp_dir, name, *, commands=()):
     plugin_dir = temp_dir / "plugins" / name
     manifest_dir = plugin_dir / ".claude-plugin"
     manifest_dir.mkdir(parents=True)
@@ -9,12 +9,13 @@ def _make_plugin(temp_dir, name, *, with_commands=False):
         f'{{"name": "{name}", "version": "0.0.1", '
         f'"description": "test", "author": "test"}}'
     )
-    if with_commands:
+    if commands:
         commands_dir = plugin_dir / "commands"
         commands_dir.mkdir()
-        (commands_dir / "test.md").write_text(
-            "---\ndescription: Test command\n---\n\n# Test\n"
-        )
+        for command in commands:
+            (commands_dir / f"{command}.md").write_text(
+                "---\ndescription: Test command\n---\n\n# Test\n"
+            )
     return plugin_dir
 
 
@@ -29,31 +30,30 @@ class TestPluginCommandsProhibited:
     def test_non_allowlisted_commands_are_prohibited(
         self, temp_dir, plugin_commands_rule
     ):
-        plugin = _make_plugin(temp_dir, "new-plugin", with_commands=True)
+        plugin = _make_plugin(temp_dir, "new-plugin", commands=("test",))
 
         violations = plugin_commands_rule().check(RepositoryContext(temp_dir))
 
         assert len(violations) == 1
-        assert violations[0].file_path == plugin / "commands"
-        assert "new-plugin" in violations[0].message
-        assert "non-allowlisted commands directory" in violations[0].message
+        assert violations[0].file_path == plugin / "commands" / "test.md"
+        assert "new-plugin:test" in violations[0].message
+        assert "new plugin commands are prohibited" in violations[0].message
 
     def test_allowlisted_commands_are_valid(self, temp_dir, plugin_commands_rule):
-        _make_plugin(temp_dir, "grandfathered", with_commands=True)
-        rule = plugin_commands_rule({"allowlist": ["grandfathered"]})
+        _make_plugin(temp_dir, "grandfathered", commands=("existing",))
+        rule = plugin_commands_rule({"allowlist": ["grandfathered:existing"]})
 
         violations = rule.check(RepositoryContext(temp_dir))
 
         assert violations == []
 
-    def test_allowlist_only_exempts_named_plugin(
+    def test_new_command_in_same_plugin_is_prohibited(
         self, temp_dir, plugin_commands_rule
     ):
-        _make_plugin(temp_dir, "grandfathered", with_commands=True)
-        _make_plugin(temp_dir, "new-plugin", with_commands=True)
-        rule = plugin_commands_rule({"allowlist": ["grandfathered"]})
+        _make_plugin(temp_dir, "grandfathered", commands=("existing", "new"))
+        rule = plugin_commands_rule({"allowlist": ["grandfathered:existing"]})
 
         violations = rule.check(RepositoryContext(temp_dir))
 
         assert len(violations) == 1
-        assert "new-plugin" in violations[0].message
+        assert "grandfathered:new" in violations[0].message

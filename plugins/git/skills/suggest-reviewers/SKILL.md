@@ -1,69 +1,130 @@
 ---
 name: suggest-reviewers
-description: Git blame analysis helper for the suggest-reviewers command
+description: "Suggest appropriate reviewers for a PR based on git blame and OWNERS files"
+argument-hint: "[base-branch]"
+user-invocable: true
+disable-model-invocation: true
 ---
 
-# Suggest Reviewers Helper
+## Name
+git:suggest-reviewers
 
-This skill provides a Python helper script that analyzes git blame data for the `/git:suggest-reviewers` command. The script handles the complex task of identifying which lines were changed and who authored the original code.
+## Synopsis
+```
+/git:suggest-reviewers [base-branch]
+```
 
-## When to Use This Skill
+## Description
+The `git:suggest-reviewers` command analyzes changed files and suggests the most appropriate reviewers for a pull request. It works with both committed changes on feature branches and uncommitted changes (even on the main branch), making it useful before you've created a branch or made any commits. It prioritizes developers who have actually contributed to the code being modified, using git blame data as the primary signal and OWNERS files as supporting information.
 
-Use this skill when implementing the `/git:suggest-reviewers` command. The helper script should be invoked during Step 3 of the command implementation (analyzing git blame for changed lines).
+The command performs the following analysis:
+- Identifies all files changed (both committed and uncommitted changes)
+- Runs git blame on changed lines to find recent and frequent contributors
+- Searches for OWNERS files in the directories of changed files (and parent directories)
+- Aggregates and ranks potential reviewers based on:
+  - Frequency and recency of contributions to modified code (highest priority)
+  - Presence in OWNERS files (secondary consideration)
+- Outputs a prioritized list of suggested reviewers
 
-**DO NOT implement git blame analysis manually** - always use the provided `analyze_blame.py` script.
+This command is particularly useful for large codebases with distributed ownership where choosing the right reviewer can be challenging. You can use it at any stage of development - from uncommitted local changes to a complete feature branch ready for PR.
 
-## Prerequisites
+## Implementation
 
-- Python 3.6 or higher
-- Git repository with commit history
-- Git CLI available in PATH
+### Step 1: Determine the base branch
+- If `base-branch` argument is provided, use it
+- Otherwise, detect the main branch (usually `main` or `master`)
+- Verify the base branch exists
 
-## Helper Script: analyze_blame.py
+```bash
+# Detect main branch if not provided
+git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'
+```
 
-The `analyze_blame.py` script automates the complex process of:
-1. Parsing git diff output to identify specific line ranges that were modified
-2. Running git blame on only the changed line ranges (not entire files)
-3. Extracting and aggregating author information with statistics
-4. Filtering out bot accounts automatically
+### Step 2: Get changed files
+- Determine the current branch name
+- Detect if we're on the base branch (main/master) or a feature branch
+- Detect if there are uncommitted changes (staged or unstaged)
+- List all modified, added, or renamed files based on the scenario
+- Exclude deleted files (no one to blame)
 
-### Usage
+**Scenario detection:**
+```bash
+# Get current branch
+current_branch=$(git branch --show-current)
+
+# Check if on base branch
+if [ "$current_branch" = "$base_branch" ]; then
+  on_base_branch=true
+else
+  on_base_branch=false
+fi
+
+# Check for uncommitted changes
+has_uncommitted=$(git status --short | grep -v '^??' | wc -l)
+```
+
+**Case 1: On base branch (main/master) with uncommitted changes**
+```bash
+# Get staged changes
+git diff --name-only --diff-filter=d --cached
+
+# Get unstaged changes
+git diff --name-only --diff-filter=d
+
+# Combine and deduplicate
+```
+
+**Case 2: On feature branch with only committed changes**
+```bash
+# Get all changes from base branch to HEAD
+git diff --name-only --diff-filter=d ${base_branch}...HEAD
+```
+
+**Case 3: On feature branch with committed + uncommitted changes**
+```bash
+# Get committed changes
+git diff --name-only --diff-filter=d ${base_branch}...HEAD
+
+# Get uncommitted changes
+git diff --name-only --diff-filter=d HEAD
+git diff --name-only --diff-filter=d --cached
+
+# Combine and deduplicate all files
+```
+
+**Case 4: On base branch with no changes**
+- Display error: "No changes detected. Please make some changes or switch to a feature branch."
+
+### Step 3: Analyze git blame for changed lines
+
+**IMPORTANT: Use the helper script** `${CLAUDE_PLUGIN_ROOT}/skills/suggest-reviewers/analyze_blame.py` to perform this analysis. Do NOT implement this logic manually.
+
+The script automatically handles:
+- Parsing git diff to identify specific line ranges that were modified
+- Running git blame on those line ranges (not entire files)
+- Extracting and aggregating author information
+- Filtering out bot accounts
 
 **For uncommitted changes:**
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/suggest-reviewers/analyze_blame.py \
   --mode uncommitted \
-  --file path/to/file1.go \
-  --file path/to/file2.py \
+  --file <file1> \
+  --file <file2> \
   --output json
 ```
 
-**For committed changes on a feature branch:**
+**For committed changes on feature branch:**
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/suggest-reviewers/analyze_blame.py \
   --mode committed \
-  --base-branch main \
-  --file path/to/file1.go \
-  --file path/to/file2.py \
+  --base-branch ${base_branch} \
+  --file <file1> \
+  --file <file2> \
   --output json
 ```
 
-### Parameters
-
-- `--mode`: Required. Either `uncommitted` or `committed`
-  - `uncommitted`: Analyzes unstaged/staged changes against HEAD
-  - `committed`: Analyzes committed changes against a base branch
-
-- `--base-branch`: Required when mode is `committed`. The base branch to compare against (e.g., `main`, `master`)
-
-- `--file`: Can be specified multiple times. Each file to analyze for blame information. Only changed files should be passed.
-
-- `--output`: Output format. Default is `json`. Options:
-  - `json`: Machine-readable JSON output
-  - `text`: Human-readable text output
-
-### Output Format (JSON)
-
+**Output format:**
 ```json
 {
   "Author Name": {
@@ -71,277 +132,228 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/suggest-reviewers/analyze_blame.py \
     "most_recent_date": "2024-10-15T14:23:10",
     "files": ["file1.go", "file2.go"],
     "email": "author@example.com"
-  },
-  "Another Author": {
-    "line_count": 23,
-    "most_recent_date": "2024-09-20T09:15:33",
-    "files": ["file3.py"],
-    "email": "another@example.com"
   }
 }
 ```
 
-### Output Fields
+### Step 4: Find OWNERS files
+- For each changed file, search for OWNERS files in:
+  - The same directory
+  - Parent directories up to repository root
+- Parse OWNERS files to extract:
+  - `approvers`: People who can approve changes
+  - `reviewers`: People who can review changes
+- OWNERS file format (YAML):
+  ```yaml
+  approvers:
+    - username1
+    - username2
+  reviewers:
+    - username3
+    - username4
+  ```
 
-- `line_count`: Total number of modified lines authored by this person
-- `most_recent_date`: ISO 8601 timestamp of their most recent contribution to the changed code
-- `files`: Array of files where this author has contributions in the changed lines
-- `email`: Author's email address from git commits
+### Step 5: Aggregate and rank reviewers
+- Combine data from git blame and OWNERS files
+- Rank potential reviewers based on weighted scoring:
+  1. **Lines contributed** (weight: 10) - More lines modified = better knowledge
+  2. **Recency** (weight: 5) - Recent contributions = current knowledge
+  3. **OWNERS approver + contributor** (weight: 3 bonus) - Authority + knowledge
+  4. **OWNERS reviewer + contributor** (weight: 2 bonus) - Review rights + knowledge
+  5. **OWNERS only, no contributions** (weight: 1) - Authority but may lack specific knowledge
+- Exclude the current PR author from suggestions
+- Filter out bot accounts (e.g., "openshift-bot", "k8s-ci-robot", "*[bot]")
+- Normalize scores and sort by total score
 
-### Bot Filtering
+### Step 6: Output results
+- Display reviewers in ranked order
+- Show why each reviewer is suggested (contribution count, recency, OWNERS role)
+- Group by priority tiers based on score ranges
+- Include GitHub usernames if available
+- Show files each reviewer has worked on
 
-The script automatically filters out common bot accounts:
-- GitHub bots (e.g., `dependabot[bot]`, `renovate[bot]`)
-- CI bots (e.g., `openshift-ci-robot`, `k8s-ci-robot`)
-- Generic bot patterns (any name containing `[bot]` or ending in `-bot`)
-
-## Implementation Steps
-
-### Step 1: Collect changed files
-
-Before invoking the script, collect the list of changed files based on the scenario:
-
-**Uncommitted changes:**
-```bash
-# Get staged and unstaged files
-files=$(git diff --name-only --diff-filter=d HEAD)
-files+=" $(git diff --name-only --diff-filter=d --cached)"
-```
-
-**Committed changes:**
-```bash
-# Get files changed from base branch
-files=$(git diff --name-only --diff-filter=d ${base_branch}...HEAD)
-```
-
-### Step 2: Invoke the script
-
-Build the command with the appropriate mode and all changed files:
-
-```bash
-# Start building the command
-cmd="python3 ${CLAUDE_PLUGIN_ROOT}/skills/suggest-reviewers/analyze_blame.py"
-
-# Add mode
-if [ "$has_uncommitted" = true ] || [ "$on_base_branch" = true ]; then
-  cmd="$cmd --mode uncommitted"
-else
-  cmd="$cmd --mode committed --base-branch $base_branch"
-fi
-
-# Add each file
-for file in $files; do
-  cmd="$cmd --file $file"
-done
-
-# Add output format
-cmd="$cmd --output json"
-
-# Execute and capture JSON output
-blame_data=$($cmd)
-```
-
-### Step 3: Parse the output
-
-The JSON output can be parsed using Python, jq, or any JSON parser:
-
-```bash
-# Example using jq to get top contributor
-echo "$blame_data" | jq -r 'to_entries | sort_by(-.value.line_count) | .[0].key'
-
-# Example using Python
-python3 << EOF
-import json
-import sys
-
-data = json.loads('''$blame_data''')
-
-# Sort by line count
-sorted_authors = sorted(data.items(), key=lambda x: x[1]['line_count'], reverse=True)
-
-for author, stats in sorted_authors:
-    print(f"{author}: {stats['line_count']} lines, last modified {stats['most_recent_date']}")
-EOF
-```
-
-### Step 4: Combine with OWNERS data
-
-After getting blame data, merge it with OWNERS file information to produce the final ranked list of reviewers.
-
-## Error Handling
-
-### No changed files
-
-If no files are passed to the script:
-```
-Error: No files specified. Use --file option at least once.
-```
-
-**Resolution:** Ensure you've detected changed files (via `git diff --name-only`) before invoking the script.
-
-### Invalid mode
-
-If an invalid mode is specified:
-```
-Error: Invalid mode 'invalid'. Must be 'uncommitted' or 'committed'.
-```
-
-**Resolution:** Use either `--mode uncommitted` or `--mode committed`.
-
-### Missing base branch in committed mode
-
-If `--mode committed` is used without `--base-branch`:
-```
-Error: --base-branch is required when mode is 'committed'.
-```
-
-**Resolution:** Provide the base branch: `--base-branch main`
-
-### File not in repository
-
-If a specified file is not tracked by git:
-```
-Warning: File 'path/to/file' is not tracked by git, skipping.
-```
-
-**Resolution:** This is a warning and can be safely ignored. The script will skip untracked files.
-
-### No blame data found
-
-If git blame returns no data for any files:
-```json
-{}
-```
-
-**Resolution:** This can happen if:
-- All changed files are newly created (no blame history)
-- All changes are in binary files
-- Git blame is unable to run
-
-In this case, fall back to OWNERS-only suggestions.
+## Return Value
+- **Claude agent text**: Formatted list of suggested reviewers including:
+  - **Primary reviewers**: Major contributors to the modified code
+  - **Secondary reviewers**: Moderate contributors or OWNERS with some contributions
+  - **Additional reviewers**: OWNERS members or minor contributors
+  - Explanation for each suggestion (e.g., "Modified 45 lines across 3 files, last contribution 5 days ago, OWNERS approver")
+  - Summary of analysis (files analyzed, OWNERS files found, total lines changed)
 
 ## Examples
 
-### Example 1: Analyze uncommitted changes
+1. **Basic usage** (auto-detect base branch):
+   ```
+   /git:suggest-reviewers
+   ```
+   Output:
+   ```
+   Analyzed 8 files changed from main (245 lines modified)
+   Found 3 OWNERS files
 
-```bash
-$ python3 analyze_blame.py --mode uncommitted --file src/main.go --file src/utils.go --output json
-{
-  "Alice Developer": {
-    "line_count": 45,
-    "most_recent_date": "2024-10-15T14:23:10",
-    "files": ["src/main.go", "src/utils.go"],
-    "email": "alice@example.com"
-  },
-  "Bob Engineer": {
-    "line_count": 12,
-    "most_recent_date": "2024-09-20T09:15:33",
-    "files": ["src/main.go"],
-    "email": "bob@example.com"
-  }
-}
-```
+   PRIMARY REVIEWERS:
+   - @alice (modified 89 lines across 4 files, last contribution 5 days ago, OWNERS approver)
+   - @bob (modified 67 lines in pkg/controller/manager.go, last contribution 2 weeks ago)
 
-### Example 2: Analyze committed changes on feature branch
+   SECONDARY REVIEWERS:
+   - @charlie (modified 45 lines across 2 files, last contribution 1 month ago, OWNERS reviewer)
+   - @diana (modified 23 lines in pkg/api/handler.go, last contribution 3 weeks ago)
 
-```bash
-$ python3 analyze_blame.py --mode committed --base-branch main --file pkg/controller/manager.go --output json
-{
-  "Charlie Contributor": {
-    "line_count": 78,
-    "most_recent_date": "2024-10-01T11:42:55",
-    "files": ["pkg/controller/manager.go"],
-    "email": "charlie@example.com"
-  }
-}
-```
+   ADDITIONAL REVIEWERS:
+   - @eve (OWNERS approver in pkg/util/, no recent contributions to changed code)
 
-### Example 3: Text output format
+   Recommendation: Add @alice and @bob as reviewers
+   ```
 
-```bash
-$ python3 analyze_blame.py --mode uncommitted --file README.md --output text
+2. **Specify base branch**:
+   ```
+   /git:suggest-reviewers release-4.15
+   ```
+   Output:
+   ```
+   Analyzed 3 files changed from release-4.15 (78 lines modified)
+   Found 2 OWNERS files
 
-Blame Analysis Results:
-=======================
+   PRIMARY REVIEWERS:
+   - @frank (modified 56 lines in vendor/kubernetes/client.go, last contribution 1 week ago, OWNERS approver)
 
-Alice Developer (alice@example.com)
-  Lines: 23
-  Most recent: 2024-10-15T14:23:10
-  Files: README.md
+   SECONDARY REVIEWERS:
+   - @grace (modified 12 lines in vendor/kubernetes/types.go, last contribution 2 months ago)
+   - @henry (OWNERS reviewer in vendor/kubernetes/, contributed to adjacent code 1 month ago)
 
-Bob Engineer (bob@example.com)
-  Lines: 5
-  Most recent: 2024-08-12T16:30:21
-  Files: README.md
-```
+   Recommendation: Add @frank as primary reviewer, @grace as optional
+   ```
 
-### Example 4: Multiple files with mixed results
+3. **No OWNERS files found**:
+   ```
+   /git:suggest-reviewers
+   ```
+   Output:
+   ```
+   Analyzed 5 files changed from main (156 lines modified)
+   No OWNERS files found in modified paths
 
-```bash
-$ python3 analyze_blame.py --mode committed --base-branch release-4.15 \
-    --file vendor/k8s.io/client-go/kubernetes/clientset.go \
-    --file pkg/controller/node.go \
-    --file docs/README.md \
-    --output json
-{
-  "Diana Developer": {
-    "line_count": 156,
-    "most_recent_date": "2024-09-28T13:15:42",
-    "files": ["vendor/k8s.io/client-go/kubernetes/clientset.go", "pkg/controller/node.go"],
-    "email": "diana@example.com"
-  },
-  "Eve Technical Writer": {
-    "line_count": 34,
-    "most_recent_date": "2024-10-10T10:22:18",
-    "files": ["docs/README.md"],
-    "email": "eve@example.com"
-  }
-}
-```
+   SUGGESTED REVIEWERS (based on code contributions):
+   - @isabel (modified 89 lines across 4 files, last contribution 5 days ago)
+   - @jack (modified 34 lines in src/main.ts, last contribution 10 days ago)
+   - @karen (modified 12 lines in src/utils.ts, last contribution 3 months ago)
 
-## Technical Details
+   Note: No OWNERS files found. Consider consulting team leads for additional reviewers.
+   ```
 
-### How the script works
+4. **Single file change**:
+   ```
+   /git:suggest-reviewers
+   ```
+   Output:
+   ```
+   Analyzed 1 file changed from main: src/auth/login.ts (34 lines modified)
+   Found 1 OWNERS file
 
-1. **Determine diff range**: Based on mode, calculates what to compare:
-   - `uncommitted`: Compares working directory against HEAD
-   - `committed`: Compares HEAD against base branch
+   PRIMARY REVIEWERS:
+   - @lisa (modified 28 lines, last contribution 3 weeks ago, OWNERS approver)
 
-2. **Parse diff output**: Runs `git diff` with unified format to identify:
-   - Which files changed
-   - Which line ranges were added/modified
-   - Ignores deleted lines (can't blame what doesn't exist)
+   SECONDARY REVIEWERS:
+   - @mike (modified 6 lines, last contribution 2 months ago, OWNERS reviewer)
 
-3. **Run git blame**: For each file and line range:
-   - Runs `git blame -L start,end --line-porcelain file`
-   - Parses porcelain format to extract author, email, and timestamp
-   - Aggregates data across all changed lines
+   Recommendation: Add @lisa as reviewer
+   ```
 
-4. **Filter and aggregate**:
-   - Removes bot accounts
-   - Groups by author name
-   - Counts total lines per author
-   - Tracks most recent contribution date
-   - Lists all files each author contributed to
+5. **OWNERS members with no contributions**:
+   ```
+   /git:suggest-reviewers
+   ```
+   Output:
+   ```
+   Analyzed 4 files changed from main (112 lines modified)
+   Found 2 OWNERS files
 
-5. **Output results**: Formats as JSON or text based on `--output` parameter
+   PRIMARY REVIEWERS:
+   - @noah (modified 78 lines across 3 files, last contribution 1 week ago)
 
-### Performance considerations
+   SECONDARY REVIEWERS:
+   - @olivia (modified 34 lines in pkg/config/parser.go, last contribution 5 weeks ago)
 
-- Only blames changed line ranges, not entire files (much faster for small changes to large files)
-- Processes files in parallel when possible
-- Caches git commands where appropriate
-- Skips binary files automatically
+   ADDITIONAL REVIEWERS:
+   - @paul (OWNERS approver in pkg/, no contributions to changed code)
+   - @quinn (OWNERS reviewer in pkg/, no contributions to changed code)
 
-## Limitations
+   Recommendation: Add @noah as primary reviewer. OWNERS members @paul and @quinn
+   may provide approval but consider @noah for technical review.
+   ```
 
-- Does not handle file renames/moves (treats as delete + add)
-- Bot filtering is based on common patterns; custom bots may not be filtered
-- Requires git history; newly initialized repos may not have useful data
-- Does not consider commit message content or PR review history
+6. **Uncommitted changes on main branch**:
+   ```
+   /git:suggest-reviewers
+   ```
+   Output:
+   ```
+   Analyzing uncommitted changes on main branch
+   Found 3 modified files (2 staged, 1 unstaged) - 87 lines modified
+   Found 1 OWNERS file
 
-## See Also
+   PRIMARY REVIEWERS:
+   - @rachel (modified 45 lines across 2 files, last contribution 2 weeks ago, OWNERS approver)
+   - @steve (modified 32 lines in src/api/handler.ts, last contribution 1 month ago)
 
-- Main command: `/git:suggest-reviewers` in `plugins/git/commands/suggest-reviewers.md`
-- Git blame documentation: https://git-scm.com/docs/git-blame
-- Git diff documentation: https://git-scm.com/docs/git-diff
+   SECONDARY REVIEWERS:
+   - @tina (modified 10 lines in src/utils/format.ts, last contribution 3 months ago)
+
+   Recommendation: Add @rachel and @steve as reviewers
+
+   Note: These are uncommitted changes. Consider creating a feature branch and committing before creating a PR.
+   ```
+
+7. **Uncommitted changes on feature branch**:
+   ```
+   /git:suggest-reviewers
+   ```
+   Output:
+   ```
+   Analyzing branch feature/add-logging (includes uncommitted changes)
+   - Committed changes from main: 4 files, 156 lines
+   - Uncommitted changes: 2 files, 34 lines
+   Total: 5 unique files, 190 lines modified
+   Found 2 OWNERS files
+
+   PRIMARY REVIEWERS:
+   - @uma (modified 98 lines across 3 files, last contribution 1 week ago, OWNERS reviewer)
+   - @victor (modified 67 lines in pkg/logger/logger.go, last contribution 2 weeks ago)
+
+   SECONDARY REVIEWERS:
+   - @wendy (modified 25 lines in pkg/config/settings.go, last contribution 1 month ago, OWNERS approver)
+
+   Recommendation: Add @uma and @victor as reviewers
+
+   Note: You have uncommitted changes. Consider committing them before creating a PR.
+   ```
+
+8. **No changes detected**:
+   ```
+   /git:suggest-reviewers
+   ```
+   Output:
+   ```
+   Error: No changes detected.
+
+   You are on branch 'main' with no uncommitted changes.
+
+   To use this command:
+   - Make some changes to files (staged or unstaged), or
+   - Switch to a feature branch with committed changes, or
+   - Create a new feature branch with: git checkout -b feature/your-feature-name
+   ```
+
+## Arguments
+- `base-branch` (optional): The base branch to compare against (default: auto-detect main branch, usually `main` or `master`)
+
+## Notes
+- The command analyzes both committed and uncommitted changes
+- Works on any branch, including main/master (analyzes uncommitted changes in this case)
+- For uncommitted changes, git blame is run on HEAD; for committed changes, on the base branch
+- OWNERS files must be in YAML format with `approvers` and/or `reviewers` fields
+- The current user (detected from git config) is automatically excluded from suggestions
+- Reviewers are ranked primarily by their contribution to the specific code being changed
+- OWNERS membership provides a bonus but is not the primary ranking factor
+- If no reviewers are found via git blame, OWNERS members will be suggested as fallback
+- If you're on the base branch with no uncommitted changes, the command will display an error

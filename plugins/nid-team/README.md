@@ -19,7 +19,7 @@ Add to your Claude Code settings:
 }
 ```
 
-## Commands
+## User-Invocable Skills
 
 ### `/nid-team:sync-pr-dashboard`
 
@@ -28,4 +28,3 @@ Syncs the [NI&D PR Review](https://github.com/orgs/openshift/projects/28) GitHub
 ### `/nid-team:nudge-prs` (experimental)
 
 Sends automated reminder comments on high-priority assigned PRs that have had no human activity for a configurable number of days. This command is experimental and may be removed in the future.
-

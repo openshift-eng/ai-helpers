@@ -1,7 +1,7 @@
 {
   "name": "node-rpm",
   "description": "RPM package management for OpenShift Node team components",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "author": {
     "name": "github.com/openshift-eng"
   },

@@ -2,7 +2,7 @@
 
 Generate OpenShift Console operator dashboards from an operator name and cluster CRD discovery. The plugin uses template components (CRD models and list/detail UI) in `skills/dashboard-templates/` as the basis for generated files, adapting API group, version, kind, and column definitions to the target operator.
 
-## Commands
+## User-Invocable Skills
 
 ### `/operator-dashboard:generate-dashboard`
 

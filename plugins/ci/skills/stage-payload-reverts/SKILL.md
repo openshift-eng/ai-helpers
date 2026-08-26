@@ -172,4 +172,4 @@ Return results to the caller for inclusion in the report.
 - Related Skill: `revert-pr` - The git revert workflow (`plugins/ci/skills/revert-pr/SKILL.md`)
 - Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)
 - Related Skill: `payload-analysis` - Identifies revert candidates (`plugins/ci/skills/payload-analysis/SKILL.md`)
-- Related Command: `/ci:payload-revert` - Command for staging reverts (`plugins/ci/commands/payload-revert.md`)
+- Related Command: `/ci:payload-revert` - Command for staging reverts (`plugins/ci/skills/payload-revert/SKILL.md`)

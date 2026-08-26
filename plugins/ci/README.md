@@ -4,7 +4,7 @@ A plugin for working with OpenShift CI infrastructure, providing
 commands to analyze CI workflow,chain or data, investigate failures, and understand
 release quality.
 
-## Commands
+## User-Invocable Skills
 
 ### ask-sippy
 

@@ -1,6 +1,9 @@
 ---
 name: generate-enhancement
-description: Generate OpenShift enhancement proposal markdown from Jira epic or feature content
+description: "Generate OpenShift enhancement proposal markdown from a Jira epic or feature"
+argument-hint: "<issue-key>"
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # Generate Enhancement from Jira Epic or Feature

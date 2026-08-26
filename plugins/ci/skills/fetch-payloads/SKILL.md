@@ -1,6 +1,9 @@
 ---
 name: fetch-payloads
-description: Fetch recent release payloads from the OpenShift release controller
+description: "Fetch recent release payloads from the OpenShift release controller"
+argument-hint: "[architecture] [version] [stream]"
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # Fetch Payloads

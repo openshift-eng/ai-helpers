@@ -6,7 +6,7 @@ Kubernetes and OpenShift node health monitoring and diagnostics.
 
 The Node plugin provides comprehensive health checking and diagnostic capabilities for Kubernetes and OpenShift cluster nodes. It automates the inspection of node-level components including kubelet, CRI-O container runtime, system resources, and node conditions to ensure nodes are functioning properly.
 
-## Commands
+## User-Invocable Skills
 
 ### `/node:cluster-node-health-check`
 
@@ -95,7 +95,7 @@ The command provides:
 - Recommended remediation actions
 - Diagnostic commands for further investigation
 
-See [commands/cluster-node-health-check.md](commands/cluster-node-health-check.md) for detailed documentation.
+See [skills/cluster-node-health-check/SKILL.md](skills/cluster-node-health-check/SKILL.md) for detailed documentation.
 
 ## Prerequisites
 

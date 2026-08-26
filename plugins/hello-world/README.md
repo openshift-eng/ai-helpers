@@ -2,13 +2,13 @@
 
 A reference implementation plugin demonstrating Claude Code plugin structure and conventions.
 
-## Commands
+## User-Invocable Skills
 
 ### `/hello-world:echo`
 
-A simple echo command that demonstrates the proper structure for command definitions.
+A simple echo skill that demonstrates the proper structure for explicit user invocation.
 
-This plugin serves as a template for creating new plugins. See [commands/echo.md](commands/echo.md) for the complete command format that follows the conventions defined in AGENTS.md.
+This plugin serves as a template for creating new plugins. See [skills/echo/SKILL.md](skills/echo/SKILL.md) for the complete user-invocable skill format defined in AGENTS.md.
 
 ## Installation
 
@@ -21,8 +21,7 @@ This plugin serves as a template for creating new plugins. See [commands/echo.md
 This plugin is the canonical example of proper plugin structure:
 - Correct frontmatter format
 - Required sections (Name, Synopsis, Description, Implementation)
-- Proper command naming conventions
+- Proper skill naming and invocation settings
 - Complete documentation
 
-Use this as a reference when creating new commands and plugins.
-
+Use this as a reference when creating new user-invocable skills and plugins.

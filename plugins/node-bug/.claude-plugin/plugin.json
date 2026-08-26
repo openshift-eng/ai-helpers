@@ -1,7 +1,7 @@
 {
   "name": "node-bug",
   "description": "Node-specific bug triage, sub-team routing, and assignment suggestions for OpenShift Node team components",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "author": {
     "name": "github.com/openshift-eng"
   },

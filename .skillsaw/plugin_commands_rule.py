@@ -1,13 +1,14 @@
-"""Prohibit command directories in plugins unless explicitly allowlisted."""
+"""Prohibit plugin commands unless each command is explicitly allowlisted."""
 
 from typing import List
 
 from skillsaw import RepositoryContext, Rule, RuleViolation, Severity
+from skillsaw.blocks import CommandBlock
 from skillsaw.lint_target import PluginNode
 
 
 class PluginCommandsProhibitedRule(Rule):
-    """Plugins must not provide commands unless explicitly allowlisted."""
+    """Plugins must not provide non-allowlisted commands."""
 
     default_enabled = False
 
@@ -15,7 +16,7 @@ class PluginCommandsProhibitedRule(Rule):
         "allowlist": {
             "type": "list",
             "default": [],
-            "description": "Plugin names permitted to contain a commands directory",
+            "description": "Qualified command names to permit (plugin:command)",
         },
     }
 
@@ -25,7 +26,7 @@ class PluginCommandsProhibitedRule(Rule):
 
     @property
     def description(self) -> str:
-        return "Plugins must not provide commands unless explicitly allowlisted."
+        return "Plugins must not provide commands unless each command is allowlisted."
 
     def default_severity(self) -> Severity:
         return Severity.ERROR
@@ -34,15 +35,20 @@ class PluginCommandsProhibitedRule(Rule):
         violations = []
         allowlist = set(self.config.get("allowlist", []))
 
-        for node in context.lint_tree.find(PluginNode):
-            commands_path = node.path / "commands"
-            if not commands_path.is_dir() or node.path.name in allowlist:
+        for block in context.lint_tree.find(CommandBlock):
+            plugin = context.lint_tree.find_parent(block, PluginNode)
+            if plugin is None:
+                continue
+
+            command_name = f"{plugin.path.name}:{block.path.stem}"
+            if command_name in allowlist:
                 continue
 
             violations.append(
                 self.violation(
-                    f"Plugin '{node.path.name}' has a non-allowlisted commands directory",
-                    file_path=commands_path,
+                    f"Command '{command_name}' is not allowlisted; new plugin commands "
+                    "are prohibited",
+                    block=block,
                 )
             )
 

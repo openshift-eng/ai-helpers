@@ -2,7 +2,7 @@
 
 Maintenance commands for Claude Code plugin marketplaces. Identifies stale or low-value plugins, commands, and skills, then opens a PR to remove them with a structured review workflow.
 
-## Commands
+## User-Invocable Skills
 
 ### `/marketplace-ops:prune`
 

@@ -2,11 +2,11 @@
 
 Extended OpenShift CI tooling, providing an MCP server for direct access to CI data APIs.
 
-## Commands
+## User-Invocable Skills
 
 ### check-release-health
 
-> **Example command** — demonstrates how to use the bundled openshift-ci-mcp server tools directly from a plugin command.
+> **Example skill** — demonstrates how to use the bundled openshift-ci-mcp server tools directly from a user-invocable skill.
 
 Fetches live CI health data for a given OpenShift release and produces a concise summary covering payload acceptance, test regressions, and recent failures.
 

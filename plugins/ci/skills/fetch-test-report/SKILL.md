@@ -1,6 +1,9 @@
 ---
 name: fetch-test-report
-description: Fetch an OpenShift CI test report by name to get pass rates, test ID, and Jira component from Sippy
+description: "Fetch a test report from Sippy showing pass rates, test ID, and Jira component"
+argument-hint: "<test-name> [release]"
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # Fetch Test Report

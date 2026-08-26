@@ -10,7 +10,7 @@ The sosreport plugin provides AI-powered analysis of sosreport archives, which a
 
 [sosreport](https://github.com/sosreport/sos) is a diagnostic data collection tool used primarily in Red Hat Enterprise Linux and related distributions. It gathers system configuration, logs, and diagnostic information into a single archive for troubleshooting purposes.
 
-## Commands
+## User-Invocable Skills
 
 ### `/sosreport:analyze`
 
@@ -130,7 +130,7 @@ Analyzes Open vSwitch (OVS) database files (`conf.db`) collected in sosreports u
 /sosreport:ovs-db /tmp/sosreport/ --query '["Open_vSwitch", {"op":"select", "table":"Interface", "where":[], "columns":["name","error","link_state"]}]'
 ```
 
-See [`commands/ovs-db.md`](commands/ovs-db.md) for full documentation.
+See [`skills/ovs-db/SKILL.md`](skills/ovs-db/SKILL.md) for full documentation.
 
 ## Analysis Skills
 

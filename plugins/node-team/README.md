@@ -22,7 +22,7 @@ Other plugins (e.g. `node-cve`) reference these files instead of maintaining
 their own copies. When component ownership or version mappings change, update
 the shared files here.
 
-## Commands
+## User-Invocable Skills
 
 ### `node-team:overview`
 

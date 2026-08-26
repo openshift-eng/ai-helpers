@@ -4,7 +4,7 @@ AI-helpers workflows for **RDS Analyzer**: evaluate kube-compare JSON against YA
 
 This plugin mirrors the upstream [full-workflow.md](https://github.com/openshift-kni/rds-analyzer/blob/main/docs/full-workflow.md) document (from [openshift-kni/rds-analyzer](https://github.com/openshift-kni/rds-analyzer)).
 
-## Commands
+## User-Invocable Skills
 
 ### `/rds-analyzer:full-workflow`
 

@@ -1,6 +1,9 @@
 ---
 name: list-regressions
-description: Fetch and analyze component health regressions for OpenShift releases
+description: "Fetch and list raw regression data for OpenShift releases"
+argument-hint: "<view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # List Regressions

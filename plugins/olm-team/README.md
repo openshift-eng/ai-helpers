@@ -13,7 +13,7 @@ This plugin provides tools to help OLM team members quickly set up their develop
 - Git installed and configured
 - SSH keys configured with GitHub (or HTTPS credentials)
 
-## Commands
+## User-Invocable Skills
 
 ### `/olm-team:configure-agent` - Configure k8s-ocp-olm-expert Agent
 
@@ -53,7 +53,7 @@ Creates or updates the configuration file for the k8s-ocp-olm-expert agent with 
 - operator-controller (OLM v1 upstream)
 - operator-framework-operator-controller, cluster-olm-operator (OLM v1 downstream)
 
-See [commands/configure-agent.md](commands/configure-agent.md) for full documentation.
+See [skills/configure-agent/SKILL.md](skills/configure-agent/SKILL.md) for full documentation.
 
 ---
 
@@ -114,7 +114,7 @@ Automates the complete onboarding process for new OLM team members by setting up
     cluster-olm-operator/
 ```
 
-See [commands/dev-setup.md](commands/dev-setup.md) for full documentation.
+See [skills/dev-setup/SKILL.md](skills/dev-setup/SKILL.md) for full documentation.
 
 ---
 
@@ -157,7 +157,7 @@ Watches open Enhancement Proposal PRs from other teams that may impact OLM.
   - Impact: Other teams removing OLM from their workflows
 ```
 
-See [commands/ep-watch.md](commands/ep-watch.md) for full documentation.
+See [skills/ep-watch/SKILL.md](skills/ep-watch/SKILL.md) for full documentation.
 
 ---
 
@@ -334,11 +334,11 @@ If a repository is already cloned in the target directory, the command will ask 
 
 ## Contributing
 
-To add new commands to this plugin:
+To add new user-invocable skills to this plugin:
 
-1. Create a new `.md` file in `plugins/olm-team/commands/`
-2. Follow the command definition format (see existing commands)
-3. Update this README with the new command documentation
+1. Create `plugins/olm-team/skills/{skill-name}/SKILL.md`
+2. Follow the skill definition format in existing skills
+3. Update this README with the new skill documentation
 4. Run `make lint` to validate the plugin structure
 
 ## Support

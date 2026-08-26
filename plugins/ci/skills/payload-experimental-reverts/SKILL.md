@@ -198,4 +198,4 @@ Return results to the caller. If any candidates remain `pending`, inform the cal
 - Related Skill: `revert-pr` - The git revert workflow (`plugins/ci/skills/revert-pr/SKILL.md`)
 - Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)
 - Related Skill: `stage-payload-reverts` - Stages high-confidence reverts (`plugins/ci/skills/stage-payload-reverts/SKILL.md`)
-- Related Command: `/ci:payload-experiment` - Command for experimental reverts (`plugins/ci/commands/payload-experiment.md`)
+- Related Command: `/ci:payload-experiment` - Command for experimental reverts (`plugins/ci/skills/payload-experiment/SKILL.md`)

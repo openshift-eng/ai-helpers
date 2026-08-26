@@ -15,7 +15,7 @@ Work on features spanning multiple repositories without branch conflicts. Each t
 
 **Customizable:** Define aliases, auto-include rules (e.g., azure work → include related repos), and naming conventions for your team.
 
-## Commands
+## User-Invocable Skills
 
 | Command | Description |
 |---------|-------------|

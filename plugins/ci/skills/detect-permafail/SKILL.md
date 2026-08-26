@@ -1,6 +1,9 @@
 ---
 name: detect-permafail
-description: Analyze consecutive job failures to determine if they represent a permafail pattern versus flaky failures
+description: "Detect permafail patterns in consecutive job failures"
+argument-hint: "--job-urls=\"<urls>\" --job-name=\"<name>\" --pr=\"<owner/repo#123>\""
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # Detect Permafail
