@@ -149,7 +149,7 @@ Recorded by `payload-analysis` steps 6.5 (read) and 6.6 (write, only when `recor
 | `observed_health` | string | Health overlapping the **job run window** from `get_outages_during` (`healthy` if none; otherwise the overlapping outage severity). Never live "now" status from `get_infrastructure_status`. |
 | `existing_outage_id` | int or `null` | Outage id overlapping the job window, or `null` if none |
 | `queried_at` | string | RFC3339 UTC timestamp of the read |
-| `action` | string | `pending` \| `created` \| `linked` \| `skipped` |
+| `action` | string | Required when `ship_status` is present. `pending` \| `created` \| `linked` \| `skipped` |
 | `outage_id` | int or `null` | Filled after a Chai-hosted write |
 | `dashboard_url` | string or `null` | Outage URL after create/link |
 | `reason` | string | Skip/error detail (`unmapped`, `already_recorded`, …) |

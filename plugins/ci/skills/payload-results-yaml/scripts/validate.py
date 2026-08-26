@@ -58,7 +58,12 @@ def validate(path):
                 errors.append(f"failing_jobs[{i}].ship_status is not an object")
                 continue
             action = ship_status.get("action")
-            if action is not None and action not in SHIP_STATUS_ACTIONS:
+            if not isinstance(action, str) or not action:
+                errors.append(
+                    f"failing_jobs[{i}].ship_status.action must be a non-empty "
+                    f"string one of {sorted(SHIP_STATUS_ACTIONS)}, got {action!r}"
+                )
+            elif action not in SHIP_STATUS_ACTIONS:
                 errors.append(
                     f"failing_jobs[{i}].ship_status.action must be one of "
                     f"{sorted(SHIP_STATUS_ACTIONS)}, got {action!r}"

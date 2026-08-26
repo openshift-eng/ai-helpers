@@ -36,6 +36,7 @@ if __name__ == "__main__":
         ("invalid rhcos rpm candidate missing fields", f"{TESTDATA}/invalid_rhcos_rpm_candidate.yaml", 1),
         ("invalid candidate type not a string", f"{TESTDATA}/invalid_candidate_type_not_string.yaml", 1),
         ("invalid ship_status action", f"{TESTDATA}/invalid_ship_status_action.yaml", 1),
+        ("invalid ship_status action missing or null", f"{TESTDATA}/invalid_ship_status_action_missing.yaml", 1),
         ("file not found", f"{TESTDATA}/nonexistent.yaml", 1),
     ]
 

@@ -494,7 +494,7 @@ The Prow job uses the public SHIP Status MCP (reads only). This step must still 
 
 #### 6.6: Record SHIP Status outage (only if `record_payload_infra_outage` exists)
 
-If the `record_payload_infra_outage` tool is available (Chai RWS), pass **all** infra jobs in **one** call (`jobs_json` array with `job_name`, `prow_url`, `root_cause_summary`, slugs, and the same `window_start` / `window_end` used in Step 6.5). Do not call it once per job. Do not call raw `create_outage`.
+If the `record_payload_infra_outage` tool is available (Chai RWS), pass **mapped** infra jobs in **one** call (`jobs_json` array with `job_name`, `prow_url`, `root_cause_summary`, slugs, and the same `window_start` / `window_end` used in Step 6.5). Include only jobs whose Step 6.5 `ship_status.action` is not `skipped`. Exclude unmapped jobs (`action: skipped`, `reason: unmapped`) — they have no slugs and the wrapper cannot place them. Do not call it once per job. Do not call raw `create_outage`.
 
 Stamp `action` / `outage_id` / `dashboard_url` onto each job from the tool result. The Prow job does not have this tool and skips this step — Chai `payload_check` performs the write later from the YAML snapshot.
 
