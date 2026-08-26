@@ -68,7 +68,7 @@ cp -r ai-helpers/plugins/agendas ~/.claude/plugins/
 /plugin enable agendas
 ```
 
-## Available Commands
+## User-Invocable Skills
 
 ### `/agendas:outcome-refinement` - Outcome Refinement Meeting Agenda
 
@@ -112,7 +112,7 @@ The command generates a ready-to-use Markdown agenda:
 - [ ] Schedule review for OCPSTRAT-1236 (this week)
 ```
 
-See [commands/outcome-refinement.md](commands/outcome-refinement.md) for full documentation.
+See [skills/outcome-refinement/SKILL.md](skills/outcome-refinement/SKILL.md) for full documentation.
 
 ## Troubleshooting
 

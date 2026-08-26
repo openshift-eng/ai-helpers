@@ -2,7 +2,7 @@
 
 OpenShift development utilities and workflow helpers for Claude Code.
 
-## Commands
+## User-Invocable Skills
 
 ### `/openshift:new-e2e-test`
 
@@ -45,7 +45,7 @@ Kernel-level networking diagnostics for OpenShift/OVN-Kubernetes nodes:
 - `/openshift:node-kernel-nft` - nftables packet filtering
 - `/openshift:node-kernel-ip` - IP routing and network interfaces
 
-See the [commands/](commands/) directory for full documentation of each command.
+See the [skills/](skills/) directory for full documentation of each skill.
 
 ## Installation
 
@@ -66,7 +66,7 @@ See the [commands/](commands/) directory for full documentation of each command.
    /openshift:bump-deps k8s.io/api
    ```
 
-## Available Commands
+## User-Invocable Skills
 
 ### E2E Test Generation
 
@@ -74,7 +74,7 @@ See the [commands/](commands/) directory for full documentation of each command.
 
 Generate end-to-end tests for OpenShift features.
 
-See [commands/new-e2e-test.md](commands/new-e2e-test.md) for full documentation.
+See [skills/new-e2e-test/SKILL.md](skills/new-e2e-test/SKILL.md) for full documentation.
 
 ### Dependency Bumping
 
@@ -145,7 +145,7 @@ Automates dependency updates in OpenShift projects with comprehensive analysis, 
    /openshift:bump-deps "k8s.io/*"
    ```
 
-See [commands/bump-deps.md](commands/bump-deps.md) for full documentation.
+See [skills/bump-deps/SKILL.md](skills/bump-deps/SKILL.md) for full documentation.
 
 ### Cluster Management
 
@@ -209,7 +209,7 @@ Extract the OpenShift installer from a release image and create a new OpenShift 
    /openshift:create-cluster
    ```
 
-See [commands/create-cluster.md](commands/create-cluster.md) for full documentation.
+See [skills/create-cluster/SKILL.md](skills/create-cluster/SKILL.md) for full documentation.
 
 #### `/openshift:destroy-cluster` - Destroy OCP Clusters
 
@@ -258,20 +258,21 @@ Safely destroy an OpenShift Container Platform cluster that was created using `/
    /openshift:destroy-cluster ./test-cluster-install-20251028-120000
    ```
 
-See [commands/destroy-cluster.md](commands/destroy-cluster.md) for full documentation.
+See [skills/destroy-cluster/SKILL.md](skills/destroy-cluster/SKILL.md) for full documentation.
 
 ## Development
 
-### Adding New Commands
+### Adding New User-Invocable Skills
 
-To add a new command to this plugin:
+To add a new user-invocable skill to this plugin:
 
-1. Create a new markdown file in `commands/`:
+1. Create a skill directory containing `SKILL.md`:
    ```bash
-   touch plugins/openshift/commands/your-command.md
+   mkdir -p plugins/openshift/skills/your-skill
+   touch plugins/openshift/skills/your-skill/SKILL.md
    ```
 
-2. Follow the structure from existing commands (see `commands/bump-deps.md` for reference)
+2. Follow the structure from existing skills (see `skills/bump-deps/SKILL.md` for reference)
 
 3. Include these sections:
    - Name
@@ -284,7 +285,7 @@ To add a new command to this plugin:
    - Error Handling
    - Notes
 
-4. Test your command:
+4. Set `user-invocable: true` and `disable-model-invocation: true`, then test the skill:
    ```bash
    /openshift:your-command
    ```
@@ -314,7 +315,7 @@ plugins/openshift/
 
 Kernel-level networking diagnostics and troubleshooting tools for OpenShift/OVN-Kubernetes nodes. These commands provide direct access to kernel networking subsystems including conntrack, iptables, nftables, and IP routing configuration.
 
-### Available Commands
+### Available User-Invocable Skills
 
 #### `/openshift:node-kernel-conntrack`
 
@@ -379,7 +380,7 @@ Inspect routing, network devices, and interfaces configuration.
 - Troubleshoot routing and interface configuration
 - Investigate OVN-Kubernetes networking at the kernel level
 
-See individual command documentation in [commands/](commands/) for detailed usage.
+See individual skill documentation in [skills/](skills/) for detailed usage.
 
 ## Related Plugins
 

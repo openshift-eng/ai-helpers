@@ -6,7 +6,7 @@ Automated migration tools for integrating OpenShift component repositories with 
 
 This plugin automates the complete process of migrating OpenShift component repositories to use the OTE framework. The tool handles everything from repository setup to code generation with customizable destination paths.
 
-## Commands
+## User-Invocable Skills
 
 ### `/ote-migration:migrate`
 

@@ -44,7 +44,7 @@ curl_with_token.sh <cluster_api_url> [curl arguments...]
 ### dpcr - DPCR Cluster
 - **Console**: https://console-openshift-console.apps.cr.j7t7.p1.openshiftapps.com/
 - **API Server**: https://api.cr.j7t7.p1.openshiftapps.com:6443
-- **Used by**: ask-sippy
+- **Used by**: authenticated Sippy workflows
 
 **Note**: This skill supports any OpenShift cluster - simply provide the cluster's API server URL.
 
@@ -90,4 +90,3 @@ curl_with_token.sh https://api.your-cluster.example.com:6443 -X GET \
 
 - [SKILL.md](./SKILL.md) - Detailed skill documentation
 - [CI Plugin README](../../README.md) - Parent plugin documentation
-

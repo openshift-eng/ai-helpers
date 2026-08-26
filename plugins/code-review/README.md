@@ -3,7 +3,7 @@
 Automated code quality review with language-aware analysis for pre-commit
 verification, plus an optional multi-specialist deep review skill.
 
-## Commands
+## User-Invocable Skills
 
 ### `/code-review:pre-commit-review`
 

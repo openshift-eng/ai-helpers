@@ -27,7 +27,7 @@ The plugin supports both OLMv0 (traditional OLM) and OLMv1 (next-generation) arc
 - `opm` and `podman` (required for opm command to build catalogs)
 - Network access to GitHub and Jira (for debug command)
 
-## Commands
+## User-Invocable Skills
 
 ### Operator Management Commands
 
@@ -54,7 +54,7 @@ Search for available operators in OperatorHub catalogs.
 - `--catalog <name>` (optional): Limit search to specific catalog
 - `--exact` (optional): Only show exact name matches
 
-See [commands/search.md](commands/search.md) for full documentation.
+See [skills/search/SKILL.md](skills/search/SKILL.md) for full documentation.
 
 ---
 
@@ -84,7 +84,7 @@ Install operators from OperatorHub with smart defaults and verification.
 - `source` (optional): CatalogSource name (defaults to "redhat-operators")
 - `--approval=Automatic|Manual` (optional): InstallPlan approval mode (default: Automatic)
 
-See [commands/install.md](commands/install.md) for full documentation.
+See [skills/install/SKILL.md](skills/install/SKILL.md) for full documentation.
 
 ---
 
@@ -109,7 +109,7 @@ View all operators installed in the cluster with health status.
 - `namespace` (optional): Target namespace
 - `--all-namespaces` or `-A` (optional): List cluster-wide
 
-See [commands/list.md](commands/list.md) for full documentation.
+See [skills/list/SKILL.md](skills/list/SKILL.md) for full documentation.
 
 ---
 
@@ -135,7 +135,7 @@ Get comprehensive health and status information for a specific operator.
 - `operator-name` (required): Name of the operator
 - `namespace` (optional): Namespace (auto-discovered if not provided)
 
-See [commands/status.md](commands/status.md) for full documentation.
+See [skills/status/SKILL.md](skills/status/SKILL.md) for full documentation.
 
 ---
 
@@ -163,7 +163,7 @@ Update operators to the latest version or switch channels.
 - `--channel=<channel>` (optional): Switch to specified channel
 - `--approve` (optional): Auto-approve pending InstallPlan
 
-See [commands/upgrade.md](commands/upgrade.md) for full documentation.
+See [skills/upgrade/SKILL.md](skills/upgrade/SKILL.md) for full documentation.
 
 ---
 
@@ -190,7 +190,7 @@ Approve pending InstallPlans for operators with manual approval mode.
 - `namespace` (optional): Namespace (auto-discovered if not provided)
 - `--all` (optional): Approve all pending InstallPlans
 
-See [commands/approve.md](commands/approve.md) for full documentation.
+See [skills/approve/SKILL.md](skills/approve/SKILL.md) for full documentation.
 
 ---
 
@@ -223,7 +223,7 @@ Safely uninstall operators with optional resource cleanup.
 - `--remove-namespace` (optional): Remove namespace
 - `--force` (optional): Skip confirmation prompts
 
-See [commands/uninstall.md](commands/uninstall.md) for full documentation.
+See [skills/uninstall/SKILL.md](skills/uninstall/SKILL.md) for full documentation.
 
 ---
 
@@ -256,7 +256,7 @@ Diagnose common OLM and operator issues with optional auto-fix.
 - `--fix` (optional): Attempt automatic fixes with confirmation
 - `--cluster` (optional): Run cluster-wide diagnostics
 
-See [commands/diagnose.md](commands/diagnose.md) for full documentation.
+See [skills/diagnose/SKILL.md](skills/diagnose/SKILL.md) for full documentation.
 
 ---
 
@@ -288,7 +288,7 @@ Manage catalog sources for operator discovery and installation.
 - `refresh <name>`: Force catalog refresh
 - `status <name>`: Check catalog health
 
-See [commands/catalog.md](commands/catalog.md) for full documentation.
+See [skills/catalog/SKILL.md](skills/catalog/SKILL.md) for full documentation.
 
 ---
 
@@ -328,7 +328,7 @@ Execute opm (Operator Package Manager) commands for building and managing operat
 - `--base-image=<image>`: Custom base image for the index
 - `--builder-image=<image>`: Custom builder image
 
-See [commands/opm.md](commands/opm.md) for full documentation.
+See [skills/opm/SKILL.md](skills/opm/SKILL.md) for full documentation.
 
 ---
 
@@ -388,7 +388,7 @@ The command creates a working directory at `.work/olm-debug/<timestamp>/` contai
 - `known-bugs.md`: List of potentially related Jira bugs with match confidence and workarounds
 - `repos/`: Cloned repository directories
 
-See [commands/debug.md](commands/debug.md) for full documentation.
+See [skills/debug/SKILL.md](skills/debug/SKILL.md) for full documentation.
 
 ---
 
@@ -565,11 +565,11 @@ oc logs -n openshift-marketplace <catalog-pod>        # Check logs
 
 ## Contributing
 
-To add new commands to this plugin:
+To add new user-invocable skills to this plugin:
 
-1. Create a new `.md` file in `plugins/olm/commands/`
-2. Follow the command definition format in existing commands
-3. Update this README with the new command documentation
+1. Create `plugins/olm/skills/{skill-name}/SKILL.md`
+2. Follow the skill definition format in existing skills
+3. Update this README with the new skill documentation
 4. Run `make lint` to validate the plugin structure
 
 ## Support

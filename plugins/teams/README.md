@@ -24,7 +24,7 @@ The plugin offers commands at different levels:
 - **Summary**: Aggregated statistics and counts
 - **Analysis**: Combined health grading with recommendations
 
-## Commands
+## User-Invocable Skills
 
 ### Team Discovery
 

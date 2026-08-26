@@ -1,6 +1,9 @@
 ---
 name: list-teams
-description: List all teams from the team component mapping
+description: "List all teams from the team component mapping"
+argument-hint: ""
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # List Teams

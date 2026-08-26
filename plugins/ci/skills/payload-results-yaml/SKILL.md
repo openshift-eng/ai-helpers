@@ -11,9 +11,9 @@ This skill defines the schema for the `payload-results-{tag}.yaml` file and prov
 
 Use this skill whenever you need to:
 - **Create** a new results file (during `payload-analysis`)
-- **Read** candidates or their actions (during `payload-revert`, `payload-experiment`)
-- **Append an action** to a candidate (during `stage-payload-reverts`, `payload-experimental-reverts`)
-- **Update an action's status** (during `payload-experimental-reverts` Phase 2)
+- **Read** candidates or their actions (during `payload-analysis`, `payload-experiment`, or a direct `revert-pr` workflow)
+- **Append an action** to a candidate after creating a revert or experiment
+- **Update an action's status** while collecting experiment results
 
 ## File Location
 
@@ -159,7 +159,7 @@ Candidates reference failing jobs by `job_name` via the `failing_jobs` string ar
 | `new_version` | string | New RPM version |
 | `changelog_evidence` | string | The specific changelog entry or entries relating to the failure, or `"none"` |
 
-RHCOS RPM candidates cannot be reverted through the normal PR process — downstream skills that stage or filter reverts (e.g. `stage-payload-reverts`, `/ci:payload-revert`) MUST exclude candidates with `type: "rhcos_rpm"`, regardless of `confidence_score`.
+RHCOS RPM candidates cannot be reverted through the normal PR process — workflows using `revert-pr` MUST exclude candidates with `type: "rhcos_rpm"`, regardless of `confidence_score`.
 
 ### `candidates[].actions[]`
 
@@ -206,15 +206,15 @@ Payload validation jobs triggered against the revert PR.
 
 Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, and `candidates` populated. All failed blocking jobs are recorded in `failing_jobs`. Every candidate carries a `type` (`"pr"` or `"rhcos_rpm"`). Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis for a `type: "pr"` candidate, append an action with `type: "revert"` and `status: "open"` or `"merged"`.
 
-### Read Candidates (used by `payload-revert`, `payload-experiment`)
+### Read Candidates
 
 Read the file. Filter candidates by `type: "pr"` and `confidence_score` range — `rhcos_rpm` candidates cannot be reverted or experimented on and MUST be excluded. Exclude candidates that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). Return matching candidates. Use the top-level `failing_jobs[]` to look up full job details for each candidate's `failing_jobs` references.
 
-### Append Action (used by `stage-payload-reverts`, `payload-experimental-reverts`)
+### Append Action
 
 For a given `type: "pr"` candidate (matched by `pr_url`), append a new entry to its `actions` array. Do not modify existing action entries.
 
-### Update Action Status (used by `payload-experimental-reverts` Phase 2)
+### Update Action Status
 
 For a given candidate's action entry (matched by `pr_url` and `type`), update its `status`, `result_summary`, `revert_pr_state`, `jira_key`, `jira_url`, and `payload_jobs` fields in place.
 
@@ -225,7 +225,5 @@ Scan all candidates. If any candidate has an action with `type: "experiment"` an
 ## See Also
 
 - Related Skill: `payload-analysis` — creates the results file
-- Related Skill: `stage-payload-reverts` — appends `type: "revert"` actions
-- Related Skill: `payload-experimental-reverts` — appends `type: "experiment"` actions, updates status in Phase 2
-- Related Command: `/ci:payload-revert` — stages reverts for high-confidence candidates
+- Related Skill: `revert-pr` — creates revert PRs for confirmed candidates
 - Related Command: `/ci:payload-experiment` — experimentally tests medium-confidence candidates

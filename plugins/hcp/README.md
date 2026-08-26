@@ -6,7 +6,7 @@ The HCP plugin generates intelligent `hypershift create cluster` commands from n
 
 This plugin translates natural language descriptions into precise, ready-to-execute `hypershift create cluster` commands, applying provider-specific best practices and handling complex parameter validation automatically. The plugin **generates commands for you to run** - it does not provision clusters directly.
 
-## Commands
+## User-Invocable Skills
 
 ### `/hcp:generate`
 

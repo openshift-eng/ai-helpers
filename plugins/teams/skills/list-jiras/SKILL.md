@@ -1,6 +1,9 @@
 ---
 name: list-jiras
-description: Query and return raw JIRA bug data for a specific project
+description: "Query and list raw JIRA bug data for a specific project"
+argument-hint: "<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # List JIRAs

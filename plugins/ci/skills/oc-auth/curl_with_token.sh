@@ -2,7 +2,7 @@
 # Curl wrapper that automatically adds OAuth token from specified cluster
 # Usage: curl_with_token.sh <cluster_api_url> [curl arguments...]
 # cluster_api_url: Full API server URL (e.g., https://api.ci.l2s4.p1.openshiftapps.com:6443)
-# 
+#
 # The token is retrieved and added as "Authorization: Bearer <token>" header
 # automatically, so it never appears in output or command history.
 
@@ -36,7 +36,7 @@ if [ -z "$CONTEXT" ]; then
   # Generate console URL from API URL
   # Transform: https://api.{subdomain}.{domain}:6443 -> https://console-openshift-console.apps.{subdomain}.{domain}/
   CONSOLE_URL=$(echo "$CLUSTER_API_URL" | sed -E 's|https://api\.(.*):6443|https://console-openshift-console.apps.\1/|')
-  
+
   echo "Error: No oc context found for cluster with API server: $CLUSTER_API_URL" >&2
   echo "" >&2
   echo "Please authenticate first:" >&2
@@ -65,4 +65,3 @@ fi
 
 # Execute curl with the Authorization header and all provided arguments
 exec curl -H "Authorization: Bearer $TOKEN" "$@"
-

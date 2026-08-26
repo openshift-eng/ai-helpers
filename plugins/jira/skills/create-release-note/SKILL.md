@@ -1,6 +1,9 @@
 ---
 name: create-release-note
-description: Detailed implementation guide for generating bug fix release notes from Jira and GitHub PRs
+description: "Generate bug fix release notes from Jira tickets and linked GitHub PRs"
+argument-hint: "<issue-key>"
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # Create Release Note

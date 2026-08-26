@@ -116,7 +116,7 @@ podman run -it \
 - `-v ~/.config/gcloud:/home/claude/.config/gcloud:ro` - Passes through your gcloud authentication (read-only)
 - `-v $(pwd):/workspace` - Mounts your current directory into the container
 
-### Running Commands Non-Interactively
+### Running User-Invocable Skills Non-Interactively
 
 You can execute Claude Code commands directly without entering an interactive session using the `-p` or `--print` flag:
 
@@ -139,12 +139,12 @@ This will:
 
 ## Available Plugins
 
-For a complete list of all available plugins and commands, see the **[AI Helpers Marketplace](https://openshift-eng.github.io/ai-helpers/)**.
+For a complete list of all available plugins and skills, see the **[AI Helpers Marketplace](https://openshift-eng.github.io/ai-helpers/)**.
 
 ## Plugin Development
 
 Want to contribute or create your own plugins? Check out the `plugins/` directory for examples.
-Make sure your commands and agents follow the conventions for the Sections structure presented in the hello-world reference implementation plugin (see [`hello-world:echo`](plugins/hello-world/commands/echo.md) for an example).
+Make sure your skills and agents follow the conventions presented in the hello-world reference implementation plugin (see [`hello-world:echo`](plugins/hello-world/skills/echo/SKILL.md) for an example).
 
 ### Ethical Guidelines
 
@@ -166,26 +166,27 @@ Good examples:
 
 When you identify a desirable characteristic (clarity, brevity, formality, humor, etc.), describe it explicitly rather than using a person as proxy.
 
-### Adding New Commands
+### Adding New User-Invocable Skills
 
 **Check for overlaps first** - Before coding, validate your idea:
 
 ```bash
-/utils:review-ai-helpers-overlap --idea "brief description of your command"
+/utils:review-ai-helpers-overlap --idea "brief description of your skill"
 ```
 
-Collaborating on existing work instead of duplicating parallel efforts is always encouraged when overlap is found. This helps maintain a clean, non-redundant plugin collection in such an actively developed project (see [`/utils:review-ai-helpers-overlap`](plugins/utils/commands/review-ai-helpers-overlap.md) for detailed usage).
+Collaborating on existing work instead of duplicating parallel efforts is always encouraged when overlap is found. This helps maintain a clean, non-redundant plugin collection in such an actively developed project (see [`/utils:review-ai-helpers-overlap`](plugins/utils/skills/review-ai-helpers-overlap/SKILL.md) for detailed usage).
 
-When contributing new commands:
+When contributing new user-invocable skills:
 
-1. **If your command fits an existing plugin**: Add it to the appropriate plugin's `commands/` directory
-2. **If your command doesn't have a clear parent plugin**: Add it to the **utils plugin** (`plugins/utils/commands/`)
-   - The utils plugin serves as a catch-all for commands that don't fit existing categories
-   - Once we accumulate several related commands in utils, they can be segregated into a new targeted plugin
+1. **If your skill fits an existing plugin**: Add it under that plugin's `skills/{skill-name}/SKILL.md`
+2. **If your skill doesn't have a clear parent plugin**: Add it to the **utils plugin** (`plugins/utils/skills/`)
+   - The utils plugin serves as a catch-all for skills that don't fit existing categories
+   - Once we accumulate several related skills in utils, they can be segregated into a new targeted plugin
+3. Set `user-invocable: true` and `disable-model-invocation: true` for explicit user-facing workflows.
 
 ### Creating a New Plugin
 
-If you're contributing several related commands that warrant their own plugin:
+If you're contributing several related skills that warrant their own plugin:
 
 1. Create a new directory under `plugins/` with your plugin name
 2. Create the plugin structure:
@@ -193,8 +194,9 @@ If you're contributing several related commands that warrant their own plugin:
    plugins/your-plugin/
    ├── .claude-plugin/
    │   └── plugin.json
-   └── commands/
-       └── your-command.md
+   └── skills/
+       └── your-skill/
+           └── SKILL.md
    ```
 3. Register your plugin in `.claude-plugin/marketplace.json`
 

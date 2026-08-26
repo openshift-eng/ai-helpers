@@ -102,6 +102,12 @@ rules:
     enabled: true
     severity: error
 
+  # Plugins must use skills; the per-command allowlist is reserved for explicit exceptions.
+  plugin-commands-prohibited:
+    enabled: true
+    severity: error
+    allowlist: []
+
   # Eval case directories must be named case-NNNN (no answer-leaking slug)
   eval-case-name:
     enabled: true
@@ -116,6 +122,7 @@ custom-rules:
   - ".skillsaw/plugindocs_rule.py"
   - ".skillsaw/owners_rule.py"
   - ".skillsaw/opencode_color_rule.py"
+  - ".skillsaw/plugin_commands_rule.py"
   - ".skillsaw/eval_case_rule.py"
 
 # Exclude patterns (glob format)

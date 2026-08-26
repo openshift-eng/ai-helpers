@@ -130,5 +130,5 @@ PAYLOAD_JOB_RESULT:
 
 ## See Also
 
-- Used by: `payload-experimental-reverts` — triggers payload jobs for draft experimental revert PRs
-- Used by: `stage-payload-reverts` — triggers payload jobs for revert PRs
+- Used by: `payload-experiment` — triggers payload jobs for draft experimental revert PRs
+- Use with: `revert-pr` — validates confirmed revert PRs against affected payload jobs

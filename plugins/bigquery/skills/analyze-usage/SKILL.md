@@ -1,6 +1,9 @@
 ---
 name: analyze-usage
-description: Comprehensive analysis of BigQuery usage patterns, costs, and query performance
+description: "Analyze BigQuery usage and costs for a project"
+argument-hint: "<project-id> <timeframe>"
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # Analyze BigQuery Usage

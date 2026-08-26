@@ -2,7 +2,7 @@
 
 General-purpose utilities and helper commands for development workflows.
 
-## Commands
+## User-Invocable Skills
 
 ### `/utils:generate-test-plan`
 
@@ -36,11 +36,10 @@ Review potential overlaps with existing ai-helpers (Claude Code Plugins, Command
 
 The utils plugin serves as a catch-all for commands that don't fit into existing specialized plugins. Once we accumulate several related commands, they can be segregated into a new targeted plugin.
 
-See the [commands/](commands/) directory for full documentation of each command.
+See the [skills/](skills/) directory for full documentation of each skill.
 
 ## Installation
 
 ```bash
 /plugin install utils@ai-helpers
 ```
-

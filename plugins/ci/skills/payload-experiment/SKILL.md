@@ -1,0 +1,86 @@
+---
+name: "payload-experiment"
+description: Experiment with draft reverts for medium-confidence payload candidates using the revert-pr and trigger-payload-job skills
+argument-hint: "<payload-tag>"
+user-invocable: true
+disable-model-invocation: true
+---
+
+## Name
+
+ci:payload-experiment
+
+## Synopsis
+
+```
+/ci:payload-experiment <payload-tag>
+```
+
+## Description
+
+The `ci:payload-experiment` command opens draft revert PRs for medium-confidence payload candidates (confidence score 60-84) and triggers payload jobs to experimentally determine which PR is causing failures. It operates in two phases separated by a CI wait period.
+
+**Phase 1**: Reads the payload results YAML, filters medium-confidence candidates, uses `revert-pr --draft` for each selected PR, triggers payload jobs, and appends action entries (`type: "experiment"`, `status: "pending"`) to each candidate's `actions` array.
+
+**Phase 2**: Detects candidates with a `status: "pending"` action entry in the results YAML, checks job results, promotes confirmed causes to real revert PRs (with TRT JIRA bugs), and closes innocent draft PRs.
+
+All state is tracked in the payload results YAML via the `payload-results-yaml` skill — no separate tracking file is created.
+
+This command is one of three composable stages in the payload triage pipeline:
+1. `/ci:payload-analysis` — produces the payload results YAML
+2. `/ci:revert-pr <pr-url> <jira-ticket>` — reverts a confirmed candidate
+3. `/ci:payload-experiment` — experimentally tests MEDIUM confidence candidates (this command)
+
+### Job Triggering Limits
+
+- **Non-aggregated jobs**: Up to 5 total across all candidates
+- **Aggregated jobs**: Up to 1 total
+
+## Implementation
+
+1. **Parse the payload tag** from the argument. Extract `version`, `stream`, and `architecture` from the tag (see `payload-analysis` Step 1 for parsing rules).
+
+2. **Read the payload results YAML** using the `payload-results-yaml` skill: Look for `payload-results-{tag}.yaml` in the current working directory. If not found, print an error and exit:
+   ```
+   Error: Payload results YAML not found for {payload_tag}.
+   Run `/ci:payload-analysis {payload_tag}` first to generate it.
+   ```
+
+3. **Detect Phase 2 resume**: If the results YAML contains any action entry with `type: "experiment"` and `status: "pending"`, jump to Phase 2 (step 5). Phase 2 processes only pending experiments — candidates with other statuses are left unchanged.
+
+4. **Phase 1 — Set up experiments**: Filter `type: "pr"` candidates with `60 <= confidence_score < 85`. Exclude any that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). `type: "rhcos_rpm"` candidates are never experimented on — they cannot be pulled out of a payload like a PR. For each selected candidate:
+   - Use the `revert-pr` skill with `--draft` and `--context` containing the payload and failure rationale. Obtain explicit user confirmation before creating or pushing anything.
+   - Use `trigger-payload-job` for the candidate's affected jobs, respecting the limits below.
+   - Append an `experiment` action to the results YAML with the draft PR URL, payload-job URLs, and `status: "pending"`.
+
+5. **Phase 2 — Collect results**: Check every pending action's payload-job URLs. If jobs pass with the revert, the candidate is confirmed: mark the draft ready for review, create or associate the required JIRA, and update the action to `status: "passed"`. If the same failures remain, ask for confirmation before closing the draft and update the action to `status: "failed"`. Use `status: "inconclusive"` for mixed or unfinished results.
+
+6. **Report results**: Print a summary of actions taken.
+
+## Return Value
+
+- **Phase 1**: Confirmation that experiments are running, with resume instructions
+- **Phase 2**: Summary of experiment verdicts (confirmed/innocent) and actions taken. If some experiments are still running, they remain `pending` and the command can be re-invoked to check again.
+
+## Examples
+
+1. **Start experiments after analysis**:
+   ```
+   /ci:payload-analysis 4.22.0-0.nightly-2026-02-25-152806
+   /ci:payload-experiment 4.22.0-0.nightly-2026-02-25-152806
+   ```
+
+2. **Resume to collect results** (run from the same directory after jobs complete):
+   ```
+   /ci:payload-experiment 4.22.0-0.nightly-2026-02-25-152806
+   ```
+
+## Arguments
+
+- $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Must match the tag used with `/ci:payload-analysis`. (required)
+
+## Skills Used
+
+- `payload-results-yaml`: Reads and updates the payload results YAML
+- `trigger-payload-job`: Triggers payload jobs and collects URLs
+- `revert-pr`: Git revert workflow for creating draft experiments and confirmed revert PRs

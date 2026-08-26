@@ -6,7 +6,7 @@ A Claude Code plugin for monitoring etcd cluster health and analyzing performanc
 
 This plugin provides commands to help diagnose and troubleshoot etcd-related issues in OpenShift clusters. Etcd is the critical distributed key-value store that holds all cluster state for Kubernetes/OpenShift, and maintaining its health and performance is essential for cluster stability.
 
-## Commands
+## User-Invocable Skills
 
 ### `/etcd:health-check`
 

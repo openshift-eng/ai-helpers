@@ -35,7 +35,7 @@ bq version
 gcloud auth list
 ```
 
-## Commands
+## User-Invocable Skills
 
 ### `/bigquery:analyze-usage`
 

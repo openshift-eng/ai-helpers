@@ -14,7 +14,7 @@ Part of the [node-team plugin family](../node-team/).
 
 Requires the `node-team` plugin (installed automatically as a dependency).
 
-## Commands
+## User-Invocable Skills
 
 ### `node-onboarding:checklist`
 

@@ -14,8 +14,8 @@ Use this skill whenever you need to:
 - Verify authentication to a specific cluster
 - Work with multiple OpenShift cluster contexts simultaneously
 
-This skill is used by all commands that need to authenticate with OpenShift clusters:
-- `ask-sippy` command (DPCR cluster)
+This skill is used by commands and skills that need to authenticate with OpenShift clusters:
+- `manage-labels`, `manage-symptoms`, `triage-regression`, `reevaluate-job-runs`, and `diagnose-job-run-symptoms` (DPCR cluster)
 - `trigger-periodic`, `trigger-postsubmit`, `trigger-presubmit` commands (app.ci cluster)
 - `query-job-status` command (app.ci cluster)
 
@@ -67,7 +67,7 @@ Here are commonly used OpenShift clusters:
 ### 2. `dpcr` - DPCR Cluster
 - **Console URL**: https://console-openshift-console.apps.cr.j7t7.p1.openshiftapps.com/
 - **API Server**: https://api.cr.j7t7.p1.openshiftapps.com:6443
-- **Used by**: ask-sippy
+- **Used by**: authenticated Sippy workflows
 
 **Note**: The skill supports any OpenShift cluster - simply provide the cluster's API server URL.
 
@@ -204,4 +204,3 @@ The script uses the following approach:
    ```
 
 This ensures we get the token from the correct cluster by matching the exact API server URL, even when multiple cluster contexts exist.
-

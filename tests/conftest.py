@@ -32,3 +32,9 @@ def owners_rule():
 def opencode_color_rule():
     mod = _load_rule_module("opencode_color_rule.py")
     return mod.OpencodeAgentColorRule
+
+
+@pytest.fixture
+def plugin_commands_rule():
+    mod = _load_rule_module("plugin_commands_rule.py")
+    return mod.PluginCommandsProhibitedRule

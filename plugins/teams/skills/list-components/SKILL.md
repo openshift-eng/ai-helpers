@@ -1,6 +1,9 @@
 ---
 name: list-components
-description: List all OCPBUGS components, optionally filtered by team
+description: "List all OCPBUGS components, optionally filtered by team"
+argument-hint: "[--team <team-name>]"
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # List Components

@@ -114,14 +114,14 @@ reviews:
       instructions: |
         ## Overview
 
-        When a PR adds or significantly modifies ai-helpers files (plugins/*/commands/*.md,
-        plugins/*/skills/*/SKILL.md, agents/*.md), check for overlapping functionality.
+        When a PR adds or significantly modifies ai-helpers files
+        (plugins/*/skills/*/SKILL.md, agents/*.md), check for overlapping functionality.
 
         ## Phase 1: Filter Relevant PRs
         1. List open PRs that also modify ai-helpers files:
            gh pr list --repo openshift-eng/ai-helpers --state open --json number,title,files,body --limit 100
 
-        2. Filter to PRs touching: plugins/*/commands/, plugins/*/skills/, or agents/
+        2. Filter to PRs touching: plugins/*/skills/ or agents/
            Skip this check if current PR only modifies README or non-functional docs.
 
         ## Phase 2: Quick Comparison
@@ -134,12 +134,11 @@ reviews:
            - Name overlap (40% weight):
              * Exact match = 100%, synonym match = 80%, partial = 40%, none = 0%
            - Description similarity (30% weight):
-             * Count shared keywords in PR body/command descriptions (>70% shared = 100%)
+             * Count shared keywords in PR body/skill descriptions (>70% shared = 100%)
            - Functionality overlap (30% weight):
              * Same plugin category + similar file types = 100%
 
         5. Also check against existing repository content:
-           - Scan all existing commands: plugins/*/commands/*.md
            - Scan all existing skills: plugins/*/skills/*/SKILL.md
            - Scan all existing agents: agents/*.md
            - Extract names (from filenames and headers) and descriptions

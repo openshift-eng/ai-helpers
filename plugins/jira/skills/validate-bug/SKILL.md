@@ -1,7 +1,9 @@
 ---
 name: validate-bug
-description: Diagnose and fix jira/invalid-bug on PRs by running the same 7 checks as the jira-lifecycle-plugin
-command: /jira:validate-bug
+description: "Diagnose and fix jira/invalid-bug on PRs — runs the same 7 checks as the jira-lifecycle-plugin"
+argument-hint: "<PR-URL | PR-number | JIRA-key> [--branch release-4.X|main|master]"
+user-invocable: true
+disable-model-invocation: true
 ---
 
 # JIRA Bug Validator — Implementation Guide

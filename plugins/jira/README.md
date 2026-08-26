@@ -55,7 +55,7 @@ Ensure you have the ai-helpers marketplace enabled, via [the instructions here](
 |------|---------|
 | [reference/markdown-for-jira.md](reference/markdown-for-jira.md) | Markdown formatting guide for Jira descriptions |
 
-## Available Commands
+## User-Invocable Skills
 
 ### `/jira:solve` - Analyze and Solve JIRA Issues
 
@@ -66,7 +66,7 @@ Analyze a JIRA issue and create a pull request to solve it. The command fetches 
 /jira:solve OCPBUGS-12345 enxebre
 ```
 
-See [commands/solve.md](commands/solve.md) for full documentation.
+See [skills/ready-to-solve/SKILL.md](skills/ready-to-solve/SKILL.md) for the readiness workflow.
 
 ---
 
@@ -79,7 +79,7 @@ Generate comprehensive status rollup comments for any Jira issue by recursively 
 /jira:status-rollup FEATURE-123 --start-date 2025-10-08 --end-date 2025-10-14
 ```
 
-See [commands/status-rollup.md](commands/status-rollup.md) for full documentation.
+See [skills/status-rollup/SKILL.md](skills/status-rollup/SKILL.md) for full documentation.
 
 ---
 
@@ -104,7 +104,7 @@ Analyze and organize new bugs and cards added over a specified time period to pr
 # Combine filters
 /jira:grooming OCPSTRAT last-week --component "Control Plane" --label "security"
 ```
-See [commands/grooming.md](commands/grooming.md) for full documentation.
+See [skills/grooming/SKILL.md](skills/grooming/SKILL.md) for full documentation.
 
 ---
 
@@ -121,7 +121,7 @@ Analyze JIRA tickets and automatically assign Activity Type categories based on 
 /jira:categorize-activity-type ROX-12345 --auto-apply
 ```
 
-See [commands/categorize-activity-type.md](commands/categorize-activity-type.md) for full documentation.
+See [skills/categorize-activity-type/SKILL.md](skills/categorize-activity-type/SKILL.md) for full documentation.
 
 ---
 
@@ -144,7 +144,7 @@ Batch-categorize Jira issues that are missing Activity Types. Fetches issues via
 /jira:batch-categorize-activity-types ROX --dry-run
 ```
 
-See [commands/batch-categorize-activity-types.md](commands/batch-categorize-activity-types.md) for full documentation.
+See [skills/batch-categorize-activity-types/SKILL.md](skills/batch-categorize-activity-types/SKILL.md) for full documentation.
 
 ---
 
@@ -161,7 +161,6 @@ Generate comprehensive test steps for a JIRA issue by analyzing related pull req
 /jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888
 ```
 
-See [commands/generate-test-plan.md](commands/generate-test-plan.md) for full documentation.
 
 ---
 
@@ -220,7 +219,7 @@ Different projects may have different conventions (security levels, labels, vers
 
 Teams may have additional conventions layered on top of project conventions (component selection, custom fields, workflows, etc.). The command automatically detects team context and applies team-specific skills.
 
-See [commands/create.md](commands/create.md) for full documentation.
+See [skills/create/SKILL.md](skills/create/SKILL.md) for full documentation.
 
 ---
 
@@ -275,7 +274,7 @@ Result: The control-plane-operator no longer crashes when CloudProviderConfig.Su
 Updated: https://redhat.atlassian.net/browse/OCPBUGS-38358
 ```
 
-See [commands/create-release-note.md](commands/create-release-note.md) for full documentation.
+See [skills/create-release-note/SKILL.md](skills/create-release-note/SKILL.md) for full documentation.
 
 ---
 
@@ -329,7 +328,7 @@ Automate the process of updating weekly status summaries for Jira issues with in
 - GitHub CLI (`gh`) installed and authenticated (optional but recommended)
 - Jira permissions to update Status Summary field
 
-See [commands/update-weekly-status.md](commands/update-weekly-status.md) for full documentation.
+See [skills/update-weekly-status/SKILL.md](skills/update-weekly-status/SKILL.md) for full documentation.
 
 ---
 
