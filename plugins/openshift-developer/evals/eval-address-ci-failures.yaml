@@ -1,5 +1,5 @@
 name: address-ci-failures-eval
-description: Evaluate the address-ci-failures skill's ability to classify CI failures and decide fix vs report per TRT-2831 guardrails
+description: Evaluate the address-ci-failures skill's ability to classify CI failures and decide fix vs report
 
 execution:
   mode: case
@@ -15,7 +15,7 @@ runner:
     - plugins/golang
   system_prompt: |
     Read triage-skill.md in the current working directory (the
-    address-ci-failures triage methodology and TRT-2831 guardrails).
+    address-ci-failures triage methodology).
 
     Analyze the CI failure scenario provided and write your triage decision to a file
     called analysis.json in the current working directory. The file must contain
@@ -183,7 +183,7 @@ judges:
     description: LLM judge assessing triage accuracy and rationale quality
     prompt: |
       You are evaluating whether a CI failure was correctly triaged by the
-      address-ci-failures skill per TRT-2831 guardrails.
+      address-ci-failures skill.
 
       The skill's analysis output:
 

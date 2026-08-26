@@ -15,7 +15,7 @@ import re
 import sys
 
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-COMMAND_LINE_RE = re.compile(r"^/[A-Za-z][A-Za-z0-9_-]*(?:\s.*)?$")
+COMMAND_LINE_RE = re.compile(r"^/[A-Za-z][A-Za-z0-9_-]*(?=$|\s)")
 
 
 def is_slash_command_only(body: str) -> bool:

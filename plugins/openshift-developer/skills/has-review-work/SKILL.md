@@ -96,7 +96,7 @@ For each remaining comment body, skip slash-command-only comments **before** aut
 printf '%s' "$BODY" | python3 "${CLAUDE_SKILL_DIR}/scripts/is_slash_command_only.py"
 ```
 
-- Exit 0: skip — after trimming, dropping blank lines and HTML comments (`<!-- … -->`), every remaining line matches `^/[A-Za-z][A-Za-z0-9_-]*(?:\s.*)?$` (e.g. `/lgtm`, `/hold`, `/lgtm cancel`, `/test e2e-aws`, `/hold` + `/lgtm` on two lines)
+- Exit 0: skip — after trimming, dropping blank lines and HTML comments (`<!-- … -->`), every remaining line matches `^/[A-Za-z][A-Za-z0-9_-]*(?=$|\s)` (e.g. `/lgtm`, `/hold`, `/lgtm cancel`, `/test e2e-aws`, `/hold` + `/lgtm` on two lines)
 - Exit 1: keep — any remaining line is not a slash command (review prose plus a trailing `/lgtm` is still work)
 
 Do not enumerate commands. Prow matches any line that starts with `/command`.
