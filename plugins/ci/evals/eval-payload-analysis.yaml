@@ -280,8 +280,23 @@ judges:
           if name.endswith("get_infrastructure_status"):
               current_seen = True
       with_ship_status = [j for j in infra if isinstance(j.get("ship_status"), dict)]
-      mapped = [j for j in infra if str(_ship(j).get("action") or "") != "skipped"]
-      skipped = [j for j in infra if str(_ship(j).get("action") or "") == "skipped"]
+      allowed_actions = ("pending", "created", "linked", "skipped")
+      bad_action = []
+      for job in infra:
+          st = _ship(job)
+          if not st:
+              continue
+          action = st.get("action")
+          if not isinstance(action, str) or action not in allowed_actions:
+              bad_action.append(f"{job.get('job_name') or '?'}: {action!r}")
+      if bad_action:
+          return (
+              False,
+              "ship_status.action must be pending, created, linked, or skipped: "
+              + ", ".join(bad_action),
+          )
+      mapped = [j for j in infra if _ship(j).get("action") in ("pending", "created", "linked")]
+      skipped = [j for j in infra if _ship(j).get("action") == "skipped"]
       mapped_with_ss = [j for j in mapped if isinstance(j.get("ship_status"), dict)]
       if mapped_with_ss and not during_seen:
           why = "get_infrastructure_status (live now)" if current_seen else "no get_outages_during"
