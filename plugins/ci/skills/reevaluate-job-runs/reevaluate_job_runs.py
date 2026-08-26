@@ -64,7 +64,7 @@ def send_batch(ids, token, dry_run):
                 # HTML instead of JSON: SSO login page (bad token) or gateway error page
                 if "log in" in body.lower():
                     return None, ("got an SSO login page instead of JSON — token is "
-                                  "missing/expired; log in to DPCR and refresh SIPPY_TOKEN"), True
+                                  "missing/expired; use the oc-auth skill to refresh it"), True
                 last_err = "gateway returned an HTML error page (likely 504 timeout)"
             else:
                 try:
@@ -80,7 +80,7 @@ def send_batch(ids, token, dry_run):
             if e.code == 501:
                 return None, "HTTP 501 (write endpoints disabled; use sippy-auth)", False
             if e.code in (401, 403):
-                return None, "HTTP %d (token missing/expired; log in to DPCR and refresh SIPPY_TOKEN)" % e.code, True
+                return None, "HTTP %d (token missing/expired; use the oc-auth skill)" % e.code, True
             if e.code not in (502, 503, 504):
                 return None, "HTTP %d: %s\n%s" % (e.code, e.reason, detail), False
             last_err = "HTTP %d gateway error" % e.code
@@ -98,7 +98,7 @@ def send_batch(ids, token, dry_run):
 def main():
     p = argparse.ArgumentParser(description="Reevaluate symptoms on Prow job runs")
     p.add_argument("runs", nargs="+", help="Prow build IDs or Prow job URLs (any count; batched automatically)")
-    p.add_argument("--token", help="DPCR Bearer token (or set SIPPY_TOKEN env var, preferred)")
+    p.add_argument("--token", help="Bearer token (or set SIPPY_TOKEN env var, preferred; use oc-auth skill)")
     p.add_argument("--dry-run", action="store_true", help="Report matches without writing anything")
     p.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE,
                    help="Runs per API request (default %d; max %d, but large batches "
@@ -109,7 +109,7 @@ def main():
     token = resolve_token(args.token)
     if not token:
         print("Error: no token provided — pass --token or set the SIPPY_TOKEN "
-              "environment variable (preferred; obtain it from the matching DPCR oc context "
+              "environment variable (preferred; use the oc-auth skill to obtain "
               "one)", file=sys.stderr)
         return 1
 
@@ -138,7 +138,7 @@ def main():
                 for j, remaining in enumerate(batches[i:], i + 1):
                     failed_batches.append({"batch": j, "ids": remaining, "error": auth_err})
                 print("Error: authentication failed; skipping remaining batches. "
-                      "Log in to DPCR, refresh SIPPY_TOKEN, and rerun.", file=sys.stderr)
+                      "Refresh the token via the oc-auth skill and rerun.", file=sys.stderr)
                 break
         else:
             all_results.extend(results)

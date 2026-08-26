@@ -22,7 +22,7 @@ Use this skill when you need to:
 1. **OpenShift CLI Authentication**: Required for authenticating to the sippy-auth API
    - Must be logged into the DPCR cluster via `oc login`
    - Cluster API: `https://api.cr.j7t7.p1.openshiftapps.com:6443`
-   - Retrieve the Bearer token from the matching DPCR `oc` context with `oc whoami -t`
+   - Use the `oc-auth` skill to obtain the Bearer token
 
 2. **Python 3**: Python 3.6 or later
    - Check: `python3 --version`
@@ -32,11 +32,11 @@ Use this skill when you need to:
 
 ### Step 1: Obtain Authentication Token
 
-Obtain a Bearer token directly from the matching DPCR `oc` context:
+Use the `oc-auth` skill to obtain a Bearer token from the DPCR cluster:
 
 ```bash
 # Get token from the DPCR cluster context
-# Match the context by server so another active cluster is not used accidentally
+# The oc-auth skill's curl_with_token.sh uses this cluster for sippy-auth
 DPCR_CLUSTER="https://api.cr.j7t7.p1.openshiftapps.com:6443"
 
 # Find the oc context for the DPCR cluster and get the token
@@ -103,7 +103,7 @@ python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
 - `runs`: One or more Prow build IDs or Prow job URLs (positional, required; batched automatically)
 
 **Options**:
-- `--token <token>`: Bearer token from the DPCR cluster (optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
+- `--token <token>`: Bearer token from the oc-auth skill (optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
 - `--dry-run`: Report matches without writing anything
 - `--batch-size <n>`: Runs per API request (default 10; max 50, but large batches risk 504 gateway timeouts)
 - `--format json|summary`: Output format (default: json)
@@ -141,14 +141,14 @@ Reevaluation is delete-then-insert and **idempotent** — running it twice on th
 - The server evaluates roughly **3-4 seconds per run**, and the fronting gateway times out around **60-90 seconds**, returning an HTML `504 Gateway Time-out` **page** (not JSON). This means 50-run batches reliably fail even though the API nominally accepts them.
 - The script therefore defaults to **batches of 10**, with **3 attempts per batch (2 retries)** and a 5-second backoff. Transient gateway errors (HTTP 502/503/504, HTML error pages, and non-JSON response bodies) are all retried. Retries are safe because reevaluation is idempotent — even a batch that partially completed server-side can be resent.
 - If 504s persist, lower `--batch-size` (e.g. `--batch-size 5`).
-- **Warning:** an HTML **login page** response means the token expired — the SSO proxy redirects to login instead of returning 401. The script detects this and tells you to log in to DPCR again and refresh `SIPPY_TOKEN`.
+- **Warning:** an HTML **login page** response means the token expired — the SSO proxy redirects to login instead of returning 401. The script detects this and tells you to refresh the token via the `oc-auth` skill.
 
 ## Error Handling
 
 - **Invalid/non-numeric IDs**: Caught client-side before any request (exit 1) — pass a numeric build ID or a Prow URL ending in one (query strings and `#fragments` are stripped automatically).
 - **Invalid `--batch-size`**: Must be between 1 and 50 (exit 1).
 - **Transient gateway errors (502/503/504, HTML error pages, non-JSON bodies)**: Retried automatically (3 attempts, i.e. 2 retries, 5s backoff); persistent failures are reported in `failed_batches` and the script exits 1 — rerun with just those IDs (idempotent, safe).
-- **Authentication failure (HTML login page or 401/403)**: Token missing/expired — the script **stops immediately** and marks all remaining batches as `not attempted` in `failed_batches` instead of hammering the API with a bad token. Log in to DPCR again, refresh `SIPPY_TOKEN`, and rerun.
+- **Authentication failure (HTML login page or 401/403)**: Token missing/expired — the script **stops immediately** and marks all remaining batches as `not attempted` in `failed_batches` instead of hammering the API with a bad token. Refresh the token via the `oc-auth` skill and rerun.
 - **`missing_error` status**: The run's artifacts were not found — check the build ID.
 - **501**: You hit the read-only Sippy instance; make sure the sippy-auth base URL is used (the script already does).
 
@@ -158,6 +158,7 @@ Reevaluation is delete-then-insert and **idempotent** — running it twice on th
 
 ## See Also
 
+- Related Skill: `oc-auth` (provides authentication tokens for sippy-auth)
 - Related Skill: `manage-symptoms` (create/update the symptoms you then apply retroactively)
 - Related Skill: `diagnose-job-run-symptoms` (explain which symptoms/labels apply to a run)
 - Related Skill: `fetch-regression-details` (source of `.job_runs[].prowjob_run_id` values for triage-wide reevaluation)
