@@ -144,6 +144,8 @@ Never clear the OS layer from end-of-run snapshots alone.
 | Lease/quota, ci-operator, Prow infra | [CI Infrastructure](references/ci-infrastructure-changes.md) | Distinguish "product broke" from "CI config changed"; ci-operator, step registry, leases |
 | Need a specific artifact file | [Artifacts](references/artifacts.md) | Artifact directory structure, paths, and gcloud fetch commands |
 
+Job-name routing (Step 3) picks which reference to read. Failure classification (`install` | `test` | `upgrade` | `infra`) follows the root cause, not the job name.
+
 ## Common Artifact Paths
 
 These are the most frequently needed artifacts. See [artifacts reference](references/artifacts.md) for the complete directory structure.

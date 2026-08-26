@@ -172,6 +172,7 @@ never provisioned — check the CAPI provider pods (`capi-provider`, `cluster-ap
 | Hosted API 5xx / timeouts | HCP etcd or kube-apiserver | `etcd-*`/`kube-apiserver-*` in `clusters-<name>` |
 | `*.apps.<hosted>` unreachable | Router / konnectivity tunnel | `router`, `konnectivity-*`, [networking.md](networking.md) |
 | Only management must-gather present | Standard-only pattern or hosted collection failed | confirm no `hostedcluster-*` dir; note in report |
+| Tests passed; destroy / dump / deprovision / teardown timed out | **Infrastructure** — cluster under test succeeded; CI cleanup did not | post-step `build-log.txt`, `ipi-deprovision-*`, hypershift destroy logs. Report `failure_type: infra`, not `test` |
 
 ## See Also
 

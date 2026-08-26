@@ -18,9 +18,11 @@ Use the following prompt **verbatim** (substituting the placeholder values) when
 >
 > **IMPORTANT** — Trace every failure to its specific root cause by examining actual logs. Never stop at high-level symptoms like "0 nodes ready", "operator degraded", or "containers are crash-looping". Download and read the actual log bundles, pod logs, and container previous logs. Cite specific error messages. The root cause must be actionable, not a restatement of the symptom.
 >
-> **Do NOT classify a failure as "infrastructure flake" or "transient" unless you have affirmative evidence** of an infrastructure problem (cloud API errors, quota exceeded, network timeouts from the cloud provider, Boskos lease failures, CI platform outages). The absence of an obvious code-level explanation does NOT make something infrastructure — it means you need to investigate deeper. Default to treating failures as potential product regressions until evidence proves otherwise.
+> **Do NOT classify a failure as "infrastructure flake" or "transient" unless you have affirmative evidence** of an infrastructure problem (cloud API errors, quota exceeded, network timeouts from the cloud provider, Boskos lease failures, CI platform outages, Insights/console.redhat.com API 500s, hypershift/cluster teardown timeouts after tests completed). The absence of an obvious code-level explanation does NOT make something infrastructure — it means you need to investigate deeper. Default to treating failures as potential product regressions until evidence proves otherwise.
 >
-> Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
+> Set `failure_type` from the **root cause**, not the job family. An upgrade or e2e job whose trigger is an Insights API 500, cloud-provider 429/throttling, VIP reachability loss, Boskos lease failure, or teardown timeout is `infra`. `upgrade`/`test`/`install` are for product or install-path failures in that phase.
+>
+> Return a concise summary including: failure type (`install` | `test` | `upgrade` | `infra`), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
 >
 > If the job is an aggregated job (has `aggregated-` prefix in the name or an `aggregator` container/step), also return the **underlying job name** (e.g., `periodic-ci-openshift-release-main-ci-4.22-e2e-aws-upgrade-ovn-single-node`). This is found in the junit-aggregated.xml artifacts — each `<testcase>` has `<system-out>` YAML data with a `humanurl` field linking to individual runs whose URL path contains the underlying job name. The underlying job name cannot be derived from the aggregated job name — it must be extracted from the artifacts.
 
@@ -34,7 +36,7 @@ Where `<rhcos_version>` is the `rhcos_version` field from the snapshot's failed 
 
 `<summary_json_path>` is the absolute path to the snapshot's `summary.json` file, and `<originating_payload_tag>` is the failure mode's `first_failed_in` value (Step 3.3/Step 5) — not the job-level `streak.originating_payload`, which can predate the regression when a job has multiple failure modes.
 
-Under `--as-of` (Step 1), append the cutoff timestamp to the prompt and instruct the subagent to discard post-cutoff artifacts and discussion.
+Under `--as-of` (Step 1), append the cutoff timestamp to the prompt and instruct the subagent to discard post-cutoff artifacts and discussion. Do not treat a later revert, its merge, or a subsequent payload outcome as evidence that a PR caused (or did not cause) the failure.
 
 ## Structured Return Format
 

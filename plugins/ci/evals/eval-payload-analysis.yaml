@@ -50,6 +50,12 @@ models:
   judge: claude-opus-4-8
 
 permissions:
+  # Allow only the public SHIP Status MCP. Do not use mcp__* — that would
+  # also permit unrelated plugin/user MCP servers if they are present.
+  # Claude names plugin MCP tools mcp__plugin_<plugin>_<server>__<tool>; the
+  # unprefixed mcp__<server>__* form is the project-local .mcp.json name.
+  # Deny writes even though the public endpoint is read-only — defense in
+  # depth if an authenticated server is also configured in the eval env.
   allow:
     - "Skill"
     - "Bash"
@@ -57,7 +63,30 @@ permissions:
     - "WebFetch"
     - "Write"
     - "Read"
-  deny: []
+    - "Edit"
+    - "mcp__ship-status__*"
+    - "mcp__plugin_ci_ship-status__*"
+  deny:
+    - "mcp__ship-status__create_outage"
+    - "mcp__ship-status__update_outage"
+    - "mcp__ship-status__delete_outage"
+    - "mcp__ship-status__add_triage_note"
+    - "mcp__ship-status__update_triage_note"
+    - "mcp__ship-status__delete_triage_note"
+    - "mcp__ship-status__add_outage_link"
+    - "mcp__ship-status__update_outage_link"
+    - "mcp__ship-status__delete_outage_link"
+    - "mcp__ship-status__record_payload_infra_outage"
+    - "mcp__plugin_ci_ship-status__create_outage"
+    - "mcp__plugin_ci_ship-status__update_outage"
+    - "mcp__plugin_ci_ship-status__delete_outage"
+    - "mcp__plugin_ci_ship-status__add_triage_note"
+    - "mcp__plugin_ci_ship-status__update_triage_note"
+    - "mcp__plugin_ci_ship-status__delete_triage_note"
+    - "mcp__plugin_ci_ship-status__add_outage_link"
+    - "mcp__plugin_ci_ship-status__update_outage_link"
+    - "mcp__plugin_ci_ship-status__delete_outage_link"
+    - "mcp__plugin_ci_ship-status__record_payload_infra_outage"
 
 mlflow:
   experiment: ci-payload-analysis-eval
@@ -146,7 +175,12 @@ judges:
       json_f = [k for k in all_f if k.endswith("-autodl.json")]
       missing = []
       if not html:
-          missing.append("HTML report (*-summary.html)")
+          wrong = [
+              k for k in all_f
+              if k.endswith(".html") and "payload-analysis" in os.path.basename(k)
+          ]
+          hint = f" (found {os.path.basename(wrong[0])} — must end with -summary.html)" if wrong else ""
+          missing.append("HTML report (*-summary.html)" + hint)
       if not yaml_f:
           missing.append("payload results YAML (payload-results-*.yaml)")
       if not json_f:
@@ -212,9 +246,10 @@ judges:
       component_slug, sub_component_slug, window_start, and window_end.
       Skipped jobs must use action skipped with reason unmapped, include
       list_components candidates in reason, and have a list_components
-      call. If SHIP read tools were not invoked (evals without the public
-      MCP), omitting ship_status is correct. Recording mapped ship_status
-      after only a current-status query is a fail.
+      call. This eval (and the Prow payload-agent job) provide the public
+      SHIP Status MCP — infra jobs without get_outages_during or
+      list_components are a fail, not an omit. Recording mapped
+      ship_status after only a current-status query is a fail.
     check: |
       import yaml, os, json
       all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
@@ -228,15 +263,27 @@ judges:
 
       def _tool_calls():
           calls = []
+          seen = set()
+
+          def _add(name, inp):
+              inp = inp if isinstance(inp, dict) else {}
+              key = (name, json.dumps(inp, sort_keys=True, default=str))
+              if key in seen:
+                  return
+              seen.add(key)
+              calls.append((name, inp))
+
           for entry in outputs.get("events") or []:
               if not isinstance(entry, dict):
                   continue
               for tool in entry.get("tools") or []:
                   if isinstance(tool, dict) and tool.get("name"):
-                      inp = tool.get("input") or tool.get("arguments") or {}
-                      calls.append((str(tool.get("name")), inp if isinstance(inp, dict) else {}))
-          if calls:
-              return calls
+                      _add(
+                          str(tool.get("name")),
+                          tool.get("input") or tool.get("arguments") or {},
+                      )
+          # Events often list only host tools (Bash/Read/…). Merge stdout
+          # JSONL so MCP calls are not dropped when events is non-empty.
           for line in (outputs.get("stdout") or "").splitlines():
               try:
                   entry = json.loads(line)
@@ -248,10 +295,8 @@ judges:
                   if not isinstance(block, dict) or block.get("type") != "tool_use":
                       continue
                   name = block.get("name")
-                  if not name:
-                      continue
-                  inp = block.get("input") or {}
-                  calls.append((str(name), inp if isinstance(inp, dict) else {}))
+                  if name:
+                      _add(str(name), block.get("input") or {})
           return calls
 
       def _during_key(inp):
@@ -311,6 +356,12 @@ judges:
           why = "get_infrastructure_status (live now)" if current_seen else "no get_outages_during"
           return (False, f"ship_status recorded without a job-window query ({why})")
       ship_tools_seen = during_seen or list_seen
+      if not ship_tools_seen:
+          return (
+              False,
+              "infra jobs present but SHIP Status MCP was not used "
+              "(need get_outages_during, or list_components when unmapped)",
+          )
       if ship_tools_seen and len(with_ship_status) != len(infra):
           missing = [str(j.get("job_name") or "?") for j in infra if not isinstance(j.get("ship_status"), dict)]
           return (False, "SHIP Status tools were used but infra jobs missing ship_status: " + ", ".join(missing))
@@ -344,7 +395,7 @@ judges:
               return (False, "skipped unmapped jobs require a list_components call")
       if ship_tools_seen:
           return (True, f"{len(with_ship_status)}/{len(infra)} infra jobs have ship_status ({len(skipped)} skipped)")
-      return (True, "SHIP Status read tools not evidenced; ship_status omitted")
+      return (False, "infra jobs present but SHIP Status MCP was not used")
 
   - name: json_data_valid
     description: |
@@ -395,7 +446,13 @@ judges:
       all_f = {**files, **modified}
       html_files = {k: v for k, v in all_f.items() if k.endswith("-summary.html")}
       if not html_files:
-          return (False, "No HTML report found")
+          import os
+          wrong = [
+              k for k in all_f
+              if k.endswith(".html") and "payload-analysis" in os.path.basename(k)
+          ]
+          hint = f" (found {os.path.basename(wrong[0])} — must end with -summary.html)" if wrong else ""
+          return (False, "No HTML report found" + hint)
       html = list(html_files.values())[0]
       checks = {
           "executive summary": "executive" in html.lower() or "summary" in html.lower(),

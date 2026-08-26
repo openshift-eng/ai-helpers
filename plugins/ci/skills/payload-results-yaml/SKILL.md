@@ -134,7 +134,7 @@ All failed blocking jobs in the payload. Written once by `payload-analysis`. Nev
 | `streak_length` | int | Consecutive payloads this job has been failing |
 | `originating_payload_tag` | string | The payload where this job first started failing in the current streak |
 | `failure_pattern` | string | Pass/fail history across the lookback window, most recent first (e.g., `"F F F S F F"`) |
-| `ship_status` | object | Optional. SHIP Status observation for `failure_type: infra` jobs (and when infra is suspected). Omit entirely when SHIP read tools are unavailable. |
+| `ship_status` | object | Optional. SHIP Status observation for `failure_type: infra` jobs (and when infra is suspected). Omit the key entirely when SHIP read tools (`get_outages_during` / `list_components`) are not in the tool list. Do not write `action: skipped` as a stand-in for missing tools. |
 
 #### `failing_jobs[].ship_status` (optional)
 
