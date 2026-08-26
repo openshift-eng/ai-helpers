@@ -1,0 +1,6 @@
+{
+  "classification": "out_of_scope",
+  "should_fix": false,
+  "should_post_comment": true,
+  "rationale": "ci/prow/agentic-staging is optional and does not block merge. The failing e2e is in staging_e2e_test.go, which this PR did not change; the PR only fixes unused-vars in two unrelated files. A 503 from a staging endpoint is not a compile/lint error in the diff and has plausible infra/flake explanations. Do not change code to green an optional job. Report on the PR."
+}

@@ -117,6 +117,14 @@ Cache results per author — do not re-check the same login twice.
 1. **Additional filtering** (for remaining fetched comments):
    - Already resolved comments
    - Pure acknowledgments ("LGTM", "Thanks!", etc.)
+   - Slash-command-only bodies (`/lgtm`, `/hold`, `/test …`) — not review work. Skip **before** categorizing:
+
+     ```sh
+     printf '%s' "$BODY" | python3 "${CLAUDE_SKILL_DIR}/../has-review-work/scripts/is_slash_command_only.py"
+     ```
+
+     - Exit 0: skip — after trimming, dropping blank lines and HTML comments, every remaining line is a slash command
+     - Exit 1: keep — mixed prose plus a trailing `/lgtm` is still work
 
 2. **Categorize**:
    - **ACTION_INSTRUCTION**: Repo-level operations — rebase, verify, squash, update branch, run tests.
@@ -282,5 +290,5 @@ Where `<type>` is one of: `issue_comment`, `review_thread`, or `review_comment`
 3. **Check before acting**: Questions ("Why did you...?") get explanations, not code changes.
 
 ## See Also
-- `has-review-work` — read-only gate: `COMMENT_WORK` for unanswered authorized comments, `CI_WORK` for new CI failures
+- `has-review-work` — read-only gate: `COMMENT_WORK` for unanswered authorized comments, `CI_WORK` for new non-optional CI failures
 - `address-ci-failures` — triage and fix PR-caused CI failures (or report non-actionable ones)

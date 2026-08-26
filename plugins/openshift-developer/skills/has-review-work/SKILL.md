@@ -1,6 +1,6 @@
 ---
 name: has-review-work
-description: Decide whether a GitHub PR has unanswered authorized review comments or new CI failures worth a follow-up agent. Use when gating a review-responder loop, polling a PR for actionable feedback, or checking if address-review-pr or address-ci-failures should run.
+description: Decide whether a GitHub PR has unanswered authorized review comments or new required CI failures worth a follow-up agent. Use when gating a review-responder loop, polling a PR for actionable feedback, or checking if address-review-pr or address-ci-failures should run. Optional Prow jobs are not CI work.
 ---
 
 ## Name
@@ -12,9 +12,9 @@ openshift-developer:has-review-work
 ```
 
 ## Description
-Read-only check: does this PR have work for `/openshift-developer:address-review-pr` (review comments) or `/openshift-developer:address-ci-failures` (new CI failures)?
+Read-only check: does this PR have work for `/openshift-developer:address-review-pr` (review comments) or `/openshift-developer:address-ci-failures` (new required CI failures)?
 
-Inspects inline review comments, PR reviews, and conversation comments. Skips comments from the GitHub account running this check (so the agent's own replies are not treated as new work), CI bots, unauthorized authors, already-replied threads, and pure acknowledgments. Also detects **new** CI failures compared to a previous failing-check set.
+Inspects inline review comments, PR reviews, and conversation comments. Skips comments from the GitHub account running this check (so the agent's own replies are not treated as new work), CI bots, unauthorized authors, already-replied threads, pure acknowledgments, and Prow/GitHub slash-command-only bodies (`/lgtm`, `/hold`, `/test …`). Also detects **new** CI failures compared to a previous failing-check set. Optional Prow jobs do not count as CI work.
 
 Does not modify files, post replies, commit, or push.
 
@@ -87,7 +87,19 @@ Ignore:
 - `openshift-ci-robot`, `openshift-ci`, `openshift-merge-robot`, `openshift-bot`
 - Reviews with state `APPROVED` or `PENDING`
 - Pure acknowledgments ("Thanks!", "LGTM") with no request
+- Slash-command-only bodies (Prow/GitHub `/command` lines) — not review work
 - Resolved review threads
+
+For each remaining comment body, skip slash-command-only comments **before** authorize/replied checks:
+
+```sh
+printf '%s' "$BODY" | python3 "${CLAUDE_SKILL_DIR}/scripts/is_slash_command_only.py"
+```
+
+- Exit 0: skip — after trimming, dropping blank lines and HTML comments (`<!-- … -->`), every remaining line matches `^/[A-Za-z][A-Za-z0-9_-]*(?=$|\s)` (e.g. `/lgtm`, `/hold`, `/lgtm cancel`, `/test e2e-aws`, `/hold` + `/lgtm` on two lines)
+- Exit 1: keep — any remaining line is not a slash command (review prose plus a trailing `/lgtm` is still work)
+
+Do not enumerate commands. Prow matches any line that starts with `/command`.
 
 ### Authorize authors
 
@@ -129,9 +141,15 @@ if [ -z "$CHECKS_JSON" ] || ! printf '%s' "$CHECKS_JSON" | jq -e 'type == "array
   echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
   exit 1
 fi
+
+CHECKS_JSON=$(printf '%s' "$CHECKS_JSON" | python3 "${CLAUDE_SKILL_DIR}/scripts/filter_optional_checks.py")
 ```
 
-Failing checks are those with `bucket == "fail"`. Ignore `tide` — it is not an actionable CI failure. Build a JSON array of objects with `name`, `state`, `bucket`, and `link` (Prow/job URL when available). Pass only these actionable failures in `FAILING_CHECKS` for `address-ci-failures`.
+Actionable failing checks are those with `bucket == "fail"` after `filter_optional_checks.py`. That script drops `tide` and optional Prow jobs (`spec.optional` or label `prow.k8s.io/is-optional=true` on the ProwJob for that run, fetched from the check's `link`). Do **not** use `gh pr checks --required` — that is GitHub branch protection and omits Tide-required `run_if_changed` jobs.
+
+If the only failures are optional jobs, there is no CI work: `CI_WORK=no` and `FAILING_CHECKS=[]`. If prowjob.json cannot be fetched, keep the failing check (fail closed).
+
+Build `FAILING_CHECKS` from the filtered JSON — objects with `name`, `state`, `bucket`, and `link` (Prow/job URL when available). Pass only these actionable failures to `address-ci-failures`.
 
 Resolve the PR head commit and compare against the caller's previous poll state:
 
@@ -158,7 +176,7 @@ FAILING_CHECKS=[{"name":"lint","state":"FAILURE","bucket":"fail","link":"https:/
 ```
 
 - `COMMENT_WORK=yes` only when there is at least one unanswered authorized comment/review for `address-review-pr`.
-- `CI_WORK=yes` only when there are **new** CI failures for `address-ci-failures` (see comparison rules above).
+- `CI_WORK=yes` only when there are **new** non-optional CI failures for `address-ci-failures` (see comparison rules above). Optional-only failures are not CI work.
 - `WORK=yes` if either `COMMENT_WORK` or `CI_WORK` is yes (derived; kept for older callers).
 - Always emit `FAILING_CHECKS` as a JSON array of the **current** actionable failures (even when `CI_WORK=no`) so names with whitespace survive a poll round-trip. Empty array when nothing is failing.
 
