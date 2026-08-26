@@ -53,8 +53,9 @@ Load these only at the step that needs them — not up front:
 - **`references/report-guide.md`** — per-section content rules for the HTML report (Step 7)
 - **`references/completeness-review.md`** — the completeness-reviewer prompt and response handling (Step 9)
 - **`assets/report-template.html`** — the fill-in-the-blanks HTML report template (Step 7)
+- **`references/ship-status-component-map.md`** — SHIP Status slug mapping (Step 6.5)
 
-The `payload-results-yaml` and `payload-autodl-json` skills define the structured output schemas; load each via the Skill tool at its point of use (Steps 6.5 and 8).
+The `payload-results-yaml` and `payload-autodl-json` skills define the structured output schemas; load each via the Skill tool at its point of use (Steps 6.7 and 8).
 
 ## Implementation Steps
 
@@ -66,7 +67,7 @@ The `payload-results-yaml` and `payload-autodl-json` skills define the structure
 OUTPUT_DIR="$(pwd)"
 ```
 
-All three output files — the payload results YAML (Step 6.5), the HTML report (Step 7), and the autodl JSON (Step 8) — MUST be written under `$OUTPUT_DIR`, never into a snapshot subdirectory or a path a later `cd` may have changed. The Step 10 self-check verifies them at `$OUTPUT_DIR`.
+All three output files — the payload results YAML (Step 6.7), the HTML report (Step 7), and the autodl JSON (Step 8) — MUST be written under `$OUTPUT_DIR`, never into a snapshot subdirectory or a path a later `cd` may have changed. The Step 10 self-check verifies them at `$OUTPUT_DIR`.
 
 The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Parse from it:
 - `tag`: The specific payload tag to analyze
@@ -476,7 +477,28 @@ Otherwise, recommend force-accepting when **all** of the following are true:
 
 Instead, recommend the correct action: **wait for the RHCOS with the rebuilt kubelet to land** (i.e., for the transient build lag from Step 6.2 to resolve). Once the updated kubelet is delivered, the skew clears and the payload passes on its own.
 
-#### 6.5: Write Payload Results YAML
+#### 6.5: Read SHIP Status (required when SHIP read tools exist)
+
+After classification — and as a check when infrastructure is suspected but not yet committed — correlate each `failure_type: infra` job with the SHIP Status dashboard.
+
+This analysis often runs **hours after** the payload jobs finished. Current dashboard health is the wrong window.
+
+1. Read `references/ship-status-component-map.md` in this skill's directory. Map `component_slug` / `sub_component_slug` from `prowjob.json` `spec.cluster`, Boskos/lease/cloud signals, or Prow control-plane symptoms. First match wins.
+2. If SHIP Status read tools exist, call **`get_outages_during`** for the mapped component/sub-component with RFC3339 UTC `start`/`end` covering the **job's Prow run window** (start slightly before job start if uncertain; end at job completion, or `--as-of` / `payload_completed_at` if completion is missing). An outage overlapping that window is **affirmative infra evidence**.
+3. Do **not** use `get_infrastructure_status` for this step — that is live "now" health. Do **not** substitute `get_component_outages`; it has no overlap filter. Use `list_components` only when mapping is ambiguous.
+4. Record a `ship_status` observation on each infra job (see the `payload-results-yaml` schema): slugs, `window_start` / `window_end` (the same bounds passed to `get_outages_during`), `observed_health` from the overlap result (`healthy` if none), `existing_outage_id`, `queried_at`, `action: pending`. Empty overlap is still a recorded observation, not a skip. Chai `payload_check` reuses these windows on the write path.
+5. If mapping is ambiguous, skip that job (`action: skipped`, `reason: unmapped`) and include `list_components` candidates in `reason`. Do not invent slugs.
+6. If SHIP read tools are **not** available, omit `ship_status` entirely and continue.
+
+The Prow job uses the public SHIP Status MCP (reads only). This step must still run there.
+
+#### 6.6: Record SHIP Status outage (only if `record_payload_infra_outage` exists)
+
+If the `record_payload_infra_outage` tool is available (Chai RWS), pass **all** infra jobs in **one** call (`jobs_json` array with `job_name`, `prow_url`, `root_cause_summary`, slugs, and the same `window_start` / `window_end` used in Step 6.5). Do not call it once per job. Do not call raw `create_outage`.
+
+Stamp `action` / `outage_id` / `dashboard_url` onto each job from the tool result. The Prow job does not have this tool and skips this step — Chai `payload_check` performs the write later from the YAML snapshot.
+
+#### 6.7: Write Payload Results YAML
 
 Load the `payload-results-yaml` skill now (via the Skill tool) — this is its point of use — and follow it to create `$OUTPUT_DIR/payload-results-{tag}.yaml` (the `$OUTPUT_DIR` captured in Step 1).
 

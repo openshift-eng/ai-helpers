@@ -47,6 +47,7 @@ One `failed-job` collapsible block per failed blocking job:
 - Prow line: Prow and GCS Artifacts links; for aggregated jobs, append the underlying job name.
 - `variant-callout` — include only when the failure is variant-isolated; fill in which variant is affected.
 - `analysis_from_subagent` — the subagent's failure analysis (Step 4), adjudicated where Step 5b applied. Preserve its structure (failure type, root cause, key errors with `<code>`, retry comparison).
+- `ship-status` — include only for `failure_type: infra` jobs that have a `ship_status` observation. `{ship_status_line}` is one sentence: health overlapping the **job run window** (from `get_outages_during`, not live now) plus either an existing outage link, "pending Chai create", or the created/linked dashboard URL after a Chai-hosted write. Omit the block when `ship_status` was not recorded (read tools missing).
 - `known-symptoms` — include only when the subagent reported symptoms other than "none".
 - Candidates: use `candidates-table` (one `candidate-row` per scored candidate with its tiered score class) when candidates exist; otherwise use `candidates-none`, whose prose must state **why** no candidate explains the failure (Step 6.1) — never leave it blank or generic.
 

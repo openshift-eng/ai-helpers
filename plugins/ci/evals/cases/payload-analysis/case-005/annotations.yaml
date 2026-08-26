@@ -19,3 +19,6 @@ notes: >
   (infra teardown timeout, not a code regression). One high-confidence
   revert candidate: cloud-credential-operator#978 (score 95). The hypershift
   failure should be classified as infrastructure, not product.
+  When SHIP Status read tools are present, Step 6.5 must call
+  get_outages_during over the job window (not live status) and record
+  ship_status on the infra job.

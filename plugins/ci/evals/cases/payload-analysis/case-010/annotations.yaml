@@ -19,4 +19,6 @@ notes: >
   long as none reaches the revert threshold. Tests parallel subagent
   correlation: the agent must recognize four superficially different job
   failures (serial test failure vs. upgrade stalls) as one shared external
-  cause rather than attributing them to payload PRs.
+  cause rather than attributing them to payload PRs.   When SHIP Status read
+  tools are present, Step 6.5 must call get_outages_during over the job
+  window (not live status).

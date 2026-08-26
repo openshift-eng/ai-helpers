@@ -112,7 +112,7 @@ outputs:
            analyzed_at, force_accept_recommended
          - failing_jobs[]: job_name, prow_url, is_aggregated, underlying_job_name,
            failure_type, root_cause_summary, streak_length, originating_payload_tag,
-           failure_pattern
+           failure_pattern, optional ship_status observation on infra jobs
          - candidates[]: type ("pr" or "rhcos_rpm"), component, confidence_score,
            rationale, failing_jobs[], actions[]; type "pr" entries also carry
            pr_url, pr_number, title
@@ -201,6 +201,38 @@ judges:
           if cmissing:
               return (False, f"candidates[0] missing: {', '.join(cmissing)}")
       return (True, f"Valid: {len(jobs)} failing jobs, {len(cands)} candidates")
+
+  - name: ship_status_infra_read
+    description: |
+      Correlation must use get_outages_during over the job window, not live
+      get_infrastructure_status. When that tool was used, every
+      failure_type: infra job must carry a ship_status observation. If
+      get_outages_during was not invoked (evals without the public MCP),
+      omitting ship_status is correct. Recording ship_status after only a
+      current-status query is a fail.
+    check: |
+      import yaml, os, json
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      yf = [v for k, v in all_f.items() if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")]
+      if not yf:
+          return (False, "No payload results YAML found")
+      data = yaml.safe_load(yf[0]) or {}
+      infra = [j for j in (data.get("failing_jobs") or []) if isinstance(j, dict) and j.get("failure_type") == "infra"]
+      if not infra:
+          return (True, "No infra jobs")
+      events = outputs.get("events") or []
+      corpus = json.dumps(events) if events else (outputs.get("stdout") or "")
+      during_seen = "get_outages_during" in corpus
+      current_seen = "get_infrastructure_status" in corpus
+      with_ship_status = [j for j in infra if isinstance(j.get("ship_status"), dict)]
+      if with_ship_status and not during_seen:
+          why = "get_infrastructure_status (live now)" if current_seen else "no get_outages_during"
+          return (False, f"ship_status recorded without a job-window query ({why})")
+      if during_seen and not with_ship_status:
+          return (False, "get_outages_during was used but no failing_jobs[].ship_status on infra jobs")
+      if with_ship_status:
+          return (True, f"{len(with_ship_status)}/{len(infra)} infra jobs have ship_status from get_outages_during")
+      return (True, "get_outages_during not evidenced; ship_status omitted")
 
   - name: json_data_valid
     description: |
@@ -791,6 +823,8 @@ thresholds:
   output_files_exist:
     min_pass_rate: 1.0
   yaml_results_valid:
+    min_pass_rate: 1.0
+  ship_status_infra_read:
     min_pass_rate: 1.0
   json_data_valid:
     min_pass_rate: 1.0

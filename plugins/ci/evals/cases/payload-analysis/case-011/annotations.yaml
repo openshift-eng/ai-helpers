@@ -14,4 +14,6 @@ notes: >
   which is an infrastructure issue unrelated to any code change. The correct
   outcome is zero revert candidates. This case tests the agent's ability to
   classify and dismiss infrastructure issues without producing false positive
-  revert recommendations.
+  revert recommendations.   When SHIP Status read tools are present, Step 6.5
+  must call get_outages_during over the job window (not live status) and
+  record ship_status on the infra jobs.

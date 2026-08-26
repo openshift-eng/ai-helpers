@@ -189,6 +189,11 @@ code { font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; fo
     <h4>Failure Analysis</h4>
     <div class="analysis">{analysis_from_subagent}</div>
 
+    <!-- BEGIN: ship-status — include on failure_type infra when a SHIP Status observation exists -->
+    <h4>SHIP Status</h4>
+    <p>{ship_status_line}</p>
+    <!-- END: ship-status -->
+
     <!-- BEGIN: known-symptoms — include only when symptoms are not "none" -->
     <h4>Known Symptoms Seen</h4>
     <p>{comma_separated_symptom_summaries}</p>

@@ -56,6 +56,18 @@ failing_jobs:
     streak_length: 1
     originating_payload_tag: "4.22.0-0.nightly-2026-02-25-152806"
     failure_pattern: "F"
+    ship_status:
+      component_slug: build-farm
+      sub_component_slug: build04
+      window_start: "2026-02-25T14:00:00Z"
+      window_end: "2026-02-25T15:30:00Z"
+      observed_health: healthy
+      existing_outage_id: null
+      queried_at: "2026-02-25T16:00:00Z"
+      action: pending
+      outage_id: null
+      dashboard_url: null
+      reason: ""
 
 candidates:
   - type: "pr"
@@ -122,6 +134,25 @@ All failed blocking jobs in the payload. Written once by `payload-analysis`. Nev
 | `streak_length` | int | Consecutive payloads this job has been failing |
 | `originating_payload_tag` | string | The payload where this job first started failing in the current streak |
 | `failure_pattern` | string | Pass/fail history across the lookback window, most recent first (e.g., `"F F F S F F"`) |
+| `ship_status` | object | Optional. SHIP Status observation for `failure_type: infra` jobs (and when infra is suspected). Omit entirely when SHIP read tools are unavailable. |
+
+#### `failing_jobs[].ship_status` (optional)
+
+Recorded by `payload-analysis` steps 6.5 (read) and 6.6 (write, only when `record_payload_infra_outage` exists). Downstream skills must not invent slugs.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `component_slug` | string | SHIP Status component (e.g. `build-farm`, `boskos`, `prow`) |
+| `sub_component_slug` | string | SHIP Status sub-component (e.g. `build04`, `aws`) |
+| `window_start` | string | RFC3339 UTC start of the job's Prow run (same bound passed to `get_outages_during`) |
+| `window_end` | string | RFC3339 UTC end of the job's Prow run (job completion, or `--as-of` if missing) |
+| `observed_health` | string | Health overlapping the **job run window** from `get_outages_during` (`healthy` if none; otherwise the overlapping outage severity). Never live "now" status from `get_infrastructure_status`. |
+| `existing_outage_id` | int or `null` | Outage id overlapping the job window, or `null` if none |
+| `queried_at` | string | RFC3339 UTC timestamp of the read |
+| `action` | string | `pending` \| `created` \| `linked` \| `skipped` |
+| `outage_id` | int or `null` | Filled after a Chai-hosted write |
+| `dashboard_url` | string or `null` | Outage URL after create/link |
+| `reason` | string | Skip/error detail (`unmapped`, `already_recorded`, …) |
 
 ### `candidates[]`
 
