@@ -205,12 +205,15 @@ judges:
   - name: ship_status_infra_read
     description: |
       Correlation must use get_outages_during over each job's Prow window,
-      not live get_infrastructure_status. Detect the tool from structured
-      tool-call events (not serialized-text search). When it was used,
-      every failure_type: infra job must carry a ship_status dict, and
-      each non-skipped job's window_start/window_end must match a call's
-      start/end. If get_outages_during was not invoked (evals without the
-      public MCP), omitting ship_status is correct. Recording ship_status
+      not live get_infrastructure_status. Detect tools from structured
+      tool-call events (not serialized-text search). When SHIP read tools
+      were used, every failure_type: infra job must carry a ship_status
+      dict. Each non-skipped job must match a get_outages_during call on
+      component_slug, sub_component_slug, window_start, and window_end.
+      Skipped jobs must use action skipped with reason unmapped, include
+      list_components candidates in reason, and have a list_components
+      call. If SHIP read tools were not invoked (evals without the public
+      MCP), omitting ship_status is correct. Recording mapped ship_status
       after only a current-status query is a fail.
     check: |
       import yaml, os, json
@@ -251,36 +254,73 @@ judges:
                   calls.append((str(name), inp if isinstance(inp, dict) else {}))
           return calls
 
+      def _during_key(inp):
+          return (
+              str(inp.get("component_name") or inp.get("component_slug") or "").strip(),
+              str(inp.get("sub_component_name") or inp.get("sub_component_slug") or "").strip(),
+              str(inp.get("start") or "").strip(),
+              str(inp.get("end") or "").strip(),
+          )
+
+      def _ship(job):
+          st = job.get("ship_status")
+          return st if isinstance(st, dict) else {}
+
       calls = _tool_calls()
-      during_windows = set()
+      during_keys = set()
       during_seen = False
+      list_seen = False
       current_seen = False
       for name, inp in calls:
           if name.endswith("get_outages_during"):
               during_seen = True
-              during_windows.add((str(inp.get("start") or "").strip(), str(inp.get("end") or "").strip()))
+              during_keys.add(_during_key(inp))
+          if name.endswith("list_components"):
+              list_seen = True
           if name.endswith("get_infrastructure_status"):
               current_seen = True
       with_ship_status = [j for j in infra if isinstance(j.get("ship_status"), dict)]
-      if with_ship_status and not during_seen:
+      mapped = [j for j in infra if str(_ship(j).get("action") or "") != "skipped"]
+      skipped = [j for j in infra if str(_ship(j).get("action") or "") == "skipped"]
+      mapped_with_ss = [j for j in mapped if isinstance(j.get("ship_status"), dict)]
+      if mapped_with_ss and not during_seen:
           why = "get_infrastructure_status (live now)" if current_seen else "no get_outages_during"
           return (False, f"ship_status recorded without a job-window query ({why})")
-      if during_seen and len(with_ship_status) != len(infra):
+      ship_tools_seen = during_seen or list_seen
+      if ship_tools_seen and len(with_ship_status) != len(infra):
           missing = [str(j.get("job_name") or "?") for j in infra if not isinstance(j.get("ship_status"), dict)]
-          return (False, "get_outages_during was used but infra jobs missing ship_status: " + ", ".join(missing))
+          return (False, "SHIP Status tools were used but infra jobs missing ship_status: " + ", ".join(missing))
       if during_seen:
           mismatched = []
-          for job in infra:
-              st = job.get("ship_status") if isinstance(job.get("ship_status"), dict) else {}
-              if str(st.get("action") or "") == "skipped":
-                  continue
-              window = (str(st.get("window_start") or "").strip(), str(st.get("window_end") or "").strip())
-              if window not in during_windows:
+          for job in mapped:
+              st = _ship(job)
+              key = (
+                  str(st.get("component_slug") or "").strip(),
+                  str(st.get("sub_component_slug") or "").strip(),
+                  str(st.get("window_start") or "").strip(),
+                  str(st.get("window_end") or "").strip(),
+              )
+              if key not in during_keys:
                   mismatched.append(str(job.get("job_name") or "?"))
           if mismatched:
-              return (False, "get_outages_during start/end did not match job window for: " + ", ".join(mismatched))
-          return (True, f"{len(with_ship_status)}/{len(infra)} infra jobs have ship_status from get_outages_during")
-      return (True, "get_outages_during not evidenced; ship_status omitted")
+              return (False, "get_outages_during slug/window did not match for: " + ", ".join(mismatched))
+      if skipped:
+          bad_skip = []
+          for job in skipped:
+              st = _ship(job)
+              reason = str(st.get("reason") or "")
+              if str(st.get("action") or "") != "skipped" or "unmapped" not in reason:
+                  bad_skip.append(str(job.get("job_name") or "?"))
+                  continue
+              if not reason.replace("unmapped", "", 1).strip(" :-,"):
+                  bad_skip.append(str(job.get("job_name") or "?"))
+          if bad_skip:
+              return (False, "skipped infra jobs must have action=skipped, reason=unmapped plus list_components candidates: " + ", ".join(bad_skip))
+          if ship_tools_seen and not list_seen:
+              return (False, "skipped unmapped jobs require a list_components call")
+      if ship_tools_seen:
+          return (True, f"{len(with_ship_status)}/{len(infra)} infra jobs have ship_status ({len(skipped)} skipped)")
+      return (True, "SHIP Status read tools not evidenced; ship_status omitted")
 
   - name: json_data_valid
     description: |
