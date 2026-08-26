@@ -283,8 +283,8 @@ judges:
       allowed_actions = ("pending", "created", "linked", "skipped")
       bad_action = []
       for job in infra:
-          st = _ship(job)
-          if not st:
+          st = job.get("ship_status")
+          if not isinstance(st, dict):
               continue
           action = st.get("action")
           if not isinstance(action, str) or action not in allowed_actions:
