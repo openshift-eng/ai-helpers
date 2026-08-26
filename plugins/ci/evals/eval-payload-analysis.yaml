@@ -50,12 +50,12 @@ models:
   judge: claude-opus-4-8
 
 permissions:
-  # Allow only the public SHIP Status MCP. Do not use mcp__* — that would
-  # also permit unrelated plugin/user MCP servers if they are present.
+  # Allow only the public SHIP Status MCP (reads). Do not use mcp__* — that
+  # would also permit unrelated plugin/user MCP servers if they are present.
   # Claude names plugin MCP tools mcp__plugin_<plugin>_<server>__<tool>; the
   # unprefixed mcp__<server>__* form is the project-local .mcp.json name.
-  # Deny writes even though the public endpoint is read-only — defense in
-  # depth if an authenticated server is also configured in the eval env.
+  # The public endpoint has no write tools; the authenticated MCP is not
+  # configured in this eval.
   allow:
     - "Skill"
     - "Bash"
@@ -66,27 +66,7 @@ permissions:
     - "Edit"
     - "mcp__ship-status__*"
     - "mcp__plugin_ci_ship-status__*"
-  deny:
-    - "mcp__ship-status__create_outage"
-    - "mcp__ship-status__update_outage"
-    - "mcp__ship-status__delete_outage"
-    - "mcp__ship-status__add_triage_note"
-    - "mcp__ship-status__update_triage_note"
-    - "mcp__ship-status__delete_triage_note"
-    - "mcp__ship-status__add_outage_link"
-    - "mcp__ship-status__update_outage_link"
-    - "mcp__ship-status__delete_outage_link"
-    - "mcp__ship-status__record_payload_infra_outage"
-    - "mcp__plugin_ci_ship-status__create_outage"
-    - "mcp__plugin_ci_ship-status__update_outage"
-    - "mcp__plugin_ci_ship-status__delete_outage"
-    - "mcp__plugin_ci_ship-status__add_triage_note"
-    - "mcp__plugin_ci_ship-status__update_triage_note"
-    - "mcp__plugin_ci_ship-status__delete_triage_note"
-    - "mcp__plugin_ci_ship-status__add_outage_link"
-    - "mcp__plugin_ci_ship-status__update_outage_link"
-    - "mcp__plugin_ci_ship-status__delete_outage_link"
-    - "mcp__plugin_ci_ship-status__record_payload_infra_outage"
+  deny: []
 
 mlflow:
   experiment: ci-payload-analysis-eval
