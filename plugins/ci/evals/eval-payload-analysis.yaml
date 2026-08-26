@@ -282,13 +282,22 @@ judges:
       with_ship_status = [j for j in infra if isinstance(j.get("ship_status"), dict)]
       allowed_actions = ("pending", "created", "linked", "skipped")
       bad_action = []
+      bad_type = []
       for job in infra:
           st = job.get("ship_status")
+          if st is None:
+              continue
           if not isinstance(st, dict):
+              bad_type.append(f"{job.get('job_name') or '?'}: {type(st).__name__}")
               continue
           action = st.get("action")
           if not isinstance(action, str) or action not in allowed_actions:
               bad_action.append(f"{job.get('job_name') or '?'}: {action!r}")
+      if bad_type:
+          return (
+              False,
+              "ship_status must be an object: " + ", ".join(bad_type),
+          )
       if bad_action:
           return (
               False,
