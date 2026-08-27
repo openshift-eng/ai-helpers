@@ -253,7 +253,7 @@ Output: PV and PVC status tables
 Parses OVN Northbound and Southbound database dumps and supports targeted OVSDB queries.
 
 ### scripts/analyze_windows_logs.py
-Parses Windows node, HNS, containerd, and hybrid-overlay logs from must-gather archives.
+Parses Windows node component logs for kube-proxy, hybrid-overlay, kubelet, containerd, WICD, and CSI proxy.
 
 ## Tips for Analysis
 

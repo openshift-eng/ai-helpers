@@ -275,7 +275,7 @@ hypershift create cluster agent \
 
 Provide additional configuration needed after cluster creation:
 
-````
+````markdown
 ## Post-Creation Configuration (Disconnected)
 
 After running the command above (with --render), you'll need to modify the generated manifests:

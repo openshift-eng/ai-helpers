@@ -93,7 +93,7 @@ Do NOT invoke this skill directly. Use the commands above.
 
 ## Sub-Modules
 
-This skill is composed of four sub-modules. Read each when executing the analysis:
+Read the modules listed below when executing the analysis:
 
 | Module | File | Purpose |
 |--------|------|---------|

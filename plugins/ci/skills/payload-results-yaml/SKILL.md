@@ -224,7 +224,7 @@ Scan all candidates. If any candidate has an action with `type: "experiment"` an
 
 ## See Also
 
-- Validator: run `python3 scripts/validate.py <payload-results-file>` to check a generated YAML file against this schema.
+- Validator: run `python3 plugins/ci/skills/payload-results-yaml/scripts/validate.py <payload-results-file>` to check a generated YAML file against this schema.
 
 - Related Skill: `payload-analysis` — creates the results file
 - Related Skill: `stage-payload-reverts` — appends `type: "revert"` actions

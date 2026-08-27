@@ -85,7 +85,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
 
    **IMPORTANT**: This step is REQUIRED for the analyze command. Regression data must ALWAYS be fetched automatically without user prompting. The analyze command combines both regression and bug metrics - it is incomplete without both data sources.
 
-   - Fetch JIRA data automatically for every analysis.
+   - Fetch regression data automatically for every analysis.
    - If `--team` was provided:
      - Execute: `/teams:health-check-regressions <release> --team "<team>"`
    - Else (if `--components` was provided):
