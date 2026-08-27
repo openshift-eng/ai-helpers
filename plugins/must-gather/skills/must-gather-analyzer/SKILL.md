@@ -249,6 +249,12 @@ Output: etcd cluster health and member status
 Parses: `cluster-scoped-resources/core/persistentvolumes/`, `namespaces/*/core/persistentvolumeclaims.yaml`
 Output: PV and PVC status tables
 
+### scripts/analyze_ovn_dbs.py
+Parses OVN Northbound and Southbound database dumps and supports targeted OVSDB queries.
+
+### scripts/analyze_windows_logs.py
+Parses Windows node component logs for kube-proxy, hybrid-overlay, kubelet, containerd, WICD, and CSI proxy.
+
 ## Tips for Analysis
 
 1. **Start with Cluster Operators**: They often reveal system-wide issues

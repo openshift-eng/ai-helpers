@@ -4,6 +4,10 @@ This directory contains Python scripts to parse Prow job artifacts and generate 
 
 ## Scripts
 
+### create_inline_html_files.py
+
+Converts collected log files into self-contained HTML files for browser-based inspection. Run `python3 create_inline_html_files.py <logs_dir> <build_id>` when the raw logs need an inline viewer before report generation.
+
 ### parse_all_logs.py
 
 Parses audit logs from Prow job artifacts and outputs structured JSON.

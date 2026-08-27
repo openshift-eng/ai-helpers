@@ -1,0 +1,666 @@
+{
+  "version": "1",
+  "generated_by": "skillsaw 0.19.0",
+  "generated_at": "2026-08-27T21:37:44.078792+00:00",
+  "violations": [
+    {
+      "fingerprint": "3271f88c8e974019",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/node-cve/skills/report-findings/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "596873c5de416adc",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/node-cve/skills/analyze-cve-repos/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "2a0ab19d8ae2e19a",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/node-cve/skills/query-open-cves/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "f8cac9b5a41af5c1",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/manage-labels/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "41006101008f9675",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/fetch-job-run-summary/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "2a5566a90da6a378",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/add-jira-triage-link/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "f895c49cb1052356",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/fetch-releases/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "0677dd88bf4e7599",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/payload-analysis/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "64b28dbe277f783f",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/revert-pr/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "a9269f92900e66bb",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/oc-auth/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "23ce47f7621f7ecf",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/fetch-payloads/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "3b9d10454173e2ce",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/fetch-new-prs-in-payload/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "1b0a1b461cf63e0b",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/reevaluate-job-runs/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "7363a439fe2a1a22",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/payload-snapshot/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "8a69255b7f6cce3a",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/fetch-jira-issue/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "a5f4718a196fe4d8",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/fetch-regression-details/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "35be545a9102ac5c",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/manage-symptoms/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "e54587d29eb46b83",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/triage-regression/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "700dda13a91f9b67",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/fetch-prow-job-runs/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "b22c911a32b53e69",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/prow-job-analyze-resource/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "037b2a4b9df741c1",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/detect-permafail/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "ee5942009ff0fd21",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/fetch-prowjob-json/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "2e1131801c75173e",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/analyze-disruption/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "2629077637f45cfa",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/diagnose-job-run-symptoms/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "ea3d60e133b35a1d",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/fetch-test-report/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "32dc40f6cc871ad8",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/set-release-blocker/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "bfe327bc6ee218f9",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/payload-experimental-reverts/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "a6392855aad8949e",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/list-symptoms/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "cc2c408a918dafd2",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/fetch-test-runs/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "3606a81858e9029c",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/fetch-related-triages/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "db965adbe93578f2",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ci/skills/stage-payload-reverts/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "7cfbca7a9ddda1cd",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/node-tuning/skills/scripts/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "6f39c5b4deb4f089",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/code-review/skills/hypershift-code-review/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "9167f000a80cbb17",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/code-review/skills/go-code-review/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "5e6665f486f7058b",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ai-operator-dashboard-generator/skills/dashboard-templates/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "f769d415ab641b17",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/ote-migration/skills/ote-migration-workflow/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "cf58f2faabcfd1c8",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/bigquery/skills/ci-data-analyst/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "3c51ee0988941248",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/bigquery/skills/analyze-usage/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "9050c9e80f3b124c",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/sosreport/skills/resource-analysis/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "d825962bb1bf7a5b",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/sosreport/skills/logs-analysis/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "d8dcca7b6494a461",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/sosreport/skills/ovs-db-analysis/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "ce557d2928636d07",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/sosreport/skills/network-analysis/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "99dc8b908b80336a",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/sosreport/skills/system-config-analysis/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "502f396454e8fb6d",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/compliance/skills/call-graph-analysis/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "bedb51b76af82533",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/compliance/skills/codebase-impact-analysis/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "3a5ec9660320aa25",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/compliance/skills/remediation-planning/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "ea1131966bef1d68",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/compliance/skills/cve-intelligence-gathering/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "79c46dac140eafe2",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/catch-me-up/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "d4bc49701e023035",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/ready-to-solve/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "92551cc635318aa3",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/validate-bug/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "edc14eefd61aac0c",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/jira-conventions/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "be16b956daa08c54",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/jira-validate-blockers/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "19fcf0ed1b3f39c5",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/extract-prs/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "bf39f6c133eef71c",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/status-analysis/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "7174fc1fcef97445",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/jira-issues-by-component/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "95db94cb489c6498",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/generate-enhancement/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "046740d16520876d",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/create-release-note/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "9eaa44982d11c4e4",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/create/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "85e6beb89e923a0f",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/jira/skills/jira-doc-generator/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "ebd34898e214cf2c",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/openshift/skills/openshift-node-kernel/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "1e74e42fd42c1eec",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/openshift/skills/generating-ovn-topology/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "3f18b7b0adaab025",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/agentic-docs/skills/review-docs/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "4770f0fda1b2f046",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/agentic-docs/skills/component-docs/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "b1b5c135b4c4235c",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/agentic-docs/skills/update-platform-docs/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "6021721653755ced",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/coderabbit-inheritance-scanner-open-pr/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "d35abea5c0d5eff7",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/list-jiras/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "4bdf9c8fc0b410fa",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/coderabbit-rules-from-pr-reviews/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "f32d10b28947b969",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/list-regressions/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "e359de80f93bee8d",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/list-teams/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "aa5234dda60bb376",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/coderabbit-adoption/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "ea0cd1713d0472d3",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/coderabbit-inheritance-scanner-search/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "4f7997c87db9bbd6",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/list-components/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "e99e6fd36554c814",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/analyze-regressions/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "f55af26a09599c6c",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/get-release-dates/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "81c3f6ed096c3ca0",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/coderabbit-inheritance-scanner-existing-pr/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "0fb637fa2397b145",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/teams/skills/summarize-jiras/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "fd63773e7629d315",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/rds-analyzer/skills/rds-analyzer-workflow/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "9519e4cd177b2c55",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/git/skills/suggest-reviewers/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "93c56712603871b8",
+      "rule_id": "content-description-routing",
+      "file_path": "plugins/console/skills/upgrade-console-sdk/SKILL.md",
+      "line": 3,
+      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
+      "severity": "warning"
+    },
+    {
+      "fingerprint": "bd002ced5ac8179d",
+      "rule_id": "content-progressive-disclosure",
+      "file_path": "plugins/ci/skills/detect-permafail/SKILL.md",
+      "message": "Estimated 9,728 tokens exceeds the 6,500-token progressive-disclosure threshold for skill and the file references no other local file \u2014 split detailed material into bundled files (references/*.md, scripts) and point to them from SKILL.md so detail loads only when needed",
+      "severity": "warning",
+      "value": 9728,
+      "baseline_mode": "ceiling"
+    },
+    {
+      "fingerprint": "d0472d816a974feb",
+      "rule_id": "content-progressive-disclosure",
+      "file_path": "plugins/ote-migration/skills/ote-migration-workflow/SKILL.md",
+      "message": "Estimated 31,325 tokens exceeds the 6,500-token progressive-disclosure threshold for skill and the file references no other local file \u2014 split detailed material into bundled files (references/*.md, scripts) and point to them from SKILL.md so detail loads only when needed",
+      "severity": "warning",
+      "value": 31325,
+      "baseline_mode": "ceiling"
+    },
+    {
+      "fingerprint": "c540e208532ce033",
+      "rule_id": "content-progressive-disclosure",
+      "file_path": "plugins/jira/skills/generate-enhancement/SKILL.md",
+      "message": "Estimated 9,969 tokens exceeds the 6,500-token progressive-disclosure threshold for skill and the file references no other local file \u2014 split detailed material into bundled files (references/*.md, scripts) and point to them from SKILL.md so detail loads only when needed",
+      "severity": "warning",
+      "value": 9969,
+      "baseline_mode": "ceiling"
+    }
+  ]
+}

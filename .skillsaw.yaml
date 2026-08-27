@@ -1,6 +1,6 @@
 # skillsaw configuration
 # https://github.com/stbenjam/skillsaw
-version: "0.14.1"
+version: "0.19.0"
 strict: true
 
 rules:
@@ -57,13 +57,29 @@ rules:
   content-tautological:
     enabled: true
 
+  # Detect executable dynamic context embedded in Markdown
+  security-dynamic-context:
+    enabled: true
+    severity: warning
+    allowlist:
+      - '"${CLAUDE_PLUGIN_ROOT}/scripts/setup-generate-docs.sh" $ARGUMENTS'
+      - "gh api repos/openshift/console/contents/frontend/packages/console-dynamic-plugin-sdk/release-notes --jq '.[].name'"
+
+  # Flag oversized context that should be split into linked references
+  content-progressive-disclosure:
+    enabled: true
+    severity: warning
+    limits:
+      skill: 6500
+
+  # Detect repeated inline tool invocations that should become reusable scripts
+  content-inline-tool-examples:
+    enabled: true
+    severity: warning
+
   # TODO: ai-helpers has many skills way over budget, including one with 20K tokens
   context-budget:
     enabled: false
-  # Detect critical instructions in the middle of files where LLM attention is lowest
-  content-critical-position: # unsure if actually useful here
-    enabled: false
-
   # Detect potential API keys, tokens, and passwords in instruction files
   content-embedded-secrets:
     enabled: true

@@ -85,7 +85,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
 
    **IMPORTANT**: This step is REQUIRED for the analyze command. Regression data must ALWAYS be fetched automatically without user prompting. The analyze command combines both regression and bug metrics - it is incomplete without both data sources.
 
-   - **ALWAYS execute this step** - do not skip or wait for user to request it
+   - Fetch regression data automatically for every analysis.
    - If `--team` was provided:
      - Execute: `/teams:health-check-regressions <release> --team "<team>"`
    - Else (if `--components` was provided):
@@ -311,7 +311,6 @@ If HTML report is generated:
    - Provides comprehensive team-level health analysis
    - Shows per-component breakdowns within the team
    - Identifies which team components need attention
-   - Use `/teams:list-teams` to see available team names
 
 2. **Analyze specific components (exact match)**:
 

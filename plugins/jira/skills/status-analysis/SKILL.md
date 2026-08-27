@@ -93,7 +93,7 @@ Do NOT invoke this skill directly. Use the commands above.
 
 ## Sub-Modules
 
-This skill is composed of four sub-modules. Read each when executing the analysis:
+Read the modules listed below when executing the analysis:
 
 | Module | File | Purpose |
 |--------|------|---------|
@@ -102,6 +102,9 @@ This skill is composed of four sub-modules. Read each when executing the analysi
 | External Links | `external-links.md` | GitHub PR and GitLab MR integration |
 | Formatting | `formatting.md` | Output templates for different modes |
 | Data Gatherer | `scripts/gather_status_data.py` | Async batch data collection (update-weekly-status) |
+| Issue Summarizer | `scripts/summarize_issue.py` | Compact summaries of pre-gathered issue JSON |
+| Issue Triage | `scripts/triage_issues.py` | Batch triage of pre-gathered issue directories |
+| Feature Update Validator | `scripts/validate_feature_updates.py` | Validate generated feature-update markdown |
 
 ## Configuration Parameters
 
