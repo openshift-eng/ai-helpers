@@ -50,6 +50,7 @@ Use this skill when you need to:
 Load these only at the step that needs them — not up front:
 
 - **`references/investigation-subagent.md`** — the verbatim per-job subagent prompt and `ANALYSIS_RESULT` format (Step 4)
+- **`references/evidence-contract.md`** — causal-chain proof schema and deterministic validator (Step 4a)
 - **`references/report-guide.md`** — per-section content rules for the HTML report (Step 7)
 - **`references/completeness-review.md`** — the completeness-reviewer prompt and response handling (Step 9)
 - **`assets/report-template.html`** — the fill-in-the-blanks HTML report template (Step 7)
@@ -67,6 +68,15 @@ OUTPUT_DIR="$(pwd)"
 ```
 
 All three output files — the payload results YAML (Step 6.5), the HTML report (Step 7), and the autodl JSON (Step 8) — MUST be written under `$OUTPUT_DIR`, never into a snapshot subdirectory or a path a later `cd` may have changed. The Step 10 self-check verifies them at `$OUTPUT_DIR`.
+
+Create a stable evidence staging directory beside those outputs. Per-job
+subagents copy every artifact they cite beneath this directory so citations can
+be checked after the subagent returns:
+
+```bash
+EVIDENCE_DIR="$OUTPUT_DIR/payload-evidence"
+mkdir -p "$EVIDENCE_DIR"
+```
 
 The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Parse from it:
 - `tag`: The specific payload tag to analyze
@@ -297,6 +307,25 @@ After collecting subagent results, look for patterns across multiple jobs:
   - Jobs with `rhcos10-default` count as RHCOS 10 for this check
   - Jobs with `rhcos9_10` (heterogeneous) count toward both variants for this check
   - Variant isolation is strong diagnostic context — it narrows the root cause to OS-specific changes (kernel, systemd, SELinux, package differences between RHEL 9 and RHEL 10).
+
+### Step 4a: Validate and Hydrate the Causal Evidence
+
+Read `references/evidence-contract.md`. Assemble every subagent's
+`causal_chain` into `$OUTPUT_DIR/payload-evidence-<sanitized_tag>.json`, then
+run the bundled validator exactly as shown in that reference. Pass the snapshot
+`summary.json` so the validator proves that every failed blocking job has an
+evidence entry.
+
+If validation fails, correct the cited path or line range from the real
+artifact, or re-run the affected investigation. Never manufacture an excerpt
+to satisfy the validator. Continue only after it writes
+`$OUTPUT_DIR/payload-evidence-<sanitized_tag>.md` successfully.
+
+Read that hydrated Markdown before scoring candidates. Treat its exact excerpts
+as the authoritative evidence for the causal chain, candidate rationale, HTML
+failure details, and completeness review. A plausible statement that is absent
+from the validated chain remains a hypothesis and cannot justify a root-cause
+or revert claim.
 
 ### Step 4b: Consult Previous Claude Analyses
 
@@ -531,6 +560,10 @@ Before presenting, confirm that **all Step 4 investigation subagents and the Ste
 2. **The HTML contains every required section** from the Step 7 template: header + executive summary (including the payload-chain context), the revert verdict (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs summary table, a collapsible details block for **every** failed job, the RHCOS Changes section when any payload has RHCOS changes, the informing-tests section when such tests exist, and the Adversarial Review section. No unfilled `{placeholder}` and no `BEGIN`/`END` marker comments remain.
 3. **Cross-output consistency**: phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
 4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.
+5. **Evidence validation passes again** using the Step 4a command, and every
+   affirmative root-cause and revert rationale in the final outputs is supported
+   by at least one validated causal-chain link. Do not silently weaken or replace
+   a validated conclusion while rendering the final files.
 
 If any check fails, fix it before presenting.
 

@@ -1,0 +1,7 @@
+diff --git a/pkg/controller/container-runtime-config/helpers.go b/pkg/controller/container-runtime-config/helpers.go
+index 1111111..2222222 100644
+--- a/pkg/controller/container-runtime-config/helpers.go
++++ b/pkg/controller/container-runtime-config/helpers.go
+@@ -210,0 +211 @@ func renderCrioConfig(cfg *Config) string {
++enable_pod_events = true
+ }

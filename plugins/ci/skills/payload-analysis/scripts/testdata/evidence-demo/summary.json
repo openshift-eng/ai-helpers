@@ -1,0 +1,9 @@
+{
+  "blocking_jobs": {
+    "failed_jobs": [
+      {
+        "name": "periodic-ci-openshift-release-master-nightly-4.22-e2e-aws-ovn"
+      }
+    ]
+  }
+}
