@@ -96,7 +96,7 @@ After determining the project key, check if project-specific conventions exist t
    - Use the component name directly
 
 2. **If `--component` is NOT provided:**
-   - Use `searchJiraIssuesUsingJql` with JQL: `project = "{project-key}" AND status != Closed` and `fields=components`
+   - Query component values through `searchJiraIssuesUsingJql` with `fields=components` and JQL `project = "{project-key}" AND status != Closed`
    - Extract all unique component names from the search results
    - Present components in a numbered list
    - Ask: "Please enter the number(s) of the component(s) you want to update (space-separated), or press Enter to skip:"

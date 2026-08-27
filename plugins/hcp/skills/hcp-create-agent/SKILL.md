@@ -275,7 +275,7 @@ hypershift create cluster agent \
 
 Provide additional configuration needed after cluster creation:
 
-```
+````
 ## Post-Creation Configuration (Disconnected)
 
 After running the command above (with --render), you'll need to modify the generated manifests:
@@ -307,7 +307,7 @@ spec:
 ```bash
 kubectl apply -f <rendered-manifest-files>
 ```
-```
+````
 
 **For All Environments:**
 

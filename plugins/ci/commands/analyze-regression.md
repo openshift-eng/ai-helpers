@@ -1023,8 +1023,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
      [Monitor:kubelet-container-restarts][sig-architecture] platform pods in ns/openshift-kube-apiserver should not exit an excessive amount of times
      {code}
      ```
-   - Test ID(s) (`test_id` — the BigQuery/Component Readiness ID, e.g., `openshift-tests:abc123`)
-   - Regression ID(s) — the Component Readiness regression ID(s) being triaged
+   - Test and regression identifiers collected in step 12
    - Release
    - Regression opened date
    - Affected variants

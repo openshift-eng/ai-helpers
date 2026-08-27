@@ -46,12 +46,12 @@ The DPCR cluster token is used solely for authentication with the Sippy API. Thi
 1. **Validate Arguments**: Checks that a question was provided
 2. **Notify User**: Informs the user that the query is being processed (may take time)
 3. **API Request**: Sends a POST request to the Sippy API using the `oc-auth` skill's curl wrapper:
-   ```bash
-   # Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
-   # DPCR cluster API: https://api.cr.j7t7.p1.openshiftapps.com:6443
-   curl_with_token.sh https://api.cr.j7t7.p1.openshiftapps.com:6443 -s -X POST "https://sippy-auth.dptools.openshift.org/api/chat" \
-     -H "Content-Type: application/json" \
-     -d @- <<'EOF'
+```bash
+# Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
+# DPCR cluster API: https://api.cr.j7t7.p1.openshiftapps.com:6443
+curl_with_token.sh https://api.cr.j7t7.p1.openshiftapps.com:6443 -s -X POST "https://sippy-auth.dptools.openshift.org/api/chat" \
+  -H "Content-Type: application/json" \
+  -d @- <<'EOF'
 {
   "message": "$1",
   "chat_history": [],
@@ -59,7 +59,7 @@ The DPCR cluster token is used solely for authentication with the Sippy API. Thi
   "persona": "default"
 }
 EOF
-   ```
+```
 4. **Return JSON**: Returns the full JSON response for Claude to parse
 
 ## Return Value

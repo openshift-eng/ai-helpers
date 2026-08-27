@@ -177,12 +177,13 @@ Verify required tools are installed:
 ### Step 3: Route to Action Handler
 Based on the action, call the appropriate implementation:
 
+For both index-image build actions, default arch=`multi`, base-image=`quay.io/operator-framework/opm:latest`, and builder-image=`quay.io/operator-framework/opm:latest`.
+
 #### For `build-index-image`:
 1. **Parse Arguments and Set Defaults**
    - Extract catalog path from `$2`
    - Extract index image tag from `$3`
    - Parse optional flags: `--cacheless`, `--arch`, `--base-image`, `--builder-image`
-   - Set defaults: arch=`multi`, base-image=`quay.io/operator-framework/opm:latest`, builder-image=`quay.io/operator-framework/opm:latest`
 
 2. **Verify Catalog Directory**
    - Check catalog directory exists: `test -d <catalog-path>`
@@ -228,7 +229,6 @@ Based on the action, call the appropriate implementation:
    - Extract semver template file from `$2`
    - Extract index image tag from `$3`
    - Parse optional flags: `--cacheless`, `--arch`, `--base-image`, `--builder-image`
-   - Set defaults: arch=`multi`, base-image=`quay.io/operator-framework/opm:latest`, builder-image=`quay.io/operator-framework/opm:latest`
 
 2. **Verify Template File**
    - Check file exists: `test -f <semver-template-file>`

@@ -241,7 +241,6 @@ For each component (from `components.*.summary`):
    Summarizes regressions for all components owned by the "API Server" team:
    - Automatically looks up all team components from team_component_map.json
    - Provides overall team-level summary (not per-component breakdown)
-   - Use `/teams:list-teams` to see available team names
 
 8. **Team summary with custom date range**:
 

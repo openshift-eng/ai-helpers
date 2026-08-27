@@ -18,6 +18,8 @@ Use this skill when the user wants to:
 
 ## Prerequisites
 
+Read [SCRIPTS.md](SCRIPTS.md) for the bundled helper inventory and standalone usage examples.
+
 Before starting, verify these prerequisites:
 
 1. **gcloud CLI Installation**
@@ -139,14 +141,13 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
 1. **Construct gather-extra paths**
    - GCS path: `gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/`
    - Local path: `.work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/`
+   - For every download, create the local directory first and pass `--no-user-output-enabled` to `gcloud storage cp`.
 
 2. **Download audit logs**
    ```bash
    mkdir -p .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs
    gcloud storage cp -r gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/audit_logs/ .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs/ --no-user-output-enabled
    ```
-   - Create directory first to avoid gcloud errors
-   - Use `--no-user-output-enabled` to suppress progress output
    - If directory not found, warn: "No audit logs found. Job may not have completed or audit logging may be disabled."
 
 3. **Download pod logs**
@@ -154,8 +155,6 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
    mkdir -p .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods
    gcloud storage cp -r gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/ .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods/ --no-user-output-enabled
    ```
-   - Create directory first to avoid gcloud errors
-   - Use `--no-user-output-enabled` to suppress progress output
    - If directory not found, warn: "No pod logs found."
 
 ### Step 6: Parse Audit Logs and Pod Logs
@@ -227,7 +226,6 @@ python3 plugins/ci/skills/prow-job-analyze-resource/parse_all_logs.py <resource_
      - Example: `create pod/etcd-0 in openshift-etcd by system:serviceaccount:kube-system:deployment-controller → HTTP 201`
 
 6. **Parse pod log files (plain text format)**
-   - Read file line by line
    - Each line is plain text (not JSON)
    - Search for resource pattern in line content
 
@@ -464,13 +462,10 @@ Handle these error scenarios by displaying a clear error message and actionable 
 ## Performance Considerations
 
 1. **Avoid re-downloading**
-   - Check if `.work/prow-job-analyze-resource/{build_id}/logs/` already has content
-   - Ask user before re-downloading
+   - Follow the cache prompt in Step 3 instead of overwriting existing artifacts.
 
 2. **Efficient downloads**
-   - Use `gcloud storage cp -r` for recursive downloads
-   - Use `--no-user-output-enabled` to suppress verbose output
-   - Create target directories with `mkdir -p` before downloading to avoid gcloud errors
+   - Follow the recursive-download safeguards in Step 5.
 
 3. **Memory efficiency**
    - The `parse_all_logs.py` script processes log files incrementally (line by line)

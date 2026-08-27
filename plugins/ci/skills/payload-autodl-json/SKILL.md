@@ -215,6 +215,8 @@ After staging reverts, find rows matching `candidate_pr_url` and set:
 
 ## See Also
 
+- Validator: run `python3 scripts/validate.py <payload-autodl-file>` to check generated JSON before database ingestion.
+
 - Related Skill: `payload-analysis` — creates this file in Step 8
 - Related Skill: `stage-payload-reverts` — updates revert fields after staging reverts
 - Related Skill: `payload-experimental-reverts` — updates revert fields after experiments

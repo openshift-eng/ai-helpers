@@ -58,7 +58,7 @@ The two layers compose: `--language go --profile hypershift` applies both Go idi
 
 ### Step 2 — Launch Parallel Review Sub-Agents
 
-After identifying changed files, launch the following reviews concurrently. Launch ALL sub-agents in parallel (single message with multiple Task tool calls) for maximum speed. Each sub-agent should be given `subagent_type: "general-purpose"`. Do NOT set the `model` parameter — let sub-agents inherit the parent model, as these analysis tasks require a capable model. Pass each sub-agent the list of changed files, the full PR diff, the loaded language skill content (if any), and the loaded profile skill content (if any) in its prompt.
+After identifying changed files, launch the following reviews concurrently. Launch ALL sub-agents in parallel (single message with multiple Task tool calls) for maximum speed. Each sub-agent should be given `subagent_type: "general-purpose"`. Do NOT set the `model` parameter — let sub-agents inherit the parent model, as these analysis tasks require a capable model. Pass each sub-agent the list of changed files, the full PR diff, the loaded language skill content (if any), and the loaded profile skill content (if any) in its prompt. Every sub-agent must return findings as structured text.
 
 #### Sub-agent: Unit Test Coverage
 Skip if `--skip-tests` is specified.
@@ -68,13 +68,11 @@ Skip if `--skip-tests` is specified.
 - Check for edge cases, error paths, and boundary conditions in tests.
 - **If a language skill is loaded**, apply its test conventions (e.g., Go: table-driven tests, `t.Run()`, `t.Parallel()`).
 - **If a profile is loaded**, apply its additional test conventions.
-- Return findings as structured text.
 
 #### Sub-agent: Idiomatic Code
 - **If a language skill is loaded**, apply its idiomatic code guidance to the changed files.
 - **If no language skill is loaded**, perform a general review: error handling, naming, clarity, complexity.
 - **If a profile is loaded**, follow the profile's instructions to discover and apply any repo-local agents or skills it references. For example, the hypershift profile points to `.claude/agents/` — read the agents, pick the relevant ones based on changed files, and use their guidance.
-- Return findings as structured text.
 
 #### Sub-agent: DRY Principle
 - Check for code duplication within and across changed files.
@@ -82,7 +80,6 @@ Skip if `--skip-tests` is specified.
 - Identify copy-paste code that introduces maintenance risk.
 - Flag magic numbers and string literals that should be constants.
 - **If a profile is loaded**, check for proper use of project-specific shared utilities (e.g., hypershift's `support/` package).
-- Return findings as structured text.
 
 #### Sub-agent: SOLID Principles
 - Apply SOLID principles proportionally to the scope of the changes:
@@ -92,7 +89,6 @@ Skip if `--skip-tests` is specified.
   - **ISP**: Are interfaces focused and minimal?
   - **DIP**: Do high-level modules depend on abstractions rather than concrete implementations?
 - **If a profile is loaded**, apply any project-specific structural patterns it defines.
-- Return findings as structured text.
 
 #### Sub-agents: Profile-Specific Reviews (only if profile is loaded)
   - Read the profile skill to discover which SME agents are required.
