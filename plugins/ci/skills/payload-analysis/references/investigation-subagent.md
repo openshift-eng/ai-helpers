@@ -36,7 +36,7 @@ Where `<rhcos_version>` is the `rhcos_version` field from the snapshot's failed 
 
 `<summary_json_path>` is the absolute path to the snapshot's `summary.json` file, and `<originating_payload_tag>` is the failure mode's `first_failed_in` value (Step 3.3/Step 5) — not the job-level `streak.originating_payload`, which can predate the regression when a job has multiple failure modes.
 
-Under `--as-of` (Step 1), append the cutoff timestamp to the prompt and instruct the subagent to discard post-cutoff artifacts and discussion. Do not treat a later revert, its merge, or a subsequent payload outcome as evidence that a PR caused (or did not cause) the failure.
+Under `--as-of` (Step 1), append the cutoff timestamp to the prompt and instruct the subagent to discard post-cutoff artifacts and discussion.
 
 ## Structured Return Format
 
