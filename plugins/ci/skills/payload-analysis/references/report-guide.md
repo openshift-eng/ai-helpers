@@ -46,7 +46,7 @@ One `failed-job` collapsible block per failed blocking job:
 - Summary line: job name, `badge-new` ("New Failure") or `badge-persistent` ("Failing for N payloads"), and the RHCOS badge.
 - Prow line: Prow and GCS Artifacts links; for aggregated jobs, append the underlying job name.
 - `variant-callout` — include only when the failure is variant-isolated; fill in which variant is affected.
-- `analysis_from_subagent` — the subagent's failure analysis (Step 4), adjudicated where Step 5b applied. Preserve its structure (failure type, root cause, key errors with `<code>`, retry comparison).
+- `analysis_from_subagent` — the subagent's failure analysis (Step 4), adjudicated where Step 5b applied. Render its Step 4a validated causal chain in order (question, answer, exact hydrated excerpts, and proof notes), followed by the failure type and retry comparison. Do not substitute uncited prose for the hydrated excerpts.
 - `known-symptoms` — include only when the subagent reported symptoms other than "none".
 - Candidates: use `candidates-table` (one `candidate-row` per scored candidate with its tiered score class) when candidates exist; otherwise use `candidates-none`, whose prose must state **why** no candidate explains the failure (Step 6.1) — never leave it blank or generic.
 

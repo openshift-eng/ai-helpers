@@ -20,6 +20,16 @@ Use the following prompt **verbatim** (substituting the placeholder values) when
 >
 > **Do NOT classify a failure as "infrastructure flake" or "transient" unless you have affirmative evidence** of an infrastructure problem (cloud API errors, quota exceeded, network timeouts from the cloud provider, Boskos lease failures, CI platform outages). The absence of an obvious code-level explanation does NOT make something infrastructure — it means you need to investigate deeper. Default to treating failures as potential product regressions until evidence proves otherwise.
 >
+> **Build a cited causal chain**: Start with exactly `Why did this job fail?`,
+> answer one causal layer at a time, and ask the next natural "why" until you
+> reach the deepest cause the artifacts prove. Every answer needs at least one
+> exact log or code citation. Copy each cited source file under
+> `<evidence_dir>/<job_slug>/` and report its path relative to `<output_dir>`,
+> with a 1-indexed inclusive line range and a note explaining how the excerpt
+> proves that answer. Preserve the durable GCS, Prow, or GitHub URL as
+> `artifact_url`. If the evidence ends, say the next cause is unknown; do not
+> fill the gap with a plausible mechanism.
+>
 > Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
 >
 > If the job is an aggregated job (has `aggregated-` prefix in the name or an `aggregator` container/step), also return the **underlying job name** (e.g., `periodic-ci-openshift-release-main-ci-4.22-e2e-aws-upgrade-ovn-single-node`). This is found in the junit-aggregated.xml artifacts — each `<testcase>` has `<system-out>` YAML data with a `humanurl` field linking to individual runs whose URL path contains the underlying job name. The underlying job name cannot be derived from the aggregated job name — it must be extracted from the artifacts.
@@ -33,6 +43,10 @@ Where `<rhcos_version>` is the `rhcos_version` field from the snapshot's failed 
 - For **`rhcos9_10`** (heterogeneous): "This is a heterogeneous cluster with both RHCOS 9 and RHCOS 10 nodes. Failures may be specific to one node variant — check whether failing nodes are RHCOS 9 or RHCOS 10 when node-level logs are available."
 
 `<summary_json_path>` is the absolute path to the snapshot's `summary.json` file, and `<originating_payload_tag>` is the failure mode's `first_failed_in` value (Step 3.3/Step 5) — not the job-level `streak.originating_payload`, which can predate the regression when a job has multiple failure modes.
+
+`<output_dir>` is the analysis output directory captured in Step 1 and
+`<evidence_dir>` is its `payload-evidence` child. Give each subagent a unique
+`<job_slug>` child so parallel investigations never overwrite one another.
 
 Under `--as-of` (Step 1), append the cutoff timestamp to the prompt and instruct the subagent to discard post-cutoff artifacts and discussion.
 
@@ -54,6 +68,23 @@ ANALYSIS_RESULT:
 - rhcos_rpm_correlation: none|possible|likely
 - rhcos_rpm_suspect_packages: <comma-separated package names if correlation is possible or likely, or "none">
 - rhcos_rpm_changelog_evidence: <for each suspect package, the specific changelog entry that relates to the failure, or "none" if the changelog was read but contained no relevant entries, or "unavailable" if no changelog data exists in the snapshot>
+- causal_chain:
+  - question: Why did this job fail?
+    answer: <one causal layer, directly supported by the proof below>
+    proof:
+      - type: log|code
+        artifact: payload-evidence/<job_slug>/<copied-source-file>
+        artifact_url: <durable GCS, Prow, or GitHub URL when available>
+        lines: [<1-indexed-start>, <inclusive-end>]
+        note: <why this exact excerpt proves the answer>
+  - question: <the next why raised by the previous answer>
+    answer: <the next proven causal layer, or an explicit statement that the trail ends>
+    proof:
+      - type: log|code
+        artifact: payload-evidence/<job_slug>/<copied-source-file>
+        artifact_url: <durable upstream URL when available>
+        lines: [<1-indexed-start>, <inclusive-end>]
+        note: <why this exact excerpt proves the answer>
 ```
 
 The `rhcos_rpm_correlation` field indicates whether the failure may be related to RHCOS RPM changes found in `summary.json`:

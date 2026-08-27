@@ -9,8 +9,9 @@ The reviewer receives **only** the following (NOT the full conversation history)
 1. The `summary.json` snapshot data (payload metadata, failed jobs, streaks, test regressions, RHCOS changes)
 2. The scored candidate list with per-component rubric breakdowns from Step 6
 3. The `ANALYSIS_RESULT` blocks from all subagents in Step 4
-4. The revert recommendations (if any)
-5. The RHCOS RPM candidates (if any, identified by `type: "rhcos_rpm"` in the scored candidates)
+4. The hydrated `payload-evidence-<tag>.md` from Step 4a
+5. The revert recommendations (if any)
+6. The RHCOS RPM candidates (if any, identified by `type: "rhcos_rpm"` in the scored candidates)
 
 ## Reviewer prompt
 
@@ -21,6 +22,8 @@ Use this prompt:
 > **Snapshot data**: {summary.json contents — metadata, failed jobs with streaks, test regressions}
 >
 > **Subagent analyses**: {ANALYSIS_RESULT blocks for each failed job}
+>
+> **Deterministically validated evidence**: {hydrated payload evidence Markdown}
 >
 > **Scored candidates**: {list of (job, PR, score, rubric breakdown) tuples}
 >
@@ -34,9 +37,14 @@ Use this prompt:
 >
 > 3. **Incomplete coverage**: Are there failed jobs with no subagent analysis or with only a one-line summary? Every failed blocking job deserves a thorough investigation.
 >
-> 4. **Wrong reference for failure type**: Did the analysis route to the correct reference — install (and metal for metal jobs) for install failures, and the test/flaky-test reference for test failures? Using the wrong reference produces misdirected analysis.
+> 4. **Broken causal links**: Does each answer follow from the previous layer,
+> and does the cited excerpt actually prove that answer? Flag leaps from a
+> high-level symptom directly to a PR, citations from adjacent operations, or
+> conclusions whose decisive evidence is absent from the hydrated document.
 >
-> 5. **Missing RHCOS RPM candidates**: If RHCOS RPM changes exist in the originating payload and failures are variant-isolated or involve OS-level components, were the RPM changes scored as candidates alongside PRs? Were the RPM changelogs read and cited as evidence in the rubric breakdown? An RHCOS RPM change whose changelog was not consulted is like a PR candidate whose `code.diff` was never read — an incomplete investigation.
+> 5. **Wrong reference for failure type**: Did the analysis route to the correct reference — install (and metal for metal jobs) for install failures, and the test/flaky-test reference for test failures? Using the wrong reference produces misdirected analysis.
+>
+> 6. **Missing RHCOS RPM candidates**: If RHCOS RPM changes exist in the originating payload and failures are variant-isolated or involve OS-level components, were the RPM changes scored as candidates alongside PRs? Were the RPM changelogs read and cited as evidence in the rubric breakdown? An RHCOS RPM change whose changelog was not consulted is like a PR candidate whose `code.diff` was never read — an incomplete investigation.
 >
 > **Rules**:
 > - Do NOT suggest lowering confidence scores. If the rubric signals fired (error message match, new failure, component exclusivity), the score is correct. Period.

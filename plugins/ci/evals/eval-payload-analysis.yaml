@@ -1,15 +1,33 @@
 name: ci-payload-analysis-eval
 description: Evaluate the payload-analysis skill's ability to analyze OCP payload snapshots, trace root causes, correlate with PRs, and produce actionable HTML reports with revert recommendations
 execution:
-  skill: ci:payload-analysis
   mode: case
-  arguments: "{payload_tag} --snapshot-dir $EVAL_SNAPSHOT_DIR/{payload_tag} --as-of {payload_completed_at}"
   timeout: 3600
   max_budget_usd: 25.0
   parallelism: 3
   env:
     EVAL_SNAPSHOT_DIR: $EVAL_SNAPSHOT_DIR
     GITHUB_TOKEN: $GITHUB_TOKEN
+  steps:
+    - id: analyze
+      skill: ci:payload-analysis
+      arguments: "{payload_tag} --snapshot-dir $EVAL_SNAPSHOT_DIR/{payload_tag} --as-of {payload_completed_at}"
+    - id: evidence-review
+      prompt: |
+        Review the payload analysis in this workspace using only its generated
+        files. Start by reading evidence-validation.txt and the hydrated
+        payload-evidence-*.md document.
+
+        If validation failed, correct the cited artifact paths or line ranges
+        from the real local artifacts; never invent replacement excerpts. Run
+        the validator command recorded in evidence-validator-command.txt until
+        evidence-validation.txt begins with OK.
+
+        Then check whether each causal-chain answer follows from the preceding
+        layer and is actually proved by its excerpts. Keep an unresolved cause
+        unresolved when the evidence ends. Correct the evidence JSON and the
+        final HTML/YAML/JSON outputs wherever they overstate the validated
+        evidence. Do not redo unrelated investigation.
 
 runner:
   type: claude-code
@@ -57,6 +75,9 @@ permissions:
     - "WebFetch"
     - "Write"
     - "Read"
+    - "Edit"
+    - "Grep"
+    - "Glob"
   deny: []
 
 mlflow:
@@ -98,6 +119,23 @@ dataset:
     running evals. Run:
       export EVAL_SNAPSHOT_DIR=$(plugins/ci/evals/scripts/extract-payload-analysis-snapshots.sh <tag>)
 
+hooks:
+  after_step:
+    - description: Validate and hydrate every causal citation
+      command: |
+        tag=$(python3 -c 'import sys,yaml; print(yaml.safe_load(open(sys.argv[1]))["payload_tag"])' "$CASE_INPUT")
+        evidence_json=$(find "$CASE_WORKSPACE" -maxdepth 1 -name 'payload-evidence-*.json' -print -quit)
+        validator="$AGENT_EVAL_PROJECT_ROOT/plugins/ci/skills/payload-analysis/scripts/validate_evidence.py"
+        summary="$EVAL_SNAPSHOT_DIR/$tag/summary.json"
+        command_file="$CASE_WORKSPACE/evidence-validator-command.txt"
+        printf 'python3 "%s" "%s" --root "%s" --summary "%s" --render "%s" > "%s" 2>&1\n' \
+          "$validator" "$evidence_json" "$CASE_WORKSPACE" "$summary" \
+          "$CASE_WORKSPACE/payload-evidence-$tag.md" \
+          "$CASE_WORKSPACE/evidence-validation.txt" > "$command_file"
+        bash "$command_file"
+      timeout: 120
+      on_failure: continue
+
 outputs:
   - path: "output"
     schema: |
@@ -121,6 +159,10 @@ outputs:
          candidate PR) pair. All row values are strings. Fields include payload_tag,
          version, stream, architecture, phase, job_name, prow_url, failure_type,
          root_cause_summary, candidate_pr_url, candidate_confidence_score.
+      4. payload-evidence-{sanitized_tag}.json — agent-authored recursive
+         why-chains with exact artifact paths and inclusive line ranges.
+      5. payload-evidence-{sanitized_tag}.md — deterministic hydration of those
+         citations with the exact line-numbered log and code excerpts.
 
       Judges should check outputs["files"] and outputs["modified_files"] for files
       matching these naming patterns.
@@ -132,6 +174,41 @@ traces:
   metrics: true
 
 judges:
+  - name: evidence_validator_passed
+    description: The final deterministic evidence-validation pass succeeded.
+    check: |
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      reports = [content for path, content in files.items()
+                 if path.endswith("evidence-validation.txt")]
+      if not reports:
+          return (False, "evidence-validation.txt was not produced")
+      final = reports[-1].strip()
+      if not final.startswith("OK:"):
+          return (False, final or "evidence validator produced no output")
+      return (True, final)
+
+  - name: every_root_cause_has_a_validated_chain
+    description: Every failed job has a non-empty proof-backed causal chain.
+    check: |
+      import json
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      docs = [content for path, content in files.items()
+              if path.endswith(".json") and "payload-evidence-" in path]
+      if not docs:
+          return (False, "payload evidence JSON was not produced")
+      data = json.loads(docs[-1])
+      jobs = data.get("jobs", [])
+      if not jobs:
+          return (False, "payload evidence contains no jobs")
+      gaps = []
+      for job in jobs:
+          chain = job.get("causal_chain") or []
+          if not chain or any(not (link.get("proof") or []) for link in chain):
+              gaps.append(job.get("job_name", "<unnamed>"))
+      if gaps:
+          return (False, "jobs with missing chain/proof: " + ", ".join(gaps))
+      return (True, f"{len(jobs)} failed job(s) have proof-backed causal chains")
+
   - name: output_files_exist
     description: |
       Verify all three required output files are produced: HTML report,
@@ -788,6 +865,10 @@ judges:
                quarantines tempting post-hoc signals.
 
 thresholds:
+  evidence_validator_passed:
+    min_pass_rate: 1.0
+  every_root_cause_has_a_validated_chain:
+    min_pass_rate: 1.0
   output_files_exist:
     min_pass_rate: 1.0
   yaml_results_valid:

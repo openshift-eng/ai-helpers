@@ -1,0 +1,7 @@
+INFO starting openshift-install wait-for install-complete
+INFO waiting up to 40m0s for the cluster to initialize
+INFO Cluster operator machine-config is not available
+ERROR Cluster not ready after 40m0s
+ERROR MachineConfigPool worker is Degraded=True
+ERROR timed out waiting for the condition
+INFO collecting cluster artifacts
