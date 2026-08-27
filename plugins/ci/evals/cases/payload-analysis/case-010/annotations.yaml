@@ -20,5 +20,6 @@ notes: >
   correlation: the agent must recognize four superficially different job
   failures (serial test failure vs. upgrade stalls) as one shared external
   cause rather than attributing them to payload PRs.   When SHIP Status read
-  tools are present, Step 6.5 must call get_outages_during over the job
-  window (not live status).
+  tools are present, Insights/console.redhat.com is unmapped: call
+  list_components, then record ship_status with action: skipped (reason
+  unmapped plus candidates). Do not call get_outages_during.

@@ -51,8 +51,14 @@ def validate(path):
             for field in REQUIRED_JOB_FIELDS:
                 if field not in job:
                     errors.append(f"failing_jobs[{i}] missing '{field}'")
-            ship_status = job.get("ship_status")
+            if "ship_status" not in job:
+                continue
+            ship_status = job["ship_status"]
             if ship_status is None:
+                errors.append(
+                    f"failing_jobs[{i}].ship_status must be an object "
+                    f"(omit the key if unavailable, do not set null)"
+                )
                 continue
             if not isinstance(ship_status, dict):
                 errors.append(f"failing_jobs[{i}].ship_status is not an object")

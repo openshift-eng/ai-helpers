@@ -155,12 +155,7 @@ judges:
       json_f = [k for k in all_f if k.endswith("-autodl.json")]
       missing = []
       if not html:
-          wrong = [
-              k for k in all_f
-              if k.endswith(".html") and "payload-analysis" in os.path.basename(k)
-          ]
-          hint = f" (found {os.path.basename(wrong[0])} — must end with -summary.html)" if wrong else ""
-          missing.append("HTML report (*-summary.html)" + hint)
+          missing.append("HTML report (*-summary.html)")
       if not yaml_f:
           missing.append("payload results YAML (payload-results-*.yaml)")
       if not json_f:
@@ -426,13 +421,7 @@ judges:
       all_f = {**files, **modified}
       html_files = {k: v for k, v in all_f.items() if k.endswith("-summary.html")}
       if not html_files:
-          import os
-          wrong = [
-              k for k in all_f
-              if k.endswith(".html") and "payload-analysis" in os.path.basename(k)
-          ]
-          hint = f" (found {os.path.basename(wrong[0])} — must end with -summary.html)" if wrong else ""
-          return (False, "No HTML report found" + hint)
+          return (False, "No HTML report found")
       html = list(html_files.values())[0]
       checks = {
           "executive summary": "executive" in html.lower() or "summary" in html.lower(),
