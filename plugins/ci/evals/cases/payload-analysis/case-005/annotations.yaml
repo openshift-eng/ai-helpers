@@ -12,6 +12,9 @@ expected_candidates:
       - "aws-ovn-upgrade"
       - "gcp-ovn-upgrade"
 
+expected_infra_jobs:
+  - hypershift-e2e-aws
+
 notes: >
   Payload 4.22.0-0.ci-2026-03-31-050515 was rejected with 3 failed blocking
   jobs: aggregated-aws-ovn-upgrade (CCO Progressing invariant violation),

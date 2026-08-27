@@ -100,6 +100,9 @@ dataset:
         expected_failing_jobs. An explicit empty list means the correct
         analysis recommends NO revert — any candidate at or above the
         revert threshold is a false positive.
+      - 'expected_infra_jobs': optional list of job-name stems that must be
+        failure_type: infra. When set, classifying them as test/product is a
+        ship_status_infra_read fail (not a vacuous "No infra jobs" pass).
       - 'notes': free text context
 
     Snapshots are stored as tar.gz archives in
@@ -213,18 +216,20 @@ judges:
 
   - name: ship_status_infra_read
     description: |
-      Correlation must use get_outages_during over each job's Prow window,
-      not live get_infrastructure_status. Detect tools from structured
-      tool-call events (not serialized-text search). When SHIP read tools
-      were used, every failure_type: infra job must carry a ship_status
+      This eval provides the public SHIP Status MCP. Fail if those tools are
+      missing from the session catalog. Cases with expected_infra_jobs fail
+      when those jobs are not failure_type: infra (a vacuous "No infra jobs"
+      pass is not allowed). Correlation must use get_outages_during over each
+      job's Prow window, not live get_infrastructure_status. Detect tools from
+      structured tool-call events (not serialized-text search). When SHIP read
+      tools were used, every failure_type: infra job must carry a ship_status
       dict. Each non-skipped job must match a get_outages_during call on
       component_slug, sub_component_slug, window_start, and window_end.
       Skipped jobs must use action skipped with reason unmapped, include
       list_components candidates in reason, and have a list_components
-      call. This eval (and the Prow payload-agent job) provide the public
-      SHIP Status MCP — infra jobs without get_outages_during or
-      list_components are a fail, not an omit. Recording mapped
-      ship_status after only a current-status query is a fail.
+      call. Infra jobs without get_outages_during or list_components are a
+      fail, not an omit. Recording mapped ship_status after only a
+      current-status query is a fail.
     check: |
       import yaml, os, json
       all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
@@ -232,7 +237,56 @@ judges:
       if not yf:
           return (False, "No payload results YAML found")
       data = yaml.safe_load(yf[0]) or {}
-      infra = [j for j in (data.get("failing_jobs") or []) if isinstance(j, dict) and j.get("failure_type") == "infra"]
+
+      def _ship_mcp_in_catalog():
+          for line in (outputs.get("stdout") or "").splitlines():
+              try:
+                  entry = json.loads(line)
+              except (json.JSONDecodeError, ValueError):
+                  continue
+              if not isinstance(entry, dict):
+                  continue
+              if entry.get("type") != "system" or entry.get("subtype") != "init":
+                  continue
+              for t in entry.get("tools") or []:
+                  name = t if isinstance(t, str) else str((t or {}).get("name") or "")
+                  if name.startswith("mcp__") and "ship-status" in name:
+                      return True
+              for srv in entry.get("mcp_servers") or []:
+                  if isinstance(srv, dict) and "ship-status" in str(srv.get("name") or ""):
+                      return True
+          return False
+
+      if not _ship_mcp_in_catalog():
+          return (
+              False,
+              "SHIP Status MCP not in tool catalog "
+              "(need mcp__ship-status__* or mcp__plugin_ci_ship-status__*)",
+          )
+
+      def _name_match(exp, got):
+          exp, got = str(exp or ""), str(got or "")
+          return bool(exp and got and (exp in got or got in exp))
+
+      jobs = [j for j in (data.get("failing_jobs") or []) if isinstance(j, dict)]
+      expected_infra = outputs.get("annotations", {}).get("expected_infra_jobs") or []
+      if expected_infra:
+          missing = []
+          for exp in expected_infra:
+              classified = "absent"
+              for j in jobs:
+                  if _name_match(exp, j.get("job_name")):
+                      classified = str(j.get("failure_type") or "unset")
+                      break
+              if classified != "infra":
+                  missing.append(f"{exp} (failure_type={classified})")
+          if missing:
+              return (
+                  False,
+                  "expected infra jobs not classified as infra: " + "; ".join(missing),
+              )
+
+      infra = [j for j in jobs if j.get("failure_type") == "infra"]
       if not infra:
           return (True, "No infra jobs")
 

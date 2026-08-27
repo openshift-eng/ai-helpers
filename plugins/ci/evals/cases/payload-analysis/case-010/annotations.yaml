@@ -6,6 +6,12 @@ payload_completed_at: "2026-05-14T16:40:01Z"
 
 expected_candidates: []
 
+expected_infra_jobs:
+  - e2e-aws-ovn-serial
+  - e2e-aws-upgrade-ovn-single-node
+  - e2e-aws-ovn-upgrade
+  - upgrade-from-stable-4.17-e2e-gcp-ovn-rt-upgrade
+
 notes: >
   External-service infrastructure incident affecting multiple job families.
   All 4 failed blocking jobs (e2e-aws-ovn-serial, e2e-aws-upgrade-ovn-single-node,

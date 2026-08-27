@@ -6,6 +6,10 @@ payload_completed_at: "2026-07-29T13:32:49Z"
 
 expected_candidates: []
 
+expected_infra_jobs:
+  - aggregated-gcp-ovn-rt-upgrade-5.0-major
+  - aggregated-hypershift-aks-conformance-5.0
+
 notes: >
   Compound infrastructure and resilience case. The Payload Agent recommended
   openshift/ovn-kubernetes#3298 and openshift/cloud-provider-azure#164 at 90.

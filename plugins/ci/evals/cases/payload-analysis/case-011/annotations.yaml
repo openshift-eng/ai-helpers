@@ -6,6 +6,10 @@ payload_completed_at: "2026-05-15T00:00:06Z"
 
 expected_candidates: []
 
+expected_infra_jobs:
+  - aggregated-aws-ovn-upgrade-5.0-major
+  - aggregated-gcp-ovn-upgrade-5.0-micro
+
 notes: >
   Infrastructure-only failure test case. This payload was rejected with two
   failed blocking jobs (aggregated-aws-ovn-upgrade-5.0-major and
