@@ -33,6 +33,13 @@ __pycache__/
 venv/
 *.egg
 
+# Generated documentation site
+/public/
+/site/docs/categories/
+/site/docs/index.md
+/site/docs/plugins/
+/site/mkdocs.yml
+
 # Local settings
 *.local.*
 

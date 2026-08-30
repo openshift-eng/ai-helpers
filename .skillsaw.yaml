@@ -129,7 +129,6 @@ rules:
 
 # Load custom rules from these files
 custom-rules:
-  - ".skillsaw/plugindocs_rule.py"
   - ".skillsaw/owners_rule.py"
   - ".skillsaw/opencode_color_rule.py"
   - ".skillsaw/eval_case_rule.py"
@@ -137,6 +136,8 @@ custom-rules:
 # Exclude patterns (glob format)
 # Use exclude: [] to disable all excludes including defaults
 exclude:
+  - ".work/**"
+  - "**/__pycache__/**"
   - "node_modules/**"
   - "**/template/**"
   - "**/templates/**"

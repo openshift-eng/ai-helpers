@@ -1,0 +1,121 @@
+/* Red Hat styling for the AI Helpers marketplace. */
+
+:root {
+  --md-text-font: "Red Hat Text", -apple-system, blinkmacsystemfont, helvetica, arial, sans-serif;
+  --md-code-font: "Red Hat Mono", "SFMono-Regular", consolas, monospace;
+  --rh-red: #ee0000;
+  --rh-red-dark: #a60000;
+  --rh-red-light: #fef0f0;
+  --rh-black: #151515;
+  --rh-white: #ffffff;
+  --rh-gray-20: #e0e0e0;
+  --rh-blue-50: #0066cc;
+}
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: var(--rh-red);
+  --md-primary-fg-color--light: var(--rh-red);
+  --md-primary-fg-color--dark: var(--rh-red-dark);
+  --md-accent-fg-color: var(--rh-red);
+  --md-typeset-a-color: var(--rh-blue-50);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: var(--rh-red);
+  --md-primary-fg-color--light: var(--rh-red);
+  --md-primary-fg-color--dark: var(--rh-red-dark);
+  --md-accent-fg-color: var(--rh-red);
+  --md-typeset-a-color: #73a9ff;
+}
+
+.md-header,
+.md-tabs {
+  background: var(--rh-black) !important;
+}
+
+.md-header .md-header__title,
+.md-header .md-header__topic,
+.md-header .md-header__button,
+.md-header .md-icon,
+.md-source {
+  color: var(--rh-white) !important;
+}
+
+.md-header__title,
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  font-family: "Red Hat Display", sans-serif;
+}
+
+.md-header__title,
+.md-typeset h1,
+.md-typeset h2 {
+  font-weight: 700;
+}
+
+.md-tabs__link {
+  color: var(--rh-gray-20);
+  opacity: 1 !important;
+  font-weight: 500;
+}
+
+.md-tabs__link:hover,
+.md-tabs__item--active .md-tabs__link {
+  color: var(--rh-white);
+}
+
+.md-tabs__item--active .md-tabs__link {
+  border-bottom: 2px solid var(--rh-red);
+}
+
+.md-typeset h2 {
+  border-bottom: 2px solid var(--rh-red);
+  padding-bottom: 0.3em;
+}
+
+.md-typeset .md-button--primary {
+  background-color: var(--rh-red);
+  border-color: var(--rh-red);
+}
+
+.md-typeset .md-button--primary:hover {
+  background-color: var(--rh-red-dark);
+  border-color: var(--rh-red-dark);
+}
+
+.md-typeset .grid.cards > ul > li {
+  border: 1px solid var(--rh-gray-20);
+  border-radius: 8px;
+  transition: border-color 0.2s, box-shadow 0.25s, transform 0.2s;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  border-color: var(--rh-red);
+  box-shadow: 0 4px 12px rgb(238 0 0 / 10%);
+  transform: translateY(-2px);
+}
+
+.tag-pill {
+  display: inline-block;
+  padding: 0.15em 0.6em;
+  border: 1px solid rgb(238 0 0 / 15%);
+  border-radius: 1em;
+  margin: 0.1em 0.15em;
+  background-color: var(--rh-red-light);
+  color: var(--rh-red-dark);
+  font-size: 0.68em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+[data-md-color-scheme="slate"] .tag-pill {
+  border-color: rgb(238 0 0 / 20%);
+  background-color: rgb(238 0 0 / 10%);
+  color: #ff7373;
+}
+
+.md-footer {
+  border-top: 1px solid var(--rh-gray-20);
+}

@@ -24,7 +24,9 @@ Canonical example: `plugins/hello-world/`
 |---------|------|
 | `make lint` | Before every commit — validates structure, format, and marketplace registration |
 | Bump `version` in `plugin.json` | Once per affected plugin per PR when modifying commands, skills, hooks, or plugin.json (not README.md or OWNERS). Skip if that plugin is already higher than the base branch tip. |
-| `make update` | After version bumps — syncs marketplace.json and regenerates docs |
+| `make update` | After version bumps — syncs marketplace.json and regenerates MkDocs content |
+| `make site-build` | Before documentation changes — runs a strict local site build |
+| `make site-serve` | Preview the generated site at `http://127.0.0.1:8000/ai-helpers/` |
 
 ## Contributing Rules
 
