@@ -6,6 +6,10 @@ payload_completed_at: "2026-05-15T00:00:06Z"
 
 expected_candidates: []
 
+expected_infra_jobs:
+  - aggregated-aws-ovn-upgrade-5.0-major
+  - aggregated-gcp-ovn-upgrade-5.0-micro
+
 notes: >
   Infrastructure-only failure test case. This payload was rejected with two
   failed blocking jobs (aggregated-aws-ovn-upgrade-5.0-major and
@@ -14,4 +18,6 @@ notes: >
   which is an infrastructure issue unrelated to any code change. The correct
   outcome is zero revert candidates. This case tests the agent's ability to
   classify and dismiss infrastructure issues without producing false positive
-  revert recommendations.
+  revert recommendations.   When SHIP Status read tools are present, Insights
+  is unmapped: call list_components, then record ship_status with
+  action: skipped (reason unmapped plus candidates), not a mapped observation.

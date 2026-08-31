@@ -53,8 +53,9 @@ Load these only at the step that needs them — not up front:
 - **`references/report-guide.md`** — per-section content rules for the HTML report (Step 7)
 - **`references/completeness-review.md`** — the completeness-reviewer prompt and response handling (Step 9)
 - **`assets/report-template.html`** — the fill-in-the-blanks HTML report template (Step 7)
+- **`references/ship-status-component-map.md`** — SHIP Status slug mapping (Step 6.5)
 
-The `payload-results-yaml` and `payload-autodl-json` skills define the structured output schemas; load each via the Skill tool at its point of use (Steps 6.5 and 8).
+The `payload-results-yaml` and `payload-autodl-json` skills define the structured output schemas; load each via the Skill tool at its point of use (Steps 6.7 and 8).
 
 ## Implementation Steps
 
@@ -66,7 +67,7 @@ The `payload-results-yaml` and `payload-autodl-json` skills define the structure
 OUTPUT_DIR="$(pwd)"
 ```
 
-All three output files — the payload results YAML (Step 6.5), the HTML report (Step 7), and the autodl JSON (Step 8) — MUST be written under `$OUTPUT_DIR`, never into a snapshot subdirectory or a path a later `cd` may have changed. The Step 10 self-check verifies them at `$OUTPUT_DIR`.
+All three output files — the payload results YAML (Step 6.7), the HTML report (Step 7), and the autodl JSON (Step 8) — MUST be written under `$OUTPUT_DIR`, never into a snapshot subdirectory or a path a later `cd` may have changed. The Step 10 self-check verifies them at `$OUTPUT_DIR`.
 
 The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Parse from it:
 - `tag`: The specific payload tag to analyze
@@ -476,7 +477,39 @@ Otherwise, recommend force-accepting when **all** of the following are true:
 
 Instead, recommend the correct action: **wait for the RHCOS with the rebuilt kubelet to land** (i.e., for the transient build lag from Step 6.2 to resolve). Once the updated kubelet is delivered, the skew clears and the payload passes on its own.
 
-#### 6.5: Write Payload Results YAML
+#### Failure type
+
+Set `failure_type` from the **root cause**, not the job family (an `e2e-*-upgrade` job can still be `infra`).
+
+- **`infra`**: affirmative infrastructure — Boskos/lease/quota, cloud-provider API throttling or 429s, VIP/DNS reachability loss, Insights/console.redhat.com API 500s, Prow/build-farm outages, hypershift or cluster **teardown** timeouts after tests completed.
+- **`install`**: installer/provisioning failed before the cluster was up.
+- **`upgrade`**: the upgrade path itself failed (CVO/operators/MCP), not an external API or teardown blip.
+- **`test`**: in-cluster product test failure.
+
+Do not use `test` or `upgrade` merely because the job name contains those words.
+
+#### 6.5: Read SHIP Status (required when SHIP read tools exist)
+
+After classification — and as a check when infrastructure is suspected but not yet committed — correlate each `failure_type: infra` job with the SHIP Status dashboard.
+
+This analysis often runs **hours after** the payload jobs finished. Current dashboard health is the wrong window.
+
+1. Read `references/ship-status-component-map.md` in this skill's directory. Map `component_slug` / `sub_component_slug` from `prowjob.json` `spec.cluster`, Boskos/lease/cloud signals, or Prow control-plane symptoms. First match wins.
+2. If SHIP Status read tools exist, call **`get_outages_during`** for the mapped component/sub-component with RFC3339 UTC `start`/`end` covering the **job's Prow run window** (start slightly before job start if uncertain; end at job completion, or `--as-of` / `payload_completed_at` if completion is missing). An outage overlapping that window is **affirmative infra evidence**.
+3. Do **not** use `get_infrastructure_status` for this step — that is live "now" health. Do **not** substitute `get_component_outages`; it has no overlap filter. Use `list_components` only when mapping is ambiguous.
+4. Record a `ship_status` observation on each infra job (see the `payload-results-yaml` schema): slugs, `window_start` / `window_end` (the same bounds passed to `get_outages_during`), `observed_health` from the overlap result (`healthy` if none), `existing_outage_id`, `queried_at`, `action: pending`. Empty overlap is still a recorded observation, not a skip. Chai `payload_check` reuses these windows on the write path.
+5. If mapping is ambiguous, skip that job (`action: skipped`, `reason: unmapped`) and include `list_components` candidates in `reason`. Do not invent slugs. External Red Hat SaaS (Insights, console.redhat.com) is unmapped — skip after `list_components`, do not map it to boskos/prow.
+6. Detect SHIP read tools by their presence in the tool list (`get_outages_during`, `list_components`), not by a `ship-status` CLI. If those tools are **not** in the tool list, **omit** the `ship_status` key entirely. Do not write `action: skipped` / `reason: unmapped` as a stand-in for missing tools.
+
+The Prow job and this eval use the public SHIP Status MCP (reads only). This step must still run there.
+
+#### 6.6: Record SHIP Status outage (only if `record_payload_infra_outage` exists)
+
+If the `record_payload_infra_outage` tool is available (Chai RWS), pass **mapped** infra jobs in **one** call (`jobs_json` array with `job_name`, `prow_url`, `root_cause_summary`, slugs, and the same `window_start` / `window_end` used in Step 6.5). Include only jobs whose Step 6.5 `ship_status.action` is not `skipped`. Exclude unmapped jobs (`action: skipped`, `reason: unmapped`) — they have no slugs and the wrapper cannot place them. Do not call it once per job. Do not call raw `create_outage`.
+
+Stamp `action` / `outage_id` / `dashboard_url` onto each job from the tool result. The Prow job does not have this tool and skips this step — Chai `payload_check` performs the write later from the YAML snapshot.
+
+#### 6.7: Write Payload Results YAML
 
 Load the `payload-results-yaml` skill now (via the Skill tool) — this is its point of use — and follow it to create `$OUTPUT_DIR/payload-results-{tag}.yaml` (the `$OUTPUT_DIR` captured in Step 1).
 
@@ -486,7 +519,7 @@ This file contains ALL scored candidates across all confidence tiers (HIGH, MEDI
 
 ### Step 7: Generate HTML Report
 
-Create a self-contained HTML file named `payload-analysis-<sanitized_tag>-summary.html` in `$OUTPUT_DIR` (the directory captured in Step 1).
+Create a self-contained HTML file named **exactly** `payload-analysis-<sanitized_tag>-summary.html` in `$OUTPUT_DIR` (the directory captured in Step 1). The filename MUST end with `-summary.html`. `payload-analysis-<tag>.html` is a defect.
 
 Produce it by filling the bundled template — do NOT write the HTML structure or CSS from scratch; the template is the single source of truth for section order, markup, and styling, which keeps reports consistent across runs:
 
@@ -501,7 +534,7 @@ Produce it by filling the bundled template — do NOT write the HTML structure o
 
 2. Read `references/report-guide.md` (in this skill's directory) for the per-section content rules: how to derive each `{placeholder}` value and when to include, drop, or repeat the marked `BEGIN`/`END` blocks.
 
-3. Copy the template to the output path and fill it: replace every placeholder, expand repeatable blocks once per item, remove blocks whose condition is false, and strip the marker comments. No unfilled `{placeholder}` or `BEGIN`/`END` marker may remain (verified in Step 10).
+3. Copy the template to `$OUTPUT_DIR/payload-analysis-<sanitized_tag>-summary.html` (same `<sanitized_tag>` as the YAML and autodl JSON) and fill it: replace every placeholder, expand repeatable blocks once per item, remove blocks whose condition is false, and strip the marker comments. No unfilled `{placeholder}` or `BEGIN`/`END` marker may remain (verified in Step 10). Do not save a second copy as `payload-analysis-<tag>.html`.
 
 ### Step 8: Generate JSON Data File
 
@@ -531,6 +564,8 @@ Before presenting, confirm that **all Step 4 investigation subagents and the Ste
 2. **The HTML contains every required section** from the Step 7 template: header + executive summary (including the payload-chain context), the revert verdict (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs summary table, a collapsible details block for **every** failed job, the RHCOS Changes section when any payload has RHCOS changes, the informing-tests section when such tests exist, and the Adversarial Review section. No unfilled `{placeholder}` and no `BEGIN`/`END` marker comments remain.
 3. **Cross-output consistency**: phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
 4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.
+5. **HTML filename** ends with `-summary.html`. If a `payload-analysis-*.html` file exists without that suffix, rename it — do not leave the short name as the report.
+6. **SHIP Status**: every `failure_type: infra` job has a `ship_status` observation if `get_outages_during` / `list_components` are in the tool list. Omit the key only when those tools are absent.
 
 If any check fails, fix it before presenting.
 
