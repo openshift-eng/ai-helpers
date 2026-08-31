@@ -19,7 +19,7 @@ Execute every step below in order. Do not skip steps.
 
 ---
 
-### Step 1 — Extract component images from the release
+## Step 1 — Extract component images from the release
 
 ```bash
 oc adm release info <RELEASE_IMAGE> --output=json
@@ -41,7 +41,7 @@ proceeding.
 
 ---
 
-### Step 2 — Identify the built binary per component via Dockerfile
+## Step 2 — Identify the built binary per component via Dockerfile
 
 For each component, identify exactly which binary is built and where it
 lands in the final image by looking up the component's Dockerfile. Do NOT
@@ -67,6 +67,11 @@ Check the ocp-build-data config on the matching branch (e.g.
 `github.com/openshift-eng/ocp-build-data/tree/openshift-4.17/images/<component>.yml`).
 The `from:` and `dockerfile:` fields point to the Dockerfile.
 
+**OKD builds:** The ocp-build-data image config may contain an
+`okd_alignment` section that specifies a different Dockerfile for OKD
+builds (e.g. `okd_alignment.dockerfile`). When this section is present,
+use the OKD-specific Dockerfile instead of the default one for OKD images.
+
 #### Parse the Dockerfile
 
 Look for:
@@ -81,7 +86,7 @@ the target binary is `/usr/bin/cluster-version-operator`.
 
 ---
 
-### Step 3 — Detect Go version per component
+## Step 3 — Detect Go version per component
 
 For each component, extract the Go version from the specific binary
 identified in Step 2.
@@ -95,7 +100,7 @@ go version /tmp/target-binary
 ```
 
 Parse the output. The format is:
-```
+```text
 /tmp/target-binary: go1.22.5
 ```
 Extract the semver-style version (e.g. `1.22.5`).
@@ -119,51 +124,49 @@ Extract the semver-style version (e.g. `1.22.5`).
 
 ---
 
-### Step 4 — Query Jira for open Go stdlib CVE trackers
+## Step 4 — Query Jira for open Go stdlib CVE trackers
 
-Search for open Jira issues that track Go standard library CVEs affecting
-OpenShift. There are **two patterns** to search for:
+Search for open Jira vulnerability issues that track Go standard library CVEs
+affecting the components in this release.
 
-#### Pattern A — Central trackers (openshift-golang-builder-container)
+#### 4a — Map release components to Jira components
 
-These are filed against the `openshift-golang-builder-container` component and
-track CVEs that affect the Go toolchain itself.
+From the `oc adm release info` output obtained in Step 1, extract the source
+GitHub repository for each component image. The `.references.spec.tags[].annotations`
+metadata includes the source repo URL. Map each repo to its corresponding
+OCPBUGS Jira component name (e.g. `openshift/cluster-version-operator` →
+`cluster-version-operator`).
 
-```
+#### 4b — Query for open stdlib CVE trackers
+
+Using the discovered component list, query Jira with the coordinator's
+`query_jira` tool:
+
+```jql
 project = OCPBUGS
-  AND component = "openshift-golang-builder-container"
-  AND type = Bug
-  AND status not in (Closed, "Release Pending", Verified)
-  AND summary ~ "CVE-"
-```
-
-#### Pattern B — Per-component trackers with `arc:stdlib` label
-
-Some Go stdlib CVEs are tracked as per-component bugs with an `arc:stdlib`
-label (or similar labels indicating stdlib origin).
-
-```
-project = OCPBUGS
+  AND type = Vulnerability
   AND labels in ("arc:stdlib")
-  AND type = Bug
   AND status not in (Closed, "Release Pending", Verified)
-  AND summary ~ "CVE-"
+  AND component in (<discovered components>)
+  AND summary ~ "openshift-<version>"
+  ORDER BY component ASC
 ```
 
-Run both queries via the coordinator's `query_jira` tool. Merge and deduplicate
-the results by CVE ID (extract the `CVE-YYYY-NNNNN` pattern from each issue's
-summary).
+Replace `<discovered components>` with the comma-separated list of Jira
+component names from step 4a, and `<version>` with the target OCP version
+(e.g. `4.17`).
 
-For each unique CVE, record:
+For each returned issue, record:
 - Jira issue key (e.g. `OCPBUGS-12345`)
-- CVE ID (e.g. `CVE-2024-24790`)
+- CVE ID (e.g. `CVE-2024-24790`) — extract the `CVE-YYYY-NNNNN` pattern
+  from the issue summary
 - Summary text
 - Affected component(s) listed in Jira
 - Fix version if mentioned in the issue
 
 ---
 
-### Step 5 — Exclude vendored dependency CVEs
+## Step 5 — Exclude vendored dependency CVEs
 
 Filter out CVEs that affect vendored Go dependencies rather than the Go
 standard library itself. The goal is to keep only CVEs that are fixed by
@@ -192,7 +195,7 @@ Record excluded CVEs separately for the final report (Step 7).
 
 ---
 
-### Step 6 — Map CVEs to Go vulnerability DB and cross-reference
+## Step 6 — Map CVEs to Go vulnerability DB and cross-reference
 
 For each remaining stdlib CVE, determine which Go versions contain the fix,
 then check each component against those fix versions.
@@ -218,7 +221,7 @@ and text search can miss or return ambiguous results.
 #### 6b — Fetch fixed versions
 
 Using the GO-* ID, fetch the vulnerability entry:
-```
+```text
 https://pkg.go.dev/vuln/<GO_ID>
 ```
 Use `web_fetch` to retrieve the page content, or fetch the JSON:
@@ -237,7 +240,7 @@ Note: there may be multiple fix versions for different Go release branches
 **Fallback if no remote link is present:** If a Jira ticket does not have a
 `pkg.go.dev/vuln` remote link, try searching the Go vulnerability database
 web interface via `web_fetch`:
-```
+```text
 https://pkg.go.dev/vuln/list?q=<CVE_ID>
 ```
 If no Go vulnerability database entry exists for a CVE, note it as "not in
@@ -266,7 +269,7 @@ Build a matrix: `CVE × Component → FIXED | AFFECTED | N/A`.
 
 ---
 
-### Step 7 — Generate the report
+## Step 7 — Generate the report
 
 Produce a structured Markdown report with the following sections:
 
