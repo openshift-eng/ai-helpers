@@ -65,7 +65,7 @@ echo "--- Operation B: Sync Reviewers → Assignees ---"
 # Sync Primary and Secondary Reviewer to GitHub assignees.
 # "Other" means a non-team reviewer is handling it — skip the /assign.
 echo "$ITEMS_JSON" | python3 -c "
-import json, sys
+import json, sys, re
 data = json.load(sys.stdin)
 for item in data['items']:
     if item.get('content', {}).get('type') != 'PullRequest':
@@ -80,11 +80,12 @@ for item in data['items']:
     pr_pri = item.get('pR Priority', '')
     primary = item.get('primary Reviewer', '')
     secondary = item.get('secondary Reviewer', '')
+    title = json.dumps(re.sub(r'<[^>]+>', '', item['content'].get('title', '')).strip())
     if primary:
-        print(f'{primary}|{url}|{repo}|{number}|{assignees}|{item_id}|{status}|{jira_pri}|{pr_pri}')
-    if secondary and secondary != primary and secondary != 'Other':
-        print(f'{secondary}|{url}|{repo}|{number}|{assignees}|{item_id}|{status}|{jira_pri}|{pr_pri}')
-" | while IFS='|' read -r reviewer url repo number assignees item_id status jira_pri pr_pri; do
+        print(f'{primary}|{url}|{repo}|{number}|{assignees}|{item_id}|{status}|{jira_pri}|{pr_pri}|{title}')
+    if secondary and secondary != primary:
+        print(f'{secondary}|{url}|{repo}|{number}|{assignees}|{item_id}|{status}|{jira_pri}|{pr_pri}|{title}')
+" | while IFS='|' read -r reviewer url repo number assignees item_id status jira_pri pr_pri title; do
     # "Other" means a non-team reviewer — set status to Assigned but skip /assign
     if [ "$reviewer" = "Other" ]; then
         if [ "$status" = "New" ]; then
@@ -117,7 +118,7 @@ for item in data['items']:
     fi
     if [[ ",$assignees," == *",$login,"* ]]; then
         if [ "$status" = "New" ] || [ -z "$status" ]; then
-            echo "  ASSIGN: $repo#$number → $login ($reviewer) [already assigned on GH]"
+            echo "  ASSIGN: $repo#$number $title → $login ($reviewer) [already assigned on GH]"
             gh project item-edit --project-id "$PROJECT_ID" --id "$item_id" \
                 --field-id "$FIELD_STATUS" --single-select-option-id "$STATUS_ASSIGNED" 2>/dev/null
             echo "  STATUS: $repo#$number → Assigned"
@@ -140,7 +141,7 @@ for item in data['items']:
         fi
         continue
     fi
-    echo "  ASSIGN: $repo#$number → $login ($reviewer)"
+    echo "  ASSIGN: $repo#$number $title → $login ($reviewer)"
     if ! gh pr comment "$url" --body "/assign @$login"; then
         echo "  ERROR: failed to assign $login on $repo#$number" >&2
     fi
@@ -701,6 +702,7 @@ import json, sys
 deterministic = set('''$(deterministic_repos)'''.split())
 data = json.load(sys.stdin)
 area_count = 0
+priority_count = 0
 for item in data['items']:
     if item.get('content', {}).get('type') != 'PullRequest':
         continue
