@@ -16,7 +16,7 @@ source "$SCRIPT_DIR/config.sh"
 DETERMINISTIC_REPOS=$(deterministic_repos | tr '\n' ' ')
 
 echo "Fetching project items..." >&2
-ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 2000)
 
 echo "Fetching changed files..." >&2
 
