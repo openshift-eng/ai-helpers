@@ -28,7 +28,7 @@ echo ""
 
 # Fetch project items
 echo "Fetching project items..."
-ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 2000)
 
 # Build nudge list
 NUDGE_FILE=$(mktemp)

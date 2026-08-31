@@ -50,7 +50,7 @@ echo ""
 
 # Fetch all project items
 echo "Fetching project items..."
-ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 2000)
 ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['items']))")
 echo "Found $ITEM_COUNT items"
 echo ""
@@ -299,7 +299,7 @@ echo ""
 # Re-fetch items if we added new ones
 if [ "$SHARED_ADDED" -gt 0 ] || [ "$BUGPR_ADDED" -gt 0 ] || [ "$DOCS_ADDED" -gt 0 ]; then
     echo "Re-fetching project items after additions..."
-    ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+    ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 2000)
     ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['items']))")
     echo "Now $ITEM_COUNT items"
     echo ""
