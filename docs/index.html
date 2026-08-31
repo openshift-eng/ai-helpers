@@ -935,7 +935,14 @@ footer a { color: var(--primary); }
         }
       ],
       "hooks": [],
-      "mcp_servers": [],
+      "mcp_servers": [
+        {
+          "name": "ship-status",
+          "type": "http",
+          "endpoint": "https://mcp.ship-status.ci.openshift.org/mcp",
+          "source": ".mcp.json"
+        }
+      ],
       "rules": [],
       "category": "ci",
       "keywords": [
@@ -1333,8 +1340,8 @@ footer a { color: var(--primary); }
     },
     {
       "name": "golang",
-      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, and CVE dependency patching",
-      "version": "0.3.1",
+      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, CVE dependency patching, and Go stdlib CVE triage for OpenShift releases",
+      "version": "0.4.0",
       "has_readme": true,
       "commands": [],
       "skills": [
@@ -1355,6 +1362,12 @@ footer a { color: var(--primary); }
           "description": "Run golangci-lint and fix all reported issues. Use only when explicitly asked to fix lint issues in a Go project.",
           "description_html": "Run golangci-lint and fix all reported issues. Use only when explicitly asked to fix lint issues in a Go project.",
           "meta": "Tools: Bash(golangci-lint *) Bash(grep *) Bash(make lint) Bash(make verify-lint) Read Edit(**/*.go)"
+        },
+        {
+          "name": "triage-fixed-cves",
+          "description": "Triage Go stdlib CVEs against an OpenShift release image to determine which CVEs are fixed by the Go version each component was built with.\nUse when the user asks to triage Go stdlib CVEs against an OpenShift release image, check which Go CVEs are fixed in a release, or cross-reference Go vulnerability fixes across OCP components.\nTriggers on: 'triage Go CVEs', 'Go stdlib CVE triage', 'which Go CVEs are fixed', 'Go vulnerability report for release', or any mention of Go stdlib CVE + OpenShift release image.\n",
+          "description_html": "Triage Go stdlib CVEs against an OpenShift release image to determine which CVEs are fixed by the Go version each component was built with.\u003cbr\u003eUse when the user asks to triage Go stdlib CVEs against an OpenShift release image, check which Go CVEs are fixed in a release, or cross-reference Go vulnerability fixes across OCP components.\u003cbr\u003eTriggers on: &#x27;triage Go CVEs&#x27;, &#x27;Go stdlib CVE triage&#x27;, &#x27;which Go CVEs are fixed&#x27;, &#x27;Go vulnerability report for release&#x27;, or any mention of Go stdlib CVE + OpenShift release image.",
+          "meta": ""
         }
       ],
       "agents": [],
