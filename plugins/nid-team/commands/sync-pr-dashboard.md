@@ -27,7 +27,7 @@ Syncs the NI&D PR Review GitHub Project board (https://github.com/orgs/openshift
 
 ### Step 1: Run the sync script
 
-Run `~/.claude/commands/sync-pr-dashboard.sh` (or `plugins/nid-team/scripts/pr-dashboard/sync-dashboard.sh`).
+Run `${CLAUDE_PLUGIN_ROOT}/scripts/pr-dashboard/sync-dashboard.sh`.
 
 This handles:
 - **PR Author** — Populates blank "PR Author" fields with display names
@@ -40,7 +40,7 @@ This handles:
 After the script completes, run the helper script to get structured data on unclassified items:
 
 ```bash
-~/.claude/commands/list-unclassified-areas.sh
+${CLAUDE_PLUGIN_ROOT}/scripts/pr-dashboard/list-unclassified-areas.sh
 ```
 
 This outputs each unclassified item with its item ID, repo, PR number, title, URL, and changed files.
@@ -93,36 +93,12 @@ If there were any reviewer assignments (including "Other") during this sync, als
 - [CIO#1456 — OCPBUGS-98310: Bump sail-operator install library to OSSM 3.4.0](https://github.com/openshift/cluster-ingress-operator/pull/1456) → @rikatz, @rhamini3
 - [CIO#1469 — OCPBUGS-88353: Ensure canary cert matches the default ingress controller's cert](https://github.com/openshift/cluster-ingress-operator/pull/1469) → @bentito
 
-Get the full PR title from the script output or via `gh pr view`. For "Other" assignments, show "→ Other" instead of a username.
+Get the PR title from the JSON-encoded string in each `ASSIGN:` line in the script output (e.g. `"Fix \"carry\" handling"` → `Fix "carry" handling`) — never call `gh pr view` to look up or infer titles. For "Other" assignments, show "→ Other" instead of a username.
 
 After the PR Scrub Assignments, query for PRs that merged without ever being assigned a reviewer. Run:
 
 ```bash
-gh project item-list 28 --owner openshift --format json --limit 500 | python3 -c "
-import json, sys, subprocess, datetime
-data = json.load(sys.stdin)
-one_week_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)
-results = []
-for item in data['items']:
-    c = item.get('content', {})
-    if c.get('type') != 'PullRequest': continue
-    if item.get('primary Reviewer', ''): continue
-    repo = c.get('repository', '')
-    number = c.get('number', '')
-    title = c.get('title', '')
-    r = subprocess.run(['gh','pr','view',str(number),'-R',repo,'--json','state,mergedAt','-q','.state + \" \" + .mergedAt'], capture_output=True, text=True)
-    parts = r.stdout.strip().split(' ', 1)
-    if len(parts) == 2 and parts[0] == 'MERGED':
-        try:
-            merged_at = datetime.datetime.fromisoformat(parts[1].replace('Z', '+00:00'))
-            if merged_at >= one_week_ago:
-                results.append((repo, number, title, merged_at.strftime('%Y-%m-%d')))
-        except: pass
-print(len(results))
-for repo, number, title, date in results:
-    short_repo = repo.split('/')[-1]
-    print(f'{short_repo}#{number}|{repo}|{title}|{date}')
-"
+${CLAUDE_PLUGIN_ROOT}/scripts/pr-dashboard/list-merged-without-reviewer.py
 ```
 
 Output the result as a header and bulleted list with clickable links:
