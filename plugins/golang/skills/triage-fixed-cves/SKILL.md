@@ -29,6 +29,14 @@ Parse the JSON output to get the list of component image references. Each
 entry in `.references.spec.tags[]` provides a `name` (component name) and
 `.from.name` (image pullspec).
 
+Each tag also carries `.annotations` metadata. Extract the
+`io.openshift.build.source-location` annotation — this is the canonical
+source GitHub repository URL for that component (e.g.
+`https://github.com/openshift/cluster-version-operator`). Also extract
+`io.openshift.build.commit.id` which gives the exact source commit SHA
+the image was built from. Record both for every component — they are used
+in Steps 2 and 4.
+
 **Auth failure:** If `oc adm release info` fails due to an authentication
 error, STOP immediately. Report the auth failure to the user and do not
 proceed. Do not attempt to locate pull secrets, probe environment variables,
@@ -36,8 +44,8 @@ or try alternative credential paths — the RWS pod's registry proxy handles
 authentication transparently, so an auth failure means the proxy does not
 have credentials for this registry and manual intervention is required.
 
-Collect the full list of `(component_name, image_pullspec)` pairs before
-proceeding.
+Collect the full list of `(component_name, image_pullspec, source_repo,
+source_commit)` tuples before proceeding.
 
 ---
 
@@ -50,11 +58,14 @@ scan the entire image for all ELF binaries.
 #### CI images (most components)
 
 Look up the ci-operator config at
-`github.com/openshift/release/tree/main/ci-operator/config/openshift/<repo>/`.
+`github.com/openshift/release/ci-operator/config/openshift/<repo>/`.
 Match the correct config file for the release branch and build variant (e.g.
 `openshift-cluster-version-operator-release-4.17.yaml`). The config's
 `images.items[]` specifies the `dockerfile_path` for each image. Fetch that
-Dockerfile from the component's own repository.
+Dockerfile from the component's own repository **at the exact source commit**
+recorded in `io.openshift.build.commit.id` from Step 1 — do not use
+`tree/main` or the branch tip, as the release image may have been built from
+an older revision.
 
 **Builder substitutions:** ci-operator configs may declare builder image
 overrides via `images.items[].inputs.as` — these replace `FROM` targets in
@@ -69,8 +80,11 @@ The `from:` and `dockerfile:` fields point to the Dockerfile.
 
 **OKD builds:** The ocp-build-data image config may contain an
 `okd_alignment` section that specifies a different Dockerfile for OKD
-builds (e.g. `okd_alignment.dockerfile`). When this section is present,
-use the OKD-specific Dockerfile instead of the default one for OKD images.
+builds. These are typically named `Dockerfile.scos` or `Dockerfile.okd`.
+When this section is present, use the OKD-specific Dockerfile instead of
+the default one for OKD images. As with CI images, fetch the OKD
+Dockerfile at the exact source commit from `io.openshift.build.commit.id`
+(Step 1), not from the branch tip.
 
 #### Parse the Dockerfile
 
@@ -95,9 +109,14 @@ identified in Step 2.
 podman pull <IMAGE>
 podman create --name tmp-extract <IMAGE>
 podman cp tmp-extract:<binary_path> /tmp/target-binary
-podman rm tmp-extract
+podman rm -f tmp-extract   # always remove so the name is freed for the next component
 go version /tmp/target-binary
 ```
+
+**Cleanup:** Always run `podman rm -f tmp-extract` unconditionally after
+extraction (even on failure) so the container name is available for the
+next component. Wrap the extract-copy-remove sequence in a function or
+loop body to ensure cleanup is never skipped.
 
 Parse the output. The format is:
 ```text
@@ -117,8 +136,10 @@ Extract the semver-style version (e.g. `1.22.5`).
 - If a component's Dockerfile cannot be found, or the component is not built
   from Go (e.g. a pure shell image or non-Go component), record it as
   `N/A — no Go binary found` and skip it in later steps.
-- If the Dockerfile builds multiple Go binaries, check the primary one (the
-  one COPYed to the final stage).
+- If the Dockerfile builds multiple Go binaries, run `go version` on each
+  binary COPYed into the final stage. Different binaries in the same image
+  may be built with different Go toolchain versions. Record every
+  `(binary_path, go_version)` pair for that component.
 - Process components in batches to avoid excessive pull traffic. 10–20 at a
   time is reasonable.
 
@@ -131,11 +152,9 @@ affecting the components in this release.
 
 #### 4a — Map release components to Jira components
 
-From the `oc adm release info` output obtained in Step 1, extract the source
-GitHub repository for each component image. The `.references.spec.tags[].annotations`
-metadata includes the source repo URL. Map each repo to its corresponding
-OCPBUGS Jira component name (e.g. `openshift/cluster-version-operator` →
-`cluster-version-operator`).
+Using the `io.openshift.build.source-location` source repo URLs extracted in
+Step 1, map each repo to its corresponding OCPBUGS Jira component name (e.g.
+`openshift/cluster-version-operator` → `cluster-version-operator`).
 
 #### 4b — Query for open stdlib CVE trackers
 
@@ -180,10 +199,12 @@ upgrading the Go toolchain version.
 
 2. **Hybrid CVEs**: Some CVEs affect both stdlib packages AND vendored modules
    (e.g. a CVE that affects `net/http` in stdlib but also
-   `golang.org/x/net/http2`). For hybrid CVEs:
-   - Keep the CVE in the report but note it as "hybrid."
-   - The stdlib portion IS fixed by a Go version upgrade.
-   - The vendored portion requires a separate dependency bump.
+   `golang.org/x/net/http2`). Classify these into a **separate "Hybrid"
+   category** — do not list them as both included and excluded:
+   - The stdlib portion IS fixed by a Go version upgrade — include this
+     in the per-CVE cross-reference (Steps 6–7).
+   - The vendored portion requires a separate dependency bump — note this
+     in the hybrid section of the report.
 
 3. **Detection method**: Read the Jira issue description and any linked
    advisories. Look for:
@@ -191,7 +212,11 @@ upgrading the Go toolchain version.
    - Package paths like `net/http`, `crypto/tls`, `os`, `runtime` — stdlib
    - References to the Go vulnerability database entry
 
-Record excluded CVEs separately for the final report (Step 7).
+Produce three lists from this step:
+- **Stdlib-only CVEs** → proceed to Steps 6–7 cross-reference
+- **Hybrid CVEs** → proceed to Steps 6–7 cross-reference (stdlib portion)
+  AND note in the dedicated hybrid section of the report (Step 7.4)
+- **Vendored-only CVEs** → excluded; listed in the report (Step 7.5)
 
 ---
 
@@ -296,10 +321,21 @@ List components whose Go version is notably older than the release majority.
 These are the highest-risk components for stdlib CVEs and likely need
 builder image updates.
 
-#### 7.4 — Excluded CVEs
+#### 7.4 — Hybrid CVEs
 
-List CVEs excluded in Step 5, with the reason for exclusion (vendored
-dependency, hybrid with note, etc.).
+List CVEs classified as hybrid in Step 5. For each, show:
+- The stdlib packages affected (fixed by the Go version upgrade) and their
+  cross-reference status from section 7.2.
+- The vendored packages affected (require a separate dependency bump) and
+  which components still carry the vulnerable vendored version.
+
+This section prevents hybrid CVEs from being ambiguously double-listed as
+both "included" and "excluded."
+
+#### 7.5 — Excluded CVEs
+
+List CVEs excluded in Step 5 as vendored-only, with the reason for
+exclusion (e.g. `golang.org/x/net` — vendored dependency, not stdlib).
 
 #### Store the report
 
