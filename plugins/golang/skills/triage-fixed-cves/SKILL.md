@@ -136,10 +136,9 @@ Extract the semver-style version (e.g. `1.22.5`).
 - If a component's Dockerfile cannot be found, or the component is not built
   from Go (e.g. a pure shell image or non-Go component), record it as
   `N/A — no Go binary found` and skip it in later steps.
-- If the Dockerfile builds multiple Go binaries, run `go version` on each
-  binary COPYed into the final stage. Different binaries in the same image
-  may be built with different Go toolchain versions. Record every
-  `(binary_path, go_version)` pair for that component.
+- If the Dockerfile builds multiple Go binaries, checking any one of them
+  is sufficient — all binaries in the same image share the same builder
+  image and therefore the same Go toolchain version.
 - Process components in batches to avoid excessive pull traffic. 10–20 at a
   time is reasonable.
 
