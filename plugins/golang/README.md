@@ -61,6 +61,10 @@ Runs `golangci-lint --fix` to auto-fix issues, then uses AI to resolve any remai
 
 User-invocable only (`/golang:lint-fix`) — not triggered automatically due to its destructive nature.
 
+### `golang:audit-release-go-version`
+
+Audits an OCP release image or payload against a requested Go version using resolved ci-operator build configuration and Dockerfile `FROM` builder evidence. Reports only mismatching images plus explicitly limited-evidence items; it does not modify repositories, images, or Jira.
+
 ## Dependencies
 
 | Plugin | Marketplace | Purpose |
