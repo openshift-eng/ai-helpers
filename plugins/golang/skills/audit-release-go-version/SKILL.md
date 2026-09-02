@@ -18,7 +18,7 @@ Require:
 
 Optional:
 
-- **scope**: default to `OCP`. If the requested target is OKD or SCOS, stop and ask for an OCP target or explicit scope; do not substitute their Dockerfiles or configuration.
+- **scope**: `OCP` (default) or `OKD`/`SCOS`. Accept OKD and SCOS payloads natively (tags like `X.Y.0-0.okd-scos-*` or `X.Y.0-0.okd-scos-nightly-*`); do not stop and ask for an OCP target.
 - **source/ref policy**: honor an explicit branch/ref policy. Otherwise use the release-aligned/current branch policy for the release, and record the ref used. Do not blindly use `io.openshift.build.commit.id` from the payload as the source ref.
 
 Match at the requested precision: `1.26` matches any `1.26.x`; a requested patch version requires that exact patch when explicit builder evidence exposes it.
@@ -26,14 +26,30 @@ Match at the requested precision: `1.26` matches any `1.26.x`; a requested patch
 ## Required workflow
 
 1. Resolve the release target read-only (for example, `oc adm release info`) and collect each tag's image pullspec, source repository annotation, and release version. Do not emit the complete inventory.
-2. For each source repository, locate its ci-operator configuration across **all relevant** `openshift/release/ci-operator/config/<org>/` trees. Search by repository identity and release variant; do not assume `config/openshift` is the only tree. In particular, account for organization trees such as `openshift-assisted` and `operator-framework` when they own the configuration.
-3. Select the config matching the release version and requested/current branch policy. A repository is not unresolved merely because its config lives outside the source repository's organization tree.
-4. Resolve the actual build context before reading builder evidence:
+2. Determine the payload type from the release tag:
+   - **CI payload**: the tag does NOT contain `-nightly-` (e.g. `4.19.0-0.ci-*` or `4.19.0-0.okd-scos-*`).
+   - **ART nightly**: the tag contains `-nightly-` (e.g. `4.19.0-0.nightly-*` or `4.19.0-0.okd-scos-nightly-*`).
+3. **CI payloads** — for each source repository, locate its ci-operator configuration across **all relevant** `openshift/release/ci-operator/config/<org>/` trees. Search by repository identity and release variant; do not assume `config/openshift` is the only tree. In particular, account for organization trees such as `openshift-assisted` and `operator-framework` when they own the configuration. For OKD/SCOS CI payloads, use the `__okd-scos` variant configs (files ending in `__okd-scos.yaml`).
+4. Select the config matching the release version and requested/current branch policy. A repository is not unresolved merely because its config lives outside the source repository's organization tree.
+5. Resolve the actual build context before reading builder evidence:
    - use the applicable `images.items[].dockerfile_path` and `context_dir`;
    - follow Dockerfile pointer files and repository symlinks until reaching the real Dockerfile;
    - honor `build_root.from_repository` and inspect its repository Dockerfile/context when it supplies the build root;
    - apply `images.items[].inputs` substitutions that replace Dockerfile `FROM` references.
-5. Inspect the resolved Dockerfile stages. Associate `FROM` images with stages that execute Go compilation (`go build`, `go install`, `go test`, or an equivalent invoked build). Resolve build arguments and substitutions where possible. Derive the Go version from the effective builder image/tag or its read-only metadata.
+6. **ART nightlies** — for each image, query `openshift-eng/ocp-build-data` on the `openshift-X.Y` branch (where `X.Y` matches the release version):
+   - locate the image YAML config (e.g. `images/cluster-monitoring-operator.yml`);
+   - read `from:` to identify the builder image via stream members defined in `streams.yml` (e.g. `builder` maps to `openshift-golang-builder`);
+   - read `content.source.git` for the source repository URL and branch;
+   - read `dockerfile_path:` for the Dockerfile path in the source repo;
+   - resolve the Dockerfile from the source repo using the `dockerfile_path` from the image config.
+   - For OKD nightly payloads, use the **`okd_alignment:`** stanza (not `okd:`). The `okd_alignment:` field may override:
+     - `dockerfile:` — alternative Dockerfile (e.g. `Dockerfile.okd`)
+     - `path:` — override Dockerfile path
+     - `context_dir:` — override build context
+     - `build_args:` — OKD-specific build arguments
+     - `inject_rpm_repositories:` — RPM repos for OKD
+     - `resolve_as:` — resolve from external source instead of building
+7. Inspect the resolved Dockerfile stages. Associate `FROM` images with stages that execute Go compilation (`go build`, `go install`, `go test`, or an equivalent invoked build). Resolve build arguments and substitutions where possible. Derive the Go version from the effective builder image/tag or its read-only metadata.
 
 Do not infer a Go builder from the final runtime image, scan every binary in an image, or use a release-wide default. One repository may produce multiple images with distinct Dockerfiles/builders; keep their results separate.
 
@@ -54,7 +70,7 @@ Explicit Dockerfile `FROM` evidence always takes precedence over `go.mod`. A `go
 Return a small Markdown report:
 
 ```text
-## Go builder audit — OCP <release>, target Go <target>
+## Go builder audit — <OCP|OKD> <release>, target Go <target>
 
 ### Mismatches
 | repo | image | effective builder | detected Go | evidence |
