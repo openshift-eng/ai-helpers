@@ -22,7 +22,7 @@ Extract ONLY diff-enforceable rules — rules that can be checked by looking at 
 
 ## Step 3 — Chai-bot verification (optional)
 
-Use the Chai Bot access path selected in `SKILL.md`. If hosted or external access is available, check whether any extracted rule has been superseded or changed by newer authoritative guidance. For external access, call `mcp__chai-bot__ask_persona`. If Chai Bot is unavailable, skip — include all extracted rules (err on side of inclusion).
+Use the Chai Bot access path selected in `SKILL.md`. If hosted or external access is available, check whether any extracted rule has been superseded or changed by newer authoritative guidance. For external access, use the available Chai Bot `ask_persona` MCP capability; hosts may normalize the server name differently. If Chai Bot is unavailable, skip — include all extracted rules (err on side of inclusion).
 
 ```
 "I'm generating REVIEW.md for {component} (github.com/openshift/{component}).
@@ -45,8 +45,13 @@ From Phase 4 discoveries:
 - Generated code (zz_generated*, clientset, informers, listers, bindata, protobuf, payload-manifests)
 - Vendored dependencies (vendor/**)
 - CI-enforced checks
-- Lockfiles (go.sum, go.mod)
+- Generated dependency checksums (`go.sum`): do not report individual checksum-line
+  changes, but investigate unexplained churn
 - Generated dashboards/assets if present
+
+`go.mod` is a dependency manifest, not a lockfile. Keep it reviewable and check
+semantic changes such as added, removed, or upgraded dependencies, `replace` /
+`exclude` directives, and Go/toolchain directives.
 
 ## Step 5 — Extract path-specific rules
 

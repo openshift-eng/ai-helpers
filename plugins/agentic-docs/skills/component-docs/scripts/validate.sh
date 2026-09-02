@@ -22,6 +22,19 @@ set -euo pipefail
 
 REPO_PATH="${1:-.}"
 VERBOSE="${VERBOSE:-false}"
+CHECK_EXTERNAL_LINKS="${CHECK_EXTERNAL_LINKS:-true}"
+VALIDATION_FAILED=false
+
+if [[ ! -d "$REPO_PATH" ]]; then
+    echo "❌ Repository path does not exist: $REPO_PATH" >&2
+    exit 1
+fi
+REPO_PATH=$(cd "$REPO_PATH" && pwd -P)
+
+if [[ -L "$REPO_PATH/ai-docs" ]]; then
+    echo "❌ Refusing to validate a symlinked ai-docs directory" >&2
+    exit 1
+fi
 
 echo "✅ Validating component documentation in: $REPO_PATH"
 echo ""
@@ -37,10 +50,10 @@ validate_internal_links() {
 
     while IFS= read -r link; do
         links_found=true
-        ((total_links++))
+        ((++total_links))
 
         if [[ "$link" =~ ^# ]]; then
-            ((valid_links++))
+            ((++valid_links))
             continue
         fi
 
@@ -54,12 +67,12 @@ validate_internal_links() {
         resolved_path="${resolved_path%%#*}"
 
         if [ -f "$resolved_path" ] || [ -d "$resolved_path" ]; then
-            ((valid_links++))
+            ((++valid_links))
             if [ "${VERBOSE:-false}" = "true" ]; then
                 echo "  ✅ OK: $link"
             fi
         else
-            ((invalid_links++))
+            ((++invalid_links))
             echo "  ❌ NOT FOUND: $link (resolved to: $resolved_path)"
             broken_links=true
         fi
@@ -81,8 +94,16 @@ remove_broken_link() {
     local file_path=$1
     local broken_url=$2
 
-    local escaped_url=$(printf '%s\n' "$broken_url" | sed 's/[[\.*^$/]/\\&/g')
-    sed -i "\|$escaped_url|d" "$file_path"
+    # Keep the untrusted URL out of the command/program text; pass it as data.
+    python3 - "$file_path" "$broken_url" <<'PY'
+from pathlib import Path
+import sys
+
+file_path, broken_url = sys.argv[1:]
+path = Path(file_path)
+lines = path.read_text().splitlines(keepends=True)
+path.write_text("".join(line for line in lines if broken_url not in line))
+PY
     echo "  🔧 REMOVED line containing broken link: $broken_url"
 }
 
@@ -116,15 +137,21 @@ validate_links() {
     local invalid_links=0
     local links_to_remove=()
 
+    if [[ "$CHECK_EXTERNAL_LINKS" != "true" ]]; then
+        echo "  ⚠️  External link checks disabled; links are unverified"
+        return 0
+    fi
+
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "  ⚠️  curl is unavailable; external links are unverified"
+        return 0
+    fi
+
     while IFS= read -r link; do
         links_found=true
-        ((total_links++))
+        ((++total_links))
 
-        local is_curl_blocked=false
-        if [[ "$link" =~ "docs.openshift.com" ]]; then
-            is_curl_blocked=true
-        fi
-
+        local http_code
         http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 -L \
             -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
             "$link" 2>/dev/null || echo "000")
@@ -132,34 +159,25 @@ validate_links() {
         sleep 0.1
 
         if [[ "$http_code" == "200" ]]; then
-            ((valid_links++))
+            ((++valid_links))
             if [ "${VERBOSE:-false}" = "true" ]; then
                 echo "  ✅ OK ($http_code): $link"
             fi
         elif [[ "$http_code" =~ ^0+$ ]]; then
-            ((invalid_links++))
+            ((++invalid_links))
             echo "  ❌ TIMEOUT/ERROR: $link"
             links_to_remove+=("$link")
             broken_links=true
         elif [[ "$http_code" == "404" ]]; then
-            ((invalid_links++))
+            ((++invalid_links))
             echo "  ❌ NOT FOUND ($http_code): $link"
             links_to_remove+=("$link")
             broken_links=true
-        elif [[ "$http_code" == "403" ]]; then
-            if [ "$is_curl_blocked" = true ]; then
-                ((valid_links++))
-                if [ "${VERBOSE:-false}" = "true" ]; then
-                    echo "  ⚠️  OK (site blocks curl, assume valid): $link"
-                fi
-            else
-                ((invalid_links++))
-                echo "  ❌ FORBIDDEN ($http_code): $link"
-                links_to_remove+=("$link")
-                broken_links=true
-            fi
+        elif [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+            ((++valid_links))
+            echo "  ⚠️  MANUAL CHECK ($http_code): $link"
         else
-            ((invalid_links++))
+            ((++invalid_links))
             echo "  ❌ BROKEN ($http_code): $link"
             links_to_remove+=("$link")
             broken_links=true
@@ -216,10 +234,12 @@ if [ -L "$REPO_PATH/CLAUDE.md" ]; then
     if [ "$target" = "AGENTS.md" ]; then
         echo "  ✅ CLAUDE.md → AGENTS.md symlink correct"
     else
-        echo "  ⚠️  CLAUDE.md symlink points to $target (expected AGENTS.md)"
+        echo "  ❌ CLAUDE.md symlink points to $target (expected AGENTS.md)"
+        VALIDATION_FAILED=true
     fi
 else
-    echo "  ⚠️  CLAUDE.md symlink missing (run: ln -sf AGENTS.md CLAUDE.md)"
+    echo "  ❌ CLAUDE.md symlink missing (run: ln -sf AGENTS.md CLAUDE.md)"
+    VALIDATION_FAILED=true
 fi
 
 echo ""
@@ -243,6 +263,7 @@ for f in ARCHITECTURE.md DEVELOPMENT.md TESTING.md; do
         echo "  ✅ ai-docs/$f exists"
     else
         echo "  ❌ ai-docs/$f missing"
+        VALIDATION_FAILED=true
     fi
 done
 
@@ -336,7 +357,8 @@ if [ -f "$REPO_PATH/REVIEW.md" ]; then
         fi
     fi
 else
-    echo "  ℹ️  REVIEW.md not found (optional — run Phase 6 to generate)"
+    echo "  ❌ REVIEW.md not found (required — run Phase 6 to generate)"
+    VALIDATION_FAILED=true
 fi
 
 echo ""
@@ -345,10 +367,11 @@ echo ""
 
 if [ -f "$REPO_PATH/.coderabbit.yaml" ]; then
     echo "  ✅ .coderabbit.yaml exists"
-    if python3 -c "import yaml; yaml.safe_load(open('$REPO_PATH/.coderabbit.yaml'))" 2>/dev/null; then
+    if python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' "$REPO_PATH/.coderabbit.yaml" 2>/dev/null; then
         echo "  ✅ Valid YAML syntax"
     else
         echo "  ❌ Invalid YAML syntax"
+        VALIDATION_FAILED=true
     fi
     if grep -q "REVIEW.md" "$REPO_PATH/.coderabbit.yaml"; then
         echo "  ✅ filePatterns includes REVIEW.md"
@@ -359,7 +382,8 @@ if [ -f "$REPO_PATH/.coderabbit.yaml" ]; then
         echo "  ⚠️  filePatterns includes CLAUDE.md (auto-detected, remove)"
     fi
 else
-    echo "  ℹ️  .coderabbit.yaml not found (optional — run Phase 6 to generate)"
+    echo "  ❌ .coderabbit.yaml not found (required — run Phase 6 to generate)"
+    VALIDATION_FAILED=true
 fi
 
 echo ""
@@ -435,15 +459,21 @@ if [ -d "$REPO_PATH/ai-docs" ]; then
             LINK_VALIDATION_FAILED=true
         fi
         echo ""
-    done < <(find "$REPO_PATH/ai-docs" -name "*.md" -type f -print0)
+    done < <(find "$REPO_PATH/ai-docs" -path "$REPO_PATH/ai-docs/_sources" -prune -o -name "*.md" -type f -print0)
 fi
 
 if [ "$LINK_VALIDATION_FAILED" = true ]; then
-    echo "⚠️  Some links are broken or inaccessible"
+    echo "❌ Some links are broken or inaccessible"
+    VALIDATION_FAILED=true
 else
     echo "✅ All links validated successfully"
 fi
 
 echo ""
 echo "==================================="
+if [[ "$VALIDATION_FAILED" = true ]]; then
+    echo "❌ Validation failed"
+    exit 1
+fi
+
 echo "✅ Validation complete"

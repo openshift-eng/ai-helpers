@@ -14,7 +14,7 @@ The component follows the standard testing pyramid:
          Integration Tests (30%, medium)
               ▲
           Unit Tests (60%, fast, focused)
-```text
+```
 
 ## Unit Tests
 
@@ -42,7 +42,7 @@ go test -cover ./pkg/...
 # Coverage report
 go test -coverprofile=coverage.out ./pkg/...
 go tool cover -html=coverage.out
-```text
+```
 
 ### Unit Test Patterns
 
@@ -66,7 +66,7 @@ func TestReconcile(t *testing.T) {
     require.NoError(t, err)
     assert.False(t, result.Requeue)
 }
-```text
+```
 
 **For generic controller patterns**, see [Platform Controller Runtime](Platform documentation)
 
@@ -82,7 +82,7 @@ func TestDomainFunction(t *testing.T) {
     require.NoError(t, err)
     assert.Equal(t, expectedOutput, result)
 }
-```text
+```
 
 ### Component-Specific Unit Test Patterns
 
@@ -102,7 +102,7 @@ Example:
 ```go
 //go:build integration
 // +build integration
-```text
+```
 
 ### Running Integration Tests
 
@@ -112,7 +112,7 @@ make test-integration
 
 # Or with build tag
 go test -v -tags=integration ./test/integration/...
-```text
+```
 
 ### Integration Test Patterns
 
@@ -134,7 +134,7 @@ func TestControllerIntegration(t *testing.T) {
         return err == nil && obj.Status.Phase == "Ready"
     }, 30*time.Second)
 }
-```text
+```
 
 ### Component-Specific Integration Tests
 
@@ -160,7 +160,7 @@ make test-e2e
 
 # Or specific test
 go test -v ./test/e2e/ -run TestSpecificScenario -timeout 30m
-```text
+```
 
 ### E2E Test Organization
 
@@ -171,7 +171,7 @@ test/e2e/
 └── framework/                 # E2E test utilities
     ├── client.go              # K8s client helpers
     └── helpers.go             # Test helpers
-```text
+```
 
 ### E2E Test Patterns
 
@@ -205,7 +205,7 @@ func TestFeatureE2E(t *testing.T) {
     // Cleanup
     defer client.Delete(ctx, resource)
 }
-```text
+```
 
 **For generic E2E patterns**, see [Platform E2E Framework](Platform documentation)
 
@@ -231,7 +231,7 @@ make coverage
 # - Unit tests: 60-80%
 # - Integration tests: Critical paths
 # - E2E tests: User-facing scenarios
-```text
+```
 
 ### Coverage Gaps
 
@@ -265,7 +265,7 @@ go test -v ./pkg/[package]/... -run TestSpecific
 
 # Run with race detector
 go test -race ./pkg/...
-```text
+```
 
 ### E2E Test Failures
 
@@ -278,7 +278,7 @@ oc logs -n [namespace] deployment/[component]
 
 # Check resource status
 oc get [resource] -o yaml
-```text
+```
 
 ## Component-Specific Test Notes
 

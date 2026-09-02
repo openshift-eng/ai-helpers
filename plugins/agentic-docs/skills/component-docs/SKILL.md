@@ -1,7 +1,6 @@
 ---
 name: component-docs
 description: Create lean component documentation for OpenShift repositories
-trigger: explicit
 ---
 
 # Component Documentation Creator
@@ -50,28 +49,29 @@ component-repo/
 
 Before any Chai Bot-assisted operation, select exactly one access path:
 
-1. **Hosted** — If explicit host context indicates execution inside Chai Bot's hosted workspace, use the capabilities provided by the host directly. Do not configure or call a Chai Bot MCP server.
-2. **External** — Otherwise, use the configured Chai Bot MCP connection through `mcp__chai-bot__ask_persona` when that tool is available.
+1. **Hosted** — If explicit host context identifies execution inside Chai Bot's hosted workspace and provides a callable knowledge/search capability, use that capability. Do not configure or call a second Chai Bot MCP server.
+2. **External** — Otherwise, use an available Chai Bot `ask_persona` MCP capability. Hosts may normalize the server name differently; select it by capability, not by an exact tool identifier.
 3. **Unavailable** — If neither path is available, report which Chai Bot-assisted work could not be performed. Do not infer or fabricate results.
 
-Resolve the access path once per run and reuse it. Do not infer hosted execution merely from a missing MCP tool, repository name, or working directory.
+Resolve the access path once per run and reuse it. Explicit hosted context without a callable knowledge capability is unavailable, not permission to invent results. Do not infer hosted execution merely from a missing MCP tool, repository name, or working directory. Never modify MCP configuration from a managed hosted workspace.
 
 ## Execution Workflow
 
 ### Phase 1: Setup
-- [ ] **Read existing CLAUDE.md / AGENTS.md before overwriting**: If the repo already has either file, read it first and extract important points (build instructions, critical warnings, repo conventions, key patterns) to incorporate into the generated docs. Existing content is prior work — preserve it, don't overwrite blindly.
+- [ ] **Read existing CLAUDE.md / AGENTS.md before overwriting**: If the repo already has either file, read it first and extract important points (build instructions, critical warnings, repo conventions, key patterns, retrieval priorities, documentation maps, and useful direct links) to incorporate into the generated docs. Existing content is prior work — preserve it, don't overwrite blindly.
 - [ ] **Back up prior agent docs before writing**: Save any existing `CLAUDE.md` / `AGENTS.md` content under `ai-docs/_sources/`. Use them as temporary source material for review and recovery during generation.
 - [ ] **Discover existing repo docs**: Scan `docs/`, `docs/enhancements/`, `design/`, `CONTRIBUTING.md`, and any files with "design", "proposal", "enhancement" in the name. These will be linked from ENHANCEMENTS.md and ARCHITECTURE.md as appropriate. Also scan documentation files at the repository root and look elsewhere throughout the repository for relevant documentation, regardless of filename or location.
-- [ ] **SME context**: Ask the user: "Before I start, is there anything about this repo I should know that isn't obvious from the code?" Wait for a response before proceeding. Use their input to guide what you investigate in later phases.
-- [ ] Find skill directory: `SKILL_DIR=$(find ~/.claude/plugins/cache -path "*/component-docs" -type d | head -1)`
+- [ ] Resolve this skill directory from the location of the loaded `SKILL.md`. Resolve all `scripts/`, `templates/`, and `guides/` paths relative to it. Do not search a plugin cache or assume the repository is the current directory.
+- [ ] Preflight required resources: `scripts/create-structure.sh`, `scripts/validate.sh`, `scripts/cleanup-sources.sh`, all referenced templates, and any guide required by the selected execution path. Stop before writing if a required resource is unavailable.
 - [ ] Determine repo path: `REPO_PATH="${provided_path:-$PWD}"`
 - [ ] Detect component name from repo (e.g., machine-config-operator → MCO)
-- [ ] Run `bash "$SKILL_DIR/scripts/create-structure.sh" "$REPO_PATH"`
+- [ ] Run the resolved `scripts/create-structure.sh` with `"$REPO_PATH"`.
 
 ### Phase 2: Create AGENTS.md (40-60 lines)
 - [ ] Create initial AGENTS.md at repo root using `templates/AGENTS-template.md`
 - [ ] If existing AGENTS.md/CLAUDE.md was found in Phase 1, incorporate its critical warnings and conventions
 - [ ] Treat `AGENTS.md` as the executive summary only. If the old `CLAUDE.md` contains longer repo-specific operational detail (release/bundle commands, CI/Konflux notes, metrics/debugging guidance), move that detail into `DEVELOPMENT.md` or `ARCHITECTURE.md` instead of dropping it.
+- [ ] Preserve valuable navigation from prior agent docs. Keep compact, frequently used direct links in `AGENTS.md`. A detailed "need → start here" map may move to `ARCHITECTURE.md` or `ENHANCEMENTS.md`, but `AGENTS.md` must link directly to that map. Do not replace useful deep links with only a bare directory name.
 - [ ] Include architecture-at-a-glance summary
 - [ ] **Revisit after Phase 4**: Fill in the Critical Warnings section with 3-5 "never do X" rules discovered during architecture exploration
 - [ ] Create CLAUDE.md symlink: `ln -sf AGENTS.md "$REPO_PATH/CLAUDE.md"`
@@ -160,7 +160,7 @@ Resolve the access path once per run and reuse it. Do not infer hosted execution
 
 ### Phase 7: Validation & Verification
 
-- [ ] Run `bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"` (includes link validation)
+- [ ] Run the resolved `scripts/validate.sh` with `"$REPO_PATH"` (includes link validation and removal of broken external-link lines)
 - [ ] Verify `ai-docs/_sources/` contains backups of any prior `CLAUDE.md` / `AGENTS.md` that existed
 - [ ] Verify AGENTS.md 40-60 lines, no generic duplication
 - [ ] Verify CLAUDE.md → AGENTS.md symlink exists
@@ -173,14 +173,14 @@ Resolve the access path once per run and reuse it. Do not infer hosted execution
 - [ ] Cross-check with openshift-docs if time permits
 - [ ] **Chai-bot enrichment gate**: If hosted or external Chai Bot access is available, verify Phase 4.5 was executed (operational issues and design rationale queries were run and results incorporated into ARCHITECTURE.md and DEVELOPMENT.md). If skipped with Chai Bot available, go back and run it before proceeding.
 - [ ] **Flag discovery gaps**: At the end of ARCHITECTURE.md and DEVELOPMENT.md, add a brief "SME Review Recommended" note listing areas where automated discovery may be incomplete
-- [ ] **No silent drops**: Compare the prior `CLAUDE.md` / `AGENTS.md` against the generated docs and ensure repo-specific commands, CI notes, metrics/debug tips, and hard warnings were either preserved somewhere or intentionally dropped as generic/duplicate after review
-- [ ] **Cleanup**: After validation passes, run `bash "$SKILL_DIR/scripts/cleanup-sources.sh" "$REPO_PATH"`. Do not leave temporary source backups in the final repo tree.
+- [ ] **No silent drops**: Compare the prior `CLAUDE.md` / `AGENTS.md` against the generated docs and ensure repo-specific commands, CI notes, metrics/debug tips, hard warnings, retrieval instructions, documentation maps, and useful direct links were preserved. For every relocated item, verify the new location and leave a discoverable route from `AGENTS.md`. Record any intentional drop and its rationale in the completion report.
+- [ ] **Cleanup**: After validation passes, run the resolved `scripts/cleanup-sources.sh` with `"$REPO_PATH"`. Do not leave temporary source backups in the final repo tree.
 
 **Link Validation**:
 - Link validation always runs — broken links (wrong relative paths, 404 URLs) are a common source of documentation errors
 - Automatically checks all HTTP/HTTPS links (with timeout and user agent)
 - Validates internal/relative links (file existence)
-- Use `VERBOSE=true bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"` to see all links including successful ones
+- Use `VERBOSE=true` with the resolved validator to see successful links. Use `CHECK_EXTERNAL_LINKS=false` when the host intentionally has no network access; report external links as unverified in that mode.
 
 ### Phase 8: Verification (Recommended)
 

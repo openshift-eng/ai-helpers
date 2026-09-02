@@ -36,7 +36,7 @@ Edit code, build binaries locally:
 
 ```bash
 make [component-name]
-```text
+```
 
 Run unit tests:
 
@@ -45,7 +45,7 @@ make test-unit
 
 # Or specific package
 go test -v ./pkg/[package]/...
-```text
+```
 
 ### 2. Testing on Cluster
 
@@ -60,7 +60,7 @@ podman push localhost/[component]:latest quay.io/[user]/[component]:dev
 
 # Update deployment to use dev image
 oc set image deployment/[component] [container]=[image]:dev -n [namespace]
-```text
+```
 
 **Option B: Run locally against cluster**
 
@@ -70,19 +70,19 @@ oc port-forward svc/[service] 8443:8443 -n [namespace]
 
 # Run binary with KUBECONFIG
 ./_output/[binary] --kubeconfig=$KUBECONFIG
-```text
+```
 
 ### 3. Debugging
 
 **View logs**:
 ```bash
 oc logs -f deployment/[component] -n [namespace]
-```text
+```
 
 **Exec into pod**:
 ```bash
 oc exec -it deployment/[component] -n [namespace] -- /bin/bash
-```text
+```
 
 **Debug with delve**:
 ```bash
@@ -91,7 +91,7 @@ go build -gcflags="all=-N -l" -o _output/[binary] ./cmd/[component]
 
 # Run with delve
 dlv exec ./_output/[binary]
-```text
+```
 
 ## Code Organization
 
@@ -136,7 +136,7 @@ go mod vendor
 
 ```bash
 make image
-```text
+```
 
 ### CI Build
 

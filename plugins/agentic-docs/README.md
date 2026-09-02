@@ -12,6 +12,21 @@ Architecture, development, testing guides, enhancement catalog. Flat structure â
 
 ## Skills
 
+### `/generate-docs`
+Generate component documentation and iteratively review and fix it until the
+latest validation pass is clean or the configured iteration limit is reached.
+
+```bash
+/generate-docs [PATH] [--max-iterations N] [--review]
+```
+
+The workflow is implemented as a portable skill without lifecycle hooks or
+host-specific plugin path variables. It uses whichever native fresh-session
+subagent capability the host exposes. A clean verdict still requires a fresh
+isolated reviewer on every pass; a host without that capability reports
+independent verification as unavailable instead of allowing the workflow to
+verify its own fixes.
+
 ### `/update-platform-docs`
 Incrementally update platform docs with automatic gap detection.
 
@@ -42,13 +57,13 @@ cd /path/to/component-repository
 
 Uses **Chai Bot** to verify documentation claims against verified OpenShift knowledge, GitHub source code, Slack history, Jira, and official docs. Chai Bot access may be provided directly by its hosted workspace or through an external MCP connection. Detects hallucinations, outdated conventions, and missing references.
 
-**Prerequisites**: Chai Bot access is provided automatically inside its hosted workspace. External execution requires Chai Bot MCP configuration (see Setup below).
+**Prerequisites**: Inside a hosted workspace, use the Chai Bot capability explicitly provided by the host. External execution requires Chai Bot MCP configuration (see Setup below).
 
 ## Setup
 
 ### Chai Bot access (for `/review-docs`)
 
-Inside Chai Bot's hosted workspace, use the capabilities provided by the host directly. Do not configure or use a second Chai Bot MCP connection.
+Inside Chai Bot's hosted workspace, use the callable knowledge/search capability provided by the host. Do not configure or use a second Chai Bot MCP connection.
 
 Outside the hosted workspace, configure the **Chai Bot MCP server** with the **"OpenShift AI helpdesk"** persona â€” an AI agent with verified OpenShift knowledge.
 
@@ -102,6 +117,6 @@ After configuration, restart Claude Code to load the MCP server.
 
 ## Development
 
-Skills live under `skills/{update-platform-docs,component-docs,review-docs}/` with SKILL.md, scripts, and templates.
+Skills live under `skills/{generate-docs,update-platform-docs,component-docs,review-docs}/` with SKILL.md and any skill-local scripts, templates, or guides.
 
 **License:** Apache 2.0

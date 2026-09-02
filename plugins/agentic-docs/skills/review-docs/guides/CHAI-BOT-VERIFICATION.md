@@ -5,12 +5,12 @@ Verify all cross-repo claims that could not be resolved locally.
 ## Step 1 — Confirm the selected Chai Bot access path
 
 - [ ] Use the access path selected in `SKILL.md`
-- [ ] If hosted: use the capabilities provided by the host directly; do not probe, configure, or call a Chai Bot MCP server
-- [ ] If external: call `mcp__chai-bot__ask_persona` with a simple test question
+- [ ] If hosted: use the callable Chai Bot knowledge/search capability explicitly provided by the host; do not probe, configure, or call a second Chai Bot MCP server
+- [ ] If external: call the available Chai Bot `ask_persona` MCP capability with a simple test question; hosts may normalize the server name differently
   - Tool not found → restart Claude Code to reload MCP servers
   - 401 → bearer token expired, request new token from the Chai Bot Slack app
   - Timeout → check VPN connection to the Red Hat network
-  - See [plugin README](../../README.md#setup) for external MCP setup details
+  - See [plugin README](../../../README.md#setup) for external MCP setup details
 - [ ] If Chai Bot is unavailable or the external test call fails, inform the user and skip to Phase 5 with cross-repo claims marked "unverified"
 
 ## Step 2 — Batch verification

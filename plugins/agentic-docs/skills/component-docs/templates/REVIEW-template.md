@@ -53,7 +53,12 @@
      - CI-enforced: lint, gofmt, govet, type-check (discovered from `grep Makefile`)
      - Generated: `zz_generated*`, `**/clientset/**`, `**/informers/**`, `**/listers/**`
      - Vendored: `vendor/**`
-     - Lockfiles: `go.sum`, `go.mod` (review dep bumps separately)
+     - Dependency checksums: `go.sum` (do not report individual checksum-line changes;
+       investigate unexplained churn)
+
+     Do not put `go.mod` in "Do not report." It is the dependency manifest; review
+     semantic changes such as added, removed, or upgraded dependencies, `replace` /
+     `exclude` directives, and Go/toolchain directives.
 
      Repo-specific additions from Phase 4:
      - Generated dashboards/assets if present (e.g., `assets/**`)

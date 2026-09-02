@@ -34,12 +34,18 @@ ai-docs/
 
 **AI Agent Path**: ARCHITECTURE.md → DEVELOPMENT.md → TESTING.md
 
+[If prior agent docs contained a retrieval order, documentation map, or useful
+deep links, preserve a compact route here. A larger map may live in ai-docs,
+but link directly to it from this section; do not leave only a bare directory.]
+
 ## Key Files
 
 | What | Where |
 |------|-------|
-[Top 5-8 most important files an agent needs to find quickly.
-E.g., entrypoint, controller dirs, type definitions, feature gates, error types.]
+| [What] | [Where] |
+
+[List the top 5-8 most important files an agent needs to find quickly, such as
+the entrypoint, controller directories, type definitions, feature gates, and error types.]
 
 ## External References
 

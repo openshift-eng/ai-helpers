@@ -1,7 +1,6 @@
 ---
 name: review-docs
 description: Review agentic documentation — verify claims locally against source code first, then use chai-bot for cross-repo and cross-functional verification
-trigger: explicit
 ---
 
 # Documentation Review & Verification
@@ -18,11 +17,11 @@ External MCP setup instructions: See [plugin README](../../README.md#setup) for 
 
 Before any Chai Bot-assisted operation, select exactly one access path:
 
-1. **Hosted** — If explicit host context indicates execution inside Chai Bot's hosted workspace, use the capabilities provided by the host directly. Do not configure or call a Chai Bot MCP server.
-2. **External** — Otherwise, use the configured Chai Bot MCP connection through `mcp__chai-bot__ask_persona` when that tool is available.
+1. **Hosted** — If explicit host context identifies execution inside Chai Bot's hosted workspace and provides a callable knowledge/search capability, use that capability. Do not configure or call a second Chai Bot MCP server.
+2. **External** — Otherwise, use an available Chai Bot `ask_persona` MCP capability. Hosts may normalize the server name differently; select it by capability, not by an exact tool identifier.
 3. **Unavailable** — If neither path is available, report which Chai Bot-assisted work could not be performed. Do not infer or fabricate results.
 
-Resolve the access path once per run and reuse it. Do not infer hosted execution merely from a missing MCP tool, repository name, or working directory.
+Resolve the access path once per run and reuse it. Explicit hosted context without a callable knowledge capability is unavailable, not permission to invent results. Do not infer hosted execution merely from a missing MCP tool, repository name, or working directory. Never modify MCP configuration from a managed hosted workspace.
 
 ## When to Use
 
