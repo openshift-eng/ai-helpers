@@ -38,11 +38,10 @@ Repeat steps 1-3 until the PR is approved and CI is green or non-actionable fail
 
 ### Skills
 
-- **jira:solve** — Pick up a Jira issue, analyze it, implement the fix, and open a PR. (via `jira` plugin)
-- **git:git-commit-format** — Conventional commit formatting rules: types, scopes, required footers (Signed-off-by, Commit-Message-Assisted-by), and gitlint validation. (via `git` plugin)
-- **code-review:pre-commit-review** — Run a code review on local changes before pushing. (via `code-review` plugin)
+- **jira-solve** — Analyze a Jira issue and create a pull request to solve it: implement the fix, push a branch, and open a draft PR.
+- **create-pr** — Create a pull request from the current branch for a Jira issue, linking the PR back to the issue.
+- **generate-test-plan** — Generate a comprehensive manual testing guide from a Jira issue, GitHub PR URLs, or both.
 - **address-review-precommit** — Fix code review findings in the current branch before committing: applies fixes, runs verification, and pushes.
-- **code-review:pr** — Review an open PR for correctness and improvements. (via `code-review` plugin)
 - **address-review-pr** — Fetch and address PR review comments: categorizes by priority, makes code changes, posts replies, and pushes. Does not handle CI failures.
 - **address-ci-failures** — Triage failing CI checks; fix only failures caused by the PR's changes, report infra/pre-existing/flake issues instead of out-of-scope fixes.
 - **has-review-work** — Read-only gate: `COMMENT_WORK` (unanswered authorized review comments) and `CI_WORK` (new non-optional CI failures) for follow-up agents.
