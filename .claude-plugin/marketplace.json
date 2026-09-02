@@ -563,7 +563,7 @@
       "name": "nid-team",
       "source": "./plugins/nid-team",
       "description": "Development and workflow tools for the Network Ingress & DNS team",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "category": "development",
       "keywords": [
         "nid",
