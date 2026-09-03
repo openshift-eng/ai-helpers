@@ -76,7 +76,9 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - Derive end-to-end scenario-based tests from the "Use Cases" section
    - Map "Non-Functional Requirements" to performance, scale, and reliability test scenarios
    - Derive negative test cases from the "Out of Scope" section — verify excluded behavior is absent or handled gracefully
+   - Map "Operational Requirements" to Day-2 operational test scenarios (metrics exposure, troubleshooting workflows, support runbook validation)
    - Use "Customer Considerations" to inform edge-case and real-world usage test scenarios
+   - Use "Goals" to inform overall test plan scope and prioritization — Goals do not require individual test mappings but should guide which scenarios are high priority
 
 ### Step 3: Generate test scenarios
 
@@ -95,6 +97,7 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - **Interoperability**: for each item in Interoperability Considerations, generate a test scenario that validates co-existence (e.g. "Verify feature works alongside NetworkPolicy enforcement")
    - **Upgrade/rollback**: include upgrade and rollback scenarios by default for OCPSTRAT features, as these are commonly required for release readiness
    - **Non-functional**: performance, scale, and resiliency scenarios derived from Non-Functional Requirements (e.g. "Verify minimal control-plane performance regression")
+   - **Operational**: Day-2 operational scenarios derived from Operational Requirements (e.g. "Verify metrics are exposed for reconciliation failures", "Verify troubleshooting workflows are documented and functional")
    - **Negative tests**: for each item in Out of Scope, generate a test verifying that the excluded behavior is not present or is handled gracefully (e.g. "Verify that non-OVN-Kubernetes CNI providers are not affected")
 
 ### Step 4: Apply smart filtering
@@ -159,6 +162,11 @@ Note skipped PRs in the output with reasoning.
 4. **Multiple PRs without Jira**:
    ```text
    /openshift-developer:generate-test-plan https://github.com/openshift/hypershift/pull/6888 https://github.com/openshift/hypershift/pull/6889
+   ```
+
+5. **From an OCPSTRAT feature (generates deployment matrix, interop, NFR sections)**:
+   ```text
+   /openshift-developer:generate-test-plan OCPSTRAT-3266
    ```
 
 ## Arguments
