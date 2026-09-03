@@ -23,7 +23,7 @@ The `/nid-team:rebase-manager` command automates, manages, and tracks upstream G
    Compares local and upstream tags. If behind, it creates a local `.rebase/` state directory containing `.rebase/release-report.md` (changelog/impact report) and `.rebase/commits.tsv` (carry commits with pick/squash/drop decisions). Humans can manually edit decisions in `.rebase/commits.tsv`.
    
 2. **Phase 2: Active Draft & Feedback Loop** (Draft PR open):
-   Performs the actual git rebase (incorporating any custom decisions in `.rebase/commits.tsv`), runs builds and tests, opens a Draft PR (using the release report as the meeting agenda), fetches and addresses review comments autonomously, and pushes fixes.
+   Performs the actual git rebase (incorporating any custom decisions in `.rebase/commits.tsv`), runs builds and tests. The tool discovers tracking remotes and prompts the user for explicit approval before securely pushing (without force-pushing) to the discovered fork and opening a Draft PR. It fetches and addresses review comments autonomously, and pushes fixes safely.
    
 3. **Phase 3: Final Prow Review & Merge** (PR open, non-draft):
    Monitors CI/Prow check status on the approved PR. Once merged, it cleans up the local `.rebase/` directory and rebase branches.

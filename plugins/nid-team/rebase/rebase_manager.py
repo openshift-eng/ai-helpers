@@ -5,7 +5,10 @@ import json
 import csv
 import subprocess
 import argparse
+import shutil
 from pathlib import Path
+
+import logging
 
 # Color helpers for output
 GREEN = "\033[92m"
@@ -14,17 +17,35 @@ RED = "\033[91m"
 BLUE = "\033[94m"
 RESET = "\033[0m"
 
+# Configure logging
+logger = logging.getLogger("rebase_manager")
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler(sys.stdout)
+logger.addHandler(handler)
+
 def log_info(msg):
-    print(f"{BLUE}[INFO]{RESET} {msg}")
+    if sys.stdout.isatty():
+        logger.info(f"{BLUE}[INFO]{RESET} {msg}")
+    else:
+        logger.info(f"[INFO] {msg}")
 
 def log_success(msg):
-    print(f"{GREEN}[SUCCESS]{RESET} {msg}")
+    if sys.stdout.isatty():
+        logger.info(f"{GREEN}[SUCCESS]{RESET} {msg}")
+    else:
+        logger.info(f"[SUCCESS] {msg}")
 
 def log_warn(msg):
-    print(f"{YELLOW}[WARN]{RESET} {msg}")
+    if sys.stdout.isatty():
+        logger.warning(f"{YELLOW}[WARN]{RESET} {msg}")
+    else:
+        logger.warning(f"[WARN] {msg}")
 
 def log_error(msg):
-    print(f"{RED}[ERROR]{RESET} {msg}")
+    if sys.stdout.isatty():
+        logger.error(f"{RED}[ERROR]{RESET} {msg}")
+    else:
+        logger.error(f"[ERROR] {msg}")
 
 class RebaseManager:
     def __init__(self, target_tag=None, auto=False, dry_run=False, start_over=False):
@@ -50,16 +71,35 @@ class RebaseManager:
                 except Exception as e:
                     log_warn(f"Failed to cleanly wipe `.rebase/` directory: {e}")
         
-        # Git / GH metadata
-        self.repo_name = self.get_github_repo_name()
-        self.main_branch = self.get_main_branch()
+        # Git / GH metadata (resolved lazily)
+        self._repo_name = None
+        self._main_branch = None
 
-    def run_cmd(self, args, check=True, capture_output=True):
+    @property
+    def repo_name(self):
+        if not self._repo_name:
+            self._repo_name = self.get_github_repo_name()
+        return self._repo_name
+
+    @property
+    def main_branch(self):
+        if not self._main_branch:
+            self._main_branch = self.get_main_branch()
+        return self._main_branch
+
+    def run_cmd(self, args, check=True, capture_output=True, timeout=None):
         """Helper to run shell commands safely without command substitution syntax."""
-        if self.dry_run and any(x in args for x in ["push", "create", "comment", "merge", "edit-item"]):
-            # Skip write operations in dry-run
-            log_warn(f"Dry-run: Skipping command: {' '.join(args)}")
-            return ""
+        # Read-only allowlist for dry-run
+        read_only_commands = ["branch", "log", "show", "merge-base", "fetch", "tag", "show-ref", "list", "view", "checks", "api", "user", "repo", "remote", "status"]
+        if self.dry_run:
+            # Check if it's a git or gh command and its subcommand is in the allowlist
+            is_read_only = False
+            if len(args) > 1 and args[0] in ["git", "gh"] and args[1] in read_only_commands:
+                is_read_only = True
+            
+            if not is_read_only:
+                log_warn(f"Dry-run: Skipping command: {' '.join(args)}")
+                return ""
         
         try:
             result = subprocess.run(
@@ -67,9 +107,16 @@ class RebaseManager:
                 stdout=subprocess.PIPE if capture_output else None,
                 stderr=subprocess.PIPE if capture_output else None,
                 text=True,
-                check=check
+                check=check,
+                timeout=timeout
             )
             return result.stdout.strip() if capture_output else ""
+        except subprocess.TimeoutExpired as e:
+            if capture_output:
+                log_error(f"Command timed out: {' '.join(args)}\nError: {e.stderr}")
+            else:
+                log_error(f"Command timed out: {' '.join(args)}")
+            raise e
         except subprocess.CalledProcessError as e:
             if capture_output:
                 log_error(f"Command failed: {' '.join(args)}\nError: {e.stderr}")
@@ -139,34 +186,8 @@ class RebaseManager:
     def detect_active_pr(self):
         """Check GitHub for open rebase PRs matching the current target version branch and authored by us."""
         try:
-            # 1. Search for open PRs from current repo
-            prs_json = self.run_cmd([
-                "gh", "pr", "list",
-                "--repo", self.repo_name,
-                "--state", "open",
-                "--json", "number,title,isDraft,headRefName,url,author"
-            ])
-            prs = json.loads(prs_json)
-
-            # Filter PRs to only those authored by the current authenticated user
-            current_user = self.get_current_github_user()
-            if current_user:
-                prs = [pr for pr in prs if pr.get("author", {}).get("login") == current_user]
-
-            # 2. Determine the target version we are interested in
+            # 1. Determine the target version we are interested in
             target = self.target_tag
-            if not target:
-                # First, check if there is an active PR and extract version from its title
-                for pr in prs:
-                    if "Rebase to " in pr["title"]:
-                        words = pr["title"].split()
-                        for word in reversed(words):
-                            if word.startswith("v") and any(char.isdigit() for char in word):
-                                target = word
-                                log_info(f"Inferred target version {target} from active PR title: {pr['title']}")
-                                break
-                        if target:
-                            break
 
             if not target:
                 # If we are currently on a local rebase branch, infer the target version from it
@@ -188,12 +209,33 @@ class RebaseManager:
                 except Exception:
                     pass
 
+            expected_branch = None
             if not target:
                 log_warn("Could not determine target rebase version. Querying general rebase PRs.")
-                # Fallback to loose title search if target version cannot be resolved
-                expected_branch = None
             else:
                 expected_branch = f"rebase-{target}"
+
+            # 2. Search for open PRs from current repo
+            cmd_args = [
+                "gh", "pr", "list",
+                "--repo", self.repo_name,
+                "--state", "open",
+                "--json", "number,title,isDraft,headRefName,url,author"
+            ]
+            if expected_branch:
+                # Some PRs might be rebase-to-v..., but gh pr list --head is exact. 
+                # Let's query with limit 100 to catch both naming conventions flexibly
+                cmd_args.extend(["--limit", "100"])
+            else:
+                cmd_args.extend(["--limit", "100"])
+                
+            prs_json = self.run_cmd(cmd_args)
+            prs = json.loads(prs_json)
+
+            # Filter PRs to only those authored by the current authenticated user
+            current_user = self.get_current_github_user()
+            if current_user:
+                prs = [pr for pr in prs if pr.get("author", {}).get("login") == current_user]
 
             for pr in prs:
                 if "Rebase to " in pr["title"]:
@@ -241,7 +283,8 @@ class RebaseManager:
         
         # Check if local rebase branch exists
         local_branches = self.run_cmd(["git", "branch"])
-        has_rebase_branch = any("rebase-" in line for line in local_branches.split("\n"))
+        rebase_branches = [line.replace("*", "").strip() for line in local_branches.split("\n") if line.replace("*", "").strip().startswith("rebase-")]
+        has_rebase_branch = len(rebase_branches) > 0
         
         if has_rebase_branch:
             return "PHASE_2_ACTIVE_DRAFT"
@@ -253,6 +296,13 @@ class RebaseManager:
             
         return "PHASE_1_DISCOVERY"
 
+    def parse_version(self, tag):
+        """Parse tag string to numeric tuple for semantic comparison."""
+        parts = tag.lstrip("v").split(".")
+        if not all(p.isdigit() for p in parts):
+            return None
+        return tuple(int(p) for p in parts)
+
     def get_upstream_tags(self):
         """Get sorted list of stable upstream tags."""
         tags_raw = self.run_cmd(["git", "tag", "-l"])
@@ -263,13 +313,13 @@ class RebaseManager:
             if tag.startswith("v") and "." in tag and not tag.startswith("v3.") and not any(x in tag.lower() for x in ["rc", "alpha", "beta", "dev"]):
                 tags.append(tag)
         
-        # Sort tags (simple semver string sort or native sort)
-        # Assuming tag format like v1.11.1
-        try:
-            tags.sort(key=lambda s: [int(u) for u in s.strip("v").split(".") if u.isdigit()])
-        except Exception:
-            tags.sort()
-        return tags
+        keyed = [(self.parse_version(t), t) for t in tags]
+        parsed = [(k, t) for k, t in keyed if k is not None]
+        for k, t in keyed:
+            if k is None:
+                log_warn(f"Skipping tag with unparsable version: {t}")
+        parsed.sort()
+        return [t for _, t in parsed]
 
     def get_current_fork_version(self, upstream_tags):
         """Find the highest upstream tag currently reachable from main branch."""
@@ -290,9 +340,12 @@ class RebaseManager:
             files_raw = self.run_cmd(["git", "show", "--name-only", "--pretty=format:", sha])
             files = [f.strip() for f in files_raw.split("\n") if f.strip()]
             
+            if not files:
+                return "code"
+
             # Category triggers
-            is_build = any(any(x in f for x in ["Dockerfile", "OWNERS", ".ci-operator.yaml", "Makefile", ".github", ".gitignore", "dependabot"]) for f in files)
-            is_deps = any(any(x in f for x in ["go.mod", "go.sum", "vendor/", ".go-version"]) for f in files)
+            is_build = all(any(x in f for x in ["Dockerfile", "OWNERS", ".ci-operator.yaml", "Makefile", ".github", ".gitignore", "dependabot"]) for f in files)
+            is_deps = all(any(x in f for x in ["go.mod", "go.sum", "vendor/", ".go-version"]) for f in files)
             is_plugins = any(any(x in f for x in ["plugin/", "coredns.go", "plugin.cfg"]) for f in files)
             
             if is_build:
@@ -338,8 +391,7 @@ class RebaseManager:
             for line in carries_raw.split("\n"):
                 if "|" in line:
                     sha, msg = line.split("|", 1)
-                    if "UPSTREAM:" in msg:
-                        carries_map[msg] = sha
+                    carries_map[msg] = sha
 
         # Rebuild chronological list from the deduped map
         carries = [(sha, msg) for msg, sha in carries_map.items()]
@@ -365,6 +417,9 @@ class RebaseManager:
             elif "UPSTREAM: <drop>" in msg:
                 decision = "drop"
                 reason = "Marked explicitly to drop"
+            elif "UPSTREAM:" not in msg:
+                decision = "undecided"
+                reason = "Unprefixed commit requires manual team review"
             else:
                 # Rule-based decision for configuration files (squash candidate)
                 if category in ["build", "deps"]:
@@ -537,6 +592,13 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
             log_success("The OpenShift fork is fully up-to-date with upstream. No rebase needed.")
             return
             
+        cur_parsed = self.parse_version(current_version)
+        tar_parsed = self.parse_version(target_version)
+        
+        if cur_parsed and tar_parsed and tar_parsed <= cur_parsed:
+            log_error(f"Target version {target_version} is not newer than the current version {current_version}. Aborting rebase.")
+            return
+
         self.generate_release_report(current_version, target_version)
 
     def run_phase_2(self, target_version=None):
@@ -554,10 +616,20 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
         if not active_pr and not target_version:
             # Need to infer target_version from branch name if we have a local rebase branch
             local_branches = self.run_cmd(["git", "branch"])
-            rebase_branches = [line.replace("*", "").strip() for line in local_branches.split("\n") if "rebase-" in line]
+            rebase_branches = [line.replace("*", "").strip() for line in local_branches.split("\n") if line.replace("*", "").strip().startswith("rebase-")]
             if rebase_branches:
-                target_version = rebase_branches[0].replace("rebase-", "")
-                log_info(f"Inferred target version {target_version} from local branch {rebase_branches[0]}")
+                # Find branch with highest parsed tag
+                highest_branch = rebase_branches[0]
+                highest_parsed = None
+                for br in rebase_branches:
+                    tag_part = br.replace("rebase-", "")
+                    parsed = self.parse_version(tag_part)
+                    if parsed:
+                        if not highest_parsed or parsed > highest_parsed:
+                            highest_parsed = parsed
+                            highest_branch = br
+                target_version = highest_branch.replace("rebase-", "")
+                log_info(f"Inferred target version {target_version} from local branch {highest_branch}")
             else:
                 log_error("No active PR or local rebase branch found. Run Phase 1 first.")
                 return
@@ -605,12 +677,17 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
             log_info(f"Branch {branch_name} already exists and contains commits. Resuming rebase process.")
             self.run_cmd(["git", "checkout", branch_name])
         else:
-            log_info(f"Creating fresh branch {branch_name} from {target_version}...")
-            try:
-                self.run_cmd(["git", "checkout", "-b", branch_name, target_version])
-            except Exception:
+            if branch_exists:
+                log_info(f"Branch {branch_name} already exists but has no commits ahead of target. Resetting to {target_version}.")
                 self.run_cmd(["git", "checkout", branch_name])
                 self.run_cmd(["git", "reset", "--hard", target_version])
+            else:
+                log_info(f"Creating fresh branch {branch_name} from {target_version}...")
+                try:
+                    self.run_cmd(["git", "checkout", "-b", branch_name, target_version])
+                except Exception as e:
+                    log_error(f"Failed to checkout fresh branch {branch_name}: {e}")
+                    return
 
             # 2. Ours-merge openshift/master to establish the baseline
             try:
@@ -676,6 +753,13 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
 
         if squash_shas and not squash_done:
             log_info(f"Cherry-picking and squashing {len(squash_shas)} configuration carries...")
+            # Record current HEAD before any cherry-picks
+            try:
+                pre_squash_head = self.run_cmd(["git", "rev-parse", "HEAD"])
+            except Exception as e:
+                log_error(f"Failed to record HEAD before squash: {e}")
+                return
+
             # We cherry-pick them to get their contents onto the index
             for sha, msg in squash_shas:
                 try:
@@ -685,11 +769,10 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
                     return
             
             # Squash them into a single commit
-            num_commits = len(squash_shas)
-            log_info(f"Squashing last {num_commits} commits...")
+            log_info("Squashing commits...")
             try:
-                # Soft reset back to before the squashed commits
-                self.run_cmd(["git", "reset", "--soft", f"HEAD~{num_commits}"])
+                # Soft reset back to recorded HEAD
+                self.run_cmd(["git", "reset", "--soft", pre_squash_head])
                 commit_msg = "UPSTREAM: <carry>: Add and update OpenShift configurations\n\nSquashed configuration commits:\n"
                 for sha, msg in squash_shas:
                     commit_msg += f"- {sha}: {msg}\n"
@@ -716,16 +799,19 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
                 log_warn(f"Go module alignment failed: {e}")
 
         # 6. Verification build and test checks
-        log_info("Running local verification tests...")
+        log_info("Running local verification tests (this may take a few minutes)...")
         verification_passed = True
         try:
             if (self.cwd / "Makefile").exists():
-                self.run_cmd(["make"])
-                self.run_cmd(["make", "test"])
+                self.run_cmd(["make"], timeout=600)
+                self.run_cmd(["make", "test"], timeout=1200)
             else:
-                self.run_cmd(["go", "build", "./..."])
-                self.run_cmd(["go", "test", "./..."])
+                self.run_cmd(["go", "build", "./..."], timeout=600)
+                self.run_cmd(["go", "test", "./..."], timeout=1200)
             log_success("All local verification tests passed!")
+        except subprocess.TimeoutExpired as e:
+            log_warn(f"Verification tests timed out: {e}. Opening Draft PR anyway with warning flags.")
+            verification_passed = False
         except Exception as e:
             log_warn(f"Verification tests failed: {e}. Opening Draft PR anyway with warning flags.")
             verification_passed = False
@@ -735,12 +821,37 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
         if not verification_passed:
             pr_body = "⚠️ **WARNING: Local verification builds/tests failed on initial rebase. Please inspect CI.**\n\n" + pr_body
             
+        # Remote Discovery
+        push_remote = "origin"
+        fork_owner = ""
+        try:
+            remote_url = self.run_cmd(["git", "remote", "get-url", "origin"])
+            if "github.com" in remote_url.replace(":", "/"):
+                parts = remote_url.replace("git@github.com:", "github.com/").replace("https://github.com/", "github.com/").split("github.com/")[-1].replace(".git", "").split("/")
+                if len(parts) >= 2:
+                    fork_owner = parts[0]
+        except Exception:
+            pass
+
+        head_ref = branch_name
+        repo_owner = self.repo_name.split("/")[0] if "/" in self.repo_name else ""
+        if fork_owner and repo_owner and fork_owner != repo_owner:
+            head_ref = f"{fork_owner}:{branch_name}"
+
         # 7. Push branch and open Draft PR (or update existing PR if start_over is used)
         if not active_pr:
             if self.auto:
-                log_info(f"Auto-pushing branch {branch_name} to origin...")
+                log_info(f"Ready to push branch {branch_name} to {push_remote}...")
+                if sys.stdout.isatty():
+                    ans = input(f"Do you want to push branch '{branch_name}' to '{push_remote}' and open a draft PR? [y/N]: ")
+                    if ans.lower() not in ['y', 'yes']:
+                        log_info("Push cancelled by user.")
+                        return
+                else:
+                    log_info("Non-interactive mode: Auto-pushing branch...")
+
                 try:
-                    self.run_cmd(["git", "push", "-f", "origin", branch_name])
+                    self.run_cmd(["git", "push", push_remote, branch_name])
                     log_success("Successfully pushed branch.")
                 except Exception as e:
                     log_error(f"Failed to push branch: {e}")
@@ -752,6 +863,7 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
                         "gh", "pr", "create", "--draft",
                         "--repo", self.repo_name,
                         "--title", f"Rebase to {target_version} for OCP DNS/Ingress",
+                        "--head", head_ref,
                         "-F", str(self.report_file)
                     ])
                     log_success(f"Successfully created Draft PR: {pr_url.strip()}")
@@ -764,13 +876,21 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
                 print(f"Since no active Draft PR was found on GitHub, the tool has stopped here for your review.")
                 print(f"Please inspect the local branch '{branch_name}', resolve any skews, and run tests.")
                 print("When you are ready, you can push the branch and open a Draft PR manually:")
-                print(f"  git push origin {branch_name}")
-                print(f"  gh pr create --draft --repo {self.repo_name} --title \"Rebase to {target_version} for OCP DNS/Ingress\" -F .rebase/release-report.md\n")
+                print(f"  git push {push_remote} {branch_name}")
+                print(f"  gh pr create --draft --repo {self.repo_name} --title \"Rebase to {target_version} for OCP DNS/Ingress\" --head {head_ref} -F .rebase/release-report.md\n")
                 return
 
-        log_info(f"Pushing branch {branch_name} to origin...")
+        log_info(f"Ready to push branch {branch_name} to {push_remote}...")
+        if sys.stdout.isatty():
+            ans = input(f"Do you want to push branch '{branch_name}' to '{push_remote}'? [y/N]: ")
+            if ans.lower() not in ['y', 'yes']:
+                log_info("Push cancelled by user.")
+                return
+        else:
+            log_info("Non-interactive mode: Auto-pushing branch...")
+
         try:
-            self.run_cmd(["git", "push", "-f", "origin", branch_name])
+            self.run_cmd(["git", "push", push_remote, branch_name])
         except Exception as e:
             log_error(f"Failed to push branch: {e}")
             return
@@ -794,13 +914,23 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
         pr_num = active_pr["number"]
         log_info(f"Scanning Draft PR #{pr_num} comments for human feedback...")
         
+        processed_comments_file = self.rebase_dir / "processed_comments.json"
+        processed_comments = []
+        if processed_comments_file.exists():
+            try:
+                processed_comments = json.loads(processed_comments_file.read_text())
+            except Exception:
+                pass
+        
         # 1. Fetch comments on PR using gh API
         try:
             # Gets review comments & issue comments
             comments_json = self.run_cmd([
-                "gh", "api", f"repos/{self.repo_name}/issues/{pr_num}/comments"
+                "gh", "api", "--paginate", "--slurp", f"repos/{self.repo_name}/issues/{pr_num}/comments"
             ])
-            comments = json.loads(comments_json)
+            pages = json.loads(comments_json)
+            # Flatten pages
+            comments = [c for page in pages for c in page]
         except Exception as e:
             log_error(f"Failed to fetch PR comments: {e}")
             return
@@ -809,6 +939,8 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
         human_comments = []
         bot_logins = ["coderabbitai", "openshift-bot", "openshift-cherrypick-robot", "openshift-ci", "openshift-ci-robot", "github-actions"]
         for c in comments:
+            if c.get("id") in processed_comments:
+                continue
             author = c.get("user", {}).get("login", "")
             if author and author not in bot_logins and "[bot]" not in author:
                 human_comments.append(c)
@@ -826,6 +958,7 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
         for c in human_comments:
             author = c["user"]["login"]
             body = c["body"]
+            comment_id = c["id"]
             log_info(f"Feedback from @{author}: '{body[:80]}...'")
             
             # Respond to the comment on GitHub noting we are processing or have resolved it
@@ -839,8 +972,14 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
                         "--body", reply_body
                     ])
                     log_success(f"Posted acknowledgement to @{author}'s comment.")
+                    processed_comments.append(comment_id)
                 except Exception as e:
                     log_warn(f"Failed to post comment reply: {e}")
+            else:
+                processed_comments.append(comment_id)
+        
+        if not self.dry_run:
+            processed_comments_file.write_text(json.dumps(processed_comments))
                     
         # In actual usage, the running AI Agent is responsible for executing the code edits.
         # This python script acts as the driver that alerts the runner.
@@ -855,7 +994,7 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
                 "gh", "pr", "checks", str(pr_num),
                 "-R", self.repo_name,
                 "--json", "name,state,link"
-            ])
+            ], check=False)
             checks = json.loads(checks_json)
             
             if not checks:
@@ -897,7 +1036,7 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
         print("Once the PR is merged, run this manager once more to execute Phase 4 cleanup.\n")
 
     def run_cleanup(self, active_pr=None):
-        """Phase 4: Completion & Cleanup."""
+        """Phase 3: Completion & Cleanup."""
         log_info("=== COMPLETION & CLEANUP ===")
         
         # Check if the PR was actually merged
@@ -913,15 +1052,6 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
                     pr_merged = True
             except Exception:
                 pass
-        
-        # Or check if openshift/master already has a commit matching "Rebase to ..."
-        if not pr_merged:
-            try:
-                log = self.run_cmd(["git", "log", "-n", "10", "--pretty=format:%s"])
-                if "Rebase to " in log:
-                    pr_merged = True
-            except Exception:
-                pass
 
         if pr_merged:
             log_success("Rebase PR has been successfully merged! Cleaning up local environment.")
@@ -930,10 +1060,7 @@ _Status legend:_ ⬜️ pending · 🔄 in progress · ✅ complete
             if self.rebase_dir.exists():
                 log_info(f"Cleaning up {self.rebase_dir} state store...")
                 if not self.dry_run:
-                    # Clean contents
-                    for f in self.rebase_dir.iterdir():
-                        f.unlink()
-                    self.rebase_dir.rmdir()
+                    shutil.rmtree(self.rebase_dir, ignore_errors=True)
                     log_success("Deleted `.rebase/` folder.")
             
             # Find and delete local rebase branches
@@ -963,44 +1090,53 @@ def main():
     parser.add_argument("--start-over", action="store_true", help="Clear the .rebase state folder and force-rebuild the rebase branch/Draft PR from scratch")
     args = parser.parse_args()
 
-    # Create Manager
-    manager = RebaseManager(target_tag=args.tag, auto=args.auto, dry_run=args.dryrun, start_over=args.start_over)
-    
-    # If dryrun is requested, always force PHASE_1_DISCOVERY to print the full would-be PR description
-    if args.dryrun:
-        log_info("Dry-run requested. Simulating PHASE_1_DISCOVERY to output the full, domain-grouped PR description / meeting agenda.")
-        manager.run_phase_1()
-        return
+    try:
+        # Create Manager
+        manager = RebaseManager(target_tag=args.tag, auto=args.auto, dry_run=args.dryrun, start_over=args.start_over)
+        
+        # Trigger lazy load validation early
+        _ = manager.repo_name
+        _ = manager.main_branch
 
-    # 1. Determine active PR status
-    active_pr = manager.detect_active_pr()
-    
-    # 2. Check if the active PR was merged
-    if active_pr:
-        try:
-            state = manager.run_cmd([
-                "gh", "pr", "view", str(active_pr["number"]),
-                "-R", manager.repo_name,
-                "--json", "state", "-q", ".state"
-            ])
-            if state == "MERGED":
-                manager.run_cleanup(active_pr)
-                return
-        except Exception:
-            pass
+        # If dryrun is requested, always force PHASE_1_DISCOVERY to print the full would-be PR description
+        if args.dryrun:
+            log_info("Dry-run requested. Simulating PHASE_1_DISCOVERY to output the full, domain-grouped PR description / meeting agenda.")
+            manager.run_phase_1()
+            return
 
-    # 3. Determine and run phase
-    phase = manager.determine_phase(active_pr)
-    log_info(f"Detected Active Phase: {phase}")
-    
-    if phase == "PHASE_1_DISCOVERY":
-        manager.run_phase_1()
-    elif phase == "PHASE_2_ACTIVE_DRAFT":
-        manager.run_phase_2()
-    elif phase == "PHASE_3_FINAL_PROW":
-        manager.run_phase_3(active_pr)
-    else:
-        log_error(f"Unknown phase state: {phase}")
+        # 1. Determine active PR status
+        active_pr = manager.detect_active_pr()
+        
+        # 2. Check if the active PR was merged
+        if active_pr:
+            try:
+                state = manager.run_cmd([
+                    "gh", "pr", "view", str(active_pr["number"]),
+                    "-R", manager.repo_name,
+                    "--json", "state", "-q", ".state"
+                ])
+                if state == "MERGED":
+                    manager.run_cleanup(active_pr)
+                    return
+            except Exception:
+                pass
+
+        # 3. Determine and run phase
+        phase = manager.determine_phase(active_pr)
+        log_info(f"Detected Active Phase: {phase}")
+        
+        if phase == "PHASE_1_DISCOVERY":
+            manager.run_phase_1()
+        elif phase == "PHASE_2_ACTIVE_DRAFT":
+            manager.run_phase_2()
+        elif phase == "PHASE_3_FINAL_PROW":
+            manager.run_phase_3(active_pr)
+        else:
+            log_error(f"Unknown phase state: {phase}")
+    except subprocess.CalledProcessError as e:
+        # Catch unexpected lookup errors gracefully at the top level
+        log_error("Failed to query git or github metadata. Ensure you are running this script inside a valid cloned github repository.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
