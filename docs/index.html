@@ -935,7 +935,14 @@ footer a { color: var(--primary); }
         }
       ],
       "hooks": [],
-      "mcp_servers": [],
+      "mcp_servers": [
+        {
+          "name": "ship-status",
+          "type": "http",
+          "endpoint": "https://mcp.ship-status.ci.openshift.org/mcp",
+          "source": ".mcp.json"
+        }
+      ],
       "rules": [],
       "category": "ci",
       "keywords": [
@@ -2541,7 +2548,7 @@ footer a { color: var(--primary); }
     {
       "name": "openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.21",
+      "version": "1.1.22",
       "has_readme": true,
       "commands": [],
       "skills": [

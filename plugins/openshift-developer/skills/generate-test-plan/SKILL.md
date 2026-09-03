@@ -29,8 +29,28 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - Issue summary, description, acceptance criteria
    - Steps to reproduce (for bugs)
    - Issue type (Story, Bug, Task, etc.)
+   - **Project key** (e.g. `OCPSTRAT`, `OCPBUGS`, `CNTRLPLANE`)
 
-3. **Discover PRs**:
+3. **Detect OCPSTRAT feature template**: If the issue's project is `OCPSTRAT` and the issue type is `Feature`, activate OCPSTRAT-aware parsing. Extract each template section by matching `h3.` wiki-style headings (e.g. `h3. *Testing and Validation Requirements*`). The standard OCPSTRAT feature template sections are:
+   - **Feature Overview** (`h3. *Feature Overview*` or `h3. *Goal Summary*`)
+   - **Goals** (`h3. *Goals*`)
+   - **Requirements / Acceptance Criteria** (`h3. *Requirements*`), with sub-headings for:
+     - Functional Requirements (`h4.`)
+     - Testing and Validation Requirements (`h4.`)
+     - Non-Functional Requirements (`h4.`)
+     - Operational Requirements (`h4.`)
+   - **Use Cases** (`h3. *Use Cases*`)
+   - **Deployment considerations** — a table with topology rows (self-managed/managed, classic/HCP, multi-node/compact/SNO, connected/restricted, architectures, operator compat, backport, UI)
+   - **Interoperability Considerations** (`h3. *Interoperability Considerations*`)
+   - **Customer Considerations** (`h3. *Customer Considerations*`)
+   - **Out of Scope** (`h3. *Out of Scope*`)
+   - **Background** (`h3. *Background*`)
+
+   If OCPSTRAT-aware parsing is active but specific sections are absent, proceed with whichever sections are present; fall through to generic behavior for any missing content.
+
+   For **non-OCPSTRAT issues** (or OCPSTRAT issues that do not follow the template), skip this step entirely and continue with the generic flow below.
+
+4. **Discover PRs**:
    - If explicit PR URLs were provided: use only those
    - If only a Jira key was provided: use `mcp__atlassian__jira_get_issue` with `include: "remote_links"` and look for GitHub PR links. Also check the issue description and comments for PR URLs.
    - For each PR, fetch details:
@@ -49,6 +69,14 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - Identify dependencies between PRs
    - Determine testing order
 5. Use Grep and Glob to find related test files, configuration, and documentation
+6. **OCPSTRAT-specific analysis** (when OCPSTRAT-aware parsing is active):
+   - Map the "Testing and Validation Requirements" section items directly to test scenario categories — each requirement should produce at least one test scenario
+   - Parse the "Deployment considerations" table to extract a platform/topology matrix of applicable configurations
+   - Map each "Interoperability Considerations" item to an interoperability test scenario
+   - Derive end-to-end scenario-based tests from the "Use Cases" section
+   - Map "Non-Functional Requirements" to performance, scale, and reliability test scenarios
+   - Derive negative test cases from the "Out of Scope" section — verify excluded behavior is absent or handled gracefully
+   - Use "Customer Considerations" to inform edge-case and real-world usage test scenarios
 
 ### Step 3: Generate test scenarios
 
@@ -60,6 +88,14 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - Platform-specific variations if applicable
    - Regression scenarios for related features
 4. For multiple PRs: create integration scenarios verifying PRs work together
+5. **OCPSTRAT-specific scenario categories** (when OCPSTRAT-aware parsing is active — generate these in addition to the generic scenarios above):
+   - **Functional validation**: test cases derived from each item in the Functional Requirements sub-section
+   - **Testing and Validation**: test cases mapped 1:1 from the "Testing and Validation Requirements" sub-section (e.g. "Validate upgrade and rollback behavior" → upgrade/rollback test scenario)
+   - **Deployment/topology variations**: for each applicable row in the Deployment considerations table, generate platform-specific test scenarios (e.g. "Verify feature on SNO cluster", "Verify on restricted network", "Verify on HCP deployment")
+   - **Interoperability**: for each item in Interoperability Considerations, generate a test scenario that validates co-existence (e.g. "Verify feature works alongside NetworkPolicy enforcement")
+   - **Upgrade/rollback**: include upgrade and rollback scenarios by default for OCPSTRAT features, as these are commonly required for release readiness
+   - **Non-functional**: performance, scale, and resiliency scenarios derived from Non-Functional Requirements (e.g. "Verify minimal control-plane performance regression")
+   - **Negative tests**: for each item in Out of Scope, generate a test verifying that the excluded behavior is not present or is handled gracefully (e.g. "Verify that non-OVN-Kubernetes CNI providers are not affected")
 
 ### Step 4: Apply smart filtering
 
@@ -85,6 +121,10 @@ Note skipped PRs in the output with reasoning.
   - Expected results and verification commands
   - Mapping to acceptance criteria (when Jira context available)
   - Platform-specific variations where applicable
+- **Deployment Matrix** *(OCPSTRAT features only, when deployment-consideration data is present)*: A table of platform/topology combinations to test, derived from the Deployment considerations table. Each row is a configuration axis (e.g. "Self-managed classic", "HCP", "SNO", "Restricted network", "ARM") with columns for: configuration name, applicability (Yes/No/N/A), and notes on specific test variations needed.
+- **Interoperability Testing** *(OCPSTRAT features only, when interoperability data is present)*: Dedicated test scenarios for each item listed in Interoperability Considerations. Each scenario verifies co-existence with the named feature or component (e.g. "Verify feature with NetworkPolicy enforcement enabled", "Verify feature with EgressIP configured").
+- **Non-Functional Testing** *(OCPSTRAT features only, when NFR data is present)*: Performance, scale, and resiliency test scenarios derived from Non-Functional Requirements. Include measurable criteria where specified (e.g. "Verify minimal control-plane performance regression under load").
+- **Negative Testing** *(OCPSTRAT features only, when out-of-scope data is present)*: Test cases derived from the Out of Scope section that verify excluded behavior is absent or handled gracefully (e.g. "Verify that non-supported CNI providers are unaffected").
 - **Regression Testing**: Related features to verify, areas that might be affected
 - **Success Criteria**: Checklist mapping to Jira acceptance criteria (when available)
 - **Troubleshooting**: Common issues and debug steps
@@ -130,3 +170,6 @@ Note skipped PRs in the output with reasoning.
 - Derive test scenarios from actual code changes, not assumptions
 - Keep test steps concrete with exact commands and expected output
 - When Jira acceptance criteria exist, map every criterion to at least one test case
+- For OCPSTRAT features, map every "Testing and Validation Requirements" item to at least one test scenario
+- For OCPSTRAT features, generate the Deployment Matrix, Interoperability Testing, Non-Functional Testing, and Negative Testing sections only when the corresponding source data is present in the issue — omit the section entirely if no data exists
+- For non-OCPSTRAT issues or OCPSTRAT issues that do not follow the template, fall back to the generic flow with no changes to existing behavior
