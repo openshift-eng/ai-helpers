@@ -124,10 +124,6 @@ Note skipped PRs in the output with reasoning.
   - Expected results and verification commands
   - Mapping to acceptance criteria (when Jira context available)
   - Platform-specific variations where applicable
-- **Deployment Matrix** *(OCPSTRAT features only, when deployment-consideration data is present)*: A table of platform/topology combinations to test, derived from the Deployment considerations table. Each row is a configuration axis (e.g. "Self-managed classic", "HCP", "SNO", "Restricted network", "ARM") with columns for: configuration name, applicability (Yes/No/N/A), and notes on specific test variations needed.
-- **Interoperability Testing** *(OCPSTRAT features only, when interoperability data is present)*: Dedicated test scenarios for each item listed in Interoperability Considerations. Each scenario verifies co-existence with the named feature or component (e.g. "Verify feature with NetworkPolicy enforcement enabled", "Verify feature with EgressIP configured").
-- **Non-Functional Testing** *(OCPSTRAT features only, when NFR data is present)*: Performance, scale, and resiliency test scenarios derived from Non-Functional Requirements. Include measurable criteria where specified (e.g. "Verify minimal control-plane performance regression under load").
-- **Negative Testing** *(OCPSTRAT features only, when out-of-scope data is present)*: Test cases derived from Out of Scope items that explicitly define unsupported behavior or must-not-change boundaries (e.g. "Verify that non-supported CNI providers are unaffected"). Items that merely indicate lack of coverage are recorded as exclusions without generating test cases.
 - **Regression Testing**: Related features to verify, areas that might be affected
 - **Success Criteria**: Checklist mapping to Jira acceptance criteria (when available)
 - **Troubleshooting**: Common issues and debug steps
@@ -224,6 +220,6 @@ When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown docu
 - When Jira acceptance criteria exist, map every criterion to at least one test case
 - For OCPSTRAT features, map every "Testing and Validation Requirements" item to at least one test scenario
 - For OCPSTRAT features, generate the test plan as an IEEE 829-style Markdown document with all standard sections; use `N/A` for sections that are not applicable to the specific feature rather than omitting them
-- For OCPSTRAT features, generate the Deployment Matrix, Interoperability Testing, Non-Functional Testing, and Negative Testing content only when the corresponding source data is present in the issue — omit the content entirely if no data exists, but keep the section heading with `N/A`
+- For OCPSTRAT features, retain the Deployment/topology, Interoperability, Non-Functional, and Negative Testing section headings in the IEEE 829 outline; populate them when the corresponding source data is present in the issue, and mark them `N/A` when it is absent
 - For OCPSTRAT features, include readiness guidance on linking, storage, multiple plans, and work item derivation
 - For non-OCPSTRAT issues or OCPSTRAT issues that do not follow the template, fall back to the generic flow with no changes to existing behavior
