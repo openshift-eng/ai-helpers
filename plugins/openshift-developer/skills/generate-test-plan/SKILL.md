@@ -75,7 +75,7 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - Map each "Interoperability Considerations" item to an interoperability test scenario
    - Derive end-to-end scenario-based tests from the "Use Cases" section
    - Map "Non-Functional Requirements" to performance, scale, and reliability test scenarios
-   - Derive negative test cases from the "Out of Scope" section — verify excluded behavior is absent or handled gracefully
+   - Derive negative test cases from the "Out of Scope" section only when items explicitly define unsupported behavior or must-not-change boundaries; otherwise record them as exclusions without inferring expected behavior
    - Map "Operational Requirements" to Day-2 operational test scenarios (metrics exposure, troubleshooting workflows, support runbook validation)
    - Use "Customer Considerations" to inform edge-case and real-world usage test scenarios
    - Use "Goals" to inform overall test plan scope and prioritization — Goals do not require individual test mappings but should guide which scenarios are high priority
@@ -98,7 +98,7 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - **Upgrade/rollback**: include upgrade and rollback scenarios by default for OCPSTRAT features, as these are commonly required for release readiness
    - **Non-functional**: performance, scale, and resiliency scenarios derived from Non-Functional Requirements (e.g. "Verify minimal control-plane performance regression")
    - **Operational**: Day-2 operational scenarios derived from Operational Requirements (e.g. "Verify metrics are exposed for reconciliation failures", "Verify troubleshooting workflows are documented and functional")
-   - **Negative tests**: for each item in Out of Scope, generate a test verifying that the excluded behavior is not present or is handled gracefully (e.g. "Verify that non-OVN-Kubernetes CNI providers are not affected")
+   - **Negative tests**: for each Out of Scope item that explicitly defines unsupported behavior or a must-not-change boundary, generate a test verifying the stated constraint (e.g. "Verify that non-OVN-Kubernetes CNI providers are not affected"); record remaining Out of Scope items as exclusions without inferring expected behavior
 
 ### Step 4: Apply smart filtering
 
@@ -127,7 +127,7 @@ Note skipped PRs in the output with reasoning.
 - **Deployment Matrix** *(OCPSTRAT features only, when deployment-consideration data is present)*: A table of platform/topology combinations to test, derived from the Deployment considerations table. Each row is a configuration axis (e.g. "Self-managed classic", "HCP", "SNO", "Restricted network", "ARM") with columns for: configuration name, applicability (Yes/No/N/A), and notes on specific test variations needed.
 - **Interoperability Testing** *(OCPSTRAT features only, when interoperability data is present)*: Dedicated test scenarios for each item listed in Interoperability Considerations. Each scenario verifies co-existence with the named feature or component (e.g. "Verify feature with NetworkPolicy enforcement enabled", "Verify feature with EgressIP configured").
 - **Non-Functional Testing** *(OCPSTRAT features only, when NFR data is present)*: Performance, scale, and resiliency test scenarios derived from Non-Functional Requirements. Include measurable criteria where specified (e.g. "Verify minimal control-plane performance regression under load").
-- **Negative Testing** *(OCPSTRAT features only, when out-of-scope data is present)*: Test cases derived from the Out of Scope section that verify excluded behavior is absent or handled gracefully (e.g. "Verify that non-supported CNI providers are unaffected").
+- **Negative Testing** *(OCPSTRAT features only, when out-of-scope data is present)*: Test cases derived from Out of Scope items that explicitly define unsupported behavior or must-not-change boundaries (e.g. "Verify that non-supported CNI providers are unaffected"). Items that merely indicate lack of coverage are recorded as exclusions without generating test cases.
 - **Regression Testing**: Related features to verify, areas that might be affected
 - **Success Criteria**: Checklist mapping to Jira acceptance criteria (when available)
 - **Troubleshooting**: Common issues and debug steps
