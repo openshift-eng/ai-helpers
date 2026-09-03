@@ -1,0 +1,14 @@
+description: "Project has CLAUDE.md with explicit lint command"
+claudemd_section: |
+  CLAUDE.md content in this project:
+  # Development
+
+  ## Linting
+  Run lints with: `make verify-lint`
+  Do NOT use golangci-lint directly — the Makefile target sets required build tags.
+makefile_section: |
+  Makefile content:
+  lint:
+  	golangci-lint run ./...
+  verify-lint:
+  	golangci-lint run --build-tags=e2e,integration ./...
