@@ -115,7 +115,7 @@ Note skipped PRs in the output with reasoning.
 - Jira-based: `test-{jira-key-lowercase}.md` (e.g. `test-cntrlplane-205.md`)
 - PR-only: `test-pr-{number1}-{number2}.md` (e.g. `test-pr-6888-6889.md`)
 
-**Document structure**:
+**Generic document structure** *(for non-OCPSTRAT issues or OCPSTRAT issues that do not follow the template)*:
 
 - **Summary**: Jira key + title (if available), list of PRs with titles, overall objective
 - **Prerequisites**: Required infrastructure, tools, environment setup, access requirements
@@ -135,10 +135,54 @@ Note skipped PRs in the output with reasoning.
 
 **Exclusions**: Do NOT include build/deploy steps or cleanup steps. Assume the environment is already set up. Focus purely on testing procedures.
 
+**OCPSTRAT Feature document structure** *(IEEE 829-style — use instead of the generic structure when OCPSTRAT-aware parsing is active)*:
+
+When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown document following the IEEE 829 Test Plan outline adapted for OpenShift feature readiness. Include every section below; mark a section `N/A` when it is not relevant to the specific feature rather than omitting it.
+
+1. **Test Plan Identifier**: `<OCPSTRAT-XXXX>-test-plan` — a unique identifier for this plan. For features requiring multiple plans (e.g. cross-component work), use descriptive suffixes (e.g. `OCPSTRAT-1234-networking-test-plan`, `OCPSTRAT-1234-storage-test-plan`).
+2. **Introduction**:
+   - **Purpose**: What this test plan validates — derived from the Feature Overview / Goal Summary.
+   - **Scope**: What is in scope for testing (from Goals and Requirements) and what is explicitly excluded (from Out of Scope).
+3. **Background / References**: The OCPSTRAT feature, enhancement proposals, design documents, upstream issues, and linked PRs. Use generic placeholders (e.g. "the OCPSTRAT feature for this plan") rather than embedding organization-internal URLs directly.
+4. **Test Items**: Software components, operators, APIs, or CLI tools under test — derived from the feature description and linked PRs.
+5. **Features to Be Tested**: Each testable capability, drawn from Functional Requirements, Testing and Validation Requirements, and Use Cases.
+6. **Features Not to Be Tested**: Items from Out of Scope and any Requirements explicitly marked as deferred or not applicable. Record these as exclusions.
+7. **Approach**: Testing strategy — manual vs. automated, environment tiers (dev, staging, CI), and how the OCPSTRAT-specific scenario categories (functional, deployment/topology, interoperability, non-functional, operational, upgrade/rollback, negative) map to execution phases.
+8. **Item Pass/Fail Criteria**: Measurable criteria for each test item — derived from acceptance criteria and non-functional requirements where quantitative targets exist. Use `N/A` for items without measurable thresholds.
+9. **Suspension Criteria and Resumption Requirements**: Conditions under which testing should halt (e.g. blocking infrastructure failures, critical defect discovery) and what must be resolved before resumption. Use `N/A` when not applicable to the feature.
+10. **Test Deliverables**: Expected outputs — the test plan document, test case results, defect reports, and any CI artifacts or coverage reports.
+11. **Testing Tasks**: Discrete work items — environment provisioning, test case authoring, execution passes, regression sweeps, results analysis.
+12. **Environmental Needs**: Infrastructure, cluster topologies, and platform configurations required — derived from the Deployment considerations matrix.
+13. **Responsibilities**: Roles involved (QE, development, SRE, release engineering) and their testing responsibilities. Use generic role names.
+14. **Staffing and Training Needs**: Skill gaps or training requirements for the testing team. Use `N/A` if not applicable.
+15. **Schedule**: High-level timeline or milestones for test execution relative to the release cycle. Use `TBD` for items not yet scheduled.
+16. **Risks and Contingencies**: Risks to the testing effort (environment availability, dependency delays, scope changes) and mitigation strategies.
+17. **Approvals**: Placeholder section for stakeholder sign-off — list the roles that should approve the plan (e.g. QE lead, feature owner).
+18. **Detailed Test Cases** *(appendix)*: The full set of numbered test cases, organized by the OCPSTRAT-specific scenario categories defined in Step 3:
+    - Functional validation (from Functional Requirements)
+    - Testing and Validation (from Testing and Validation Requirements)
+    - Deployment/topology variations (from the Deployment Matrix — include the platform/topology table here)
+    - Interoperability (from Interoperability Considerations)
+    - Upgrade/rollback
+    - Non-functional (from Non-Functional Requirements — include measurable criteria)
+    - Operational / Day-2 (from Operational Requirements)
+    - Negative tests (from explicit Out of Scope boundaries only)
+    - Regression scenarios
+
+    Each test case includes: ID, title, preconditions, step-by-step instructions, expected results, and verification commands.
+
+**Readiness guidance** *(OCPSTRAT features only — include at the end of the generated document in a "Readiness Integration" section)*:
+
+- **Link from the feature**: Add the test plan as a link or reference on the OCPSTRAT feature so it is discoverable during readiness reviews.
+- **Store in a Git repository**: Commit the Markdown test plan to an appropriate repository (e.g. the component repository's `docs/` or `test-plans/` directory, or a dedicated quality repository) so it is version-controlled and reviewable.
+- **Multiple plans for complex work**: For features spanning multiple components or repositories, generate separate per-component test plans and cross-reference them. Each plan should be self-contained but reference sibling plans for the same feature.
+- **Derive work items**: Use the Testing Tasks and Detailed Test Cases sections to create specific quality work items (e.g. stories or tasks for the QE team). Each work item should trace back to a test case ID in the plan.
+
 ### Step 6: Report
 
 - Show the file path where the guide was saved
 - Summarize: Jira issue (if applicable), number of PRs analyzed, number of test scenarios, critical test cases
+- For OCPSTRAT features: note that the plan follows the IEEE 829 outline and highlight the readiness integration steps (linking, storage, work item derivation)
 - Highlight skipped PRs and reasoning
 - Ask if the user wants modifications
 
@@ -164,7 +208,7 @@ Note skipped PRs in the output with reasoning.
    /openshift-developer:generate-test-plan https://github.com/openshift/hypershift/pull/6888 https://github.com/openshift/hypershift/pull/6889
    ```
 
-5. **From an OCPSTRAT feature (generates deployment matrix, interop, NFR sections)**:
+5. **From an OCPSTRAT feature (generates IEEE 829-style plan with deployment matrix, interop, NFR sections)**:
    ```text
    /openshift-developer:generate-test-plan OCPSTRAT-3266
    ```
@@ -179,5 +223,7 @@ Note skipped PRs in the output with reasoning.
 - Keep test steps concrete with exact commands and expected output
 - When Jira acceptance criteria exist, map every criterion to at least one test case
 - For OCPSTRAT features, map every "Testing and Validation Requirements" item to at least one test scenario
-- For OCPSTRAT features, generate the Deployment Matrix, Interoperability Testing, Non-Functional Testing, and Negative Testing sections only when the corresponding source data is present in the issue — omit the section entirely if no data exists
+- For OCPSTRAT features, generate the test plan as an IEEE 829-style Markdown document with all standard sections; use `N/A` for sections that are not applicable to the specific feature rather than omitting them
+- For OCPSTRAT features, generate the Deployment Matrix, Interoperability Testing, Non-Functional Testing, and Negative Testing content only when the corresponding source data is present in the issue — omit the content entirely if no data exists, but keep the section heading with `N/A`
+- For OCPSTRAT features, include readiness guidance on linking, storage, multiple plans, and work item derivation
 - For non-OCPSTRAT issues or OCPSTRAT issues that do not follow the template, fall back to the generic flow with no changes to existing behavior
