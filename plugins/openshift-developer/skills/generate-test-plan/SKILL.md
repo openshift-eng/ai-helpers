@@ -218,8 +218,8 @@ When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown docu
 - Derive test scenarios from actual code changes, not assumptions
 - Keep test steps concrete with exact commands and expected output
 - When Jira acceptance criteria exist, map every criterion to at least one test case
-- For OCPSTRAT features, map every "Testing and Validation Requirements" item to at least one test scenario
-- For OCPSTRAT features, generate the test plan as an IEEE 829-style Markdown document with all standard sections; use `N/A` for sections that are not applicable to the specific feature rather than omitting them
-- For OCPSTRAT features, retain the Deployment/topology, Interoperability, Non-Functional, and Negative Testing section headings in the IEEE 829 outline; populate them when the corresponding source data is present in the issue, and mark them `N/A` when it is absent
-- For OCPSTRAT features, include readiness guidance on linking, storage, multiple plans, and work item derivation
+- When OCPSTRAT-aware parsing is active, map every "Testing and Validation Requirements" item to at least one test scenario
+- When OCPSTRAT-aware parsing is active, generate the test plan as an IEEE 829-style Markdown document with all standard sections; use `N/A` for sections that are not applicable to the specific feature rather than omitting them
+- When OCPSTRAT-aware parsing is active, retain the Deployment/topology, Interoperability, Non-Functional, and Negative Testing section headings in the IEEE 829 outline; populate them when the corresponding source data is present in the issue, and mark them `N/A` when it is absent
+- When OCPSTRAT-aware parsing is active, include readiness guidance on linking, storage, multiple plans, and work item derivation
 - For non-OCPSTRAT issues or OCPSTRAT issues that do not follow the template, fall back to the generic flow with no changes to existing behavior
