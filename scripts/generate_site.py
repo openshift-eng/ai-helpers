@@ -120,7 +120,10 @@ class Plugin:
 def slugify(value: str) -> str:
     """Return a stable URL-safe name for generated paths."""
     slug = re.sub(r"[^a-z0-9._-]+", "-", value.strip().lower()).strip("-")
-    return slug or "item"
+    slug = slug or "item"
+    if slug in {".", ".."}:
+        raise ValueError(f"Cannot generate a path for {value!r}: {slug!r} is reserved")
+    return slug
 
 
 def one_line(value: Any) -> str:
@@ -355,6 +358,38 @@ def item_relative_path(item: Item) -> str:
     return f"{item.kind}s/{item.slug}.md"
 
 
+def validate_generated_paths(plugins: list[Plugin]) -> None:
+    """Reject derived output paths that would overwrite another page."""
+    paths: dict[str, str] = {}
+
+    def register(path: Path, source: str) -> None:
+        relative_path = path.as_posix()
+        previous = paths.get(relative_path)
+        if previous is not None:
+            raise ValueError(
+                f"Generated path collision at {relative_path!r}: "
+                f"{previous} and {source}"
+            )
+        paths[relative_path] = source
+
+    for plugin in plugins:
+        plugin_dir = Path("plugins") / slugify(plugin.name)
+        register(plugin_dir / "index.md", f"plugin {plugin.name!r}")
+        for item in plugin.commands + plugin.skills + plugin.agents:
+            register(
+                plugin_dir / item_relative_path(item),
+                f"{item.kind} {item.name!r} in plugin {plugin.name!r}",
+            )
+
+    categories = {plugin.category for plugin in plugins}
+    for category in categories:
+        slug = slugify(category or "uncategorized")
+        register(
+            Path("categories") / f"{slug}.md",
+            f"category {category_name(category)!r}",
+        )
+
+
 def generate_plugin_page(plugin: Plugin) -> str:
     lines = frontmatter(plugin.name)
     lines.extend([f"# {plugin.name}", "", plugin.description, ""])
@@ -527,6 +562,7 @@ def generate_site(
 ) -> list[Plugin]:
     """Regenerate all derived MkDocs content and return discovered plugins."""
     marketplace, plugins = load_plugins(repo_root, marketplace_path)
+    validate_generated_paths(plugins)
     docs_dir = output_dir / "docs"
     for generated_dir in (docs_dir / "plugins", docs_dir / "categories"):
         if generated_dir.exists():

@@ -2,6 +2,7 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).parent.parent
@@ -137,3 +138,58 @@ def test_load_frontmatter_falls_back_for_plain_markdown(tmp_path):
 
 def test_slugify_handles_labels_safely():
     assert slugify("Team Tools / CI") == "team-tools-ci"
+
+
+def test_generate_site_rejects_colliding_plugin_paths(tmp_path):
+    repo_root, marketplace_path = marketplace_fixture(tmp_path)
+    marketplace = json.loads(marketplace_path.read_text(encoding="utf-8"))
+    marketplace["plugins"] = [
+        {
+            "name": name,
+            "source": {"source": "github", "repo": f"example/{index}"},
+            "category": "tooling",
+        }
+        for index, name in enumerate(("Foo Bar", "foo-bar"))
+    ]
+    marketplace_path.write_text(json.dumps(marketplace), encoding="utf-8")
+    output_dir = repo_root / "site"
+
+    with pytest.raises(ValueError, match="Generated path collision"):
+        generate_site(repo_root, marketplace_path, output_dir)
+
+    assert not (output_dir / "docs" / "index.md").exists()
+
+
+@pytest.mark.parametrize("plugin_name", [".", ".."])
+def test_generate_site_rejects_reserved_plugin_slugs(tmp_path, plugin_name):
+    repo_root, marketplace_path = marketplace_fixture(tmp_path)
+    marketplace = json.loads(marketplace_path.read_text(encoding="utf-8"))
+    marketplace["plugins"][0]["name"] = plugin_name
+    marketplace_path.write_text(json.dumps(marketplace), encoding="utf-8")
+    output_dir = repo_root / "site"
+
+    with pytest.raises(ValueError, match="is reserved"):
+        generate_site(repo_root, marketplace_path, output_dir)
+
+    assert not (output_dir / "docs" / "index.md").exists()
+
+
+def test_generate_site_rejects_colliding_item_paths(tmp_path):
+    repo_root, marketplace_path = marketplace_fixture(tmp_path)
+    commands_dir = repo_root / "plugins" / "demo" / "commands"
+    write(commands_dir / "one.md", "---\nname: Foo Bar\n---\n")
+    write(commands_dir / "two.md", "---\nname: foo-bar\n---\n")
+
+    with pytest.raises(ValueError, match="Generated path collision"):
+        generate_site(repo_root, marketplace_path, repo_root / "site")
+
+
+def test_generate_site_rejects_colliding_category_paths(tmp_path):
+    repo_root, marketplace_path = marketplace_fixture(tmp_path)
+    marketplace = json.loads(marketplace_path.read_text(encoding="utf-8"))
+    marketplace["plugins"][0]["category"] = "Team Tools"
+    marketplace["plugins"][1]["category"] = "team-tools"
+    marketplace_path.write_text(json.dumps(marketplace), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Generated path collision"):
+        generate_site(repo_root, marketplace_path, repo_root / "site")
