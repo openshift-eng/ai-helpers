@@ -127,6 +127,35 @@ def match_tide_queries(tide_queries, repo, branch, pr_labels_set):
     return results
 
 
+def classify_jobs(jobs, job_config):
+    """Cross-reference reported commit statuses against presubmit config.
+
+    Returns dict with:
+      required_jobs: all jobs with descriptive states:
+        - "success", "failure", "pending", "error" — normal reported states
+        - "not_reported" — required in config but no status reported
+        - "not_in_config" — has a reported status but NOT in the current config
+    """
+    required_jobs = []
+    config_contexts = set(job_config.keys())
+    reported_contexts = {j["name"] for j in jobs}
+
+    for j in jobs:
+        if j["name"] in config_contexts:
+            if not job_config[j["name"]]["optional"]:
+                required_jobs.append(j)
+        else:
+            # Reported but not in config (stale/removed job)
+            required_jobs.append({"name": j["name"], "state": "not_in_config"})
+
+    # Required contexts in config with no reported status
+    for ctx, cfg in job_config.items():
+        if not cfg["optional"] and ctx not in reported_contexts:
+            required_jobs.append({"name": ctx, "state": "not_reported"})
+
+    return {"required_jobs": required_jobs}
+
+
 def build_job_entry(name, state, description, url):
     """Build a job entry with a normalized state."""
     if state == "pending":
@@ -182,10 +211,8 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
     # Classify jobs
     job_config = presubmit_configs.get(branch)
     if job_config:
-        required_jobs = [
-            j for j in jobs
-            if j["name"] in job_config and not job_config[j["name"]]["optional"]
-        ]
+        classified = classify_jobs(jobs, job_config)
+        required_jobs = classified["required_jobs"]
     else:
         required_jobs = [{"error": f"could not fetch presubmit config from openshift/release for {repo} branch {branch} — job classification unavailable"}]
 
@@ -197,7 +224,7 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
         blockers.append("no Tide query matches this branch")
 
     for j in required_jobs:
-        if "error" not in j and j["state"] != "success":
+        if "error" not in j and j["state"] not in ("success", "not_in_config"):
             blockers.append(f"job not passing: {j['name']} ({j['state']})")
 
     if pr_meta.get("mergeable") is False:
@@ -210,8 +237,7 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
         "url": pr_meta["html_url"],
         "branch": branch,
         "state": pr_meta["state"],
-        "mergeable": pr_meta.get("mergeable"),
-        "tide": tide_status,
+        "tide_verdict": tide_status,
         "blockers": blockers,
         "labels": labels_section,
         "required_jobs": required_jobs,
