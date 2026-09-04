@@ -415,31 +415,20 @@ footer a { color: var(--primary); }
     {
       "name": "agentic-docs",
       "description": "Create and maintain AI-optimized documentation for OpenShift",
-      "version": "1.5.0",
+      "version": "2.1.2",
       "has_readme": true,
-      "commands": [
-        {
-          "name": "cancel-generate-docs",
-          "full_name": "",
-          "description": "Cancel active generate-docs loop",
-          "description_html": "Cancel active generate-docs loop",
-          "synopsis": "",
-          "body_html": ""
-        },
-        {
-          "name": "generate-docs",
-          "full_name": "",
-          "description": "Generate and iteratively review component docs until all issues are fixed",
-          "description_html": "Generate and iteratively review component docs until all issues are fixed",
-          "synopsis": "",
-          "body_html": ""
-        }
-      ],
+      "commands": [],
       "skills": [
         {
           "name": "component-docs",
           "description": "Create lean component documentation for OpenShift repositories",
           "description_html": "Create lean component documentation for OpenShift repositories",
+          "meta": ""
+        },
+        {
+          "name": "generate-docs",
+          "description": "Generate and iteratively verify OpenShift component documentation, or review existing documentation, without relying on host-specific hooks or commands.",
+          "description_html": "Generate and iteratively verify OpenShift component documentation, or review existing documentation, without relying on host-specific hooks or commands.",
           "meta": ""
         },
         {
@@ -456,13 +445,7 @@ footer a { color: var(--primary); }
         }
       ],
       "agents": [],
-      "hooks": [
-        {
-          "event_type": "Stop",
-          "matcher": ".*",
-          "hooks_json": "[\n  {\n    \"command\": \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-hook.sh\",\n    \"type\": \"command\"\n  }\n]"
-        }
-      ],
+      "hooks": [],
       "mcp_servers": [],
       "rules": [],
       "author": {

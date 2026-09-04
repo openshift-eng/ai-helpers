@@ -1,18 +1,27 @@
 ---
 name: review-docs
 description: Review agentic documentation — verify claims locally against source code first, then use chai-bot for cross-repo and cross-functional verification
-trigger: explicit
 ---
 
 # Documentation Review & Verification
 
-Reviews agentic documentation using **two-tier verification**: local codebase checks first, then cross-repo verification via **chai-bot MCP server** for claims that can't be resolved locally. Verify locally when possible, escalate to chai-bot when necessary.
+Reviews agentic documentation using **two-tier verification**: local codebase checks first, then cross-repo verification via **Chai Bot** for claims that can't be resolved locally. Chai Bot access may be provided directly by its hosted workspace or through an external MCP connection. Verify locally when possible, escalate to Chai Bot when necessary.
 
 ## Prerequisites
 
-**Recommended** (for cross-repo verification): chai-bot MCP server configured with bearer token and Red Hat VPN connection. Without chai-bot, cross-repo claims (enhancements, platform terminology, convention compliance, non-vendored API types) are flagged as "unverified" but local verification still runs fully.
+**Recommended** (for cross-repo verification): Chai Bot access through its hosted workspace or an external MCP connection. External access requires a configured bearer token and Red Hat VPN connection. Without either access path, cross-repo claims (enhancements, platform terminology, convention compliance, non-vendored API types) are flagged as "unverified" but local verification still runs fully.
 
-Setup instructions: See [plugin README](../../README.md#setup) for chai-bot configuration steps.
+External MCP setup instructions: See [plugin README](../../README.md#setup) for Chai Bot configuration steps.
+
+## Chai Bot Access
+
+Before any Chai Bot-assisted operation, select exactly one access path:
+
+1. **Hosted** — If explicit host context identifies execution inside Chai Bot's hosted workspace and provides a callable knowledge/search capability, use that capability. Do not configure or call a second Chai Bot MCP server.
+2. **External** — Otherwise, use an available Chai Bot `ask_persona` MCP capability. Hosts may normalize the server name differently; select it by capability, not by an exact tool identifier.
+3. **Unavailable** — If neither path is available, report which Chai Bot-assisted work could not be performed. Do not infer or fabricate results.
+
+Resolve the access path once per run and reuse it. Explicit hosted context without a callable knowledge capability is unavailable, not permission to invent results. Do not infer hosted execution merely from a missing MCP tool, repository name, or working directory. Never modify MCP configuration from a managed hosted workspace.
 
 ## When to Use
 
@@ -78,8 +87,8 @@ Always run the local check first. If a claim fails locally, report it — no nee
 ### Phase 1: Document Discovery
 - [ ] Identify doc type (component or platform) and determine component repo from git remote or current working directory
 - [ ] Scope discovery to the generated documentation structure — do not crawl the entire repo:
-  - **Component docs**: `AGENTS.md`, `ai-docs/` tree, `*_DEVELOPMENT.md`, `*_TESTING.md`
-  - **Platform docs**: `enhancements/ai-docs/` tree
+  - **Component docs**: `AGENTS.md`, `CLAUDE.md` (symlink), `REVIEW.md`, `.coderabbit.yaml`, `ai-docs/` tree (`ARCHITECTURE.md`, `DEVELOPMENT.md`, `TESTING.md`, `ENHANCEMENTS.md` if present)
+  - **Platform docs** (when running inside openshift/enhancements): `dev-guide/`, `guidelines/`, `CONVENTIONS.md`
   - If `--path` is specified, scope to that path instead
 - [ ] Use `find` within the scoped paths to catalog ALL markdown files
 - [ ] Read EVERY file found — do not skip any
@@ -93,7 +102,7 @@ For each file, systematically extract every verifiable claim and track it intern
 - Treat every line of documentation content as potentially containing one or more claims. If a line contains no verifiable assertion, skip it — but err on the side of extraction.
 - A doc file with N lines of substantive content should typically yield claims proportional to its density. If a 40-line section yields only 3 claims, re-read it — something was missed.
 
-**Cross-file consistency**: After extracting claims from all files, check for internal contradictions — the same concept described differently across files (e.g., AGENTS.md says "uses SSA" while components.md says "strategic merge"). Flag these before any verification queries.
+**Cross-file consistency**: After extracting claims from all files, check for internal contradictions — the same concept described differently across files (e.g., AGENTS.md says "uses SSA" while ARCHITECTURE.md says "strategic merge"). Flag these before any verification queries.
 
 The claims inventory is internal — it is not written to a file or shown to the user. But every claim in it must receive a verification status (verified, failed, or skipped) before the review can proceed, and the final report must include coverage totals derived from it.
 
@@ -137,6 +146,14 @@ Verify all local claims from the Phase 2 claims inventory against the current re
 - [ ] Verify claimed test directories exist
 - [ ] Verify claimed test framework imports appear in test files
 
+**REVIEW.md & .coderabbit.yaml** (if present):
+- [ ] For each skip path glob (e.g., `**/clientset/**`): verify the base directory exists in the repo (`test -d`)
+- [ ] For each platform rule citation (e.g., "dev-guide/api-conventions.md"): verify the cited file exists in openshift/enhancements
+- [ ] For each path-specific rule: verify the glob matches actual directories and the described pattern exists in code
+- [ ] Verify .coderabbit.yaml `path_filters` match the "Do not report" globs in REVIEW.md
+- [ ] Verify .coderabbit.yaml `path_instructions` match the "Path-specific rules" sections in REVIEW.md
+- [ ] Verify .coderabbit.yaml `filePatterns` includes "REVIEW.md" and "AGENTS.md" but NOT "CLAUDE.md"
+
 **Links**:
 - [ ] Check ALL internal file references resolve locally
 - [ ] Verify external HTTPS links with curl (timeout 10s). Some sites return non-200 for automated requests — GitHub rate-limits, `docs.openshift.com` blocks curl. Treat 403/429 as "needs manual check" not automatic failure
@@ -152,54 +169,9 @@ For each missed claim found: add it to the inventory, verify it immediately (loc
 
 ### Phase 4: Cross-Repo Verification via chai-bot
 
-Verify all cross-repo claims that could not be resolved locally.
-
-**Step 1 — Check chai-bot availability**:
-- [ ] Call `mcp__chai-bot__ask_persona` with a simple test question
-- [ ] If unavailable or call fails, inform user and skip to Phase 5 with cross-repo claims marked "unverified":
-  - Tool not found → restart Claude Code to reload MCP servers
-  - 401 → bearer token expired, request new token from chai-bot Slack app
-  - Timeout → check VPN connection to Red Hat network
-  - See [plugin README](../../README.md#setup) for setup details
-
-**Step 2 — Batch verification via chai-bot**:
-
-Batch related claims into grouped queries to reduce round-trips — each call takes ~15-25 seconds. Group all field claims for the same API type into one query, all convention claims for the same repo into one query, all enhancement references into one query, etc.
-
-- [ ] Verify ALL cross-repo claims — prioritize high-risk claims first (API fields, feature gate definitions, cross-component behavior)
-- [ ] Parse responses for confirmations, contradictions, or unknowns
-- [ ] Classify each chai-bot response by confidence:
-  - **Confirmed** — response cites specific files, structs, or line references that match the claim
-  - **Contradicted** — response cites evidence that conflicts with the claim
-  - **Unverified** — response is hedged ("I think", "probably", "I'm not sure"), lacks source references, or chai-bot was unavailable. These MUST NOT be treated as confirmed
-- [ ] Expect 10-20+ queries for a comprehensive review
-
-**Question construction templates** (substitute `{component}`, `{api-type}`, etc.):
-
-```text
-API fields (batch all fields for one type): "In github.com/openshift/api,
-what fields are defined in the {api-type}Spec struct? Please list field
-names, types, and any documented default values from the actual Go type
-definition."
-
-Feature gates (batch per operator): "What feature gates are defined for
-{component} in openshift/api? List gate names, stages, and version
-information."
-
-Enhancements (batch related): "Do the following enhancements exist in
-openshift/enhancements, and do they match the claimed descriptions?
-1. enhancements/{area}/{enhancement-file-1}.md
-2. enhancements/{area}/{enhancement-file-2}.md"
-
-Terminology: "In the official OpenShift documentation, how is {component}
-described? What is the correct terminology?"
-
-Cross-component: "How does {other-component} interact with {component}
-during {operation}?"
-
-Convention check: "What are the platform conventions for {pattern} in
-OpenShift operators? Does the pattern used by {component} match?"
-```
+- [ ] Use the Chai Bot access path selected above
+- [ ] If hosted or external access is available: read and follow `guides/CHAI-BOT-VERIFICATION.md` using that path — verify all cross-repo claims
+- [ ] If Chai Bot is unavailable: inform user, mark all cross-repo claims as "unverified", skip to Phase 5
 
 ### Phase 5: Report Findings
 
@@ -261,4 +233,4 @@ Summarize findings directly to the user with:
 - `/update-platform-docs` - Update platform documentation
 - [openshift/api](https://github.com/openshift/api) - OpenShift API types
 - [openshift-docs](https://github.com/openshift/openshift-docs) - Official documentation (terminology cross-check)
-- [chai-bot](https://github.com/openshift/chai-bot) - OpenShift AI helpdesk (MCP server)
+- [openshift/enhancements](https://github.com/openshift/enhancements) - OpenShift enhancements
