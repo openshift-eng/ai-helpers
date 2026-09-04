@@ -918,14 +918,7 @@ footer a { color: var(--primary); }
         }
       ],
       "hooks": [],
-      "mcp_servers": [
-        {
-          "name": "ship-status",
-          "type": "http",
-          "endpoint": "https://mcp.ship-status.ci.openshift.org/mcp",
-          "source": ".mcp.json"
-        }
-      ],
+      "mcp_servers": [],
       "rules": [],
       "category": "ci",
       "keywords": [
@@ -1323,11 +1316,17 @@ footer a { color: var(--primary); }
     },
     {
       "name": "golang",
-      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, CVE dependency patching, and Go stdlib CVE triage for OpenShift releases",
-      "version": "0.4.0",
+      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, CVE dependency patching, Go stdlib CVE triage, and OCP and OKD release Go builder audits",
+      "version": "0.5.0",
       "has_readme": true,
       "commands": [],
       "skills": [
+        {
+          "name": "audit-release-go-version",
+          "description": "Audit the effective Go builder versions used by images in an OpenShift Container Platform release image or payload against a requested Go version.\nUse when the user asks which OCP release images were built with a different Go version, wants a concise payload Go-version audit, or needs Dockerfile builder evidence for an OpenShift release.\n",
+          "description_html": "Audit the effective Go builder versions used by images in an OpenShift Container Platform release image or payload against a requested Go version.\u003cbr\u003eUse when the user asks which OCP release images were built with a different Go version, wants a concise payload Go-version audit, or needs Dockerfile builder evidence for an OpenShift release.",
+          "meta": ""
+        },
         {
           "name": "fix-cve",
           "description": "Patch a Go dependency to fix a CVE using the appropriate strategy based on Go version compatibility.\nUse when the user wants to fix a CVE by updating a Go module, replacing it with a patched fork,\nor applying a security patch across all go.mod files in a Go project.\nTriggers on: 'patch CVE', 'fix CVE', 'replace grpc', 'update vulnerable dependency',\n'security patch go module', or any mention of CVE + Go dependency replacement.\n",
