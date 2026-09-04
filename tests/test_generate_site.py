@@ -91,6 +91,26 @@ description: Review a proposed change
     return repo_root, marketplace_path
 
 
+def seed_existing_output(repo_root: Path) -> tuple[Path, dict[Path, str]]:
+    """Create representative generated files that a failed run must preserve."""
+    output_dir = repo_root / "site"
+    files = {
+        output_dir / "docs" / "index.md": "existing home\n",
+        output_dir / "docs" / "plugins" / "existing.md": "existing plugin\n",
+        output_dir / "docs" / "categories" / "existing.md": "existing category\n",
+        output_dir / "mkdocs.yml": "site_name: Existing\n",
+    }
+    for path, content in files.items():
+        write(path, content)
+    return output_dir, files
+
+
+def assert_output_unchanged(files: dict[Path, str]) -> None:
+    """Assert that every seeded output file retains its original content."""
+    for path, content in files.items():
+        assert path.read_text(encoding="utf-8") == content
+
+
 def test_generate_site_builds_navigation_and_content(tmp_path):
     repo_root, marketplace_path = marketplace_fixture(tmp_path)
     output_dir = repo_root / "site"
@@ -152,12 +172,12 @@ def test_generate_site_rejects_colliding_plugin_paths(tmp_path):
         for index, name in enumerate(("Foo Bar", "foo-bar"))
     ]
     marketplace_path.write_text(json.dumps(marketplace), encoding="utf-8")
-    output_dir = repo_root / "site"
+    output_dir, existing_files = seed_existing_output(repo_root)
 
     with pytest.raises(ValueError, match="Generated path collision"):
         generate_site(repo_root, marketplace_path, output_dir)
 
-    assert not (output_dir / "docs" / "index.md").exists()
+    assert_output_unchanged(existing_files)
 
 
 @pytest.mark.parametrize("plugin_name", [".", ".."])
@@ -166,12 +186,12 @@ def test_generate_site_rejects_reserved_plugin_slugs(tmp_path, plugin_name):
     marketplace = json.loads(marketplace_path.read_text(encoding="utf-8"))
     marketplace["plugins"][0]["name"] = plugin_name
     marketplace_path.write_text(json.dumps(marketplace), encoding="utf-8")
-    output_dir = repo_root / "site"
+    output_dir, existing_files = seed_existing_output(repo_root)
 
     with pytest.raises(ValueError, match="is reserved"):
         generate_site(repo_root, marketplace_path, output_dir)
 
-    assert not (output_dir / "docs" / "index.md").exists()
+    assert_output_unchanged(existing_files)
 
 
 def test_generate_site_rejects_colliding_item_paths(tmp_path):
@@ -180,8 +200,12 @@ def test_generate_site_rejects_colliding_item_paths(tmp_path):
     write(commands_dir / "one.md", "---\nname: Foo Bar\n---\n")
     write(commands_dir / "two.md", "---\nname: foo-bar\n---\n")
 
+    output_dir, existing_files = seed_existing_output(repo_root)
+
     with pytest.raises(ValueError, match="Generated path collision"):
-        generate_site(repo_root, marketplace_path, repo_root / "site")
+        generate_site(repo_root, marketplace_path, output_dir)
+
+    assert_output_unchanged(existing_files)
 
 
 def test_generate_site_rejects_colliding_category_paths(tmp_path):
@@ -191,5 +215,9 @@ def test_generate_site_rejects_colliding_category_paths(tmp_path):
     marketplace["plugins"][1]["category"] = "team-tools"
     marketplace_path.write_text(json.dumps(marketplace), encoding="utf-8")
 
+    output_dir, existing_files = seed_existing_output(repo_root)
+
     with pytest.raises(ValueError, match="Generated path collision"):
-        generate_site(repo_root, marketplace_path, repo_root / "site")
+        generate_site(repo_root, marketplace_path, output_dir)
+
+    assert_output_unchanged(existing_files)
