@@ -1,15 +1,39 @@
 # Getting Started
 
-AI Helpers is a marketplace of Claude Code plugins for OpenShift engineering
-workflows. Add the marketplace once, then install only the plugins you need.
+AI Helpers is a marketplace of plugins for OpenShift engineering workflows.
+Add the marketplace once, then install only the plugins you need.
 
-## Add the marketplace
+## Codex
+
+Add the marketplace:
+
+```text
+codex plugin marketplace add openshift-eng/ai-helpers
+```
+
+Install the recommended starter plugins:
+
+```text
+codex plugin add openshift-developer@ai-helpers
+codex plugin add jira@ai-helpers
+codex plugin add code-review@ai-helpers
+```
+
+Install any other plugin from this site with the same pattern:
+
+```text
+codex plugin add <plugin-name>@ai-helpers
+```
+
+## Claude Code
+
+### Add the marketplace
 
 ```text
 /plugin marketplace add openshift-eng/ai-helpers
 ```
 
-## Browse plugins
+### Browse plugins
 
 Open the plugin manager to browse the catalog:
 
@@ -17,7 +41,7 @@ Open the plugin manager to browse the catalog:
 /plugin
 ```
 
-## Install a plugin
+### Install a plugin
 
 ```text
 /plugin install <plugin-name>@ai-helpers
@@ -29,7 +53,7 @@ For example:
 /plugin install jira@ai-helpers
 ```
 
-## Update installed plugins
+### Update installed plugins
 
 Refresh the catalog, then reinstall a plugin to pick up its current version:
 
@@ -38,7 +62,7 @@ Refresh the catalog, then reinstall a plugin to pick up its current version:
 /plugin install <plugin-name>@ai-helpers
 ```
 
-## Preview a branch
+### Preview a branch
 
 Before a marketplace change merges, add a fork and branch directly:
 
