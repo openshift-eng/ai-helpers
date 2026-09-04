@@ -1,5 +1,6 @@
 import io
 import json
+import socket
 import urllib.error
 
 import pytest
@@ -76,21 +77,23 @@ class FakeResponse:
         return False
 
 
-def _patch_urlopen(monkeypatch, responses):
-    """Make urlopen return or raise each entry in responses."""
+def _patch_open_url(monkeypatch, responses):
+    """Make the HTTP opener return or raise each entry in responses."""
     calls = []
 
-    def fake_urlopen(req, timeout=None):
+    def fake_open_url(req, timeout=None):
         calls.append((req, timeout))
         response = responses[len(calls) - 1]
         if isinstance(response, Exception):
             raise response
+        if isinstance(response, FakeResponse):
+            return response
         status, body = response
         if not isinstance(body, str):
             body = json.dumps(body)
         return FakeResponse(body, status)
 
-    monkeypatch.setattr(reevaluate_job_runs.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(reevaluate_job_runs, "_open_url", fake_open_url)
     return calls
 
 
@@ -132,7 +135,7 @@ def _http_error(code, body='{"message":"server problem"}'):
 
 
 def test_submit_batch_sends_one_202_request_with_all_ids_and_dry_run(monkeypatch):
-    calls = _patch_urlopen(monkeypatch, [(202, _submission())])
+    calls = _patch_open_url(monkeypatch, [(202, _submission())])
 
     response, status_url = submit_batch(["1", "2"], "tok", True)
 
@@ -148,7 +151,7 @@ def test_submit_batch_sends_one_202_request_with_all_ids_and_dry_run(monkeypatch
 
 
 def test_submit_batch_uses_documented_status_url_when_link_is_absent(monkeypatch):
-    calls = _patch_urlopen(monkeypatch, [(202, _submission(include_link=False))])
+    calls = _patch_open_url(monkeypatch, [(202, _submission(include_link=False))])
 
     _, status_url = submit_batch(["1", "2"], "tok", False)
 
@@ -157,7 +160,7 @@ def test_submit_batch_uses_documented_status_url_when_link_is_absent(monkeypatch
 
 
 def test_submit_batch_requires_202(monkeypatch):
-    _patch_urlopen(monkeypatch, [(200, _submission())])
+    _patch_open_url(monkeypatch, [(200, _submission())])
 
     with pytest.raises(APIError, match="expected HTTP 202, got HTTP 200"):
         submit_batch(["1", "2"], "tok", False)
@@ -180,14 +183,14 @@ def test_submit_batch_requires_202(monkeypatch):
     ],
 )
 def test_submit_batch_rejects_malformed_response(monkeypatch, response, error):
-    _patch_urlopen(monkeypatch, [(202, response)])
+    _patch_open_url(monkeypatch, [(202, response)])
 
     with pytest.raises(MalformedResponseError, match=error):
         submit_batch(["1", "2"], "tok", False)
 
 
 def test_submit_batch_reports_http_error_without_retry(monkeypatch):
-    calls = _patch_urlopen(monkeypatch, [_http_error(500)])
+    calls = _patch_open_url(monkeypatch, [_http_error(500)])
 
     with pytest.raises(APIError, match="HTTP 500: server problem"):
         submit_batch(["1", "2"], "tok", False)
@@ -195,10 +198,58 @@ def test_submit_batch_reports_http_error_without_retry(monkeypatch):
 
 
 def test_submit_batch_detects_sso_login_page(monkeypatch):
-    _patch_urlopen(monkeypatch, [(202, "<html><body>Log in to your account</body></html>")])
+    _patch_open_url(monkeypatch, [(202, "<html><body>Log in to your account</body></html>")])
 
     with pytest.raises(APIError, match="token is missing/expired"):
         submit_batch(["1", "2"], "tok", False)
+
+
+def test_submit_batch_converts_timeout_to_controlled_api_error(monkeypatch):
+    _patch_open_url(monkeypatch, [TimeoutError("submission timed out")])
+
+    with pytest.raises(APIError, match="request timeout: submission timed out") as caught:
+        submit_batch(["1", "2"], "tok", False)
+
+    assert caught.value.retryable is True
+
+
+def test_cross_origin_redirect_strips_authorization_header():
+    handler = reevaluate_job_runs.SameOriginAuthRedirectHandler()
+    request = urllib.request.Request(
+        STATUS_URL,
+        headers={"Authorization": "Bearer secret", "Accept": "application/json"},
+    )
+
+    redirected = handler.redirect_request(
+        request,
+        None,
+        302,
+        "Found",
+        {},
+        "https://attacker.invalid/collect",
+    )
+
+    assert redirected.get_header("Authorization") is None
+    assert redirected.get_header("Accept") == "application/json"
+
+
+def test_same_origin_redirect_preserves_authorization_header():
+    handler = reevaluate_job_runs.SameOriginAuthRedirectHandler()
+    request = urllib.request.Request(
+        reevaluate_job_runs.URL,
+        headers={"Authorization": "Bearer tok"},
+    )
+
+    redirected = handler.redirect_request(
+        request,
+        None,
+        307,
+        "Temporary Redirect",
+        {},
+        reevaluate_job_runs.URL + "/same-origin",
+    )
+
+    assert redirected.get_header("Authorization") == "Bearer tok"
 
 
 def test_poll_batch_follows_nonterminal_states_until_complete(monkeypatch):
@@ -208,7 +259,7 @@ def test_poll_batch_follows_nonterminal_states_until_complete(monkeypatch):
         (200, _status("running", completed=0, running=1, pending=1)),
         (200, _status("complete")),
     ]
-    calls = _patch_urlopen(monkeypatch, responses)
+    calls = _patch_open_url(monkeypatch, responses)
     sleeps = []
 
     response = poll_batch(STATUS_URL, BATCH_ID, "tok", poll_interval=0.01, sleeper=sleeps.append)
@@ -221,7 +272,7 @@ def test_poll_batch_follows_nonterminal_states_until_complete(monkeypatch):
 
 @pytest.mark.parametrize("terminal", ["failed", "cancelled"])
 def test_poll_batch_returns_terminal_failure_and_cancelled(monkeypatch, terminal):
-    calls = _patch_urlopen(monkeypatch, [(200, _status(terminal))])
+    calls = _patch_open_url(monkeypatch, [(200, _status(terminal))])
 
     response = poll_batch(STATUS_URL, BATCH_ID, "tok", sleeper=lambda _: None)
 
@@ -230,7 +281,7 @@ def test_poll_batch_returns_terminal_failure_and_cancelled(monkeypatch, terminal
 
 
 def test_poll_batch_retries_transient_http_error(monkeypatch):
-    calls = _patch_urlopen(monkeypatch, [_http_error(503), (200, _status())])
+    calls = _patch_open_url(monkeypatch, [_http_error(503), (200, _status())])
     sleeps = []
 
     response = poll_batch(STATUS_URL, BATCH_ID, "tok", poll_interval=0.01, sleeper=sleeps.append)
@@ -240,8 +291,51 @@ def test_poll_batch_retries_transient_http_error(monkeypatch):
     assert sleeps == [0.01]
 
 
+class ReadTimeoutResponse(FakeResponse):
+    def __init__(self):
+        super().__init__("", 200)
+
+    def read(self):
+        raise socket.timeout("response read timed out")
+
+
+def test_poll_batch_retries_response_read_timeout(monkeypatch):
+    calls = _patch_open_url(monkeypatch, [ReadTimeoutResponse(), (200, _status())])
+    sleeps = []
+
+    response = poll_batch(
+        STATUS_URL,
+        BATCH_ID,
+        "tok",
+        poll_interval=0.01,
+        sleeper=sleeps.append,
+    )
+
+    assert response["status"] == "complete"
+    assert len(calls) == 2
+    assert sleeps == [0.01]
+
+
+def test_poll_batch_stops_after_consecutive_timeout_errors(monkeypatch):
+    errors = [TimeoutError("timed out")] * reevaluate_job_runs.MAX_CONSECUTIVE_POLL_ERRORS
+    calls = _patch_open_url(monkeypatch, errors)
+    sleeps = []
+
+    with pytest.raises(APIError, match="lost connection to batch status after 5 attempts"):
+        poll_batch(
+            STATUS_URL,
+            BATCH_ID,
+            "tok",
+            poll_interval=0.01,
+            sleeper=sleeps.append,
+        )
+
+    assert len(calls) == reevaluate_job_runs.MAX_CONSECUTIVE_POLL_ERRORS
+    assert sleeps == [0.01] * (reevaluate_job_runs.MAX_CONSECUTIVE_POLL_ERRORS - 1)
+
+
 def test_poll_batch_does_not_retry_auth_error(monkeypatch):
-    calls = _patch_urlopen(monkeypatch, [_http_error(401)])
+    calls = _patch_open_url(monkeypatch, [_http_error(401)])
 
     with pytest.raises(APIError, match="token missing/expired"):
         poll_batch(STATUS_URL, BATCH_ID, "tok", sleeper=lambda _: None)
@@ -259,7 +353,7 @@ def test_poll_batch_does_not_retry_auth_error(monkeypatch):
     ],
 )
 def test_poll_batch_rejects_malformed_status_response(monkeypatch, response, error):
-    _patch_urlopen(monkeypatch, [(200, response)])
+    _patch_open_url(monkeypatch, [(200, response)])
 
     with pytest.raises(MalformedResponseError, match=error):
         poll_batch(STATUS_URL, BATCH_ID, "tok", sleeper=lambda _: None)
@@ -283,6 +377,61 @@ def test_main_deduplicates_inputs_and_preserves_dry_run_json(monkeypatch, capsys
     assert submitted == {"ids": ["1", "2"], "token": "tok", "dry_run": True}
     output = json.loads(capsys.readouterr().out)
     assert output == {"submission": _submission(), "status": _status()}
+
+
+def test_main_submission_api_error_emits_structured_json(monkeypatch, capsys):
+    def fail_submission(*args):
+        raise APIError("HTTP 503: unavailable", retryable=True)
+
+    monkeypatch.setattr(reevaluate_job_runs, "submit_batch", fail_submission)
+
+    rc = reevaluate_job_runs.main(["1", "2", "--token", "tok", "--format", "json"])
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert rc == 1
+    assert "Error: HTTP 503: unavailable" in captured.err
+    assert output["submission"] is None
+    assert output["status"] is None
+    assert output["failed_batches"] == [
+        {
+            "batch": 1,
+            "ids": ["1", "2"],
+            "stage": "submission",
+            "error": "HTTP 503: unavailable",
+        }
+    ]
+
+
+def test_main_poll_api_error_emits_structured_json_with_batch_id(monkeypatch, capsys):
+    monkeypatch.setattr(
+        reevaluate_job_runs,
+        "submit_batch",
+        lambda *args: (_submission(), STATUS_URL),
+    )
+
+    def fail_poll(*args):
+        raise APIError("lost connection to batch status after 5 attempts")
+
+    monkeypatch.setattr(reevaluate_job_runs, "poll_batch", fail_poll)
+
+    rc = reevaluate_job_runs.main(["1", "2", "--token", "tok", "--format", "json"])
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert rc == 1
+    assert "Error: lost connection" in captured.err
+    assert output["submission"] == _submission()
+    assert output["status"] is None
+    assert output["failed_batches"] == [
+        {
+            "batch": 1,
+            "ids": ["1", "2"],
+            "stage": "polling",
+            "error": "lost connection to batch status after 5 attempts",
+            "batch_id": BATCH_ID,
+        }
+    ]
 
 
 @pytest.mark.parametrize(

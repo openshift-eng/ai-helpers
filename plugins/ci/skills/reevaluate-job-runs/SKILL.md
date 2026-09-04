@@ -175,6 +175,7 @@ Reevaluation is delete-then-insert and **idempotent**. Manually-applied labels (
 - The script makes exactly one POST containing all unique IDs and `dry_run`, captures the returned `batch_id`, then polls the batch status endpoint every 2.5 seconds.
 - Polling continues through `pending`, `processing`, and `running` until the server reports `complete`, `failed`, or `cancelled`.
 - Transient status polling errors (HTTP 429/502/503/504 or connection errors) are retried up to five consecutive times. The POST is not retried automatically because a successful submission creates a new batch even if the client loses the response.
+- The returned status link must match the documented HTTPS origin and batch path. Authorization is preserved across same-origin redirects but stripped before following any cross-origin redirect.
 - **Warning:** an HTML login page response means the token expired — the SSO proxy redirects to login instead of returning 401. The script detects this and tells you to refresh the token via the `oc-auth` skill.
 
 ## Error Handling
@@ -182,11 +183,13 @@ Reevaluation is delete-then-insert and **idempotent**. Manually-applied labels (
 - **Invalid/non-numeric IDs**: Caught client-side before any request (exit 1) — pass a numeric build ID or a Prow URL ending in one (query strings and `#fragments` are stripped automatically).
 - **More than 10,000 unique IDs**: Rejected client-side before submission (exit 1).
 - **Submission HTTP error or malformed 202 response**: Reported immediately; the POST is not retried (exit 1).
-- **Transient polling error**: Retried up to five consecutive times; persistent failure exits 1 while preserving the batch ID in preceding progress output so polling can be resumed manually.
+- **Transient polling error or request timeout**: Retried up to five consecutive times; persistent failure exits 1 while preserving the batch ID in preceding progress output so polling can be resumed manually.
 - **Authentication failure (HTML login page or 401/403)**: Token missing/expired — the script stops immediately. Refresh the token via the `oc-auth` skill and rerun or query the captured batch ID.
 - **Malformed status response**: Unknown statuses, missing counters/items, or a mismatched batch ID stop polling (exit 1).
 - **Per-run failure**: Inspect the `failed` counter and item states. River reports failed work as `discarded`, `cancelled`, or `orphaned`.
 - **501**: You hit the read-only Sippy instance; make sure the sippy-auth base URL is used (the script already does).
+
+When `--format json` is selected, submission and polling failures also produce a valid JSON object on stdout with `submission`, `status: null`, and a single `failed_batches` entry. The same useful error is written to stderr and the process exits 1.
 
 **Exit Codes**:
 - `0`: The batch reached `complete` with zero failed items

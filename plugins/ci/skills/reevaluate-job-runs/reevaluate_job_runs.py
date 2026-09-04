@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import socket
 import sys
 import time
 import urllib.error
@@ -38,6 +39,31 @@ class APIError(Exception):
 
 class MalformedResponseError(APIError):
     """The API returned JSON that does not match its documented contract."""
+
+
+def _url_origin(url):
+    parsed = urllib.parse.urlsplit(url)
+    default_port = 443 if parsed.scheme.lower() == "https" else 80
+    return parsed.scheme.lower(), (parsed.hostname or "").lower(), parsed.port or default_port
+
+
+class SameOriginAuthRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Keep Authorization on same-origin redirects and strip it otherwise."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is not None and _url_origin(req.full_url) != _url_origin(
+            redirected.full_url
+        ):
+            redirected.remove_header("Authorization")
+        return redirected
+
+
+_OPENER = urllib.request.build_opener(SameOriginAuthRedirectHandler())
+
+
+def _open_url(req, timeout):
+    return _OPENER.open(req, timeout=timeout)
 
 
 def resolve_token(arg_token, env=None):
@@ -88,7 +114,7 @@ def _request_json(url, token, method, expected_status, payload=None):
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
 
     try:
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        with _open_url(req, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             status = _response_status(response)
             body = response.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as error:
@@ -104,6 +130,9 @@ def _request_json(url, token, method, expected_status, payload=None):
         raise APIError(message, retryable=error.code in (429, 502, 503, 504))
     except urllib.error.URLError as error:
         raise APIError("connection error: %s" % error.reason, retryable=True)
+    except (socket.timeout, TimeoutError) as error:
+        detail = str(error) or "request timed out"
+        raise APIError("request timeout: %s" % detail, retryable=True)
 
     if status != expected_status:
         raise APIError("expected HTTP %d, got HTTP %d" % (expected_status, status))
@@ -270,6 +299,22 @@ def _print_summary(response, dry_run):
         print("Run %s: %s" % (item["item_key"], item["state"]))
 
 
+def _print_failure_json(submission, ids, stage, message):
+    failure = {"batch": 1, "ids": ids, "stage": stage, "error": message}
+    if submission is not None:
+        failure["batch_id"] = submission["batch_id"]
+    print(
+        json.dumps(
+            {
+                "submission": submission,
+                "status": None,
+                "failed_batches": [failure],
+            },
+            indent=2,
+        )
+    )
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Reevaluate symptoms on Prow job runs"
@@ -313,6 +358,8 @@ def main(argv=None):
         )
         return 1
 
+    submission = None
+    stage = "submission"
     try:
         submission, status_url = submit_batch(ids, token, args.dry_run)
         print(
@@ -320,6 +367,7 @@ def main(argv=None):
             % (submission["batch_id"], submission["requested"], status_url),
             file=sys.stderr,
         )
+        stage = "polling"
         final_status = poll_batch(status_url, submission["batch_id"], token)
     except (APIError, KeyboardInterrupt) as error:
         message = (
@@ -328,6 +376,8 @@ def main(argv=None):
             else str(error)
         )
         print("Error: %s" % message, file=sys.stderr)
+        if args.format == "json":
+            _print_failure_json(submission, ids, stage, message)
         return 1
 
     if args.format == "json":
