@@ -225,16 +225,16 @@ Using the pre-gathered data, apply the activity analysis rules from `activity-an
 
 ##### c. Generate Status Update
 
-Format using `ryg_field` template:
+Format the status content using the `ryg_field` structure. The content will be written as ADF (Atlassian Document Format) — a nested `bulletList` with three top-level items: Color Status, Status summary (with nested bullet items), and Risks (with nested bullet items).
 
-```
+**Logical structure:**
+
 - Color Status: {Red, Yellow, Green}
-  - Status summary:
-    - Thing 1 that happened since last week
-    - Thing 2 that happened since last week
-  - Risks:
-    - Risk 1 (or "None at this time")
-```
+- Status summary:
+  - Thing 1 that happened since last week
+  - Thing 2 that happened since last week
+- Risks:
+  - Risk 1 (or "None at this time")
 
 ##### d. Present to User for Review
 
@@ -287,10 +287,69 @@ Options:
 - Ask: "Please provide your updated status text (maintain the bullet format):"
 - Validate format (should start with `- Color Status:`)
 - Show modified version and ask for final confirmation
+- Convert the modified text to an ADF JSON document before updating (same `bulletList`/`listItem` structure as auto-generated updates)
 
 ##### e. Update the Issue
 
-Use `editJiraIssue` with `contentFormat: "markdown"` to set `customfield_10814` (Status Summary) to the formatted status text.
+Use `editJiraIssue` with `contentFormat: "adf"` to set `customfield_10814` (Status Summary). This field requires an ADF (Atlassian Document Format) JSON document — passing a plain string (even with `contentFormat: "markdown"`) will fail with `"Operation value must be an Atlassian Document"`.
+
+Construct the ADF as a `bulletList` with three top-level `listItem` nodes. The Status summary and Risks items each contain a nested `bulletList` for their sub-items.
+
+```javascript
+editJiraIssue(
+  cloudId: "redhat.atlassian.net",
+  issueIdOrKey: "{ISSUE_KEY}",
+  contentFormat: "adf",
+  fields: {
+    "customfield_10814": {
+      "type": "doc",
+      "version": 1,
+      "content": [{
+        "type": "bulletList",
+        "content": [
+          // Item 1: Color Status
+          {"type": "listItem", "content": [
+            {"type": "paragraph", "content": [
+              {"type": "text", "text": "Color Status: Green"}
+            ]}
+          ]},
+          // Item 2: Status summary with nested bullets
+          {"type": "listItem", "content": [
+            {"type": "paragraph", "content": [
+              {"type": "text", "text": "Status summary:"}
+            ]},
+            {"type": "bulletList", "content": [
+              {"type": "listItem", "content": [
+                {"type": "paragraph", "content": [
+                  {"type": "text", "text": "Achievement or progress item 1"}
+                ]}
+              ]},
+              {"type": "listItem", "content": [
+                {"type": "paragraph", "content": [
+                  {"type": "text", "text": "Achievement or progress item 2"}
+                ]}
+              ]}
+            ]}
+          ]},
+          // Item 3: Risks with nested bullets
+          {"type": "listItem", "content": [
+            {"type": "paragraph", "content": [
+              {"type": "text", "text": "Risks:"}
+            ]},
+            {"type": "bulletList", "content": [
+              {"type": "listItem", "content": [
+                {"type": "paragraph", "content": [
+                  {"type": "text", "text": "None at this time"}
+                ]}
+              ]}
+            ]}
+          ]}
+        ]
+      }]
+    }
+  }
+)
+```
 
 Display confirmation: `✓ Updated {ISSUE-KEY}`
 
@@ -507,7 +566,7 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 
 5. **Format Validation**:
    - Validate Status Summary text format before updating
-   - Ensure markdown bullet point structure is maintained
+   - Ensure the value is a valid ADF JSON document with the correct `bulletList`/`listItem` structure
    - Check for Color Status line (Red/Yellow/Green)
    - Warn if format doesn't match expected template
 
