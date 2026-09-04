@@ -1,22 +1,21 @@
 ---
 name: component-docs
 description: Create lean component documentation for OpenShift repositories
-trigger: explicit
 ---
 
 # Component Documentation Creator
 
 Creates lean component agentic documentation for OpenShift component repositories.
 
-**Philosophy**: Component docs contain ONLY component-specific knowledge. Generic platform patterns live in platform (openshift/enhancements/ai-docs/).
+**Philosophy**: Component docs contain ONLY component-specific knowledge. Generic platform patterns live in the openshift/enhancements repo (`dev-guide/`, `guidelines/`, `CONVENTIONS.md`). Code is the source of truth — read it, verify claims against it, but link to existing repo docs that explain the "why".
 
 ## Two-Tier Architecture
 
-### Platform: Platform Hub (openshift/enhancements/ai-docs/)
-**Contains**: Operator patterns, testing practices, security guidelines, Kubernetes/OpenShift fundamentals, cross-repo ADRs
+### Platform: openshift/enhancements
+**Contains**: Development conventions (`dev-guide/`), coding standards (`CONVENTIONS.md`), enhancement guidelines (`guidelines/`), cross-repo architectural context
 
 ### Component: Component Repos (LEAN)
-**Contains**: Component-specific APIs/types, component architecture, component ADRs, exec-plans
+**Contains**: Component-specific architecture, behavioral contracts, development guides, test patterns
 
 **Decision Rule**: "Would another repo need to duplicate this?"
 - YES → Platform (platform)
@@ -26,24 +25,15 @@ Creates lean component agentic documentation for OpenShift component repositorie
 
 ```text
 component-repo/
-├── AGENTS.md                      # Master entry point (80-100 lines)
+├── AGENTS.md                      # Executive briefing (40-60 lines)
+├── CLAUDE.md → AGENTS.md          # Symlink (Claude Code auto-loads)
 ├── REVIEW.md                      # Review instructions (Claude Code Review + CodeRabbit)
 ├── .coderabbit.yaml               # CodeRabbit config (points at REVIEW.md)
 └── ai-docs/
-    ├── domain/                    # Component APIs/types
-    ├── architecture/              # Component internals
-    │   └── components.md
-    ├── decisions/                 # Component ADRs ONLY
-    │   ├── adr-0001-*.md
-    │   └── adr-template.md
-    ├── exec-plans/
-    │   ├── active/                # Features being implemented
-    │   └── README.md              # Pointer to Platform guidance
-    ├── references/
-    │   ├── ecosystem.md           # Links to Platform (CRITICAL)
-    │   └── enhancements.md        # Enhancement proposals & design docs
-    ├── [COMPONENT]_DEVELOPMENT.md
-    └── [COMPONENT]_TESTING.md
+    ├── ARCHITECTURE.md            # Internals, integrations, behavioral contracts, design refs
+    ├── DEVELOPMENT.md             # Build, common tasks, mistakes
+    ├── TESTING.md                 # Test suites and patterns
+    └── ENHANCEMENTS.md            # Optional — enhancement/KEP/design doc catalog
 ```
 
 ## What NOT to Include (lives in Platform)
@@ -55,148 +45,85 @@ component-repo/
 ❌ Kubernetes fundamentals (Pod, Node, Service)
 ❌ Cross-repo ADRs (etcd, CVO orchestration, immutable nodes)
 
+## Chai Bot Access
+
+Before any Chai Bot-assisted operation, select exactly one access path:
+
+1. **Hosted** — If explicit host context identifies execution inside Chai Bot's hosted workspace and provides a callable knowledge/search capability, use that capability. Do not configure or call a second Chai Bot MCP server.
+2. **External** — Otherwise, use an available Chai Bot `ask_persona` MCP capability. Hosts may normalize the server name differently; select it by capability, not by an exact tool identifier.
+3. **Unavailable** — If neither path is available, report which Chai Bot-assisted work could not be performed. Do not infer or fabricate results.
+
+Resolve the access path once per run and reuse it. Explicit hosted context without a callable knowledge capability is unavailable, not permission to invent results. Do not infer hosted execution merely from a missing MCP tool, repository name, or working directory. Never modify MCP configuration from a managed hosted workspace.
+
 ## Execution Workflow
 
 ### Phase 1: Setup
-- [ ] **SME context**: Ask the user: "Before I start, is there anything about this repo I should know that isn't obvious from the code?" Wait for a response before proceeding. Use their input to guide what you investigate in Phases 5, 6, and 9.
-- [ ] Find skill directory: `SKILL_DIR=$(find ~/.claude/plugins/cache -path "*/component-docs" -type d | head -1)`
+- [ ] **Read existing CLAUDE.md / AGENTS.md before overwriting**: If the repo already has either file, read it first and extract important points (build instructions, critical warnings, repo conventions, key patterns, retrieval priorities, documentation maps, and useful direct links) to incorporate into the generated docs. Existing content is prior work — preserve it, don't overwrite blindly.
+- [ ] **Back up prior agent docs before writing**: Save any existing `CLAUDE.md` / `AGENTS.md` content under `ai-docs/_sources/`. Use them as temporary source material for review and recovery during generation.
+- [ ] **Discover existing repo docs**: Scan `docs/`, `docs/enhancements/`, `design/`, `CONTRIBUTING.md`, and any files with "design", "proposal", "enhancement" in the name. These will be linked from ENHANCEMENTS.md and ARCHITECTURE.md as appropriate. Also scan documentation files at the repository root and look elsewhere throughout the repository for relevant documentation, regardless of filename or location.
+- [ ] Resolve this skill directory from the location of the loaded `SKILL.md`. Resolve all `scripts/`, `templates/`, and `guides/` paths relative to it. Do not search a plugin cache or assume the repository is the current directory.
+- [ ] Preflight required resources: `scripts/create-structure.sh`, `scripts/validate.sh`, `scripts/cleanup-sources.sh`, all referenced templates, and any guide required by the selected execution path. Stop before writing if a required resource is unavailable.
 - [ ] Determine repo path: `REPO_PATH="${provided_path:-$PWD}"`
 - [ ] Detect component name from repo (e.g., machine-config-operator → MCO)
-- [ ] Run `bash "$SKILL_DIR/scripts/create-structure.sh" "$REPO_PATH"`
+- [ ] Run the resolved `scripts/create-structure.sh` with `"$REPO_PATH"`.
 
-### Phase 2: Create AGENTS.md (80-100 lines)
+### Phase 2: Create AGENTS.md (40-60 lines)
 - [ ] Create initial AGENTS.md at repo root using `templates/AGENTS-template.md`
-- [ ] Include compressed index of component docs
-- [ ] Add Platform ecosystem hub links
-- [ ] **Revisit after Phase 5**: Fill in the Critical Patterns section with 2-3 "never do X" rules discovered during architecture exploration
-- [ ] Validate line count: `wc -l AGENTS.md` (target: 80-100)
+- [ ] If existing AGENTS.md/CLAUDE.md was found in Phase 1, incorporate its critical warnings and conventions
+- [ ] Treat `AGENTS.md` as the executive summary only. If the old `CLAUDE.md` contains longer repo-specific operational detail (release/bundle commands, CI/Konflux notes, metrics/debugging guidance), move that detail into `DEVELOPMENT.md` or `ARCHITECTURE.md` instead of dropping it.
+- [ ] Preserve valuable navigation from prior agent docs. Keep compact, frequently used direct links in `AGENTS.md`. A detailed "need → start here" map may move to `ARCHITECTURE.md` or `ENHANCEMENTS.md`, but `AGENTS.md` must link directly to that map. Do not replace useful deep links with only a bare directory name.
+- [ ] Include architecture-at-a-glance summary
+- [ ] **Revisit after Phase 4**: Fill in the Critical Warnings section with 3-5 "never do X" rules discovered during architecture exploration
+- [ ] Create CLAUDE.md symlink: `ln -sf AGENTS.md "$REPO_PATH/CLAUDE.md"`
+- [ ] Validate line count: `wc -l AGENTS.md` (target: 40-60)
 
-### Phase 3: Component Domain Concepts
+### Phase 3: ENHANCEMENTS.md (Optional)
 
-- [ ] Identify component-specific APIs, types, or CRDs:
-  - For operators: check CRD definitions, `oc api-resources`, or `config/crd/`
-  - For libraries: identify primary exported types and interfaces
-  - For CLIs: identify core commands and configuration types
-- [ ] **VERIFY BEFORE DOCUMENTING**: For each type you plan to document, find its definition and verify fields/values from source:
-  ```bash
-  # Replace <TypeName> with the actual type (e.g., MachineSet, Build, Route)
-
-  # If types live in openshift/api
-  [ ! -d "/tmp/openshift-api" ] && git clone --depth 1 https://github.com/openshift/api.git /tmp/openshift-api
-  find /tmp/openshift-api -name "types*.go" | xargs grep -A30 "type <TypeName>"
-
-  # OR in component repo
-  find . -name "types*.go" -o -name "types.go" | xargs grep -A30 "type <TypeName>"
-  ```
-  Read actual source, document ONLY existing fields with correct types
-- [ ] Create domain/*.md for each key type with links to source definitions (100-200 lines per concept)
-- [ ] Use `templates/domain-concept-template.md` for structure
-- [ ] Focus on component-specific behavior, link to Platform for generic patterns
-
-### Phase 4: Enhancement Proposals & Design Docs
-- [ ] Create references/enhancements.md to catalog all design documentation
-- [ ] Search openshift/enhancements repo for component-specific proposals:
-  - Check `https://github.com/openshift/enhancements/tree/master/enhancements/{component-area}/`
 - [ ] Search component repo for local design docs:
   - Check docs/, design/, enhancements/ directories
   - Check for files with "design", "proposal", "enhancement" in name
-- [ ] Categorize by status: implemented/provisional/rejected
-- [ ] Keep concise: title, status, link only (enhancement is the source of truth)
-- [ ] **Note**: Enhancement proposals are feature designs (often cross-component). ADRs are component architectural decisions. Don't conflate them.
+- [ ] Search openshift/enhancements repo for component-specific proposals:
+  - Check `https://github.com/openshift/enhancements/tree/master/enhancements/{component-area}/`
+- [ ] Search for related upstream KEPs (Kubernetes Enhancement Proposals)
+- [ ] **Only create ai-docs/ENHANCEMENTS.md if content exists** — do not create an empty file
+- [ ] Format: title, status (implemented/provisional/rejected), link only — keep concise
+- [ ] Link to all found docs — these are authoritative sources, the enhancement is the source of truth
+- [ ] **Note**: Enhancement proposals are feature designs (often cross-component). Key architectural decisions go inline in ARCHITECTURE.md "Design References" section, not here.
 
-### Phase 5: Component Architecture
+### Phase 4: Component Architecture (ARCHITECTURE.md)
 
 - [ ] **Read one complete implementation first**: Pick one controller/component package (preferably the most recently added). Read ALL files in it — not just controller.go, but constants, utils, every reconciler file, install sequence, and tests. This is your reference implementation. Document every pattern you observe: how it applies resources, what shared utilities it calls, what predicates it uses, what constants it defines, what env vars it reads. If the repo has 2+ similar components, compare them — divergences in approach are the most valuable thing to document ("use X pattern from component A, not Y pattern from component B").
 - [ ] **Detect repo type**: Check for operator signals (`controller-runtime`, `library-go`, `operator-sdk`, OLM bundle in `bundle/`, CRDs in `config/crd/`). If operator detected, follow the **Operator-Specific Discovery** checklist below in addition to the generic checklist.
-- [ ] **Explore remaining codebase**: Read entrypoints, key packages, dependencies. Follow the **Implementation Pattern Discovery** checklist below. The architecture doc should contain enough detail that an agent reading it produces correct code on the first try.
-- [ ] Create architecture/components.md with **repo layout as single source of truth** (add actionable annotations like "DO NOT use X for Y")
+- [ ] **Explore remaining codebase**: Read entrypoints, key packages, dependencies. Follow the **Implementation Pattern Discovery** checklist below.
+- [ ] Create `ai-docs/ARCHITECTURE.md` with the following required sections:
+
+**ARCHITECTURE.md Required Sections** (target: 200-400 lines):
+
+1. **Repository Layout** — annotated directory tree with actionable annotations ("DO NOT use X for Y")
+2. **Key Domain Concepts** — the core abstractions an agent must understand before touching this codebase. Not struct fields (agents read types.go), but the mental model: what are the primary resources, how do they relate, what are the key lifecycle flows. For operators: trace the primary end-to-end workflow (e.g., "user creates CR → controller renders config → daemon applies to node → node reboots"). For libraries: what are the key interfaces and their contracts. This section answers "what does this system DO" before the next sections explain "how is it BUILT"
+3. **Component/Controller Details** — framework, startup sequence, per-controller tables
+4. **Resource Management** — apply methods per controller (SSA, strategic merge, Create/Update), image resolution, deployment hooks
+5. **Feature Gates** — definition → runtime check → startup wiring chain
+6. **Error Classification** — error types, requeue behavior, status condition effects
+7. **OpenShift Integration Points** — upstream project dependencies, OpenShift component integrations (CNO, CCO, OLM, proxy, TLS, etc.) with integration tables
+8. **Generated Code Inventory** — generated files/dirs with "NEVER hand-edit" + make target
+9. **API Behavioral Contracts** — behavioral knowledge that agents can't get from reading types.go alone: singleton constraints, naming conventions, merging order, lifecycle flows, config drift detection, plugin behaviors, gotchas, "DO NOT" rules. Point agents to types.go / api/ for actual struct field definitions
+10. **Form Factor Behavior** (if applicable) — how the component behaves across deployment topologies: Standalone, SNO (replica adjustments, resource constraints), HCP/Hosted Control Planes (which cluster does it run in, cross-cluster communication), MicroShift (does it run, config alternatives). Only document form factors the code actually handles. Table format preferred
+11. **Design References** — 2-3 key architectural decisions inline (5-8 lines each: title, decision, rationale, consequences). Link to existing repo design docs (from docs/) where they provide deeper detail
+12. **Platform Documentation** — link to the openshift/enhancements repo for generic platform patterns. Reference stable paths: `dev-guide/` for development conventions, `guidelines/` for enhancement process, `CONVENTIONS.md` for coding standards. Do NOT link to specific files under `ai-docs/` — that structure is subject to change
+
 - [ ] Document discovered patterns using the discovery checklist results
-- [ ] Explain component relationships and data flow
-- [ ] Keep lean but dense (100-200 lines, high information per line)
+- [ ] Link to existing repo docs (from `docs/`, design docs) where they provide deeper detail — ARCHITECTURE.md is a map, not a replacement for existing documentation
+- [ ] Keep lean but dense (every line should tell the reader something they can't infer from file names alone)
+- [ ] Every pattern claim must include a file:line reference. If you can't point to source, flag as unverified
 
-### Phase 5.5: Tribal Knowledge Enrichment (Optional)
+### Phase 4.5: Tribal Knowledge Enrichment (REQUIRED when chai-bot available)
 
-Requires chai-bot MCP server. If unavailable, skip — Phase 5 content stands on its own.
+- [ ] Use the Chai Bot access path selected above
+- [ ] If hosted or external access is available: read and follow `guides/CHAI-BOT.md` — run both prompts, do not skip
+- [ ] If Chai Bot is unavailable: report that tribal knowledge enrichment could not be performed, then skip this phase
 
-Two prompts, run sequentially via `mcp__chai-bot__ask_persona`. Substitute `{component}` with the repo name.
-
-**Prompt 1 — Operational knowledge** (run immediately after Phase 5):
-
-```
-"I'm generating agentic documentation for {component}
-(github.com/openshift/{component}).
-
-I already have complete architecture, code structure, controller
-design, Makefile targets, and API types from reading the source
-code. DO NOT describe any of these — your answers about repo
-internals will be wrong.
-
-Instead, tell me ONLY things that cannot be learned from the
-source code:
-
-1. OPERATIONAL ISSUES: Production failures, support escalations,
-   upgrade gotchas, or common misconfigurations discussed in
-   Slack or filed in Jira. Include Jira keys if you know them.
-
-2. CROSS-COMPONENT FRICTION: Misunderstood boundaries or
-   surprising interactions between {component} and other
-   OpenShift components (OLM, service-ca, console, CCO,
-   monitoring, etc.).
-
-Format each item as:
-- Title (short)
-- Source (Slack channel, Jira key, or 'team knowledge')
-- Description (2-3 sentences max)
-
-If you don't have tribal knowledge for a category, say so —
-don't fill it with code observations."
-```
-
-**Prompt 2 — Design rationale** (requires Phase 5 findings):
-
-Review Phase 5 results. Identify 3-5 patterns that are surprising, inconsistent, or divergent across components — where the code shows *what* but not *why*. Then:
-
-```
-"I'm documenting design decisions for {component}
-(github.com/openshift/{component}). I already know WHAT the
-code does — I need to know WHY from Slack, Jira, or team
-discussions.
-
-For each question below, only answer if you have actual context
-from Slack threads, Jira issues, PR discussions, or team
-conversations. If you're guessing from code structure, say
-'no tribal knowledge found' — that's more useful than inference.
-
-1. [Specific divergence found in Phase 5]
-2. [Another divergence]
-3. [...]
-
-For each answer, include the source (Slack channel/thread date,
-Jira key, PR number) so I can trace it."
-```
-
-**Filtering**: DISCARD any claims about repo internals (namespaces, file paths, Makefile targets, function names, controller structure) — chai-bot fabricates these. KEEP only Slack/Jira/docs knowledge that cannot be learned from code.
-
-**Placement** (no separate file — findings go where developers already look):
-- Operational issues → `[COMPONENT]_DEVELOPMENT.md` "Known Operational Issues" section (Phase 9)
-- Cross-component friction → `architecture/components.md` under "OpenShift Integrations" (Phase 5)
-- Design rationale → ADR "Context" sections (Phase 6)
-
-### Phase 6: Component ADRs
-- [ ] Create decisions/adr-template.md (copy from templates)
-- [ ] Create 2-3 component-specific ADRs
-- [ ] **Enrich with Phase 5.5**: If chai-bot provided design rationale, add to the ADR's "Context" section with source (e.g., "Per CM-486 (Jira)..."). If "no tribal knowledge found", note under "SME Review Recommended".
-- [ ] NO cross-repo ADRs (those go in Platform)
-
-### Phase 7: Exec-Plans
-- [ ] Create exec-plans/active/ directory
-- [ ] Create exec-plans/README.md with pointer to Platform guidance
-
-### Phase 8: Ecosystem References
-- [ ] Create references/ecosystem.md using `templates/ecosystem-template.md`
-- [ ] Link to Platform: operator patterns, testing, security, Kubernetes/OpenShift fundamentals, cross-repo ADRs
-
-### Phase 9: Development & Testing Docs
+### Phase 5: Development & Testing Docs
 
 - [ ] **VERIFY FIRST**:
   ```bash
@@ -213,121 +140,49 @@ Jira key, PR number) so I can trace it."
   # Directory structure
   ls -d cmd pkg test manifests 2>/dev/null
   ```
-- [ ] Create [COMPONENT]_DEVELOPMENT.md from template:
-  - **Remove** "Repository Structure" section (already in components.md)
-  - **Replace** generic template placeholders with actual repo patterns discovered in Phase 5
+- [ ] Create `ai-docs/DEVELOPMENT.md` using `templates/DEVELOPMENT-template.md`:
+  - Do not repeat repo layout — it is in ARCHITECTURE.md
+  - **Replace** generic template placeholders with actual repo patterns discovered in Phase 4
   - Fill "Common Tasks" with repo-specific tasks, not generic placeholders
-  - Fill "Common Mistakes" from anti-patterns discovered in Phase 5
+  - Fill "Common Mistakes" from anti-patterns discovered in Phase 4
+  - Preserve still-relevant operational detail from the prior `CLAUDE.md` (for example: bundle/catalog/release commands, CI/Konflux notes, metrics/debugging commands, non-default environment variables)
   - If common tasks vary in complexity, document tiers with specific file modification lists
-- [ ] Create [COMPONENT]_TESTING.md from template:
+- [ ] Create `ai-docs/TESTING.md` using `templates/TESTING-template.md`:
   - **Replace** generic code examples with actual test patterns from this repo
   - Fill "Component-Specific" sections with real test scenarios
 - [ ] Link to Platform for generic practices
 - [ ] Document ONLY verified component-specific details (target: 100-200 lines each)
 
-### Phase 9.5: Generate REVIEW.md + .coderabbit.yaml
+### Phase 6: Generate REVIEW.md + .coderabbit.yaml (REQUIRED)
 
-Generates review instructions for code review tools (Claude Code Review, CodeRabbit). REVIEW.md is the single source of truth; .coderabbit.yaml is a structured sidecar that translates skip/path rules into CodeRabbit's native format. Target: 60-80 lines (soft cap 100).
+- [ ] Read and follow `guides/REVIEW-GENERATION.md` — all 8 steps are required
+- [ ] Do not skip — REVIEW.md and .coderabbit.yaml are mandatory outputs
 
-**Step 1 — Clone enhancements repo** (if not already present from Phase 4):
-```bash
-[ ! -d "/tmp/openshift-enhancements" ] && git clone --depth 1 https://github.com/openshift/enhancements.git /tmp/openshift-enhancements
-```
+### Phase 7: Validation & Verification
 
-**Step 2 — Read applicable dev-guide files** based on repo type detected in Phase 5:
-
-| Repo Type | Files to Read |
-|-----------|---------------|
-| **Operator** | `dev-guide/api-conventions.md`, `dev-guide/breaking-changes.md`, `dev-guide/operators.md`, `CONVENTIONS.md`, `guidelines/supportability.md`, `dev-guide/cluster-version-operator/dev/clusteroperator.md` |
-| **Library** | `dev-guide/api-conventions.md`, `CONVENTIONS.md`, `dev-guide/breaking-changes.md` |
-| **CLI** | `CONVENTIONS.md`, `dev-guide/breaking-changes.md` |
-
-Extract ONLY diff-enforceable rules — rules that can be checked by looking at a code diff. Discard vague guidance ("should consider...") and retain imperative rules ("Flag X as must-fix", "Never allow Y").
-
-**Step 3 — Chai-bot verification** (optional, requires chai-bot MCP server):
-
-Verify extracted platform rules are still current. If chai-bot is unavailable, skip — include all extracted rules (err on side of inclusion).
-
-```
-mcp__chai-bot__ask_persona:
-"I'm generating REVIEW.md for {component} (github.com/openshift/{component}).
-I extracted these enforceable review rules from openshift/enhancements dev-guide.
-Are these still current? Have any been superseded, relaxed, or tightened?
-
-1. [Rule 1 from Step 2]
-2. [Rule 2 from Step 2]
-...
-(list top 5-8 most critical rules for the detected repo type)
-
-For each rule: confirm current, superseded (by what), or unknown."
-```
-
-**Filtering**: Discard rules chai-bot confirms are superseded. Keep confirmed + unverified (err on side of inclusion). DISCARD any claims about repo internals — chai-bot fabricates these.
-
-**Step 4 — Collect skip patterns** from Phase 5 discoveries:
-- [ ] Generated code inventory (zz_generated*, clientset, informers, listers, bindata, protobuf, payload-manifests)
-- [ ] Vendored dependencies (vendor/**)
-- [ ] CI-enforced checks (from Phase 5 CI enforcement discovery)
-- [ ] Lockfiles (go.sum, go.mod)
-- [ ] Generated dashboards/assets if present
-
-**Step 5 — Extract path-specific rules** from Phase 5 discoveries:
-- [ ] Framework split table (which controllers use which apply method)
-- [ ] Anti-patterns per package/directory
-- [ ] Naming conventions per area
-- [ ] Test conventions (Jira annotations, JUnit output, scoping)
-
-**Step 6 — Calibrate severity** by repo type:
-
-| Repo Type | Must-Fix Categories |
-|-----------|-------------------|
-| **Operator** | Incorrect reconciliation logic, unscoped queries crossing tenant boundaries, resource leaks, upgrade/downgrade safety violations, breaking changes to GA openshift.io APIs, security vulnerabilities, `Available=False` or `Degraded=True` during normal upgrade, premature version bump in ClusterOperator status, tolerating `node.kubernetes.io/unschedulable` |
-| **Library** | API convention violations (bool fields, annotation-based APIs, missing validation markers, pointer misuse in CRDs), breaking changes to stable APIs, functions added to openshift/api |
-| **CLI** | Breaking changes to CLI behavior, security vulnerabilities, incorrect error codes |
-
-Style and naming issues are minor at most for all repo types.
-
-**Step 7 — Generate REVIEW.md**:
-- [ ] Use `templates/REVIEW-template.md` for structure
-- [ ] Fill each section from Steps 2-6, stripping template comments from output
-- [ ] Use tool-agnostic severity language ("must fix before merge" / "worth fixing, not blocking" / "suggestion only")
-- [ ] Use glob patterns for skip rules, not prose descriptions
-- [ ] Cite the dev-guide source for each "Always check" rule (parenthetical at end of line)
-- [ ] Include "Verification bar" section — require file:line citations for every comment
-- [ ] Include "Re-review" section — suppress new nits on unchanged code during re-reviews
-- [ ] Validate line count: target 60-80 lines, soft cap 100
-- [ ] **Do NOT** copy CLAUDE.md content — different purposes
-
-**Step 8 — Generate/merge .coderabbit.yaml**:
-- [ ] Use `templates/coderabbit-template.yaml` for structure — always set `inheritance: true` (inherits org-wide config from `openshift/coderabbit` which already excludes `vendor/**`, `zz_generated*`, `node_modules/**`)
-- [ ] Only add repo-specific exclusions to `path_filters` — skip patterns already covered by org config (vendor, zz_generated, boilerplate)
-- [ ] Translate "Path-specific rules" subsections to `path_instructions` entries
-- [ ] Set `knowledge_base.filePatterns` to `["REVIEW.md", "AGENTS.md"]` — **NEVER add CLAUDE.md** (auto-detected separately)
-- [ ] `tone_instructions` is optional — only add if the repo has a distinct review culture; org default applies otherwise
-- [ ] If a `.coderabbit.yaml` already exists in the repo, merge: preserve existing settings (profile, auto_review, pre_merge_checks, tools, slop_detection), add/update `knowledge_base`, `path_filters`, and `path_instructions`
-- [ ] Validate YAML syntax: `python3 -c "import yaml; yaml.safe_load(open('.coderabbit.yaml'))"`
-
-### Phase 10: Validation & Verification
-
-- [ ] Run `bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"` (includes link validation)
-- [ ] Verify AGENTS.md ≤100 lines, no generic duplication, ecosystem.md exists
-- [ ] **Verify specificity**: Repo structure only in components.md (not duplicated in DEVELOPMENT.md), pattern claims backed by code evidence
+- [ ] Run the resolved `scripts/validate.sh` with `"$REPO_PATH"` (includes link validation and removal of broken external-link lines)
+- [ ] Verify `ai-docs/_sources/` contains backups of any prior `CLAUDE.md` / `AGENTS.md` that existed
+- [ ] Verify AGENTS.md 40-60 lines, no generic duplication
+- [ ] Verify CLAUDE.md → AGENTS.md symlink exists
+- [ ] Verify ARCHITECTURE.md 200-400 lines, contains required sections (repo layout, API Behavioral Contracts, Design References, Platform Documentation)
+- [ ] **Verify specificity**: Pattern claims backed by code evidence, not generic placeholders
 - [ ] **Anti-hallucination checks**: Spot-check type fields if applicable, verify branch names in examples match repo, confirm pattern claims reference actual code
 - [ ] **Operator-specific checks** (if operator repo): Verify apply method claims per-controller (`grep -r "client.Apply\|r.Update\|resourceapply" pkg/controller/<name>/`). Verify feature gate claims trace to actual runtime code. Verify image env var names match Makefile/CSV.
-- [ ] **REVIEW.md checks** (if generated): exists at repo root, ≤100 lines (`wc -l REVIEW.md`), skip paths reference real directories (`test -d`), platform citations present (grep for "dev-guide" or "CONVENTIONS"), no content overlap with CLAUDE.md
-- [ ] **.coderabbit.yaml checks** (if generated): valid YAML (`python3 -c "import yaml; yaml.safe_load(open('.coderabbit.yaml'))"`), `filePatterns` contains "REVIEW.md" but NOT "CLAUDE.md", `path_filters` match "Do not report" globs, `path_instructions` match "Path-specific rules"
-- [ ] Verify all domain/*.md files link to actual type definitions
+- [ ] **REVIEW.md checks**: exists at repo root, ≤100 lines (`wc -l REVIEW.md`), skip paths reference real directories (`test -d`), platform citations present (grep for "dev-guide" or "CONVENTIONS"), no content overlap with AGENTS.md
+- [ ] **.coderabbit.yaml checks**: valid YAML (`python3 -c "import yaml; yaml.safe_load(open('.coderabbit.yaml'))"`), `filePatterns` contains "REVIEW.md" but NOT "CLAUDE.md", `path_filters` match "Do not report" globs, `path_instructions` match "Path-specific rules"
 - [ ] Cross-check with openshift-docs if time permits
-- [ ] **Flag discovery gaps**: At the end of components.md and DEVELOPMENT.md, add a brief "SME Review Recommended" note listing areas where automated discovery may be incomplete — typically: implementation recipes for adding new components, anti-patterns from institutional knowledge, and rationale behind pattern choices. This sets expectations that the docs are a verified foundation, not a complete implementation guide
+- [ ] **Chai-bot enrichment gate**: If hosted or external Chai Bot access is available, verify Phase 4.5 was executed (operational issues and design rationale queries were run and results incorporated into ARCHITECTURE.md and DEVELOPMENT.md). If skipped with Chai Bot available, go back and run it before proceeding.
+- [ ] **Flag discovery gaps**: At the end of ARCHITECTURE.md and DEVELOPMENT.md, add a brief "SME Review Recommended" note listing areas where automated discovery may be incomplete
+- [ ] **No silent drops**: Compare the prior `CLAUDE.md` / `AGENTS.md` against the generated docs and ensure repo-specific commands, CI notes, metrics/debug tips, hard warnings, retrieval instructions, documentation maps, and useful direct links were preserved. For every relocated item, verify the new location and leave a discoverable route from `AGENTS.md`. Record any intentional drop and its rationale in the completion report.
+- [ ] **Cleanup**: After validation passes, run the resolved `scripts/cleanup-sources.sh` with `"$REPO_PATH"`. Do not leave temporary source backups in the final repo tree.
 
 **Link Validation**:
 - Link validation always runs — broken links (wrong relative paths, 404 URLs) are a common source of documentation errors
 - Automatically checks all HTTP/HTTPS links (with timeout and user agent)
 - Validates internal/relative links (file existence)
-- Flags known Platform planned links as "KNOWN BROKEN"
-- Use `VERBOSE=true bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"` to see all links including successful ones
+- Use `VERBOSE=true` with the resolved validator to see successful links. Use `CHECK_EXTERNAL_LINKS=false` when the host intentionally has no network access; report external links as unverified in that mode.
 
-### Phase 11: Verification (Recommended)
+### Phase 8: Verification (Recommended)
 
 - [ ] **Ask user**: "Run `/review-docs` to verify claims?"
   - If **YES**: Run `/review-docs --path "$REPO_PATH"`
@@ -341,11 +196,11 @@ Style and naming issues are minor at most for all repo types.
     Recommend running `/review-docs` before creating PRs to catch hallucinations.
     ```
 
-**Note**: `/review-docs` verifies claims locally against the repo's source code (including vendored dependencies) first, then uses chai-bot MCP for cross-repo verification (enhancements, platform terminology, convention compliance). Local verification works without any setup. Chai-bot is needed for cross-functional checks and requires VPN + MCP configuration — see [review-docs skill](../review-docs/SKILL.md).
+**Note**: `/review-docs` verifies claims locally against the repo's source code (including vendored dependencies) first, then uses Chai Bot for cross-repo verification (enhancements, platform terminology, convention compliance). Chai Bot access may be provided directly by its hosted workspace or through an external MCP connection. External access requires VPN + MCP configuration — see [review-docs skill](../review-docs/SKILL.md).
 
 ## Implementation Pattern Discovery
 
-Use this checklist during Phase 5 when exploring the codebase. These patterns produce the most valuable documentation — the kind that prevents an agent from writing subtly incorrect code.
+Use this checklist during Phase 4 when exploring the codebase. These patterns produce the most valuable documentation — the kind that prevents an agent from writing subtly incorrect code.
 
 ### What to Look For
 
@@ -369,14 +224,15 @@ When the repo is a Kubernetes/OpenShift operator (detected via controller-runtim
 | Pattern | How to Discover | What to Document |
 |---------|----------------|------------------|
 | **Controller framework split** | Check imports in EACH controller package for `library-go` vs `controller-runtime`. Don't assume uniformity. | Per-controller table: framework, apply method (`client.Apply` vs `resourceapply` vs Create+Update), code ref. |
-| **Reconciliation apply method** | For EACH controller: `grep -r "client.Apply\|r.Update\|r.Create\|resourceapply" pkg/controller/<name>/` | Actual method per controller. This is the #1 source of hallucinations — the cert-manager-operator review found docs claiming "all controllers use SSA" when only one of three did. |
+| **Reconciliation apply method** | For EACH controller: `grep -r "client.Apply\|r.Update\|r.Create\|resourceapply" pkg/controller/<name>/` | Actual method per controller. This is the #1 source of hallucinations. |
 | **Feature gate runtime behavior** | Read `features.go` end-to-end. Trace from definition → runtime check → startup wiring. | Full chain. For TechPreview: cluster-side gating (FeatureSet discovery, fail-closed). Don't just list gate names. |
 | **Image resolution & OLM bundle** | `grep -r RELATED_IMAGE Makefile bundle/`. Check Makefile for `*_VERSION` vars. Check `bundle/manifests/` for CSV. | Env var naming convention, version variables, how OLM injects images. CSV update checklist (env vars, RBAC, relatedImages). |
 | **Error classification** | Check common/ for error wrapper types (`IrrecoverableError`, `RetryRequiredError`). | Which types exist, effect on requeue behavior. |
 | **Generated code & bindata pipeline** | `find . -name "zz_generated*" -o -name "bindata.go" -o -path "*/clientset/*"`. Check Makefile for generation targets. | Generated files/dirs with "NEVER hand-edit" + make target. For bindata: version var → hack script → output dir → Go loading. |
-| **FIPS compliance** | Check for OpenShift fork references in `go.mod` (`replace` directives), FIPS build tags, or crypto constraints in Dockerfiles. | Whether FIPS is build-time (fork/toolchain) or runtime. Only document if present — not all operators have FIPS requirements. |
-| **OLM lifecycle** | Check `bundle/manifests/` CSV for `spec.replaces`, `skips`, `skipRange`, `installModes`, `spec.relatedImages`, channel annotations. | Which upgrade strategy is used, relatedImages list, install mode constraints. Document if the operator has OLM-specific lifecycle quirks (e.g., cross-namespace cleanup limitations, annotation conflicts on reinstall). |
+| **FIPS compliance** | Check for OpenShift fork references in `go.mod` (`replace` directives), FIPS build tags, or crypto constraints in Dockerfiles. | Whether FIPS is build-time (fork/toolchain) or runtime. Only document if present. |
+| **OLM lifecycle** | Check `bundle/manifests/` CSV for `spec.replaces`, `skips`, `skipRange`, `installModes`, `spec.relatedImages`, channel annotations. | Which upgrade strategy is used, relatedImages list, install mode constraints. |
 | **Status conditions & OpenShift integrations** | Check for library-go `OperatorStatus` vs custom conditions. Grep for proxy, trusted-CA, TLS profile, CCO references. | Which condition system, which integrations exist — only document what's present. |
+| **Form factor behavior** | Grep for topology detection: `ControlPlaneTopology`, `InfrastructureTopology`, `SingleReplica`, `HighlyAvailable`, `External`, `single-node-cluster` label, `hypershift`, `HostedControlPlane`, `HostedCluster`. Check for replica count adjustments, anti-affinity skips, or HCP-specific namespaces/RBAC. | Form factor table: how the component behaves on Standalone, SNO (single replica? resource constraints?), HCP (which cluster does it run in? cross-cluster communication?), MicroShift (does it run at all? config file alternative?). Only document form factors the code actually handles — don't invent behavior. |
 
 ### Information Density
 
@@ -389,67 +245,77 @@ When the repo is a Kubernetes/OpenShift operator (detected via controller-runtim
 
 ## AGENTS.md Requirements
 
-**Length**: 80-100 lines (strict limit)
+**Length**: 40-60 lines (strict limit)
 
 **Required Sections**:
 1. Component metadata (name, repository)
-2. Platform reference (link to ecosystem hub)
-3. Component purpose (1-2 sentences)
-4. Core components (brief)
-5. Critical patterns (2-3 "never do X" rules — the most important architectural warnings)
-6. Documentation structure (compressed)
-7. Platform ecosystem links
+2. Purpose (1-2 sentences)
+3. Critical warnings (3-5 "never do X" rules — the most important architectural warnings)
+4. Architecture at a glance (brief orientation)
+5. Documentation structure (flat tree)
+6. Key files quick reference
+7. External references
 
 **Format**: Compressed, table-based, links not prose. Use `templates/AGENTS-template.md`.
 
+**Symlink**: `CLAUDE.md → AGENTS.md` must exist at repo root.
+
 ## Validation Criteria
 
-✅ **AGENTS.md**: At repo root, 80-100 lines, compressed index, retrieval-first instruction, Platform links, critical pattern warnings
+✅ **AGENTS.md**: At repo root, 40-60 lines, critical warnings, no generic duplication
+
+✅ **CLAUDE.md**: Symlink to AGENTS.md
+
+✅ **Temporary sources cleaned up**: Any working backups created under `ai-docs/_sources/` were removed before finishing
 
 ✅ **No duplication**: No generic framework explanations, no testing pyramid, no security frameworks
 
-✅ **References**: ecosystem.md with Platform links, enhancements.md with design docs catalog
-
-✅ **Component-specific only**: Domain concepts are component-specific, ADRs are component-specific, architecture is component internals
+✅ **ARCHITECTURE.md**: 200-400 lines, contains repo layout, API Behavioral Contracts, Design References, OpenShift Integration Points, Platform Documentation sections
 
 ✅ **Link validation**: All external links return 200 OK, all internal links resolve
 
-✅ **Implementation patterns**: Architecture doc has discovery checklist results, shared utilities listed with exact symbols, anti-patterns documented
+✅ **Implementation patterns**: ARCHITECTURE.md has discovery checklist results, shared utilities listed with exact symbols, anti-patterns documented
 
 ✅ **Operator accuracy** (if operator repo): Apply method documented per-controller (not assumed uniform), feature gate runtime behavior traced, generated code inventory listed, image resolution mechanism documented
 
-✅ **REVIEW.md** (if generated): At repo root, 60-80 lines (cap 100), skip paths valid, platform citations present, no CLAUDE.md overlap, .coderabbit.yaml in sync
+✅ **REVIEW.md**: At repo root, 60-80 lines (cap 100), skip paths valid, platform citations present, no AGENTS.md overlap, .coderabbit.yaml in sync
 
 ## Anti-Patterns
 
 ### ❌ DON'T duplicate Platform content
 
 **Wrong**: 187-line TESTING.md where 60% is generic test pyramid explanation
-**Right**: 90-line COMPONENT_TESTING.md that's 100% component-specific, links to Platform
+**Right**: 90-line TESTING.md that's 100% component-specific, links to Platform
 
 ### ❌ DON'T explain generic framework patterns
 
 **Wrong**: Explaining framework internals in component docs
 **Right**: Link to Platform, document component-specific usage only
 
-### ❌ DON'T create cross-repo ADRs
-
-**Wrong**: ADR about shared infrastructure in component repo
-**Right**: That ADR belongs in Platform
-
 ### ❌ DON'T document without verification
 
 **Wrong**: Type fields from memory, outdated conventions, pattern claims without code evidence
 **Right**: Verify in source code, check actual branch names, confirm patterns exist, link to sources
+
 
 ### ❌ DON'T write generic placeholders
 
 **Wrong**: "Add new controller: 1. Create controller.go 2. Implement Reconcile() 3. Register"
 **Right**: Repo-specific steps with exact file paths, shared utilities to use, registration wiring, and naming conventions
 
+### ❌ DON'T scatter related content across many files
+
+**Wrong**: Scattering content across many small files — agents must read 8+ files
+**Right**: ARCHITECTURE.md as single authoritative source for internals, integrations, contracts, and key decisions
+
+### ❌ DON'T ignore existing repo documentation
+
+**Wrong**: Generating docs that don't link to existing design docs in docs/
+**Right**: Discover and link to all existing repo docs — they are authoritative sources
+
 ## Prerequisites
 
-1. ✅ Platform documentation exists at openshift/enhancements/ai-docs/
+1. ✅ openshift/enhancements repo accessible (dev-guide/, guidelines/, CONVENTIONS.md)
 2. ✅ Repository is an OpenShift component
 
 ## Arguments
@@ -469,15 +335,14 @@ Component: [component-name]
 Repository: [path]
 
 Structure:
-  ✅ AGENTS.md (root): XX lines (target: 80-100)
+  ✅ AGENTS.md (root): XX lines (target: 40-60)
+  ✅ CLAUDE.md → AGENTS.md symlink
   ✅ REVIEW.md: XX lines (target: 60-80)
   ✅ .coderabbit.yaml: valid, synced with REVIEW.md
-  ✅ Domain concepts: N files
-  ✅ Architecture: components.md
-  ✅ Component ADRs: N files
-  ✅ References: ecosystem.md, enhancements.md
-  ✅ Development: COMPONENT_DEVELOPMENT.md
-  ✅ Testing: COMPONENT_TESTING.md
+  ✅ ARCHITECTURE.md: XXX lines (target: 200-400)
+  ✅ DEVELOPMENT.md
+  ✅ TESTING.md
+  ✅ ENHANCEMENTS.md (optional — only if content found)
 
 Next Steps:
   1. Run `/review-docs` to verify claims locally + cross-repo via chai-bot (recommended)
@@ -489,4 +354,4 @@ Next Steps:
 
 - `/review-docs` - Verify documentation claims locally and cross-repo via chai-bot (recommended after creation)
 - `/update-platform-docs` - Update Platform documentation
-- Platform Documentation (openshift/enhancements/ai-docs/)
+- Platform Documentation (openshift/enhancements — dev-guide/, guidelines/, CONVENTIONS.md)

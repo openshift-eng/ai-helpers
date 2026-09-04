@@ -2,18 +2,18 @@
 #
 # CodeRabbit configuration — structured sidecar for REVIEW.md
 #
-# Phase 9.5 generates this file alongside REVIEW.md. The two must stay in sync:
+# Phase 6 generates this file alongside REVIEW.md. The two must stay in sync:
 # - knowledge_base.filePatterns points at REVIEW.md + AGENTS.md
 # - path_filters mirrors "Do not report" skip patterns from REVIEW.md (negated globs)
 # - path_instructions mirrors "Path-specific rules" from REVIEW.md
 #
-# This template shows the structure. Phase 9.5 fills in repo-specific values.
+# This template shows the structure. Phase 6 fills in repo-specific values.
 # Inherits org-wide settings from https://github.com/openshift/coderabbit
 
 inheritance: true
 language: en-US
 
-# Phase 9.5: Adjust tone to match repo review culture. Remove if org default is fine.
+# Phase 6: Adjust tone to match repo review culture. Remove if org default is fine.
 # tone_instructions: >
 #   Be direct and technical. State the issue, cite file:line, suggest a fix.
 #   No pleasantries or filler.
@@ -26,19 +26,19 @@ reviews:
   request_changes_workflow: false
 
   path_filters:
-    # Phase 9.5: Translate "Do not report" globs to negated path_filters.
+    # Phase 6: Translate "Do not report" globs to negated path_filters.
     # Org config already excludes vendor/** and zz_generated* — only add
     # repo-specific exclusions here.
-    # Example entries (replace with actual Phase 5 discoveries):
+    # Example entries (replace with actual Phase 4 discoveries):
     #
     # - "!assets/**"
     # - "!**/bindata.go"
     # - "!payload-manifests/**"
 
   path_instructions:
-    # Phase 9.5: Translate "Path-specific rules" subsections to path_instructions.
+    # Phase 6: Translate "Path-specific rules" subsections to path_instructions.
     # Each entry maps a glob path to review instructions.
-    # Example entries (replace with actual Phase 5 discoveries):
+    # Example entries (replace with actual Phase 4 discoveries):
     #
     # - path: "pkg/controller/**"
     #   instructions: |
