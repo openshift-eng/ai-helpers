@@ -43,20 +43,23 @@ lint-pull: ## Pull the configured skillsaw image
 	$(CONTAINER_RUNTIME) pull $(SKILLSAW_IMAGE)
 
 .PHONY: update
-update: ## Update marketplace versions and generate site content
+update: ## Normalize plugin metadata and sync marketplace versions
 	@echo "Fixing frontmatter quotes, if any..."
 	@python3 scripts/fix_frontmatter_quotes.py
 	@echo "Syncing marketplace versions..."
 	@python3 scripts/sync_marketplace_versions.py
+
+.PHONY: site-generate
+site-generate: ## Generate ignored MkDocs content from marketplace metadata
 	@echo "Generating site content..."
 	@python3 scripts/generate_site.py
 
 .PHONY: site-build
-site-build: update ## Build the documentation site with strict checks
+site-build: site-generate ## Generate and build the documentation site with strict checks
 	@cd site && python3 -m mkdocs build --strict --site-dir ../public
 
 .PHONY: site-serve
-site-serve: update ## Preview the site at http://127.0.0.1:8000/ai-helpers/
+site-serve: site-generate ## Generate and preview the site at http://127.0.0.1:8000/ai-helpers/
 	@cd site && python3 -m mkdocs serve --strict --dev-addr 127.0.0.1:8000
 
 .PHONY: list-unprotected

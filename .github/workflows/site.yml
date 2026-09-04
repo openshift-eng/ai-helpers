@@ -36,7 +36,7 @@ jobs:
         run: pip install -r site/requirements.txt
 
       - name: Generate site content
-        run: python3 scripts/generate_site.py
+        run: make site-generate
 
       - name: Build MkDocs
         run: cd site && mkdocs build --strict --site-dir ../public

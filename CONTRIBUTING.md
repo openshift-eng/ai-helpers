@@ -9,7 +9,7 @@ Thank you for your interest in contributing to the ai-helpers plugin marketplace
 3. Add at least one command in `commands/`
 4. Add an `OWNERS` file listing approvers and reviewers for your plugin
 5. Register your plugin in `.claude-plugin/marketplace.json`
-6. Run `make lint` to validate, then `make update` to regenerate site content
+6. Run `make lint` to validate, then `make update` to sync marketplace metadata
 
 ### OWNERS File
 
@@ -53,7 +53,7 @@ CI finds changed plugins from the merge-base among commands, skills, hooks, and 
 3. Make your changes
 4. For each plugin whose commands, skills, hooks, or plugin.json you changed, bump its version once if it is not already higher than the base branch (skip if this PR already bumped it)
 5. Run `make lint` to validate plugin structure
-6. Run `make update` to regenerate site content
+6. Run `make update` to sync marketplace metadata
 7. Submit a PR
 
 ### Testing locally
@@ -72,10 +72,11 @@ from `.github/workflows/site.yml`. The plugin and category pages are generated
 from `.claude-plugin/marketplace.json` and the plugin source trees.
 
 Do not edit generated files under `site/docs/plugins/`,
-`site/docs/categories/`, `site/docs/index.md`, or `site/mkdocs.yml`. Run
-`make update` to regenerate them, `make site-build` for the same strict build
-used in CI, or `make site-serve` to preview the site at
-`http://127.0.0.1:8000/ai-helpers/`.
+`site/docs/categories/`, `site/docs/index.md`, or `site/mkdocs.yml`, and do not
+commit them. GitHub Actions generates and publishes them after changes merge.
+For local documentation work, `make site-build` generates the content and runs
+the same strict build used in CI, while `make site-serve` generates and previews
+the site at `http://127.0.0.1:8000/ai-helpers/`.
 
 ## Command Frontmatter
 
