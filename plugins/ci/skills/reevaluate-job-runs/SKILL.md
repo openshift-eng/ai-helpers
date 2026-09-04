@@ -65,7 +65,7 @@ Prefer exporting `SIPPY_TOKEN` as above rather than passing `--token` on the com
 
 ### Step 2: Dry-run First
 
-Always suggest a `--dry-run` first — it reports what would match without writing anything. Pass numeric build IDs or full Prow job URLs (any count — the script deduplicates and batches automatically):
+Always suggest a `--dry-run` first — it reports what would match without writing anything. Pass numeric build IDs or full Prow job URLs (up to 10,000 unique runs). The script deduplicates the IDs, submits them as one asynchronous batch, and polls until the batch finishes:
 
 ```bash
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
@@ -94,18 +94,17 @@ for REG_ID in 12345 12346 12347; do
   RUN_IDS="$RUN_IDS $IDS"
 done
 
-# The script deduplicates and batches (default 10 per request) automatically
+# The script deduplicates the IDs and submits one asynchronous batch
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
   $RUN_IDS --format summary
 ```
 
 **Arguments**:
-- `runs`: One or more Prow build IDs or Prow job URLs (positional, required; batched automatically)
+- `runs`: One or more Prow build IDs or Prow job URLs (positional, required; maximum 10,000 unique IDs)
 
 **Options**:
 - `--token <token>`: Bearer token from the oc-auth skill (optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
 - `--dry-run`: Report matches without writing anything
-- `--batch-size <n>`: Runs per API request (default 10; max 50, but large batches risk 504 gateway timeouts)
 - `--format json|summary`: Output format (default: json)
 
 ## API Details
@@ -118,43 +117,83 @@ python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
 {"prow_job_build_ids": ["1856789012345678848"], "dry_run": false}
 ```
 
-The API accepts a maximum of 50 build IDs per request.
+The API accepts a maximum of **10,000 unique build IDs per request**. The client submits all deduplicated IDs in one request; do not split the request into small client-side batches.
 
-**Response**: `results[]` with per-run fields:
+**Submission response** (`202 Accepted`):
+
+```json
+{
+  "batch_id": "6e2c31fa-298d-4b9e-89bc-bc94f58c1082",
+  "requested": 1,
+  "links": {
+    "status": "https://sippy-auth.dptools.openshift.org/api/jobs/runs/reevaluate/6e2c31fa-298d-4b9e-89bc-bc94f58c1082"
+  }
+}
+```
+
+Poll the returned `links.status` URL (or `GET /api/jobs/runs/reevaluate/{batch_id}`) until `status` is terminal.
+
+**Status response** (`200 OK`):
+
+```json
+{
+  "batch_id": "6e2c31fa-298d-4b9e-89bc-bc94f58c1082",
+  "status": "complete",
+  "requested": 1,
+  "enqueued": 1,
+  "deduped": 0,
+  "completed": 1,
+  "failed": 0,
+  "running": 0,
+  "pending": 0,
+  "items": [{"item_key": "1856789012345678848", "state": "completed"}]
+}
+```
+
+Batch status progresses through `pending`, `processing`, and `running`. Terminal statuses are `complete`, `failed`, and `cancelled`. A `complete` batch can contain a mixture of successful and failed items; inspect the `failed` counter and each item's `state`.
+
+Status fields:
 
 | Field | Description |
 |-------|-------------|
-| `status` | `success`, `missing_error` (run artifacts not found), `eval_error`, or `rewrite_error` |
-| `symptoms_evaluated` | Number of symptoms checked against the run |
-| `symptoms_matched` | Number of symptoms that matched |
-| `labels_applied` | Label IDs applied to the run |
-| `bq_entries_written` | BigQuery rows written |
-| `gcs_artifacts_written` | GCS label artifacts written |
-| `postgres_updated` | Whether the Postgres record was updated |
+| `status` | Current batch lifecycle status |
+| `requested` | Number of unique job runs accepted in the batch |
+| `enqueued` | Per-run jobs newly enqueued by the server |
+| `deduped` | Per-run jobs deduplicated by the server's work queue |
+| `completed` | Per-run jobs that completed successfully |
+| `failed` | Per-run jobs that were discarded, cancelled, or orphaned |
+| `running` | Per-run jobs currently running |
+| `pending` | Per-run jobs not yet running |
+| `items` | Per-run `item_key` (build ID) and work-queue `state` |
 
 **Authentication**: `Authorization: Bearer <token>` from the DPCR cluster.
 
-Reevaluation is delete-then-insert and **idempotent** — running it twice on the same run is safe. Manually-applied labels (those with an empty `symptom_id`) are preserved.
+Reevaluation is delete-then-insert and **idempotent**. Manually-applied labels (those with an empty `symptom_id`) are preserved. Individual server-side jobs retry up to three times with exponential backoff.
 
-## Batching & timeouts (field-tested 2026-07)
+## Asynchronous batching and polling
 
-- The server evaluates roughly **3-4 seconds per run**, and the fronting gateway times out around **60-90 seconds**, returning an HTML `504 Gateway Time-out` **page** (not JSON). This means 50-run batches reliably fail even though the API nominally accepts them.
-- The script therefore defaults to **batches of 10**, with **3 attempts per batch (2 retries)** and a 5-second backoff. Transient gateway errors (HTTP 502/503/504, HTML error pages, and non-JSON response bodies) are all retried. Retries are safe because reevaluation is idempotent — even a batch that partially completed server-side can be resent.
-- If 504s persist, lower `--batch-size` (e.g. `--batch-size 5`).
-- **Warning:** an HTML **login page** response means the token expired — the SSO proxy redirects to login instead of returning 401. The script detects this and tells you to refresh the token via the `oc-auth` skill.
+- The script makes exactly one POST containing all unique IDs and `dry_run`, captures the returned `batch_id`, then polls the batch status endpoint every 2.5 seconds.
+- Polling continues through `pending`, `processing`, and `running` until the server reports `complete`, `failed`, or `cancelled`.
+- Transient status polling errors (HTTP 429/502/503/504 or connection errors) are retried up to five consecutive times. The POST is not retried automatically because a successful submission creates a new batch even if the client loses the response.
+- The returned status link must match the documented HTTPS origin and batch path. Authorization is preserved across same-origin redirects but stripped before following any cross-origin redirect.
+- **Warning:** an HTML login page response means the token expired — the SSO proxy redirects to login instead of returning 401. The script detects this and tells you to refresh the token via the `oc-auth` skill.
 
 ## Error Handling
 
 - **Invalid/non-numeric IDs**: Caught client-side before any request (exit 1) — pass a numeric build ID or a Prow URL ending in one (query strings and `#fragments` are stripped automatically).
-- **Invalid `--batch-size`**: Must be between 1 and 50 (exit 1).
-- **Transient gateway errors (502/503/504, HTML error pages, non-JSON bodies)**: Retried automatically (3 attempts, i.e. 2 retries, 5s backoff); persistent failures are reported in `failed_batches` and the script exits 1 — rerun with just those IDs (idempotent, safe).
-- **Authentication failure (HTML login page or 401/403)**: Token missing/expired — the script **stops immediately** and marks all remaining batches as `not attempted` in `failed_batches` instead of hammering the API with a bad token. Refresh the token via the `oc-auth` skill and rerun.
-- **`missing_error` status**: The run's artifacts were not found — check the build ID.
+- **More than 10,000 unique IDs**: Rejected client-side before submission (exit 1).
+- **Submission HTTP error or malformed 202 response**: Reported immediately; the POST is not retried (exit 1).
+- **Transient polling error or request timeout**: Retried up to five consecutive times; persistent failure exits 1 while preserving the batch ID in preceding progress output so polling can be resumed manually.
+- **Authentication failure (HTML login page or 401/403)**: Token missing/expired — the script stops immediately. Refresh the token via the `oc-auth` skill and rerun or query the captured batch ID.
+- **Malformed status response**: Unknown statuses, missing counters/items, or a mismatched batch ID stop polling (exit 1).
+- **Per-run failure**: Inspect the `failed` counter and item states. River reports failed work as `discarded`, `cancelled`, or `orphaned`.
 - **501**: You hit the read-only Sippy instance; make sure the sippy-auth base URL is used (the script already does).
 
+When `--format json` is selected, submission and polling failures also produce a valid JSON object on stdout with `submission`, `status: null`, and a single `failed_batches` entry. The same useful error is written to stderr and the process exits 1.
+
 **Exit Codes**:
-- `0`: All batches succeeded
-- `1`: Validation error, or one or more batches failed (see `failed_batches` in JSON output)
+- `0`: The batch reached `complete` with zero failed items
+- `1`: Validation/API error, interrupted polling, `failed`/`cancelled` terminal status, or one or more failed items
 
 ## See Also
 
