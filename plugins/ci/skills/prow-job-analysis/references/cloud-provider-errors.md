@@ -12,6 +12,9 @@ creation — typically environment issues rather than product bugs;
 - `junit_install.xml` failure mode is `infrastructure` (see
   [Install — General](install/general.md#infrastructure-failures))
 - Installer log shows cloud API errors (quota, throttling, auth, capacity)
+- Cloud API 429/throttling or external VIP/DNS reachability loss **during**
+  test or upgrade — still `failure_type: infra`, even when the job name says
+  `upgrade` or `e2e`
 - Many jobs on **one** cloud fail simultaneously while other clouds pass
 
 **Use a different reference for:**

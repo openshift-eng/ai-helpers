@@ -11,6 +11,7 @@ REQUIRED_CANDIDATE_FIELDS_BY_TYPE = {
     "pr": ["pr_url"],
     "rhcos_rpm": ["package", "rhcos_tag", "changelog_evidence"],
 }
+SHIP_STATUS_ACTIONS = {"pending", "created", "linked", "skipped"}
 
 
 def validate(path):
@@ -50,6 +51,29 @@ def validate(path):
             for field in REQUIRED_JOB_FIELDS:
                 if field not in job:
                     errors.append(f"failing_jobs[{i}] missing '{field}'")
+            if "ship_status" not in job:
+                continue
+            ship_status = job["ship_status"]
+            if ship_status is None:
+                errors.append(
+                    f"failing_jobs[{i}].ship_status must be an object "
+                    f"(omit the key if unavailable, do not set null)"
+                )
+                continue
+            if not isinstance(ship_status, dict):
+                errors.append(f"failing_jobs[{i}].ship_status is not an object")
+                continue
+            action = ship_status.get("action")
+            if not isinstance(action, str) or not action:
+                errors.append(
+                    f"failing_jobs[{i}].ship_status.action must be a non-empty "
+                    f"string one of {sorted(SHIP_STATUS_ACTIONS)}, got {action!r}"
+                )
+            elif action not in SHIP_STATUS_ACTIONS:
+                errors.append(
+                    f"failing_jobs[{i}].ship_status.action must be one of "
+                    f"{sorted(SHIP_STATUS_ACTIONS)}, got {action!r}"
+                )
 
     if "candidates" not in data:
         errors.append("missing 'candidates' key")

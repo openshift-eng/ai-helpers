@@ -1,0 +1,24 @@
+metadata:
+  payload_tag: "5.0.0-0.ci-2026-05-01-212308"
+  version: "5.0"
+  stream: "ci"
+  architecture: "amd64"
+
+failing_jobs:
+  - job_name: "periodic-ci-openshift-release-main-ci-5.0-e2e-gcp"
+    failure_type: "infra"
+    root_cause_summary: "GCP quota exceeded"
+    ship_status:
+      component_slug: boskos
+      sub_component_slug: gcp
+      window_start: "2026-05-01T20:00:00Z"
+      window_end: "2026-05-01T21:30:00Z"
+      observed_health: healthy
+      existing_outage_id: null
+      queried_at: "2026-05-01T22:00:00Z"
+      action: pending
+      outage_id: null
+      dashboard_url: null
+      reason: ""
+
+candidates: []

@@ -39,7 +39,8 @@ bentito|Brett T.|Brett Tofel
 jcmoraisjr|Joao M.|Joao Morais
 aswinsuryan|Aswin S.|Aswin Suryanarayanan
 melvinjoseph86|Melvin J.|Melvin Joseph
-rhamini3|Ishmam A.|Ishmam Amin"
+rhamini3|Ishmam A.|Ishmam Amin
+pedjak|Predrag K.|Predrag Knezevic"
 
 # Derive the plain login list (indexed arrays work on all bash versions).
 TEAM_USERNAMES=()

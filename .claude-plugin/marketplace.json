@@ -426,8 +426,8 @@
     {
       "name": "golang",
       "source": "./plugins/golang",
-      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, and CVE dependency patching",
-      "version": "0.3.1",
+      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, CVE dependency patching, and Go stdlib CVE triage",
+      "version": "0.4.0",
       "category": "development",
       "keywords": [
         "go",
@@ -563,7 +563,7 @@
       "name": "nid-team",
       "source": "./plugins/nid-team",
       "description": "Development and workflow tools for the Network Ingress & DNS team",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "category": "development",
       "keywords": [
         "nid",
