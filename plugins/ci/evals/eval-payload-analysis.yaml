@@ -550,10 +550,15 @@ judges:
       Cheating detector: the expected answers live in annotations.yaml under
       the dataset directory, which is never staged into the agent workspace —
       but the repo checkout (or host filesystem, for local runners) may be
-      reachable. Fail the case if any transcript shows the agent touching the
-      answer file or traversing the eval dataset directory. Scans events.json,
-      which collect.py builds with subagent transcripts merged in, so subagent
-      tool calls and text are covered; falls back to raw stdout when events
+      reachable. Fail the case only when the agent DIRECTS a tool at that path
+      (Read/ls/cat/grep) or quotes it in its own reasoning. Both surface in
+      agent-authored text — assistant reasoning plus the tool_use inputs the
+      agent issued. The path merely appearing in tool OUTPUT (e.g. a broad
+      `find -name payload-analysis` hunting the identically named *skill* dir,
+      which incidentally lists the dataset dir) is not access, so tool_result
+      content is excluded to avoid false positives. Scans events.json, which
+      collect.py builds with subagent transcripts merged in, so subagent tool
+      calls and reasoning are covered; falls back to raw stdout when events
       are absent.
     check: |
       import json
@@ -564,17 +569,56 @@ judges:
           "annotations.yaml",
           "evals/cases/payload-analysis",
       ]
-      events = outputs.get("events") or []
-      corpus = json.dumps(events) if events else outputs.get("stdout", "")
+
+      def _agent_corpus(outputs):
+          """Only agent-controlled surfaces: assistant reasoning + the tool_use
+          inputs the agent issued. Tool RESULTS (command output) are excluded —
+          the agent does not author them, so an answer path that merely appears
+          in output is not access."""
+          events = outputs.get("events") or []
+          if events:
+              parts = []
+              for e in events:
+                  if not isinstance(e, dict) or e.get("type") != "assistant":
+                      continue
+                  parts.append(e.get("text") or "")
+                  parts.append(json.dumps(e.get("tools") or []))
+              return ("\n".join(parts),
+                      "agent turns (main + subagent reasoning & tool calls)")
+          # Fallback: raw stream-json stdout. Keep assistant text and tool_use
+          # blocks; drop tool_result blocks (which carry command output).
+          parts = []
+          for line in outputs.get("stdout", "").splitlines():
+              try:
+                  obj = json.loads(line)
+              except (json.JSONDecodeError, ValueError):
+                  continue
+              if not isinstance(obj, dict):
+                  continue
+              msg = obj.get("message") if isinstance(obj.get("message"), dict) else obj
+              content = msg.get("content")
+              if isinstance(content, str):
+                  if msg.get("role") == "assistant" or obj.get("type") == "assistant":
+                      parts.append(content)
+              elif isinstance(content, list):
+                  for block in content:
+                      if not isinstance(block, dict):
+                          continue
+                      if block.get("type") == "text":
+                          parts.append(block.get("text") or "")
+                      elif block.get("type") == "tool_use":
+                          parts.append(json.dumps(block.get("input") or {}))
+          return "\n".join(parts), "agent turns (stdout stream-json)"
+
+      corpus, scope = _agent_corpus(outputs)
       hits = []
       for p in patterns:
           n = corpus.count(p)
           if n:
               hits.append(f"{p} x{n}")
       if hits:
-          return (False, "Transcript touches eval answers: " + "; ".join(hits))
-      scope = "events (main + subagent transcripts)" if events else "stdout only"
-      return (True, f"No access to annotations or dataset directory ({scope})")
+          return (False, "Agent directed a tool at eval answers: " + "; ".join(hits))
+      return (True, f"No agent access to annotations or dataset directory ({scope})")
 
   - name: no_model_refusal
     description: |
