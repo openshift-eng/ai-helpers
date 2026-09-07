@@ -41,7 +41,7 @@ Controls FIPS activation at runtime. Must be set wherever the binary is deployed
 
 Go 1.24+ includes `crypto/mlkem` (FIPS 203) and `crypto/tls` uses X25519MLKEM768 by default for TLS connections. This means ML-KEM is built into the binary — no OS-level crypto-policies configuration is needed.
 
-The old approach required a separate `crypto-policies` setup (via RPM or manual config) to enable `DEFAULT:PQ`. This configured system C libraries (OpenSSL, GnuTLS, NSS, etc.) by generating per-library config files in `/etc/crypto-policies/back-ends/`:
+The old approach required a separate [`crypto-policies`](https://gitlab.com/redhat-crypto/fedora-crypto-policies) setup (via RPM or manual config) to enable `DEFAULT:PQ`. This configured system C libraries (OpenSSL, GnuTLS, NSS, etc.) by generating per-library config files in `/etc/crypto-policies/back-ends/`:
 
 | Backend file | Library |
 |---|---|
@@ -56,62 +56,6 @@ The old approach required a separate `crypto-policies` setup (via RPM or manual 
 The `:PQ` subpolicy prepends hybrid ML-KEM groups at highest priority, adding `X25519MLKEM768`, `P256-MLKEM768`, `P384-MLKEM1024` etc. to each backend in its native syntax.
 
 **Why this is unnecessary for Go binaries:** A statically-compiled Go binary (`CGO_ENABLED=0`) with `GOFIPS140` uses its own `crypto/tls` stack — it does not link against OpenSSL, GnuTLS, or NSS. OS-level crypto-policies back-end configs have zero effect on Go binaries.
-
-## Steps
-
-### Step 1: Find go build commands
-
-Search the project for `go build` invocations across Dockerfiles, Makefiles, shell scripts, and CI configs:
-
-```bash
-grep -rn "go build" --include="Dockerfile*" --include="Makefile*" --include="*.sh" --include="*.yaml" --include="*.yml" .
-```
-
-Classify each as:
-- **Migration target**: contains old FIPS patterns (`GOEXPERIMENT=strictfipsruntime`, `CGO_ENABLED=1`, `-tags strictfipsruntime`)
-- **New FIPS target**: contains `go build` but no FIPS configuration yet
-- **Skip**: not a Go build command (e.g., comments, documentation)
-
-Report findings to the user before making changes.
-
-### Step 2: Update go build commands
-
-For each `go build` invocation, set:
-
-```
-CGO_ENABLED=0 GOFIPS140=certified go build ... -tags no_openssl ...
-```
-
-Specifically:
-- Set `CGO_ENABLED=0` (replaces `CGO_ENABLED=1`)
-- Set `GOFIPS140=certified` (replaces `GOEXPERIMENT=strictfipsruntime`)
-- Replace `-tags strictfipsruntime` with `-tags no_openssl`
-- If there are existing `-tags` with multiple values, append `no_openssl` and remove `strictfipsruntime`
-- Preserve all other build flags (`-trimpath`, `-ldflags`, `-mod`, `-o`, etc.)
-
-### Step 3: Add runtime GODEBUG
-
-Set `GODEBUG=fips140=auto` at runtime, wherever the binary is deployed:
-- **Dockerfile**: add `ENV GODEBUG=fips140=auto` before the `USER` or `ENTRYPOINT` directive
-- **Kubernetes**: add to the container's `env` in the pod spec
-- **systemd**: add `Environment=GODEBUG=fips140=auto` to the unit file
-- **Shell**: export `GODEBUG=fips140=auto` before running the binary
-
-### Step 4: Clean up old openssl/crypto-policies artifacts (migration only)
-
-If old FIPS patterns were detected, the openssl and [crypto-policies](https://gitlab.com/redhat-crypto/fedora-crypto-policies) infrastructure can be removed as a side effect — it is no longer needed for Go binaries.
-
-1. **Remove `openssl` from package installs.** If `openssl` was the only package being installed in a Dockerfile stage, the entire stage can be removed.
-
-2. **Remove crypto-policies infrastructure.** Look for both RPM-based and manual configurations:
-   - Build stages installing `crypto-policies-scripts` and running `update-crypto-policies --set DEFAULT:PQ`
-   - `COPY --from=crypto-policies /etc/crypto-policies/ /etc/crypto-policies/` lines
-   - Manual overrides: files copied into `/etc/crypto-policies/local.d/`, modified symlinks in `/etc/crypto-policies/back-ends/`, or direct OpenSSL group overrides in `/etc/pki/tls/openssl.cnf`
-   - Custom OpenSSH `KexAlgorithms` entries for `mlkem768x25519-sha256`
-
-   All of these are unnecessary for Go binaries — see the Reference section above for why.
-
-3. **Update `rpms.in.yaml`** (if it exists): remove `openssl` and `crypto-policies-scripts` entries.
 
 ## Verification with tls-scanner
 
