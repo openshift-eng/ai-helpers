@@ -99,7 +99,7 @@ Set `GODEBUG=fips140=auto` at runtime, wherever the binary is deployed:
 
 ### Step 4: Clean up old openssl/crypto-policies artifacts (migration only)
 
-If old FIPS patterns were detected, the openssl and crypto-policies infrastructure can be removed as a side effect — it is no longer needed for Go binaries.
+If old FIPS patterns were detected, the openssl and [crypto-policies](https://gitlab.com/redhat-crypto/fedora-crypto-policies) infrastructure can be removed as a side effect — it is no longer needed for Go binaries.
 
 1. **Remove `openssl` from package installs.** If `openssl` was the only package being installed in a Dockerfile stage, the entire stage can be removed.
 
