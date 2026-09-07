@@ -1,16 +1,16 @@
 ---
 name: native-fips
 description: |
-  Configure Go project Dockerfiles to use Go's native FIPS 140 module instead of openssl-based FIPS.
+  Configure Go projects to use Go's native FIPS 140 module instead of openssl-based FIPS.
   Use when the user wants to enable FIPS compliance in a Go project, migrate from openssl-based FIPS
-  to native Go FIPS, or when Dockerfiles contain GOEXPERIMENT=strictfipsruntime or openssl-based FIPS patterns.
+  to native Go FIPS, or when build configs contain GOEXPERIMENT=strictfipsruntime or openssl-based FIPS patterns.
   Triggers on: 'native FIPS', 'GOFIPS140', 'FIPS without openssl', 'enable FIPS', 'migrate FIPS',
   'GOEXPERIMENT=strictfipsruntime', 'strictfipsruntime', 'fips140', 'Go FIPS module'.
 ---
 
 # Native FIPS
 
-Configure a Go project's Dockerfiles to use Go's native FIPS 140 module (`GOFIPS140`), producing static binaries (`CGO_ENABLED=0`) that no longer depend on the `openssl` RPM. Works for both new projects and migrating existing openssl-based FIPS setups.
+Configure a Go project to use Go's native FIPS 140 module (`GOFIPS140`), producing static binaries (`CGO_ENABLED=0`) that no longer depend on the `openssl` RPM. Works for both new projects and migrating existing openssl-based FIPS setups.
 
 ## Reference
 
@@ -29,7 +29,7 @@ Use `certified` in `go build` as it automatically resolves to the latest certifi
 
 ### Runtime: `GODEBUG=fips140=<value>`
 
-Controls FIPS activation at runtime.
+Controls FIPS activation at runtime. Must be set wherever the binary is deployed (Dockerfile `ENV`, Kubernetes pod spec, systemd unit, etc.).
 
 | Value | Behavior |
 |-------|----------|
@@ -39,11 +39,9 @@ Controls FIPS activation at runtime.
 
 ### Post-quantum cryptography (ML-KEM)
 
-The old approach required a separate `crypto-policies` multi-stage build to enable `DEFAULT:PQ`. With Go's native FIPS module, ML-KEM is built into the binary — the crypto-policies stage is no longer needed.
+Go 1.24+ includes `crypto/mlkem` (FIPS 203) and `crypto/tls` uses X25519MLKEM768 by default for TLS connections. This means ML-KEM is built into the binary — no OS-level crypto-policies configuration is needed.
 
-### What `crypto-policies` and `DEFAULT:PQ` do under the hood
-
-`update-crypto-policies` generates per-library config files in `/etc/crypto-policies/back-ends/` that configure system C libraries:
+The old approach required a separate `crypto-policies` setup (via RPM or manual config) to enable `DEFAULT:PQ`. This configured system C libraries (OpenSSL, GnuTLS, NSS, etc.) by generating per-library config files in `/etc/crypto-policies/back-ends/`:
 
 | Backend file | Library |
 |---|---|
@@ -55,41 +53,33 @@ The old approach required a separate `crypto-policies` multi-stage build to enab
 | `krb5.config` | Kerberos |
 | `libssh.config` | libssh |
 
-The `:PQ` subpolicy prepends hybrid ML-KEM groups at highest priority, adding `X25519MLKEM768`, `P256-MLKEM768`, `P384-MLKEM1024` etc. to each backend in its native syntax. The active policy is recorded in `/etc/crypto-policies/state/CURRENT.pol`.
+The `:PQ` subpolicy prepends hybrid ML-KEM groups at highest priority, adding `X25519MLKEM768`, `P256-MLKEM768`, `P384-MLKEM1024` etc. to each backend in its native syntax.
 
-**Why this is unnecessary for Go binaries:** A statically-compiled Go binary (`CGO_ENABLED=0`) with `GOFIPS140` uses its own `crypto/tls` stack — it does not link against OpenSSL, GnuTLS, or NSS. Go 1.24+ includes `crypto/mlkem` (FIPS 203) and `crypto/tls` uses X25519MLKEM768 by default for TLS connections. OS-level crypto-policies back-end configs have zero effect on Go binaries.
-
-### Manual crypto-policies configurations to look for
-
-Some projects configure PQ without the `crypto-policies-scripts` RPM. When migrating, also look for and remove:
-- Custom files in `/etc/crypto-policies/local.d/` (e.g., `openssl-pq.config`, `gnutls-pq.config`)
-- Modified symlinks in `/etc/crypto-policies/back-ends/` pointing to custom files
-- Direct OpenSSL group overrides in `/etc/pki/tls/openssl.cnf` (e.g., `Groups = X25519MLKEM768:X25519:...`)
-- Custom OpenSSH `KexAlgorithms` entries for `mlkem768x25519-sha256`
-
-For Go-only containers, all of these can be removed since the Go binary handles its own crypto.
+**Why this is unnecessary for Go binaries:** A statically-compiled Go binary (`CGO_ENABLED=0`) with `GOFIPS140` uses its own `crypto/tls` stack — it does not link against OpenSSL, GnuTLS, or NSS. OS-level crypto-policies back-end configs have zero effect on Go binaries.
 
 ## Steps
 
-### Step 1: Find Dockerfiles
+### Step 1: Find go build commands
+
+Search the project for `go build` invocations across Dockerfiles, Makefiles, shell scripts, and CI configs:
 
 ```bash
-find . -name "Dockerfile*" -not -path "*/vendor/*"
+grep -rn "go build" --include="Dockerfile*" --include="Makefile*" --include="*.sh" --include="*.yaml" --include="*.yml" .
 ```
 
-Read each Dockerfile. Classify as:
-- **Migration target**: contains old FIPS patterns (`GOEXPERIMENT=strictfipsruntime`, `CGO_ENABLED=1` with go build, `-tags strictfipsruntime`)
+Classify each as:
+- **Migration target**: contains old FIPS patterns (`GOEXPERIMENT=strictfipsruntime`, `CGO_ENABLED=1`, `-tags strictfipsruntime`)
 - **New FIPS target**: contains `go build` but no FIPS configuration yet
-- **Skip**: no `go build` command (e.g., pure base image Dockerfiles)
+- **Skip**: not a Go build command (e.g., comments, documentation)
 
 Report findings to the user before making changes.
 
 ### Step 2: Update go build commands
 
-For each Dockerfile with a `go build` command, set:
+For each `go build` invocation, set:
 
-```dockerfile
-RUN CGO_ENABLED=0 GOFIPS140=certified go build ... -tags no_openssl ...
+```
+CGO_ENABLED=0 GOFIPS140=certified go build ... -tags no_openssl ...
 ```
 
 Specifically:
@@ -101,34 +91,31 @@ Specifically:
 
 ### Step 3: Add runtime GODEBUG
 
-Add `ENV GODEBUG=fips140=auto` before the `USER` directive in the final stage of each Dockerfile:
-
-```dockerfile
-ENV GODEBUG=fips140=auto
-USER ${USER_UID}
-```
-
-If no `USER` directive exists, add it before the `ENTRYPOINT` or `CMD` directive.
+Set `GODEBUG=fips140=auto` at runtime, wherever the binary is deployed:
+- **Dockerfile**: add `ENV GODEBUG=fips140=auto` before the `USER` or `ENTRYPOINT` directive
+- **Kubernetes**: add to the container's `env` in the pod spec
+- **systemd**: add `Environment=GODEBUG=fips140=auto` to the unit file
+- **Shell**: export `GODEBUG=fips140=auto` before running the binary
 
 ### Step 4: Clean up old openssl/crypto-policies artifacts (migration only)
 
-If old FIPS patterns were detected, remove the openssl and crypto-policies infrastructure:
+If old FIPS patterns were detected, the openssl and crypto-policies infrastructure can be removed as a side effect — it is no longer needed for Go binaries.
 
-1. **Remove `openssl` from `dnf install` commands.** If `openssl` was the only package being installed, remove the entire `install-additional-packages` multi-stage build section and update any `COPY --from=install-additional-packages` to copy directly from the base image instead.
+1. **Remove `openssl` from package installs.** If `openssl` was the only package being installed in a Dockerfile stage, the entire stage can be removed.
 
 2. **Remove crypto-policies infrastructure.** Look for both RPM-based and manual configurations:
-   - Multi-stage build stages installing `crypto-policies-scripts` and running `update-crypto-policies --set DEFAULT:PQ`
+   - Build stages installing `crypto-policies-scripts` and running `update-crypto-policies --set DEFAULT:PQ`
    - `COPY --from=crypto-policies /etc/crypto-policies/ /etc/crypto-policies/` lines
    - Manual overrides: files copied into `/etc/crypto-policies/local.d/`, modified symlinks in `/etc/crypto-policies/back-ends/`, or direct OpenSSL group overrides in `/etc/pki/tls/openssl.cnf`
    - Custom OpenSSH `KexAlgorithms` entries for `mlkem768x25519-sha256`
 
    All of these are unnecessary for Go binaries — see the Reference section above for why.
 
-3. **Update `rpms.in.yaml`** (if it exists): remove `openssl` and `crypto-policies-scripts` entries. 
+3. **Update `rpms.in.yaml`** (if it exists): remove `openssl` and `crypto-policies-scripts` entries.
 
 ## Verification with tls-scanner
 
-The `tls-scanner-run` CI step (from `openshift/release` step registry) can verify FIPS and post-quantum TLS compliance on a running cluster. It deploys a scanner pod that connects to all pod endpoints and checks their TLS configuration.
+The `tls-scanner` tool can verify FIPS and post-quantum TLS compliance on a running cluster. It deploys a scanner pod that connects to all pod endpoints and checks their TLS configuration.
 
 The tool source and documentation is at https://github.com/openshift/tls-scanner. The `tls-scanner-run` step ref is defined in the `openshift/release` step registry at `ci-operator/step-registry/tls/scanner/run/`.
 
