@@ -27,15 +27,29 @@ Tells the Go compiler which FIPS 140 crypto module to embed into the binary.
 
 Use `certified` in `go build` as it automatically resolves to the latest certified module (currently `v1.0.0`). Both modules support ML-KEM (post-quantum key encapsulation), so post-quantum key exchange is available without the old `DEFAULT:PQ` crypto-policies stage.
 
+### Build-time: `GOEXPERIMENT=strictfipsruntime` (downstream only)
+
+The downstream [`golang-fips/go`](https://github.com/golang-fips/go) toolchain (used in RHEL/CentOS Go Toolset) provides `GOEXPERIMENT=strictfipsruntime`, which adds a startup check that panics if the binary's FIPS configuration is incompatible with the host environment. This is separate from `GOFIPS140` — it provides fail-closed startup enforcement, not module selection.
+
+When using the downstream toolchain with native FIPS, retain `GOEXPERIMENT=strictfipsruntime` and add `-tags no_openssl` to switch from the OpenSSL backend to the native Go FIPS module:
+
+```bash
+CGO_ENABLED=0 GOEXPERIMENT=strictfipsruntime GOFIPS140=certified go build -tags no_openssl ...
+```
+
+Upstream Go does not support `strictfipsruntime`.
+
 ### Runtime: `GODEBUG=fips140=<value>`
 
 Controls FIPS activation at runtime. Must be set wherever the binary is deployed (Dockerfile `ENV`, Kubernetes pod spec, systemd unit, etc.).
 
-| Value | Behavior |
-|-------|----------|
-| `fips140=auto` | Follow the host's FIPS setting (`/proc/sys/crypto/fips_enabled`) |
-| `fips140=on` | Always enable FIPS, regardless of host |
-| `fips140=only` | FIPS-only mode, panics on any non-FIPS crypto call (useful for testing) |
+| Value | Behavior | Availability |
+|-------|----------|--------------|
+| `fips140=auto` | Follow the host's FIPS setting (`/proc/sys/crypto/fips_enabled`) | Downstream `golang-fips/go` only |
+| `fips140=on` | Always enable FIPS, regardless of host | Upstream Go and downstream |
+| `fips140=only` | FIPS-only mode, errors/panics on any non-FIPS crypto call. Test and assessment only — not for production. | Upstream Go and downstream |
+
+Upstream Go (go.dev) supports `off`, `on`, and `only`. The `auto` value is provided by the downstream [`golang-fips/go`](https://github.com/golang-fips/go) toolchain. For upstream Go, use `fips140=on` to unconditionally enable FIPS.
 
 ### Post-quantum cryptography (ML-KEM)
 
@@ -59,7 +73,7 @@ The `:PQ` subpolicy prepends hybrid ML-KEM groups at highest priority, adding `X
 
 ## Verification with tls-scanner
 
-The `tls-scanner` tool can verify FIPS and post-quantum TLS compliance on a running cluster. It deploys a scanner pod that connects to all pod endpoints and checks their TLS configuration.
+The `tls-scanner` tool can verify endpoint TLS compliance on a running cluster — it connects to pod endpoints and checks their TLS configuration (protocol versions, cipher suites, and with `PQC_CHECK=true`, TLS 1.3 and ML-KEM readiness). It does not verify binary-level FIPS properties such as `GOFIPS140` module embedding, runtime FIPS activation, or non-TLS cryptographic usage.
 
 The tool source and documentation is at https://github.com/openshift/tls-scanner. The `tls-scanner-run` step ref is defined in the `openshift/release` step registry at `ci-operator/step-registry/tls/scanner/run/`.
 
