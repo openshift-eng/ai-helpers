@@ -206,6 +206,17 @@ This repository uses [skillsaw](https://github.com/stbenjam/skillsaw) to validat
 make lint
 ```
 
+### Previewing the Marketplace Site
+
+Install the dependencies from `site/requirements.txt`, then run:
+
+```bash
+make site-serve
+```
+
+The MkDocs site is available at <http://127.0.0.1:8000/ai-helpers/>. GitHub
+Pages builds the same generated content after changes merge to `main`.
+
 ## Additional Documentation
 
 - **[AI Helpers Marketplace](https://openshift-eng.github.io/ai-helpers/)** - Complete list of all available plugins and commands
