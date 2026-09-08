@@ -31,13 +31,17 @@ Use `certified` in `go build` as it automatically resolves to the latest certifi
 
 The downstream [`golang-fips/go`](https://github.com/golang-fips/go) toolchain (used in RHEL/CentOS Go Toolset) provides `GOEXPERIMENT=strictfipsruntime`, which adds a startup check that panics if the binary's FIPS configuration is incompatible with the host environment. This is separate from `GOFIPS140` — it provides fail-closed startup enforcement, not module selection.
 
-When using the downstream toolchain with native FIPS, retain `GOEXPERIMENT=strictfipsruntime` and add `-tags no_openssl` to switch from the OpenSSL backend to the native Go FIPS module:
+When migrating a downstream build from the OpenSSL backend to native FIPS, retain `GOEXPERIMENT=strictfipsruntime` and add `-tags no_openssl` to disable the OpenSSL backend:
 
 ```bash
 CGO_ENABLED=0 GOEXPERIMENT=strictfipsruntime GOFIPS140=certified go build -tags no_openssl ...
 ```
 
-Upstream Go does not support `strictfipsruntime`.
+For upstream Go (which has no OpenSSL backend), `-tags no_openssl` and `GOEXPERIMENT=strictfipsruntime` are not needed:
+
+```bash
+CGO_ENABLED=0 GOFIPS140=certified go build ...
+```
 
 ### Runtime: `GODEBUG=fips140=<value>`
 
@@ -47,7 +51,7 @@ Controls FIPS activation at runtime. Must be set wherever the binary is deployed
 |-------|----------|--------------|
 | `fips140=auto` | Follow the host's FIPS setting (`/proc/sys/crypto/fips_enabled`) | Downstream `golang-fips/go` only |
 | `fips140=on` | Always enable FIPS, regardless of host | Upstream Go and downstream |
-| `fips140=only` | FIPS-only mode, errors/panics on any non-FIPS crypto call. Test and assessment only — not for production. | Upstream Go and downstream |
+| `fips140=only` | Best-effort FIPS-only mode — non-FIPS crypto calls may return an error or panic. May produce false positives/negatives. Test and assessment only — not for production. | Upstream Go and downstream |
 
 Upstream Go (go.dev) supports `off`, `on`, and `only`. The `auto` value is provided by the downstream [`golang-fips/go`](https://github.com/golang-fips/go) toolchain. For upstream Go, use `fips140=on` to unconditionally enable FIPS.
 
