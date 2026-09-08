@@ -10,7 +10,7 @@ description: |
 
 # Native FIPS
 
-Configure a Go project to use Go's native FIPS 140 module (`GOFIPS140`), producing static binaries (`CGO_ENABLED=0`) that no longer depend on the `openssl` RPM. Works for both new projects and migrating existing openssl-based FIPS setups.
+Configure a Go project to use Go's native FIPS 140 module (`GOFIPS140`). With `CGO_ENABLED=0`, this produces static binaries that no longer depend on the `openssl` RPM. Projects that require cgo should keep `CGO_ENABLED=1` and adjust their FIPS setup accordingly. Works for both new projects and migrating existing openssl-based FIPS setups.
 
 ## Reference
 

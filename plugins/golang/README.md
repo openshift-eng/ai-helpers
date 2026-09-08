@@ -63,7 +63,7 @@ User-invocable only (`/golang:lint-fix`) — not triggered automatically due to 
 
 ### `golang:native-fips`
 
-Configures Go project Dockerfiles to use Go's native FIPS 140 module (`GOFIPS140`), producing static binaries (`CGO_ENABLED=0`) without the `openssl` RPM dependency. Works for both new projects and migrating existing openssl-based FIPS setups (`GOEXPERIMENT=strictfipsruntime`). Removes crypto-policies stages, updates build flags, and adds `GODEBUG=fips140=auto` for runtime FIPS activation.
+Configures Go projects to use Go's native FIPS 140 module (`GOFIPS140`) without the `openssl` RPM dependency. Works for both new projects and migrating existing openssl-based FIPS setups (`GOEXPERIMENT=strictfipsruntime`). Covers build flags, runtime FIPS activation, upstream vs downstream toolchain differences, and post-quantum cryptography (ML-KEM).
 
 Triggered automatically when FIPS-related patterns are detected, or on demand:
 
