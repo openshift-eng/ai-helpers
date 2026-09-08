@@ -77,7 +77,7 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - Parse the "Deployment considerations" table to extract a platform/topology matrix of applicable configurations
    - Map each "Interoperability Considerations" item to an interoperability test scenario
    - Derive end-to-end scenario-based tests from the "Use Cases" section
-   - Map "Non-Functional Requirements" to performance, scale, and reliability test scenarios
+   - Map every "Non-Functional Requirements" item to an appropriate test scenario category (e.g. performance, scale, reliability, security, compatibility, resource consumption, usability, accessibility); when a specific NFR does not warrant a dedicated test scenario, document it as not applicable with a brief rationale
    - Derive negative test cases from the "Out of Scope" section only when items explicitly define unsupported behavior or must-not-change boundaries; otherwise record them as exclusions without inferring expected behavior
    - Map "Operational Requirements" to Day-2 operational test scenarios (metrics exposure, troubleshooting workflows, support runbook validation)
    - Use "Customer Considerations" to inform edge-case and real-world usage test scenarios
@@ -101,7 +101,7 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - **Interoperability**: for each item in Interoperability Considerations, generate a test scenario that validates co-existence (e.g. "Verify feature works alongside NetworkPolicy enforcement")
    - **Upgrade/rollback**: generate upgrade and rollback scenarios only when the issue, linked PRs, or release contract documents a supported upgrade or rollback path; otherwise mark this category `N/A`
    - **Success Criteria**: for each item in the Success Criteria section (Adoption and Outcomes), generate a scenario that validates the stated metric or target with explicit pass/fail criteria
-   - **Non-functional**: performance, scale, and resiliency scenarios derived from Non-Functional Requirements (e.g. "Verify minimal control-plane performance regression")
+   - **Non-functional**: scenarios derived from every Non-Functional Requirements item, mapped to the appropriate category (performance, scale, reliability, security, compatibility, resource consumption, usability, accessibility, or other relevant concern). For example: "Verify minimal control-plane performance regression", "Verify TLS configuration meets security requirements", "Verify resource consumption stays within documented limits". When a specific NFR does not warrant a dedicated test scenario, document it as not applicable with a brief rationale rather than silently omitting it
    - **Operational**: Day-2 operational scenarios derived from Operational Requirements (e.g. "Verify metrics are exposed for reconciliation failures", "Verify troubleshooting workflows are documented and functional")
    - **Negative tests**: for each Out of Scope item that explicitly defines unsupported behavior or a must-not-change boundary, generate a test verifying the stated constraint (e.g. "Verify that non-OVN-Kubernetes CNI providers are not affected"); record remaining Out of Scope items as exclusions without inferring expected behavior
 
@@ -149,7 +149,7 @@ When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown docu
 5. **Features to Be Tested**: Each testable capability, drawn from Functional Requirements, Testing and Validation Requirements, Use Cases, and Success Criteria (Adoption and Outcomes).
 6. **Features Not to Be Tested**: Items from Out of Scope and any Requirements explicitly marked as deferred or not applicable. Record these as exclusions.
 7. **Approach**: Testing strategy — manual vs. automated, environment tiers (dev, staging, CI), and how the OCPSTRAT-specific scenario categories (functional, deployment/topology, interoperability, non-functional, operational, upgrade/rollback, negative) map to execution phases.
-8. **Item Pass/Fail Criteria**: Measurable criteria for each test item — derived from acceptance criteria and non-functional requirements where quantitative targets exist. Use `N/A` for items without measurable thresholds.
+8. **Item Pass/Fail Criteria**: Criteria for each test item — derived from acceptance criteria, non-functional requirements, and observable expected behavior. Where quantitative targets exist, state them explicitly. Where no numeric threshold exists but the criterion has relevant qualitative expected behavior (e.g. expected error handling, documented behavioral contracts, or observable system responses), define pass/fail evidence based on those observable outcomes. Use `N/A` only for items that are genuinely not applicable to the feature under test.
 9. **Suspension Criteria and Resumption Requirements**: Conditions under which testing should halt (e.g. blocking infrastructure failures, critical defect discovery) and what must be resolved before resumption. Use `N/A` when not applicable to the feature.
 10. **Test Deliverables**: Expected outputs — the test plan document, test case results, defect reports, and any CI artifacts or coverage reports.
 11. **Testing Tasks**: Discrete work items — environment provisioning, test case authoring, execution passes, regression sweeps, results analysis.
@@ -166,7 +166,7 @@ When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown docu
     - Interoperability (from Interoperability Considerations)
     - Upgrade/rollback (when documented — otherwise `N/A`)
     - Success Criteria (from Adoption and Outcomes — include explicit pass/fail criteria)
-    - Non-functional (from Non-Functional Requirements — include measurable criteria)
+    - Non-functional (from every Non-Functional Requirements item — include measurable criteria where quantitative targets exist; for qualitative requirements, define observable expected behavior and pass/fail evidence)
     - Operational / Day-2 (from Operational Requirements)
     - Negative tests (from explicit Out of Scope boundaries only)
     - Regression scenarios
