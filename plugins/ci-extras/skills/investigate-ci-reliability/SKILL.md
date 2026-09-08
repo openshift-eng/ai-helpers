@@ -7,8 +7,9 @@ description: Find and independently validate actionable reliability defects acro
 
 Investigate actual failed job runs, demonstrate the underlying defects, and deliver
 an `issues/` directory containing only independently validated, currently applicable
-fixes. This package contains its own collectors, debugging procedure, review contract,
-and exporter; it does not require another plugin or a prior investigation repository.
+fixes. This package contains its own collectors, review contract, and exporter.
+Use the `prow-job-analysis` skill from the `ci` plugin for failed-job debugging;
+no prior investigation repository is required.
 
 ## Inputs and defaults
 
@@ -27,7 +28,8 @@ and exporter; it does not require another plugin or a prior investigation reposi
 
 Invoke `/investigate-ci-reliability 5.1 --max-issues 10` directly. The skill accepts
 these inputs in natural language or flags. Resolve bundled script paths relative to this `SKILL.md`, regardless of cwd.
-Python 3.10+ and public HTTPS access are sufficient; cloud CLIs and MCP are optional.
+The bundled scripts need Python 3.10+ and public HTTPS access. The investigation
+also requires the `prow-job-analysis` skill from the `ci` plugin.
 
 ## Start and collect
 
@@ -52,12 +54,16 @@ A selected PR SHA does not freeze base revision, batch membership, configuration
 
 ## Investigate bounded candidates
 
-Follow [the bundled Prow debugging procedure](references/prow-debugging.md). Fetch metadata,
-blocking JUnit/step output, same-job successful controls, and targeted component artifacts.
-Trace the failing assertion or step through the actual source and originating error.
-Retain tested revisions and separately verify whether the defect exists in current source.
-Check per-boot runtime evidence when the cluster/OS could explain the failure; record missing
-journals as a limitation rather than declaring the OS healthy from its final snapshot.
+Invoke `$prow-job-analysis` for every failed Prow job being investigated, including
+aggregate component jobs. Provide the exact run URL, frozen scope, and selected scratch
+location. Follow that skill's metadata, artifact, OS-evidence, and domain-specific
+investigation procedure. If it is unavailable, report the missing skill dependency;
+do not substitute a second debugging workflow here.
+
+Use the bundled [artifact helpers](references/artifact-helpers.md) for bounded acquisition,
+caching, and retained evidence. Preserve the chosen scratch location and budgets when
+invoking `prow-job-analysis`. The proof-review stage below determines whether the resulting
+causal finding is ready for a validated handoff.
 
 For aggregated jobs, retain the parent verdict and follow recorded component URLs.
 Verify which children belong to the tested payload versus baseline/control cohorts.
@@ -66,7 +72,7 @@ are explicit coverage gaps. Parent retries sharing children are not independent 
 
 If delegation is available, assign disjoint candidates and reserve independent review capacity
 within `max-agents`. Give each worker the frozen scope, shared budgets, scratch location,
-this debugging procedure, and the evidence contract. Otherwise investigate serially and
+the requirement to use `prow-job-analysis`, and the evidence contract. Otherwise investigate serially and
 request a separate review context before promotion; self-review cannot satisfy the gate.
 Do not change the agent installation's concurrency configuration.
 

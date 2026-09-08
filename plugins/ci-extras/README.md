@@ -8,10 +8,11 @@ Use `/investigate-ci-reliability 5.1 --max-issues 10` to investigate **all relea
 jobs plus presubmits from the last 24 hours**. Narrow by scope (`all`, `release`,
 `presubmits`, `blocking`), exact job, substring, variant, or time window.
 
-The self-contained [investigate-ci-reliability skill](skills/investigate-ci-reliability/SKILL.md) includes public
+The [investigate-ci-reliability skill](skills/investigate-ci-reliability/SKILL.md) includes public
 Sippy collection, bounded Prow artifacts, an independent proof-review stage, and a portable
-issue exporter. Review challenges each proposed fix before publication. Python 3.10+ and HTTPS access are sufficient for this workflow;
-it does not require MCP or the `ci` plugin.
+issue exporter. Review challenges each proposed fix before publication. The bundled scripts
+require Python 3.10+ and HTTPS access, without MCP. Failed-job debugging uses
+`prow-job-analysis` from the `ci` plugin, declared as a dependency in the plugin manifest.
 
 Output `issues/` contains only independently validated current defects, including evidence,
 source state, owners, proposed fixes, acceptance criteria, and causal limitations. Unresolved

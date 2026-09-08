@@ -4,5 +4,10 @@
   "version": "0.1.0",
   "author": {
     "name": "github.com/openshift-eng"
-  }
+  },
+  "dependencies": [
+    {
+      "name": "ci"
+    }
+  ]
 }
