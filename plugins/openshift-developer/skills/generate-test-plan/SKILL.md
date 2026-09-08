@@ -159,7 +159,7 @@ When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown docu
 15. **Schedule**: High-level timeline or milestones for test execution relative to the release cycle. Use `TBD` for items not yet scheduled.
 16. **Risks and Contingencies**: Risks to the testing effort (environment availability, dependency delays, scope changes) and mitigation strategies.
 17. **Approvals**: Placeholder section for stakeholder sign-off — list the roles that should approve the plan (e.g. QE lead, feature owner).
-18. **Detailed Test Cases** *(appendix)*: The full set of numbered test cases, organized by the OCPSTRAT-specific scenario categories defined in Step 3:
+18. **Detailed Test Cases** *(appendix — coverage summary by default)*: A coverage summary listing each OCPSTRAT-specific scenario category from Step 3, the test cases derived per category (ID and title), the source requirement each traces to, and a coverage assessment (complete, partial, or gap). Include the following categories:
     - Functional validation (from Functional Requirements)
     - Testing and Validation (from Testing and Validation Requirements)
     - Deployment/topology variations (from the Deployment Matrix — include the platform/topology table here)
@@ -171,7 +171,7 @@ When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown docu
     - Negative tests (from explicit Out of Scope boundaries only)
     - Regression scenarios
 
-    Each test case includes: ID, title, preconditions, step-by-step instructions, expected results, and verification commands.
+    For each category, list test case IDs, titles, and requirement traceability. Omit full step-by-step instructions, preconditions, and verification commands from the initial plan — offer to expand individual categories or test cases with full detail on follow-up request (e.g. "expand the Functional validation test cases" or "show full details for TC-FUNC-01").
 
 **Readiness guidance** *(OCPSTRAT features only — include at the end of the generated document in a "Readiness Integration" section)*:
 
@@ -187,6 +187,7 @@ When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown docu
 - For OCPSTRAT features: note that the plan follows the IEEE 829 outline and highlight the readiness integration steps (linking, storage, work item derivation)
 - Highlight skipped PRs and reasoning
 - Ask if the user wants modifications
+- For OCPSTRAT features: offer to expand specific Detailed Test Case categories with full step-by-step instructions, preconditions, expected results, and verification commands on follow-up request
 
 ## Examples
 
@@ -229,4 +230,5 @@ When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown docu
 - When OCPSTRAT-aware parsing is active, retain the Deployment/topology, Interoperability, Non-Functional, Upgrade/rollback, and Negative Testing section headings in the IEEE 829 outline; populate them when the corresponding source data is present in the issue, and mark them `N/A` when it is absent
 - When OCPSTRAT-aware parsing is active, map each Success Criteria item (Adoption and Outcomes) to at least one test scenario with explicit pass/fail criteria
 - When OCPSTRAT-aware parsing is active, include readiness guidance on linking, storage, multiple plans, and work item derivation
+- When OCPSTRAT-aware parsing is active, present the Detailed Test Cases appendix as a coverage summary (IDs, titles, requirement traceability) by default; expand individual categories or test cases with full step-by-step detail only on follow-up request
 - For non-OCPSTRAT issues or OCPSTRAT issues that do not follow the template, fall back to the generic flow with no changes to existing behavior
