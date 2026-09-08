@@ -952,14 +952,6 @@ footer a { color: var(--primary); }
           "description_html": "Summarize the CI health of an OpenShift release using live data from the openshift-ci-mcp server",
           "synopsis": "/ci-extras:check-release-health \u003crelease version\u003e",
           "body_html": "\u003cp\u003eFetches live CI health data for a given OpenShift release and produces a concise summary covering payload acceptance, test regressions, and recent failures.\u003c/p\u003e\u003cp\u003eUseful for a quick read on overall release quality before a payload promotion decision or during a release readiness review.\u003c/p\u003e"
-        },
-        {
-          "name": "find-reliability-issues",
-          "full_name": "ci-extras:find-reliability-issues",
-          "description": "Investigate recent release and presubmit failures and export independently validated reliability issue handoffs",
-          "description_html": "Investigate recent release and presubmit failures and export independently validated reliability issue handoffs",
-          "synopsis": "/ci-extras:find-reliability-issues \u003crelease\u003e [--hours 24] [--scope all|release|presubmits|blocking] [--max-issues 10] [--job NAME] [--job-contains TEXT] [--variant KEY:VALUE] [--output PATH]",
-          "body_html": "Find actionable CI reliability defects, prove their mechanisms against run artifacts and\u003cbr\u003ecurrent source, and create portable handoffs for another agent. Defaults cover any job run\u003cbr\u003ein the chosen release plus presubmits during the last 24 hours. Successful runs remain in\u003cbr\u003ethe corpus as controls. Payload-blocking-only selection is opt-in."
         }
       ],
       "skills": [
@@ -967,12 +959,6 @@ footer a { color: var(--primary); }
           "name": "investigate-ci-reliability",
           "description": "Find and independently validate actionable reliability defects across OpenShift release jobs and presubmits, then export portable issue handoffs. Use when asked to investigate reliability across a bounded CI run population and deliver proven fixes.",
           "description_html": "Find and independently validate actionable reliability defects across OpenShift release jobs and presubmits, then export portable issue handoffs. Use when asked to investigate reliability across a bounded CI run population and deliver proven fixes.",
-          "meta": ""
-        },
-        {
-          "name": "review-ci-reliability",
-          "description": "Independently challenge proposed CI reliability fixes against run artifacts and current source. Use when reviewing candidate reliability issues before publishing validated handoffs.",
-          "description_html": "Independently challenge proposed CI reliability fixes against run artifacts and current source. Use when reviewing candidate reliability issues before publishing validated handoffs.",
           "meta": ""
         }
       ],

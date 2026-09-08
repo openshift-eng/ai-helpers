@@ -1,12 +1,7 @@
----
-name: review-ci-reliability
-description: Independently challenge proposed CI reliability fixes against run artifacts and current source. Use when reviewing candidate reliability issues before publishing validated handoffs.
----
-
 # Independent CI reliability proof review
 
-Review candidates produced by the bundled [investigate-ci-reliability skill](../investigate-ci-reliability/SKILL.md).
-Read its [evidence contract](../investigate-ci-reliability/references/evidence-contract.md) and the
+This is the independent review stage of [investigate-ci-reliability](../SKILL.md).
+Read the [evidence contract](evidence-contract.md) and the
 raw cited files. This review is a separate reasoning context from the investigator;
 changing the investigator's name does not make a self-review independent.
 
@@ -47,10 +42,10 @@ verdict, checked evidence IDs, reasoning, strongest counterargument, and narrow 
 Compute the digest using the bundled script:
 
 ```bash
-python3 ../investigate-ci-reliability/scripts/reliability.py candidate-digest WORK/candidates/CANDIDATE.json
+python3 ../scripts/reliability.py candidate-digest WORK/candidates/CANDIDATE.json
 ```
 
-Resolve the script relative to this skill. Review the exact candidate bytes semantically;
+Resolve the script relative to this reference document. Review the exact candidate bytes semantically;
 the digest is canonical JSON, so harmless whitespace does not invalidate a review.
 A substantive candidate change requires re-review. Do not modify candidates to approve your
 own rewrite; return requested changes to the investigator. Run the bundled validator after

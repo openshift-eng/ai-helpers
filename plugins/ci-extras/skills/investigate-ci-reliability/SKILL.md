@@ -25,8 +25,8 @@ and exporter; it does not require another plugin or a prior investigation reposi
   and its `validated/` subdirectory. Scratch defaults to `~/tmp/ci-reliability`.
   Keep raw downloads bounded and separate from curated handoff evidence.
 
-The command `/ci-extras:find-reliability-issues` accepts these inputs in natural language
-or flags. Resolve bundled script paths relative to this `SKILL.md`, regardless of cwd.
+Invoke `/investigate-ci-reliability 5.1 --max-issues 10` directly. The skill accepts
+these inputs in natural language or flags. Resolve bundled script paths relative to this `SKILL.md`, regardless of cwd.
 Python 3.10+ and public HTTPS access are sufficient; cloud CLIs and MCP are optional.
 
 ## Start and collect
@@ -83,8 +83,8 @@ observed cofailures from sole blockers; source defects can be demonstrated witho
 claiming every matching run would recover. A timeout, quota rejection, or hypothesis is
 not yet a demonstrated incorrect behavior with a justified fix.
 
-Use the bundled [review-ci-reliability skill](../review-ci-reliability/SKILL.md) in an
-independent context. Give the reviewer the raw evidence, candidate, and contract. Require
+Perform the [independent proof-review stage](references/proof-review.md) in a separate
+reviewer context. Give the reviewer the raw evidence, candidate, and contract. Require
 counterarguments, current-fix verification, and the exact scope of the proposed repair.
 A later candidate edit invalidates its review digest. Already-fixed incidents and unresolved
 causes stay outside `issues/`, even when their historical impact is large.
