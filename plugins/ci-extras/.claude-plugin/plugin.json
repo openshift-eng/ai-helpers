@@ -1,8 +1,13 @@
 {
   "name": "ci-extras",
   "description": "MCP server and extended tooling for OpenShift CI data access",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "author": {
     "name": "github.com/openshift-eng"
-  }
+  },
+  "dependencies": [
+    {
+      "name": "ci"
+    }
+  ]
 }

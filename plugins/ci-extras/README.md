@@ -2,6 +2,23 @@
 
 Extended OpenShift CI tooling, providing an MCP server for direct access to CI data APIs.
 
+## Reliability investigations
+
+Use `/investigate-ci-reliability 5.1 --max-issues 10` to investigate **all release
+jobs plus presubmits from the last 24 hours**. Narrow by scope (`all`, `release`,
+`presubmits`, `blocking`), exact job, substring, variant, or time window.
+
+The [investigate-ci-reliability skill](skills/investigate-ci-reliability/SKILL.md) includes public
+Sippy collection, bounded Prow artifacts, an independent proof-review stage, and a portable
+issue exporter. Review challenges each proposed fix before publication. The bundled scripts
+require Python 3.10+ and HTTPS access, without MCP. Failed-job debugging uses
+`prow-job-analysis` from the `ci` plugin, declared as a dependency in the plugin manifest.
+
+Output `issues/` contains only independently validated current defects, including evidence,
+source state, owners, proposed fixes, acceptance criteria, and causal limitations. Unresolved
+and already-fixed findings stay in a separate appendix. Maximum issues is a ceiling, not
+a promise; automated validation checks evidence integrity, not causal truth.
+
 ## Commands
 
 ### check-release-health

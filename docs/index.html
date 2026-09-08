@@ -942,7 +942,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci-extras",
       "description": "MCP server and extended tooling for OpenShift CI data access",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "has_readme": true,
       "commands": [
         {
@@ -954,7 +954,14 @@ footer a { color: var(--primary); }
           "body_html": "\u003cp\u003eFetches live CI health data for a given OpenShift release and produces a concise summary covering payload acceptance, test regressions, and recent failures.\u003c/p\u003e\u003cp\u003eUseful for a quick read on overall release quality before a payload promotion decision or during a release readiness review.\u003c/p\u003e"
         }
       ],
-      "skills": [],
+      "skills": [
+        {
+          "name": "investigate-ci-reliability",
+          "description": "Find and independently validate actionable reliability defects across OpenShift release jobs and presubmits, then export portable issue handoffs. Use when asked to investigate reliability across a bounded CI run population and deliver proven fixes.",
+          "description_html": "Find and independently validate actionable reliability defects across OpenShift release jobs and presubmits, then export portable issue handoffs. Use when asked to investigate reliability across a bounded CI run population and deliver proven fixes.",
+          "meta": ""
+        }
+      ],
       "agents": [],
       "hooks": [],
       "mcp_servers": [
