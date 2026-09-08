@@ -45,6 +45,9 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - **Customer Considerations** (`h3. *Customer Considerations*`)
    - **Out of Scope** (`h3. *Out of Scope*`)
    - **Background** (`h3. *Background*`)
+   - **Success Criteria** (`h2. *Success Criteria*` — a top-level section, not `h3.`), with subsections:
+     - Adoption (`h3.` or inline heading)
+     - Outcomes (`h3.` or inline heading)
 
    If OCPSTRAT-aware parsing is active but specific sections are absent, proceed with whichever sections are present; fall through to generic behavior for any missing content.
 
@@ -79,6 +82,7 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - Map "Operational Requirements" to Day-2 operational test scenarios (metrics exposure, troubleshooting workflows, support runbook validation)
    - Use "Customer Considerations" to inform edge-case and real-world usage test scenarios
    - Use "Goals" to inform overall test plan scope and prioritization — Goals do not require individual test mappings but should guide which scenarios are high priority
+   - Map each item in the "Success Criteria" section (including Adoption and Outcomes subsections) to at least one test scenario with explicit pass/fail criteria derived from the stated metric or target
 
 ### Step 3: Generate test scenarios
 
@@ -95,7 +99,8 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - **Testing and Validation**: test cases mapped 1:1 from the "Testing and Validation Requirements" sub-section (e.g. "Validate upgrade and rollback behavior" → upgrade/rollback test scenario)
    - **Deployment/topology variations**: for each applicable row in the Deployment considerations table, generate platform-specific test scenarios (e.g. "Verify feature on SNO cluster", "Verify on restricted network", "Verify on HCP deployment")
    - **Interoperability**: for each item in Interoperability Considerations, generate a test scenario that validates co-existence (e.g. "Verify feature works alongside NetworkPolicy enforcement")
-   - **Upgrade/rollback**: include upgrade and rollback scenarios by default for OCPSTRAT features, as these are commonly required for release readiness
+   - **Upgrade/rollback**: generate upgrade and rollback scenarios only when the issue, linked PRs, or release contract documents a supported upgrade or rollback path; otherwise mark this category `N/A`
+   - **Success Criteria**: for each item in the Success Criteria section (Adoption and Outcomes), generate a scenario that validates the stated metric or target with explicit pass/fail criteria
    - **Non-functional**: performance, scale, and resiliency scenarios derived from Non-Functional Requirements (e.g. "Verify minimal control-plane performance regression")
    - **Operational**: Day-2 operational scenarios derived from Operational Requirements (e.g. "Verify metrics are exposed for reconciliation failures", "Verify troubleshooting workflows are documented and functional")
    - **Negative tests**: for each Out of Scope item that explicitly defines unsupported behavior or a must-not-change boundary, generate a test verifying the stated constraint (e.g. "Verify that non-OVN-Kubernetes CNI providers are not affected"); record remaining Out of Scope items as exclusions without inferring expected behavior
@@ -141,7 +146,7 @@ When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown docu
    - **Scope**: What is in scope for testing (from Goals and Requirements) and what is explicitly excluded (from Out of Scope).
 3. **Background / References**: The OCPSTRAT feature, enhancement proposals, design documents, upstream issues, and linked PRs. Use generic placeholders (e.g. "the OCPSTRAT feature for this plan") rather than embedding organization-internal URLs directly.
 4. **Test Items**: Software components, operators, APIs, or CLI tools under test — derived from the feature description and linked PRs.
-5. **Features to Be Tested**: Each testable capability, drawn from Functional Requirements, Testing and Validation Requirements, and Use Cases.
+5. **Features to Be Tested**: Each testable capability, drawn from Functional Requirements, Testing and Validation Requirements, Use Cases, and Success Criteria (Adoption and Outcomes).
 6. **Features Not to Be Tested**: Items from Out of Scope and any Requirements explicitly marked as deferred or not applicable. Record these as exclusions.
 7. **Approach**: Testing strategy — manual vs. automated, environment tiers (dev, staging, CI), and how the OCPSTRAT-specific scenario categories (functional, deployment/topology, interoperability, non-functional, operational, upgrade/rollback, negative) map to execution phases.
 8. **Item Pass/Fail Criteria**: Measurable criteria for each test item — derived from acceptance criteria and non-functional requirements where quantitative targets exist. Use `N/A` for items without measurable thresholds.
@@ -159,7 +164,8 @@ When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown docu
     - Testing and Validation (from Testing and Validation Requirements)
     - Deployment/topology variations (from the Deployment Matrix — include the platform/topology table here)
     - Interoperability (from Interoperability Considerations)
-    - Upgrade/rollback
+    - Upgrade/rollback (when documented — otherwise `N/A`)
+    - Success Criteria (from Adoption and Outcomes — include explicit pass/fail criteria)
     - Non-functional (from Non-Functional Requirements — include measurable criteria)
     - Operational / Day-2 (from Operational Requirements)
     - Negative tests (from explicit Out of Scope boundaries only)
@@ -220,6 +226,7 @@ When OCPSTRAT-aware parsing is active, generate the test plan as a Markdown docu
 - When Jira acceptance criteria exist, map every criterion to at least one test case
 - When OCPSTRAT-aware parsing is active, map every "Testing and Validation Requirements" item to at least one test scenario
 - When OCPSTRAT-aware parsing is active, generate the test plan as an IEEE 829-style Markdown document with all standard sections; use `N/A` for sections that are not applicable to the specific feature rather than omitting them
-- When OCPSTRAT-aware parsing is active, retain the Deployment/topology, Interoperability, Non-Functional, and Negative Testing section headings in the IEEE 829 outline; populate them when the corresponding source data is present in the issue, and mark them `N/A` when it is absent
+- When OCPSTRAT-aware parsing is active, retain the Deployment/topology, Interoperability, Non-Functional, Upgrade/rollback, and Negative Testing section headings in the IEEE 829 outline; populate them when the corresponding source data is present in the issue, and mark them `N/A` when it is absent
+- When OCPSTRAT-aware parsing is active, map each Success Criteria item (Adoption and Outcomes) to at least one test scenario with explicit pass/fail criteria
 - When OCPSTRAT-aware parsing is active, include readiness guidance on linking, storage, multiple plans, and work item derivation
 - For non-OCPSTRAT issues or OCPSTRAT issues that do not follow the template, fall back to the generic flow with no changes to existing behavior
