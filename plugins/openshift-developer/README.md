@@ -41,6 +41,7 @@ Repeat steps 1-3 until the PR is approved and CI is green or non-actionable fail
 
 - **jira-solve** — Central Jira workflow orchestrator that chooses implementation, review, gate, and delivery skills based on ticket complexity.
 - **implement** — Implement Jira requirements or apply local pre-commit review findings.
+- **address-review-precommit** — Deprecated compatibility alias for `implement`; retained temporarily for existing Chai callers.
 - **check-gates** — Fix and revalidate until tests, lint, builds, issue requirements, production readiness, and git cleanliness all pass.
 - **create-pr** — Push a completed feature branch and create a Jira-linked pull request.
 - **generate-test-plan** — Generate a comprehensive manual testing guide from a Jira issue, GitHub PR URLs, or both.
