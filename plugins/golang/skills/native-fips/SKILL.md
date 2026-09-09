@@ -31,13 +31,13 @@ Use `certified` in `go build` as it automatically resolves to the latest certifi
 
 The downstream [`golang-fips/go`](https://github.com/golang-fips/go) toolchain (used in RHEL/CentOS Go Toolset) provides `GOEXPERIMENT=strictfipsruntime`, which adds a startup check that panics if the binary's FIPS configuration is incompatible with the host environment. This is separate from `GOFIPS140` — it provides fail-closed startup enforcement, not module selection.
 
-When migrating a downstream build from the OpenSSL backend to native FIPS, retain `GOEXPERIMENT=strictfipsruntime` and add `-tags no_openssl` to disable the OpenSSL backend:
+**`GOEXPERIMENT=strictfipsruntime` does not yet support `CGO_ENABLED=0` with native FIPS.** Combining `CGO_ENABLED=0 GOEXPERIMENT=strictfipsruntime GOFIPS140=certified` produces a binary that panics on FIPS-enabled hosts because the runtime check does not recognize the native FIPS module. Until the downstream toolchain adds native FIPS support to `strictfipsruntime`, drop `GOEXPERIMENT=strictfipsruntime` and use `-tags no_openssl` to disable the OpenSSL backend:
 
 ```bash
-CGO_ENABLED=0 GOEXPERIMENT=strictfipsruntime GOFIPS140=certified go build -tags no_openssl ...
+CGO_ENABLED=0 GOFIPS140=certified go build -tags no_openssl ...
 ```
 
-For upstream Go (which has no OpenSSL backend), `-tags no_openssl` and `GOEXPERIMENT=strictfipsruntime` are not needed:
+For upstream Go (which has no OpenSSL backend), `-tags no_openssl` is also not needed:
 
 ```bash
 CGO_ENABLED=0 GOFIPS140=certified go build ...
@@ -45,7 +45,7 @@ CGO_ENABLED=0 GOFIPS140=certified go build ...
 
 ### Runtime: `GODEBUG=fips140=<value>`
 
-Controls FIPS activation at runtime. Must be set wherever the binary is deployed (Dockerfile `ENV`, Kubernetes pod spec, systemd unit, etc.).
+Controls FIPS activation at runtime. **You almost never need to set this explicitly.** When a binary is built with `GOFIPS140`, the toolchain sets an appropriate default: upstream Go defaults to `fips140=on`, and the downstream `golang-fips/go` toolchain defaults (or will soon default) to `fips140=auto`. Only override this if you need behavior different from the toolchain default.
 
 | Value | Behavior | Availability |
 |-------|----------|--------------|
@@ -53,7 +53,7 @@ Controls FIPS activation at runtime. Must be set wherever the binary is deployed
 | `fips140=on` | Always enable FIPS, regardless of host | Upstream Go and downstream |
 | `fips140=only` | Best-effort FIPS-only mode — non-FIPS crypto calls may return an error or panic. May produce false positives/negatives. Test and assessment only — not for production. | Upstream Go and downstream |
 
-Upstream Go (go.dev) supports `off`, `on`, and `only`. The `auto` value is provided by the downstream [`golang-fips/go`](https://github.com/golang-fips/go) toolchain. For upstream Go, use `fips140=on` to unconditionally enable FIPS.
+Upstream Go (go.dev) supports `off`, `on`, and `only`. The `auto` value is provided by the downstream [`golang-fips/go`](https://github.com/golang-fips/go) toolchain.
 
 ### Post-quantum cryptography (ML-KEM)
 
@@ -73,7 +73,7 @@ The old approach required a separate [`crypto-policies`](https://gitlab.com/redh
 
 The `:PQ` subpolicy prepends hybrid ML-KEM groups at highest priority, adding `X25519MLKEM768`, `P256-MLKEM768`, `P384-MLKEM1024` etc. to each backend in its native syntax.
 
-**Why this is unnecessary for Go binaries:** A statically-compiled Go binary (`CGO_ENABLED=0`) with `GOFIPS140` uses its own `crypto/tls` stack — it does not link against OpenSSL, GnuTLS, or NSS. OS-level crypto-policies back-end configs have zero effect on Go binaries.
+**Why this is unnecessary for Go binaries:** A statically-compiled Go binary (`CGO_ENABLED=0`) with `GOFIPS140` uses its own `crypto/tls` stack — it does not link against OpenSSL, GnuTLS, or NSS. OS-level crypto-policies back-end configs have zero effect on Go binaries. Such binaries have no runtime library dependencies, so they can run in minimal scratch-like images such as [Hardened Images - Static](https://images.redhat.com/?name=static&version=latest).
 
 ## Verification with tls-scanner
 
