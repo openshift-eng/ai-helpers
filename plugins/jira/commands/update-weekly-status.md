@@ -225,7 +225,7 @@ Using the pre-gathered data, apply the activity analysis rules from `activity-an
 
 ##### c. Generate Status Update
 
-Format the status content using the `ryg_field` structure. The content will be written as ADF (Atlassian Document Format) — a nested `bulletList` with three top-level items: Color Status, Status summary (with nested bullet items), and Risks (with nested bullet items).
+Format the status content using the `ryg_field` structure. The content will be written as ADF (Atlassian Document Format) — a nested `bulletList` with three top-level items: Color Status, Status summary (with nested bullet items), and Risks (with nested bullet items). The gathered `issue.current_status_summary` value is the raw ADF document, not Markdown; use the summary script's rendered text only for review, and retain the raw document when project-specific guidance requires history preservation.
 
 **Logical structure:**
 
@@ -291,7 +291,7 @@ Options:
 
 ##### e. Update the Issue
 
-Use `editJiraIssue` with `contentFormat: "adf"` to set `customfield_10814` (Status Summary). This field requires an ADF (Atlassian Document Format) JSON document — passing a plain string (even with `contentFormat: "markdown"`) will fail with `"Operation value must be an Atlassian Document"`.
+Use `editJiraIssue` with `contentFormat: "adf"` to set `customfield_10814` (Status Summary). This field requires an ADF (Atlassian Document Format) JSON document — passing a plain string (even with `contentFormat: "markdown"`) will fail with `"Operation value must be an Atlassian Document"`. For ARO, follow the loaded project guidance: prepend the new ADF entry nodes to `issue.current_status_summary.content`; do not replace history with the rendered display text.
 
 Construct the ADF as a `bulletList` with three top-level `listItem` nodes. The Status summary and Risks items each contain a nested `bulletList` for their sub-items.
 
@@ -419,7 +419,7 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
     "summary": "string",
     "status": "string",
     "assignee": {"email": "string", "name": "string"},
-    "current_status_summary": "string|null",
+    "current_status_summary": "ADF document object|null",
     "last_status_summary_update": "string|null"
   },
   "descendants": {
