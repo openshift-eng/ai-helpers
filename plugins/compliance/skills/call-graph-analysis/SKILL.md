@@ -33,13 +33,20 @@ Use this skill when:
 - Workspace path to analyze
 - Algorithm preference (optional, default: `vta`) — passed via `--algo` from parent command
 - `CVE_ID` — used to construct the output directory
-- `OUT_DIR` (optional, default: `.work/compliance/analyze-cve/${CVE_ID}`) — where artifacts are written
+- `OUT_DIR` (optional, default: `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/${CVE_ID}`) — where artifacts are written; same workspace base as Phase 0.7's `REPOS_BASE`
+
+## Critical Rules
+
+> 1. **Always use `timeout -k 10`** — plain `timeout` sends SIGTERM but `callgraph` can ignore it when stuck in SSA construction or type resolution. `-k 10` sends SIGKILL after 10s grace, guaranteeing termination.
+> 2. **Never run `callgraph` on `./...`** for repos with more than ~50 packages. Target specific main packages (e.g. `./cmd/controller`, `./main.go`) and let the tool pull in transitive deps automatically.
+> 3. **Always redirect output to a file** (`> file 2>&1`). Never pipe callgraph output to another command — if the reader closes, callgraph can hang on SIGPIPE.
 
 ## Timeout and Algorithm Convention
 
 - Use the algorithm specified by the user via `--algo` (default: `vta`).
-- All `callgraph` invocations use `timeout 300` (5 minutes) to prevent hanging on large codebases.
-- If the chosen algorithm times out: fall back to the next faster algorithm (`vta` → `rta` → `cha`), then narrow scope to specific packages (e.g., `./cmd/...`, `./pkg/...`).
+- All `callgraph` invocations use `timeout -k 10 300` (5 minutes + 10s force-kill) to prevent hanging.
+- Scope: target the **specific main package** (e.g. `./cmd/controller`), not `./...`. The `callgraph` tool resolves transitive deps automatically — there is no need to include the entire repo.
+- If the chosen algorithm times out: fall back to the next faster algorithm (`vta` → `rta` → `cha`), then narrow scope further to a single binary entry point.
 
 ## Implementation Steps
 
@@ -60,28 +67,60 @@ which sfdp || echo "graphviz not found - visual graphs won't be generated (optio
 - IF callgraph OR digraph missing → Exit this skill, return to parent analysis
 - IF both present → Continue
 
-### Step 2: Build Complete Call Graph
+### Step 2: Identify Main Packages and Build Call Graph
+
+First, discover the main packages that serve as entry points:
 
 ```bash
-# ALGO defaults to "vta" unless user specified --algo
-ALGO="${USER_ALGO:-vta}"
+# Find main packages
+MAIN_PKGS=$(find . -name "main.go" -exec dirname {} \; | sort -u)
+echo "Main packages: ${MAIN_PKGS}"
+```
 
-# Output directory — aligns with parent command report location
-OUT_DIR="${OUT_DIR:-.work/compliance/analyze-cve/${CVE_ID}}"
+Pick the most relevant main package for the analysis (typically the controller or server binary, not CLI tools or test helpers). If unsure, prefer the package that imports the vulnerable package's parent tree.
+
+```bash
+ALGO="${USER_ALGO:-vta}"
+OUT_DIR="${OUT_DIR:-${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/${CVE_ID}}"
 mkdir -p "${OUT_DIR}"
 
-# Build call graph from workspace root
-# Timeout after 300s (5 minutes) to avoid hanging on large codebases
-timeout 300 callgraph -algo "${ALGO}" -format=digraph . > "${OUT_DIR}/callgraph.txt"
+# TARGET_PKG is the specific main package (e.g. ./cmd/controller, .)
+# NEVER use ./... — it causes VTA to explode on large repos
+echo "Building call graph: algo=${ALGO}, target=${TARGET_PKG}"
+timeout -k 10 300 env CGO_ENABLED=0 callgraph -algo "${ALGO}" -format=digraph "${TARGET_PKG}" > "${OUT_DIR}/callgraph.txt" 2>&1
+CG_EXIT=$?
+echo "callgraph exit: ${CG_EXIT}, lines: $(wc -l < "${OUT_DIR}/callgraph.txt")"
+```
+
+**Progressive fallback if the command times out or fails:**
+
+```bash
+# Fallback 1: faster algorithm
+if [ $CG_EXIT -eq 124 ] || [ $CG_EXIT -eq 137 ]; then
+  echo "⚠ ${ALGO} timed out — falling back to rta"
+  timeout -k 10 300 env CGO_ENABLED=0 callgraph -algo rta -format=digraph "${TARGET_PKG}" > "${OUT_DIR}/callgraph.txt" 2>&1
+  CG_EXIT=$?
+fi
+
+# Fallback 2: fastest algorithm
+if [ $CG_EXIT -eq 124 ] || [ $CG_EXIT -eq 137 ]; then
+  echo "⚠ rta timed out — falling back to cha"
+  timeout -k 10 300 env CGO_ENABLED=0 callgraph -algo cha -format=digraph "${TARGET_PKG}" > "${OUT_DIR}/callgraph.txt" 2>&1
+  CG_EXIT=$?
+fi
+
+if [ $CG_EXIT -eq 124 ] || [ $CG_EXIT -eq 137 ]; then
+  echo "✗ All algorithms timed out — call graph analysis skipped"
+fi
 ```
 
 **Error Handling:**
 - IF build fails (compilation errors) → Note in report that call graph cannot be built
-- IF command times out → Fall back to next faster algorithm (`vta` → `rta` → `cha`) and retry
-- IF all algorithms time out → Narrow scope: `timeout 300 callgraph -algo rta -format=digraph ./cmd/... ./pkg/... > "${OUT_DIR}/callgraph.txt"`
+- IF command times out → Fallback chain: `vta` → `rta` → `cha`, all on the same target package
+- IF all algorithms time out → Skip call graph, assign NEEDS_REVIEW
 - IF successful → Continue to Step 3
 
-**Output:** `${OUT_DIR}/callgraph.txt` containing the full program call graph
+**Output:** `${OUT_DIR}/callgraph.txt` containing the call graph rooted at the target binary
 
 ### Step 3: Check if Vulnerable Function Exists in Graph
 
@@ -216,7 +255,9 @@ Return structured result to parent analysis:
 
 ### Very Large Codebases
 - IF chosen algorithm times out (>5 minutes) → Fall back to next faster algorithm (`vta` → `rta` → `cha`)
-- IF all algorithms time out → Narrow scope: `timeout 300 callgraph -algo rta -format=digraph ./cmd/... ./pkg/... > "${OUT_DIR}/callgraph.txt"`
+- IF all algorithms time out on the chosen main package → Try a narrower entry point (single binary)
+- IF still failing → Skip call graph, assign NEEDS_REVIEW, document the limitation
+- NEVER use `./...` as scope — always target a specific main package
 
 ### Missing Entry Points
 - IF `command-line-arguments.main` not found → Look for other entry points
@@ -230,41 +271,34 @@ Return structured result to parent analysis:
 ## Example: Generic Analysis Workflow
 
 ```bash
-# Setup: set CVE_ID and output directory
-$ CVE_ID="CVE-YYYY-NNNNN"
-$ OUT_DIR=".work/compliance/analyze-cve/${CVE_ID}"
-$ mkdir -p "${OUT_DIR}"
+# Setup
+CVE_ID="CVE-YYYY-NNNNN"
+OUT_DIR="${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/${CVE_ID}"
+mkdir -p "${OUT_DIR}"
 
-# Step 1: Build call graph (default: vta; user can override with --algo)
-$ timeout 300 callgraph -algo vta -format=digraph . > "${OUT_DIR}/callgraph.txt"
+# Step 1: Build call graph targeting a specific main package
+timeout -k 10 300 env CGO_ENABLED=0 callgraph -algo vta -format=digraph ./cmd/controller > "${OUT_DIR}/callgraph.txt" 2>&1
 
 # Step 2: Check if function is called
-$ cat "${OUT_DIR}/callgraph.txt" | digraph nodes | grep "<package-path>.<vulnerable-function>$"
-<package-path>.<vulnerable-function>
+digraph nodes < "${OUT_DIR}/callgraph.txt" | grep "<package-path>.<vulnerable-function>$"
 
 # Step 3: Find path from main
-$ cat "${OUT_DIR}/callgraph.txt" | digraph somepath command-line-arguments.main <package-path>.<vulnerable-function>
-digraph {
-    "command-line-arguments.main" -> "<app-package>.Handler";
-    "<app-package>.Handler" -> "<app-package>.ProcessFunction";
-    "<app-package>.ProcessFunction" -> "<intermediate-package>.HelperFunction";
-    "<intermediate-package>.HelperFunction" -> "<vulnerable-package>.<vulnerable-function>";
-}
+digraph somepath command-line-arguments.main "<package-path>.<vulnerable-function>" < "${OUT_DIR}/callgraph.txt"
 
-# Step 4: Generate visual graph
-$ cat "${OUT_DIR}/callgraph.txt" | digraph somepath command-line-arguments.main <package-path>.<vulnerable-function> | digraph to dot | sfdp -Tsvg -o"${OUT_DIR}/callgraph.svg"
+# Step 4: Generate visual graph (if graphviz available)
+digraph somepath command-line-arguments.main "<package-path>.<vulnerable-function>" < "${OUT_DIR}/callgraph.txt" | \
+  digraph to dot | sfdp -Tsvg -o"${OUT_DIR}/callgraph.svg"
 
 # Result: HIGH RISK — reachable path found
-# Call chain: main → Handler → ProcessFunction → HelperFunction → <vulnerable-function>
 ```
 
 ## Integration with Parent Command
 
-This skill is called from Method 4 of the [codebase-impact-analysis](../codebase-impact-analysis/SKILL.md) skill.
+This skill is called from Method 5 of the [codebase-impact-analysis](../codebase-impact-analysis/SKILL.md) skill.
 
 **When to Invoke:**
 - After basic dependency checks show package is present
-- When highest confidence assessment is needed
+- Mandatory whenever the vulnerable package is in `go.mod` (see codebase-impact-analysis Method 5) — not just for "highest confidence"
 - When tools are available (checked in Phase 0)
 
 **Return to Parent:**
