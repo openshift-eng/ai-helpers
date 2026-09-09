@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Create a pull request from the current branch for a Jira issue. Use when changes are committed and pushed and the user wants to open a PR linking back to a Jira issue.
+description: Push a completed clean feature branch and create a pull request for a Jira issue. Use as the delivery step after implementation and required quality gates succeed.
 ---
 
 ## Name
@@ -12,7 +12,7 @@ openshift-developer:create-pr
 ```
 
 ## Description
-Creates a pull request from the current feature branch, linking it to a Jira issue. Reads the repo's PR template, inspects the commit log, and generates a well-structured PR title and body. Designed as the final step of the solve pipeline, after `/jira:solve`, `code-review:pre-commit-review` and `address-review-precommit`.
+Creates a pull request from a completed feature branch and links it to a Jira issue. Reads the repo's PR template, inspects the commit log, and generates a well-structured PR title and body. It is the delivery building block selected by `jira-solve` after the chosen implementation and quality chain succeeds.
 
 ## Implementation
 
@@ -59,6 +59,10 @@ Creates a pull request from the current feature branch, linking it to a Jira iss
      ```
 
 ### Step 3: Create the PR
+
+Before pushing, require `git status --short` to be empty. Refuse to push the default
+branch or to force-push. Push the current feature branch to the selected remote, unless
+the caller prohibits external writes. Do not create a PR when the branch was not pushed.
 
 Build and run the `gh pr create` command:
 

@@ -14,9 +14,10 @@ These workflows are meant to be a common engine for different consumption models
 
 ### Pre-PR (author loop)
 
-1. `/jira:solve` — Pick up a Jira issue, analyze it, implement the fix.
-2. `/code-review:pre-commit-review` — Run a code review on the local changes before pushing.
-3. `/openshift-developer:address-review-precommit` — Apply the review findings, run verification, commit, and push.
+1. `/openshift-developer:jira-solve` — Analyze the Jira issue and choose a proportional skill chain.
+2. `/openshift-developer:implement` — Implement the ticket or apply findings from `/code-review:pre-commit-review`.
+3. `/openshift-developer:check-gates` — Loop until requirements, tests, lint, builds, production readiness, and a clean worktree are all satisfied.
+4. `/openshift-developer:create-pr` — Push the completed branch and create the Jira-linked PR.
 
 ### Post-PR (review loop)
 
@@ -38,10 +39,11 @@ Repeat steps 1-3 until the PR is approved and CI is green or non-actionable fail
 
 ### Skills
 
-- **jira-solve** — Analyze a Jira issue and create a pull request to solve it: implement the fix, push a branch, and open a draft PR.
-- **create-pr** — Create a pull request from the current branch for a Jira issue, linking the PR back to the issue.
+- **jira-solve** — Central Jira workflow orchestrator that chooses implementation, review, gate, and delivery skills based on ticket complexity.
+- **implement** — Implement Jira requirements or apply local pre-commit review findings.
+- **check-gates** — Fix and revalidate until tests, lint, builds, issue requirements, production readiness, and git cleanliness all pass.
+- **create-pr** — Push a completed feature branch and create a Jira-linked pull request.
 - **generate-test-plan** — Generate a comprehensive manual testing guide from a Jira issue, GitHub PR URLs, or both.
-- **address-review-precommit** — Fix code review findings in the current branch before committing: applies fixes, runs verification, and pushes.
 - **address-review-pr** — Fetch and address PR review comments: categorizes by priority, makes code changes, posts replies, and pushes. Does not handle CI failures.
 - **address-ci-failures** — Triage failing CI checks; fix only failures caused by the PR's changes, report infra/pre-existing/flake issues instead of out-of-scope fixes.
 - **has-review-work** — Read-only gate: `COMMENT_WORK` (unanswered authorized review comments) and `CI_WORK` (new non-optional CI failures) for follow-up agents.
@@ -84,4 +86,3 @@ This bundle can also be installed via APM with `--target`:
 ```sh
 apm install openshift-eng/ai-helpers/plugins/openshift-developer --global --target cursor
 ```
-

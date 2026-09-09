@@ -1,0 +1,4 @@
+issue_key: "https://redhat.atlassian.net/browse/OCPBUGS-100141"
+repo_url: "https://github.com/openshift/hypershift"
+eval_ref: "f4c055d5912c111c8272ddff17614210637cd9f3"
+known_good_pr: "https://github.com/openshift/hypershift/pull/9156"

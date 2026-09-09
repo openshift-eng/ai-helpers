@@ -1,29 +1,111 @@
 name: solve-eval
 description: >
-  End-to-end eval of the solve pipeline (solve -> code-review ->
-  address-review). Runs 3 phases against snapshot branches, judges
-  per-phase quality and final output (make verify, make test, coverage).
+  End-to-end eval of the jira-solve orchestrator against immutable pre-change commits.
+  The skill selects its own implementation and quality chain; judges evaluate
+  the final implementation, verification, tests, coverage, and clean worktree.
 skill: openshift-developer:jira-solve
 
 execution:
   mode: case
-  arguments: "{issue_key} {repo_url} {eval_branch}"
+  arguments: "{issue_key} origin --ci"
   timeout: 3600
-  max_budget_usd: 25.0
+  max_budget_usd: 5.0
   env:
     AI_HELPERS_DIR: "$PWD"
+    # Jira credentials for reading the ticket in the sandbox. The runner
+    # forwards only an env allowlist to the agent, so Jira creds must come
+    # through execution.env (written into the workspace .claude/settings.json).
+    # $-prefixed values are resolved from the caller's shell at runtime and
+    # silently omitted if unset — keep real secrets out of this file.
+    JIRA_URL: "$JIRA_URL"
+    JIRA_USERNAME: "$JIRA_USERNAME"
+    JIRA_API_TOKEN: "$JIRA_API_TOKEN"
 
 runner:
-  type: cli
-  command:
-    - "bash"
-    - "-c"
-    - "exec \"$AI_HELPERS_DIR/plugins/openshift-developer/evals/scripts/run-solve.sh\" \"$@\""
-    - "--"
-    - "{issue_key}"
-    - "{repo_url}"
-    - "{eval_branch}"
-    - "{model}"
+  type: claude-code
+  plugin_dirs:
+    - plugins/openshift-developer
+    - plugins/jira
+    - plugins/ci
+    - plugins/golang
+    - plugins/git
+    - plugins/code-review
+  system_prompt: |
+    You are automating a repository task run. Read input.yaml to obtain
+    repo_url, eval_ref, and issue_key. Do not read or reference any other
+    field of input.yaml until the final artifact step below explicitly tells
+    you to.
+
+    First, prepare the working repository: git init, add repo_url as origin,
+    fetch eval_ref, and check out FETCH_HEAD on a local feature branch. Record
+    the starting HEAD as BASE_SHA. Add the paths input.yaml, annotations.yaml,
+    and output/ to .git/info/exclude so they stay out of git status. Configure
+    a local Git author. Do not push or create a pull request.
+
+    Then invoke /openshift-developer:jira-solve with issue_key, origin, and
+    --ci exactly once. Let jira-solve choose and execute its own skill chain;
+    do not impose a separate review or implementation phase. Solve the issue on
+    its own merits from the repository state and the issue description.
+
+    After jira-solve finishes, create output/ and capture the following:
+    - diff.patch: git diff from BASE_SHA through HEAD, plus any uncommitted diff
+    - files-changed.txt: deduplicated changed paths from those same ranges
+    - commit-log.txt: git log --oneline from BASE_SHA through HEAD
+    - git-status.txt: git status --short before creating output artifacts
+    - make-test.log and make-test-exit: run the Go tests for the changed
+      packages SYNCHRONOUSLY in the foreground (never in the background) and
+      record the real exit code atomically. The repo-wide `make test` target
+      runs a full-module `-race ./...` sweep that cannot finish in budget, so
+      scope the run to the packages that changed since BASE_SHA (working-tree
+      changes included), mirroring the coverage.txt scope. Use exactly:
+        changed_pkgs=$(git diff --name-only BASE_SHA -- '*.go' \
+          | xargs -r -n1 dirname | sort -u | sed 's#^#./#')
+        if [ -z "$changed_pkgs" ]; then
+          echo 'no go source files changed' > output/make-test.log
+          echo 0 > output/make-test-exit
+        else
+          GOFLAGS=-mod=vendor go test -count=1 -timeout=10m $changed_pkgs \
+            > output/make-test.log 2>&1
+          echo $? > output/make-test-exit
+        fi
+      Always write output/make-test-exit; record the true non-zero code on
+      failure rather than concealing it.
+    - coverage.txt: run Go coverage for changed Go packages; when cov-diff is
+      available, include a line formatted as "diff-coverage: N%"; otherwise
+      preserve the go test coverage output. Write "no go source files changed"
+      when applicable.
+    - known-good.patch: only now, read the known_good_pr field from input.yaml
+      if present, and save its diff with gh pr diff. Do this strictly after all
+      of the above; never consult it while solving.
+
+    Report command results honestly: do not conceal failures or fabricate
+    passing output. This artifact step happens after the skill and is not part
+    of the implementation.
+
+permissions:
+  # Headless (--print) runs default to manual permission mode, which auto-denies
+  # any non-allowlisted tool. The system_prompt above requires a Git bootstrap
+  # (init, remote add, fetch eval_ref, checkout) plus make test, so the
+  # agent needs blanket Bash. Mirror the ci/* evals' coarse tool-level allow.
+  allow:
+    - "Skill"
+    - "Bash"
+    - "Agent"
+    - "Read"
+    - "Write"
+    - "Edit"
+    - "WebFetch"
+    - "WebSearch"
+    # Jira MCP tools so jira-solve can read the ticket via the integration
+    # (either Atlassian MCP server namespace). Requires the MCP server to be
+    # authenticated in the harness; when it is not, the token path via
+    # execution.env (ci:fetch-jira-issue over Bash) is the working fallback.
+    - "mcp__atlassian__jira_get_issue"
+    - "mcp__atlassian__jira_search"
+    - "mcp__plugin_jira_atlassian__getJiraIssue"
+    - "mcp__plugin_jira_atlassian__searchJiraIssuesUsingJql"
+    - "mcp__plugin_jira_atlassian__fetch"
+  deny: []
 
 models:
   skill: claude-opus-4-6
@@ -33,13 +115,13 @@ mlflow:
   experiment: solve-eval
 
 dataset:
-  path: cases/solve
+  path: plugins/openshift-developer/evals/cases/solve
   schema: |
     Each case directory contains:
     - input.yaml: YAML file with fields:
       - 'issue_key' — Jira issue key (e.g., OCPBUGS-12345)
       - 'repo_url' — target repo clone URL
-      - 'eval_branch' — snapshot branch (e.g., eval/solve/case-001)
+      - 'eval_ref' — immutable commit immediately before the known-good PR changes
       - 'issue_description' — full issue text (fallback if Jira unavailable)
       - 'known_good_pr' — URL of the merged human-reviewed PR (optional)
     - annotations.yaml: Expected outcomes and metadata:
@@ -53,29 +135,15 @@ dataset:
 outputs:
   - path: "output"
     schema: |
-      The pipeline script produces these files in the working directory:
-
-      Per-phase:
-        phase1-diff.patch — diff after solve (before review/fix)
-        phase1-diffstat.txt — diffstat after solve
-        phase1-tokens.json — token usage for solve phase
-        review-findings.txt — code review output text
-        phase2-tokens.json — token usage for review phase
-        phase3-tokens.json — token usage for fix phase
-
-      Final state (after all 3 phases):
+      The direct jira-solve eval produces these final-state files:
         diff.patch — full diff
         files-changed.txt — list of modified files
         commit-log.txt — git log of all commits
+        git-status.txt — final porcelain status (must be empty)
         make-test.log — test output
         make-test-exit — test exit code (0 = pass)
-        make-verify.log — verify output
-        make-verify-exit — verify exit code (0 = pass)
         coverage.txt — go test -cover output
-        total-cost.json — aggregated token/cost metrics
-
-      Judges should check outputs["files"] and outputs["modified_files"]
-      for files matching these naming patterns.
+        known-good.patch — reference PR diff when available
 
 traces:
   stdout: true
@@ -101,24 +169,6 @@ judges:
       lines = len(content.strip().splitlines())
       return (True, f"diff.patch has {lines} lines")
 
-  - name: make_verify_passes
-    description: Verify make verify passes (exit code 0)
-    check: |
-      files = outputs.get("files", {})
-      modified = outputs.get("modified_files", {})
-      all_f = {**files, **modified}
-      exit_files = {k: v for k, v in all_f.items() if k.endswith("make-verify-exit")}
-      if not exit_files:
-          return (False, "No make-verify-exit file found")
-      code = list(exit_files.values())[0].strip()
-      if code == "0":
-          return (True, "make verify passed (exit 0)")
-      log_files = {k: v for k, v in all_f.items() if k.endswith("make-verify.log")}
-      log_tail = ""
-      if log_files:
-          log_tail = list(log_files.values())[0].strip()[-500:]
-      return (False, f"make verify failed (exit {code}). Tail: {log_tail}")
-
   - name: make_test_passes
     description: Verify make test passes (exit code 0)
     check: |
@@ -138,7 +188,7 @@ judges:
       return (False, f"make test failed (exit {code}). Tail: {log_tail}")
 
   - name: commit_message_format
-    description: "Verify commit messages use conventional-commit style (type(scope): or type:)"
+    description: "Verify commit messages use conventional-commit style (type(scope): or type:). Per git-commit-format, the commit title must NOT carry a Jira-key prefix — that belongs on the PR title only (create-pr)."
     check: |
       import re
       files = outputs.get("files", {})
@@ -151,6 +201,9 @@ judges:
       if not content:
           return (False, "commit-log.txt is empty")
       lines = content.splitlines()
+      # Commit title must be bare conventional (<type>(<scope>): ...). The Jira-key
+      # prefix (e.g. "OCPBUGS-1234: ") is a PR-title convention (create-pr), not a
+      # commit convention (git-commit-format) — a prefixed commit is a real failure.
       conv_pattern = r'(feat|fix|refactor|chore|test|docs|style|perf|ci|build|revert)(\(.+?\))?:'
       bad = []
       for line in lines:
@@ -164,6 +217,45 @@ judges:
       if bad:
           return (False, f"{len(bad)}/{len(lines)} commits lack conventional-commit format: {bad[0][:80]}")
       return (True, f"All {len(lines)} commits use conventional-commit format")
+
+  - name: git_status_clean
+    description: Verify jira-solve finished with a clean working tree (ignoring harness-owned paths)
+    check: |
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      status_files = {k: v for k, v in all_f.items() if k.endswith("git-status.txt")}
+      if not status_files:
+          return (False, "No git-status.txt found")
+      # Do not .strip() the whole blob: that eats the leading XY status column
+      # of the first porcelain line and misaligns path parsing.
+      content = list(status_files.values())[0].rstrip("\n")
+      if not content.strip():
+          return (True, "Working tree is clean")
+      # The eval harness overlays its own tooling onto the target checkout: it
+      # collides with the repo's tracked CLAUDE.md and injects untracked paths
+      # (.claude/, hooks/, scripts, .gitignore_eval, output/, .work/, and the
+      # case input files). Those are harness-owned, not skill-caused, so ignore
+      # them and judge only the skill's own residual dirt.
+      IGNORE = {
+          "CLAUDE.md", ".claude", "hooks", "output", "scripts",
+          ".gitignore_eval", "input.yaml", "annotations.yaml", ".work",
+      }
+      def first_component(line):
+          # Porcelain XY line: 2 status chars + space + path. Some captures are
+          # left-stripped, so don't assume a fixed index — drop the leading
+          # status token instead. For renames ("R  old -> new") take the dest.
+          parts = line.strip().split(None, 1)
+          path = parts[1] if len(parts) == 2 else parts[0]
+          if " -> " in path:
+              path = path.split(" -> ", 1)[1]
+          path = path.strip().strip('"')
+          return path.split("/", 1)[0]
+      residual = [l for l in content.splitlines()
+                  if l.strip() and first_component(l) not in IGNORE]
+      if residual:
+          return (False, "Working tree not clean (skill-caused): " + "; ".join(residual)[:500])
+      return (True, "Working tree clean (harness-owned paths ignored)")
 
   - name: coverage_meets_threshold
     description: Verify diff coverage (changed lines) meets minimum threshold
@@ -196,79 +288,6 @@ judges:
       if avg < min_pct:
           return (False, f"Avg package coverage {avg:.1f}% below threshold {min_pct}%")
       return (True, f"Avg package coverage {avg:.1f}% >= {min_pct}%")
-
-  # ── Per-phase LLM judges ──
-
-  - name: solve_quality
-    description: |
-      Assess Phase 1 (solve) — does the initial implementation address the
-      issue with reasonable changes?
-    prompt: |
-      You are evaluating Phase 1 (solve) of a solve pipeline. The agent
-      was given a Jira issue and asked to implement a fix.
-
-      Below are the pipeline outputs. Focus on "phase1-diff.patch" for the
-      Phase 1 diff (before review/fix phases). If "known-good.patch" is present,
-      it contains the human-reviewed reference PR diff — compare the agent's
-      approach against it structurally (same files, same pattern, same fix).
-
-      {{ outputs }}
-
-      Expected outcomes from annotations:
-
-      {{ annotations }}
-
-      Evaluate on a 1-5 scale:
-
-      Score 1: No meaningful changes, or changes completely unrelated to the issue.
-      Score 2: Some relevant changes but major gaps — missing test coverage,
-               incomplete fix, or wrong approach.
-      Score 3: Reasonable first attempt — addresses the core issue, may have
-               minor gaps the review phase should catch.
-      Score 4: Good implementation — correct fix, includes tests, changes are
-               scoped to the issue. Minor style issues acceptable.
-      Score 5: Excellent — correct, complete, well-tested, idiomatic code.
-
-  - name: review_thoroughness
-    description: |
-      Assess Phase 2 (review) — did it catch real issues and provide
-      actionable feedback?
-    prompt: |
-      You are evaluating Phase 2 (code review) of a solve pipeline.
-
-      Below are the pipeline outputs. Focus on "phase1-diff.patch" for the
-      code that was reviewed, and "review-findings.txt" for the review output.
-
-      {{ outputs }}
-
-      Evaluate on a 1-5 scale:
-
-      Score 1: No findings, or findings are generic/irrelevant to the actual code.
-      Score 2: Superficial — mentions obvious issues but misses important ones.
-      Score 3: Adequate — catches some real issues with specific references.
-      Score 4: Thorough — identifies important issues with file:line references.
-      Score 5: Excellent — catches subtle issues, prioritized findings.
-
-  - name: fix_completeness
-    description: |
-      Assess Phase 3 (address review) — were review findings actually fixed?
-    prompt: |
-      You are evaluating Phase 3 (address review findings) of a solve pipeline.
-
-      Below are the pipeline outputs. Focus on "review-findings.txt" for the
-      Phase 2 findings, and "diff.patch" for the final diff after all 3 phases.
-      Compare the findings against the final diff to assess whether the review
-      issues were addressed.
-
-      {{ outputs }}
-
-      Evaluate on a 1-5 scale:
-
-      Score 1: Review findings completely ignored.
-      Score 2: Some findings addressed but most blocking issues remain.
-      Score 3: Most blocking issues addressed, some suggestions skipped.
-      Score 4: All blocking issues and most suggestions addressed.
-      Score 5: All findings fully addressed with high-quality fixes.
 
   # ── Final-output LLM judges ──
 
@@ -324,20 +343,14 @@ judges:
 thresholds:
   has_code_changes:
     min_pass_rate: 1.0
-  make_verify_passes:
-    min_pass_rate: 1.0
   make_test_passes:
     min_pass_rate: 1.0
   commit_message_format:
     min_pass_rate: 1.0
+  git_status_clean:
+    min_pass_rate: 1.0
   coverage_meets_threshold:
     min_pass_rate: 0.8
-  solve_quality:
-    min_mean: 3.0
-  review_thoroughness:
-    min_mean: 3.0
-  fix_completeness:
-    min_mean: 3.0
   solution_correctness:
     min_mean: 3.5
   code_quality:
