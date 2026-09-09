@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Push a completed clean feature branch and create a pull request for a Jira issue. Use as the delivery step after implementation and required quality gates succeed.
+description: Push a completed clean feature branch and create a pull request for a Jira issue. Use when implementation and required quality gates have succeeded and the branch is ready for delivery.
 ---
 
 ## Name

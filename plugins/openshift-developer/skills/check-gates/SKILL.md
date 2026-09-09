@@ -1,6 +1,6 @@
 ---
 name: check-gates
-description: Repeatedly validate and fix a Jira implementation until tests, lint, builds, requirements, production readiness, and repository cleanliness all pass. Use as the final quality gate before delivery.
+description: Repeatedly validate and fix a Jira implementation until tests, lint, builds, requirements, production readiness, and repository cleanliness all pass. Use when a Jira implementation needs its final quality gate before delivery.
 ---
 
 ## Name

@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Implement a scoped Jira requirement or apply local pre-commit review findings. Use for the coding step in a solve workflow, including follow-up implementation after code review.
+description: Implement a scoped Jira requirement or apply local pre-commit review findings. Use when a solve workflow needs initial coding or follow-up implementation after code review.
 ---
 
 ## Name

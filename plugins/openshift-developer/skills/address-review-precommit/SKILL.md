@@ -1,6 +1,6 @@
 ---
 name: address-review-precommit
-description: Compatibility alias for applying pre-commit review findings through the implement skill. Use only for existing callers that have not migrated to openshift-developer:implement.
+description: Compatibility alias for applying pre-commit review findings through the implement skill. Use when an existing caller has not migrated to openshift-developer:implement.
 ---
 
 ## Name
