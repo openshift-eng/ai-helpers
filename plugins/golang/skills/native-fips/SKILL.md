@@ -31,13 +31,13 @@ Use `certified` in `go build` as it automatically resolves to the latest certifi
 
 The downstream [`golang-fips/go`](https://github.com/golang-fips/go) toolchain (used in RHEL/CentOS Go Toolset) provides `GOEXPERIMENT=strictfipsruntime`, which adds a startup check that panics if the binary's FIPS configuration is incompatible with the host environment. This is separate from `GOFIPS140` — it provides fail-closed startup enforcement, not module selection.
 
-**`GOEXPERIMENT=strictfipsruntime` does not yet support `CGO_ENABLED=0` with native FIPS.** Combining `CGO_ENABLED=0 GOEXPERIMENT=strictfipsruntime GOFIPS140=certified` produces a binary that panics on FIPS-enabled hosts because the runtime check does not recognize the native FIPS module. Until the downstream toolchain adds native FIPS support to `strictfipsruntime`, drop `GOEXPERIMENT=strictfipsruntime` and use `-tags no_openssl` to disable the OpenSSL backend:
+When migrating a downstream build from the OpenSSL backend to native FIPS on 1.26+ builders, retain `GOEXPERIMENT=strictfipsruntime` and add `-tags no_openssl` to disable the OpenSSL backend. The 1.26+ builders imply `GODEBUG=fips140=auto` whenever the FIPS module is compiled in, so the binary works on both FIPS and non-FIPS hosts:
 
 ```bash
-CGO_ENABLED=0 GOFIPS140=certified go build -tags no_openssl ...
+CGO_ENABLED=0 GOFIPS140=v1.26.0 GOEXPERIMENT=strictfipsruntime go build -tags no_openssl ...
 ```
 
-For upstream Go (which has no OpenSSL backend), `-tags no_openssl` is also not needed:
+For upstream Go (which has no `strictfipsruntime` or OpenSSL backend):
 
 ```bash
 CGO_ENABLED=0 GOFIPS140=certified go build ...
@@ -91,3 +91,14 @@ The tool source and documentation is at https://github.com/openshift/tls-scanner
 | `SCAN_LIMIT_IPS` | `""` | Max IPs to scan (empty/0 = no limit). Useful for smoke testing. |
 | `TLS_PROFILE_TYPE` | `""` | Expected TLS profile type (`Old`, `Intermediate`, `Modern`). When set, overrides reading from APIServer/cluster. |
 | `TLS_SCANNER_CLUSTER_LABEL` | `""` | HyperShift target: `"management"` or `"guest"`. Empty scans via the step's KUBECONFIG. |
+
+## Glossary
+
+| Name | Type | Values | Description |
+|------|------|--------|-------------|
+| `GOFIPS140` | Build env var | `certified`, `latest`, `v1.0.0`, `v1.26.0` | Selects which FIPS 140 crypto module to embed. `certified` resolves to the latest validated module. |
+| `GOEXPERIMENT=strictfipsruntime` | Build env var | (flag) | Downstream only. Adds a startup panic if FIPS config is incompatible with the host. |
+| `CGO_ENABLED` | Build env var | `0`, `1` | `0` produces a static binary with no C dependencies. `1` links against C libraries (needed if the project requires cgo). |
+| `-tags no_openssl` | Build tag | (flag) | Disables the downstream OpenSSL crypto backend so the binary uses only Go's native FIPS module. Not needed for upstream Go. |
+| `fips140v1.26` | Synthesized build tag | (automatic) | Injected by the toolchain when `GOFIPS140=v1.26.0` is set. Not user-specified. |
+| `GODEBUG=fips140` | Runtime env var | `auto`, `on`, `only`, `off` | Controls FIPS activation at runtime. Rarely needs to be set — the toolchain picks the right default when built with `GOFIPS140`. `auto` is downstream only. |
