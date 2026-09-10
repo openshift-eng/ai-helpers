@@ -75,18 +75,26 @@ Some components use a dedicated `-release` repo that aggregates all component re
 4. Clone the **component repo** and check out that pinned commit for analysis
 
 ```bash
-# Step 1: Clone release repo at correct branch
-git clone --depth=1 -b "${RELEASE_BRANCH}" "${RELEASE_REPO_URL}" /tmp/release-repo
+# Step 1: Clone release repo at correct branch (per-run path under REPOS_BASE)
+RELEASE_CLONE_DIR="${REPOS_BASE}/.release-clones/$(echo "${RELEASE_REPO_URL}" | sed -E 's#^[a-zA-Z]+://github\.com/##; s#\.git$##; s#/$##' | tr '/' '-')-${RELEASE_BRANCH}"
+rm -rf "${RELEASE_CLONE_DIR}"
+mkdir -p "$(dirname "${RELEASE_CLONE_DIR}")"
+git clone --depth=1 -b "${RELEASE_BRANCH}" "${RELEASE_REPO_URL}" "${RELEASE_CLONE_DIR}"
 
 # Step 2: Read .gitmodules
-cat /tmp/release-repo/.gitmodules
+cat "${RELEASE_CLONE_DIR}/.gitmodules"
 
 # Step 3: Extract submodule path + url from .gitmodules
 # Step 4: Read pinned commit from release repo tree
-PINNED_COMMIT=$(git -C /tmp/release-repo ls-tree HEAD "${SUBMODULE_PATH}" | awk '{print $3}')
+PINNED_COMMIT=$(git -C "${RELEASE_CLONE_DIR}" ls-tree HEAD "${SUBMODULE_PATH}" | awk '{print $3}')
+if [ -z "${PINNED_COMMIT}" ]; then
+  echo "ERROR: no pinned commit found for ${SUBMODULE_PATH}"
+  exit 1
+fi
 
-# Step 5: Clone component repo and checkout pinned commit
-git clone --depth=50 "${COMPONENT_URL}" "${REPO_DIR}"
+# Step 5: Clone component repo and checkout pinned commit (fetch SHA explicitly — shallow clone alone may miss it)
+git clone "${COMPONENT_URL}" "${REPO_DIR}"
+git -C "${REPO_DIR}" fetch origin "${PINNED_COMMIT}"
 git -C "${REPO_DIR}" checkout "${PINNED_COMMIT}"
 ```
 

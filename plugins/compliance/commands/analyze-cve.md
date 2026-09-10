@@ -78,13 +78,16 @@ All other absolute rules are unaffected by `AUTO_APPROVE`: embargo abort, creden
 - **Never print, echo, log, or display credentials in any form.** This includes API tokens, passwords, PATs, service-account keys, and any environment variable whose name contains `TOKEN`, `KEY`, `SECRET`, `PASSWORD`, `PAT`, `CREDENTIAL`, or `AUTH`.
 - If a command requires a credential, pass it directly via the environment variable reference (e.g. `$JIRA_API_TOKEN`). Never interpolate the value into a string that will be printed or logged.
 - If a credential accidentally appears in command output, **do not repeat or quote it** in any subsequent message or log.
-- When logging command invocations for debugging, **mask** credential arguments. Pass auth headers via a `chmod 600` curl config file (`curl -K`) — never as a `-H "Authorization: ..."` argv flag, which exposes the token to `ps aux` / `/proc/<pid>/cmdline` while `curl` runs:
+- When logging command invocations for debugging, **mask** credential arguments. Pass auth headers via a `chmod 600` curl config file (`curl -K`) — never as a `-H "Authorization: ..."` argv flag, which exposes the token to `ps aux` / `/proc/<pid>/cmdline` while `curl` runs. Reject non-HTTPS `JIRA_BASE_URL` values before sending credentials:
   ```bash
   # Good — credential stays out of argv and stdout
+  case "${JIRA_BASE_URL}" in https://*) ;; *) echo "ERROR: JIRA_BASE_URL must use HTTPS"; exit 1 ;; esac
   curl_cfg=$(mktemp); chmod 600 "${curl_cfg}"
+  trap 'rm -f "${curl_cfg}"' EXIT INT TERM
   printf 'header = "Authorization: Bearer %s"\n' "${JIRA_API_TOKEN}" > "${curl_cfg}"
   curl -s -K "${curl_cfg}" "${JIRA_BASE_URL}/rest/api/2/issue/PROJ-123"
   rm -f "${curl_cfg}"
+  trap - EXIT INT TERM
   echo "Calling Jira API with Bearer token (masked)"
 
   # Bad — token value exposed in log or process list
@@ -245,10 +248,15 @@ mkdir -p "${REPOS_BASE}"
 
 ```bash
 ls "${REPOS_BASE}/" 2>/dev/null
+PRECLONE_CANDIDATE=""
+if [ "$(find "${REPOS_BASE}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)" -eq 1 ]; then
+  PRECLONE_CANDIDATE="$(find "${REPOS_BASE}" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -1)"
+fi
 ```
 
-- IF `REPOS_BASE` contains exactly one directory AND `--repo=` was not passed → use it as `REPO_DIR`, skip to Step 4.
 - IF `REPOS_BASE` contains multiple directories AND `--repo=` was not passed → **always** list them and exit with an error asking the caller to re-run with `--repo=`. This is not gated by `AUTO_APPROVE` — guessing the wrong repo is a correctness risk, not a convenience trade-off.
+- IF exactly one directory AND `--repo=` was not passed AND **`--jira`/`--jql` was NOT used** → set `REPO_DIR="${PRECLONE_CANDIDATE}"`. IF `[ ! -d "${REPO_DIR}/.git" ]` or `git -C "${REPO_DIR}" remote get-url origin` does not normalize to a valid `owner/repo` slug → exit with error. Otherwise set `REPO_URL` from that origin and skip to Step 4.
+- IF exactly one directory AND `--jira`/`--jql` was used → **do not reuse yet**; continue to Step 2 so `IMAGE_NAME` maps to the expected `REPO_URL`/`GIT_BRANCH`, then validate the checkout in Step 3b before reuse.
 - IF `REPOS_BASE` is empty, or `--repo=` was explicitly passed → continue to Step 2.
 
 #### Step 2: Resolve Repository URL
@@ -291,17 +299,24 @@ git ls-remote --heads "${REPO_URL}" "${GIT_BRANCH}" | grep -q "${GIT_BRANCH}"
 ##### Step 3c (Pattern B only): Read `.gitmodules` and Resolve Component Repo
 
 ```bash
-# Clone release repo (shallow, no submodule content needed)
+# Fresh per-run release clone — never reuse a shared /tmp path across executions
+RELEASE_CLONE_DIR="${REPOS_BASE}/.release-clones/$(echo "${RELEASE_REPO_URL}" | sed -E 's#^[a-zA-Z]+://github\.com/##; s#\.git$##; s#/$##' | tr '/' '-')-${GIT_BRANCH}"
+rm -rf "${RELEASE_CLONE_DIR}"
+mkdir -p "$(dirname "${RELEASE_CLONE_DIR}")"
 echo "Cloning release repo ${RELEASE_REPO_URL} @ ${GIT_BRANCH} ..."
-timeout 120 git clone --depth=1 -b "${GIT_BRANCH}" "${RELEASE_REPO_URL}" /tmp/release-repo
-if [ $? -eq 124 ]; then
+timeout 120 git clone --depth=1 -b "${GIT_BRANCH}" "${RELEASE_REPO_URL}" "${RELEASE_CLONE_DIR}"
+RELEASE_CLONE_EXIT=$?
+if [ $RELEASE_CLONE_EXIT -eq 124 ]; then
   echo "ERROR: release repo clone timed out after 120s"
+  exit 1
+elif [ $RELEASE_CLONE_EXIT -ne 0 ]; then
+  echo "ERROR: release repo clone failed for ${RELEASE_REPO_URL}"
   exit 1
 fi
 echo "✓ Release repo cloned"
 
 # Print .gitmodules so the model can parse it
-cat /tmp/release-repo/.gitmodules
+cat "${RELEASE_CLONE_DIR}/.gitmodules"
 ```
 
 From `.gitmodules`, find the entry matching the target image (use the submodule name from the `image-repo-mapping` skill output). Extract:
@@ -313,8 +328,12 @@ From `.gitmodules`, find the entry matching the target image (use the submodule 
 Read the **pinned commit** recorded in the release repo tree (do not guess from `.gitmodules` branch alone):
 
 ```bash
-PINNED_COMMIT=$(git -C /tmp/release-repo ls-tree HEAD "${SUBMODULE_PATH}" | awk '{print $3}')
+PINNED_COMMIT=$(git -C "${RELEASE_CLONE_DIR}" ls-tree HEAD "${SUBMODULE_PATH}" | awk '{print $3}')
 echo "Pinned commit for ${SUBMODULE_PATH}: ${PINNED_COMMIT}"
+if [ -z "${PINNED_COMMIT}" ]; then
+  echo "ERROR: no pinned commit found for submodule ${SUBMODULE_PATH} in ${RELEASE_REPO_URL}@${GIT_BRANCH}"
+  exit 1
+fi
 ```
 
 Set `REPO_URL = COMPONENT_URL` and `GIT_BRANCH = ${PINNED_COMMIT}` (detached checkout) for Step 3b. IF `PINNED_COMMIT` is empty → exit with error; do not clone at an unpinned branch.
@@ -322,29 +341,98 @@ Set `REPO_URL = COMPONENT_URL` and `GIT_BRANCH = ${PINNED_COMMIT}` (detached che
 ##### Step 3b: Clone the Repository
 
 ```bash
-# Canonical owner/repo slug avoids basename collisions (org-a/foo vs org-b/foo)
-REPO_SLUG="$(printf '%s' "${REPO_URL}" | sed -E 's#^[a-zA-Z]+://github\.com/##; s#\.git$##; s#/$##')"
-REPO_DIR="${REPOS_BASE}/$(echo "${REPO_SLUG}" | tr '/' '-')"
-
 normalize_git_url() {
   printf '%s' "$1" | sed -E 's#^[a-zA-Z]+://github\.com/##; s#\.git$##; s#/$##; s#^git@github\.com:##'
 }
 
+is_commit_ref() {
+  [[ "${1}" =~ ^[0-9a-f]{7,40}$ ]]
+}
+
+validate_repo_slug() {
+  local slug="$1"
+  [[ "${slug}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || return 1
+  case "${slug}" in ..*|*/..|*../*|*/*/) return 1 ;; esac
+  return 0
+}
+
+assert_repo_dir_under_base() {
+  local abs_base abs_dir
+  abs_base="$(cd "${REPOS_BASE}" && pwd)"
+  abs_dir="$(cd "${REPO_DIR}" 2>/dev/null && pwd || echo "${abs_base}/$(basename "${REPO_DIR}")")"
+  case "${abs_dir}" in
+    "${abs_base}"/*) return 0 ;;
+    *) echo "ERROR: REPO_DIR ${REPO_DIR} escapes REPOS_BASE ${REPOS_BASE}"; exit 1 ;;
+  esac
+}
+
+REPO_SLUG="$(normalize_git_url "${REPO_URL}")"
+if ! validate_repo_slug "${REPO_SLUG}"; then
+  echo "ERROR: invalid repository URL slug from ${REPO_URL}"
+  exit 1
+fi
+REPO_DIR="${REPOS_BASE}/$(echo "${REPO_SLUG}" | tr '/' '-')"
+mkdir -p "${REPOS_BASE}"
+assert_repo_dir_under_base
+
 clone_repo_at_ref() {
   local url="$1" dir="$2" ref="${3:-}"
-  if [ -n "${ref}" ] && [[ "${ref}" =~ ^[0-9a-f]{7,40}$ ]]; then
-    timeout -k 10 300 git clone --depth=50 "${url}" "${dir}"
-    git -C "${dir}" checkout "${ref}"
+  if [ -n "${ref}" ] && is_commit_ref "${ref}"; then
+    timeout -k 10 300 git clone "${url}" "${dir}" || return $?
+    timeout -k 10 120 git -C "${dir}" fetch origin "${ref}" || return $?
+    git -C "${dir}" checkout "${ref}" || return $?
   elif [ -n "${ref}" ]; then
-    timeout -k 10 300 git clone --depth=50 -b "${ref}" "${url}" "${dir}"
+    timeout -k 10 300 git clone --depth=50 -b "${ref}" "${url}" "${dir}" || return $?
   else
-    timeout -k 10 300 git clone --depth=50 "${url}" "${dir}"
+    timeout -k 10 300 git clone --depth=50 "${url}" "${dir}" || return $?
   fi
+}
+
+sync_existing_repo() {
+  local expected_slug current_slug current_origin
+  expected_slug="$(normalize_git_url "${REPO_URL}")"
+  current_origin="$(git -C "${REPO_DIR}" remote get-url origin 2>/dev/null || true)"
+  current_slug="$(normalize_git_url "${current_origin}")"
+  if [ -z "${current_slug}" ] || [ "${expected_slug}" != "${current_slug}" ]; then
+    echo "⚠ Existing clone at ${REPO_DIR} points at ${current_origin:-unknown}, expected ${REPO_URL} — removing and re-cloning"
+    assert_repo_dir_under_base
+    rm -rf "${REPO_DIR}"
+    clone_repo_at_ref "${REPO_URL}" "${REPO_DIR}" "${GIT_BRANCH}"
+    if [ $? -ne 0 ]; then
+      echo "ERROR: re-clone failed after origin mismatch for ${REPO_URL}"
+      exit 1
+    fi
+    return
+  fi
+
+  if [ -n "${GIT_BRANCH}" ] && is_commit_ref "${GIT_BRANCH}"; then
+    local current_head
+    current_head="$(git -C "${REPO_DIR}" rev-parse HEAD 2>/dev/null || true)"
+    if [ "${current_head}" != "${GIT_BRANCH}" ]; then
+      echo "Switching to pinned commit ${GIT_BRANCH} ..."
+      timeout -k 10 120 git -C "${REPO_DIR}" fetch origin "${GIT_BRANCH}"
+      git -C "${REPO_DIR}" checkout "${GIT_BRANCH}"
+    fi
+    return
+  fi
+
+  local current_branch
+  current_branch="$(git -C "${REPO_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  if [ -n "${GIT_BRANCH}" ] && ! is_commit_ref "${GIT_BRANCH}" && [ "${current_branch}" != "${GIT_BRANCH}" ]; then
+    echo "Switching from ${current_branch} to ${GIT_BRANCH} ..."
+    timeout -k 10 120 git -C "${REPO_DIR}" fetch origin "${GIT_BRANCH}"
+    git -C "${REPO_DIR}" checkout "${GIT_BRANCH}"
+    current_branch="$(git -C "${REPO_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  fi
+  if [ "${current_branch}" = "HEAD" ] || is_commit_ref "${GIT_BRANCH}"; then
+    echo "Detached HEAD — skipping git pull --ff-only"
+    return
+  fi
+  timeout -k 10 120 git -C "${REPO_DIR}" pull --ff-only
 }
 
 if [ ! -d "${REPO_DIR}/.git" ]; then
   echo "Cloning ${REPO_URL} (ref: ${GIT_BRANCH:-default}) into ${REPO_DIR} ..."
-  mkdir -p "${REPOS_BASE}"
   clone_repo_at_ref "${REPO_URL}" "${REPO_DIR}" "${GIT_BRANCH}"
   CLONE_EXIT=$?
   if [ $CLONE_EXIT -eq 124 ] || [ $CLONE_EXIT -eq 137 ]; then
@@ -356,21 +444,7 @@ if [ ! -d "${REPO_DIR}/.git" ]; then
     exit 1
   fi
 else
-  CURRENT_ORIGIN="$(git -C "${REPO_DIR}" remote get-url origin 2>/dev/null || true)"
-  EXPECTED_SLUG="$(normalize_git_url "${REPO_URL}")"
-  CURRENT_SLUG="$(normalize_git_url "${CURRENT_ORIGIN}")"
-  if [ -n "${EXPECTED_SLUG}" ] && [ -n "${CURRENT_SLUG}" ] && [ "${EXPECTED_SLUG}" != "${CURRENT_SLUG}" ]; then
-    echo "⚠ Existing clone at ${REPO_DIR} points at ${CURRENT_ORIGIN}, expected ${REPO_URL} — removing and re-cloning"
-    rm -rf "${REPO_DIR}"
-    clone_repo_at_ref "${REPO_URL}" "${REPO_DIR}" "${GIT_BRANCH}"
-  fi
-  CURRENT_BRANCH=$(git -C "${REPO_DIR}" rev-parse --abbrev-ref HEAD)
-  if [ -n "${GIT_BRANCH}" ] && [ "${CURRENT_BRANCH}" != "${GIT_BRANCH}" ]; then
-    echo "Switching from ${CURRENT_BRANCH} to ${GIT_BRANCH} ..."
-    timeout -k 10 120 git -C "${REPO_DIR}" fetch origin "${GIT_BRANCH}"
-    git -C "${REPO_DIR}" checkout "${GIT_BRANCH}"
-  fi
-  timeout -k 10 120 git -C "${REPO_DIR}" pull --ff-only
+  sync_existing_repo
 fi
 
 # Explicit verification — always print this so it's visible in the session

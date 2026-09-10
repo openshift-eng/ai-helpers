@@ -79,6 +79,11 @@ JIRA_BASE_URL="${JIRA_URL:-}"
 JIRA_EMAIL="${JIRA_EMAIL:-}"
 
 if [ -n "${JIRA_API_TOKEN}" ] && [ -n "${JIRA_BASE_URL}" ]; then
+  case "${JIRA_BASE_URL}" in
+    https://*) ;;
+    *) echo "ERROR: JIRA_BASE_URL must use HTTPS (got: ${JIRA_BASE_URL})"; exit 1 ;;
+  esac
+
   cat > /tmp/cve-report-comment.txt << 'COMMENT_EOF'
 <constructed comment from Step 2>
 COMMENT_EOF
@@ -87,18 +92,22 @@ COMMENT_EOF
   COMMENT_JSON_BODY=$(echo "${COMMENT_BODY}" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))")
 
   post_comment() {
-    # $1 = full "Authorization" header value, e.g. "Basic xxxx" or "Bearer xxxx"
-    # Write the header to a curl config file (-K) instead of passing it as a
-    # -H flag -- a "-H Authorization: ..." argument would put the credential
-    # directly into this process's argv, visible to anything on the same host
-    # that can read `ps aux` / /proc/<pid>/cmdline while curl runs.
-    local auth_header="$1" curl_cfg http_code
+    # $1 = auth mode: "basic" (email+token) or "bearer" (token only)
+    # Build the Authorization header inside this function after set +x so
+    # credentials never appear in traced argv when post_comment is invoked.
+    local auth_mode="$1" curl_cfg http_code auth_header
     curl_cfg=$(mktemp)
     chmod 600 "${curl_cfg}"
     trap 'rm -f "${curl_cfg}"' RETURN EXIT INT TERM
     [[ $- == *x* ]] && local _was_tracing=true || local _was_tracing=false
     set +x
+    if [ "${auth_mode}" = "basic" ]; then
+      auth_header="Basic $(printf '%s:%s' "${JIRA_EMAIL}" "${JIRA_API_TOKEN}" | base64 | tr -d '\n')"
+    else
+      auth_header="Bearer ${JIRA_API_TOKEN}"
+    fi
     printf 'header = "Authorization: %s"\n' "${auth_header}" > "${curl_cfg}"
+    unset auth_header
     $_was_tracing && set -x || true
 
     http_code=$(curl -s -o /tmp/jira-post-response.txt -w "%{http_code}" \
@@ -124,9 +133,7 @@ EOF
   HTTP_STATUS=""
   if [ -n "${JIRA_EMAIL}" ] && [ -n "${JIRA_API_TOKEN}" ]; then
     echo "Attempting REST post with Basic auth (email + token)..."
-    BASIC_AUTH=$(printf '%s:%s' "${JIRA_EMAIL}" "${JIRA_API_TOKEN}" | base64 | tr -d '\n')
-    HTTP_STATUS=$(post_comment "Basic ${BASIC_AUTH}")
-    unset BASIC_AUTH
+    HTTP_STATUS=$(post_comment basic)
   fi
 
   # Only retry with the other auth scheme when Basic wasn't attempted at all
@@ -137,7 +144,7 @@ EOF
   # malformed. Any other failure goes straight to Step 3b instead of retrying.
   if { [ -z "${HTTP_STATUS}" ] || [ "${HTTP_STATUS}" = "401" ] || [ "${HTTP_STATUS}" = "403" ]; } && [ -n "${JIRA_API_TOKEN}" ]; then
     echo "Attempting REST post with Bearer auth..."
-    HTTP_STATUS=$(post_comment "Bearer ${JIRA_API_TOKEN}")
+    HTTP_STATUS=$(post_comment bearer)
   fi
 
   echo "Jira API HTTP status: ${HTTP_STATUS:-none attempted}"
