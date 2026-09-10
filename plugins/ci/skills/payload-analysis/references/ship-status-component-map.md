@@ -9,13 +9,13 @@ If the same failure would have occurred on a different build cluster, it is not 
 | Failure domain | Component | Sub-component |
 |--------|-----------|----------------|
 | Shared CI configuration (step-registry, job configs, credential refs) that is not specific to one cluster | `downstream-ci` | `ci-config` |
-| Boskos / lease / quota exhaustion | `boskos` | `leasing-server`, or `aws` / `gcp` / `azure-2` / `azure4` from the job-name platform |
-| Cloud API / throttling / quota (no Boskos) | `boskos` | same cloud account slugs |
+| Boskos / lease / quota exhaustion | `boskos` | `leasing-server`, or the platform account (`aws` / `gcp` / `gcp-arm64` / `azure`) |
+| Cloud API / throttling / quota (no Boskos) | `boskos` | same platform account slugs |
 | Prow control plane (job never launched or stuck in Prow itself) | `prow` | `prow-controller-manager` (default) unless a more specific sub-component is named |
 | The CI cluster that ran the job: its nodes, scheduler, kubelet, console, or API | `build-farm` | the `spec.cluster` value |
 | External SaaS (Insights, console.redhat.com, …) | skip | not a SHIP Status component; `list_components` then `action: skipped` |
 | Anything else (including cluster-under-test teardown with no SHIP component) | skip | `list_components` candidates; do not invent slugs |
 
-Job-name substrings pick the Boskos cloud account: `aws` → `aws`, `gcp` → `gcp`, `azure4` / `azure-4` → `azure4`, `aks` / `azure-2` / `azure` → `azure-2`.
+Boskos cloud accounts are platform-level. Cluster-profiles (`azure4`, `azure-2`, `aks`, …) bubble up to a single account (`azure`, `aws`, `gcp`, or `gcp-arm64`). Do not invent per-profile slugs. Use `leasing-server` when the leasing service itself is down.
 
 Mapping misses are `skipped`, not silent creates.
