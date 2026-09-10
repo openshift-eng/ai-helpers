@@ -52,7 +52,7 @@ failing_jobs:
     is_aggregated: false
     underlying_job_name: ""
     failure_type: "infra"
-    root_cause_summary: "Pods deleted unexpectedly on build04 cluster"
+    root_cause_summary: "Step pod unschedulable on build04: DiskPressure, 0/N nodes available"
     streak_length: 1
     originating_payload_tag: "4.22.0-0.nightly-2026-02-25-152806"
     failure_pattern: "F"
@@ -142,8 +142,8 @@ Recorded by `payload-analysis` steps 6.5 (read) and 6.6 (write, only when `recor
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `component_slug` | string | SHIP Status component (e.g. `build-farm`, `boskos`, `prow`) |
-| `sub_component_slug` | string | SHIP Status sub-component (e.g. `build04`, `aws`) |
+| `component_slug` | string | SHIP Status component from the root-cause map (e.g. `downstream-ci`, `boskos`, `prow`, `build-farm`). `build-farm` is valid only with cluster-fault evidence, never as a default from `spec.cluster`. |
+| `sub_component_slug` | string | SHIP Status sub-component (e.g. `ci-config`, `gcp`, `build04`). For `build-farm`, this is `spec.cluster` **after** the cluster itself is proven at fault. |
 | `window_start` | string | RFC3339 UTC start of the job's Prow run (same bound passed to `get_outages_during`) |
 | `window_end` | string | RFC3339 UTC end of the job's Prow run (job completion, or `--as-of` if missing) |
 | `observed_health` | string | Health overlapping the **job run window** from `get_outages_during` (`healthy` if none; otherwise the overlapping outage severity). Never live "now" status from `get_infrastructure_status`. |

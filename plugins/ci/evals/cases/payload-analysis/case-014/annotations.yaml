@@ -27,4 +27,8 @@ notes: >
   aggregated-azure jobs have streak=1 and are unrelated (intermittent
   flakes). This case specifically tests the agent's ability to identify
   CI infrastructure changes as revert candidates when no component PRs
-  explain the failure.
+  explain the failure.   When SHIP Status read tools are present and the
+  metal-ipi jobs are classified as infra, map them to downstream-ci /
+  ci-config (causal openshift/release step-registry change). spec.cluster
+  is not a mapping signal; blaming the build cluster that ran the job
+  is a defect.
