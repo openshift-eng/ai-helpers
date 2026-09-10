@@ -15,7 +15,7 @@ Use this skill when you need to:
 
 - Browse the catalog of known CI failure signatures (symptoms)
 - Check whether a failure pattern already has a symptom before creating a new one (avoid duplicates)
-- Look up what a label like `InfraFailure` means (its title and explanation)
+- Look up what a label like `InfraFailure` means, including its title, explanation, and associated Jira issues
 - Find which symptoms apply a given label
 - Inspect a single symptom or label by its ID
 
@@ -60,7 +60,7 @@ python3 "$script_path" --labels --id InfraFailure
 
 Flags:
 - `--id <id>`: fetch a single symptom (or label with `--labels`) by ID
-- `--search <text>`: case-insensitive text search over id/summary/match_string (for labels: id/label_title/explanation)
+- `--search <text>`: case-insensitive text search over id/summary/match_string (for labels: id/label_title/explanation/bugs)
 - `--label <label_id>`: only symptoms that apply this label ID
 - `--matcher-type {string,regex,none,cel}`: only symptoms of this matcher type
 - `--labels`: operate on labels instead of symptoms
@@ -112,6 +112,7 @@ GET https://sippy.dptools.openshift.org/api/jobs/labels/{id}
 | `id` | Immutable identifier (≤80 chars) |
 | `label_title` | Unique human-readable title |
 | `explanation` | Markdown explanation of what the label means |
+| `bugs` | Jira issue keys associated with the label |
 | `hide_display_contexts` | UI contexts where the label is hidden (subset of `spyglass`, `metrics`, `jaq-options`) |
 
 ## Error Handling

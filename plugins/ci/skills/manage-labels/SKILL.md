@@ -15,6 +15,7 @@ Use this skill when you need to:
 
 - Create a new label before creating a symptom that applies it (see `manage-symptoms`)
 - Fix a label's title or explanation
+- Associate one or more Jira issues with a label
 - Hide a label from certain UI contexts (Spyglass, metrics, jaq-options)
 - Remove an obsolete label
 
@@ -69,7 +70,8 @@ Prefer exporting `SIPPY_TOKEN` as above rather than passing `--token` on the com
 ```bash
 python3 plugins/ci/skills/manage-labels/manage_labels.py create \
   --title "Cluster DNS Flake" \
-  --explanation "DNS lookups inside the cluster intermittently time out."
+  --explanation "DNS lookups inside the cluster intermittently time out." \
+  --bugs "OCPBUGS-12345,TRT-2896"
 ```
 
 The label `id` is generated from the title by the server if you omit `--id`. Pass `--id` on create only if you need a specific identifier (max 80 characters).
@@ -83,6 +85,9 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py update \
   --id ClusterDNSFlake \
   --explanation "DNS lookups inside the cluster intermittently time out. Usually caused by node-local DNS cache restarts."
 ```
+
+The update request always sends the complete label definition. Omitted fields are copied from the
+current definition. Pass `--bugs ""` to explicitly clear all associated Jira issues.
 
 To hide a label from certain UI contexts:
 
@@ -109,6 +114,7 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
 - `--id <id>`: Label ID (required for update/delete; optional for create)
 - `--title <text>`: Human-readable label title (required for create)
 - `--explanation <text>`: Markdown explanation of the label
+- `--bugs <list>`: Comma-separated Jira issue keys; whitespace and duplicates are removed
 - `--hide-display-contexts <list>`: Comma-separated subset of `spyglass,metrics,jaq-options`
 - `--format json|summary`: Output format (default: json)
 
@@ -129,6 +135,7 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
 | `id` | Immutable identifier, max 80 characters; generated from the title if omitted on create |
 | `label_title` | Human-readable title; must be unique |
 | `explanation` | Markdown explanation of what the label means |
+| `bugs` | Jira issue keys associated with the label, such as `OCPBUGS-12345` |
 | `hide_display_contexts` | Optional subset of `spyglass`, `metrics`, `jaq-options` — UI contexts where the label is hidden |
 
 ## Error Handling
@@ -136,7 +143,7 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
 - **401/403**: Token missing or expired — refresh it via the `oc-auth` skill.
 - **501**: You hit the read-only Sippy instance with a write; make sure the sippy-auth base URL is used (the script already does).
 - **400**: Server-side validation failure — the server's message is shown in the `detail` field of the output.
-- **Client-side validation**: Missing title, over-long ID, or invalid `hide_display_contexts` values are caught locally and reported before any request is sent (exit 1).
+- **Client-side validation**: Missing title, over-long ID, invalid Jira keys, or invalid `hide_display_contexts` values are caught locally and reported before any request is sent (exit 1). Jira keys are checked syntactically without a Jira lookup.
 - **Concurrent edits**: The update flow is read-merge-replace with no server-side concurrency control, so near-simultaneous edits can overwrite each other — re-check the label after updating if others may be editing.
 
 **Exit Codes**:
