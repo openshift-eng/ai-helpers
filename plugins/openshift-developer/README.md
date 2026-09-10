@@ -14,10 +14,13 @@ These workflows are meant to be a common engine for different consumption models
 
 ### Pre-PR (author loop)
 
-1. `/openshift-developer:jira-solve` — Analyze the Jira issue and choose a proportional skill chain.
-2. `/openshift-developer:implement` — Implement the ticket or apply findings from `/code-review:pre-commit-review`.
-3. `/openshift-developer:check-gates` — Loop until requirements, tests, lint, builds, production readiness, and a clean worktree are all satisfied.
-4. `/openshift-developer:create-pr` — Push the completed branch and create the Jira-linked PR.
+Run `/openshift-developer:jira-solve` for the end-to-end workflow. It analyzes the Jira issue, chooses a proportional skill chain, and invokes `implement`, `code-review:pre-commit-review`, `check-gates`, and `create-pr` when appropriate.
+
+Alternatively, invoke the building blocks directly when you need manual control:
+
+1. `/openshift-developer:implement` — Implement the ticket or apply findings from `/code-review:pre-commit-review`.
+2. `/openshift-developer:check-gates` — Loop until requirements, tests, lint, builds, production readiness, and a clean worktree are all satisfied.
+3. `/openshift-developer:create-pr` — Push the completed branch and create the Jira-linked PR.
 
 ### Post-PR (review loop)
 
