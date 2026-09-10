@@ -25,7 +25,4 @@ notes: >
   long as none reaches the revert threshold. Tests parallel subagent
   correlation: the agent must recognize four superficially different job
   failures (serial test failure vs. upgrade stalls) as one shared external
-  cause rather than attributing them to payload PRs.   When SHIP Status read
-  tools are present, Insights/console.redhat.com is unmapped: call
-  list_components, then record ship_status with action: skipped (reason
-  unmapped plus candidates). Do not call get_outages_during.
+  cause rather than attributing them to payload PRs.
