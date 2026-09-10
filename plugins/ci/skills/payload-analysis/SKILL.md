@@ -481,7 +481,7 @@ Instead, recommend the correct action: **wait for the RHCOS with the rebuilt kub
 
 Set `failure_type` from the **root cause**, not the job family (an `e2e-*-upgrade` job can still be `infra`).
 
-- **`infra`**: affirmative infrastructure — Boskos/lease/quota, cloud-provider API throttling or 429s, VIP/DNS reachability loss, Insights/console.redhat.com API 500s, Prow/build-farm outages, hypershift or cluster **teardown** timeouts after tests completed.
+- **`infra`**: affirmative infrastructure — Boskos/lease/quota, cloud-provider API throttling or 429s, VIP/DNS reachability loss, Insights/console.redhat.com API 500s, Prow/build-farm outages, broken shared CI configuration, hypershift or cluster **teardown** timeouts after tests completed.
 - **`install`**: installer/provisioning failed before the cluster was up.
 - **`upgrade`**: the upgrade path itself failed (CVO/operators/MCP), not an external API or teardown blip.
 - **`test`**: in-cluster product test failure.
@@ -494,11 +494,11 @@ After classification — and as a check when infrastructure is suspected but not
 
 This analysis often runs **hours after** the payload jobs finished. Current dashboard health is the wrong window.
 
-1. Read `references/ship-status-component-map.md` in this skill's directory. Map `component_slug` / `sub_component_slug` from `prowjob.json` `spec.cluster`, Boskos/lease/cloud signals, or Prow control-plane symptoms. First match wins.
+1. Read `references/ship-status-component-map.md` in this skill's directory. Map `component_slug` / `sub_component_slug` to the **broken system**, not to `prowjob.json` `spec.cluster`. That field is where the job ran (every job has one) and is not a default. `build-farm` only when that CI cluster itself failed. Prefer `action: skipped` (`reason: unmapped`) over blaming a cluster that was only the execution venue.
 2. If SHIP Status read tools exist, call **`get_outages_during`** for the mapped component/sub-component with RFC3339 UTC `start`/`end` covering the **job's Prow run window** (start slightly before job start if uncertain; end at job completion, or `--as-of` / `payload_completed_at` if completion is missing). An outage overlapping that window is **affirmative infra evidence**.
 3. Do **not** use `get_infrastructure_status` for this step — that is live "now" health. Do **not** substitute `get_component_outages`; it has no overlap filter. Use `list_components` only when mapping is ambiguous.
 4. Record a `ship_status` observation on each infra job (see the `payload-results-yaml` schema): slugs, `window_start` / `window_end` (the same bounds passed to `get_outages_during`), `observed_health` from the overlap result (`healthy` if none), `existing_outage_id`, `queried_at`, `action: pending`. Empty overlap is still a recorded observation, not a skip. Chai `payload_check` reuses these windows on the write path.
-5. If mapping is ambiguous, skip that job (`action: skipped`, `reason: unmapped`) and include `list_components` candidates in `reason`. Do not invent slugs. External Red Hat SaaS (Insights, console.redhat.com) is unmapped — skip after `list_components`, do not map it to boskos/prow.
+5. If mapping is ambiguous, skip that job (`action: skipped`, `reason: unmapped`) and include `list_components` candidates in `reason`. Do not invent slugs. External Red Hat SaaS (Insights, console.redhat.com) is unmapped — skip after `list_components`. Do not use `build-farm` as a stand-in for an unmapped or non-cluster cause.
 6. Detect SHIP read tools by their presence in the tool list (`get_outages_during`, `list_components`), not by a `ship-status` CLI. If those tools are **not** in the tool list, **omit** the `ship_status` key entirely. Do not write `action: skipped` / `reason: unmapped` as a stand-in for missing tools.
 
 The Prow job and this eval use the public SHIP Status MCP (reads only). This step must still run there.
@@ -565,7 +565,7 @@ Before presenting, confirm that **all Step 4 investigation subagents and the Ste
 3. **Cross-output consistency**: phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
 4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.
 5. **HTML filename** ends with `-summary.html`. If a `payload-analysis-*.html` file exists without that suffix, rename it — do not leave the short name as the report.
-6. **SHIP Status**: every `failure_type: infra` job has a `ship_status` observation if `get_outages_during` / `list_components` are in the tool list. Omit the key only when those tools are absent.
+6. **SHIP Status**: every `failure_type: infra` job has a `ship_status` observation if `get_outages_during` / `list_components` are in the tool list. Omit the key only when those tools are absent. Mapped slugs must follow `references/ship-status-component-map.md` (broken system, not `spec.cluster` as a default).
 
 If any check fails, fix it before presenting.
 
