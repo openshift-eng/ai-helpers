@@ -28,5 +28,4 @@ notes: >
   cause rather than attributing them to payload PRs.   When SHIP Status read
   tools are present, Insights/console.redhat.com is unmapped: call
   list_components, then record ship_status with action: skipped (reason
-  unmapped plus candidates). Do not call get_outages_during. Do not map
-  to build-farm from spec.cluster.
+  unmapped plus candidates). Do not call get_outages_during.

@@ -142,8 +142,8 @@ Recorded by `payload-analysis` steps 6.5 (read) and 6.6 (write, only when `recor
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `component_slug` | string | SHIP Status component from the root-cause map (e.g. `downstream-ci`, `boskos`, `prow`, `build-farm`). `build-farm` is valid only with cluster-fault evidence, never as a default from `spec.cluster`. |
-| `sub_component_slug` | string | SHIP Status sub-component (e.g. `ci-config`, `gcp`, `build04`). For `build-farm`, this is `spec.cluster` **after** the cluster itself is proven at fault. |
+| `component_slug` | string | SHIP Status component from the root-cause map (e.g. `downstream-ci`, `boskos`, `prow`, `build-farm`). `build-farm` only when that CI cluster itself failed, never as a default from `spec.cluster`. |
+| `sub_component_slug` | string | SHIP Status sub-component (e.g. `ci-config`, `gcp`, `build04`) |
 | `window_start` | string | RFC3339 UTC start of the job's Prow run (same bound passed to `get_outages_during`) |
 | `window_end` | string | RFC3339 UTC end of the job's Prow run (job completion, or `--as-of` if missing) |
 | `observed_health` | string | Health overlapping the **job run window** from `get_outages_during` (`healthy` if none; otherwise the overlapping outage severity). Never live "now" status from `get_infrastructure_status`. |
