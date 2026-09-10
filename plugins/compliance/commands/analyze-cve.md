@@ -16,7 +16,7 @@ compliance:analyze-cve
 ## Description
 The `compliance:analyze-cve` command performs comprehensive security vulnerability analysis for Go projects. Given a CVE identifier — supplied directly, or resolved from a Jira ticket — it resolves and clones the affected repository, gathers vulnerability intelligence, analyzes the codebase for impact, generates a risk report, optionally applies fixes, and optionally opens a GitHub pull request after a verified fix.
 
-Repository resolution works in three ways, in priority order: (1) an explicit `--repo=` (full URL or short image/component name), (2) an image name extracted from a Jira ticket's summary/labels/custom fields when `--jira=`/`--jql=` was used, or (3) a repository already cloned from a previous run in this workspace. See [Phase 0.7](#phase-07-repository-resolution-and-cloning) for the full resolution and cloning logic.
+Repository resolution works in four ways, in priority order: (1) an explicit `--repo=` (full URL or short image/component name), (2) exactly one pre-cloned repository already present in this workspace's `repos/` directory when `--repo=` was not passed, (3) an image name extracted from a Jira ticket's summary/labels/custom fields when `--jira=`/`--jql=` was used, or (4) an interactive prompt for the repository URL or image name. See [Phase 0.7](#phase-07-repository-resolution-and-cloning) for the full resolution and cloning logic.
 
 Designed for both interactive use and headless execution (e.g. `claude --print "/compliance:analyze-cve --jira=OCPBUGS-12345 --auto-approve=yes"`) for scheduled/periodic runs.
 
@@ -33,7 +33,7 @@ Optional flags:
 - **`--repo=<url-or-component>`**: Repository to analyze. Accepts:
   - A full GitHub URL: `--repo=https://github.com/openshift/cert-manager-operator`
   - A short image/component name: `--repo=cert-manager-operator-rhel9` (resolved via the [image-repo-mapping](../skills/image-repo-mapping/SKILL.md) skill)
-  - If omitted, the command checks for a repo already cloned in this workspace first, then resolves from the Jira ticket's image name (if `--jira`/`--jql` was used), then prompts the user.
+  - If omitted, Phase 0.7 checks for exactly one pre-cloned repo in this workspace first, then resolves from the Jira ticket's image name (if `--jira`/`--jql` was used), then prompts the user.
 - **`--algo`** (default: `vta`): Call graph construction algorithm.
   - `vta` — Most precise, fewest false positives (recommended)
   - `rta` — Good balance of precision and speed
@@ -78,14 +78,18 @@ All other absolute rules are unaffected by `AUTO_APPROVE`: embargo abort, creden
 - **Never print, echo, log, or display credentials in any form.** This includes API tokens, passwords, PATs, service-account keys, and any environment variable whose name contains `TOKEN`, `KEY`, `SECRET`, `PASSWORD`, `PAT`, `CREDENTIAL`, or `AUTH`.
 - If a command requires a credential, pass it directly via the environment variable reference (e.g. `$JIRA_API_TOKEN`). Never interpolate the value into a string that will be printed or logged.
 - If a credential accidentally appears in command output, **do not repeat or quote it** in any subsequent message or log.
-- When logging command invocations for debugging, **mask** credential arguments:
+- When logging command invocations for debugging, **mask** credential arguments. Pass auth headers via a `chmod 600` curl config file (`curl -K`) — never as a `-H "Authorization: ..."` argv flag, which exposes the token to `ps aux` / `/proc/<pid>/cmdline` while `curl` runs:
   ```bash
-  # Good — value never appears in output
-  curl -H "Authorization: Bearer $JIRA_API_TOKEN" ...
+  # Good — credential stays out of argv and stdout
+  curl_cfg=$(mktemp); chmod 600 "${curl_cfg}"
+  printf 'header = "Authorization: Bearer %s"\n' "${JIRA_API_TOKEN}" > "${curl_cfg}"
+  curl -s -K "${curl_cfg}" "${JIRA_BASE_URL}/rest/api/2/issue/PROJ-123"
+  rm -f "${curl_cfg}"
   echo "Calling Jira API with Bearer token (masked)"
 
-  # Bad — token value exposed in log
+  # Bad — token value exposed in log or process list
   echo "Token is: $JIRA_API_TOKEN"
+  curl -H "Authorization: Bearer $JIRA_API_TOKEN" ...
   curl -v -H "Authorization: Bearer eyJhb..."
   ```
 - The same rule applies to SSH keys, `~/.netrc` contents, Git credential helpers, and any secrets mounted as files.
@@ -206,7 +210,7 @@ JQL matched <N> issue(s) in this batch (there may be more beyond max_results=10)
 
 - **Skill**: [jira-cve-extraction](../skills/jira-cve-extraction/SKILL.md)
 - **Input**: Jira ticket key from `--jira=` (or resolved in Phase 0.3), `AUTO_APPROVE`
-- **Output**: `CVE_ID`, `IMAGE_NAME`, `BRANCH`, `SOURCE_TICKET`, and full `jira_context` enrichment block
+- **Output**: `CVE_ID`, `IMAGE_NAME`, `BRANCH`, `SOURCE_TICKET`, full `jira_context` enrichment block, and top-level `analysis_hints` (including `urgency_override`)
 
 **Extraction priority (per skill):**
 1. Parse ticket **summary** — format `CVE-YYYY-NNNNN <image>: <desc> [branch]` — provides CVE ID, image name, and branch in one step
@@ -302,25 +306,46 @@ cat /tmp/release-repo/.gitmodules
 
 From `.gitmodules`, find the entry matching the target image (use the submodule name from the `image-repo-mapping` skill output). Extract:
 - `url` → the component repo to clone (`COMPONENT_URL`)
-- `branch` → clone at this branch (`COMPONENT_BRANCH`)
-- `tag` → if present instead of `branch`, clone at this tag (`COMPONENT_TAG`)
+- `path` → submodule path within the release repo (`SUBMODULE_PATH`)
+- `branch` → informational only for Pattern B — the release repo tree pins the exact commit
+- `tag` → if present instead of `branch`, clone at this tag (`COMPONENT_TAG`) for non-submodule flows
 
-Set `REPO_URL = COMPONENT_URL` and `GIT_BRANCH = COMPONENT_BRANCH` (or `COMPONENT_TAG`) for Step 3b.
+Read the **pinned commit** recorded in the release repo tree (do not guess from `.gitmodules` branch alone):
+
+```bash
+PINNED_COMMIT=$(git -C /tmp/release-repo ls-tree HEAD "${SUBMODULE_PATH}" | awk '{print $3}')
+echo "Pinned commit for ${SUBMODULE_PATH}: ${PINNED_COMMIT}"
+```
+
+Set `REPO_URL = COMPONENT_URL` and `GIT_BRANCH = ${PINNED_COMMIT}` (detached checkout) for Step 3b. IF `PINNED_COMMIT` is empty → exit with error; do not clone at an unpinned branch.
 
 ##### Step 3b: Clone the Repository
 
 ```bash
-REPO_NAME=$(basename "${REPO_URL}" .git)
-REPO_DIR="${REPOS_BASE}/${REPO_NAME}"
+# Canonical owner/repo slug avoids basename collisions (org-a/foo vs org-b/foo)
+REPO_SLUG="$(printf '%s' "${REPO_URL}" | sed -E 's#^[a-zA-Z]+://github\.com/##; s#\.git$##; s#/$##')"
+REPO_DIR="${REPOS_BASE}/$(echo "${REPO_SLUG}" | tr '/' '-')"
+
+normalize_git_url() {
+  printf '%s' "$1" | sed -E 's#^[a-zA-Z]+://github\.com/##; s#\.git$##; s#/$##; s#^git@github\.com:##'
+}
+
+clone_repo_at_ref() {
+  local url="$1" dir="$2" ref="${3:-}"
+  if [ -n "${ref}" ] && [[ "${ref}" =~ ^[0-9a-f]{7,40}$ ]]; then
+    timeout -k 10 300 git clone --depth=50 "${url}" "${dir}"
+    git -C "${dir}" checkout "${ref}"
+  elif [ -n "${ref}" ]; then
+    timeout -k 10 300 git clone --depth=50 -b "${ref}" "${url}" "${dir}"
+  else
+    timeout -k 10 300 git clone --depth=50 "${url}" "${dir}"
+  fi
+}
 
 if [ ! -d "${REPO_DIR}/.git" ]; then
-  echo "Cloning ${REPO_URL} (branch: ${GIT_BRANCH:-default}) into ${REPO_DIR} ..."
+  echo "Cloning ${REPO_URL} (ref: ${GIT_BRANCH:-default}) into ${REPO_DIR} ..."
   mkdir -p "${REPOS_BASE}"
-  if [ -n "${GIT_BRANCH}" ]; then
-    timeout -k 10 300 git clone --depth=50 -b "${GIT_BRANCH}" "${REPO_URL}" "${REPO_DIR}"
-  else
-    timeout -k 10 300 git clone --depth=50 "${REPO_URL}" "${REPO_DIR}"
-  fi
+  clone_repo_at_ref "${REPO_URL}" "${REPO_DIR}" "${GIT_BRANCH}"
   CLONE_EXIT=$?
   if [ $CLONE_EXIT -eq 124 ] || [ $CLONE_EXIT -eq 137 ]; then
     echo "ERROR: git clone timed out after 300s for ${REPO_URL}"
@@ -331,6 +356,14 @@ if [ ! -d "${REPO_DIR}/.git" ]; then
     exit 1
   fi
 else
+  CURRENT_ORIGIN="$(git -C "${REPO_DIR}" remote get-url origin 2>/dev/null || true)"
+  EXPECTED_SLUG="$(normalize_git_url "${REPO_URL}")"
+  CURRENT_SLUG="$(normalize_git_url "${CURRENT_ORIGIN}")"
+  if [ -n "${EXPECTED_SLUG}" ] && [ -n "${CURRENT_SLUG}" ] && [ "${EXPECTED_SLUG}" != "${CURRENT_SLUG}" ]; then
+    echo "⚠ Existing clone at ${REPO_DIR} points at ${CURRENT_ORIGIN}, expected ${REPO_URL} — removing and re-cloning"
+    rm -rf "${REPO_DIR}"
+    clone_repo_at_ref "${REPO_URL}" "${REPO_DIR}" "${GIT_BRANCH}"
+  fi
   CURRENT_BRANCH=$(git -C "${REPO_DIR}" rev-parse --abbrev-ref HEAD)
   if [ -n "${GIT_BRANCH}" ] && [ "${CURRENT_BRANCH}" != "${GIT_BRANCH}" ]; then
     echo "Switching from ${CURRENT_BRANCH} to ${GIT_BRANCH} ..."
@@ -366,14 +399,10 @@ echo "  go.mod : $([ -f "${REPO_DIR}/go.mod" ] && echo 'present' || echo 'MISSIN
 Even though repos are cloned under this command's own `.work/` directory (not a temp mount), external cleanup (e.g. `git clean -fdx`, a stray `rm -rf .work`) can still remove `REPO_DIR` between phases. Every phase that needs `REPO_DIR` runs this guard first:
 
 ```bash
-if [ ! -f "${REPO_DIR}/go.mod" ]; then
+if [ ! -d "${REPO_DIR}/.git" ]; then
   echo "⚠ Repo missing at ${REPO_DIR} — re-cloning..."
   mkdir -p "${REPOS_BASE}"
-  if [ -n "${GIT_BRANCH}" ]; then
-    timeout -k 10 300 git clone --depth=50 -b "${GIT_BRANCH}" "${REPO_URL}" "${REPO_DIR}"
-  else
-    timeout -k 10 300 git clone --depth=50 "${REPO_URL}" "${REPO_DIR}"
-  fi
+  clone_repo_at_ref "${REPO_URL}" "${REPO_DIR}" "${GIT_BRANCH}"
   if [ $? -ne 0 ]; then
     echo "✗ Re-clone failed. Cannot continue without the repository."
     exit 1
@@ -429,7 +458,7 @@ Generate analysis report at `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze
 - Jira Context _(if `--jira`/`--jql` was provided)_: ticket URL, priority, status, assignee, target versions, components, internal notes, linked issues
 - Analysis Methods: what was used, why, and what was found
 - Findings: specific evidence (file paths, versions, code snippets, call chains)
-- Risk Assessment: severity + actual exposure + exploitability in this context; escalate if `jira_context.analysis_hints.urgency_override` is set
+- Risk Assessment: severity + actual exposure + exploitability in this context; escalate if `analysis_hints.urgency_override` is set
 - Next Steps: remediation guidance or monitoring recommendations; note any existing workarounds from the Jira ticket
 - Sources and Limitations: tools used, gaps, analysis date
 
@@ -456,7 +485,7 @@ Generate analysis report at `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze
 After presenting the report (regardless of whether the user proceeds to Phase 5), IF a Jira ticket is involved (`--jira`/`--jql` was used), invoke the report-to-jira skill:
 
 - **Skill**: [report-to-jira](../skills/report-to-jira/SKILL.md)
-- **Input**: completed report, `CVE_ID`, risk level, `SOURCE_TICKET`, `AUTO_APPROVE`
+- **Input**: completed report, `CVE_ID`, risk level, `SOURCE_TICKET`, `jira_context` (label snapshot from Phase 0.5), `AUTO_APPROVE`
 - **Output**: comment and `ai-cve-analyzed` label posted to `SOURCE_TICKET`; skipped silently in direct CVE mode; if posting fails, comment body is displayed in session for manual copy-paste
 
 ---

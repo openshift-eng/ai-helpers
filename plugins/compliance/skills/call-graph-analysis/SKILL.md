@@ -80,6 +80,26 @@ echo "Main packages: ${MAIN_PKGS}"
 Pick the most relevant main package for the analysis (typically the controller or server binary, not CLI tools or test helpers). If unsure, prefer the package that imports the vulnerable package's parent tree.
 
 ```bash
+# Select exactly one TARGET_PKG before running callgraph
+if [ -z "${TARGET_PKG:-}" ]; then
+  TARGET_PKG=$(printf '%s\n' ${MAIN_PKGS} | grep -E '(^|/)(cmd/)?(controller|manager|operator|server|main)(/|$)' | head -1)
+  [ -z "${TARGET_PKG}" ] && TARGET_PKG=$(printf '%s\n' ${MAIN_PKGS} | head -1)
+fi
+
+# Normalize to a package path callgraph accepts (./cmd/foo or .)
+case "${TARGET_PKG}" in
+  .|./) TARGET_PKG="." ;;
+  *) TARGET_PKG="./${TARGET_PKG#./}" ;;
+esac
+
+if [ -z "${TARGET_PKG}" ] || [ "${TARGET_PKG}" = "./" ]; then
+  echo "ERROR: No main package found for call graph analysis"
+  exit 1
+fi
+echo "Selected TARGET_PKG=${TARGET_PKG}"
+```
+
+```bash
 ALGO="${USER_ALGO:-vta}"
 OUT_DIR="${OUT_DIR:-${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/${CVE_ID}}"
 mkdir -p "${OUT_DIR}"
@@ -133,8 +153,9 @@ cat "${OUT_DIR}/callgraph.txt" | digraph nodes | grep "${VULN_FUNC}$"
 ```
 
 **Decision Point:**
-- IF function found → Continue to Step 4
-- IF function NOT found → Report as LOW RISK → Recommend manual review → Exit skill
+- IF function found in this `TARGET_PKG` graph → Continue to Step 4
+- IF function NOT found in this graph → Try the next candidate from `MAIN_PKGS` (different `TARGET_PKG`) before concluding
+- IF every examined main package shows no path → Return **NEEDS_REVIEW** (or MEDIUM if other evidence exists) — do **not** assign LOW RISK from a single unexamined or inconclusive graph
 
 ### Step 4: Find Execution Paths from Entry Points
 

@@ -71,8 +71,8 @@ Some components use a dedicated `-release` repo that aggregates all component re
 **Resolution steps for Pattern B:**
 1. Clone the **release repo** at the mapped release branch
 2. Read `.gitmodules` from that branch to find the submodule entry matching the target image
-3. Extract the submodule `url` and `branch`/`tag` from `.gitmodules`
-4. Clone the **component repo** at that pinned ref for analysis
+3. Read the **pinned commit** from the release repo tree (`git ls-tree HEAD <submodule-path>`) — do not clone from the `.gitmodules` branch field alone
+4. Clone the **component repo** and check out that pinned commit for analysis
 
 ```bash
 # Step 1: Clone release repo at correct branch
@@ -81,11 +81,13 @@ git clone --depth=1 -b "${RELEASE_BRANCH}" "${RELEASE_REPO_URL}" /tmp/release-re
 # Step 2: Read .gitmodules
 cat /tmp/release-repo/.gitmodules
 
-# Step 3: Extract the relevant submodule url + branch/tag
-# Step 4: Clone component repo at pinned ref
-git clone --depth=50 -b "${COMPONENT_BRANCH}" "${COMPONENT_URL}" "${REPO_DIR}"
-# or for a tag:
-git clone --depth=1 --branch "${COMPONENT_TAG}" "${COMPONENT_URL}" "${REPO_DIR}"
+# Step 3: Extract submodule path + url from .gitmodules
+# Step 4: Read pinned commit from release repo tree
+PINNED_COMMIT=$(git -C /tmp/release-repo ls-tree HEAD "${SUBMODULE_PATH}" | awk '{print $3}')
+
+# Step 5: Clone component repo and checkout pinned commit
+git clone --depth=50 "${COMPONENT_URL}" "${REPO_DIR}"
+git -C "${REPO_DIR}" checkout "${PINNED_COMMIT}"
 ```
 
 **Jira branch → release branch naming for Pattern B:**

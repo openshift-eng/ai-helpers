@@ -18,6 +18,7 @@ Before posting, verify the following are available from the parent command:
 - Final report content (full markdown from Phase 3)
 - CVE ID (e.g. `CVE-2024-45338`)
 - **`SOURCE_TICKET`** — the Jira ticket key from `--jira=`/`--jql=` (e.g. `OCPBUGS-12345`). This is the only ticket this skill writes to.
+- **`jira_context`** — label snapshot from Phase 0.5 (`jira_context["labels"]`); used as a hint only — Step 4.5 re-fetches current labels before writing
 - Risk level (`HIGH` / `MEDIUM` / `LOW` / `NEEDS_REVIEW`)
 - `AUTO_APPROVE` (`yes`/`no`, default `no`) — governs the Step 3b visibility-downgrade fallback prompt
 
@@ -91,15 +92,18 @@ COMMENT_EOF
     # -H flag -- a "-H Authorization: ..." argument would put the credential
     # directly into this process's argv, visible to anything on the same host
     # that can read `ps aux` / /proc/<pid>/cmdline while curl runs.
-    local auth_header="$1" curl_cfg
+    local auth_header="$1" curl_cfg http_code
     curl_cfg=$(mktemp)
     chmod 600 "${curl_cfg}"
+    trap 'rm -f "${curl_cfg}"' RETURN EXIT INT TERM
     [[ $- == *x* ]] && local _was_tracing=true || local _was_tracing=false
     set +x
     printf 'header = "Authorization: %s"\n' "${auth_header}" > "${curl_cfg}"
     $_was_tracing && set -x || true
 
-    curl -s -o /tmp/jira-post-response.txt -w "%{http_code}" \
+    http_code=$(curl -s -o /tmp/jira-post-response.txt -w "%{http_code}" \
+      --connect-timeout 15 \
+      --max-time 60 \
       -X POST \
       -K "${curl_cfg}" \
       "${JIRA_BASE_URL}/rest/api/2/issue/${SOURCE_TICKET}/comment" \
@@ -113,7 +117,8 @@ COMMENT_EOF
   }
 }
 EOF
-    rm -f "${curl_cfg}"
+)
+    echo "${http_code}"
   }
 
   HTTP_STATUS=""
@@ -224,12 +229,17 @@ Add the label **`ai-cve-analyzed`** to `SOURCE_TICKET` to prevent redundant re-p
 Jira's update API **replaces** the entire label list — it does not append. Sending only `["ai-cve-analyzed"]` will **delete all existing labels** on the ticket. This is a destructive operation and must never happen.
 
 **Before writing, always:**
-1. Take the full `labels` list already captured in `jira_context["labels"]` (fetched in Phase 0.5 — no extra API call needed)
-2. Append `ai-cve-analyzed` to that list
+1. Re-fetch the ticket's current labels (do not trust the Phase 0.5 snapshot alone — labels may have changed while analysis ran):
+   ```python
+   fresh = getJiraIssue(issue_key=SOURCE_TICKET)
+   current_labels = fresh["fields"]["labels"]   # never start from an empty list
+   ```
+   Use `jira_context["labels"]` only as a fallback if the re-fetch fails.
+2. Append `ai-cve-analyzed` to `current_labels`
 3. Write the combined list back
 
 ```python
-current_labels = jira_context["labels"]   # never start from an empty list
+# current_labels comes from the mandatory re-fetch above (Step 4.5)
 
 if "ai-cve-analyzed" not in current_labels:
     new_labels = current_labels + ["ai-cve-analyzed"]

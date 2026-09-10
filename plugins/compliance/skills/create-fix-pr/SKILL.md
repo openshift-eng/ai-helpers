@@ -305,6 +305,13 @@ if [ -n "${EXTRA}" ]; then
     git -C "${REPO_DIR}" restore --staged -- "${x}"
   done <<< "${EXTRA}"
 fi
+
+MISSING="$(comm -23 <(sort "${PHASE5_FILES}") <(sort "${WORK_CVE}/staged-files.txt"))"
+if [ -n "${MISSING}" ]; then
+  echo "ERROR: PHASE5_FILES paths missing from the staged set:"
+  echo "${MISSING}"
+  exit 1   # return status: failed (phase5_files_incomplete)
+fi
 ```
 
 IF any path was rejected → tell the user which paths were unstaged and why before continuing. Re-run the diff after unstaging to confirm the index now matches `PHASE5_FILES` exactly (accounting for deletions).
