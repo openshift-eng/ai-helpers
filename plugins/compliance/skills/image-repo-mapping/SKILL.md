@@ -1,6 +1,6 @@
 ---
 name: image-repo-mapping
-description: Map a container image name (from a Jira ticket summary, pscomponent label, or Downstream Component Name field) to the GitHub repository that should be cloned for CVE impact analysis
+description: Use when resolving which GitHub repository to clone for CVE analysis from a container image name in a Jira ticket summary, pscomponent label, or Downstream Component Name field.
 ---
 
 # Image to Repository Mapping

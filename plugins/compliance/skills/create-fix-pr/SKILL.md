@@ -1,6 +1,6 @@
 ---
 name: create-fix-pr
-description: After a CVE fix is applied and verified locally, create (or update) a GitHub pull request and optionally post the PR URL back to the source Jira ticket
+description: Use when opening or updating a GitHub pull request after Phase 5 of `/compliance:analyze-cve` has applied and verified a CVE fix locally.
 ---
 
 # Create Fix PR

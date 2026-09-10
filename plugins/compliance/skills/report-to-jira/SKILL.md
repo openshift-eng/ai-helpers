@@ -1,6 +1,6 @@
 ---
 name: report-to-jira
-description: Post the final CVE analysis report as a comment on the source Jira ticket, prefixed with an AI-analysis attribution header
+description: Use when posting a completed CVE analysis report or PR follow-up as a Jira comment on the source ticket from `/compliance:analyze-cve`.
 ---
 
 # Report to Jira
