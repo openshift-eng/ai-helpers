@@ -12,6 +12,19 @@ REQUIRED_CANDIDATE_FIELDS_BY_TYPE = {
     "rhcos_rpm": ["package", "rhcos_tag", "changelog_evidence"],
 }
 SHIP_STATUS_ACTIONS = {"pending", "created", "linked", "skipped"}
+ESCAPE_OUTCOMES = {
+    "coverage_gap", "signal_handling", "false_negative", "mixed", "unknown",
+}
+ESCAPE_REQUIRED_FIELDS = {
+    "outcome", "summary", "relevant_presubmits", "factors", "merge",
+    "recommendations", "limitations",
+}
+ESCAPE_FACTOR_TYPES = {
+    "coverage_gap", "conditional_not_selected", "optional_signal",
+    "did_not_run", "retry_masking", "override", "verification_bypass",
+    "test_false_negative", "unknown",
+}
+ACTOR_KINDS = {"human", "chai", "automation", "unknown"}
 
 
 def validate(path):
@@ -104,6 +117,19 @@ def validate(path):
                     errors.append(
                         f"candidates[{i}] (type '{cand_type}') missing '{field}'"
                     )
+            score = cand.get("confidence_score")
+            if (
+                cand_type == "pr"
+                and isinstance(score, int)
+                and score >= 85
+                and "escape_analysis" not in cand
+            ):
+                errors.append(
+                    f"candidates[{i}] (high-confidence PR) missing "
+                    "'escape_analysis'"
+                )
+            if "escape_analysis" in cand:
+                _validate_escape_analysis(cand["escape_analysis"], i, errors)
 
     if errors:
         print(f"FAIL: {len(errors)} error(s)")
@@ -119,6 +145,42 @@ def validate(path):
         parts.append(f"{rhcos_rpm_cands} RHCOS RPM candidates")
     print(f"OK: {', '.join(parts)}")
     return 0
+
+
+def _validate_escape_analysis(escape, candidate_index, errors):
+    prefix = f"candidates[{candidate_index}].escape_analysis"
+    if not isinstance(escape, dict):
+        errors.append(f"{prefix} is not an object")
+        return
+    for field in sorted(ESCAPE_REQUIRED_FIELDS):
+        if field not in escape:
+            errors.append(f"{prefix} missing '{field}'")
+    outcome = escape.get("outcome")
+    if outcome not in ESCAPE_OUTCOMES:
+        errors.append(
+            f"{prefix}.outcome must be one of {sorted(ESCAPE_OUTCOMES)}, "
+            f"got {outcome!r}"
+        )
+    for field in ("relevant_presubmits", "factors", "recommendations", "limitations"):
+        if field in escape and not isinstance(escape[field], list):
+            errors.append(f"{prefix}.{field} is not a list")
+    for index, factor in enumerate(escape.get("factors", [])):
+        factor_prefix = f"{prefix}.factors[{index}]"
+        if not isinstance(factor, dict):
+            errors.append(f"{factor_prefix} is not an object")
+            continue
+        if factor.get("type") not in ESCAPE_FACTOR_TYPES:
+            errors.append(
+                f"{factor_prefix}.type must be one of "
+                f"{sorted(ESCAPE_FACTOR_TYPES)}, got {factor.get('type')!r}"
+            )
+        if not factor.get("evidence"):
+            errors.append(f"{factor_prefix}.evidence is required")
+        if "actor_kind" in factor and factor["actor_kind"] not in ACTOR_KINDS:
+            errors.append(
+                f"{factor_prefix}.actor_kind must be one of "
+                f"{sorted(ACTOR_KINDS)}, got {factor['actor_kind']!r}"
+            )
 
 
 if __name__ == "__main__":

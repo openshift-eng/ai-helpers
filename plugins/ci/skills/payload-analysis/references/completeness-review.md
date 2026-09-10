@@ -11,6 +11,7 @@ The reviewer receives **only** the following (NOT the full conversation history)
 3. The `ANALYSIS_RESULT` blocks from all subagents in Step 4
 4. The revert recommendations (if any)
 5. The RHCOS RPM candidates (if any, identified by `type: "rhcos_rpm"` in the scored candidates)
+6. The structured escape analysis for every PR candidate scoring >= 85
 
 ## Reviewer prompt
 
@@ -37,6 +38,8 @@ Use this prompt:
 > 4. **Wrong reference for failure type**: Did the analysis route to the correct reference — install (and metal for metal jobs) for install failures, and the test/flaky-test reference for test failures? Using the wrong reference produces misdirected analysis.
 >
 > 5. **Missing RHCOS RPM candidates**: If RHCOS RPM changes exist in the originating payload and failures are variant-isolated or involve OS-level components, were the RPM changes scored as candidates alongside PRs? Were the RPM changelogs read and cited as evidence in the rubric breakdown? An RHCOS RPM change whose changelog was not consulted is like a PR candidate whose `code.diff` was never read — an incomplete investigation.
+>
+> 6. **Incomplete escape analysis**: Does every PR candidate scoring >= 85 explain merge-time presubmit coverage, runs on the exact SHA that merged, terminal retry history, optional/required status, explicit override/skip/verified actions, and actor attribution? Reject claims of retry masking based only on superseded commits, and reject Chai attribution unless the frozen evidence identifies `actor_kind: chai`. When evidence is missing, require an `outcome: unknown` result with exact limitations rather than a guess.
 >
 > **Rules**:
 > - Do NOT suggest lowering confidence scores. If the rubric signals fired (error message match, new failure, component exclusivity), the score is correct. Period.

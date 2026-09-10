@@ -1,6 +1,6 @@
 ---
 name: payload-analysis
-description: Analyze a payload snapshot to identify root causes of blocking job failures, score candidate PRs, and produce an HTML report with revert recommendations
+description: Use when analyzing a payload snapshot to identify root causes of blocking job failures, score candidate PRs, explain how high-confidence regressions escaped pre-merge CI, and produce an HTML report with revert recommendations
 argument-hint: "<payload-tag> [--snapshot-dir DIR] [--as-of TIMESTAMP]"
 ---
 
@@ -19,6 +19,7 @@ Use this skill when you need to:
 - Assess whether an in-progress ("Ready") payload is likely to be rejected
 - Determine whether failures are new or persistent
 - Identify which PRs likely caused new failures
+- Explain what allowed a high-confidence PR regression to merge
 - Get a comprehensive overview of payload health with actionable root cause analysis
 - Re-analyze a historical payload against its original snapshot data
 
@@ -55,7 +56,9 @@ Load these only at the step that needs them — not up front:
 - **`assets/report-template.html`** — the fill-in-the-blanks HTML report template (Step 7)
 - **`references/ship-status-component-map.md`** — SHIP Status slug mapping (Step 6.5)
 
-The `payload-results-yaml` and `payload-autodl-json` skills define the structured output schemas; load each via the Skill tool at its point of use (Steps 6.7 and 8).
+The `regression-escape-analysis`, `payload-results-yaml`, and
+`payload-autodl-json` skills define reusable analysis/output contracts; load
+each via the Skill tool at its point of use (Steps 6.2b, 6.7, and 8).
 
 ## Implementation Steps
 
@@ -162,6 +165,9 @@ For each failed job, read its `job.json` (at `SNAPSHOT_DIR/<job_json>` path) to 
 For each failed job's `streak.originating_payload`, find the matching entry in `summary.json` → `payloads[]`. Its `prs[]` array contains the PRs introduced in that payload:
 - `url`, `component`, `number`, `description`
 - Paths to local artifacts: `diff`, `comments`, `jobs`
+- `escape_analysis` (when collected): merge-time PR metadata, complete status
+  attempt history on the merged head SHA, chat-ops actions with normalized
+  actors, and paths to frozen Prow/ci-operator and repository workflow config
 
 Treat this as a **preliminary** list only. The job-level streak merges unrelated failure modes, so its originating payload is frequently earlier than the regression being investigated — and candidates gathered from it can omit the causal PR entirely. Before scoring, re-derive the originating payload **per failure mode** from `test_failures.blocking[].first_failed_in` (Step 5) and collect the candidates from *that* payload.
 
@@ -477,6 +483,44 @@ Otherwise, recommend force-accepting when **all** of the following are true:
 
 Instead, recommend the correct action: **wait for the RHCOS with the rebuilt kubelet to land** (i.e., for the transient build lag from Step 6.2 to resolve). Once the updated kubelet is delivered, the skew clears and the payload passes on its own.
 
+#### 6.2b: Explain How High-Confidence PR Regressions Escaped
+
+For every `type: "pr"` candidate scoring >= 85, load the
+`regression-escape-analysis` skill and follow it with:
+
+- the already-adjudicated regression mechanism from Steps 4-6.1 (affected
+  jobs/environments, distinct failure modes, failing tests/operations, root
+  cause, and key error patterns),
+- the candidate PR URL, and
+- the PR's `escape_analysis` path from `summary.json` when present.
+
+This is a downstream analysis, not another culprit search. Do not let it
+re-score or replace the causal attribution established by the payload rubric.
+It answers whether matching presubmit coverage existed, whether it ran on the
+exact SHA that merged, what each terminal attempt reported, whether signal was
+optional/retried/overridden, and who performed any handling action.
+
+Prefer the snapshot artifact and the frozen config paths it names. Make no live
+GitHub lookup when that evidence is complete. If the candidate came from the
+live CI-infrastructure search in Step 3.6 or an older snapshot lacks the
+artifact, run the escape skill's bundled collector into `.work/` and record
+that fallback as a limitation. The collector still cuts evidence off at the PR
+merge timestamp.
+
+Attach the structured result to the candidate as `escape_analysis` using the
+schema in that skill. If required evidence is incomplete, attach an
+`outcome: unknown` result with exact limitations rather than omitting the
+analysis or guessing. In particular:
+
+- Do not infer a coverage gap from a periodic/presubmit job-name mismatch;
+  compare scenarios, test suites, configuration, and code paths.
+- Ignore failures on superseded PR commits. Only the head SHA that merged can
+  show ignored, retried, or overridden signal for the shipped code.
+- Attribute Chai only when the evidence says `actor_kind: chai`; preserve the
+  distinction between human, Chai, and other automation actors.
+- `/verified` is not automatically an override. Call it a verification bypass
+  only when it substituted for missing or failing matching CI.
+
 #### Failure type
 
 Set `failure_type` from the **root cause**, not the job family (an `e2e-*-upgrade` job can still be `infra`).
@@ -513,7 +557,7 @@ Stamp `action` / `outage_id` / `dashboard_url` onto each job from the tool resul
 
 Load the `payload-results-yaml` skill now (via the Skill tool) — this is its point of use — and follow it to create `$OUTPUT_DIR/payload-results-{tag}.yaml` (the `$OUTPUT_DIR` captured in Step 1).
 
-This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, LOW), enabling downstream commands to filter by their own criteria. RHCOS RPM candidates (Step 6.1b) are included in `candidates[]` with `type: "rhcos_rpm"` alongside PR candidates (`type: "pr"`), not in a separate array.
+This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, LOW), enabling downstream commands to filter by their own criteria. RHCOS RPM candidates (Step 6.1b) are included in `candidates[]` with `type: "rhcos_rpm"` alongside PR candidates (`type: "pr"`), not in a separate array. Every PR candidate scoring >= 85 also carries the Step 6.2b `escape_analysis` object.
 
 **Every affirmatively-identified root cause must be represented as a scored `candidates[]` entry** — including causal CI-infrastructure / step-registry changes (Step 3.6) and RHCOS RPM changes (Step 6.1b), even when the failure's `failure_type` is `infra`. A failure whose cause is known must not leave `candidates[]` empty; each entry carries its itemized rubric breakdown (Step 6.1) in its `rationale`.
 
@@ -564,8 +608,9 @@ Before presenting, confirm that **all Step 4 investigation subagents and the Ste
 2. **The HTML contains every required section** from the Step 7 template: header + executive summary (including the payload-chain context), the revert verdict (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs summary table, a collapsible details block for **every** failed job, the RHCOS Changes section when any payload has RHCOS changes, the informing-tests section when such tests exist, and the Adversarial Review section. No unfilled `{placeholder}` and no `BEGIN`/`END` marker comments remain.
 3. **Cross-output consistency**: phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
 4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.
-5. **HTML filename** ends with `-summary.html`. If a `payload-analysis-*.html` file exists without that suffix, rename it — do not leave the short name as the report.
-6. **SHIP Status**: every `failure_type: infra` job has a `ship_status` observation if `get_outages_during` / `list_components` are in the tool list. Omit the key only when those tools are absent. Mapped slugs must follow `references/ship-status-component-map.md` (broken system, not `spec.cluster` as a default).
+5. **Escape analysis**: every `type: pr` candidate scoring >= 85 has a structured `escape_analysis` in YAML and a matching HTML block. An incomplete evidence bundle yields `outcome: unknown` plus limitations, never a missing analysis.
+6. **HTML filename** ends with `-summary.html`. If a `payload-analysis-*.html` file exists without that suffix, rename it — do not leave the short name as the report.
+7. **SHIP Status**: every `failure_type: infra` job has a `ship_status` observation if `get_outages_during` / `list_components` are in the tool list. Omit the key only when those tools are absent. Mapped slugs must follow `references/ship-status-component-map.md` (broken system, not `spec.cluster` as a default).
 
 If any check fails, fix it before presenting.
 
@@ -609,6 +654,7 @@ Note: PR diff data not available in snapshot. Scoring based on component match a
 ## See Also
 
 - Related Skill: `payload-snapshot` — creates the snapshot data this skill consumes
+- Related Skill: `regression-escape-analysis` — explains how a known PR regression passed pre-merge controls
 - Related Skill: `payload-results-yaml` — schema for the results YAML
 - Related Skill: `payload-autodl-json` — schema for the autodl JSON data file
 - Related Skill: `prow-job-analysis` — deep test/install failure investigation (used by subagents)

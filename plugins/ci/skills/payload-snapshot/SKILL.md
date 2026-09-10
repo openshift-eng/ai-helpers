@@ -1,6 +1,6 @@
 ---
 name: payload-snapshot
-description: Snapshot OpenShift payload data (release controller, PR diffs, comments, CI jobs, JUnit results, regression tracking) to a local directory for offline analysis
+description: Use when snapshotting OpenShift payload data (release controller, PR diffs, merge-time CI evidence, JUnit results, regression tracking) to a local directory for offline analysis
 ---
 
 # Payload Snapshot
@@ -87,7 +87,7 @@ The script will:
 7. For each failed blocking job, download build-log.txt from GCS and extract error/warning lines + log tail
 8. Track test failure regressions — when did each failure first appear?
 9. Track per-job failure streaks — consecutive failures, originating payload, failure pattern
-10. For each unique PR across all changelogs, fetch the git diff, comments, and CI jobs via `gh`
+10. For each unique PR across all changelogs, fetch the git diff, comments, current CI rollup, and a merge-time escape-analysis evidence bundle via `gh`; freeze the repository's Prow and GitHub Actions configuration at the revisions effective when the PR merged
 11. For each payload in the chain, extract the full RPM database from RHCOS images via `podman`
 12. Diff the target payload's RPM changelogs against every older payload in the chain, using the extracted RPMDBs
 13. Generate summary.json with comprehensive triage data, plus AGENTS.md/CLAUDE.md for agent orientation
@@ -126,6 +126,8 @@ payload/
               code.diff                    # Git diff of the PR
               comments.json                # PR comments and reviews
               jobs.json                    # CI check runs
+              escape-analysis.json         # Merge-time statuses, chat-ops, actors, and CI config index
+              ci-config/                   # Frozen Prow/ci-operator and GitHub Actions files
         rpmdb/                             # RPMDB from RHCOS images
           rhel-coreos/                     # queryable with rpm --dbpath
             rpmdb.sqlite
@@ -214,7 +216,7 @@ Comprehensive stream-level triage data — start here. Contains:
 - `informing_jobs.failed_jobs[]` — job name strings
 - `test_failures.blocking[]` — **gating** failures only: `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated). These are the failures that can fail a job and therefore reject the payload.
 - `test_failures.informing[]` / `test_failures.flakes[]` — `test_name`, `jobs`. Neither can fail a job. No onset is tracked for them, because an onset implies there is a culprit to find.
-- `payloads[]` — per-payload entries with `tag`, `phase`, `source`, `changelog_source`, relative file paths, `prs[]` with component/diff/comments paths, `rhcos_changes[]` with RPM diffs per RHCOS variant (package versions only — no changelog text), and, on every payload but the target, `rpm_changelogs[]` pointing at the report holding that text
+- `payloads[]` — per-payload entries with `tag`, `phase`, `source`, `changelog_source`, relative file paths, `prs[]` with component/diff/comments/jobs paths and optional `escape_analysis` path, `rhcos_changes[]` with RPM diffs per RHCOS variant (package versions only — no changelog text), and, on every payload but the target, `rpm_changelogs[]` pointing at the report holding that text
 - `rhcos_rpms[]` — RPMDB metadata for the target payload's RHCOS variants: `tag`, `name`, `pullspec`, `rpmdb` (relative path to rpmdb.sqlite)
 - `rpm_changelogs[]` — one RPM diff per (RHCOS variant, older payload in the chain): `variant`, `compared_tag`, `is_baseline`, `changed`/`added`/`removed` counts, and `changelogs` (relative path to the full report). The oldest surviving comparison per variant — normally the chain baseline — also carries `diff` inline, so target-vs-baseline needs no file read: `diff.changed[]` with `package`, `old`, `new` and `changelog` (the entries that version added), plus `diff.added[]` / `diff.removed[]` with `package` and `version`. The intermediate hops are a subset of that diff and stay behind their `changelogs` path; read them to find which hop introduced a given package bump. If the true chain baseline's RPMDB couldn't be read for a variant, the next-oldest readable comparison takes over `is_baseline`/`diff` instead, flagged with `baseline_rpmdb_missing: true` so consumers know the diff doesn't reach all the way back to the chain's actual start.
 - `data_complete` — `true` when all requested data was ultimately collected, including via a fallback after an initial read failed. `false` means some requested data could not be read at all.
@@ -387,6 +389,25 @@ Parsed JUnit test failures for a specific job. Only includes failed/error tests.
 
 PR artifacts from GitHub (unchanged from previous version).
 
+### `escape-analysis.json` and `ci-config/`
+
+A deterministic, merge-time evidence bundle for the `regression-escape-analysis`
+skill. It records PR/merge metadata, normalized chat-ops commands with actors,
+review history, every commit-status terminal attempt on the exact head SHA that
+merged, checks-api runs, and paths to frozen CI configuration.
+
+Events after the PR's `merged_at` timestamp are excluded. Prow and ci-operator
+configuration comes from the last `openshift/release` commit at or before the
+merge (or the PR base SHA for an openshift/release PR). Repository-owned
+`.ci-operator.yaml` and `.github/workflows/*` files come from the PR base SHA.
+This makes it possible to decide offline whether relevant coverage existed,
+ran, was optional, was retried, or was explicitly overridden.
+
+`redhat-chai-bot` is normalized as actor kind `chai`; human and other automation
+actors remain distinct. The bundle carries its own `data_complete` and
+`collection_errors` fields. A partial required read also marks the overall
+payload snapshot incomplete.
+
 ## Chain Logic
 
 The script chains backwards from the target payload until it finds a payload where **all blocking jobs succeeded**. This is stricter than the `Accepted` phase — a payload can be force-accepted with failed blocking jobs, which does not count as a stop point.
@@ -430,7 +451,7 @@ Aggregated jobs run the same underlying test multiple times with statistical ana
 ## Notes
 
 - The script uses only Python standard library — no pip dependencies
-- PR data is deduplicated across payloads — each PR is fetched once
+- PR data is deduplicated across payloads — each PR, including its merge-time escape evidence, is fetched once
 - JUnit and build-log download are scoped to failed blocking jobs only (informing jobs get `job.json` but no JUnit or build log)
 - The `--workers` flag controls parallelism for all subprocess calls (default 8)
 - Summary is always regenerated on re-run (not skipped like other files)

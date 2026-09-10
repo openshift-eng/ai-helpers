@@ -6,7 +6,7 @@ The report is produced by filling `assets/report-template.html` — never by wri
 
 - Replace every `{placeholder}` with a computed value. Any placeholder left in the final file is a defect (Step 10 check).
 - Blocks bounded by `<!-- BEGIN: name -->` / `<!-- END: name -->` comments are conditional or repeatable; the comment states the rule. Duplicate repeatable blocks once per item, drop conditional blocks whose condition is false, and remove all marker comments (and the leading contract comment) from the final file.
-- Keep the section order exactly as the template has it: header + metadata → executive summary → verdicts → blocking jobs summary → failed job details → RHCOS changes → informing tests → adversarial review → footer.
+- Keep the section order exactly as the template has it: header + metadata → executive summary → verdicts → regression escape analysis → blocking jobs summary → failed job details → RHCOS changes → informing tests → adversarial review → footer.
 - All `<a>` links use `target="_blank"` (already present in the template).
 - The file must remain fully self-contained: embedded CSS only, no external resources.
 
@@ -28,6 +28,24 @@ Placed immediately after the executive summary, before the blocking-jobs summary
 - `revert-verdict` — include when revert candidates exist (score >= 85). One `revert-row` per candidate. Keep the `/ci:payload-revert {payload_tag}` copy block.
 - `no-revert-verdict` — include when there are no revert candidates. Exactly one of these two blocks appears.
 - `force-accept-verdict` — include only when Step 6.4 recommends force-accept.
+
+## Regression escape analysis
+
+Include `escape-analyses` when at least one `type: "pr"` candidate scores >= 85.
+Render one `escape-analysis` block per such candidate from its structured
+`escape_analysis` object (Step 6.2b):
+
+- Show `outcome` and `summary` verbatim except for normal HTML escaping.
+- Summarize every `relevant_presubmits[]` entry with name, coverage,
+  required/optional/unknown, whether it ran on the merge SHA, and its
+  chronological `terminal_results`. Do not collapse a failure→success sequence
+  to the final result.
+- Render one `escape-factor` per factor. Include actor login and actor kind only
+  when present; preserve `human`, `chai`, and other `automation` attribution.
+- Fill merge actor/timestamp from `merge`, not from present-day GitHub state.
+- Join recommendations clearly. Render limitations as `None` when the array is
+  empty; otherwise list the missing evidence. An `outcome: unknown` block is
+  still required when evidence was incomplete.
 
 ## Blocking jobs summary
 

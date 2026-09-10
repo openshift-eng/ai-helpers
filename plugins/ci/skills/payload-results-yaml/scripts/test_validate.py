@@ -38,6 +38,8 @@ if __name__ == "__main__":
         ("invalid ship_status action", f"{TESTDATA}/invalid_ship_status_action.yaml", 1),
         ("invalid ship_status action missing or null", f"{TESTDATA}/invalid_ship_status_action_missing.yaml", 1),
         ("invalid ship_status null", f"{TESTDATA}/invalid_ship_status_null.yaml", 1),
+        ("invalid escape analysis", f"{TESTDATA}/invalid_escape_analysis.yaml", 1),
+        ("invalid high-confidence PR without escape analysis", f"{TESTDATA}/invalid_high_confidence_pr_without_escape.yaml", 1),
         ("file not found", f"{TESTDATA}/nonexistent.yaml", 1),
     ]
 

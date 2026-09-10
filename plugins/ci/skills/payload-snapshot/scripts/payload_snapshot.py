@@ -731,9 +731,9 @@ class ChangelogCollector(Collector):
 
 
 class PullRequestCollector(Collector):
-    """Fetches diff, comments, and job data for a single GitHub PR.
+    """Fetches code, review, CI, and merge-time escape data for a GitHub PR.
 
-    Unlike other collectors that produce a single file, this writes three
+    Unlike other collectors that produce a single file, this writes several
     files into a directory.  ``output_path`` is the PR directory.
     """
 
@@ -744,7 +744,7 @@ class PullRequestCollector(Collector):
         self.pr_number = pr_number
 
     def collect(self) -> bool:
-        """Fetch all three PR artifacts independently."""
+        """Fetch all PR artifacts independently."""
         os.makedirs(self.output_path, exist_ok=True)
         wrote_any = False
 
@@ -781,6 +781,57 @@ class PullRequestCollector(Collector):
                 if result is not None:
                     _write_text(path, result)
                     wrote_any = True
+
+        escape_path = os.path.join(self.output_path, "escape-analysis.json")
+        existing_evidence = _read_json(escape_path)
+        if existing_evidence and not existing_evidence.get("data_complete", False):
+            os.remove(escape_path)
+        if not os.path.exists(escape_path):
+            script_path = (
+                Path(__file__).resolve().parents[2]
+                / "regression-escape-analysis"
+                / "scripts"
+                / "collect_pr_evidence.py"
+            )
+            command = [
+                sys.executable,
+                str(script_path),
+                f"https://github.com/{self.org}/{self.repo}/pull/{self.pr_number}",
+                "--output-dir",
+                self.output_path,
+            ]
+            try:
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                )
+            except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+                result = None
+                _record_collection_error(
+                    "command_failed",
+                    command,
+                    detail=str(exc),
+                    stage="pr_escape_evidence",
+                )
+            if result is not None and result.returncode == 0:
+                wrote_any = True
+                evidence = _read_json(escape_path)
+                if evidence and not evidence.get("data_complete", False):
+                    _record_collection_error(
+                        "command_failed",
+                        command,
+                        detail="merge-time PR evidence is partial",
+                        stage="pr_escape_evidence",
+                    )
+            elif result is not None:
+                _record_collection_error(
+                    "command_failed",
+                    command,
+                    detail=result.stderr,
+                    stage="pr_escape_evidence",
+                )
 
         return wrote_any
 
@@ -2010,6 +2061,8 @@ class SummaryGenerator:
             "          code.diff         # Full git diff",
             "          comments.json     # PR comments and reviews",
             "          jobs.json         # CI check runs",
+            "          escape-analysis.json # Merge-time CI/merge evidence",
+            "          ci-config/        # Frozen presubmit/workflow config",
             "    rpmdb/                    # RPMDB from RHCOS images",
             "      rhel-coreos/           # queryable with rpm --dbpath",
             "        rpmdb.sqlite",
@@ -2038,6 +2091,9 @@ class SummaryGenerator:
             "  payload, `payloads_failing` counts how many payloads it spans.",
             "- **Build log**: Error/warning lines extracted from the Prow",
             "  build-log.txt, plus the last 20% of the log for context.",
+            "- **Escape evidence**: Each PR may carry merge-time status",
+            "  attempts, chat-ops actors, and frozen CI configuration in",
+            "  `escape-analysis.json` for offline escape analysis.",
             "",
             "## summary.json Schema",
             "",
@@ -2056,7 +2112,8 @@ class SummaryGenerator:
             "  `failure_text`",
             "- `payloads[]` — per-payload entries with `tag`, `phase`,",
             "  `source`, `changelog_source`, relative paths, `prs[]` with",
-            "  component/diff/comments paths,",
+            "  component/diff/comments/jobs paths and optional",
+            "  `escape_analysis` path,",
             "  `rhcos_changes[]` with RPM diffs per RHCOS variant",
             "  (versions only — no changelog text),",
             "  `rhcos_rpms[]` with rpmdb.sqlite per variant, and, on every",
@@ -2264,6 +2321,16 @@ class SummaryGenerator:
                             "diff": f"{tag_rel}/{p['component']}/prs/{p['number']}/code.diff",
                             "comments": f"{tag_rel}/{p['component']}/prs/{p['number']}/comments.json",
                             "jobs": f"{tag_rel}/{p['component']}/prs/{p['number']}/jobs.json",
+                            **({
+                                "escape_analysis": (
+                                    f"{tag_rel}/{p['component']}/prs/"
+                                    f"{p['number']}/escape-analysis.json"
+                                )
+                            } if os.path.exists(os.path.join(
+                                self.base_dir, tag_name, p["component"],
+                                "prs", str(p["number"]),
+                                "escape-analysis.json",
+                            )) else {}),
                         }
                         for p in prs
                     ]

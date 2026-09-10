@@ -24,4 +24,27 @@ candidates:
     rationale: "temporal match + component match + error references code changed"
     failing_jobs:
       - "periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn"
+    escape_analysis:
+      outcome: "signal_handling"
+      summary: "The matching optional job failed and was explicitly overridden."
+      relevant_presubmits:
+        - name: "ci/prow/e2e-aws-ovn"
+          coverage: "full"
+          required: false
+          selection: "always"
+          ran_on_merge_sha: true
+          terminal_results: ["failure"]
+          assessment: "Reported the payload regression's failure signature."
+      factors:
+        - type: "override"
+          evidence: "A maintainer posted /override ci/prow/e2e-aws-ovn after the matching failure."
+          actor_login: "maintainer"
+          actor_kind: "human"
+      merge:
+        merged_at: "2026-02-20T12:00:00Z"
+        merged_by: "openshift-merge-bot[bot]"
+        merged_by_kind: "automation"
+      recommendations:
+        - "Require an explicit regression-specific rationale for overrides."
+      limitations: []
     actions: []

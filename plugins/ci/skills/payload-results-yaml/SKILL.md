@@ -79,6 +79,29 @@ candidates:
     rationale: "temporal match + component match + error references code changed"
     failing_jobs:
       - "periodic-ci-...-e2e-aws-ovn"
+    escape_analysis:
+      outcome: "false_negative"
+      summary: "The matching required presubmit ran and passed, but did not assert on the regressed path."
+      relevant_presubmits:
+        - name: "ci/prow/e2e-aws-ovn"
+          coverage: "partial"
+          required: true
+          selection: "always"
+          ran_on_merge_sha: true
+          terminal_results: ["success"]
+          assessment: "Exercises the component but not the failing gateway-mode case."
+      factors:
+        - type: "test_false_negative"
+          evidence: "e2e-aws-ovn passed on the merged SHA without exercising the failing assertion."
+          actor_login: ""
+          actor_kind: "unknown"
+      merge:
+        merged_at: "2026-02-20T12:00:00Z"
+        merged_by: "openshift-merge-bot[bot]"
+        merged_by_kind: "automation"
+      recommendations:
+        - "Add the gateway-mode case to the required e2e-aws-ovn presubmit."
+      limitations: []
     actions:
       - type: "revert"
         status: "staged"
@@ -178,6 +201,24 @@ Candidates reference failing jobs by `job_name` via the `failing_jobs` string ar
 | `pr_number` | int | PR number |
 | `component` | string | OCP component name |
 | `title` | string | PR title |
+| `escape_analysis` | object | Required for PR candidates with `confidence_score >= 85`. Merge-time explanation produced by `regression-escape-analysis`; see below. Omit on lower-confidence candidates because causality is not established strongly enough for an escape analysis. |
+
+#### `candidates[].escape_analysis`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `outcome` | string | `coverage_gap`, `signal_handling`, `false_negative`, `mixed`, or `unknown` |
+| `summary` | string | Concise explanation of how the regression passed pre-merge controls |
+| `relevant_presubmits` | array | Matching jobs with `name`, `coverage`, `required`, `selection`, `ran_on_merge_sha`, `terminal_results`, and `assessment` |
+| `factors` | array | Contributing factors. Each has `type`, concrete `evidence`, and actor attribution when applicable (`actor_login`, `actor_kind`) |
+| `merge` | object | `merged_at`, `merged_by`, and `merged_by_kind` from frozen evidence |
+| `recommendations` | array of strings | Control improvements tied to demonstrated factors |
+| `limitations` | array of strings | Missing evidence or unresolved questions; required even when empty |
+
+Valid factor types are `coverage_gap`, `conditional_not_selected`,
+`optional_signal`, `did_not_run`, `retry_masking`, `override`,
+`verification_bypass`, `test_false_negative`, and `unknown`. Valid actor kinds
+are `human`, `chai`, `automation`, and `unknown`.
 
 **`type: "rhcos_rpm"` fields:**
 
@@ -235,7 +276,7 @@ Payload validation jobs triggered against the revert PR.
 
 ### Create (used by `payload-analysis`)
 
-Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, and `candidates` populated. All failed blocking jobs are recorded in `failing_jobs`. Every candidate carries a `type` (`"pr"` or `"rhcos_rpm"`). Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis for a `type: "pr"` candidate, append an action with `type: "revert"` and `status: "open"` or `"merged"`.
+Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, and `candidates` populated. All failed blocking jobs are recorded in `failing_jobs`. Every candidate carries a `type` (`"pr"` or `"rhcos_rpm"`). Every PR candidate scoring >= 85 carries `escape_analysis`; use `outcome: unknown` with limitations when its evidence is incomplete. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis for a `type: "pr"` candidate, append an action with `type: "revert"` and `status: "open"` or `"merged"`.
 
 ### Read Candidates (used by `payload-revert`, `payload-experiment`)
 

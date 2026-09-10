@@ -76,6 +76,8 @@ code { font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; fo
 .score-low { color: var(--text-muted); }
 .informing-note { background: rgba(88,166,255,0.1); border-left: 4px solid var(--blue); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; font-size: 0.9rem; }
 .rhcos-candidate { background: rgba(188,140,255,0.1); border-left: 4px solid var(--purple); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; }
+.escape-analysis { border-left: 4px solid var(--blue); padding-left: 1rem; margin: 1rem 0; }
+.escape-factor { margin-bottom: 0.4rem; }
 .footer { color: var(--text-muted); font-size: 0.8rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 </style>
 </head>
@@ -145,6 +147,28 @@ code { font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; fo
   <p>Baseline: <a target="_blank" href="{baseline_url}">{baseline_tag}</a> ({hours_since_baseline}h ago)</p>
 </div>
 <!-- END: force-accept-verdict -->
+
+<!-- BEGIN: escape-analyses — include when at least one type: pr candidate scores >= 85 -->
+<div class="card">
+  <h2>Regression Escape Analysis</h2>
+  <p>Why each high-confidence regression passed the culprit PR's pre-merge controls.</p>
+  <!-- BEGIN: escape-analysis — one per type: pr candidate scoring >= 85 -->
+  <div class="escape-analysis">
+    <h3><a target="_blank" href="{pr_url}">#{pr_number}</a>: {escape_outcome}</h3>
+    <p>{escape_summary}</p>
+    <p><strong>Relevant presubmits:</strong> {escape_relevant_presubmits_summary}</p>
+    <ul>
+      <!-- BEGIN: escape-factor — one per contributing factor -->
+      <li class="escape-factor"><strong>{escape_factor_type}</strong>: {escape_factor_evidence}{escape_factor_actor_suffix}</li>
+      <!-- END: escape-factor -->
+    </ul>
+    <p><strong>Merge:</strong> {escape_merged_at}, by {escape_merged_by} ({escape_merged_by_kind})</p>
+    <p><strong>Recommended controls:</strong> {escape_recommendations}</p>
+    <p><strong>Limitations:</strong> {escape_limitations_or_none}</p>
+  </div>
+  <!-- END: escape-analysis -->
+</div>
+<!-- END: escape-analyses -->
 
 <!-- Blocking Jobs Summary Table -->
 <div class="card">
