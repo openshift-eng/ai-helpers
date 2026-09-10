@@ -8,7 +8,7 @@ If the same failure would have occurred on a different build cluster, it is not 
 
 | Failure domain | Component | Sub-component |
 |--------|-----------|----------------|
-| Shared CI configuration (step-registry, job configs, credential refs) that is not specific to one cluster | `downstream-ci` | `ci-config` |
+| Shared CI configuration in `openshift/release` (step-registry, job configs, credential refs) that is not specific to one cluster | `downstream-ci` | `ci-config` |
 | Boskos / lease / quota exhaustion | `boskos` | `leasing-server`, or the platform account (`aws` / `gcp` / `gcp-arm64` / `azure`) |
 | Cloud API / throttling / quota (no Boskos) | `boskos` | same platform account slugs |
 | Prow control plane (job never launched or stuck in Prow itself) | `prow` | `prow-controller-manager` (default) unless a more specific sub-component is named |
