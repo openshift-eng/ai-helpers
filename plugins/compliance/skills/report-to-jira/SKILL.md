@@ -30,7 +30,11 @@ If the report is incomplete or Phase 3 did not finish, return `status: skipped` 
 
 ## Step 2: Build the Comment Body
 
+Read `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/${CVE_ID}/report.md` from Phase 3 and post it **in full**. The Jira comment is the report — do **not** pre-emptively shorten it or write a separate `jira-comment.md`.
+
 Write standard Markdown — Jira Cloud renders Markdown natively when posted with `contentFormat: "markdown"` (see [markdown-for-jira reference](../../../jira/reference/markdown-for-jira.md) if that plugin is installed; the syntax is standard CommonMark either way). No wiki-markup conversion is needed.
+
+**Default body = attribution header + entire `report.md`.** If Phase 4 produced a remediation plan not already under `## Remediation` in the report, append it as `## Remediation Plan (Phase 4)`.
 
 Prepend the following attribution header before the report:
 
@@ -44,14 +48,19 @@ Prepend the following attribution header before the report:
 
 ### Size limit handling
 
-Jira comment bodies are capped at **32,767 characters**. Measure the full comment length before posting:
+Jira comment bodies are capped at **32,767 characters**. Apply these steps **in order** — only move to the next step if the comment is still over 32,000 chars:
 
-- **≤ 32,000 chars** → post in full, no changes needed.
-- **> 32,000 chars** → trim raw tool output sections only (full `govulncheck` output, call graph DOT content) and replace each with a one-line note:
-  ```
-  _(govulncheck full output truncated — see `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/<CVE_ID>/govulncheck-output.txt`)_
-  ```
-  Retain all findings, risk assessment, executive summary, and remediation sections in full. Re-measure after trimming and repeat if still over limit.
+1. **Post in full** (≤ 32,000 chars) — no changes.
+2. **Trim raw tool dumps only** (> 32,000 chars) — inside fenced code blocks, replace full `govulncheck` scrollback, call-graph DOT, or megabyte grep output with a one-line pointer:
+   ```
+   _(Full output truncated — see `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/<CVE_ID>/govulncheck-source.txt`)_
+   ```
+   Keep executive summary, CVE context, evidence interpretations, call-graph **results table**, risk assessment, and remediation in full. Re-measure.
+3. **Shortened summary (last resort only)** — if still > 32,000 chars after step 2, replace the body with a condensed summary derived from `report.md`. Retain: risk level, repository/branch/commit, dependency versions, govulncheck conclusion, four-algorithm call-graph table, manual verification findings, recommendation, and artifact paths. Omit repeated narrative and any remaining large code blocks. Note at the top:
+   ```
+   _(Full report exceeded Jira comment limit — summary below. See `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/<CVE_ID>/report.md`.)_
+   ```
+   Do **not** use a shortened summary unless steps 1–2 are insufficient.
 
 ### Stripping rules (apply regardless of size)
 

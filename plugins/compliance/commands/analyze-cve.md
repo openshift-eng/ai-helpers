@@ -47,25 +47,25 @@ Optional flags:
 
 `AUTO_APPROVE` only answers **yes/no risk decisions** that a human would otherwise approve — it does **not** authorize guessing when required information is missing or ambiguous. Guessing in those cases (wrong repo, wrong branch, wrong CVE, wrong file set) is a correctness/security risk, not a convenience trade-off, so those points **always hard-fail** regardless of `AUTO_APPROVE`, exactly as they do today for a human who doesn't answer.
 
-| # | Decision point | Interactive (`AUTO_APPROVE=no`) | `AUTO_APPROVE=yes` |
-|---|---|---|---|
-| 1 | Phase 2: risk = `NEEDS_REVIEW` — proceed to remediation guidance? | Ask | Proceed (yes) |
-| 2 | Phase 4: apply fixes automatically (→ Phase 5)? | Ask | Proceed (yes) |
-| 3 | Phase 6: create a GitHub PR (→ `create-fix-pr`)? | Ask | Proceed (yes) |
-| 4 | `create-fix-pr` Step 2: conflicting open PR found (title match) | Ask: stack / wait / independent — do not guess | Always **`wait`** — skip PR creation this run; never auto-stack onto or auto-duplicate someone else's PR |
-| 5 | `report-to-jira` Step 3b: restricted-visibility posting unavailable, only public MCP/CLI fallback works — proceed? | Ask | Proceed (yes) — post via the fallback, clearly logged as posted without the visibility restriction |
+| #   | Decision point                                                                                                     | Interactive (`AUTO_APPROVE=no`)                | `AUTO_APPROVE=yes`                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 1   | Phase 2: risk = `NEEDS_REVIEW` — proceed to remediation guidance?                                                  | Ask                                            | Proceed (yes)                                                                                            |
+| 2   | Phase 4: apply fixes automatically (→ Phase 5)?                                                                    | Ask                                            | Proceed (yes)                                                                                            |
+| 3   | Phase 6: create a GitHub PR (→ `create-fix-pr`)?                                                                   | Ask                                            | Proceed (yes)                                                                                            |
+| 4   | `create-fix-pr` Step 2: conflicting open PR found (title match)                                                    | Ask: stack / wait / independent — do not guess | Always **`wait`** — skip PR creation this run; never auto-stack onto or auto-duplicate someone else's PR |
+| 5   | `report-to-jira` Step 3b: restricted-visibility posting unavailable, only public MCP/CLI fallback works — proceed? | Ask                                            | Proceed (yes) — post via the fallback, clearly logged as posted without the visibility restriction       |
 
 **Always hard-fail regardless of `AUTO_APPROVE`** (never guess):
 
-| Decision point | Behavior |
-|---|---|
-| Phase 0.7 Step 1: multiple pre-cloned repos found | Exit with error listing the candidates; require `--repo=` |
-| Phase 0.7 Step 2: repo URL/image still unresolved | Exit with error (unchanged from today) |
-| Phase 0.7 Step 3a: mapped Jira branch doesn't exist, and the verbatim-Jira-value fallback *also* doesn't exist | Exit with error; do not invent a branch name |
-| `jira-cve-extraction` Step 4: multiple CVE IDs found in one ticket | Exit with error listing them; require the caller to disambiguate (e.g. re-run with a direct `<CVE-ID>`) |
-| `cve-intelligence-gathering` Step 6: no CVE data from any source | Exit with error; do not proceed on fabricated CVE details |
-| `create-fix-pr` Step 3b: `PHASE5_FILES` allowlist missing/empty and cannot be rebuilt | Return `status: failed` (`phase5_files_missing`) immediately — never prompt |
-| `create-fix-pr` Step 0/3b: branch diff contains paths outside `PHASE5_FILES` | Return `status: failed` (`phase5_files_mismatch`) immediately — never prompt; committed history is never silently dropped or included |
+| Decision point                                                                                                 | Behavior                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Phase 0.7 Step 1: multiple pre-cloned repos found                                                              | Exit with error listing the candidates; require `--repo=`                                                                             |
+| Phase 0.7 Step 2: repo URL/image still unresolved                                                              | Exit with error (unchanged from today)                                                                                                |
+| Phase 0.7 Step 3a: mapped Jira branch doesn't exist, and the verbatim-Jira-value fallback *also* doesn't exist | Exit with error; do not invent a branch name                                                                                          |
+| `jira-cve-extraction` Step 4: multiple CVE IDs found in one ticket                                             | Exit with error listing them; require the caller to disambiguate (e.g. re-run with a direct `<CVE-ID>`)                               |
+| `cve-intelligence-gathering` Step 6: no CVE data from any source                                               | Exit with error; do not proceed on fabricated CVE details                                                                             |
+| `create-fix-pr` Step 3b: `PHASE5_FILES` allowlist missing/empty and cannot be rebuilt                          | Return `status: failed` (`phase5_files_missing`) immediately — never prompt                                                           |
+| `create-fix-pr` Step 0/3b: branch diff contains paths outside `PHASE5_FILES`                                   | Return `status: failed` (`phase5_files_mismatch`) immediately — never prompt; committed history is never silently dropped or included |
 
 All other absolute rules are unaffected by `AUTO_APPROVE`: embargo abort, credential handling, no force-push to `main`/`master`, no `--no-verify`, and "never change code without approval."
 
@@ -526,12 +526,14 @@ Pass the full `jira_context` object from Phase 0.5 into the skill, when present.
 
 Generate analysis report at `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/{CVE-ID}/report.md` — the same workspace base as Phase 0.7's `REPOS_BASE`, so the report lands in the configured workspace regardless of the caller's current directory.
 
+When `--jira`/`--jql` is used, Phase 4 posts **this file in full** to the source ticket (see [report-to-jira](../skills/report-to-jira/SKILL.md)). Include all collected evidence here.
+
 **Report structure:**
 - Executive Summary: risk level, confidence, key takeaway
 - CVE Context: vulnerability description, sources (tag verified vs user-provided)
 - Jira Context _(if `--jira`/`--jql` was provided)_: ticket URL, priority, status, assignee, target versions, components, internal notes, linked issues
 - Analysis Methods: what was used, why, and what was found
-- Findings: specific evidence (file paths, versions, code snippets, call chains)
+- Findings: specific evidence (file paths, versions, code snippets, call chains) — include govulncheck excerpts, the four-algorithm call graph table, and manual verification command output when those analyses ran
 - Risk Assessment: severity + actual exposure + exploitability in this context; escalate if `analysis_hints.urgency_override` is set
 - Next Steps: remediation guidance or monitoring recommendations; note any existing workarounds from the Jira ticket
 - Sources and Limitations: tools used, gaps, analysis date
@@ -559,7 +561,7 @@ Generate analysis report at `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze
 After presenting the report (regardless of whether the user proceeds to Phase 5), IF a Jira ticket is involved (`--jira`/`--jql` was used), invoke the report-to-jira skill:
 
 - **Skill**: [report-to-jira](../skills/report-to-jira/SKILL.md)
-- **Input**: completed report, `CVE_ID`, risk level, `SOURCE_TICKET`, `jira_context` (label snapshot from Phase 0.5), `AUTO_APPROVE`
+- **Input**: completed report (`report.md`), `CVE_ID`, risk level, `SOURCE_TICKET`, `jira_context` (label snapshot from Phase 0.5), `AUTO_APPROVE`
 - **Output**: comment and `ai-cve-analyzed` label posted to `SOURCE_TICKET`; skipped silently in direct CVE mode; if posting fails, comment body is displayed in session for manual copy-paste
 
 ---
