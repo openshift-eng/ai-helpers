@@ -1,0 +1,8 @@
+expected_files_changed:
+  - control-plane-operator/controllers/hostedcontrolplane/hostedcontrolplane_controller.go
+  - control-plane-operator/controllers/hostedcontrolplane/hostedcontrolplane_controller_test.go
+expected_tests_pass: true
+min_coverage_pct: 40
+difficulty: medium
+category: bug
+notes: On KAS load balancer health check failure, query control plane component availability even if HCP was previously available and append unavailable component details to the condition message. Preserve health check error precedence.
