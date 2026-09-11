@@ -84,7 +84,7 @@ Other active — {N} with activity this week
 
 ### Status Summary Format (ARO-specific)
 
-The ARO project uses a **prepend** model for Status Summary — new updates are added at the top, preserving the history of previous updates. This differs from the default OCPSTRAT behavior which replaces the entire field.
+The ARO project uses a **prepend** model for Status Summary — new updates are added at the top, preserving the history of previous updates. This differs from the default OCPSTRAT behavior which replaces the entire field. The field value and its history are ADF nodes, not plaintext or Markdown.
 
 **Format for each update entry:**
 
@@ -93,42 +93,56 @@ The ARO project uses a **prepend** model for Status Summary — new updates are 
 - {Current state bullet 1 — what happened this week}
 - {Current state bullet 2}
 - Risks: {risk or "None at this time"}
+```
 
+This is the logical content shown in Jira. Write each entry as the following ADF nodes (shown for a Green update on 2026-06-05):
+
+```json
+[
+  {
+    "type": "paragraph",
+    "content": [{"type": "text", "text": "2026-06-05: Color Status: Green"}]
+  },
+  {
+    "type": "bulletList",
+    "content": [
+      {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "ARO-17759 closed; ARO-26913 is in review."}]}]},
+      {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "72% complete (18/25 descendants closed)."}]}]},
+      {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Risks: None at this time"}]}]}
+    ]
+  }
+]
 ```
 
 **Rules:**
-1. **Prepend, don't replace**: New status goes at the top of the existing Status Summary text. Keep all previous entries intact.
+1. **Prepend, don't replace**: Prepend the new entry nodes to the existing ADF document's `content` array. Keep all previous nodes intact; never stringify, render-and-reparse, or nest the existing `doc` inside a new one.
 2. **Date stamp**: Each entry starts with the date in `YYYY-MM-DD` format.
 3. **No duplication**: Only include what changed since the last update. If something was reported last week and hasn't changed, don't repeat it. Focus on: what's new, what moved, what's blocked.
 4. **Concise**: 2-4 bullets per update. One sentence per bullet.
 
-**Example of a Status Summary field after 3 weeks:**
+For an existing `issue.current_status_summary` ADF document, construct the value to write as follows:
 
-```text
-2026-06-05: Color Status: Green
-- ARO-17759 (Frontend Private KAS) closed. ARO-26913 (api.listening wiring) in review.
-- 72% complete (18/25 descendants closed).
-- Risks: None at this time
-
-2026-05-29: Color Status: Yellow
-- Blocked on HyperShift PR for private KAS topology support.
-- ARO-26777 (CS changes for private KAS) started.
-- Risks: Dependency on OCPSTRAT-3193 (HyperShift upstream)
-
-2026-05-22: Color Status: Green
-- Swift networking rollout complete across all prod regions.
-- E2E tests for private KV cluster merged (PR #4674).
-- Risks: None at this time
+```javascript
+const existingNodes = issue.current_status_summary?.content ?? [];
+const nextStatusSummary = {
+  type: "doc",
+  version: 1,
+  content: [...newEntryNodes, ...existingNodes]
+};
 ```
+
+When no value exists, use `content: newEntryNodes`. `newEntryNodes` is the dated paragraph and bullet list shown above. This yields a newest-first multi-week history without losing prior entries.
 
 ### Updating the Status Summary Field
 
+The Status Summary field (`customfield_10814`) is a rich text field that stores content as Atlassian Document Format (ADF). The `contentFormat: "markdown"` parameter does **not** auto-convert custom field values — it only applies to standard fields like `description`. Always construct ADF JSON directly and use `contentFormat: "adf"`.
+
 When writing to `customfield_10814`:
 
-1. Read the current value first (from the pre-gathered JSON `issue.current_status_summary`)
+1. Read the current raw ADF value first (from the pre-gathered JSON `issue.current_status_summary`)
 2. Generate the new entry (date + color + bullets)
-3. Prepend the new entry to the existing text with a blank line separator
-4. Write the combined text back via `editJiraIssue`
+3. Prepend the new entry nodes to the existing document's `content` nodes
+4. Construct the full ADF document and write via `editJiraIssue`
 
 If the current value is null/empty, just write the new entry.
 
@@ -137,10 +151,21 @@ If the current value is null/empty, just write the new entry.
 editJiraIssue(
   cloudId: "redhat.atlassian.net",
   issueIdOrKey: "{ISSUE_KEY}",
-  fields: {"customfield_10814": "{new_entry}\n\n{existing_text}"},
-  contentFormat: "markdown"
+  contentFormat: "adf",
+  fields: {
+    "customfield_10814": {
+      "type": "doc",
+      "version": 1,
+      "content": [
+        // ...newEntryNodes,
+        // ...existingStatusSummary.content
+      ]
+    }
+  }
 )
 ```
+
+See the [ADF template in formatting.md](../skills/status-analysis/formatting.md#adf-template-for-ryg_field) for the exact node structure.
 
 **IMPORTANT**: If `editJiraIssue` fails with "Field cannot be set" error, the issue is not a Feature or Initiative. Skip it and log a warning — do not fall back to adding a comment.
 
