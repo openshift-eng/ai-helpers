@@ -1,0 +1,98 @@
+---
+name: audit-release-go-version
+description: |
+  Audit the effective Go builder versions used by images in an OpenShift Container Platform release image or payload against a requested Go version.
+  Use when the user asks which OCP release images were built with a different Go version, wants a concise payload Go-version audit, or needs Dockerfile builder evidence for an OpenShift release.
+---
+
+# audit-release-go-version
+
+Audit a release without modifying images, repositories, Jira, or external systems. Report only images whose effective Go builder does not match the requested target, plus items that cannot be accounted for with sufficient evidence.
+
+## Inputs
+
+Require:
+
+- **target Go version**: normally major.minor, such as `1.26`; accept `go1.26` and normalize it to `1.26`.
+- **release target**: an OCP release pullspec, payload, or equivalent target resolvable to its image references.
+
+Optional:
+
+- **scope**: `OCP` (default) or `OKD`. Accept OKD payloads natively (tags like `X.Y.0-0.okd-scos-*` or `X.Y.0-0.okd-scos-nightly-*`); do not stop and ask for an OCP target.
+- **source/ref policy**: honor an explicit branch/ref policy. Otherwise use the release-aligned/current branch policy for the release, and record the ref used. Do not blindly use `io.openshift.build.commit.id` from the payload as the source ref.
+
+Match at the requested precision: `1.26` matches any `1.26.x`; a requested patch version requires that exact patch when explicit builder evidence exposes it. If the target specifies patch precision (e.g. `1.26.3`) but builder evidence only identifies major.minor (e.g. `1.26`), classify as limited evidence — the patch version cannot be confirmed.
+
+## Required workflow
+
+1. Resolve the release target read-only (for example, `oc adm release info`) and collect each tag's image pullspec, source repository annotation, and release version. Do not emit the complete inventory.
+2. Determine the payload type from the release tag using explicit pattern matching:
+   - **CI payload**: tag matches `X.Y.0-0.ci-YYYY-*` or `X.Y.0-0.okd-scos-YYYY-*`.
+   - **ART nightly**: tag matches `*-nightly-*` (e.g. `4.19.0-0.nightly-*` or `4.19.0-0.okd-scos-nightly-*`).
+   - **Next/stable payload**: tag matches `X.Y.0-okd-scos.ec.*` or `X.Y.0-okd-scos.*` — use the ART nightly resolution path.
+   - **Unrecognized tag pattern**: stop and ask for clarification rather than guessing the payload type.
+3. **CI payloads** — for each source repository, locate its ci-operator configuration across **all relevant** `openshift/release/ci-operator/config/<org>/` trees. Search by repository identity and release variant; do not assume `config/openshift` is the only tree. In particular, account for organization trees such as `openshift-assisted` and `operator-framework` when they own the configuration. For OKD CI payloads, use the `__okd-scos` variant configs (files ending in `__okd-scos.yaml`).
+4. Select the config matching the release version and requested/current branch policy. A repository is not unresolved merely because its config lives outside the source repository's organization tree.
+5. Resolve the actual build context before reading builder evidence:
+   - use the applicable `images.items[].dockerfile_path` and `context_dir`;
+   - follow Dockerfile pointer files and repository symlinks until reaching the real Dockerfile. Resolved paths must stay within the checked-out repository tree; if resolution escapes the repo boundary, classify the image as limited evidence and note the path issue;
+   - honor `build_root.from_repository` and inspect its repository Dockerfile/context when it supplies the build root;
+   - apply `images.items[].inputs` substitutions that replace Dockerfile `FROM` references.
+6. **ART nightlies** — for each image, query `openshift-eng/ocp-build-data` on the `openshift-X.Y` branch (where `X.Y` matches the release version):
+   - locate the image YAML config (e.g. `images/cluster-monitoring-operator.yml`);
+   - read `from:` to identify the builder image via stream members defined in `streams.yml` (e.g. `builder` maps to `openshift-golang-builder`);
+   - read `content.source.git` for the source repository URL and branch;
+   - read `dockerfile_path:` for the Dockerfile path in the source repo;
+   - resolve the Dockerfile from the source repo using the `dockerfile_path` from the image config.
+   - For OKD nightly payloads, use the **`okd_alignment:`** stanza (not `okd:`). The `okd_alignment:` field may override:
+     - `dockerfile:` — alternative Dockerfile (e.g. `Dockerfile.okd`)
+     - `path:` — override Dockerfile path
+     - `context_dir:` — override build context
+     - `build_args:` — OKD-specific build arguments
+     - `inject_rpm_repositories:` — RPM repos for OKD
+     - `resolve_as:` — resolve from external source instead of building. Images with `resolve_as:` should be classified as limited evidence unless the external source's build provenance can be inspected
+7. Inspect the resolved Dockerfile stages. Associate `FROM` images with stages that execute Go compilation (`go build`, `go install`, `go test`, or an equivalent invoked build). Resolve build arguments and substitutions where possible. Derive the Go version from the effective builder image/tag or its read-only metadata.
+
+Do not infer a Go builder from the final runtime image, scan every binary in an image, or use a release-wide default. One repository may produce multiple images with distinct Dockerfiles/builders; keep their results separate.
+
+## Evidence and classification
+
+Classify each image as follows:
+
+| Classification | Required evidence | Report location |
+| --- | --- | --- |
+| mismatch | Resolved compiling stage has an effective `FROM` builder whose Go version differs from the target. | Mismatches |
+| match | Resolved compiling stage has an effective `FROM` builder matching the target. | Omit |
+| limited evidence | No resolvable compiling-stage builder, an unresolved `ARG`/substitution, inaccessible config/source, non-Go build, or only module metadata. | Unaccounted / limited evidence |
+
+For images with multiple compiling stages: if ANY compiling stage mismatches, classify the image as mismatch. If all compiling stages match, classify as match. If any stage has unresolved evidence while others match, classify as limited evidence.
+
+Explicit Dockerfile `FROM` evidence always takes precedence over `go.mod`. A `go.mod` directive may be recorded only as **module-only evidence**; it neither proves the image builder nor turns an item into a match or mismatch.
+
+## Output
+
+Return a small Markdown report:
+
+```text
+## Go builder audit — <OCP|OKD> <release>, target Go <target>
+
+### Mismatches
+| repo | image | effective builder | detected Go | evidence |
+| --- | --- | --- | --- | --- |
+| ... | ... | ... | ... | resolved Dockerfile path + FROM stage |
+
+### Explicitly unaccounted / limited evidence
+| repo | image | reason | evidence tried |
+| --- | --- | --- | --- |
+| ... | ... | ... | config tree, ref, Dockerfile/context, or module-only evidence |
+```
+
+Omit the Mismatches table rows when none exist, but keep the heading and state `None found with explicit builder evidence.` Do not list matching images or totals from the payload.
+
+## Coverage and failure handling
+
+- State the scope and source/ref policy used.
+- If release metadata cannot be resolved, report the failure and stop: coverage cannot be established.
+- If a component cannot be traced, retain it only in the limited-evidence section with the precise failed lookup. Never silently treat it as a match.
+- If config selection is ambiguous, compare candidate release configs; if it remains ambiguous, report the candidates as limited evidence rather than guessing.
+- Preserve repository/image identifiers needed to audit a finding, but do not include credentials, private user data, or unrelated inventory.
