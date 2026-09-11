@@ -61,6 +61,16 @@ Runs `golangci-lint --fix` to auto-fix issues, then uses AI to resolve any remai
 
 User-invocable only (`/golang:lint-fix`) — not triggered automatically due to its destructive nature.
 
+### `golang:native-fips`
+
+Configures Go projects to use Go's native FIPS 140 module (`GOFIPS140`) without the `openssl` RPM dependency. Works for both new projects and migrating existing openssl-based FIPS setups (`GOEXPERIMENT=strictfipsruntime`). Covers build flags, runtime FIPS activation, upstream vs downstream toolchain differences, and post-quantum cryptography (ML-KEM).
+
+Triggered automatically when FIPS-related patterns are detected, or on demand:
+
+```bash
+/golang:native-fips
+```
+
 ## Dependencies
 
 | Plugin | Marketplace | Purpose |
