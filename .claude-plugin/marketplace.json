@@ -572,6 +572,20 @@
         "pr-triage",
         "team-tools"
       ]
+    },
+    {
+      "name": "okd-scos",
+      "source": "./plugins/okd-scos",
+      "description": "OKD SCOS bootimage management — bump pinned CentOS Stream CoreOS images in openshift/installer",
+      "version": "0.1.0",
+      "category": "openshift",
+      "keywords": [
+        "okd",
+        "scos",
+        "bootimage",
+        "coreos",
+        "installer"
+      ]
     }
   ]
 }
