@@ -38,6 +38,9 @@ def validate_symptom(payload):
         errs.append("file_pattern is required for matcher_type %r" % mt)
     if mt in ("string", "regex", "cel") and not payload.get("match_string"):
         errs.append("match_string is required for matcher_type %r" % mt)
+    if not payload.get("label_ids"):
+        errs.append("at least one label ID is required (a symptom must always "
+                    "apply a label; create the label first with the manage-labels skill)")
     return errs
 
 
@@ -121,7 +124,8 @@ def main():
                         "none=file exists, cel=CEL expression over label names")
     p.add_argument("--file-pattern", help="Artifact glob, e.g. '**/build-log.txt'")
     p.add_argument("--match-string", help="Substring, regex, or CEL expression")
-    p.add_argument("--label-ids", help="Comma-separated label IDs to apply on match")
+    p.add_argument("--label-ids", help="Comma-separated label IDs to apply on match "
+                   "(required — a symptom must always apply at least one label)")
     p.add_argument("--skip-label-check", action="store_true",
                    help="Skip verifying label IDs against the labels API")
     p.add_argument("--format", choices=["json", "summary"], default="json")
