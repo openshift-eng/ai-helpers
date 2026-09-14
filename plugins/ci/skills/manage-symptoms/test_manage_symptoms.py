@@ -21,7 +21,8 @@ def test_non_cel_requires_file_pattern():
 
 def test_cel_requires_match_string_but_not_file_pattern():
     assert validate_symptom({"summary": "s", "matcher_type": "cel",
-                             "match_string": "'A' in labels"}) == []
+                             "match_string": "'A' in labels",
+                             "label_ids": ["InfraFailure"]}) == []
     errs = validate_symptom({"summary": "s", "matcher_type": "cel"})
     assert any("match_string" in e for e in errs)
 
@@ -30,11 +31,19 @@ def test_string_and_regex_require_match_string():
     assert any("match_string" in e for e in errs)
 
 def test_none_matcher_needs_no_match_string():
-    assert validate_symptom({"summary": "s", "matcher_type": "none", "file_pattern": "f"}) == []
+    assert validate_symptom({"summary": "s", "matcher_type": "none", "file_pattern": "f",
+                             "label_ids": ["InfraFailure"]}) == []
 
 def test_summary_too_long():
     errs = validate_symptom({"summary": "a" * 201, "matcher_type": "none", "file_pattern": "f"})
     assert any("200" in e for e in errs)
+
+def test_label_ids_required():
+    errs = validate_symptom({"summary": "s", "matcher_type": "none", "file_pattern": "f"})
+    assert any("label" in e for e in errs)
+    errs = validate_symptom({"summary": "s", "matcher_type": "none", "file_pattern": "f",
+                             "label_ids": []})
+    assert any("label" in e for e in errs)
 
 
 EXISTING = {"id": "AWSAuthFailure", "summary": "AWS could not validate credentials",
