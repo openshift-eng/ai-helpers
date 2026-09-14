@@ -52,11 +52,29 @@ Creates a pull request from a completed feature branch and links it to a Jira is
 2. **Body**: Structure using the PR template if one exists. Include:
    - A description of the changes based on the commit log
    - A link to the Jira issue: `https://redhat.atlassian.net/browse/<ISSUE_KEY>`
-   - The following footer at the very end:
-     ```text
-     Always review AI generated responses prior to use.
-     AI-assisted response via openshift-developer plugin
-     ```
+   - An attribution footer at the very end. The footer must accurately reflect
+     the tool or agent that produced the PR:
+     1. Identify the executing agent (e.g., Claude Code, a CI bot, another AI tool).
+     2. Use a two-line footer with the review disclaimer and an accurate attribution:
+        ```text
+        Always review AI generated responses prior to use.
+        AI-assisted response via <tool or agent name>
+        ```
+        For example, when running as Claude Code:
+        ```text
+        Always review AI generated responses prior to use.
+        AI-assisted response via Claude Code
+        ```
+        When running as a CI bot named `my-org-ci`:
+        ```text
+        Always review AI generated responses prior to use.
+        AI-assisted response via my-org-ci
+        ```
+     3. If the executing agent cannot be determined, use the generic form:
+        ```text
+        Always review AI generated responses prior to use.
+        AI-assisted response via openshift-developer plugin
+        ```
 
 ### Step 3: Create the PR
 
@@ -98,6 +116,18 @@ Print the PR URL returned by `gh pr create`.
    /openshift-developer:create-pr OCPBUGS-5678 --upstream openshift/hypershift --head hypershift-community:fix/OCPBUGS-5678
    ```
 
+3. **PR footer when running as Claude Code**:
+   ```text
+   Always review AI generated responses prior to use.
+   AI-assisted response via Claude Code
+   ```
+
+4. **PR footer when running as a CI bot (e.g., `hypershift-jira-solve-ci`)**:
+   ```text
+   Always review AI generated responses prior to use.
+   AI-assisted response via hypershift-jira-solve-ci
+   ```
+
 ## Arguments
 - `$1` — Jira issue key (required)
 - `--upstream` — target repository in `owner/repo` format (optional)
@@ -107,6 +137,6 @@ Print the PR URL returned by `gh pr create`.
 
 - Discover remotes first (e.g. `git remote` or `git branch -vv`) before selecting one
 - Always include the Jira issue key prefix in the PR title
-- Always include the AI-generated footer at the end of the PR body
+- Always include an attribution footer at the end of the PR body that names the actual executing tool or agent
 - Use the repo's PR template when available
 - Derive the PR description from the actual commit log, not from assumptions

@@ -78,7 +78,9 @@ T-shirt size as permission to skip explicit repository or user requirements.
 
 After the selected core chain succeeds, invoke `create-pr` when the user requested a PR
 and external writes are allowed. Pass the Jira key, target repository/remote, current
-branch, acceptance checklist, and validation summary.
+branch, acceptance checklist, and validation summary. `create-pr` composes the PR body
+footer to accurately attribute the executing tool or agent — do not override or
+hard-code the attribution.
 
 Under `--ci`, do not prompt, push, or create a PR. Commit locally and report that delivery
 is left to the pipeline. A caller instruction prohibiting push or PR creation also takes
