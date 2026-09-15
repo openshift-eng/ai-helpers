@@ -37,7 +37,9 @@ Before starting, verify these prerequisites:
 The user will provide:
 1. **Prow job URL** - Prow UI (`/view/gs/<bucket>/`) or gcsweb (`/gcs/<bucket>/`)
    - Example: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/`
-   - `<bucket>` may be `test-platform-results-public` or legacy `test-platform-results`
+   - `<bucket>` is any non-empty segment after `/gs/` or `/gcs/`
+   - Artifact reads still go to `test-platform-results-public` (legacy
+     `test-platform-results` is remapped; that bucket is not publicly readable)
    - URL may or may not have trailing slash
 
 2. **Resource specifications** - Comma-delimited list in format `[namespace:][kind/]name`

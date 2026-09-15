@@ -37,6 +37,23 @@ class ParseProwURLTest(unittest.TestCase):
         self.assertEqual(bucket, "prow-artifact-archive")
         self.assertEqual(path, PATH)
 
+    def test_arbitrary_bucket_is_preserved(self):
+        url = f"https://prow.ci.openshift.org/view/gs/origin-ci-test/{PATH}"
+        bucket, path = parse_prow_url(url)
+        self.assertEqual(bucket, "origin-ci-test")
+        self.assertEqual(path, PATH)
+
+    def test_legacy_gs_uri_remaps_to_public(self):
+        bucket, path = parse_prow_url(f"gs://test-platform-results/{PATH}")
+        self.assertEqual(bucket, PUBLIC)
+        self.assertEqual(path, PATH)
+
+    def test_rejects_missing_path(self):
+        with self.assertRaises(ValueError):
+            parse_prow_url(
+                "https://prow.ci.openshift.org/view/gs/test-platform-results-public/"
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

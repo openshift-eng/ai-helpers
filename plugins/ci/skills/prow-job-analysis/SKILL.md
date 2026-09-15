@@ -36,12 +36,12 @@ The user will provide:
 ### Step 1: Parse URL and Extract Metadata
 
 1. Find `/view/gs/<bucket>/` (Prow UI) or `/gcs/<bucket>/` (gcsweb) in the URL.
-   Accept `test-platform-results-public` or the legacy `test-platform-results`
-   name in that slot.
+   Any non-empty bucket segment is accepted.
 2. Extract the object path after the bucket name, then `build_id` — pattern
    `(\d{10,})` in the path.
-3. Construct GCS base: `gs://test-platform-results-public/{bucket-path}/`.
-   Always download from the public bucket. Do not use
+3. Remap `test-platform-results` to `test-platform-results-public`. Keep any
+   other parsed bucket, including `prow-artifact-archive`.
+4. Construct GCS base: `gs://{bucket}/{bucket-path}/`. Do not use
    `gs://test-platform-results/...`; that bucket is not publicly readable.
 
 ### Step 2: Fetch prowjob.json
@@ -75,16 +75,16 @@ Parse the job name to determine the environment and expected failure modes:
 mkdir -p .work/prow-job-analysis/{build_id}/logs
 
 # Build log (always)
-gcloud storage cp gs://test-platform-results-public/{bucket-path}/build-log.txt \
+gcloud storage cp gs://{bucket}/{bucket-path}/build-log.txt \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
 
 # JUnit XML (always — identifies failed tests/steps)
-gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/junit*.xml" 2>/dev/null
+gcloud storage ls "gs://{bucket}/{bucket-path}/artifacts/**/junit*.xml" 2>/dev/null
 
 # Node journals (always, when the job created a cluster) — required input for the
 # Step 5 OS-layer check. Gzip-compressed WITHOUT a .gz extension: zcat/zgrep only.
 gcloud storage cp -r \
-  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes" \
+  "gs://{bucket}/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes" \
   .work/prow-job-analysis/{build_id}/ --no-user-output-enabled 2>/dev/null || true
 ```
 
@@ -179,7 +179,8 @@ https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/{job}/{b
 https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/{job}/{build_id}
 ```
 
-The GCS bucket is always `test-platform-results-public`, publicly accessible, no auth required.
+Use the bucket from Step 1 (`test-platform-results-public` after remapping
+legacy `test-platform-results`, or `prow-artifact-archive` when the URL names it).
 
 ## Tips
 
