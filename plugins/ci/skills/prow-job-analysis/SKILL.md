@@ -35,9 +35,14 @@ The user will provide:
 
 ### Step 1: Parse URL and Extract Metadata
 
-1. Find `test-platform-results-public/` in the URL and extract the bucket path
-2. Extract `build_id` — pattern `(\d{10,})` in the path
-3. Construct GCS base: `gs://test-platform-results-public/{bucket-path}/`
+1. Find `/view/gs/<bucket>/` (Prow UI) or `/gcs/<bucket>/` (gcsweb) in the URL.
+   Accept `test-platform-results-public` or the legacy `test-platform-results`
+   name in that slot.
+2. Extract the object path after the bucket name, then `build_id` — pattern
+   `(\d{10,})` in the path.
+3. Construct GCS base: `gs://test-platform-results-public/{bucket-path}/`.
+   Always download from the public bucket. Do not use
+   `gs://test-platform-results/...`; that bucket is not publicly readable.
 
 ### Step 2: Fetch prowjob.json
 

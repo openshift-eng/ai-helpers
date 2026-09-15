@@ -3,11 +3,10 @@
 Search and retrieve artifacts from Prow CI job runs stored in GCS.
 
 Provides list, search, and fetch operations against Prow's public GCS artifact
-buckets. ``test-platform-results-public``, ``test-platform-results``, and
-``prow-artifact-archive`` are supported; the correct one is detected
-automatically from the Prow URL. The buckets are PUBLIC (no authentication
-required), so this script works
-two ways:
+buckets. URLs may name ``test-platform-results-public``, legacy
+``test-platform-results`` (remapped to public for reads), or
+``prow-artifact-archive``. Reads use the public HTTP API (no authentication).
+The script works two ways:
 
   1. If the `gcloud` CLI is installed, it is used (fast, native globbing).
   2. Otherwise it falls back to the public GCS JSON/download API over plain
@@ -55,14 +54,17 @@ import urllib.parse
 import urllib.request
 
 
-# Prow stores CI artifacts across two public (world-readable) GCS buckets.
-# The correct bucket for a given job is detected from the Prow URL by
-# parse_prow_url(), and every operation is scoped to that detected bucket.
+# Prow stores CI artifacts in public (world-readable) GCS buckets.
+# parse_prow_url() accepts these names in URLs. Legacy test-platform-results
+# is remapped to test-platform-results-public because the old bucket is not
+# publicly readable. prow-artifact-archive stays as its own bucket.
 SUPPORTED_BUCKETS = (
     "test-platform-results-public",
     "test-platform-results",
     "prow-artifact-archive",
 )
+PUBLIC_BUCKET = "test-platform-results-public"
+LEGACY_BUCKET = "test-platform-results"
 DEFAULT_MAX_BYTES = 512 * 1024  # 512KB
 
 # Public GCS endpoints (no auth — the buckets are world-readable).
@@ -108,14 +110,24 @@ def gcloud_available():
     return _GCLOUD_AVAILABLE
 
 
+def _readable_bucket(bucket):
+    """Map a URL bucket name to the bucket used for GCS reads."""
+    if bucket == LEGACY_BUCKET:
+        return PUBLIC_BUCKET
+    return bucket
+
+
 def parse_prow_url(url):
     """Extract the GCS bucket and path prefix from a Prow job URL.
 
-    Detects which supported bucket the URL refers to
-    (``test-platform-results-public``, ``test-platform-results``, or
-    ``prow-artifact-archive``) and works with either host format:
+    Accepts ``test-platform-results-public``, legacy ``test-platform-results``,
+    or ``prow-artifact-archive`` in either host format:
       - https://prow.ci.openshift.org/view/gs/<bucket>/logs/<job>/<build_id>
       - https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/<bucket>/logs/<job>/<build_id>
+
+    Legacy ``test-platform-results`` URLs are remapped to
+    ``test-platform-results-public`` (same object path). The old bucket is not
+    publicly readable.
 
     Returns a ``(bucket, path)`` tuple where ``path`` is the portion after the
     bucket name, e.g.:
@@ -130,14 +142,14 @@ def parse_prow_url(url):
     for pat in patterns:
         m = re.search(pat, url)
         if m:
-            return m.group("bucket"), m.group("path").rstrip("/")
+            return _readable_bucket(m.group("bucket")), m.group("path").rstrip("/")
 
     # Fallback: look for a supported bucket name anywhere in the URL (e.g. a
     # raw storage.googleapis.com or gs:// style reference).
     for bucket in SUPPORTED_BUCKETS:
         marker = f"{bucket}/"
         if marker in url:
-            return bucket, url.split(marker, 1)[1].rstrip("/")
+            return _readable_bucket(bucket), url.split(marker, 1)[1].rstrip("/")
 
     raise ValueError(
         f"Cannot parse Prow URL: {url}\n"

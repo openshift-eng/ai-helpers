@@ -35,8 +35,9 @@ Before starting, verify these prerequisites:
 ## Input Format
 
 The user will provide:
-1. **Prow job URL** - gcsweb URL containing `test-platform-results-public/`
+1. **Prow job URL** - Prow UI (`/view/gs/<bucket>/`) or gcsweb (`/gcs/<bucket>/`)
    - Example: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/`
+   - `<bucket>` may be `test-platform-results-public` or legacy `test-platform-results`
    - URL may or may not have trailing slash
 
 2. **Resource specifications** - Comma-delimited list in format `[namespace:][kind/]name`
@@ -54,9 +55,9 @@ The user will provide:
 ### Step 1: Parse and Validate URL
 
 1. **Extract bucket path**
-   - Find `test-platform-results-public/` in URL
-   - Extract everything after it as the GCS bucket relative path
-   - If not found, error: "URL must contain 'test-platform-results-public/'"
+   - Run `parse_url.py` (or find `/gs/<bucket>/` or `/gcs/<bucket>/` in the URL)
+   - Extract everything after the bucket name as the object path
+   - If not found, error: "URL must contain '/gs/<bucket>/' or '/gcs/<bucket>/'"
 
 2. **Extract build_id**
    - Search for pattern `/(\d{10,})/` in the bucket path
@@ -72,6 +73,7 @@ The user will provide:
 4. **Construct GCS paths**
    - Bucket: `test-platform-results-public`
    - Base GCS path: `gs://test-platform-results-public/{bucket-path}/`
+   - Always the public bucket, even if the URL names legacy `test-platform-results`
    - Ensure path ends with `/`
 
 ### Step 2: Parse Resource Specifications
@@ -414,7 +416,7 @@ python3 plugins/ci/skills/prow-job-analyze-resource/generate_html_report.py \
 Handle these error scenarios by displaying a clear error message and actionable next steps:
 
 1. **Invalid URL format**
-   - Error: "URL must contain 'test-platform-results-public/' substring"
+   - Error: "URL must contain '/gs/<bucket>/' or '/gcs/<bucket>/'"
    - Provide example of valid URL
 
 2. **Build ID not found**

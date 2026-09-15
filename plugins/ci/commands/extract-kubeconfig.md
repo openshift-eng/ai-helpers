@@ -97,11 +97,13 @@ From the matching check, extract the `targetUrl` which points to the Prow job pa
 **Method A — Via GCS prowjob.json** (preferred when `gsutil` is installed and the job uses public `prow.ci.openshift.org`):
 
 Parse the GCS path from `targetUrl`:
-- Format: `https://prow.ci.openshift.org/view/gs/test-platform-results-public/.../<build_id>`
-- Extract the GCS base: `gs://test-platform-results-public/.../<build_id>`
-- Download `prowjob.json` and extract `spec.cluster`:
+- Format: `https://prow.ci.openshift.org/view/gs/<bucket>/.../<build_id>`
+  (`<bucket>` may be `test-platform-results-public` or legacy `test-platform-results`)
+- Extract the object path after the bucket name
+- Download from `gs://test-platform-results-public/<object-path>/prowjob.json`
+  (always the public bucket; the legacy bucket is not publicly readable):
   ```bash
-  gsutil cp "<gcs_base>/prowjob.json" /tmp/prowjob.json
+  gsutil cp "gs://test-platform-results-public/<object-path>/prowjob.json" /tmp/prowjob.json
   ```
 
 **Method B — Via job config in openshift/release repo** (fallback when `gsutil` is not installed, or when the job uses `qe-private-deck`):

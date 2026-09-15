@@ -11,6 +11,8 @@ import json
 
 # Prow: /view/gs/<bucket>/...  gcsweb: /gcs/<bucket>/...
 _GCS_PATH = re.compile(r"/(?:gs|gcs)/([^/]+)/(.+)$")
+PUBLIC_BUCKET = "test-platform-results-public"
+LEGACY_BUCKET = "test-platform-results"
 
 
 def parse_prowjob_url(url):
@@ -18,7 +20,9 @@ def parse_prowjob_url(url):
     Parse a Prow job URL and extract relevant information.
 
     Args:
-        url: prow or gcsweb URL containing /gs/<bucket>/ or /gcs/<bucket>/
+        url: prow or gcsweb URL containing /gs/<bucket>/ or /gcs/<bucket>/.
+            A legacy test-platform-results URL is remapped to the public bucket
+            for GCS paths; that bucket is not publicly readable.
 
     Returns:
         dict with keys: bucket, bucket_path, build_id, prowjob_name, gcs_base_path
@@ -35,7 +39,8 @@ def parse_prowjob_url(url):
             "pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/"
         )
 
-    bucket = match.group(1)
+    parsed_bucket = match.group(1)
+    bucket = PUBLIC_BUCKET if parsed_bucket == LEGACY_BUCKET else parsed_bucket
     bucket_path = match.group(2).rstrip("/")
 
     # Find build_id: at least 10 consecutive decimal digits delimited by /

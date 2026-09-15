@@ -14,10 +14,10 @@ Claude Code skill definition that provides detailed implementation instructions 
 ### 2. Python Scripts
 
 #### parse_url.py
-Parses and validates Prow job URLs from gcsweb.
+Parses and validates Prow job URLs from prow (`/view/gs/<bucket>/`) or gcsweb (`/gcs/<bucket>/`).
 - Extracts build_id (10+ digit identifier)
 - Extracts prowjob name
-- Constructs GCS paths
+- Constructs GCS paths on `test-platform-results-public` (legacy `test-platform-results` URLs are remapped)
 - Validates URL format
 
 **Usage:**
@@ -131,10 +131,10 @@ pod/etcd-0,configmap/cluster-config,openshift-etcd:secret/etcd-all-certs
 ## Workflow
 
 1. **URL Parsing**
-   - Validate URL contains `test-platform-results-public/`
+   - Validate URL contains `/gs/<bucket>/` or `/gcs/<bucket>/`
    - Extract build_id (10+ digits)
    - Extract prowjob name
-   - Construct GCS paths
+   - Construct GCS paths on `test-platform-results-public`
 
 2. **Working Directory**
    - Create `{build_id}/logs/` directory
