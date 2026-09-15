@@ -12,7 +12,7 @@ audit logs, and pod logs, then correlates disruption across backends and job run
 
 1. **gcloud CLI Installation**
    - Check if installed: `which gcloud`
-   - The `test-platform-results` bucket is publicly accessible — no authentication required
+   - The `test-platform-results-public` bucket is publicly accessible — no authentication required
 
 2. **Python 3** (3.7 or later)
 
@@ -23,7 +23,7 @@ The user will provide one of the following as input:
 **Option A — Prow job URLs (direct analysis):**
 
 1. **One or more Prow job URLs** (at least 1)
-   - Example: `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn/1983307151598161920`
+   - Example: `https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn/1983307151598161920`
 
 **Option B — Grafana disruption dashboard URL (run discovery + analysis):**
 
@@ -70,11 +70,11 @@ The user will provide one of the following as input:
    wherever the run or a specific artifact is referenced, not in a separate table:
 
    **Run-level links** (use when first mentioning a run):
-   - **Prow job page**: `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{job_name}/{build_id}`
+   - **Prow job page**: `https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/{job_name}/{build_id}`
    - **Sippy intervals**: `https://sippy.dptools.openshift.org/sippy-ng/job_runs/{build_id}/{job_name}/intervals`
 
    **GCS artifact deep links** (use when citing specific evidence):
-   - Base: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/{job_name}/{build_id}/artifacts/`
+   - Base: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/{job_name}/{build_id}/artifacts/`
    - Timeline file: `{gcs_base}{target}/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_{timestamp}.json`
    - Audit logs dir: `{gcs_base}{target}/gather-extra/artifacts/audit_logs/`
    - etcd pod logs: `{gcs_base}{target}/gather-extra/artifacts/pods/openshift-etcd/`
@@ -224,7 +224,7 @@ python3 "${CLAUDE_SKILL_DIR}/download_timelines.py" \
 ```
 
 **Important GCS bucket note**: Prow URLs may contain `origin-ci-test` in the path (e.g.,
-`/view/gs/origin-ci-test/logs/...`), but the actual GCS bucket is always `test-platform-results`.
+`/view/gs/origin-ci-test/logs/...`), but the actual GCS bucket is always `test-platform-results-public`.
 The script handles this automatically.
 
 The `--runs` flag takes comma-separated `job_name:build_id` pairs. Extract these from the Prow
@@ -377,7 +377,7 @@ etcd log context beyond what the timeline summaries provide.
 #### 4.1: Download Audit Logs (if needed)
 
 ```bash
-gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/audit_logs/" \
+gcloud storage cp -r "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/audit_logs/" \
   .work/disruption-analysis/{date}/{build_id}/logs/audit_logs/ --no-user-output-enabled 2>/dev/null || true
 ```
 
@@ -386,7 +386,7 @@ Query for sampler requests during disruption windows to identify request gaps.
 #### 4.2: Download etcd Pod Logs (if needed)
 
 ```bash
-gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/" \
+gcloud storage cp -r "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/" \
   .work/disruption-analysis/{date}/{build_id}/logs/etcd-pods/ --no-user-output-enabled 2>/dev/null || true
 ```
 

@@ -14,11 +14,11 @@ from filter_optional_checks import (
 )
 
 PROW_LINK = (
-    "https://prow.ci.openshift.org/view/gs/test-platform-results/"
+    "https://prow.ci.openshift.org/view/gs/test-platform-results-public/"
     "pr-logs/pull/openshift_sippy/3816/pull-ci-openshift-sippy-main-lint/123"
 )
 OPTIONAL_LINK = (
-    "https://prow.ci.openshift.org/view/gs/test-platform-results/"
+    "https://prow.ci.openshift.org/view/gs/test-platform-results-public/"
     "pr-logs/pull/openshift_sippy/3816/pull-ci-openshift-sippy-main-agentic-staging/456"
 )
 
@@ -43,29 +43,29 @@ class FilterOptionalChecksTest(unittest.TestCase):
     def test_gcs_path_from_prow_link(self):
         self.assertEqual(
             gcs_path_from_link(PROW_LINK),
-            "test-platform-results/pr-logs/pull/openshift_sippy/3816/"
+            "test-platform-results-public/pr-logs/pull/openshift_sippy/3816/"
             "pull-ci-openshift-sippy-main-lint/123",
         )
 
     def test_gcs_path_from_gcsweb_link(self):
         link = (
             "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/"
-            "test-platform-results/pr-logs/pull/foo/1/job/99/"
+            "test-platform-results-public/pr-logs/pull/foo/1/job/99/"
         )
         self.assertEqual(
             gcs_path_from_link(link),
-            "test-platform-results/pr-logs/pull/foo/1/job/99",
+            "test-platform-results-public/pr-logs/pull/foo/1/job/99",
         )
 
     def test_gcs_path_rejects_non_prow(self):
         self.assertIsNone(gcs_path_from_link("https://coderabbit.example"))
         self.assertIsNone(gcs_path_from_link(""))
         self.assertIsNone(
-            gcs_path_from_link("https://evil.example/view/gs/test-platform-results/logs/job/1")
+            gcs_path_from_link("https://evil.example/view/gs/test-platform-results-public/logs/job/1")
         )
         self.assertIsNone(
             gcs_path_from_link(
-                "http://prow.ci.openshift.org/view/gs/test-platform-results/logs/job/1"
+                "http://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/job/1"
             )
         )
 
@@ -111,7 +111,7 @@ class FilterOptionalChecksTest(unittest.TestCase):
 
     def test_unknown_prowjob_is_kept(self):
         unknown = (
-            "https://prow.ci.openshift.org/view/gs/test-platform-results/"
+            "https://prow.ci.openshift.org/view/gs/test-platform-results-public/"
             "pr-logs/pull/foo/1/job/1"
         )
         checks = [

@@ -139,10 +139,10 @@ This command is useful for:
 ```
 Failed Job Runs (Last 7 Days):
 1. 2025-11-03 12:12:31 - periodic-ci-openshift-operator-framework-...
-   https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+   https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...
 
 2. 2025-11-02 12:12:29 - periodic-ci-openshift-operator-framework-...
-   https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+   https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...
 ```
 
 If no tests match the keywords, inform the user that no results were found.
@@ -208,19 +208,19 @@ Failed Job Runs (Last 7 Days):
 
 1. 2025-11-03 12:12:31
    Job: periodic-ci-openshift-operator-framework-operator-controller-release-4.21-periodics-e2e-aws-ovn-techpreview-extended-f1
-   https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-operator-framework-operator-controller-release-4.21-periodics-e2e-aws-ovn-techpreview-extended-f1/1985198377557561344
+   https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-operator-framework-operator-controller-release-4.21-periodics-e2e-aws-ovn-techpreview-extended-f1/1985198377557561344
 
 2. 2025-11-02 12:12:29
    Job: periodic-ci-openshift-operator-framework-operator-controller-release-4.21-periodics-e2e-aws-ovn-techpreview-extended-f1
-   https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-operator-framework-operator-controller-release-4.21-periodics-e2e-aws-ovn-techpreview-extended-f1/1984835985292136448
+   https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-operator-framework-operator-controller-release-4.21-periodics-e2e-aws-ovn-techpreview-extended-f1/1984835985292136448
 
 [... additional failures ...]
 
 ----------------------------------------------------------------------------------------------------
 Failed Prow URLs (for easy copying):
 ----------------------------------------------------------------------------------------------------
-https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-operator-framework-operator-controller-release-4.21-periodics-e2e-aws-ovn-techpreview-extended-f1/1985198377557561344
-https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-operator-framework-operator-controller-release-4.21-periodics-e2e-aws-ovn-techpreview-extended-f1/1984835985292136448
+https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-operator-framework-operator-controller-release-4.21-periodics-e2e-aws-ovn-techpreview-extended-f1/1985198377557561344
+https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-operator-framework-operator-controller-release-4.21-periodics-e2e-aws-ovn-techpreview-extended-f1/1984835985292136448
 [... additional URLs ...]
 
 ====================================================================================================

@@ -66,7 +66,7 @@ for the full CI-vs-product framework.
 ## Where to Look
 
 Paths are relative to `artifacts/{target}/` (cluster under test). Full form:
-`gs://test-platform-results/{bucket-path}/artifacts/{target}/...`. See
+`gs://test-platform-results-public/{bucket-path}/artifacts/{target}/...`. See
 [artifacts.md](artifacts.md#gather-extra-artifacts) for the complete tree.
 
 | Artifact | Path | Use for |

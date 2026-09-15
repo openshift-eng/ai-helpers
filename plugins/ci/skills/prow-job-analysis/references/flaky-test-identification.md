@@ -218,7 +218,7 @@ from insufficient-data: [aggregated.md](aggregated.md).
 pressure during the run):
 
 ```text
-gs://test-platform-results/{bucket-path}/artifacts/job_labels/*.json   # skip label-summary.html
+gs://test-platform-results-public/{bucket-path}/artifacts/job_labels/*.json   # skip label-summary.html
 ```
 
 A symptom **explains** how a flake could occur (CPU starvation → OVS stall → test timeout)
@@ -234,7 +234,7 @@ Test results are the source of truth over an alarming build-log line. openshift-
 `junit_e2e_*.xml`; ci-operator writes `junit_operator.xml`; install writes `junit_install.xml`.
 
 ```bash
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/junit*.xml"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/junit*.xml"
 ```
 
 ### Fields that matter

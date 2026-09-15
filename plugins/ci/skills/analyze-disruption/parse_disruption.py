@@ -538,7 +538,7 @@ def generate_summary(disruptions, network_liveness, concurrent, source_analysis)
 # Link generation
 # ---------------------------------------------------------------------------
 
-GCSWEB_BASE = "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs"
+GCSWEB_BASE = "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs"
 
 
 def generate_links(job_name, build_id, target=None, timeline_files=None):
@@ -552,7 +552,7 @@ def generate_links(job_name, build_id, target=None, timeline_files=None):
 
     gcs_base = f"{GCSWEB_BASE}/{job_name}/{build_id}"
     links = {
-        "prow": f"https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{job_name}/{build_id}",
+        "prow": f"https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/{job_name}/{build_id}",
         "sippy_intervals": f"https://sippy.dptools.openshift.org/sippy-ng/job_runs/{build_id}/{job_name}/intervals",
         "gcsweb_artifacts": f"{gcs_base}/artifacts/",
     }

@@ -31,4 +31,4 @@ notes: >
   artifact in the Origin monitor test (the monitor may over-count, but a real
   breaking change existed and was reverted). Correct output recommends reverting
   #1427 and rejects the api PRs. Source Payload Agent analysis:
-  https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-main-claude-payload-agent/2080964771632386048/artifacts/claude-payload-agent/openshift-claude-payload-agent/artifacts/payload-analysis-5.0.0-0.ci-2026-07-25-102741-summary.html
+  https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/periodic-ci-openshift-release-main-claude-payload-agent/2080964771632386048/artifacts/claude-payload-agent/openshift-claude-payload-agent/artifacts/payload-analysis-5.0.0-0.ci-2026-07-25-102741-summary.html

@@ -73,8 +73,8 @@ def test_list_timeline_files_success():
     mock_result = MagicMock()
     mock_result.returncode = 0
     mock_result.stdout = (
-        "gs://test-platform-results/logs/job/123/artifacts/target/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_20260804-000654.json\n"
-        "gs://test-platform-results/logs/job/123/artifacts/target/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_20260804-012513.json\n"
+        "gs://test-platform-results-public/logs/job/123/artifacts/target/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_20260804-000654.json\n"
+        "gs://test-platform-results-public/logs/job/123/artifacts/target/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_20260804-012513.json\n"
     )
     with patch("download_timelines.subprocess.run", return_value=mock_result):
         files = list_timeline_files("job", "123")

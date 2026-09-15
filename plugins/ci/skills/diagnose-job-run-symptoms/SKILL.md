@@ -34,7 +34,7 @@ Use this skill when:
 
 ```bash
 python3 plugins/ci/skills/diagnose-job-run-symptoms/diagnose_job_run.py \
-  "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>"
+  "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job>/<build_id>"
 ```
 
 For each applied label the summary output shows: the label title and explanation, the symptom that applied it (summary, matcher type, file pattern, match string), and the actual matched file and matched text from the run's artifacts.

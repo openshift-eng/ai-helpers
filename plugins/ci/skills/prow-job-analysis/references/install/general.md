@@ -93,7 +93,7 @@ config — always search for it:
 
 ```bash
 # Search recursively for junit_install.xml
-gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
+gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
   | grep "junit_install.xml"
 ```
 
@@ -180,7 +180,7 @@ The full lifecycle, to target analysis:
 
 ```bash
 # Find installer logs (IMPORTANT: exclude deprovision logs)
-gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
+gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
   | grep -E "\.openshift_install.*\.log$" | grep -v "deprovision"
 ```
 
@@ -200,7 +200,7 @@ cloud IPI jobs the installer collects it (via the `gather-bootstrap` step); sear
 
 ```bash
 # Find log bundles (prefer non-deprovision) — matches the exploded dir and the legacy tarball
-gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
+gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
   | grep "log-bundle"
 ```
 
@@ -429,7 +429,7 @@ The cluster bootstrapped, but one or more operators failed to deploy and stabili
    identifies which operators failed.
 2. **Must-gather availability** — check if `must-gather*.tar` exists:
    ```bash
-   gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-must-gather/artifacts/" 2>&1 \
+   gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-must-gather/artifacts/" 2>&1 \
      | grep "must-gather.*\.tar"
    ```
    - **Yes**: extract and examine operator-specific logs.

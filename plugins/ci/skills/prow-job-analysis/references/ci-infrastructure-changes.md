@@ -1030,7 +1030,7 @@ This artifact shows all steps, their execution status, and timing. Look for:
 Download and parse `junit_operator.xml` from the artifacts:
 
 ```bash
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/junit*.xml"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/junit*.xml"
 ```
 
 The JUnit XML encodes:
@@ -1043,7 +1043,7 @@ The JUnit XML encodes:
 The CI system attaches machine-detected symptom labels to job runs:
 
 ```bash
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/job_labels/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/job_labels/"
 ```
 
 Each JSON file under `job_labels/` describes a detected symptom with a summary and explanation.

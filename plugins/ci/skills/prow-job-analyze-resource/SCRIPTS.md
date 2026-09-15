@@ -73,7 +73,7 @@ python3 plugins/ci/skills/prow-job-analyze-resource/generate_html_report.py \
   "1964725888612306944" \
   "e2e-aws-ovn-techpreview" \
   "e2e-test-project-api-p28mx" \
-  "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-master-okd-scos-4.20-e2e-aws-ovn-techpreview/1964725888612306944"
+  "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/periodic-ci-openshift-release-master-okd-scos-4.20-e2e-aws-ovn-techpreview/1964725888612306944"
 ```
 
 **Features:**
@@ -120,7 +120,7 @@ RESOURCE_PATTERN="e2e-test-project-api-p28m"
 RESOURCE_NAME="e2e-test-project-api-p28mx"
 PROWJOB_NAME="periodic-ci-openshift-release-master-okd-scos-4.20-e2e-aws-ovn-techpreview"
 TARGET="e2e-aws-ovn-techpreview"
-GCSWEB_URL="https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/${PROWJOB_NAME}/${BUILD_ID}"
+GCSWEB_URL="https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/${PROWJOB_NAME}/${BUILD_ID}"
 
 # 2. Create working directory
 mkdir -p .work/prow-job-analyze-resource/${BUILD_ID}/logs
@@ -128,14 +128,14 @@ mkdir -p .work/prow-job-analyze-resource/${BUILD_ID}/tmp
 
 # 3. Download prowjob.json
 gcloud storage cp \
-  gs://test-platform-results/logs/${PROWJOB_NAME}/${BUILD_ID}/prowjob.json \
+  gs://test-platform-results-public/logs/${PROWJOB_NAME}/${BUILD_ID}/prowjob.json \
   .work/prow-job-analyze-resource/${BUILD_ID}/logs/prowjob.json \
   --no-user-output-enabled
 
 # 4. Download audit logs
 mkdir -p .work/prow-job-analyze-resource/${BUILD_ID}/logs/artifacts/${TARGET}/gather-extra/artifacts/audit_logs
 gcloud storage cp -r \
-  gs://test-platform-results/logs/${PROWJOB_NAME}/${BUILD_ID}/artifacts/${TARGET}/gather-extra/artifacts/audit_logs/ \
+  gs://test-platform-results-public/logs/${PROWJOB_NAME}/${BUILD_ID}/artifacts/${TARGET}/gather-extra/artifacts/audit_logs/ \
   .work/prow-job-analyze-resource/${BUILD_ID}/logs/artifacts/${TARGET}/gather-extra/artifacts/audit_logs/ \
   --no-user-output-enabled
 
@@ -173,7 +173,7 @@ xdg-open .work/prow-job-analyze-resource/${BUILD_ID}/${RESOURCE_NAME}.html
 
 4. **Working Directory**: All artifacts are stored in `.work/prow-job-analyze-resource/` which is in .gitignore.
 
-5. **No Authentication Required**: The `test-platform-results` GCS bucket is publicly accessible.
+5. **No Authentication Required**: The `test-platform-results-public` GCS bucket is publicly accessible.
 
 ## Troubleshooting
 

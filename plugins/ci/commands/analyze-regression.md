@@ -544,7 +544,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
 
    ```
    Regression Start Analysis:
-   - First Failing Run: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+   - First Failing Run: https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...
    - Approximate Start Date: 2026-01-15
    - Total Tracked Runs: 47
    - Most Affected Job: periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn (18 occurrences)

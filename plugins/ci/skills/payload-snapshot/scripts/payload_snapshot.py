@@ -3632,7 +3632,7 @@ def _new_changelog_entries(new_changelog: str, old_changelog: str) -> str:
 def _prow_url_to_gcs_bucket_path(prow_url: str) -> Optional[str]:
     """Extract the GCS bucket path from a Prow URL.
 
-    Returns 'test-platform-results/logs/{job}/{build_id}' or None.
+    Returns '<bucket>/logs/{job}/{build_id}' (bucket taken from the Prow URL) or None.
     """
     if not prow_url or not prow_url.startswith(PROW_VIEW_PREFIX):
         return None

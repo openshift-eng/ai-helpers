@@ -96,7 +96,7 @@ From the bot reply, extract:
 2. **Individual prow job URLs**: Fetch the `payload_test_url` page and extract prow job links:
 
 ```bash
-curl -sL "<payload_test_url>" | grep -oE 'https://prow\.ci\.openshift\.org/view/gs/test-platform-results/logs/[^"]+' | sort -u
+curl -sL "<payload_test_url>" | grep -oE 'https://prow\.ci\.openshift\.org/view/gs/test-platform-results(-public)?/logs/[^"]+' | sort -u
 ```
 
 Each prow URL corresponds to one triggered job run.

@@ -50,8 +50,8 @@ https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/<bucket>/<path>/<job-nam
 
 **Example:**
 
-- **Input Prow URL**: `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.22-e2e-gcp-ovn-upgrade/2019864414127132672`
-- **GCS Web URL**: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.22-e2e-gcp-ovn-upgrade/2019864414127132672/prowjob.json`
+- **Input Prow URL**: `https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-ci-4.22-e2e-gcp-ovn-upgrade/2019864414127132672`
+- **GCS Web URL**: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/periodic-ci-openshift-release-master-ci-4.22-e2e-gcp-ovn-upgrade/2019864414127132672/prowjob.json`
 
 The conversion is: replace `https://prow.ci.openshift.org/view/` with `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/` and append `/prowjob.json`.
 
@@ -60,7 +60,7 @@ The conversion is: replace `https://prow.ci.openshift.org/view/` with `https://g
 Use `curl` or `WebFetch` to retrieve the JSON content from the constructed URL.
 
 ```bash
-curl -s "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/<job-name>/<build-id>/prowjob.json"
+curl -s "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/<job-name>/<build-id>/prowjob.json"
 ```
 
 ### Step 4: Extract and Return Key Fields
@@ -127,7 +127,7 @@ If the GCS web proxy is unreachable:
 
 **Input:**
 ```
-https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.22-e2e-gcp-ovn-upgrade/2019864414127132672
+https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-ci-4.22-e2e-gcp-ovn-upgrade/2019864414127132672
 ```
 
 **Key output fields:**

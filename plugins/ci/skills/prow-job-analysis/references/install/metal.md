@@ -185,12 +185,12 @@ job must acquire a host from an OFCIR pool.
 ```bash
 # Download OFCIR logs
 gcloud storage cp \
-  "gs://test-platform-results/{bucket-path}/artifacts/{target}/ofcir-acquire/build-log.txt" \
+  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/ofcir-acquire/build-log.txt" \
   ./ofcir-build-log.txt --no-user-output-enabled 2>&1
 
 # Download JUnit result
 gcloud storage cp \
-  "gs://test-platform-results/{bucket-path}/artifacts/{target}/ofcir-acquire/artifacts/junit_metal_setup.xml" \
+  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/ofcir-acquire/artifacts/junit_metal_setup.xml" \
   ./junit_metal_setup.xml --no-user-output-enabled 2>&1
 ```
 
@@ -266,7 +266,7 @@ files also appear in this directory tree.
 
 ```bash
 gcloud storage cp -r \
-  "gs://test-platform-results/{bucket-path}/artifacts/{target}/baremetalds-devscripts-setup/artifacts/root/dev-scripts/logs/" \
+  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/baremetalds-devscripts-setup/artifacts/root/dev-scripts/logs/" \
   ./devscripts-logs/ --no-user-output-enabled
 ```
 
@@ -405,7 +405,7 @@ log-bundle-*/control-plane/{node-ip}/containers/metal3-baremetal-operator-*.log
 # Download and extract log bundle — matches the exploded dir and the legacy tarball
 # (CI gunzips everything, so tarballs are .tar, never .tar.gz; recent jobs upload the
 # bundle exploded as a log-bundle-*/ directory — download it with gcloud storage cp -r)
-gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
+gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
   | grep "log-bundle"
 gcloud storage cp {log-bundle-path} ./log-bundle.tar --no-user-output-enabled
 tar -xf ./log-bundle.tar
@@ -533,7 +533,7 @@ is fully operational.
 ```bash
 # Download and extract
 gcloud storage cp \
-  "gs://test-platform-results/{bucket-path}/artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar" \
+  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar" \
   ./libvirt-logs.tar --no-user-output-enabled
 tar -xf ./libvirt-logs.tar
 
@@ -789,12 +789,12 @@ The OFCIR log and dev-scripts logs download directly by path:
 ```bash
 # OFCIR host acquisition log
 gcloud storage cp \
-  "gs://test-platform-results/{bucket-path}/artifacts/{target}/ofcir-acquire/build-log.txt" \
+  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/ofcir-acquire/build-log.txt" \
   ./ofcir-build-log.txt --no-user-output-enabled 2>&1 || echo "Not found"
 
 # Dev-scripts logs (directory)
 gcloud storage cp -r \
-  "gs://test-platform-results/{bucket-path}/artifacts/{target}/baremetalds-devscripts-setup/artifacts/root/dev-scripts/logs/" \
+  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/baremetalds-devscripts-setup/artifacts/root/dev-scripts/logs/" \
   ./devscripts-logs/ --no-user-output-enabled
 ```
 
@@ -803,7 +803,7 @@ pattern for the artifact you need: console logs `libvirt-logs\.tar$`, log bundle
 `log-bundle.*\.tar$`, sosreport `sosreport.*\.tar\.xz$`, squid `squid-logs.*\.tar$`:
 
 ```bash
-gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "PATTERN"
+gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 | grep "PATTERN"
 gcloud storage cp {path-from-ls} ./artifact.tar --no-user-output-enabled
 tar -xf ./artifact.tar    # use tar -xJf for .tar.xz (sosreport)
 ```

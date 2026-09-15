@@ -8,7 +8,7 @@ def test_plain_numeric_id():
     assert extract_build_id("1856789012345678848") == "1856789012345678848"
 
 def test_prow_url():
-    url = ("https://prow.ci.openshift.org/view/gs/test-platform-results/logs/"
+    url = ("https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/"
            "periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn/1856789012345678848")
     assert extract_build_id(url) == "1856789012345678848"
 

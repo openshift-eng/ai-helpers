@@ -1,21 +1,21 @@
 # Artifacts Reference
 
 Directory structure, file contents, and access patterns for Prow CI job artifacts in the
-`test-platform-results` GCS bucket. Use it to locate and interpret files when investigating
+`test-platform-results-public` GCS bucket. Use it to locate and interpret files when investigating
 job failures.
 
 ---
 
 ## GCS Bucket and Access
 
-- **Bucket**: `test-platform-results` (publicly accessible, no authentication required)
-- **Base URI**: `gs://test-platform-results/{bucket-path}/`
-- **Prow UI URL**: `https://prow.ci.openshift.org/view/gs/test-platform-results/{bucket-path}`
-- **gcsweb URL**: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/{bucket-path}`
+- **Bucket**: `test-platform-results-public` (publicly accessible, no authentication required)
+- **Base URI**: `gs://test-platform-results-public/{bucket-path}/`
+- **Prow UI URL**: `https://prow.ci.openshift.org/view/gs/test-platform-results-public/{bucket-path}`
+- **gcsweb URL**: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/{bucket-path}`
 
 **Important**: Prow URLs may show `origin-ci-test` in the path (e.g.,
 `/view/gs/origin-ci-test/logs/...`), but the actual GCS bucket is always
-`test-platform-results`. Always use `gs://test-platform-results/...` for `gcloud storage`
+`test-platform-results-public`. Always use `gs://test-platform-results-public/...` for `gcloud storage`
 commands.
 
 ### URL Formats
@@ -24,10 +24,10 @@ Both formats are interchangeable:
 
 ```text
 # Prow UI
-https://prow.ci.openshift.org/view/gs/test-platform-results/{type}/{job-name}/{build-id}
+https://prow.ci.openshift.org/view/gs/test-platform-results-public/{type}/{job-name}/{build-id}
 
 # gcsweb (direct GCS browser)
-https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/{type}/{job-name}/{build-id}
+https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/{type}/{job-name}/{build-id}
 ```
 
 ### Bucket Path by Job Type
@@ -224,10 +224,10 @@ still required.
 
 ```bash
 # List symptom labels
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/job_labels/" 2>/dev/null
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/job_labels/" 2>/dev/null
 
 # Download all symptom JSON files (exclude HTML summary)
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/job_labels/*.json" \
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/job_labels/*.json" \
   local/job_labels/ --no-user-output-enabled 2>/dev/null || true
 ```
 
@@ -310,7 +310,7 @@ Structured test results — the primary source for which tests failed and why.
 
 ```bash
 # Find all JUnit XML files
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/junit*.xml"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/junit*.xml"
 ```
 
 Common JUnit file patterns:
@@ -396,7 +396,7 @@ analysis and cluster activity correlation.
 
 ```bash
 # Find all interval/timeline files
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/e2e-timelines_spyglass_*.json"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/e2e-timelines_spyglass_*.json"
 ```
 
 Typical location:
@@ -499,7 +499,7 @@ correlating API failures with test failures.
 
 ```bash
 # Download audit logs
-gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/audit_logs/" \
+gcloud storage cp -r "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/audit_logs/" \
   local/audit_logs/ --no-user-output-enabled 2>/dev/null || true
 ```
 
@@ -511,7 +511,7 @@ flat `journal_logs/` directory. **The per-node `journal` files are gzip-compress
 a `.gz` extension** — plain `grep` matches nothing; use `zcat`/`zgrep`:
 
 ```bash
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes/"
 zgrep -E "Out of memory|Kernel panic" local/nodes/*/journal
 ```
 
@@ -546,11 +546,11 @@ Location depends on job type:
 
 ```bash
 # Find must-gather archives
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/must-gather*"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/must-gather*"
 
 # Find HyperShift dumps
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/hypershift-dump.tar" 2>/dev/null
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/hostedcluster.tar" 2>/dev/null
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/hypershift-dump.tar" 2>/dev/null
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/hostedcluster.tar" 2>/dev/null
 ```
 
 ### Must-Gather Download & Extraction
@@ -562,7 +562,7 @@ failure needs cluster-state diagnostics.
 # 1. Download the archive (path from the Common Artifact Paths / routing table)
 mkdir -p .work/prow-job-analysis/{build_id}/must-gather
 gcloud storage cp \
-  "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-must-gather/artifacts/must-gather.tar" \
+  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-must-gather/artifacts/must-gather.tar" \
   .work/prow-job-analysis/{build_id}/must-gather/ --no-user-output-enabled
 
 # 2. Extract the outer archive (use `tar -xzf` if it is gzipped / named *.tar.gz)
@@ -648,7 +648,7 @@ Produced by the OpenShift installer during cluster creation.
 
 ```bash
 # Find installer logs and state file (exclude deprovision — those are from teardown)
-gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
+gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
   | grep -E "\.openshift_install(_state\.json|.*\.log)$" | grep -v "deprovision"
 ```
 
@@ -687,7 +687,7 @@ human-readable failure mode — prefer it.
 
 ```bash
 # Find log bundles (metal bundles are gzipped; some cloud bundles are uncompressed .tar)
-gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
+gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
   | grep -E "log-bundle.*\.tar(\.gz)?$"
 ```
 
@@ -936,11 +936,11 @@ To determine which phase a step belongs to:
 
 ```bash
 # List all step directories
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/"
 
 # List artifacts for a specific step
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/{step-name}/"
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/{step-name}/artifacts/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/{step-name}/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/{step-name}/artifacts/"
 ```
 
 ### Step-Level Build Logs
@@ -948,7 +948,7 @@ gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/{
 For a failed step, download its `build-log.txt`:
 
 ```bash
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/{step-name}/build-log.txt" \
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/{step-name}/build-log.txt" \
   local/{step-name}-build-log.txt --no-user-output-enabled
 ```
 
@@ -963,7 +963,7 @@ Key differences from non-upgrade jobs:
 
 Upgrade jobs typically produce two timeline files (one per phase):
 ```bash
-gcloud storage ls "gs://test-platform-results/logs/{job_name}/{build_id}/artifacts/**/e2e-timelines_spyglass_*.json"
+gcloud storage ls "gs://test-platform-results-public/logs/{job_name}/{build_id}/artifacts/**/e2e-timelines_spyglass_*.json"
 ```
 
 The first file (sorted by filename) is the **upgrade phase**; the second is the
@@ -973,11 +973,11 @@ The first file (sorted by filename) is the **upgrade phase**; the second is the
 
 ```bash
 # Cluster version (shows upgrade progress)
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/clusterversion" \
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/clusterversion" \
   local/clusterversion --no-user-output-enabled
 
 # Cluster operators (shows operator status post-upgrade)
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/co" \
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/co" \
   local/co --no-user-output-enabled
 ```
 
@@ -1003,19 +1003,19 @@ The most reliable way to find artifacts:
 
 ```bash
 # List top-level contents
-gcloud storage ls "gs://test-platform-results/{bucket-path}/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/"
 
 # List step directories
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/"
 
 # Recursive search with glob
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/junit*.xml"
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/e2e-timelines_spyglass_*.json"
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/must-gather*"
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/*.tar"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/junit*.xml"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/e2e-timelines_spyglass_*.json"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/must-gather*"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/*.tar"
 
 # Recursive listing (pipe to grep for filtering)
-gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
+gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
   | grep -E "\.openshift_install.*\.log$" | grep -v "deprovision"
 ```
 

@@ -113,7 +113,7 @@ The structured data includes all necessary regression details:
       },
       "failed_runs": [
         {
-          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...",
           "job_run_id": "2017184460591599616",
           "start_time": "2026-01-30T10:33:47",
           "test_failures": 3,
@@ -126,7 +126,7 @@ The structured data includes all necessary regression details:
       "label_summary": {},
       "failed_runs": [
         {
-          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...",
           "job_run_id": "2016460830022832128",
           "start_time": "2026-01-28T10:37:27",
           "test_failures": 1,
@@ -141,7 +141,7 @@ The structured data includes all necessary regression details:
       "regression_id": 34446,
       "prowjob_run_id": "2044678206610477056",
       "prowjob_name": "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview",
-      "prowjob_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2044678206610477056",
+      "prowjob_url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2044678206610477056",
       "start_time": "2026-04-16T07:23:39Z",
       "test_failures": 3
     }
@@ -259,7 +259,7 @@ The API returns a JSON object with the following structure:
       "regression_id": 34446,
       "prowjob_run_id": "2044678206610477056",
       "prowjob_name": "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview",
-      "prowjob_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+      "prowjob_url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...",
       "start_time": "2026-04-16T07:23:39Z",
       "test_failures": 3
     }
@@ -323,7 +323,7 @@ python3 plugins/ci/skills/fetch-regression-details/fetch_regression_details.py 3
       "pass_sequence": "FFFFFFFFFFFFFFFFFF",
       "failed_runs": [
         {
-          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...",
           "job_run_id": "2017184460591599616",
           "start_time": "2026-01-30T10:33:47"
         }
@@ -359,7 +359,7 @@ Sample Failed Jobs (19 runs):
   - periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview
     Run ID: 2017184460591599616
     Started: 2026-01-30
-    URL: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+    URL: https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...
 ```
 
 ### Example 3: Extract Failed Job URLs
@@ -375,8 +375,8 @@ echo "$data" | jq -r '.sample_failed_jobs | to_entries[] | .value.failed_runs[] 
 
 **Expected Output:**
 ```
-https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2017184460591599616
-https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2017131608699572224
+https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2017184460591599616
+https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2017131608699572224
 ...
 ```
 
