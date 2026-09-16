@@ -45,6 +45,8 @@ def extract_build_id(value):
 
 def _origin(url):
     parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+        raise ValueError("URL must use HTTP(S) and include a hostname")
     default_port = 443 if parsed.scheme.lower() == "https" else 80
     return (parsed.scheme.lower(), (parsed.hostname or "").lower(), parsed.port or default_port)
 
@@ -54,8 +56,13 @@ class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
-        if redirected is not None and _origin(req.full_url) != _origin(newurl):
-            redirected.remove_header("Authorization")
+        if redirected is not None:
+            try:
+                same_origin = _origin(req.full_url) == _origin(newurl)
+            except ValueError:
+                same_origin = False
+            if not same_origin:
+                redirected.remove_header("Authorization")
         return redirected
 
 
@@ -121,6 +128,8 @@ def request_json(method, url, token, expected_status, payload=None):
         raise ClientError("connection error: %s" % exc.reason) from exc
     except (TimeoutError, socket.timeout) as exc:
         raise ClientError("request timed out connecting to the API") from exc
+    except ValueError as exc:
+        raise ClientError("invalid API URL or redirect: %s" % exc) from exc
     except (OSError, http.client.HTTPException) as exc:
         raise ClientError("connection error: %s" % exc) from exc
 
@@ -188,8 +197,12 @@ def submit(ids, token, dry_run):
 def poll_batch(submission, token, poll_interval):
     """Poll the returned status link until the batch reaches a terminal state."""
     batch_id = submission["batch_id"]
-    status_url = urllib.parse.urljoin(URL, submission["links"]["status"])
-    if _origin(URL) != _origin(status_url):
+    try:
+        status_url = urllib.parse.urljoin(URL, submission["links"]["status"])
+        status_origin = _origin(status_url)
+    except ValueError as exc:
+        raise ClientError("invalid links.status URL: %s" % exc) from exc
+    if _origin(URL) != status_origin:
         raise ClientError("refusing to send the Bearer token to a cross-origin status URL")
 
     while True:
