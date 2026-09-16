@@ -13,10 +13,10 @@ job failures.
 - **Prow UI URL**: `https://prow.ci.openshift.org/view/gs/test-platform-results-public/{bucket-path}`
 - **gcsweb URL**: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/{bucket-path}`
 
-**Important**: Prow URLs may show `origin-ci-test` in the path (e.g.,
-`/view/gs/origin-ci-test/logs/...`), but the actual GCS bucket is always
-`test-platform-results-public`. Always use `gs://test-platform-results-public/...` for `gcloud storage`
-commands.
+**Important**: `test-platform-results-public` is the default bucket for new
+searches. When a Prow or gcsweb URL is provided, use the bucket extracted from
+`/view/gs/`, `/view/gcs/`, or `/gcs/` in that URL. Do not rewrite it to
+`test-platform-results-public`.
 
 ### URL Formats
 

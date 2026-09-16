@@ -34,6 +34,8 @@ def test_archive_bucket_is_preserved():
            "periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn/1856789012345678848")
     bucket, path, build_id = parse_prow_url(url)
     assert bucket == "prow-artifact-archive"
+    assert path == ("logs/periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn/"
+                    "1856789012345678848")
     assert build_id == "1856789012345678848"
 
 

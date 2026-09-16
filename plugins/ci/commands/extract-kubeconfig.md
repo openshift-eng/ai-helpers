@@ -97,7 +97,7 @@ From the matching check, extract the `targetUrl` which points to the Prow job pa
 **Method A — Via GCS prowjob.json** (preferred when `gsutil` is installed and the job uses public `prow.ci.openshift.org`):
 
 Parse the GCS path from `targetUrl`:
-- Format: `https://prow.ci.openshift.org/view/gs/<bucket>/.../<build_id>`
+- Format: `/view/gs/<bucket>/...` (Prow UI) or `/gcs/<bucket>/...` (gcsweb)
 - Extract `<bucket>` and the object path after it
 - Download from `gs://<bucket>/<object-path>/prowjob.json`:
   ```bash
