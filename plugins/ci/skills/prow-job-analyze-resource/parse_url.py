@@ -11,8 +11,20 @@ import json
 
 # Prow: /view/gs/<bucket>/...  gcsweb: /gcs/<bucket>/...
 _GCS_PATH = re.compile(r"/(?:gs|gcs)/([^/]+)/(.+)$")
+# Restrict bucket and object-path segments so gcs_base_path cannot inject
+# shell metacharacters when interpolated into documented gcloud commands.
+_SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
 PUBLIC_BUCKET = "test-platform-results-public"
 LEGACY_BUCKET = "test-platform-results"
+
+
+def _require_safe_gcs_parts(bucket, bucket_path):
+    """Reject bucket or path segments that are not safe in a gs:// URI."""
+    if not _SAFE_SEGMENT.fullmatch(bucket):
+        raise ValueError(f"Unsafe GCS bucket name: {bucket!r}")
+    for segment in bucket_path.split("/"):
+        if not segment or not _SAFE_SEGMENT.fullmatch(segment):
+            raise ValueError(f"Unsafe GCS object path segment: {segment!r}")
 
 
 def parse_prowjob_url(url):
@@ -42,6 +54,7 @@ def parse_prowjob_url(url):
     parsed_bucket = match.group(1)
     bucket = PUBLIC_BUCKET if parsed_bucket == LEGACY_BUCKET else parsed_bucket
     bucket_path = match.group(2).rstrip("/")
+    _require_safe_gcs_parts(bucket, bucket_path)
 
     # Find build_id: at least 10 consecutive decimal digits delimited by /
     build_id_pattern = r"/(\d{10,})(?:/|$)"

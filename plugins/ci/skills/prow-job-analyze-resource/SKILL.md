@@ -147,18 +147,19 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
    - GCS path: `{gcs_base_path}artifacts/{target}/gather-extra/`
    - Local path: `.work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/`
    - For every download, create the local directory first and pass `--no-user-output-enabled` to `gcloud storage cp`.
+   - Assign `gcs_base_path` from `parse_url.py` and quote every expansion. Do not paste the raw URL into a shell command.
 
 2. **Download audit logs**
    ```bash
    mkdir -p .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs
-   gcloud storage cp -r {gcs_base_path}artifacts/{target}/gather-extra/artifacts/audit_logs/ .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs/ --no-user-output-enabled
+   gcloud storage cp -r "${gcs_base_path}artifacts/{target}/gather-extra/artifacts/audit_logs/" ".work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs/" --no-user-output-enabled
    ```
    - If directory not found, warn: "No audit logs found. Job may not have completed or audit logging may be disabled."
 
 3. **Download pod logs**
    ```bash
    mkdir -p .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods
-   gcloud storage cp -r {gcs_base_path}artifacts/{target}/gather-extra/artifacts/pods/ .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods/ --no-user-output-enabled
+   gcloud storage cp -r "${gcs_base_path}artifacts/{target}/gather-extra/artifacts/pods/" ".work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods/" --no-user-output-enabled
    ```
    - If directory not found, warn: "No pod logs found."
 

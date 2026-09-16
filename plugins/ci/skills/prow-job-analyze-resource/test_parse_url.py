@@ -56,6 +56,24 @@ class ParseProwjobURLTest(unittest.TestCase):
         self.assertIn("/gs/<bucket>/", str(ctx.exception))
         self.assertIn("/gcs/<bucket>/", str(ctx.exception))
 
+    def test_rejects_shell_metacharacters_in_bucket(self):
+        url = (
+            "https://prow.ci.openshift.org/view/gs/evil;id/"
+            "logs/job/1978913325970362368"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            parse_prowjob_url(url)
+        self.assertIn("Unsafe GCS bucket name", str(ctx.exception))
+
+    def test_rejects_shell_metacharacters_in_path(self):
+        url = (
+            "https://prow.ci.openshift.org/view/gs/test-platform-results-public/"
+            "logs/$(id)/1978913325970362368"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            parse_prowjob_url(url)
+        self.assertIn("Unsafe GCS object path segment", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
