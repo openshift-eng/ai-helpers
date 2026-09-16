@@ -126,27 +126,42 @@ def test_non_dry_run_submits_one_deduplicated_batch_and_polls_complete(monkeypat
     }
 
 
-def test_dry_run_uses_synchronous_200_and_preserves_results(monkeypatch, capsys):
-    response = {
-        "results": [{
-            "prow_job_build_id": "1",
-            "status": "success",
-            "symptoms_evaluated": 5,
-            "symptoms_matched": ["KnownFailure"],
-            "labels_applied": ["InfraFailure"],
-        }],
-        "links": {"self": client.URL},
+def test_dry_run_submits_202_and_polls_detailed_results(monkeypatch, capsys):
+    result = {
+        "prow_job_build_id": "1",
+        "status": "success",
+        "symptoms_evaluated": 5,
+        "symptoms_matched": ["KnownFailure"],
+        "labels_applied": ["InfraFailure"],
     }
-    calls = queue_responses(monkeypatch, FakeResponse(200, response))
+    running = batch_response(status="running", items=[
+        {"item_key": "1", "state": "running"},
+    ])
+    running.update(requested=1, enqueued=1, running=1, pending=0)
+    response = batch_response(items=[
+        {"item_key": "1", "state": "completed", "result": result},
+    ])
+    response.update(requested=1, enqueued=1, completed=1)
+    calls = queue_responses(
+        monkeypatch,
+        FakeResponse(202, {
+            "batch_id": "batch-1",
+            "requested": 1,
+            "links": {"status": client.URL + "/batch-1"},
+        }),
+        FakeResponse(200, running),
+        FakeResponse(200, response),
+    )
 
     assert client.main(["1", "--dry-run", "--token", "secret"]) == 0
     assert json.loads(capsys.readouterr().out) == response
-    assert len(calls) == 1
+    assert [call[0].get_method() for call in calls] == ["POST", "GET", "GET"]
     assert json.loads(calls[0][0].data)["dry_run"] is True
 
 
 @pytest.mark.parametrize("terminal", ["failed", "cancelled"])
-def test_failed_and_cancelled_batches_are_terminal_errors(monkeypatch, capsys, terminal):
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_failed_and_cancelled_batches_are_terminal_errors(monkeypatch, capsys, terminal, dry_run):
     queue_responses(
         monkeypatch,
         FakeResponse(202, {
@@ -157,7 +172,10 @@ def test_failed_and_cancelled_batches_are_terminal_errors(monkeypatch, capsys, t
         FakeResponse(200, batch_response(status=terminal)),
     )
 
-    assert client.main(["1", "2", "--token", "secret"]) == 1
+    args = ["1", "2", "--token", "secret"]
+    if dry_run:
+        args.append("--dry-run")
+    assert client.main(args) == 1
     assert json.loads(capsys.readouterr().out)["status"] == terminal
 
 
@@ -185,20 +203,34 @@ def test_summary_preserves_detailed_item_result(monkeypatch, capsys):
     assert '"labels_applied": [' in output
 
 
-def test_dry_run_summary_retains_existing_per_run_fields(monkeypatch, capsys):
-    queue_responses(monkeypatch, FakeResponse(200, {"results": [{
+def test_dry_run_summary_preserves_detailed_item_result(monkeypatch, capsys):
+    result = {
         "prow_job_build_id": "1",
         "status": "success",
         "symptoms_evaluated": 5,
         "symptoms_matched": ["KnownFailure"],
         "labels_applied": ["InfraFailure"],
-    }]}))
+    }
+    response = batch_response(items=[
+        {"item_key": "1", "state": "completed", "result": result},
+    ])
+    response.update(requested=1, enqueued=1, completed=1)
+    queue_responses(
+        monkeypatch,
+        FakeResponse(202, {
+            "batch_id": "batch-1",
+            "requested": 1,
+            "links": {"status": client.URL + "/batch-1"},
+        }),
+        FakeResponse(200, response),
+    )
 
     assert client.main(["1", "--dry-run", "--token", "secret", "--format", "summary"]) == 0
     output = capsys.readouterr().out
-    assert "Reevaluation (DRY RUN) — 1 runs processed" in output
-    assert "Symptoms evaluated: 5, matched: ['KnownFailure']" in output
-    assert "Labels applied: InfraFailure" in output
+    assert "Reevaluation (DRY RUN) — batch batch-1: complete" in output
+    assert "Run 1: completed" in output
+    assert '"symptoms_evaluated": 5' in output
+    assert '"labels_applied": [' in output
 
 
 def test_more_than_10000_unique_ids_is_rejected_before_network(monkeypatch, capsys):
@@ -234,16 +266,15 @@ def test_10000_ids_are_submitted_in_one_request(monkeypatch, capsys):
 @pytest.mark.parametrize(
     "response, message",
     [
-        (FakeResponse(200, "not json"), "malformed JSON"),
-        (FakeResponse(200, {}), "results array"),
+        (FakeResponse(202, "not json"), "malformed JSON"),
+        (FakeResponse(202, {}), "missing batch_id"),
         (FakeResponse(202, {"batch_id": "x", "requested": 1, "links": {}}), "links.status"),
     ],
 )
 def test_malformed_api_responses_are_controlled(monkeypatch, capsys, response, message):
     queue_responses(monkeypatch, response)
-    argv = ["1", "--token", "secret", "--dry-run"] if response.status == 200 else ["1", "--token", "secret"]
 
-    assert client.main(argv) == 1
+    assert client.main(["1", "--token", "secret"]) == 1
     assert message in capsys.readouterr().err
 
 

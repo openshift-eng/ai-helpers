@@ -1,7 +1,7 @@
 """Re-run Sippy symptom detection on completed Prow job runs.
 
-Non-dry-run requests are submitted as one asynchronous batch and polled until
-the batch reaches a terminal state. Dry runs retain the synchronous API path.
+Requests are submitted as one asynchronous batch and polled until the batch
+reaches a terminal state. Dry runs use the same flow without writing changes.
 """
 import argparse
 import http.client
@@ -139,12 +139,6 @@ def request_json(method, url, token, expected_status, payload=None):
         raise ClientError("server returned a malformed JSON response") from exc
 
 
-def _validate_dry_run_response(data):
-    if not isinstance(data, dict) or not isinstance(data.get("results"), list):
-        raise ClientError("dry-run response is missing a results array")
-    return data
-
-
 def _validate_submit_response(data):
     if not isinstance(data, dict):
         raise ClientError("submission response is not a JSON object")
@@ -180,15 +174,15 @@ def _validate_batch_response(data, batch_id):
 
 
 def submit(ids, token, dry_run):
-    """Submit one deduplicated request using the mode's expected wire contract."""
+    """Submit one deduplicated asynchronous request."""
     response = request_json(
         "POST",
         URL,
         token,
-        200 if dry_run else 202,
+        202,
         {"prow_job_build_ids": ids, "dry_run": dry_run},
     )
-    return _validate_dry_run_response(response) if dry_run else _validate_submit_response(response)
+    return _validate_submit_response(response)
 
 
 def poll_batch(submission, token, poll_interval):
@@ -207,27 +201,10 @@ def poll_batch(submission, token, poll_interval):
         time.sleep(poll_interval)
 
 
-def _print_result_summary(result):
-    print("Run %s: %s" % (result.get("prow_job_build_id", "?"), result.get("status")))
-    print("  Symptoms evaluated: %s, matched: %s" %
-          (result.get("symptoms_evaluated"), result.get("symptoms_matched")))
-    labels = result.get("labels_applied") or []
-    print("  Labels applied: %s" % (", ".join(map(str, labels)) if labels else "none"))
-    if result.get("error"):
-        print("  Error: %s" % result["error"])
-
-
-def print_dry_run_summary(response):
-    results = response["results"]
-    print("Reevaluation (DRY RUN) — %d runs processed" % len(results))
-    print("=" * 60)
-    for result in results:
-        _print_result_summary(result)
-
-
-def print_batch_summary(response):
-    print("Reevaluation (APPLIED) — batch %s: %s" %
-          (response["batch_id"], response["status"]))
+def print_batch_summary(response, dry_run=False):
+    mode = "DRY RUN" if dry_run else "APPLIED"
+    print("Reevaluation (%s) — batch %s: %s" %
+          (mode, response["batch_id"], response["status"]))
     print("=" * 60)
     print("Requested: %(requested)s, enqueued: %(enqueued)s, deduped: %(deduped)s" % response)
     print("Completed: %(completed)s, failed: %(failed)s, running: %(running)s, pending: %(pending)s" % response)
@@ -281,25 +258,22 @@ def main(argv=None):
 
     try:
         response = submit(ids, token, args.dry_run)
-        if not args.dry_run:
-            if response["requested"] != len(ids):
-                raise ClientError(
-                    "submission response requested %d items, expected %d" %
-                    (response["requested"], len(ids))
-                )
-            response = poll_batch(response, token, args.poll_interval)
+        if response["requested"] != len(ids):
+            raise ClientError(
+                "submission response requested %d items, expected %d" %
+                (response["requested"], len(ids))
+            )
+        response = poll_batch(response, token, args.poll_interval)
     except ClientError as exc:
         print("Error: %s" % exc, file=sys.stderr)
         return 1
 
     if args.format == "json":
         print(json.dumps(response, indent=2, sort_keys=True))
-    elif args.dry_run:
-        print_dry_run_summary(response)
     else:
-        print_batch_summary(response)
+        print_batch_summary(response, args.dry_run)
 
-    if not args.dry_run and response["status"] in ("failed", "cancelled"):
+    if response["status"] in ("failed", "cancelled"):
         return 1
     return 0
 
