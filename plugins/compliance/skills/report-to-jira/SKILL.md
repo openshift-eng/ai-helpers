@@ -345,9 +345,9 @@ for label in current_labels:
 
 ---
 
-## Integration with Parent Command
+## Integration with analyze-cve
 
-Called from **Phase 4** of `/compliance:analyze-cve` as the final step, after the report has been fully generated.
+Called from **Phase 4** of the [analyze-cve](../analyze-cve/SKILL.md) skill as the final step, after the report has been fully generated.
 
 **Input:** complete report content, CVE ID, risk level, `SOURCE_TICKET` (from Phase 0.5), `AUTO_APPROVE`
 **Output:** confirmation of comment and label posted to `SOURCE_TICKET`, or `status: skipped`/`failed` per above

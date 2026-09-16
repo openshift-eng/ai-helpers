@@ -2,15 +2,17 @@
 
 Security compliance and vulnerability analysis tools for Go projects.
 
-## Command
+## Skill
 
-### `/compliance:analyze-cve <CVE-ID> | --jira=<PROJ-NNN> | --jql="..." [--repo=<url-or-component>] [--algo=vta|rta|cha|static] [--auto-approve=yes|no]`
+### `analyze-cve`
+
+`/compliance:analyze-cve <CVE-ID> | --jira=<PROJ-NNN> | --jql="..." [--repo=<url-or-component>] [--algo=vta|rta|cha|static] [--auto-approve=yes|no]`
 
 Resolves and clones the affected Go repository, then analyzes it to determine CVE impact with multi-level confidence assessment. Can be driven directly by a CVE ID, or resolve the CVE (and the affected repository/branch) from a Jira ticket — single ticket or a JQL-selected queue — and, with approval, apply a fix and open a GitHub pull request.
 
 **Examples:**
 ```text
-/compliance:analyze-cve CVE-2024-24783 --repo=https://github.com/golang/net
+/compliance:analyze-cve CVE-2024-24783 --repo=https://github.com/openshift/hypershift
 /compliance:analyze-cve --jira=OCPBUGS-12345
 /compliance:analyze-cve --jql="project = OCPBUGS AND labels = needs-cve-analysis ORDER BY created ASC"
 ```
@@ -41,10 +43,10 @@ claude --print "/compliance:analyze-cve --jql=\"project = OCPBUGS AND labels = n
 
 ## Verification Levels
 
-The command uses multiple methods with increasing confidence:
+The skill uses multiple methods with increasing confidence:
 
 1. **Dependency check** → Confirms package presence
-2. **Static analysis** → Finds function usage  
+2. **Static analysis** → Finds function usage
 3. **govulncheck** → Official Go vulnerability scanner
 4. **Call graph reachability** → Proves execution path (HIGHEST confidence)
 5. **Context analysis** → Checks security controls
@@ -61,14 +63,14 @@ Jira/PR features require an Atlassian MCP server (or `jira-cli`) and, for PR cre
 
 ## Repository Resolution
 
-The command always analyzes a **cloned repository** (`REPO_DIR`, under `.work/compliance/analyze-cve/repos/`) — it does not analyze whatever directory it happens to be invoked from. Resolution order (see [Phase 0.7](commands/analyze-cve.md#phase-07-repository-resolution-and-cloning) for full detail):
+The skill always analyzes a **cloned repository** (`REPO_DIR`, under `.work/compliance/analyze-cve/repos/`) — it does not analyze whatever directory it happens to be invoked from. Resolution order (see [Phase 0.7](skills/analyze-cve/references/implementation.md#phase-07-repository-resolution-and-cloning) for full detail):
 
-1. A repo already cloned into `.work/compliance/analyze-cve/repos/` by a previous run (used automatically if there's exactly one, and `--repo=` wasn't passed)
+1. A repo already cloned into `.work/compliance/analyze-cve/repos/` by a previous run — in **direct-CVE mode**, reused automatically if there's exactly one and `--repo=` wasn't passed; in **Jira/JQL mode**, that sole candidate is validated against the ticket's resolved image and branch before reuse, not assumed
 2. `--repo=<url>` — a full GitHub URL, used directly
 3. `--repo=<short-name>` or a Jira ticket's extracted image name — resolved to a repo URL + branch via the [image-repo-mapping](skills/image-repo-mapping/SKILL.md) skill's static component table (including release repos that pin components as git submodules)
-4. Otherwise, the command prompts for a repo URL or image name (or hard-fails under `--auto-approve=yes`, since guessing a repo is a correctness risk, not a convenience trade-off)
+4. Otherwise, the skill prompts for a repo URL or image name (or hard-fails under `--auto-approve=yes`, since guessing a repo is a correctness risk, not a convenience trade-off)
 
-The [image-repo-mapping](skills/image-repo-mapping/SKILL.md) table is scoped to the components this command has been validated against — extend it as new components come up.
+The [image-repo-mapping](skills/image-repo-mapping/SKILL.md) table is scoped to the components this skill has been validated against — extend it as new components come up.
 
 ## Runtime Configuration
 
@@ -77,7 +79,7 @@ The [image-repo-mapping](skills/image-repo-mapping/SKILL.md) table is scoped to 
 
 ## Prerequisites
 
-**Required for all modes.** The command exits with an error if any are missing.
+**Required for all modes.** The skill exits with an error if any are missing.
 
 ```bash
 # Install all required Go tools
@@ -100,15 +102,15 @@ brew install graphviz  # macOS
 - `gh` (authenticated via `gh auth login`) - required only to create/update a GitHub PR (Phase 6)
 - An Atlassian MCP server or `jira-cli` - required only for `--jira=`/`--jql=` input modes and posting reports back to Jira
 
-The command validates required tools in Phase 0 and provides installation instructions if any are missing.
+The skill validates required tools in Phase 0 and provides installation instructions if any are missing.
 
 ## Fallback Mode
 
-If internet access fails, the command prompts for manual CVE information (description, affected packages, versions, fixes). Analysis proceeds with user-provided data, clearly marked in the report. In `--auto-approve=yes` mode there is no one to prompt, so this case exits with an error instead of fabricating CVE details.
+If internet access fails, the skill prompts for manual CVE information (description, affected packages, versions, fixes). Analysis proceeds with user-provided data, clearly marked in the report. In `--auto-approve=yes` mode there is no one to prompt, so this case exits with an error instead of fabricating CVE details.
 
 ## Autonomous Mode
 
-`--auto-approve=yes` answers every yes/no approval prompt in the pipeline (proceed past `NEEDS_REVIEW`, apply fixes, create a PR, post to Jira with reduced visibility if restricted posting isn't available) so the command can run end-to-end unattended. It never bypasses hard-fail safety checks: embargoed Jira tickets, ambiguous CVE matches within a ticket, or a fix-file allowlist that can't be determined all stop the run regardless of this flag. See the [`analyze-cve` command's Autonomous Mode section](commands/analyze-cve.md#autonomous-mode---auto-approveyesno) for the full decision table.
+`--auto-approve=yes` answers every yes/no approval prompt in the pipeline (proceed past `NEEDS_REVIEW`, apply fixes, create a PR, post to Jira with reduced visibility if restricted posting isn't available) so the skill can run end-to-end unattended. It never bypasses hard-fail safety checks: embargoed Jira tickets, ambiguous CVE matches within a ticket, or a fix-file allowlist that can't be determined all stop the run regardless of this flag. See the [`analyze-cve` skill's Autonomous Mode section](skills/analyze-cve/references/implementation.md#autonomous-mode---auto-approveyesno) for the full decision table.
 
 ## Report Includes
 
@@ -123,7 +125,7 @@ If internet access fails, the command prompts for manual CVE information (descri
 
 ### Basic usage
 ```text
-/compliance:analyze-cve CVE-2024-24783 --repo=https://github.com/golang/go
+/compliance:analyze-cve CVE-2024-24783 --repo=https://github.com/openshift/hypershift
 ```
 Clones the repo, analyzes it for the crypto/x509 vulnerability, provides upgrade command if affected.
 
