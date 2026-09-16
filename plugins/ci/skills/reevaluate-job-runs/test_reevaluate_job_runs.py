@@ -1,47 +1,26 @@
+import io
 import json
+import socket
+import urllib.error
+import urllib.request
 
 import pytest
-import reevaluate_job_runs
-from reevaluate_job_runs import extract_build_id, chunk, send_batch
 
-def test_plain_numeric_id():
-    assert extract_build_id("1856789012345678848") == "1856789012345678848"
-
-def test_prow_url():
-    url = ("https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/"
-           "periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn/1856789012345678848")
-    assert extract_build_id(url) == "1856789012345678848"
-
-def test_prow_url_trailing_slash():
-    assert extract_build_id("https://prow.ci.openshift.org/view/gs/b/logs/job/123456/") == "123456"
-
-def test_invalid_input_raises():
-    with pytest.raises(ValueError):
-        extract_build_id("not-a-build-id")
-
-def test_chunk_splits_evenly():
-    assert chunk([1, 2, 3, 4], 2) == [[1, 2], [3, 4]]
-
-def test_chunk_last_partial():
-    assert chunk([1, 2, 3], 2) == [[1, 2], [3]]
-
-def test_chunk_smaller_than_size():
-    assert chunk([1], 10) == [[1]]
-
-def test_url_with_query_string():
-    assert extract_build_id(
-        "https://prow.ci.openshift.org/view/gs/b/logs/job/123456?tab=x") == "123456"
-
-def test_url_with_fragment():
-    assert extract_build_id(
-        "https://prow.ci.openshift.org/view/gs/b/logs/job/123456#fragment") == "123456"
+import reevaluate_job_runs as client
 
 
 class FakeResponse:
-    def __init__(self, body):
-        self._body = body.encode("utf-8")
+    def __init__(self, status, body=None, read_error=None):
+        self.status = status
+        self._body = json.dumps(body).encode("utf-8") if not isinstance(body, str) else body.encode("utf-8")
+        self._read_error = read_error
+
+    def getcode(self):
+        return self.status
 
     def read(self):
+        if self._read_error:
+            raise self._read_error
         return self._body
 
     def __enter__(self):
@@ -51,62 +30,299 @@ class FakeResponse:
         return False
 
 
-def _patch_urlopen(monkeypatch, bodies):
-    """urlopen returns successive bodies from the list."""
+def queue_responses(monkeypatch, *responses):
     calls = []
+    pending = list(responses)
 
-    def fake_urlopen(req, timeout=None):
-        calls.append(req)
-        return FakeResponse(bodies[len(calls) - 1])
+    def fake_open(req, timeout=None):
+        calls.append((req, timeout))
+        response = pending.pop(0)
+        if isinstance(response, BaseException):
+            raise response
+        return response
 
-    monkeypatch.setattr(reevaluate_job_runs.urllib.request, "urlopen", fake_urlopen)
-    monkeypatch.setattr(reevaluate_job_runs.time, "sleep", lambda s: None)
+    monkeypatch.setattr(client.HTTP_OPENER, "open", fake_open)
+    monkeypatch.setattr(client.time, "sleep", lambda seconds: None)
     return calls
 
 
-def test_send_batch_json_success(monkeypatch):
-    body = json.dumps({"results": [{"prow_job_build_id": "1", "status": "success"}]})
-    calls = _patch_urlopen(monkeypatch, [body])
-    results, err, auth_failed = send_batch(["1"], "tok", True)
-    assert err is None
-    assert auth_failed is False
-    assert results == [{"prow_job_build_id": "1", "status": "success"}]
+def batch_response(batch_id="batch-1", status="complete", items=None):
+    return {
+        "batch_id": batch_id,
+        "status": status,
+        "requested": 2,
+        "enqueued": 2,
+        "deduped": 0,
+        "completed": 2 if status == "complete" else 0,
+        "failed": 2 if status == "failed" else 0,
+        "running": 0,
+        "pending": 0 if status in client.TERMINAL_STATES else 2,
+        "items": items if items is not None else [
+            {"item_key": "1", "state": "completed"},
+            {"item_key": "2", "state": "completed"},
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("1856789012345678848", "1856789012345678848"),
+        ("https://prow.ci.openshift.org/view/gs/b/logs/job/123456/", "123456"),
+        ("https://prow.ci.openshift.org/view/gs/b/logs/job/123456?tab=x", "123456"),
+        ("https://prow.ci.openshift.org/view/gs/b/logs/job/123456#fragment", "123456"),
+    ],
+)
+def test_extract_build_id(value, expected):
+    assert client.extract_build_id(value) == expected
+
+
+def test_invalid_input_raises():
+    with pytest.raises(ValueError, match="numeric build ID"):
+        client.extract_build_id("not-a-build-id")
+
+
+def test_resolve_token_precedence():
+    assert client.resolve_token("argtok", {"SIPPY_TOKEN": "envtok"}) == "argtok"
+    assert client.resolve_token(None, {"SIPPY_TOKEN": "envtok"}) == "envtok"
+    assert client.resolve_token(None, {}) is None
+
+
+def test_non_dry_run_submits_one_deduplicated_batch_and_polls_complete(monkeypatch, capsys):
+    result = {
+        "prow_job_build_id": "1",
+        "status": "success",
+        "symptoms_evaluated": 42,
+        "symptoms_matched": ["KnownFailure"],
+        "labels_applied": ["InfraFailure"],
+        "links": {"job_run": "https://prow.example/1"},
+    }
+    pending = batch_response(status="running")
+    pending.update(completed=0, running=1, pending=1)
+    complete = batch_response(items=[
+        {"item_key": "1", "state": "completed", "result": result},
+        {"item_key": "2", "state": "completed"},
+    ])
+    calls = queue_responses(
+        monkeypatch,
+        FakeResponse(202, {
+            "batch_id": "batch-1",
+            "requested": 2,
+            "links": {"status": "/api/jobs/runs/reevaluate/batch-1"},
+        }),
+        FakeResponse(200, pending),
+        FakeResponse(200, complete),
+    )
+
+    assert client.main(["2", "1", "2", "--token", "secret"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output == complete
+    assert output["items"][0]["result"] == result
+    assert [call[0].get_method() for call in calls] == ["POST", "GET", "GET"]
+    assert all(call[1] == client.REQUEST_TIMEOUT_SECONDS for call in calls)
+    assert json.loads(calls[0][0].data) == {
+        "prow_job_build_ids": ["1", "2"],
+        "dry_run": False,
+    }
+
+
+def test_dry_run_uses_synchronous_200_and_preserves_results(monkeypatch, capsys):
+    response = {
+        "results": [{
+            "prow_job_build_id": "1",
+            "status": "success",
+            "symptoms_evaluated": 5,
+            "symptoms_matched": ["KnownFailure"],
+            "labels_applied": ["InfraFailure"],
+        }],
+        "links": {"self": client.URL},
+    }
+    calls = queue_responses(monkeypatch, FakeResponse(200, response))
+
+    assert client.main(["1", "--dry-run", "--token", "secret"]) == 0
+    assert json.loads(capsys.readouterr().out) == response
+    assert len(calls) == 1
+    assert json.loads(calls[0][0].data)["dry_run"] is True
+
+
+@pytest.mark.parametrize("terminal", ["failed", "cancelled"])
+def test_failed_and_cancelled_batches_are_terminal_errors(monkeypatch, capsys, terminal):
+    queue_responses(
+        monkeypatch,
+        FakeResponse(202, {
+            "batch_id": "batch-1",
+            "requested": 2,
+            "links": {"status": client.URL + "/batch-1"},
+        }),
+        FakeResponse(200, batch_response(status=terminal)),
+    )
+
+    assert client.main(["1", "2", "--token", "secret"]) == 1
+    assert json.loads(capsys.readouterr().out)["status"] == terminal
+
+
+def test_summary_preserves_detailed_item_result(monkeypatch, capsys):
+    result = {"status": "rewrite_error", "error": "backend failed", "labels_applied": ["a", "b"]}
+    response = batch_response(items=[
+        {"item_key": "1", "state": "completed", "result": result},
+        {"item_key": "2", "state": "completed"},
+    ])
+    queue_responses(
+        monkeypatch,
+        FakeResponse(202, {
+            "batch_id": "batch-1",
+            "requested": 2,
+            "links": {"status": client.URL + "/batch-1"},
+        }),
+        FakeResponse(200, response),
+    )
+
+    assert client.main(["1", "2", "--token", "secret", "--format", "summary"]) == 0
+    output = capsys.readouterr().out
+    assert "Requested: 2, enqueued: 2, deduped: 0" in output
+    assert "Run 1: completed" in output
+    assert '"error": "backend failed"' in output
+    assert '"labels_applied": [' in output
+
+
+def test_dry_run_summary_retains_existing_per_run_fields(monkeypatch, capsys):
+    queue_responses(monkeypatch, FakeResponse(200, {"results": [{
+        "prow_job_build_id": "1",
+        "status": "success",
+        "symptoms_evaluated": 5,
+        "symptoms_matched": ["KnownFailure"],
+        "labels_applied": ["InfraFailure"],
+    }]}))
+
+    assert client.main(["1", "--dry-run", "--token", "secret", "--format", "summary"]) == 0
+    output = capsys.readouterr().out
+    assert "Reevaluation (DRY RUN) — 1 runs processed" in output
+    assert "Symptoms evaluated: 5, matched: ['KnownFailure']" in output
+    assert "Labels applied: InfraFailure" in output
+
+
+def test_more_than_10000_unique_ids_is_rejected_before_network(monkeypatch, capsys):
+    calls = queue_responses(monkeypatch)
+    ids = [str(value) for value in range(client.API_MAX_IDS + 1)]
+
+    assert client.main(ids + ["--token", "secret"]) == 1
+    assert "maximum 10000 unique job run IDs" in capsys.readouterr().err
+    assert calls == []
+
+
+def test_10000_ids_are_submitted_in_one_request(monkeypatch, capsys):
+    ids = [str(value) for value in range(client.API_MAX_IDS)]
+    terminal = batch_response()
+    terminal.update(requested=client.API_MAX_IDS, enqueued=client.API_MAX_IDS,
+                    completed=client.API_MAX_IDS, items=[])
+    calls = queue_responses(
+        monkeypatch,
+        FakeResponse(202, {
+            "batch_id": "batch-1",
+            "requested": client.API_MAX_IDS,
+            "links": {"status": client.URL + "/batch-1"},
+        }),
+        FakeResponse(200, terminal),
+    )
+
+    assert client.main(ids + ["--token", "secret"]) == 0
+    capsys.readouterr()
+    assert len(calls) == 2
+    assert len(json.loads(calls[0][0].data)["prow_job_build_ids"]) == client.API_MAX_IDS
+
+
+@pytest.mark.parametrize(
+    "response, message",
+    [
+        (FakeResponse(200, "not json"), "malformed JSON"),
+        (FakeResponse(200, {}), "results array"),
+        (FakeResponse(202, {"batch_id": "x", "requested": 1, "links": {}}), "links.status"),
+    ],
+)
+def test_malformed_api_responses_are_controlled(monkeypatch, capsys, response, message):
+    queue_responses(monkeypatch, response)
+    argv = ["1", "--token", "secret", "--dry-run"] if response.status == 200 else ["1", "--token", "secret"]
+
+    assert client.main(argv) == 1
+    assert message in capsys.readouterr().err
+
+
+def test_malformed_status_response_is_controlled(monkeypatch, capsys):
+    queue_responses(
+        monkeypatch,
+        FakeResponse(202, {
+            "batch_id": "batch-1", "requested": 1,
+            "links": {"status": client.URL + "/batch-1"},
+        }),
+        FakeResponse(200, {"batch_id": "batch-1", "status": "complete"}),
+    )
+
+    assert client.main(["1", "--token", "secret"]) == 1
+    assert "missing integer requested" in capsys.readouterr().err
+
+
+def test_http_api_error_is_controlled(monkeypatch, capsys):
+    error = urllib.error.HTTPError(
+        client.URL, 500, "Internal Server Error", {},
+        io.BytesIO(b'{"message":"database unavailable"}'),
+    )
+    queue_responses(monkeypatch, error)
+
+    assert client.main(["1", "--token", "secret"]) == 1
+    assert "HTTP 500: database unavailable" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "failure, expected",
+    [
+        (socket.timeout("connect timed out"), "timed out connecting"),
+        (urllib.error.URLError(socket.timeout("connect timed out")), "timed out connecting"),
+        (FakeResponse(202, read_error=socket.timeout("read timed out")), "timed out while reading"),
+    ],
+)
+def test_socket_and_read_timeouts_are_controlled(monkeypatch, capsys, failure, expected):
+    queue_responses(monkeypatch, failure)
+
+    assert client.main(["1", "--token", "secret"]) == 1
+    assert expected in capsys.readouterr().err
+
+
+def test_sso_login_page_is_controlled_auth_error(monkeypatch, capsys):
+    queue_responses(monkeypatch, FakeResponse(202, "<html>Log in to your account</html>"))
+
+    assert client.main(["1", "--token", "secret"]) == 1
+    assert "token is missing/expired" in capsys.readouterr().err
+
+
+def test_cross_origin_status_link_is_rejected_without_get(monkeypatch, capsys):
+    calls = queue_responses(monkeypatch, FakeResponse(202, {
+        "batch_id": "batch-1",
+        "requested": 1,
+        "links": {"status": "https://attacker.invalid/status/batch-1"},
+    }))
+
+    assert client.main(["1", "--token", "secret"]) == 1
+    assert "cross-origin status URL" in capsys.readouterr().err
     assert len(calls) == 1
 
 
-def test_send_batch_sso_login_page_no_retries(monkeypatch):
-    calls = _patch_urlopen(monkeypatch, ["<html><body>Log in to your account</body></html>"] * 3)
-    results, err, auth_failed = send_batch(["1"], "tok", True)
-    assert results is None
-    assert auth_failed is True
-    assert "token" in err
-    assert len(calls) == 1  # no retries on auth failure
+def test_redirect_handler_strips_auth_cross_origin_but_keeps_same_origin():
+    handler = client.SafeRedirectHandler()
+    original = urllib.request.Request(client.URL, headers={"Authorization": "Bearer secret"})
+
+    same = handler.redirect_request(
+        original, None, 302, "Found", {}, client.URL + "/batch-1"
+    )
+    cross = handler.redirect_request(
+        original, None, 302, "Found", {}, "https://other.invalid/batch-1"
+    )
+
+    assert same.get_header("Authorization") == "Bearer secret"
+    assert cross.get_header("Authorization") is None
 
 
-def test_send_batch_504_html_then_success(monkeypatch):
-    ok = json.dumps({"results": [{"prow_job_build_id": "1", "status": "success"}]})
-    calls = _patch_urlopen(monkeypatch, ["<html>504 Gateway Time-out</html>", ok])
-    results, err, auth_failed = send_batch(["1"], "tok", True)
-    assert err is None
-    assert auth_failed is False
-    assert len(results) == 1
-    assert len(calls) == 2
-
-
-def test_send_batch_plaintext_body_is_retryable(monkeypatch):
-    calls = _patch_urlopen(monkeypatch, ["not json at all"] * 3)
-    results, err, auth_failed = send_batch(["1"], "tok", True)
-    assert results is None
-    assert auth_failed is False
-    assert "non-JSON" in err
-    assert len(calls) == 3  # retried up to the limit
-
-
-def test_resolve_token_arg_wins_over_env():
-    assert reevaluate_job_runs.resolve_token("argtok", {"SIPPY_TOKEN": "envtok"}) == "argtok"
-
-def test_resolve_token_falls_back_to_env():
-    assert reevaluate_job_runs.resolve_token(None, {"SIPPY_TOKEN": "envtok"}) == "envtok"
-
-def test_resolve_token_none_when_unset():
-    assert reevaluate_job_runs.resolve_token(None, {}) is None
+def test_missing_token_and_invalid_poll_interval_are_validation_errors(capsys):
+    assert client.main(["1"]) == 1
+    assert "no token" in capsys.readouterr().err
+    assert client.main(["1", "--token", "secret", "--poll-interval", "0"]) == 1
+    assert "greater than zero" in capsys.readouterr().err
