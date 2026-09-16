@@ -51,8 +51,8 @@ dataset:
     Each case directory contains:
     - input.yaml: YAML file with fields:
       - 'prow_job_url' — a Prow job URL in either supported form:
-        https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>
-        or the gcsweb equivalent. The GCS bucket is always test-platform-results
+        https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job>/<build_id>
+        or the gcsweb equivalent. The GCS bucket is always test-platform-results-public
         (public, no auth). This is the only field consumed at execution time
         (execution.arguments renders '{prow_job_url}').
       - 'job_name' — the Prow job name (the <job> segment of the URL), recorded
@@ -118,7 +118,7 @@ dataset:
         penalized for omitting it, and must not be rewarded for asserting it
         without artifact evidence.
 
-    Analysis reads live artifacts from the public test-platform-results GCS bucket;
+    Analysis reads live artifacts from the public test-platform-results-public GCS bucket;
     no snapshot extraction is required. Run the setup script once to verify tooling:
       plugins/ci/evals/scripts/setup-prow-job-analysis.sh
 

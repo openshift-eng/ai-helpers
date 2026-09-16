@@ -28,15 +28,18 @@ Before starting, verify these prerequisites:
    - Installation guide: https://cloud.google.com/sdk/docs/install
 
 2. **gcloud Authentication (Optional)**
-   - The `test-platform-results` bucket is publicly accessible
+   - The `test-platform-results-public` bucket is publicly accessible
    - No authentication is required for read access
    - Skip authentication checks
 
 ## Input Format
 
 The user will provide:
-1. **Prow job URL** - gcsweb URL containing `test-platform-results/`
-   - Example: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/`
+1. **Prow job URL** - Prow UI (`/view/gs/<bucket>/`) or gcsweb (`/gcs/<bucket>/`)
+   - Example: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/`
+   - `<bucket>` is any non-empty segment after `/gs/` or `/gcs/`
+   - Use `parse_url.py`'s `bucket` and `gcs_base_path` for artifact reads.
+     Keep the URL bucket as-is, including `prow-artifact-archive`.
    - URL may or may not have trailing slash
 
 2. **Resource specifications** - Comma-delimited list in format `[namespace:][kind/]name`
@@ -54,9 +57,9 @@ The user will provide:
 ### Step 1: Parse and Validate URL
 
 1. **Extract bucket path**
-   - Find `test-platform-results/` in URL
-   - Extract everything after it as the GCS bucket relative path
-   - If not found, error: "URL must contain 'test-platform-results/'"
+   - Run `parse_url.py` (or find `/gs/<bucket>/` or `/gcs/<bucket>/` in the URL)
+   - Extract everything after the bucket name as the object path
+   - If not found, error: "URL must contain '/gs/<bucket>/' or '/gcs/<bucket>/'"
 
 2. **Extract build_id**
    - Search for pattern `/(\d{10,})/` in the bucket path
@@ -70,9 +73,9 @@ The user will provide:
    - Prowjob name: `pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn`
 
 4. **Construct GCS paths**
-   - Bucket: `test-platform-results`
-   - Base GCS path: `gs://test-platform-results/{bucket-path}/`
-   - Ensure path ends with `/`
+   - Use `parse_url.py` output: `bucket`, `bucket_path`, `gcs_base_path`
+   - Keep the URL bucket as-is, including `prow-artifact-archive`
+   - Ensure `gcs_base_path` ends with `/`
 
 ### Step 2: Parse Resource Specifications
 
@@ -139,21 +142,22 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
 ### Step 5: Download Audit Logs and Pod Logs
 
 1. **Construct gather-extra paths**
-   - GCS path: `gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/`
+   - GCS path: `{gcs_base_path}artifacts/{target}/gather-extra/`
    - Local path: `.work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/`
    - For every download, create the local directory first and pass `--no-user-output-enabled` to `gcloud storage cp`.
+   - Assign `gcs_base_path` from `parse_url.py` and quote every expansion. Do not paste the raw URL into a shell command.
 
 2. **Download audit logs**
    ```bash
    mkdir -p .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs
-   gcloud storage cp -r gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/audit_logs/ .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs/ --no-user-output-enabled
+   gcloud storage cp -r "${gcs_base_path}artifacts/{target}/gather-extra/artifacts/audit_logs/" ".work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs/" --no-user-output-enabled
    ```
    - If directory not found, warn: "No audit logs found. Job may not have completed or audit logging may be disabled."
 
 3. **Download pod logs**
    ```bash
    mkdir -p .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods
-   gcloud storage cp -r gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/ .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods/ --no-user-output-enabled
+   gcloud storage cp -r "${gcs_base_path}artifacts/{target}/gather-extra/artifacts/pods/" ".work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods/" --no-user-output-enabled
    ```
    - If directory not found, warn: "No pod logs found."
 
@@ -414,7 +418,7 @@ python3 plugins/ci/skills/prow-job-analyze-resource/generate_html_report.py \
 Handle these error scenarios by displaying a clear error message and actionable next steps:
 
 1. **Invalid URL format**
-   - Error: "URL must contain 'test-platform-results/' substring"
+   - Error: "URL must contain '/gs/<bucket>/' or '/gcs/<bucket>/'"
    - Provide example of valid URL
 
 2. **Build ID not found**
@@ -432,7 +436,7 @@ Handle these error scenarios by displaying a clear error message and actionable 
 
 5. **No access to bucket**
    - Error from gcloud storage commands
-   - Explain: "You need read access to the test-platform-results GCS bucket"
+   - Explain: "You need read access to the test-platform-results-public GCS bucket"
    - Suggest checking project access
 
 6. **prowjob.json not found**
@@ -485,7 +489,7 @@ Handle these error scenarios by displaying a clear error message and actionable 
 
 ### Example 1: Search for a namespace/project
 ```
-User: "Analyze e2e-test-project-api-p28m in this Prow job: https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-master-okd-scos-4.20-e2e-aws-ovn-techpreview/1964725888612306944"
+User: "Analyze e2e-test-project-api-p28m in this Prow job: https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/periodic-ci-openshift-release-master-okd-scos-4.20-e2e-aws-ovn-techpreview/1964725888612306944"
 
 Output:
 - Downloads artifacts to: .work/prow-job-analyze-resource/1964725888612306944/logs/
@@ -498,7 +502,7 @@ Output:
 
 ### Example 2: Search for a pod
 ```
-User: "Analyze pod/etcd-0 in this Prow job: https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/"
+User: "Analyze pod/etcd-0 in this Prow job: https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/"
 
 Output:
 - Creates: .work/prow-job-analyze-resource/1978913325970362368/etcd-0.html

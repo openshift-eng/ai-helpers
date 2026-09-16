@@ -147,7 +147,7 @@ artifacts/{target}/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_{ti
 
 ```bash
 # Find all timeline files for a job run
-gcloud storage ls "gs://test-platform-results/logs/{job_name}/{build_id}/artifacts/**/e2e-timelines_spyglass_*.json"
+gcloud storage ls "gs://test-platform-results-public/logs/{job_name}/{build_id}/artifacts/**/e2e-timelines_spyglass_*.json"
 ```
 
 ### JSON Structure

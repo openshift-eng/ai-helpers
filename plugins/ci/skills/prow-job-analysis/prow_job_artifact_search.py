@@ -2,11 +2,9 @@
 """
 Search and retrieve artifacts from Prow CI job runs stored in GCS.
 
-Provides list, search, and fetch operations against Prow's public GCS artifact
-buckets. Both the ``test-platform-results`` and ``prow-artifact-archive``
-buckets are supported; the correct one is detected automatically from the Prow
-URL. The buckets are PUBLIC (no authentication required), so this script works
-two ways:
+Provides list, search, and fetch operations against Prow GCS artifact buckets.
+URLs keep the bucket they name, including ``prow-artifact-archive``.
+Reads use the public HTTP API (no authentication). The script works two ways:
 
   1. If the `gcloud` CLI is installed, it is used (fast, native globbing).
   2. Otherwise it falls back to the public GCS JSON/download API over plain
@@ -54,10 +52,12 @@ import urllib.parse
 import urllib.request
 
 
-# Prow stores CI artifacts across two public (world-readable) GCS buckets.
-# The correct bucket for a given job is detected from the Prow URL by
-# parse_prow_url(), and every operation is scoped to that detected bucket.
-SUPPORTED_BUCKETS = ("test-platform-results", "prow-artifact-archive")
+_URL_PATTERNS = (
+    r"prow\.ci\.openshift\.org/view/gs/(?P<bucket>[^/]+)/(?P<path>.+?)/?$",
+    r"gcsweb-ci\.apps\.ci\.l2s4\.p1\.openshiftapps\.com/gcs/(?P<bucket>[^/]+)/(?P<path>.+?)/?$",
+    r"gs://(?P<bucket>[^/]+)/(?P<path>.+?)/?$",
+    r"storage\.googleapis\.com/(?P<bucket>[^/]+)/(?P<path>.+?)/?$",
+)
 DEFAULT_MAX_BYTES = 512 * 1024  # 512KB
 
 # Public GCS endpoints (no auth — the buckets are world-readable).
@@ -106,39 +106,29 @@ def gcloud_available():
 def parse_prow_url(url):
     """Extract the GCS bucket and path prefix from a Prow job URL.
 
-    Detects which supported bucket the URL refers to
-    (``test-platform-results`` or ``prow-artifact-archive``) and works with
-    either host format:
-      - https://prow.ci.openshift.org/view/gs/<bucket>/logs/<job>/<build_id>
-      - https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/<bucket>/logs/<job>/<build_id>
+    Accepts any non-empty bucket segment in:
+      - https://prow.ci.openshift.org/view/gs/<bucket>/<path>
+      - https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/<bucket>/<path>
+      - gs://<bucket>/<path>
+      - https://storage.googleapis.com/<bucket>/<path>
+
+    The URL bucket is used as-is, including ``prow-artifact-archive``.
+    A private bucket will 403 on fetch.
 
     Returns a ``(bucket, path)`` tuple where ``path`` is the portion after the
     bucket name, e.g.:
-      ("test-platform-results", "logs/<job>/<build_id>")
+      ("test-platform-results-public", "logs/<job>/<build_id>")
     """
-    # Alternation of the supported bucket names for use inside the URL patterns.
-    bucket_alt = "|".join(re.escape(b) for b in SUPPORTED_BUCKETS)
-    patterns = [
-        rf"prow\.ci\.openshift\.org/view/gs/(?P<bucket>{bucket_alt})/(?P<path>.+?)/?$",
-        rf"gcsweb-ci\.apps\.ci\.l2s4\.p1\.openshiftapps\.com/gcs/(?P<bucket>{bucket_alt})/(?P<path>.+?)/?$",
-    ]
-    for pat in patterns:
+    for pat in _URL_PATTERNS:
         m = re.search(pat, url)
         if m:
             return m.group("bucket"), m.group("path").rstrip("/")
 
-    # Fallback: look for a supported bucket name anywhere in the URL (e.g. a
-    # raw storage.googleapis.com or gs:// style reference).
-    for bucket in SUPPORTED_BUCKETS:
-        marker = f"{bucket}/"
-        if marker in url:
-            return bucket, url.split(marker, 1)[1].rstrip("/")
-
     raise ValueError(
         f"Cannot parse Prow URL: {url}\n"
-        "Expected a URL referencing one of the supported GCS buckets "
-        f"({' or '.join(SUPPORTED_BUCKETS)}), e.g.:\n"
-        "  https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>\n"
+        "Expected /view/gs/<bucket>/<path>, /gcs/<bucket>/<path>, "
+        "gs://<bucket>/<path>, or storage.googleapis.com/<bucket>/<path>, e.g.:\n"
+        "  https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job>/<build_id>\n"
         "  https://prow.ci.openshift.org/view/gs/prow-artifact-archive/logs/<job>/<build_id>"
     )
 
@@ -530,9 +520,9 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Search and retrieve artifacts from Prow CI job runs in GCS. "
-            "Supports both the test-platform-results and prow-artifact-archive "
-            "buckets (detected from the URL). Uses the gcloud CLI when "
-            "available, otherwise falls back to the public GCS HTTP API (no "
+            "Uses the bucket named in the URL (including "
+            "prow-artifact-archive). Uses the gcloud CLI when available, "
+            "otherwise falls back to the public GCS HTTP API (no "
             "auth or extra tooling required)."
         ),
     )

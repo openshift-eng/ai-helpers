@@ -3,6 +3,23 @@ import pytest
 from diagnose_job_run import parse_prow_url, normalize_label_entry, classify_response
 
 def test_parse_standard_prow_url():
+    url = ("https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/"
+           "periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn/1856789012345678848")
+    bucket, path, build_id = parse_prow_url(url)
+    assert bucket == "test-platform-results-public"
+    assert path == ("logs/periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn/"
+                    "1856789012345678848")
+    assert build_id == "1856789012345678848"
+
+def test_parse_pr_job_url():
+    url = ("https://prow.ci.openshift.org/view/gs/test-platform-results-public/pr-logs/pull/"
+           "openshift_origin/29000/pull-ci-openshift-origin-master-e2e/1856789012345678848/")
+    bucket, path, build_id = parse_prow_url(url)
+    assert bucket == "test-platform-results-public"
+    assert build_id == "1856789012345678848"
+    assert path.startswith("pr-logs/pull/") and path.endswith(build_id)
+
+def test_url_bucket_is_preserved():
     url = ("https://prow.ci.openshift.org/view/gs/test-platform-results/logs/"
            "periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn/1856789012345678848")
     bucket, path, build_id = parse_prow_url(url)
@@ -11,23 +28,26 @@ def test_parse_standard_prow_url():
                     "1856789012345678848")
     assert build_id == "1856789012345678848"
 
-def test_parse_pr_job_url():
-    url = ("https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/"
-           "openshift_origin/29000/pull-ci-openshift-origin-master-e2e/1856789012345678848/")
+
+def test_archive_bucket_is_preserved():
+    url = ("https://prow.ci.openshift.org/view/gs/prow-artifact-archive/logs/"
+           "periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn/1856789012345678848")
     bucket, path, build_id = parse_prow_url(url)
-    assert bucket == "test-platform-results"
+    assert bucket == "prow-artifact-archive"
+    assert path == ("logs/periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn/"
+                    "1856789012345678848")
     assert build_id == "1856789012345678848"
-    assert path.startswith("pr-logs/pull/") and path.endswith(build_id)
+
 
 def test_rejects_non_prow_url():
     with pytest.raises(ValueError):
         parse_prow_url("https://example.com/foo")
 
 def test_parse_url_with_query_string_and_fragment():
-    url = ("https://prow.ci.openshift.org/view/gs/test-platform-results/logs/"
+    url = ("https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/"
            "some-job/1856789012345678848?tab=x#top")
     bucket, path, build_id = parse_prow_url(url)
-    assert bucket == "test-platform-results"
+    assert bucket == "test-platform-results-public"
     assert build_id == "1856789012345678848"
     assert path == "logs/some-job/1856789012345678848"
 

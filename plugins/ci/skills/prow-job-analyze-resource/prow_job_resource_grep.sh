@@ -5,7 +5,7 @@
 # Usage: prow_job_resource_grep.sh <prowjob-url> <resource-spec1> [<resource-spec2> ...]
 #
 # Example: prow_job_resource_grep.sh \
-#   "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/" \
+#   "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/" \
 #   pod/etcd-0
 #
 

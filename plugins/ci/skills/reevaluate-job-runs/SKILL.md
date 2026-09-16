@@ -69,7 +69,7 @@ Always suggest a `--dry-run` first — it reports what would match without writi
 
 ```bash
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
-  https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id> --dry-run --format summary
+  https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job>/<build_id> --dry-run --format summary
 ```
 
 ### Step 3: Apply

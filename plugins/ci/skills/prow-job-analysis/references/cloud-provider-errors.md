@@ -40,7 +40,7 @@ creation — typically environment issues rather than product bugs;
 Find installer logs (exclude teardown to isolate provisioning):
 
 ```bash
-gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
+gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
   | grep -E "\.openshift_install.*\.log$" | grep -v deprovision
 ```
 
@@ -236,7 +236,7 @@ worsen over time; hard-limit errors like `UsersPerAccount: 5000`.
 Inspect teardown (do NOT confuse with provisioning logs):
 
 ```bash
-gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
+gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
   | grep -E "deprovision|ipi-deprovision-deprovision"
 ```
 

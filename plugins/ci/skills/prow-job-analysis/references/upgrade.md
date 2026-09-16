@@ -327,14 +327,14 @@ MCO drain timeout on node X
 
 1. **Check MachineConfigPool status**:
    ```bash
-   gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/machineconfigpool" \
+   gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/machineconfigpool" \
      .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
    ```
    Look for pools with `UPDATED=False UPDATING=True DEGRADED=True`
 
 2. **Check machine-config-daemon logs**:
    ```bash
-   gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-machine-config-operator/"
+   gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-machine-config-operator/"
    ```
    Search for `drain` and `evict` messages in the MCD pod logs
 
@@ -596,7 +596,7 @@ This is the most dangerous state because:
 **Identifying partial upgrade state**:
 ```bash
 # Check ClusterOperator versions
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/co" \
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/co" \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
 
 # In the output, check VERSION column — mixed versions indicate partial upgrade
@@ -843,11 +843,11 @@ Cloud provider issues that manifest during upgrade.
 **Key artifacts**:
 ```bash
 # Machine objects
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/machines" \
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/machines" \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
 
 # Cloud controller manager logs
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-cloud-controller-manager*/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-cloud-controller-manager*/"
 ```
 
 ### 2. MCO Drain/Reboot Failures
@@ -871,7 +871,7 @@ An operator's new version crashes or can't reconcile.
 **Diagnosis**:
 - Check the operator's pod logs for the new version:
   ```bash
-  gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-{operator-namespace}/"
+  gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-{operator-namespace}/"
   ```
 - Look for Go panics, nil pointer dereferences, or `unknown field` errors
 - Check if the operator's CRDs were updated before or after the operator pods
@@ -907,7 +907,7 @@ etcd is the most sensitive component during upgrade.
 **Key artifacts**:
 ```bash
 # etcd pod logs
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/"
 ```
 
 ### 5. Webhook/Admission Failures Blocking Upgrades
@@ -922,7 +922,7 @@ Webhooks can block CVO manifest application.
 **Diagnosis**:
 - Check CVO logs for the specific webhook and manifest:
   ```bash
-  gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-cluster-version/"
+  gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-cluster-version/"
   ```
 - Identify which webhook is blocking and why
 - Check if the webhook pod itself is healthy
@@ -974,7 +974,7 @@ Network plugin upgrades are particularly sensitive.
 **Diagnosis**:
 - Check OVN pod status on each node:
   ```bash
-  gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-ovn-kubernetes/"
+  gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-ovn-kubernetes/"
   ```
 - Look for `OVSVswitchdLog` events in timeline data
 - Check node-to-node connectivity in disruption data (host-to-host backends)

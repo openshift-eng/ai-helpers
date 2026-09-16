@@ -1,4 +1,4 @@
-prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-main-ci-5.0-e2e-aws-ovn-techpreview-serial-3of3/2064593739652796416"
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-main-ci-5.0-e2e-aws-ovn-techpreview-serial-3of3/2064593739652796416"
 job_name: "periodic-ci-openshift-release-main-ci-5.0-e2e-aws-ovn-techpreview-serial-3of3"
 description: >-
   5.0 aws-ovn techpreview serial periodic (shard 3of3, payload

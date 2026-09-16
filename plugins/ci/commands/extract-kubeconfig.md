@@ -46,7 +46,7 @@ The command accepts:
 
 3. **Google Cloud Storage (`gsutil`)** (optional)
    - Check if installed: `which gsutil`
-   - No authentication needed (test-platform-results bucket is public)
+   - No authentication needed (test-platform-results-public bucket is public)
    - If not installed, the command falls back to finding the build cluster from the job config in the openshift/release repo
 
 4. **PR in openshift/release repository**
@@ -97,11 +97,11 @@ From the matching check, extract the `targetUrl` which points to the Prow job pa
 **Method A — Via GCS prowjob.json** (preferred when `gsutil` is installed and the job uses public `prow.ci.openshift.org`):
 
 Parse the GCS path from `targetUrl`:
-- Format: `https://prow.ci.openshift.org/view/gs/test-platform-results/.../<build_id>`
-- Extract the GCS base: `gs://test-platform-results/.../<build_id>`
-- Download `prowjob.json` and extract `spec.cluster`:
+- Format: `/view/gs/<bucket>/...` (Prow UI) or `/gcs/<bucket>/...` (gcsweb)
+- Extract `<bucket>` and the object path after it
+- Download from `gs://<bucket>/<object-path>/prowjob.json`:
   ```bash
-  gsutil cp "<gcs_base>/prowjob.json" /tmp/prowjob.json
+  gsutil cp "gs://<bucket>/<object-path>/prowjob.json" /tmp/prowjob.json
   ```
 
 **Method B — Via job config in openshift/release repo** (fallback when `gsutil` is not installed, or when the job uses `qe-private-deck`):

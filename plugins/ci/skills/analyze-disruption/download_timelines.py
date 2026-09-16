@@ -20,7 +20,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-GCS_BUCKET = "test-platform-results"
+GCS_BUCKET = "test-platform-results-public"
 
 
 def check_gcloud():

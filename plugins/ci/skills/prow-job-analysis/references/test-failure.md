@@ -42,7 +42,7 @@ line (see [flaky-test-identification.md](flaky-test-identification.md#junit-inte
 
 ```bash
 # openshift-tests results
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/openshift-e2e-test/artifacts/junit/junit_e2e_*.xml" \
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/openshift-e2e-test/artifacts/junit/junit_e2e_*.xml" \
   .work/prow-job-analysis/{build_id}/ --no-user-output-enabled
 ```
 
@@ -112,8 +112,8 @@ full tree in [artifacts.md](artifacts.md)):
 
 ```bash
 # Cluster operator status and events at gather time
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/co" .work/prow-job-analysis/{build_id}/ --no-user-output-enabled
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/events" .work/prow-job-analysis/{build_id}/ --no-user-output-enabled
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/co" .work/prow-job-analysis/{build_id}/ --no-user-output-enabled
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/events" .work/prow-job-analysis/{build_id}/ --no-user-output-enabled
 ```
 
 ---
@@ -125,7 +125,7 @@ window, then look for an operator/event transition inside it.
 
 ```bash
 # Interval (timeline) files — nested at unpredictable depth
-gcloud storage ls 'gs://test-platform-results/{bucket-path}/**/e2e-timelines_spyglass_*.json'
+gcloud storage ls 'gs://test-platform-results-public/{bucket-path}/**/e2e-timelines_spyglass_*.json'
 ```
 
 1. **Window** — find the interval with `source="E2ETest"` and
@@ -166,7 +166,7 @@ container. That log holds the originating error:
 
 ```bash
 # gather-extra keeps current.log and previous.log per container
-gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/{namespace}/" \
+gcloud storage cp -r "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/{namespace}/" \
   .work/prow-job-analysis/{build_id}/pods/ --no-user-output-enabled
 # read {pod}/{container}/previous.log — the panic/fatal/config error that caused the restart
 ```
