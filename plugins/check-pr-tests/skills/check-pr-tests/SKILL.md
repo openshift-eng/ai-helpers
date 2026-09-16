@@ -1,6 +1,6 @@
 ---
 name: check-pr-tests
-description: Deep test coverage verification and CI validation for GitHub PRs linked to Jira issues
+description: Use when verifying test coverage and Prow CI for a GitHub PR linked to a Jira issue (optional PR comment with --execute)
 allowed-tools: Bash(gh *) Bash(jq *) Bash(curl *) Bash(python3 *) Bash(sed *) Bash(grep *) Bash(cat *) mcp__plugin_jira_atlassian__getAccessibleAtlassianResources mcp__plugin_jira_atlassian__getJiraIssue mcp__plugin_jira_atlassian__searchJiraIssuesUsingJql mcp__plugin_jira_atlassian__getJiraIssueRemoteIssueLinks
 ---
 

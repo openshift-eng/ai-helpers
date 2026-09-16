@@ -1,4 +1,5 @@
 ---
+name: check-pr-tests:check-pr-tests
 description: Verify test coverage and CI results for a GitHub PR linked to a Jira issue
 argument-hint: <pr-url> [count] [--execute | --dry-run]
 ---
