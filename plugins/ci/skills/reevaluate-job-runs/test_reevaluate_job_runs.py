@@ -337,6 +337,20 @@ def test_cross_origin_status_link_is_rejected_without_get(monkeypatch, capsys):
     assert len(calls) == 1
 
 
+def test_invalid_port_in_status_link_is_a_controlled_error(monkeypatch, capsys):
+    calls = queue_responses(monkeypatch, FakeResponse(202, {
+        "batch_id": "batch-1",
+        "requested": 1,
+        "links": {"status": "https://sippy-auth.dptools.openshift.org:bad/status"},
+    }))
+
+    assert client.main(["1", "--token", "secret"]) == 1
+    error = capsys.readouterr().err
+    assert "invalid links.status URL" in error
+    assert "Port could not be cast" in error
+    assert len(calls) == 1
+
+
 def test_redirect_handler_strips_auth_cross_origin_but_keeps_same_origin():
     handler = client.SafeRedirectHandler()
     original = urllib.request.Request(client.URL, headers={"Authorization": "Bearer secret"})
