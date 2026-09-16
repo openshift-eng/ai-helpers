@@ -40,6 +40,8 @@ STREAM_TYPES = ("nightly", "ci")
 
 GCSWEB_BASE = "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs"
 PROW_VIEW_PREFIX = "https://prow.ci.openshift.org/view/gs/"
+PUBLIC_GCS_BUCKET = "test-platform-results-public"
+LEGACY_GCS_BUCKET = "test-platform-results"
 
 PROW_STATE_MAP = {
     "success": "Succeeded",
@@ -240,9 +242,9 @@ class ReleaseController:
 
     def resolve_prow_state(self, prow_url: str) -> Optional[str]:
         """Cross-check a Prow job's actual state via its GCS artifact."""
-        if not prow_url or not prow_url.startswith(PROW_VIEW_PREFIX):
+        gcs_path = _prow_url_to_gcs_bucket_path(prow_url)
+        if not gcs_path:
             return None
-        gcs_path = prow_url[len(PROW_VIEW_PREFIX):]
         prowjob_url = f"{GCSWEB_BASE}/{gcs_path}/prowjob.json"
         data = try_fetch_json(prowjob_url)
         if not data:
@@ -3629,14 +3631,23 @@ def _new_changelog_entries(new_changelog: str, old_changelog: str) -> str:
     return "".join(kept).strip("\n")
 
 
+def _remap_legacy_gcs_bucket(gcs_path: str) -> str:
+    """Rewrite only the legacy results bucket; leave every other bucket intact."""
+    legacy_prefix = LEGACY_GCS_BUCKET + "/"
+    if gcs_path == LEGACY_GCS_BUCKET or gcs_path.startswith(legacy_prefix):
+        return PUBLIC_GCS_BUCKET + gcs_path[len(LEGACY_GCS_BUCKET):]
+    return gcs_path
+
+
 def _prow_url_to_gcs_bucket_path(prow_url: str) -> Optional[str]:
     """Extract the GCS bucket path from a Prow URL.
 
-    Returns '<bucket>/logs/{job}/{build_id}' (bucket taken from the Prow URL) or None.
+    Returns '<bucket>/logs/{job}/{build_id}' (bucket taken from the Prow URL,
+    with test-platform-results remapped to test-platform-results-public) or None.
     """
     if not prow_url or not prow_url.startswith(PROW_VIEW_PREFIX):
         return None
-    return prow_url[len(PROW_VIEW_PREFIX):]
+    return _remap_legacy_gcs_bucket(prow_url[len(PROW_VIEW_PREFIX):])
 
 
 def _extract_jobs(payload_data: dict, version: str = "") -> list[JobInfo]:

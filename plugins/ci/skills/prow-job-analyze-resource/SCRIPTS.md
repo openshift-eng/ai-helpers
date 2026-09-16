@@ -115,41 +115,55 @@ Complete workflow for analyzing a resource:
 
 ```bash
 # 1. Set variables
-BUILD_ID="1964725888612306944"
+PROW_URL="https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/periodic-ci-openshift-release-master-okd-scos-4.20-e2e-aws-ovn-techpreview/1964725888612306944"
 RESOURCE_PATTERN="e2e-test-project-api-p28m"
 RESOURCE_NAME="e2e-test-project-api-p28mx"
-PROWJOB_NAME="periodic-ci-openshift-release-master-okd-scos-4.20-e2e-aws-ovn-techpreview"
 TARGET="e2e-aws-ovn-techpreview"
-GCSWEB_URL="https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/${PROWJOB_NAME}/${BUILD_ID}"
 
-# 2. Create working directory
+# 2. Resolve bucket and path from the job URL.
+# parse_url.py remaps only test-platform-results to test-platform-results-public;
+# other buckets (including prow-artifact-archive) are kept as-is.
+eval "$(
+  python3 plugins/ci/skills/prow-job-analyze-resource/parse_url.py "$PROW_URL" \
+  | python3 -c 'import json, shlex, sys
+d = json.load(sys.stdin)
+print("BUILD_ID=" + shlex.quote(d["build_id"]))
+print("PROWJOB_NAME=" + shlex.quote(d["prowjob_name"]))
+print("GCS_BASE_PATH=" + shlex.quote(d["gcs_base_path"]))
+print("BUCKET=" + shlex.quote(d["bucket"]))
+print("BUCKET_PATH=" + shlex.quote(d["bucket_path"]))
+'
+)"
+GCSWEB_URL="https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/${BUCKET}/${BUCKET_PATH}"
+
+# 3. Create working directory
 mkdir -p .work/prow-job-analyze-resource/${BUILD_ID}/logs
 mkdir -p .work/prow-job-analyze-resource/${BUILD_ID}/tmp
 
-# 3. Download prowjob.json
+# 4. Download prowjob.json
 gcloud storage cp \
-  gs://test-platform-results-public/logs/${PROWJOB_NAME}/${BUILD_ID}/prowjob.json \
+  "${GCS_BASE_PATH}prowjob.json" \
   .work/prow-job-analyze-resource/${BUILD_ID}/logs/prowjob.json \
   --no-user-output-enabled
 
-# 4. Download audit logs
+# 5. Download audit logs
 mkdir -p .work/prow-job-analyze-resource/${BUILD_ID}/logs/artifacts/${TARGET}/gather-extra/artifacts/audit_logs
 gcloud storage cp -r \
-  gs://test-platform-results-public/logs/${PROWJOB_NAME}/${BUILD_ID}/artifacts/${TARGET}/gather-extra/artifacts/audit_logs/ \
+  "${GCS_BASE_PATH}artifacts/${TARGET}/gather-extra/artifacts/audit_logs/" \
   .work/prow-job-analyze-resource/${BUILD_ID}/logs/artifacts/${TARGET}/gather-extra/artifacts/audit_logs/ \
   --no-user-output-enabled
 
-# 5. Parse audit logs
+# 6. Parse audit logs
 python3 plugins/ci/skills/prow-job-analyze-resource/parse_all_logs.py \
   ${RESOURCE_PATTERN} \
   .work/prow-job-analyze-resource/${BUILD_ID}/logs/artifacts/${TARGET}/gather-extra/artifacts/audit_logs \
   > .work/prow-job-analyze-resource/${BUILD_ID}/tmp/audit_entries.json 2>&1
 
-# 6. Clean JSON output
+# 7. Clean JSON output
 tail -n +3 .work/prow-job-analyze-resource/${BUILD_ID}/tmp/audit_entries.json \
   > .work/prow-job-analyze-resource/${BUILD_ID}/tmp/audit_entries_clean.json
 
-# 7. Generate HTML report
+# 8. Generate HTML report
 python3 plugins/ci/skills/prow-job-analyze-resource/generate_html_report.py \
   .work/prow-job-analyze-resource/${BUILD_ID}/tmp/audit_entries_clean.json \
   "${PROWJOB_NAME}" \
@@ -158,7 +172,7 @@ python3 plugins/ci/skills/prow-job-analyze-resource/generate_html_report.py \
   "${RESOURCE_NAME}" \
   "${GCSWEB_URL}"
 
-# 8. Open report in browser
+# 9. Open report in browser
 xdg-open .work/prow-job-analyze-resource/${BUILD_ID}/${RESOURCE_NAME}.html
 ```
 
