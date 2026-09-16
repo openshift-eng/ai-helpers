@@ -39,10 +39,8 @@ The user will provide:
    Any non-empty bucket segment is accepted.
 2. Extract the object path after the bucket name, then `build_id` — pattern
    `(\d{10,})` in the path.
-3. Remap `test-platform-results` to `test-platform-results-public`. Keep any
-   other parsed bucket, including `prow-artifact-archive`.
-4. Construct GCS base: `gs://{bucket}/{bucket-path}/`. Do not use
-   `gs://test-platform-results/...`; that bucket is not publicly readable.
+3. Construct GCS base: `gs://{bucket}/{bucket-path}/` using the URL bucket
+   as-is, including `prow-artifact-archive`. A private bucket will 403.
 
 ### Step 2: Fetch prowjob.json
 
@@ -179,8 +177,8 @@ https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/{job}/{b
 https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/{job}/{build_id}
 ```
 
-Use the bucket from Step 1 (`test-platform-results-public` after remapping
-legacy `test-platform-results`, or `prow-artifact-archive` when the URL names it).
+Use the bucket from Step 1 as named in the URL (`test-platform-results-public`
+or `prow-artifact-archive` when the URL names it).
 
 ## Tips
 

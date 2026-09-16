@@ -14,8 +14,6 @@ _GCS_PATH = re.compile(r"/(?:gs|gcs)/([^/]+)/(.+)$")
 # Restrict bucket and object-path segments so gcs_base_path cannot inject
 # shell metacharacters when interpolated into documented gcloud commands.
 _SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
-PUBLIC_BUCKET = "test-platform-results-public"
-LEGACY_BUCKET = "test-platform-results"
 
 
 def _require_safe_gcs_parts(bucket, bucket_path):
@@ -33,8 +31,7 @@ def parse_prowjob_url(url):
 
     Args:
         url: prow or gcsweb URL containing /gs/<bucket>/ or /gcs/<bucket>/.
-            A legacy test-platform-results URL is remapped to the public bucket
-            for GCS paths; that bucket is not publicly readable.
+            The bucket from the URL is used as-is.
 
     Returns:
         dict with keys: bucket, bucket_path, build_id, prowjob_name, gcs_base_path
@@ -51,8 +48,7 @@ def parse_prowjob_url(url):
             "pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/"
         )
 
-    parsed_bucket = match.group(1)
-    bucket = PUBLIC_BUCKET if parsed_bucket == LEGACY_BUCKET else parsed_bucket
+    bucket = match.group(1)
     bucket_path = match.group(2).rstrip("/")
     _require_safe_gcs_parts(bucket, bucket_path)
 

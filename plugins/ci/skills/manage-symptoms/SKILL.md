@@ -133,7 +133,7 @@ Defining a symptom with a label is not enough — the label is only applied to a
 
    ```bash
    python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
-     https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id> --dry-run --format summary
+     https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job>/<build_id> --dry-run --format summary
    ```
 
 2. Rerun without `--dry-run` to actually write the labels, and confirm each run's response shows the label under `labels_applied`:

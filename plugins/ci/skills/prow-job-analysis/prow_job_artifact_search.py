@@ -3,10 +3,8 @@
 Search and retrieve artifacts from Prow CI job runs stored in GCS.
 
 Provides list, search, and fetch operations against Prow GCS artifact buckets.
-URLs may name any bucket; legacy ``test-platform-results`` is remapped to
-``test-platform-results-public`` for reads. Other names, including
-``prow-artifact-archive``, are kept. Reads use the public HTTP API (no
-authentication). The script works two ways:
+URLs keep the bucket they name, including ``prow-artifact-archive``.
+Reads use the public HTTP API (no authentication). The script works two ways:
 
   1. If the `gcloud` CLI is installed, it is used (fast, native globbing).
   2. Otherwise it falls back to the public GCS JSON/download API over plain
@@ -54,11 +52,6 @@ import urllib.parse
 import urllib.request
 
 
-# Legacy test-platform-results is remapped to test-platform-results-public
-# because the old bucket is not publicly readable. Any other URL bucket
-# (including prow-artifact-archive) is used as-is.
-PUBLIC_BUCKET = "test-platform-results-public"
-LEGACY_BUCKET = "test-platform-results"
 _URL_PATTERNS = (
     r"prow\.ci\.openshift\.org/view/gs/(?P<bucket>[^/]+)/(?P<path>.+?)/?$",
     r"gcsweb-ci\.apps\.ci\.l2s4\.p1\.openshiftapps\.com/gcs/(?P<bucket>[^/]+)/(?P<path>.+?)/?$",
@@ -110,13 +103,6 @@ def gcloud_available():
     return _GCLOUD_AVAILABLE
 
 
-def _readable_bucket(bucket):
-    """Map a URL bucket name to the bucket used for GCS reads."""
-    if bucket == LEGACY_BUCKET:
-        return PUBLIC_BUCKET
-    return bucket
-
-
 def parse_prow_url(url):
     """Extract the GCS bucket and path prefix from a Prow job URL.
 
@@ -126,10 +112,8 @@ def parse_prow_url(url):
       - gs://<bucket>/<path>
       - https://storage.googleapis.com/<bucket>/<path>
 
-    Legacy ``test-platform-results`` is remapped to
-    ``test-platform-results-public`` (same object path). The old bucket is not
-    publicly readable. Other names, including ``prow-artifact-archive``, are
-    kept.
+    The URL bucket is used as-is, including ``prow-artifact-archive``.
+    A private bucket will 403 on fetch.
 
     Returns a ``(bucket, path)`` tuple where ``path`` is the portion after the
     bucket name, e.g.:
@@ -138,7 +122,7 @@ def parse_prow_url(url):
     for pat in _URL_PATTERNS:
         m = re.search(pat, url)
         if m:
-            return _readable_bucket(m.group("bucket")), m.group("path").rstrip("/")
+            return m.group("bucket"), m.group("path").rstrip("/")
 
     raise ValueError(
         f"Cannot parse Prow URL: {url}\n"
@@ -536,9 +520,9 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Search and retrieve artifacts from Prow CI job runs in GCS. "
-            "Supports test-platform-results-public, test-platform-results, and prow-artifact-archive "
-            "buckets (detected from the URL). Uses the gcloud CLI when "
-            "available, otherwise falls back to the public GCS HTTP API (no "
+            "Uses the bucket named in the URL (including "
+            "prow-artifact-archive). Uses the gcloud CLI when available, "
+            "otherwise falls back to the public GCS HTTP API (no "
             "auth or extra tooling required)."
         ),
     )

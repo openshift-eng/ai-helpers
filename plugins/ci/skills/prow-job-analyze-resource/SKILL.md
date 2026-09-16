@@ -39,8 +39,7 @@ The user will provide:
    - Example: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/`
    - `<bucket>` is any non-empty segment after `/gs/` or `/gcs/`
    - Use `parse_url.py`'s `bucket` and `gcs_base_path` for artifact reads.
-     Remap only `test-platform-results` to `test-platform-results-public`.
-     Keep `prow-artifact-archive` and other non-legacy buckets unchanged.
+     Keep the URL bucket as-is, including `prow-artifact-archive`.
    - URL may or may not have trailing slash
 
 2. **Resource specifications** - Comma-delimited list in format `[namespace:][kind/]name`
@@ -75,8 +74,7 @@ The user will provide:
 
 4. **Construct GCS paths**
    - Use `parse_url.py` output: `bucket`, `bucket_path`, `gcs_base_path`
-   - Remap only `test-platform-results` to `test-platform-results-public`
-   - Keep `prow-artifact-archive` and other non-legacy buckets unchanged
+   - Keep the URL bucket as-is, including `prow-artifact-archive`
    - Ensure `gcs_base_path` ends with `/`
 
 ### Step 2: Parse Resource Specifications

@@ -25,10 +25,10 @@ class ParseProwURLTest(unittest.TestCase):
         self.assertEqual(bucket, PUBLIC)
         self.assertEqual(path, PATH)
 
-    def test_legacy_bucket_remaps_to_public(self):
+    def test_url_bucket_is_preserved(self):
         url = f"https://prow.ci.openshift.org/view/gs/test-platform-results/{PATH}"
         bucket, path = parse_prow_url(url)
-        self.assertEqual(bucket, PUBLIC)
+        self.assertEqual(bucket, "test-platform-results")
         self.assertEqual(path, PATH)
 
     def test_archive_bucket_is_preserved(self):
@@ -43,9 +43,9 @@ class ParseProwURLTest(unittest.TestCase):
         self.assertEqual(bucket, "origin-ci-test")
         self.assertEqual(path, PATH)
 
-    def test_legacy_gs_uri_remaps_to_public(self):
+    def test_gs_uri_bucket_is_preserved(self):
         bucket, path = parse_prow_url(f"gs://test-platform-results/{PATH}")
-        self.assertEqual(bucket, PUBLIC)
+        self.assertEqual(bucket, "test-platform-results")
         self.assertEqual(path, PATH)
 
     def test_rejects_missing_path(self):

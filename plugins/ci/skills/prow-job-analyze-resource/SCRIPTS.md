@@ -121,8 +121,7 @@ RESOURCE_NAME="e2e-test-project-api-p28mx"
 TARGET="e2e-aws-ovn-techpreview"
 
 # 2. Resolve bucket and path from the job URL.
-# parse_url.py remaps only test-platform-results to test-platform-results-public;
-# other buckets (including prow-artifact-archive) are kept as-is.
+# parse_url.py uses the URL bucket as-is, including prow-artifact-archive.
 eval "$(
   python3 plugins/ci/skills/prow-job-analyze-resource/parse_url.py "$PROW_URL" \
   | python3 -c 'import json, shlex, sys

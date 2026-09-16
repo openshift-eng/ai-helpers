@@ -30,16 +30,14 @@ class ParseProwjobURLTest(unittest.TestCase):
         self.assertEqual(got["bucket"], PUBLIC)
         self.assertEqual(got["gcs_base_path"], f"gs://{PUBLIC}/{PATH}/")
 
-    def test_legacy_bucket_remaps_to_public(self):
+    def test_url_bucket_is_preserved(self):
         url = (
             "https://prow.ci.openshift.org/view/gs/test-platform-results/"
             f"{PATH}"
         )
         got = parse_prowjob_url(url)
-        self.assertEqual(got["bucket"], PUBLIC)
-        self.assertEqual(got["bucket_path"], PATH)
-        self.assertEqual(got["gcs_base_path"], f"gs://{PUBLIC}/{PATH}/")
-        self.assertNotIn("gs://test-platform-results/", got["gcs_base_path"])
+        self.assertEqual(got["bucket"], "test-platform-results")
+        self.assertEqual(got["gcs_base_path"], f"gs://test-platform-results/{PATH}/")
 
     def test_archive_bucket_is_preserved(self):
         url = (
