@@ -35,8 +35,9 @@ The implementation uses Python 3 and the standard library only.
 
 ## Preview Changes
 
-`--dry-run` is synchronous: Sippy returns HTTP 200 with its existing
-per-run `results` response and the script prints it without polling.
+`--dry-run` uses the same asynchronous batch API as an applied reevaluation,
+but River workers report matches without writing changes. Sippy returns HTTP
+202 and the script polls the provided status link for detailed per-run results.
 
 ```bash
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
@@ -46,9 +47,9 @@ python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
 
 ## Apply Changes
 
-Without `--dry-run`, the script deduplicates all normalized IDs, submits them
-in one asynchronous batch, and polls the API-provided status link until the
-batch is `complete`, `failed`, or `cancelled`:
+The script deduplicates all normalized IDs, submits them in one asynchronous
+batch, and polls the API-provided status link until the batch is `complete`,
+`failed`, or `cancelled`:
 
 ```bash
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
@@ -74,7 +75,7 @@ The combined unique set must not exceed 10,000 IDs.
 - `--token <token>`: Bearer token. Prefer the `SIPPY_TOKEN` environment
   variable because command-line arguments are visible in process listings;
   `--token` takes precedence.
-- `--dry-run`: Preview matches synchronously without writing changes.
+- `--dry-run`: Preview matches asynchronously without writing changes.
 - `--poll-interval <seconds>`: Time between asynchronous status requests
   (default 5; must be greater than zero).
 - `--format json|summary`: Output format (default `json`).
@@ -89,7 +90,7 @@ The combined unique set must not exceed 10,000 IDs.
 {"prow_job_build_ids": ["1856789012345678848"], "dry_run": false}
 ```
 
-For a non-dry-run request, Sippy returns HTTP 202:
+For both applied and dry-run requests, Sippy returns HTTP 202:
 
 ```json
 {
@@ -152,9 +153,9 @@ optional `result` is the latest JSON recorded in River
 is pending. The summary format prints the aggregate counts and the complete
 JSON result for every item that has one.
 
-Terminal batch states are `complete`, `failed`, and `cancelled`. A terminal
-`failed` or `cancelled` batch exits 1; `complete` and successful dry runs exit
-0. Input, authentication, malformed response, API, connection, and socket/read
+Terminal batch states are `complete`, `failed`, and `cancelled`. In either
+mode, a terminal `failed` or `cancelled` batch exits 1 and `complete` exits 0.
+Input, authentication, malformed response, API, connection, and socket/read
 timeout errors are reported as controlled errors and exit 1.
 
 The Sippy API also has a DELETE endpoint for cancellation, but this skill has
