@@ -38,8 +38,9 @@ The user will provide:
 1. **Prow job URL** - Prow UI (`/view/gs/<bucket>/`) or gcsweb (`/gcs/<bucket>/`)
    - Example: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/`
    - `<bucket>` is any non-empty segment after `/gs/` or `/gcs/`
-   - Artifact reads still go to `test-platform-results-public` (legacy
-     `test-platform-results` is remapped; that bucket is not publicly readable)
+   - Use `parse_url.py`'s `bucket` and `gcs_base_path` for artifact reads.
+     Remap only `test-platform-results` to `test-platform-results-public`.
+     Keep `prow-artifact-archive` and other non-legacy buckets unchanged.
    - URL may or may not have trailing slash
 
 2. **Resource specifications** - Comma-delimited list in format `[namespace:][kind/]name`
@@ -73,10 +74,10 @@ The user will provide:
    - Prowjob name: `pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn`
 
 4. **Construct GCS paths**
-   - Bucket: `test-platform-results-public`
-   - Base GCS path: `gs://test-platform-results-public/{bucket-path}/`
-   - Always the public bucket, even if the URL names legacy `test-platform-results`
-   - Ensure path ends with `/`
+   - Use `parse_url.py` output: `bucket`, `bucket_path`, `gcs_base_path`
+   - Remap only `test-platform-results` to `test-platform-results-public`
+   - Keep `prow-artifact-archive` and other non-legacy buckets unchanged
+   - Ensure `gcs_base_path` ends with `/`
 
 ### Step 2: Parse Resource Specifications
 
@@ -143,21 +144,21 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
 ### Step 5: Download Audit Logs and Pod Logs
 
 1. **Construct gather-extra paths**
-   - GCS path: `gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/`
+   - GCS path: `{gcs_base_path}artifacts/{target}/gather-extra/`
    - Local path: `.work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/`
    - For every download, create the local directory first and pass `--no-user-output-enabled` to `gcloud storage cp`.
 
 2. **Download audit logs**
    ```bash
    mkdir -p .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs
-   gcloud storage cp -r gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/audit_logs/ .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs/ --no-user-output-enabled
+   gcloud storage cp -r {gcs_base_path}artifacts/{target}/gather-extra/artifacts/audit_logs/ .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs/ --no-user-output-enabled
    ```
    - If directory not found, warn: "No audit logs found. Job may not have completed or audit logging may be disabled."
 
 3. **Download pod logs**
    ```bash
    mkdir -p .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods
-   gcloud storage cp -r gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/ .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods/ --no-user-output-enabled
+   gcloud storage cp -r {gcs_base_path}artifacts/{target}/gather-extra/artifacts/pods/ .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods/ --no-user-output-enabled
    ```
    - If directory not found, warn: "No pod logs found."
 

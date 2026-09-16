@@ -41,6 +41,15 @@ class ParseProwjobURLTest(unittest.TestCase):
         self.assertEqual(got["gcs_base_path"], f"gs://{PUBLIC}/{PATH}/")
         self.assertNotIn("gs://test-platform-results/", got["gcs_base_path"])
 
+    def test_archive_bucket_is_preserved(self):
+        url = (
+            "https://prow.ci.openshift.org/view/gs/prow-artifact-archive/"
+            f"{PATH}"
+        )
+        got = parse_prowjob_url(url)
+        self.assertEqual(got["bucket"], "prow-artifact-archive")
+        self.assertEqual(got["gcs_base_path"], f"gs://prow-artifact-archive/{PATH}/")
+
     def test_rejects_url_without_gs_or_gcs(self):
         with self.assertRaises(ValueError) as ctx:
             parse_prowjob_url("https://example.com/logs/job/1234567890")
