@@ -419,5 +419,56 @@ def test_classify_empty_statuses():
     assert "extra_jobs" not in result
 
 
+# -- Tests: author-restricted tide queries --
+
+def test_author_restricted_lane_skipped_for_different_author():
+    """Bot-only lane (author='openshift-bot') is skipped for a human author;
+    best match is the human lane which still requires lgtm → score < 1.0."""
+    bot_lane = {"repos": ["openshift/test-repo"], "author": "openshift-bot",
+                "labels": ["approved"]}
+    human_lane = {"repos": ["openshift/test-repo"],
+                  "labels": ["approved", "lgtm"]}
+    queries = match_tide_queries([bot_lane, human_lane],
+                                "openshift/test-repo", "main", "dev",
+                                {"approved"})
+    assert len(queries) == 1
+    assert queries[0]["score"] < 1.0
+    missing = [l["name"] for l in queries[0]["labels"] if not l["have"]]
+    assert "lgtm" in missing
+
+
+def test_author_restricted_lane_matches_own_author():
+    """Author-restricted lane applies when the PR author matches → score 1.0."""
+    bot_lane = {"repos": ["openshift/test-repo"], "author": "openshift-bot",
+                "labels": ["approved"]}
+    queries = match_tide_queries([bot_lane], "openshift/test-repo", "main",
+                                "openshift-bot", {"approved"})
+    assert len(queries) == 1
+    assert abs(queries[0]["score"] - 1.0) < 1e-9
+
+
+def test_author_match_is_case_insensitive():
+    """Author matching ignores case."""
+    lane = {"repos": ["openshift/test-repo"], "author": "OpenShift-Bot",
+            "labels": ["approved"]}
+    queries = match_tide_queries([lane], "openshift/test-repo", "main",
+                                "openshift-bot", {"approved"})
+    assert len(queries) == 1
+
+
+def test_build_pr_result_human_pr_missing_lgtm():
+    """End-to-end: human PR with only 'approved' lists 'lgtm' as missing."""
+    bot_lane = {"repos": ["openshift/test-repo"], "author": "openshift-bot",
+                "labels": ["approved"]}
+    human_lane = {"repos": ["openshift/test-repo"],
+                  "labels": ["approved", "lgtm"]}
+    result = build_pr_result(
+        1, _pr_meta(labels=["approved"], author="dev"),
+        _status_data([]), [bot_lane, human_lane],
+        _presubmit_configs(jobs={}),
+    )
+    assert "lgtm" in result["labels"]["required"]["missing"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

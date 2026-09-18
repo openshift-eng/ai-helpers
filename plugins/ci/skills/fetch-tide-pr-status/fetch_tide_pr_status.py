@@ -98,7 +98,7 @@ def fetch_presubmit_config(repo, branch):
 
 
 
-def match_tide_queries(tide_queries, repo, branch, pr_labels_set):
+def match_tide_queries(tide_queries, repo, branch, author, pr_labels_set):
     """Port of closestMatchingQueries (pr.ts:1062).
 
     Returns list of processed queries sorted by descending score.
@@ -119,6 +119,10 @@ def match_tide_queries(tide_queries, repo, branch, pr_labels_set):
         if branch in exc:
             continue
         if inc and branch not in inc:
+            continue
+
+        query_author = tq.get("author", "")
+        if query_author and query_author.lower() != (author or "").lower():
             continue
 
         required = sorted(tq.get("labels", []), key=len)
@@ -202,7 +206,8 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
             ))
 
     pr_labels_set = {label["name"] for label in pr_meta.get("labels", [])}
-    queries = match_tide_queries(tide_queries, repo, branch, pr_labels_set)
+    author = (pr_meta.get("user") or {}).get("login", "")
+    queries = match_tide_queries(tide_queries, repo, branch, author, pr_labels_set)
     best = queries[0] if queries else None
 
     # Labels
