@@ -34,6 +34,9 @@ instructions directly within this task.
   positive integer.
 - `--review` or `--skip-generate`: review and fix existing documentation
   without running component-document generation.
+- `--cache-dir DIR`: shared review cache; default to a new run directory under
+  `REPO_PATH/.work/agentic-docs/`.
+- `--keep-cache`: keep the cache after a successful run instead of deleting it.
 - `-h` or `--help`: report usage and options without changing files.
 
 Reject unexpected arguments before changing files. Resolve the `PATH` argument
@@ -67,11 +70,16 @@ fixing, and deterministic validation may still run, but the final result must
 be **incomplete — independent verification unavailable**. Never report the
 documentation as verified clean in that case.
 
-Treat all generation and review passes as one finite workflow. A reviewer
-findings report is not a stopping point while iterations remain: fix confirmed
-findings and continue with a new reviewer. The independent review report is the
-completion authority; deterministic validation is necessary but is not a
-substitute for that report.
+The first reviewer checks the full scope. Later reviewers check affected claims
+against the last independent snapshot and reuse valid unchanged evidence.
+
+Share immutable snapshots, source excerpts, verification records, and the diff.
+Exclude the fixer's conversation and reasoning history. Cached fixer verdicts
+are inputs, not independent verification: reviewers must assess the evidence.
+Read [Claim cache](../review-docs/SKILL.md#claim-cache) before the first handoff.
+
+The latest independent report determines completion. Stop when only the same
+unresolved claims remain with no new evidence or actionable fix; report them.
 
 ## Workflow
 
@@ -101,60 +109,78 @@ substitute for that report.
    - Defer its optional offer to run `review-docs`; this workflow performs that
      review automatically.
 
-3. **Initial review and fix**
-   - Follow `review-docs` against `REPO_PATH` and auto-fix only verified issues.
-   - For each verified issue, search the entire documentation set for every
-     occurrence before editing, then fix all affected locations together.
-   - After fixing detailed sections, inspect summaries and diagrams in the same
-     files for simplified repetitions of the claim and fix those too.
-   - After all fixes, grep again for each old claim and confirm no occurrence
-     was missed.
-   - Do not auto-fix unverified or hedged cross-repository findings.
-   - Build a corrections manifest containing every old claim, corrected claim,
-     affected location, and verification source. Accumulate later corrections
-     into the same manifest.
+3. **Prepare the independent baseline**
+   - Resolve the review scope once from `REPO_PATH` using `review-docs`.
+     Keep the cache outside that scope and out of published docs.
+   - Set up the cache using `review-docs`' path and ownership rules. This workflow
+     handles cleanup; reviewers leave the shared cache intact between passes.
+     Before creating `.work`, ensure `/.work/` is listed in the target
+     repository's local `.git/info/exclude`, then verify with `git check-ignore`
+     that Git ignores the directory.
+   - Record the repository revision and prompt version. Save any source evidence
+     from generation as immutable cache records.
+   - Let the first fresh reviewer perform the full review.
+   - Record fixes and their sources; give reviewers the diff and source evidence.
 
 4. **Verify independently**
-   - Re-run the component validator using its resolved skill-local path and
-     pass `REPO_PATH` as its repository argument.
-   - If validation changes documentation, such as removing a broken external
-     link line, add that change to the corrections manifest and run validation
-     again before starting the reviewer.
-   - Start a fresh isolated reviewer and give it only `REPO_PATH`, the resolved
-     `review-docs` skill path, and the complete corrections manifest.
-     Do not give it the fixer's reasoning or conclusions.
-   - Require the reviewer to follow `review-docs` Phases 1-5, skip Phase 6, make
-     no edits, and review every scoped documentation file rather than sampling.
-   - Verify the complete corrections manifest as one batch: check every
-     correction now matches its stated corrected value, grep that it is
-     consistent across all files, and spot-check its cited verification source.
-     Do not re-derive a corrected value unless its cited source is unavailable
-     or contradicts itself.
-   - Batch related cross-repository claims as directed by
-     `guides/CHAI-BOT-VERIFICATION.md`.
-   - Require a report with total, verified, failed, and skipped claim counts,
-     broken down by local and cross-repository coverage; issues by critical,
-     warning, and minor severity; and either `VERIFIED CLEAN` or a complete
-     findings list with file, line, incorrect claim, and verification source.
-   - Count this fresh reviewer report as one iteration.
+   - Run the component validator at its resolved skill-local path with
+     `REPO_PATH`. Include any resulting edits in the snapshot and diff.
+   - Give a fresh reviewer `REPO_PATH`, the resolved `review-docs` skill path,
+     cache directory, prompt version, scoped document paths, and snapshot/evidence
+     IDs. After the first pass, also give the last independent baseline ID and diff.
+   - Have the reviewer run `review-docs` Phases 1–5 and report findings. The main
+     agent applies fixes in step 5, then starts a fresh reviewer to check them.
+   - The first pass reads every scoped file, independently checks every extracted
+     claim, and saves the baseline inventory and evidence. Cached excerpts can
+     save retrieval.
+   - Later passes read changed sections in context and update the inventory.
+     Use the cache planner to select new or changed claims, dependent claims,
+     and invalid evidence. Check all affected occurrences, summaries, and diagrams.
+   - Verify selected cross-repository claims against authoritative sources,
+     such as upstream GitHub sources or Chai Bot's configured CodeRAG. Use
+     configured Slack and Jira knowledge for historical or cross-functional
+     context when relevant.
+   - Fully review any scope with missing, corrupt, or incomplete baseline coverage.
+     An empty plan does not prove complete coverage.
+   - Require the Phase 5 report: baseline/current snapshot IDs, pass number, and
+     current, newly verified, reused, failed, and unresolved claim counts split
+     by local/cross-repo. Findings need claim ID, location, incorrect claim,
+     correction, severity, and evidence. List removed claims separately.
+   - Assign the reviewer a report path: `CACHE_DIR/reports/pass-NNN.md`, using
+     the next unused pass number (starting at `001`). The reviewer saves findings
+     and inventory/evidence references there, then returns the path and a summary.
+     Never overwrite a report. Each report counts as one iteration and supplies
+     the next baseline; a fixer snapshot cannot.
+   - After saving the self-contained report, run the claim cache's `compact`
+     command for that snapshot. Remove detailed verified observations, retain
+     failed and unresolved observations, and return the compaction counts.
 
-5. **Fix the independent findings**
-   - If the reviewer reports critical issues or warnings, investigate each
-     finding against its cited source. Fix every confirmed issue across the
-     entire doc set and append the changes to the corrections manifest.
-   - If a finding is a confirmed false positive, record the evidence in the
-     manifest so the next reviewer can check it.
-   - Return to step 4 with a new isolated reviewer. Never resume the previous
-     reviewer. Stop after the configured maximum number of reviewer passes.
+5. **Fix and reassess**
+   - The main agent reads the returned report and checks its evidence, then fixes
+     confirmed issues everywhere, including summaries and diagrams. Do not
+     auto-fix hedged or unverified claims.
+     Append corrections and confirmed false positives with evidence to the cache.
+   - Snapshot the edited docs and sources, update claims in changed sections,
+     and follow their dependencies. Keep valid unchanged evidence under the cache
+     rules, even when the document hash or repository commit changes.
+   - Return to step 4 for changed claims, sources, policy, new evidence, or newly
+     found coverage. Otherwise stop with the findings and unresolved claim IDs.
+   - Stop at the pass limit. Fixes after the last pass await independent review;
+     validation alone cannot certify them.
 
 6. **Finalize**
    - Source-backup cleanup depends on successful component validation, not the
-     independent-review verdict or Chai Bot availability. If a validated run
+     independent-review verdict or cross-repository resource availability. If a validated run
      still has `"$REPO_PATH/ai-docs/_sources"`, run the component cleanup helper
      even when the completion gate does not pass.
    - After cleanup, verify that `"$REPO_PATH/ai-docs/_sources"` no longer exists.
    - Report the number of iterations, validator result, review coverage,
-     corrections made, remaining findings, and Chai Bot verification status.
+     corrections made, remaining findings, and cross-repository verification
+     sources and status.
+   - Once the report is ready and reviewers have returned, apply `review-docs`'
+     cleanup rules: delete an owned cache when the gate passes unless `--keep-cache`.
+     Retain failed, incomplete, or interrupted runs. Report cleanup status and any
+     retained path and reason.
 
 ## Completion gate
 
@@ -168,14 +194,15 @@ pass:
 - a fresh isolated reviewer produced the latest report;
 - the component validator exits successfully;
 - that reviewer reports zero critical issues and zero warnings;
-- every local claim has a `verified` status, with zero failed and zero skipped local claims;
-- every cross-repository claim is verified.
+- the snapshot matches the final docs and source scope;
+- the inventory covers the full current scope;
+- every local and cross-repo claim is verified in this pass or through valid
+  reused independent evidence, with none failed or unresolved.
 
 If independent review succeeds but cross-repository verification is
 unavailable, report **locally verified; cross-repository claims unverified**,
 not an unqualified verified-clean result.
 
-If the iteration limit is reached, stop normally and report the remaining
-findings. If independent verification is unavailable, report that limitation
-as incomplete. Never manufacture a completion marker or silently discard
-failures.
+At the pass limit or when no progress is possible, report remaining findings and
+unresolved claim IDs. Report missing independent verification as incomplete.
+Never invent a completion marker or discard failures.

@@ -13,11 +13,11 @@ Architecture, development, testing guides, enhancement catalog. Flat structure �
 ## Skills
 
 ### `/generate-docs`
-Generate component documentation and iteratively review and fix it until the
-latest validation pass is clean or the configured iteration limit is reached.
+Generate, review, and fix component docs until independently verified clean,
+no progress is possible, or the pass limit is reached.
 
 ```bash
-/generate-docs [PATH] [--max-iterations N] [--review]
+/generate-docs [PATH] [--max-iterations N] [--review] [--cache-dir DIR] [--keep-cache]
 ```
 
 The workflow is implemented as a portable skill without lifecycle hooks or
@@ -26,6 +26,57 @@ subagent capability the host exposes. A clean verdict still requires a fresh
 isolated reviewer on every pass; a host without that capability reports
 independent verification as unavailable instead of allowing the workflow to
 verify its own fixes.
+
+The first reviewer checks the full scope. Later reviewers check affected claims
+and dependencies against the last independent baseline, reusing valid unchanged
+evidence. They share immutable evidence, not the fixer's conversation.
+Unresolved claims are reported; identical passes stop when they add no evidence.
+
+#### Claim cache
+
+Review state is stored outside the published documentation:
+
+```text
+.work/agentic-docs/run-.../
+├── snapshots/       # document contents, claim inventory, source and policy hashes
+├── observations/    # detailed per-claim evidence and review status
+├── receipts/        # compact verification records
+├── reports/         # self-contained pass reports
+└── inputs.*/        # temporary inventory and evidence inputs
+```
+
+A snapshot records the repository revision, documentation, claims, occurrence
+ranges, dependencies, source scope, and verification-policy hash. Review
+observations classify each claim as `verified`, `failed`, or `unverified` and
+include source excerpts. Only independent reviewer evidence is reusable;
+fixer-only evidence cannot establish verification. Conflicting evidence makes a
+claim unverified until an independent reviewer explicitly resolves it.
+
+The next pass compares its snapshot with the independent baseline. Changed
+claim text, source bytes, policy, document scope, or dependencies select claims
+for re-verification. Unchanged claims reuse their observation or compact receipt.
+
+After each self-contained review report is saved, compact the reviewed snapshot:
+
+```bash
+python3 claim_cache.py --cache "$CACHE_DIR" compact \
+  --snapshot "$SNAPSHOT_ID"
+```
+
+Compaction writes aggregate receipts first, then deletes detailed observation
+and carry files for verified claims. A receipt retains only the claim ID,
+verification-context hash, evidence signature, and reviewer identity. Claim
+definitions remain in the snapshot so coverage and change detection continue
+to work. Failed, conflicting, and unresolved observations are retained for the
+next pass. The command is idempotent.
+
+See the [Claim cache reference](skills/review-docs/SKILL.md#claim-cache) for the
+full formats, commands, and cleanup rules.
+
+Successful runs delete their own cache after all passes finish; the report survives.
+Use `--keep-cache` to retain evidence for audit or reuse. Failed, incomplete, or
+interrupted runs and pre-existing caches are kept. Standalone `/review-docs`
+uses the same rules.
 
 ### `/update-platform-docs`
 Incrementally update platform docs with automatic gap detection.
@@ -55,65 +106,10 @@ cd /path/to/component-repository
 /review-docs
 ```
 
-Uses **Chai Bot** to verify documentation claims against verified OpenShift knowledge, GitHub source code, Slack history, Jira, and official docs. Chai Bot access may be provided directly by its hosted workspace or through an external MCP connection. Detects hallucinations, outdated conventions, and missing references.
-
-**Prerequisites**: Inside a hosted workspace, use the Chai Bot capability explicitly provided by the host. External execution requires Chai Bot MCP configuration (see Setup below).
-
-## Setup
-
-### Chai Bot access (for `/review-docs`)
-
-Inside Chai Bot's hosted workspace, use the callable knowledge/search capability provided by the host. Do not configure or use a second Chai Bot MCP connection.
-
-Outside the hosted workspace, configure the **Chai Bot MCP server** with the **"OpenShift AI helpdesk"** persona — an AI agent with verified OpenShift knowledge.
-
-**Prerequisites:**
-1. **Red Hat VPN** - Must be connected to Red Hat VPN
-2. **Bearer Token** - Obtain from the chai-bot Slack app
-3. **Persona** - This plugin uses the `ocp_ai_helpdesk` persona (OpenShift AI helpdesk)
-
-**Configuration:**
-
-Add to `~/.claude.json` under `mcpServers`:
-
-```json
-{
-  "mcpServers": {
-    "chai-bot": {
-      "type": "http",
-      "url": "https://ship-help-mcp-continuous-release-tooling--ship-help-bot.apps.gpc.ocp-hub.prod.psi.redhat.com/personas/ocp_ai_helpdesk/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_TOKEN_HERE"
-      }
-    }
-  }
-}
-```
-
-**Important:** 
-- The URL includes `/personas/ocp_ai_helpdesk` — this is the **OpenShift AI helpdesk** persona
-- Replace `YOUR_TOKEN_HERE` with your bearer token from the chai-bot Slack app
-- Restart Claude Code after configuration
-
-**Alternative:** Merge `plugins/agentic-docs/.mcp.json.sample` into your existing `~/.mcp.json` (or create it if it doesn't exist):
-```bash
-# Merge without overwriting existing entries
-jq -s '.[0] * .[1]' ~/.mcp.json plugins/agentic-docs/.mcp.json.sample > ~/.mcp.json.tmp \
-  && mv ~/.mcp.json.tmp ~/.mcp.json \
-  || cp plugins/agentic-docs/.mcp.json.sample ~/.mcp.json
-```
-Then edit `~/.mcp.json` and replace the `YOUR_TOKEN_HERE` placeholder with your actual bearer token from the chai-bot Slack app.
-
-**Verification:**
-```bash
-# Must be on VPN
-ping -c 1 ship-help-mcp-continuous-release-tooling--ship-help-bot.apps.gpc.ocp-hub.prod.psi.redhat.com
-
-# Check config
-jq '.mcpServers."chai-bot"' ~/.mcp.json
-```
-
-After configuration, restart Claude Code to load the MCP server.
+Verifies local claims from repository source and vendored dependencies, then
+checks cross-repository claims against authoritative sources. When running
+inside the Chai Bot environment, also use its configured documentation, Slack,
+Jira, and CodeRAG knowledge where relevant.
 
 ## Development
 
