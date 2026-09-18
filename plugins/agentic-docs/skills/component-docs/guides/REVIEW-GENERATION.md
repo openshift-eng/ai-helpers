@@ -20,24 +20,13 @@ Based on repo type detected in Phase 4:
 
 Extract ONLY diff-enforceable rules — rules that can be checked by looking at a code diff. Discard vague guidance ("should consider...") and retain imperative rules ("Flag X as must-fix", "Never allow Y").
 
-## Step 3 — Chai-bot verification (optional)
+## Step 3 — Hosted knowledge cross-check (conditional)
 
-Use the Chai Bot access path selected in `SKILL.md`. If hosted or external access is available, check whether any extracted rule has been superseded or changed by newer authoritative guidance. For external access, use the available Chai Bot `ask_persona` MCP capability; hosts may normalize the server name differently. If Chai Bot is unavailable, skip — include all extracted rules (err on side of inclusion).
-
-```
-"I'm generating REVIEW.md for {component} (github.com/openshift/{component}).
-I extracted these enforceable review rules from openshift/enhancements dev-guide.
-Are these still current? Have any been superseded, relaxed, or tightened?
-
-1. [Rule 1 from Step 2]
-2. [Rule 2 from Step 2]
-...
-(list top 5-8 most critical rules for the detected repo type)
-
-For each rule: confirm current, superseded (by what), or unknown."
-```
-
-Discard rules chai-bot confirms are superseded. Keep confirmed + unverified (err on side of inclusion). DISCARD any claims about repo internals — chai-bot fabricates these.
+If running inside the Chai Bot environment, use the documentation and other
+resources configured there, including Slack, Jira, and CodeRAG knowledge. Verify
+whether extracted rules were superseded against authoritative sources, such as
+upstream GitHub sources or CodeRAG. Keep rules whose status cannot be resolved,
+and verify repository internals from source.
 
 ## Step 4 — Collect skip patterns
 

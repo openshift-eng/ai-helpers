@@ -45,15 +45,12 @@ component-repo/
 ❌ Kubernetes fundamentals (Pod, Node, Service)
 ❌ Cross-repo ADRs (etcd, CVO orchestration, immutable nodes)
 
-## Chai Bot Access
+## Hosted knowledge resources
 
-Before any Chai Bot-assisted operation, select exactly one access path:
-
-1. **Hosted** — If explicit host context identifies execution inside Chai Bot's hosted workspace and provides a callable knowledge/search capability, use that capability. Do not configure or call a second Chai Bot MCP server.
-2. **External** — Otherwise, use an available Chai Bot `ask_persona` MCP capability. Hosts may normalize the server name differently; select it by capability, not by an exact tool identifier.
-3. **Unavailable** — If neither path is available, report which Chai Bot-assisted work could not be performed. Do not infer or fabricate results.
-
-Resolve the access path once per run and reuse it. Explicit hosted context without a callable knowledge capability is unavailable, not permission to invent results. Do not infer hosted execution merely from a missing MCP tool, repository name, or working directory. Never modify MCP configuration from a managed hosted workspace.
+If running inside the Chai Bot environment, use the documentation and other
+resources configured there, including Slack, Jira, and CodeRAG knowledge.
+Verify cross-repository facts against authoritative sources, such as upstream
+GitHub sources or Chai Bot's configured CodeRAG.
 
 ## Execution Workflow
 
@@ -61,6 +58,9 @@ Resolve the access path once per run and reuse it. Explicit hosted context witho
 - [ ] **Read existing CLAUDE.md / AGENTS.md before overwriting**: If the repo already has either file, read it first and extract important points (build instructions, critical warnings, repo conventions, key patterns, retrieval priorities, documentation maps, and useful direct links) to incorporate into the generated docs. Existing content is prior work — preserve it, don't overwrite blindly.
 - [ ] **Back up prior agent docs before writing**: Save any existing `CLAUDE.md` / `AGENTS.md` content under `ai-docs/_sources/`. Use them as temporary source material for review and recovery during generation.
 - [ ] **Discover existing repo docs**: Scan `docs/`, `docs/enhancements/`, `design/`, `CONTRIBUTING.md`, and any files with "design", "proposal", "enhancement" in the name. These will be linked from ENHANCEMENTS.md and ARCHITECTURE.md as appropriate. Also scan documentation files at the repository root and look elsewhere throughout the repository for relevant documentation, regardless of filename or location.
+- [ ] **Record documentation sources used**: As existing repository documents are
+  used as sources, record each repo-relative path in
+  `ai-docs/_sources/repository-docs-used.txt`, one path per line.
 - [ ] Resolve this skill directory from the location of the loaded `SKILL.md`. Resolve all `scripts/`, `templates/`, and `guides/` paths relative to it. Do not search a plugin cache or assume the repository is the current directory.
 - [ ] Preflight required resources: `scripts/create-structure.sh`, `scripts/validate.sh`, `scripts/cleanup-sources.sh`, all referenced templates, and any guide required by the selected execution path. Stop before writing if a required resource is unavailable.
 - [ ] Determine repo path: `REPO_PATH="${provided_path:-$PWD}"`
@@ -117,12 +117,6 @@ Resolve the access path once per run and reuse it. Explicit hosted context witho
 - [ ] Keep lean but dense (every line should tell the reader something they can't infer from file names alone)
 - [ ] Every pattern claim must include a file:line reference. If you can't point to source, flag as unverified
 
-### Phase 4.5: Tribal Knowledge Enrichment (REQUIRED when chai-bot available)
-
-- [ ] Use the Chai Bot access path selected above
-- [ ] If hosted or external access is available: read and follow `guides/CHAI-BOT.md` — run both prompts, do not skip
-- [ ] If Chai Bot is unavailable: report that tribal knowledge enrichment could not be performed, then skip this phase
-
 ### Phase 5: Development & Testing Docs
 
 - [ ] **VERIFY FIRST**:
@@ -171,9 +165,12 @@ Resolve the access path once per run and reuse it. Explicit hosted context witho
 - [ ] **REVIEW.md checks**: exists at repo root, ≤100 lines (`wc -l REVIEW.md`), skip paths reference real directories (`test -d`), platform citations present (grep for "dev-guide" or "CONVENTIONS"), no content overlap with AGENTS.md
 - [ ] **.coderabbit.yaml checks**: valid YAML (`python3 -c "import yaml; yaml.safe_load(open('.coderabbit.yaml'))"`), `filePatterns` contains "REVIEW.md" but NOT "CLAUDE.md", `path_filters` match "Do not report" globs, `path_instructions` match "Path-specific rules"
 - [ ] Cross-check with openshift-docs if time permits
-- [ ] **Chai-bot enrichment gate**: If hosted or external Chai Bot access is available, verify Phase 4.5 was executed (operational issues and design rationale queries were run and results incorporated into ARCHITECTURE.md and DEVELOPMENT.md). If skipped with Chai Bot available, go back and run it before proceeding.
 - [ ] **Flag discovery gaps**: At the end of ARCHITECTURE.md and DEVELOPMENT.md, add a brief "SME Review Recommended" note listing areas where automated discovery may be incomplete
 - [ ] **No silent drops**: Compare the prior `CLAUDE.md` / `AGENTS.md` against the generated docs and ensure repo-specific commands, CI notes, metrics/debug tips, hard warnings, retrieval instructions, documentation maps, and useful direct links were preserved. For every relocated item, verify the new location and leave a discoverable route from `AGENTS.md`. Record any intentional drop and its rationale in the completion report.
+- [ ] **Source-document links**: For every path recorded in
+  `_sources/repository-docs-used.txt`, verify the document is linked from
+  `AGENTS.md` or `ai-docs/`. Record any intentional exception and its rationale
+  in the completion report.
 - [ ] **Cleanup**: After validation passes, run the resolved `scripts/cleanup-sources.sh` with `"$REPO_PATH"`. Do not leave temporary source backups in the final repo tree.
 
 **Link Validation**:
@@ -196,7 +193,9 @@ Resolve the access path once per run and reuse it. Explicit hosted context witho
     Recommend running `/review-docs` before creating PRs to catch hallucinations.
     ```
 
-**Note**: `/review-docs` verifies claims locally against the repo's source code (including vendored dependencies) first, then uses Chai Bot for cross-repo verification (enhancements, platform terminology, convention compliance). Chai Bot access may be provided directly by its hosted workspace or through an external MCP connection. External access requires VPN + MCP configuration — see [review-docs skill](../review-docs/SKILL.md).
+**Note**: `/review-docs` verifies claims locally against the repository source
+and vendored dependencies first, then checks cross-repository claims against
+available authoritative resources.
 
 ## Implementation Pattern Discovery
 
@@ -345,13 +344,13 @@ Structure:
   ✅ ENHANCEMENTS.md (optional — only if content found)
 
 Next Steps:
-  1. Run `/review-docs` to verify claims locally + cross-repo via chai-bot (recommended)
+  1. Run `/review-docs` to verify local and cross-repository claims (recommended)
   2. Review generated documentation for accuracy
   3. Create PR with documentation changes
 ```
 
 ## See Also
 
-- `/review-docs` - Verify documentation claims locally and cross-repo via chai-bot (recommended after creation)
+- `/review-docs` - Verify documentation claims locally and against available authoritative resources
 - `/update-platform-docs` - Update Platform documentation
 - Platform Documentation (openshift/enhancements — dev-guide/, guidelines/, CONVENTIONS.md)
