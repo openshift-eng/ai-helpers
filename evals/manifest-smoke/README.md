@@ -24,21 +24,16 @@ Both configurations deliberately share the basename `eval-smoke.yaml`, harness
 name `manifest-smoke`, case ID `case-001`, and output filename
 `classification.json`. Their distinct inputs and expected labels let us verify
 that artifacts belong to the correct eval, even when filenames collide.
-For this temporary failure-continuation test, the first eval deliberately
-returns a failing judge verdict even when classification is correct. Preserve
-that verdict and threshold during evaluation; do not repair the fixture to
-make it pass. The second eval should pass as usual. After this test, restore
-the first eval's normal judge.
+Both evals should pass; the second input describes a bug, not a failing test.
 
 Each manifest entry limits case parallelism to one and the outer orchestrator
 to 50 turns. Each eval limits the case invocation to 120 seconds and a 1 USD
 budget; these are not total job limits and exclude the orchestrators.
 
-This rehearsal should fail overall, while producing two distinct `evals/<artifact_name>/`
+A successful smoke run should produce two distinct `evals/<artifact_name>/`
 directories in Prow artifacts, each containing its own report, summary, result,
 logs and `eval-run.tar`. The artifact root should contain a two-eval HTML index,
-aggregate JUnit with two testcases and one failure, and metrics retaining both runs.
+aggregate JUnit with two passing testcases, and metrics retaining both runs.
 Check the uploaded archives' inputs and classifications as well as directory
-names. The first eval must fail before the second starts; the second must
-still finish successfully. This checks continuation and artifact retention
-after a scoring failure, not classification quality across a representative dataset.
+names. This checks execution and artifact isolation, not classification quality
+across a representative dataset or behavior after an eval fails.
