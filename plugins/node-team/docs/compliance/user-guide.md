@@ -51,16 +51,21 @@ component management. The suite consists of:
 
 The agent acts as a technical assistant for the Node team. Its role is to
 surface information, perform analysis, and present findings for human review.
-It does not make decisions autonomously: all write actions (Jira comments,
-Slack notifications) require explicit opt-in via command flags.
+It does not make decisions autonomously. Automated write actions (node-cve
+Jira comments and Slack notifications) require explicit opt-in via command
+flags. Interactive write actions (Jira edits, git commits in a worktree,
+changes on a development cluster) happen only when the user asks for them and
+confirms.
 
 ## Capabilities and Inventory
 
 See [capabilities-inventory.md](capabilities-inventory.md) for the full list
-of tools, APIs, data sources, and guardrails. The `jira`, `git` and `curl`
-CLIs run through Claude Code's Bash tool.
+of tools, APIs, data sources, and guardrails. All tools run through Claude
+Code's Bash tool under the session's permission settings.
 
 ### Authorized Actions
+
+Headless capable (`node-cve` only; the CronJob enables just `node-cve` and `node-team`). The same actions are available interactively, where `node-bug` also queries Jira read-only:
 
 - Query Jira for open CVE trackers and team issues (read)
 - Clone public downstream OpenShift repository forks (read)
@@ -68,21 +73,43 @@ CLIs run through Claude Code's Bash tool.
 - Post analysis comments to Jira issues (write, opt-in via `--notify-jira`)
 - Send summary notifications to Slack (write, opt-in via `--notify-slack`)
 - Generate local reports in `.work/` (write, local only)
+
+Interactive only (at the user's request in a live session):
+
 - Bump downstream RPM packages in dist-git and start Brew builds
-  (`/node-rpm:bump`, interactive only, each push and build confirmed by the
-  user)
+  (`/node-rpm:bump`, each upload, push and build confirmed by the user)
+- Create, update, assign, transition or comment on Jira issues, and move them
+  between sprints, each after explicit user confirmation
+- Clone repos, create branches and worktrees, edit code and create local
+  commits in the user's own checkouts
+- Look up Red Hat KB solutions, and read a specific support case (metadata,
+  comments, attachment list) when the user names the case or a linked Jira
+  issue
+- Inspect a cluster the user is logged in to, query Prometheus, and deploy
+  debug binaries to development clusters following the documented safety rules
+- Purge local artifacts with `/node-team:cleanup` after confirmation
 
 ### Prohibited Actions
 
-- The agent must not create or close Jira issues
-- The agent must not transition issue status (e.g., move to ASSIGNED or CLOSED)
-- The agent must not create pull requests
-- The agent must not commit code or modify repository contents, except
-  user-confirmed dist-git changes through `/node-rpm:bump`
+- Headless and scheduled runs must not create, close, assign or transition
+  Jira issues; they may only comment, and only with `--notify-jira`
+- The agent must not perform any Jira write in an interactive session without
+  the user's confirmation
+- The agent must not push to shared branches, merge into a default branch of
+  a team repository, or create pull requests on its own initiative. The only
+  push it performs is the user-confirmed dist-git push of `/node-rpm:bump`
+- The agent must not modify the read-only analysis clones under
+  `.work/node-cve/repos/`
 - The headless deployment is configured to run only `/node-cve:triage`; only
   the namespace admins can change the CronJob or create Jobs
-- The agent must not access customer data, HR data, or financial data
+- The agent must not download support case attachments, run bulk case
+  searches without an explicit request, store case content on disk, or copy
+  customer-identifying details into public places (GitHub, upstream trackers,
+  public Jira comments)
+- The agent must not access HR data or financial data
 - The agent must not send messages to external parties
+- The agent must not deploy debug binaries or the SSH bastion to production
+  or customer clusters
 
 ## Best Practices
 
@@ -129,15 +156,25 @@ Run by the namespace admins:
 
 ## Data Handling
 
-Do not add any personal information or customer information to the AI tool.
+Do not paste personal information or customer information into the AI tool.
 
-The agent processes only:
+The automated flows (`node-cve`, `node-bug`) process only:
 - Jira ticket metadata (summaries, components, assignees, labels, status)
-- Low-sensitivity personal data (team member names, email addresses,
-  GitHub handles from the team roster, treated as business contact
-  information per Red Hat's data classification)
+- Low-sensitivity personal data: team member display names and GitHub handles
+  from the team roster (no email addresses), plus Jira assignee names. The
+  user's own Jira account email is used for authentication only. This is
+  treated as business contact information per Red Hat's data classification
 - Public source code from downstream OpenShift forks
 - Public CVE advisory data
+
+The interactive `node-team:node` skill can additionally read Red Hat support
+cases through the support case API, which is customer data. This is limited
+to cases the user names or that are linked from a Jira issue they are working
+on, is read only, stays in the session (no files, no attachments downloaded),
+and must not be copied to public places. Must-gather and sosreport analysis
+belongs on SupportShell, not on the local machine. If your use of the tool
+must exclude customer data entirely, do not configure `RH_API_OFFLINE_TOKEN`;
+without it the support case lookups are unavailable.
 
 See [dataflow.md](dataflow.md) for the complete data flow diagram.
 
@@ -154,6 +191,9 @@ The agent inherits permissions from the configured API tokens:
   to channels it has been added to.
 - **GitHub**: scoped by `gh` CLI authentication. Only public repos or repos the
   authenticated user can access.
+- **Red Hat KB and support cases**: scoped by the customer portal account
+  behind `RH_API_OFFLINE_TOKEN`. Optional; leave it unset to disable.
+- **Clusters**: scoped by the user's kubeconfig and cluster RBAC.
 
 Users can verify their access levels by running `/node-team:preflight`.
 
@@ -229,7 +269,7 @@ Common issues and solutions:
 
 | Issue | Solution |
 |-------|----------|
-| Jira API returns 401 | Token expired. Regenerate at https://id.atlassian.com/manage-profile/security/api-tokens |
+| Jira API returns 401 | Token expired or wrong user. Regenerate at https://id.atlassian.com/manage-profile/security/api-tokens and check `JIRA_USER` / `JIRA_EMAIL` |
 | Jira API returns 429 | Rate limited. Wait and retry. The agent sleeps 1s between calls. |
 | Slack notification fails | Verify `SLACK_API_TOKEN` and `SLACK_CHANNEL` (check bot is added to channel), or `SLACK_WEBHOOK`. |
 | Git clone times out | Network issue or repo doesn't exist at that branch. Classification defaults to "Uncertain." |

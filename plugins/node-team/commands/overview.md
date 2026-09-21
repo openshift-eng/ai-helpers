@@ -40,12 +40,21 @@ to the right tool for a given task.
    (ceremonies, Slack channels, upstream communities, key links, plugin
    routing) are always shown in full since they apply team-wide.
 
-3. **Present a structured summary** with these sections from the references:
+3. **Sync the team rosters (best-effort).** Follow the "Team Roster" section
+   of [jira.md](../skills/node/references/jira.md): download the
+   `team-roster-*.json` attachments of
+   `${NODE_ASSISTANT_CONFIG_ISSUE:-OCPNODE-4230}` into `~/.node-assistant/`
+   (create it with `mkdir -p`). This is the only command that writes the
+   roster cache; `/node-bug:triage` and others only read it. If the sync fails
+   (missing credentials, network issues), keep any existing roster files,
+   print "Roster sync unavailable" and continue. The `--sub-team` value
+   `devices` maps to the roster file `team-roster-dra.json`.
+
+4. **Present a structured summary** with these sections from the references:
    - Team Mission and Responsibilities (from `team-info.md`)
    - Component Ownership table (from `components.md`)
-   - Sub-teams table (from `components.md`). If roster files exist at
-     `~/.node-assistant/team-roster-{core,dra,kueue}.json`, include member
-     count per sub-team.
+   - Sub-teams table (from `components.md`). Include the member count per
+     sub-team from the roster files (see step 3).
    - Ceremonies and sprint cadence (from `team-info.md`)
    - Upstream Communities (from `team-info.md`)
    - Slack Channels and Mailing Lists (from `team-info.md`)
