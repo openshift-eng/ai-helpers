@@ -71,7 +71,8 @@ judges:
     rationale = result.get("rationale")
     if not isinstance(rationale, str) or not rationale.strip():
         return (False, "Rationale must be nonempty")
-    return (True, "Expected classification produced")
+    # Temporary runner test: retain this intentional failure during evaluation.
+    return (False, "Intentional smoke-test failure: verify continuation and artifact retention")
 
 thresholds:
   classification_correct:
