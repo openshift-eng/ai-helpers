@@ -87,7 +87,7 @@ def _api_message(body):
     except (TypeError, ValueError):
         return body.strip()[:500]
     if isinstance(decoded, dict) and decoded.get("message"):
-        return str(decoded["message"])
+        return str(decoded["message"])[:500]
     return body.strip()[:500]
 
 
@@ -135,7 +135,11 @@ def request_json(method, url, token, expected_status, payload=None):
         raise ClientError("connection error: %s" % exc) from exc
 
     if status != expected_status:
-        raise ClientError("expected HTTP %d, got HTTP %d" % (expected_status, status))
+        detail = _api_message(body)
+        suffix = ": %s" % detail if detail else ""
+        raise ClientError(
+            "expected HTTP %d, got HTTP %d%s" % (expected_status, status, suffix)
+        )
     if body.lstrip().startswith("<"):
         if "log in" in body.lower():
             raise ClientError(

@@ -138,6 +138,31 @@ def test_classify_response_valid_json():
     assert err is None
     assert parsed["batch_id"] == "batch-1"
 
+
+@pytest.mark.parametrize(
+    "body, expected_detail",
+    [
+        ({"message": "x" * 600}, "x" * 500),
+        ({"error": "unexpected success"}, '{"error": "unexpected success"}'),
+    ],
+)
+def test_unexpected_success_status_preserves_safe_api_detail(
+    monkeypatch, body, expected_detail
+):
+    queue_authenticated_responses(monkeypatch, FakeResponse(200, body))
+
+    with pytest.raises(diagnose_job_run.ClientError) as caught:
+        diagnose_job_run.request_json(
+            "POST",
+            diagnose_job_run.REEVALUATE_URL,
+            "secret",
+            202,
+            {"dry_run": True},
+        )
+
+    assert str(caught.value) == "expected HTTP 202, got HTTP 200: %s" % expected_detail
+
+
 WRAPPED_ENTRY = {
     "symptom_label_v1": {
         "symptom": {"id": "KubeletVersionSkew1355", "summary": "kubelet version skew 1.35.5",
