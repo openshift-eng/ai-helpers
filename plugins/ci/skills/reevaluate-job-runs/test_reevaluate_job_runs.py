@@ -278,6 +278,24 @@ def test_malformed_api_responses_are_controlled(monkeypatch, capsys, response, m
     assert message in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    "body, expected_detail",
+    [
+        ({"message": "x" * 600}, "x" * 500),
+        ({"error": "unexpected success"}, '{"error": "unexpected success"}'),
+    ],
+)
+def test_unexpected_success_status_preserves_safe_api_detail(
+    monkeypatch, body, expected_detail
+):
+    queue_responses(monkeypatch, FakeResponse(200, body))
+
+    with pytest.raises(client.ClientError) as caught:
+        client.request_json("POST", client.URL, "secret", 202, {"dry_run": True})
+
+    assert str(caught.value) == "expected HTTP 202, got HTTP 200: %s" % expected_detail
+
+
 def test_malformed_status_response_is_controlled(monkeypatch, capsys):
     queue_responses(
         monkeypatch,
