@@ -2,8 +2,9 @@
 
 - **Upstream Kueue**: `https://github.com/kubernetes-sigs/kueue.git`
 - **Downstream Operator**: `https://github.com/openshift/kueue-operator.git`
+- **Downstream operand fork**: `https://github.com/openshift/kubernetes-sigs-kueue.git`
 
-For build commands, repo layout, CRD types, and test targets — browse the repo directly (Makefile, README, go.mod, api/).
+For build commands, repo layout, CRD types, and test targets: browse the repo directly (Makefile, README, go.mod, api/).
 
 ## Architecture
 
@@ -14,4 +15,9 @@ When changes are needed in upstream Kueue itself, submit a PR to `kubernetes-sig
 ## OpenShift-Specific
 
 - Built with operator-sdk framework (controller-runtime, controller-gen, OLM bundles).
-- CVO override warning applies here too — scale down CVO if patching the operator deployment manually during development.
+- The operator is installed through OLM, not managed by the CVO. OLM reconciles
+  the operator Deployment from its ClusterServiceVersion, so manual patches to
+  the Deployment are reverted. For development, patch the CSV (or scale down
+  the operator and run it locally) instead.
+- The operator is released on its own cadence with `release-1.X` branches; it
+  does not follow OCP `release-4.Y` branching.

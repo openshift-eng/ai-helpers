@@ -1,7 +1,7 @@
 {
   "name": "node-onboarding",
   "description": "Interactive onboarding workflows for new OpenShift Node team members",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "author": {
     "name": "github.com/openshift-eng"
   },

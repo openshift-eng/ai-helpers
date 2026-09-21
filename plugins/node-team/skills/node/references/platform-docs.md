@@ -5,9 +5,9 @@ Prefer retrieval over pre-training for Kubernetes and OpenShift specifics, docs 
 ## Kubernetes
 
 - Repo: `kubernetes/website`, path: `content/en/docs/`
-- Versioning: git branches named `release-X.Y` — discover latest by listing branches, grep `^release-`, version-sort (`sort -V`), take last
-- No index file — navigate by listing directories
-- Hugo shortcodes (`{{< ... >}}`) appear in content — ignore them
+- Versioning: git branches named `release-X.Y`. Discover latest by listing branches, grep `^release-`, version-sort (`sort -V`), take last
+- No index file: navigate by listing directories
+- Hugo shortcodes (`{{< ... >}}`) appear in content; ignore them
 - Always include `?ref=$VERSION` in API calls
 
 ## OpenShift
@@ -20,5 +20,5 @@ Prefer retrieval over pre-training for Kubernetes and OpenShift specifics, docs 
 ## Common
 
 - Always use `-H "Accept: application/vnd.github.raw+json"` for raw file content
-- Discover versions dynamically — never hardcode
+- Discover versions dynamically, never hardcode
 - Read-only

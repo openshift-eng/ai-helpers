@@ -2,8 +2,8 @@
 # vi: set ft=ruby :
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "fedora/42-cloud-base"
-  config.vm.box_url = "https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Vagrant-libvirt-42-1.1.x86_64.vagrant.libvirt.box"
+  config.vm.box = "fedora/44-cloud-base"
+  config.vm.box_url = "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-Base-Vagrant-libvirt-44-1.7.x86_64.vagrant.libvirt.box"
   memory = 6144
   cpus = 4
 
@@ -20,7 +20,13 @@ Vagrant.configure("2") do |config|
       cp /tmp/2022-IT-Root-CA.pem /etc/pki/ca-trust/source/anchors/
       update-ca-trust
 
-      curl -fsSL -o /etc/yum.repos.d/rcm-tools-fedora.repo http://download.devel.redhat.com/rel-eng/internal/rcm-tools-fedora.repo
+      # https only (the Red Hat IT root CA was installed above). No http
+      # fallback: a forged .repo file would let an on-path attacker install
+      # packages as root. The host is only reachable on the internal network.
+      curl -fsSL -o /etc/yum.repos.d/rcm-tools-fedora.repo https://download.devel.redhat.com/rel-eng/internal/rcm-tools-fedora.repo || {
+        echo "ERROR: cannot fetch rcm-tools-fedora.repo over https (VPN connected?)" >&2
+        exit 1
+      }
 
       dnf install -y \
         chkconfig \
@@ -66,15 +72,13 @@ Host rdu2
 Host *.rdu2.redhat.com *.rdu2.dc.redhat.com
     ProxyJump                  rdu2
 
-Host pkgs.devel.redhat.com
+Host pkgs.devel.redhat.com pkgs-stage.devel.redhat.com
     ProxyJump                  iad2
-
-Host pkgs-stage.devel.redhat.com
-    ProxyJump                  iad2
+    GSSAPIDelegateCredentials  yes
 
 Host *.redhat.com
     GSSAPIAuthentication       yes
-    GSSAPIDelegateCredentials  yes
+    GSSAPIDelegateCredentials  no
     ForwardAgent               no
     ForwardX11                 no
     ForwardX11Trusted          no
