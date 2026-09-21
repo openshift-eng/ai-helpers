@@ -292,6 +292,43 @@ def test_malformed_status_response_is_controlled(monkeypatch, capsys):
     assert "missing integer requested" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("status", sorted(client.NONTERMINAL_STATES))
+def test_every_nonterminal_status_continues_polling(monkeypatch, capsys, status):
+    intermediate = batch_response(status=status)
+    terminal = batch_response(status="complete")
+    calls = queue_responses(
+        monkeypatch,
+        FakeResponse(202, {
+            "batch_id": "batch-1", "requested": 2,
+            "links": {"status": client.URL + "/batch-1"},
+        }),
+        FakeResponse(200, intermediate),
+        FakeResponse(200, terminal),
+    )
+
+    assert client.main(["1", "2", "--token", "secret"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "complete"
+    assert [call[0].get_method() for call in calls] == ["POST", "GET", "GET"]
+
+
+def test_unknown_batch_status_is_controlled_before_sleep(monkeypatch, capsys):
+    calls = queue_responses(
+        monkeypatch,
+        FakeResponse(202, {
+            "batch_id": "batch-1", "requested": 2,
+            "links": {"status": client.URL + "/batch-1"},
+        }),
+        FakeResponse(200, batch_response(status="mystery")),
+    )
+    sleeps = []
+    monkeypatch.setattr(client.time, "sleep", sleeps.append)
+
+    assert client.main(["1", "2", "--token", "secret"]) == 1
+    assert "unknown status 'mystery'" in capsys.readouterr().err
+    assert [call[0].get_method() for call in calls] == ["POST", "GET"]
+    assert sleeps == []
+
+
 def test_http_api_error_is_controlled(monkeypatch, capsys):
     error = urllib.error.HTTPError(
         client.URL, 500, "Internal Server Error", {},
@@ -351,23 +388,32 @@ def test_invalid_port_in_status_link_is_a_controlled_error(monkeypatch, capsys):
     assert len(calls) == 1
 
 
-def test_redirect_handler_strips_auth_cross_origin_but_keeps_same_origin():
+def test_redirect_handler_rejects_cross_origin_but_keeps_same_origin_auth():
     handler = client.SafeRedirectHandler()
     original = urllib.request.Request(client.URL, headers={"Authorization": "Bearer secret"})
 
     same = handler.redirect_request(
         original, None, 302, "Found", {}, client.URL + "/batch-1"
     )
-    cross = handler.redirect_request(
-        original, None, 302, "Found", {}, "https://other.invalid/batch-1"
-    )
 
     assert same.get_header("Authorization") == "Bearer secret"
-    assert cross.get_header("Authorization") is None
+    with pytest.raises(client.ClientError, match="cross-origin API redirect"):
+        handler.redirect_request(
+            original, None, 302, "Found", {}, "https://other.invalid/batch-1"
+        )
 
 
 def test_missing_token_and_invalid_poll_interval_are_validation_errors(capsys):
     assert client.main(["1"]) == 1
     assert "no token" in capsys.readouterr().err
     assert client.main(["1", "--token", "secret", "--poll-interval", "0"]) == 1
-    assert "greater than zero" in capsys.readouterr().err
+    assert "finite and greater than zero" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_nonfinite_poll_interval_is_rejected_before_network(monkeypatch, capsys, value):
+    calls = queue_responses(monkeypatch)
+
+    assert client.main(["1", "--token", "secret", "--poll-interval=" + value]) == 1
+    assert "finite and greater than zero" in capsys.readouterr().err
+    assert calls == []

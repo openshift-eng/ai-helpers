@@ -28,7 +28,8 @@ OpenShift cluster (`https://api.cr.j7t7.p1.openshiftapps.com:6443`). Use the
 process list:
 
 ```bash
-export SIPPY_TOKEN="$(oc whoami -t --context=<dpcr-context>)"
+DPCR_CONTEXT="your-dpcr-context"
+export SIPPY_TOKEN="$(oc whoami -t --context="$DPCR_CONTEXT")"
 ```
 
 The implementation uses Python 3 and the standard library only.
@@ -41,7 +42,7 @@ but River workers report matches without writing changes. Sippy returns HTTP
 
 ```bash
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
-  https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job>/<build_id> \
+  "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job>/<build_id>" \
   --dry-run --format summary
 ```
 
@@ -77,7 +78,7 @@ The combined unique set must not exceed 10,000 IDs.
   `--token` takes precedence.
 - `--dry-run`: Preview matches asynchronously without writing changes.
 - `--poll-interval <seconds>`: Time between asynchronous status requests
-  (default 5; must be greater than zero).
+  (default 5; must be finite and greater than zero).
 - `--format json|summary`: Output format (default `json`).
 
 ## API Contract
@@ -103,8 +104,7 @@ For both applied and dry-run requests, Sippy returns HTTP 202:
 ```
 
 The client follows `links.status` with authenticated GET requests. For safety,
-it refuses a cross-origin status URL and strips `Authorization` from any
-cross-origin HTTP redirect.
+it refuses a cross-origin status URL or HTTP redirect entirely.
 
 ### Status response
 
@@ -153,8 +153,10 @@ optional `result` is the latest JSON recorded in River
 is pending. The summary format prints the aggregate counts and the complete
 JSON result for every item that has one.
 
-Terminal batch states are `complete`, `failed`, and `cancelled`. In either
-mode, a terminal `failed` or `cancelled` batch exits 1 and `complete` exits 0.
+Valid nonterminal batch states are `pending`, `processing`, and `running`;
+terminal states are `complete`, `failed`, and `cancelled`. Unknown states are
+rejected. In either mode, a terminal `failed` or `cancelled` batch exits 1 and
+`complete` exits 0.
 Input, authentication, malformed response, API, connection, and socket/read
 timeout errors are reported as controlled errors and exit 1.
 
