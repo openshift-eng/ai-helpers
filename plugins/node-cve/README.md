@@ -64,20 +64,125 @@ Triage all open CVEs for Node team components with automated reachability analys
 
 ## Headless Execution
 
-Run as a scheduled job using the ai-helpers container:
+The `ai-helpers` image ships the plugins under `/opt/ai-helpers`, but its
+default settings neither enable `node-cve` nor allow any tools. Headless runs
+need their own `settings.json`. With `dontAsk`, every tool call that is not
+allowed below is refused; Claude Code's built-in read-only commands (`ls`,
+`cat`, `echo`, `head`, `tail`, `grep`, `find`, `wc` and similar) always run.
+The `Read` deny rules only cover Claude Code's file tools, so `cat` or any
+allowed command could still read the credential mounts. The Bash sandbox
+closes that gap: `sandbox.credentials` blocks both mounts for every Bash
+command at the OS level. Keep this file in sync with the
+[capabilities inventory](../node-team/docs/compliance/capabilities-inventory.md#headless-tool-allowlist):
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "ai-helpers": { "source": { "source": "directory", "path": "/opt/ai-helpers" } }
+  },
+  "enabledPlugins": {
+    "node-team@ai-helpers": true,
+    "node-cve@ai-helpers": true
+  },
+  "permissions": {
+    "defaultMode": "dontAsk",
+    "allow": [
+      "Skill(node-cve:*)",
+      "Bash(jira issue list:*)",
+      "Bash(jira issue view:*)",
+      "Bash(jira issue comment add:*)",
+      "Bash(git clone:*github.com/*)",
+      "Bash(curl:*redhat.atlassian.net/*)",
+      "Bash(curl:*hooks.slack.com/*)",
+      "Bash(date:*)",
+      "Bash(sleep:*)",
+      "Bash(mkdir -p .work/node-cve/*)",
+      "Bash(tee -a .work/node-cve/*)",
+      "Edit(.work/node-cve/**)",
+      "WebSearch",
+      "WebFetch(domain:nvd.nist.gov)",
+      "WebFetch(domain:access.redhat.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:pkg.go.dev)"
+    ],
+    "deny": [
+      "Read(//var/run/secrets/**)",
+      "Read(//etc/node-cve-triage/**)",
+      "Read(//proc/**)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "autoAllowBashIfSandboxed": false,
+    "enableWeakerNestedSandbox": true,
+    "credentials": {
+      "files": [
+        { "path": "/var/run/secrets", "mode": "deny" },
+        { "path": "/etc/node-cve-triage", "mode": "deny" }
+      ]
+    },
+    "network": {
+      "allowedDomains": ["redhat.atlassian.net", "hooks.slack.com", "github.com"],
+      "strictAllowlist": true
+    }
+  }
+}
+```
+
+The sandbox settings:
+
+- `failIfUnavailable` makes the run fail instead of running unsandboxed.
+- `autoAllowBashIfSandboxed: false` keeps the allowlist above in charge of
+  which commands run.
+- `enableWeakerNestedSandbox` is needed in an unprivileged pod, which cannot
+  mount a fresh `/proc`. The pod is the outer isolation boundary.
+- Bash commands only reach the listed hosts.
+
+The Claude Code process itself is not sandboxed, so it still reads the
+Vertex AI credentials. The sandbox needs `bubblewrap` and `socat`, which the
+`ai-helpers` image does not ship yet, and a pod that may create user
+namespaces. Check both with a first run: without them Claude Code refuses to
+start. The environment variables (`JIRA_API_TOKEN`, `SLACK_WEBHOOK`) stay
+readable, see the
+[security boundary](../node-team/docs/compliance/capabilities-inventory.md#security-boundary).
+
+The `jira` CLI needs a config file for the account it runs as (server, login,
+auth type), not only `JIRA_API_TOKEN`. Generate it once with `jira init` and
+point `JIRA_CONFIG_FILE` at it. The `curl` calls for Jira comment edits take
+the account from `JIRA_EMAIL`.
+
+Run locally with the ai-helpers container:
 
 ```bash
 podman run -it \
   -e CLAUDE_CODE_USE_VERTEX=1 \
   -e ANTHROPIC_VERTEX_PROJECT_ID=your-project \
+  -e CLOUD_ML_REGION=your-region \
   -e JIRA_API_TOKEN=... \
-  -e SLACK_API_TOKEN=xoxb-... \
-  -e SLACK_CHANNEL=GK6BJJ1J5 \
+  -e JIRA_EMAIL=... \
+  -e JIRA_CONFIG_FILE=/home/claude/.jira.yml \
+  -e SLACK_WEBHOOK=... \
+  -v ./settings.json:/home/claude/.claude/settings.json:ro \
+  -v ./jira.yml:/home/claude/.jira.yml:ro \
   -v ~/.config/gcloud:/home/claude/.config/gcloud:ro \
   ai-helpers --print "/node-cve:triage --notify-jira --notify-slack"
 ```
 
 ### OpenShift CronJob
+
+Headless runs use a Jira service account and `SLACK_WEBHOOK`, see the
+[compliance data flow](../node-team/docs/compliance/dataflow.md#deployment-modes).
+The pod must run with an egress policy that only allows Jira, Slack, GitHub,
+the public advisory sites and Vertex AI (see
+[prompt injection](../node-team/docs/compliance/dataflow.md#prompt-injection)).
+
+The `node-cve-triage-config` ConfigMap holds the `settings.json` above, the
+`jira` CLI config and the Workload Identity Federation credential config for
+Vertex AI (no key; it points at the projected token). The pod is discarded
+after each run, so the session transcript (`--output-format stream-json`)
+goes to stdout and `posting-audit.log` is streamed to stderr. Cluster
+logging captures both.
 
 ```yaml
 apiVersion: batch/v1
@@ -87,18 +192,108 @@ metadata:
   namespace: node-team
 spec:
   schedule: "3 8 * * 1-5"
+  timeZone: Etc/UTC        # requires K8s 1.27+ / OCP 4.14+
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
   jobTemplate:
+    metadata:
+      labels:
+        app: node-cve-triage
     spec:
+      backoffLimit: 0             # never retry a run that may have posted already
+      activeDeadlineSeconds: 3600 # kill runaway runs (monitoring plan threshold)
       template:
+        metadata:
+          labels:
+            app: node-cve-triage
         spec:
+          restartPolicy: Never
+          serviceAccountName: node-cve-triage
+          automountServiceAccountToken: false # no Kubernetes API token in the pod
           containers:
           - name: triage
-            image: ai-helpers:latest
-            args: ["--print", "/node-cve:triage --notify-jira --notify-slack"]
+            image: <ai-helpers image, pinned by digest>
+            command: ["/bin/bash", "-c"]
+            args:
+            - |
+              audit=.work/node-cve/triage-$(date +%Y-%m-%d)/posting-audit.log
+              mkdir -p "$(dirname "$audit")" && touch "$audit"
+              tail -f "$audit" >&2 &
+              tail_pid=$!
+              claude --print --output-format stream-json --verbose \
+                "/node-cve:triage --notify-jira --notify-slack"
+              rc=$?
+              sleep 1; kill $tail_pid 2>/dev/null; wait $tail_pid 2>/dev/null
+              exit $rc
+            env:
+            - name: CLAUDE_CODE_USE_VERTEX
+              value: "1"
+            - name: ANTHROPIC_VERTEX_PROJECT_ID
+              value: <vertex project>
+            - name: CLOUD_ML_REGION
+              value: <vertex region>
+            - name: JIRA_CONFIG_FILE
+              value: /etc/node-cve-triage/jira.yml
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /etc/node-cve-triage/gcp-credentials.json
             envFrom:
             - secretRef:
-                name: cve-triage-secrets
-          restartPolicy: OnFailure
+                name: cve-triage-secrets # JIRA_API_TOKEN, JIRA_EMAIL, SLACK_WEBHOOK
+            resources:
+              requests:
+                cpu: "1"
+                memory: 2Gi
+                ephemeral-storage: 4Gi
+              limits:
+                memory: 4Gi
+                ephemeral-storage: 8Gi
+            volumeMounts:
+            - name: config
+              mountPath: /home/claude/.claude/settings.json
+              subPath: settings.json
+            - name: config
+              mountPath: /etc/node-cve-triage
+            - name: gcp-token
+              mountPath: /var/run/secrets/gcp
+              readOnly: true
+            - name: workspace
+              mountPath: /workspace # repo clones and reports
+          volumes:
+          - name: config
+            configMap:
+              name: node-cve-triage-config # settings.json, jira.yml, gcp-credentials.json
+          - name: gcp-token
+            projected:
+              sources:
+              - serviceAccountToken:
+                  audience: <workload identity pool provider audience>
+                  expirationSeconds: 3600
+                  path: token
+          - name: workspace
+            emptyDir:
+              sizeLimit: 5Gi
+```
+
+If the GCP organization does not allow Workload Identity Federation for the
+cluster, mount a service account key from a Secret instead and rotate it at
+least quarterly.
+
+Only the namespace admins (see
+[RBAC Enforcement](../node-team/docs/compliance/user-guide.md#rbac-enforcement))
+can trigger or stop runs. A manual run bypasses `concurrencyPolicy`, so
+suspend the CronJob first and wait until no Job is active before creating it:
+
+```bash
+oc patch cronjob node-cve-triage -p '{"spec":{"suspend":true}}'
+oc get jobs -l app=node-cve-triage # wait until every job has a completion time
+oc create job --from=cronjob/node-cve-triage node-cve-triage-manual-$(date +%s)
+# resume the schedule once the manual job has finished
+oc patch cronjob node-cve-triage -p '{"spec":{"suspend":false}}'
+
+# stop: suspend future runs, then delete only the active job
+oc patch cronjob node-cve-triage -p '{"spec":{"suspend":true}}'
+oc delete job <active job name>
 ```
 
 ## Safeguards
