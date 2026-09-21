@@ -52,11 +52,27 @@ RUN case "$(uname -m)" in \
     -o /tmp/codex.tar.gz \
     && echo "${CODEX_SHA256}  /tmp/codex.tar.gz" | sha256sum -c - \
     && mkdir -p /opt/codex \
-    && tar -xzf /tmp/codex.tar.gz -C /opt/codex \
+    && tar --no-same-owner -xzf /tmp/codex.tar.gz -C /opt/codex \
     && rm /tmp/codex.tar.gz
 COPY images/codex-wrapper.sh /usr/local/bin/codex
 RUN chmod 0755 /usr/local/bin/codex
 ENV PATH="/usr/local/bin:/opt/codex/bin:/opt/codex/codex-path:${PATH}"
+
+# Install the Jira CLI (ankitpokhrel/jira-cli) used by the node-cve plugin.
+# It reads its config from JIRA_CONFIG_FILE, see plugins/node-cve/README.md.
+ARG JIRA_CLI_VERSION=1.7.0
+ARG JIRA_CLI_SHA256_AMD64=b5e0ba4804f3f11f92c483d9a6ea9ebccec1c735cd2e12b0440cab9d7afd626a
+ARG JIRA_CLI_SHA256_ARM64=80aa3cc02790892b29e1580a8e49eb49a6550815b362c5ef8c05aea1dee73a95
+RUN case "$(uname -m)" in \
+      x86_64) JIRA_CLI_ARCH=x86_64; JIRA_CLI_SHA256="${JIRA_CLI_SHA256_AMD64}" ;; \
+      aarch64) JIRA_CLI_ARCH=arm64; JIRA_CLI_SHA256="${JIRA_CLI_SHA256_ARM64}" ;; \
+      *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL "https://github.com/ankitpokhrel/jira-cli/releases/download/v${JIRA_CLI_VERSION}/jira_${JIRA_CLI_VERSION}_linux_${JIRA_CLI_ARCH}.tar.gz" \
+    -o /tmp/jira-cli.tar.gz \
+    && echo "${JIRA_CLI_SHA256}  /tmp/jira-cli.tar.gz" | sha256sum -c - \
+    && tar --no-same-owner -xzf /tmp/jira-cli.tar.gz -C /usr/local/bin --strip-components=2 "jira_${JIRA_CLI_VERSION}_linux_${JIRA_CLI_ARCH}/bin/jira" \
+    && rm /tmp/jira-cli.tar.gz
 
 # Install Python tools and PCP bindings
 RUN python3 -m pip install --no-cache-dir \
