@@ -20,7 +20,8 @@ Designed for both interactive use and headless execution via `claude --print`.
 ## Prerequisites
 
 - `jira` CLI ([ankitpokhrel/jira-cli](https://github.com/ankitpokhrel/jira-cli)) configured with Jira credentials
-- Environment variables: `JIRA_API_TOKEN`
+- Environment variables: `JIRA_API_TOKEN`, and `JIRA_EMAIL` when the Jira user cannot be derived locally (headless runs)
+- `curl` and `jq` (Jira comment lookup and edits)
 - `git` (for cloning repos)
 - Optional: `curl` and either `SLACK_API_TOKEN` + `SLACK_CHANNEL` or `SLACK_WEBHOOK` (for `--notify-slack`)
 
@@ -109,11 +110,7 @@ Compare the affected versions from Phase 1 against cached branches. If new OCP v
 
 **2. Jira comments** (if `--notify-jira` was used on a prior run): Check the primary tracker issue for existing comments:
 
-```bash
-jira issue comment list OCPBUGS-XXXXX --plain --no-headers
-```
-
-Search for comments containing `[node-cve:triage|`. This pattern anchors on the Jira wiki-markup link syntax and matches both the current and legacy footer formats. If a prior analysis comment exists and is recent (within 30 days), reuse the cached result. If a follow-up comment after the analysis contains a `[reanalyze]` tag, force re-analysis for that CVE (all branches).
+Use the comment lookup from the deduplication step in [report-findings](../skills/report-findings/SKILL.md) (REST API, since the `jira` CLI cannot list comments). It matches triage comments by their link to `plugins/node-cve` and by the legacy `[node-cve:triage|` text. If a prior analysis comment exists and is recent (within 30 days), reuse the cached result. If a follow-up comment after the analysis contains a `[reanalyze]` tag, force re-analysis for that CVE (all branches).
 
 **Cache invalidation:**
 - Analysis older than 30 days: re-analyze

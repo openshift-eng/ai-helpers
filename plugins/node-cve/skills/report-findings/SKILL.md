@@ -9,9 +9,9 @@ Use this skill when Phase 3 of the `node-cve:triage` command needs to generate t
 
 ## Prerequisites
 
-- `jira` CLI (for `--notify-jira`)
+- `jira` CLI, `curl` and `jq` (for `--notify-jira`)
 - `curl` (for `--notify-slack`)
-- Environment variables: `JIRA_API_TOKEN` (for Jira)
+- Environment variables: `JIRA_API_TOKEN`, and `JIRA_EMAIL` when the Jira user cannot be derived locally (headless runs)
 - For Slack: either `SLACK_API_TOKEN` + `SLACK_CHANNEL` (preferred, enables threading) or `SLACK_WEBHOOK` (simpler, no threading)
 
 ## Node Team Component Safeguard (CRITICAL)
@@ -106,11 +106,14 @@ List CVEs that are Reachable or Uncertain with unassigned owners. These need imm
 # version_matches_filter() checks the tracker's OCP version (from its summary)
 # against version_filter from Phase 1, after stripping .z suffixes from both.
 for tracker_key in $TRACKER_KEYS; do
-  # Single API call per tracker to minimize rate-limiting risk
-  output=$(jira issue view "$tracker_key" --plain --no-headers --columns COMPONENT,SUMMARY | tail -1)
-  component=$(echo "$output" | awk -F'\t' '{print $1}')
-  summary=$(echo "$output" | awk -F'\t' '{print $2}')
-  ocp_version=$(echo "$summary" | grep -oP '\[openshift-\K[^\]]+')
+  # Single API call per tracker to minimize rate-limiting risk. The jira CLI
+  # has no column selection for "issue view", so read the raw issue JSON.
+  # component is a comma-separated list if the tracker has several.
+  IFS=$'\t' read -r component ocp_version < <(
+    jira issue view "$tracker_key" --raw | jq -r '[
+      ([.fields.components[].name] | join(",")),
+      (.fields.summary | capture("\\[openshift-(?<v>[^\\]]+)\\]").v // "")
+    ] | @tsv')
 
   if ! component_is_node_team "$component"; then
     echo "⚠️  SKIPPING $tracker_key: component '$component' is not a Node team component" | tee -a "$SKIPPED_LOG"
@@ -129,7 +132,7 @@ for tracker_key in $TRACKER_KEYS; do
 done
 ```
 
-**Component validation:** A component is considered a Node team component only if it matches an entry in the "Jira Components (OCPBUGS)" list (plus Driver Toolkit, Machine Config Operator) in the shared components reference. **Check the COMPONENT field only — do not treat a `pscomponent:` label as an alternative pass condition.** `pscomponent:` labels are used in Phase 1/Phase 2 for CVE discovery and repo mapping, not for determining tracker ownership; a non-Node tracker (e.g. component "Security") could incidentally carry a `pscomponent:cri-o` label, and accepting that as a pass would silently reintroduce the exact cross-team contamination this safeguard exists to prevent.
+**Component validation:** If a tracker has several components, every one of them must pass. A component is considered a Node team component only if it matches an entry in the "Jira Components (OCPBUGS)" list (plus Driver Toolkit, Machine Config Operator) in the shared components reference. **Check the COMPONENT field only — do not treat a `pscomponent:` label as an alternative pass condition.** `pscomponent:` labels are used in Phase 1/Phase 2 for CVE discovery and repo mapping, not for determining tracker ownership; a non-Node tracker (e.g. component "Security") could incidentally carry a `pscomponent:cri-o` label, and accepting that as a pass would silently reintroduce the exact cross-team contamination this safeguard exists to prevent.
 
 **Version validation:** A tracker's OCP version is extracted from its summary using regex `\[openshift-([^\]]+)\]`. The version must match `version_filter` from Phase 1, after stripping `.z` suffixes from both sides for comparison (so tracker version `4.14.z` matches filter `4.14`, and `version_filter` itself is already stored in stripped `major.minor` form).
 
@@ -165,15 +168,30 @@ COMMENT
 
 Use the footer line exactly as shown. The "AI-generated" label and review notice are required by Red Hat's medium-risk AI agent controls (TR-01, HU-01). Do not append a date; the Jira comment timestamp already covers that.
 
-**Deduplication:** Before posting a comment, check for existing `node-cve:triage` comments on the issue:
+**Deduplication:** Before posting a comment, look up existing `node-cve:triage` comments on the issue. The `jira` CLI cannot list comments, so use the REST API with the authentication from the [node-team Jira reference](../../../node-team/skills/node/references/jira.md#authentication) (`JIRA_USER` comes from `JIRA_EMAIL` in headless runs):
 
 ```bash
-jira issue comment list OCPBUGS-XXXXX --plain --no-headers
+MY_ACCOUNT_ID=$(curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" \
+  "https://redhat.atlassian.net/rest/api/3/myself" | jq -r .accountId)
+
+curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" \
+  "https://redhat.atlassian.net/rest/api/3/issue/OCPBUGS-XXXXX/comment?maxResults=100&orderBy=-created" |
+  jq -c --arg me "$MY_ACCOUNT_ID" '[.comments[]
+    | select(([.. | .attrs?.href? // empty] | any(contains("plugins/node-cve")))
+             or (.body | tostring | contains("[node-cve:triage|")))
+    | {id, own: (.author.accountId == $me), updated,
+       text: ([.. | .text? // empty] | join(" "))}]'
 ```
 
-Search the output for comments containing `[node-cve:triage|`. This pattern anchors on the Jira wiki-markup link syntax and matches both the current and legacy footer formats. If a prior comment exists:
-- If the classification or evidence has changed, edit the existing comment rather than adding a new one
+Jira stores comments as ADF, so the wiki-markup footer `[node-cve:triage|...]` becomes a link to `plugins/node-cve`; match on that link, and on the literal text for comments in older formats. The result is newest first. If this lookup fails (non-JSON response, HTTP error), do **not** post to that tracker: log it to `$SKIPPED_LOG` and continue, since posting without a working dedup check duplicates the comment on every run. If a prior comment exists:
 - If the result is unchanged, skip posting to avoid spam
+- If the classification or evidence has changed and the newest match is your own (`own: true`), edit it in place with the v2 API, which accepts wiki markup:
+  ```bash
+  jq -n --arg body "$COMMENT_BODY" '{body: $body}' |
+    curl -s -X PUT -u "$JIRA_USER:$JIRA_API_TOKEN" -H "Content-Type: application/json" \
+      "https://redhat.atlassian.net/rest/api/2/issue/OCPBUGS-XXXXX/comment/<id>" -d @-
+  ```
+- If it changed but the newest match was posted by someone else (for example an interactive run by a team member), add a new comment instead; Jira only lets an account edit its own comments
 
 **Important:**
 - Rate limit: sleep 1 second between Jira API calls to avoid HTTP 429 throttling
