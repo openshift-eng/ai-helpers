@@ -6,6 +6,7 @@ reaches a terminal state. Dry runs use the same flow without writing changes.
 import argparse
 import http.client
 import json
+import math
 import os
 import socket
 import sys
@@ -18,7 +19,9 @@ URL = "https://sippy-auth.dptools.openshift.org/api/jobs/runs/reevaluate"
 API_MAX_IDS = 10_000
 REQUEST_TIMEOUT_SECONDS = 300
 DEFAULT_POLL_INTERVAL_SECONDS = 5
+NONTERMINAL_STATES = frozenset(("pending", "processing", "running"))
 TERMINAL_STATES = frozenset(("complete", "failed", "cancelled"))
+BATCH_STATES = NONTERMINAL_STATES | TERMINAL_STATES
 
 
 class ClientError(Exception):
@@ -52,18 +55,16 @@ def _origin(url):
 
 
 class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Never forward an Authorization header to a different origin."""
+    """Reject redirects that would leave the authenticated API origin."""
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
-        if redirected is not None:
-            try:
-                same_origin = _origin(req.full_url) == _origin(newurl)
-            except ValueError:
-                same_origin = False
-            if not same_origin:
-                redirected.remove_header("Authorization")
-        return redirected
+        try:
+            same_origin = _origin(req.full_url) == _origin(newurl)
+        except ValueError as exc:
+            raise ClientError("invalid API URL or redirect: %s" % exc) from exc
+        if not same_origin:
+            raise ClientError("refusing to follow a cross-origin API redirect")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 HTTP_OPENER = urllib.request.build_opener(SafeRedirectHandler())
@@ -168,6 +169,8 @@ def _validate_batch_response(data, batch_id):
         raise ClientError("batch status response has an unexpected batch_id")
     if not isinstance(data.get("status"), str):
         raise ClientError("batch status response is missing status")
+    if data["status"] not in BATCH_STATES:
+        raise ClientError("batch status response has unknown status %r" % data["status"])
     for field in ("requested", "enqueued", "deduped", "completed", "failed", "running", "pending"):
         if not isinstance(data.get(field), int):
             raise ClientError("batch status response is missing integer %s" % field)
@@ -256,8 +259,8 @@ def main(argv=None):
             file=sys.stderr,
         )
         return 1
-    if args.poll_interval <= 0:
-        print("Error: --poll-interval must be greater than zero", file=sys.stderr)
+    if not math.isfinite(args.poll_interval) or args.poll_interval <= 0:
+        print("Error: --poll-interval must be finite and greater than zero", file=sys.stderr)
         return 1
 
     try:
