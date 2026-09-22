@@ -22,6 +22,15 @@ Alternatively, invoke the building blocks directly when you need manual control:
 2. `/openshift-developer:check-gates` — Loop until requirements, tests, lint, builds, production readiness, and a clean worktree are all satisfied.
 3. `/openshift-developer:create-pr` — Push the completed branch and create the Jira-linked PR.
 
+### OpenShift backport (chai-bot / RWS)
+
+1. `/openshift-developer:backport` — coordinator playbook: plan the Jira clone
+   chain with `ocp_backport_*` tools, open one cherry-pick PR per release branch,
+   and monitor progression (used by Slack chai-bot).
+2. `/openshift-developer:cherry-pick` — worker skill: apply the coordinator's
+   BACKPORT BRIEF (`git cherry-pick -x`, conflict policy, tests, push). Never
+   opens the PR.
+
 ### Post-PR (review loop)
 
 1. `/openshift-developer:has-review-work` — Gate: `COMMENT_WORK` (review comments) and/or `CI_WORK` (new non-optional CI failures)?
