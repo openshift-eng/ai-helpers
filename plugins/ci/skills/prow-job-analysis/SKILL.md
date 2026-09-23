@@ -91,12 +91,21 @@ gcloud storage cp -r \
 Examine the build log and JUnit results to classify the failure, then consult the
 appropriate reference file for detailed analysis procedures.
 
-#### OS-layer evidence check (mandatory for every job, before routing)
+#### OS-layer evidence check (mandatory for jobs with a cluster or node journals, before routing)
 
 Operating-system (RHCOS) layer breakage frequently masquerades as an unrelated product
 failure: a single RHCOS bump swaps the kernel, cri-o, systemd, NetworkManager, and SELinux
 policy across the whole cluster at once, so the real cause surfaces as a symptom in some
-other domain. Before selecting a row from the routing table, complete BOTH steps:
+other domain.
+
+First determine whether the check applies from the job steps and artifacts. If the job
+created a cluster or produced node journals, the check is mandatory. If an image-only or
+build-only job created no cluster and produced no node journals, record the check as not
+applicable and continue routing; absent cluster/OS artifacts are expected, not missing
+evidence or a setback. A cluster job with missing journals is still in scope: use the
+available cluster/OS evidence and explicitly report the missing journals as an evidence gap.
+
+For applicable jobs, before selecting a row from the routing table, complete BOTH steps:
 
 **1. Compare runtime versions across boots in the node journals** (downloaded in
 Step 4; gzip-compressed **without** a `.gz` extension — plain `grep` silently matches
