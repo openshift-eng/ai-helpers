@@ -18,6 +18,7 @@ import urllib.parse
 import urllib.request
 
 READ_BASE = "https://sippy.dptools.openshift.org/api/jobs"
+JIRA_URL_PREFIX = "https://redhat.atlassian.net/browse/"
 REEVALUATE_URL = "https://sippy-auth.dptools.openshift.org/api/jobs/runs/reevaluate"
 GCS_API = "https://storage.googleapis.com/storage/v1/b"
 
@@ -122,6 +123,16 @@ def index_by_id(items):
     return {i.get("id"): i for i in items}
 
 
+def jira_issue_url(key):
+    """Return the browse URL for a Jira issue key."""
+    return JIRA_URL_PREFIX + urllib.parse.quote(key, safe="")
+
+
+def format_jira_issues(keys):
+    """Format Jira issue keys with browse URLs for summary output."""
+    return ", ".join("%s (%s)" % (key, jira_issue_url(key)) for key in keys)
+
+
 def main():
     p = argparse.ArgumentParser(description="Diagnose which Sippy symptoms/labels apply to a job run")
     p.add_argument("prow_url", help="Prow job run URL (https://prow.ci.openshift.org/view/gs/...)")
@@ -215,6 +226,8 @@ def main():
         print("Label: %s — %s" % (m.get("label_id"), label.get("label_title", "(unknown label)")))
         if label.get("explanation"):
             print("  Meaning: %s" % label["explanation"])
+        if label.get("bugs"):
+            print("  Bugs: %s" % format_jira_issues(label["bugs"]))
         sym = m.get("symptom") or {}
         if sym:
             print("  Matched symptom: %s (%s)" % (sym.get("id"), sym.get("summary")))

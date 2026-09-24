@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -10,6 +11,7 @@ import urllib.request
 WRITE_URL = "https://sippy-auth.dptools.openshift.org/api/jobs/labels"
 READ_URL = "https://sippy.dptools.openshift.org/api/jobs/labels"
 VALID_HIDE_CONTEXTS = ("spyglass", "metrics", "jaq-options")
+JIRA_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*-[0-9]+$")
 
 
 def resolve_token(arg_token, env=None):
@@ -31,7 +33,17 @@ def validate_label(payload):
     for ctx in payload.get("hide_display_contexts") or []:
         if ctx not in VALID_HIDE_CONTEXTS:
             errs.append("invalid hide_display_contexts value %r (valid: %s)" % (ctx, ", ".join(VALID_HIDE_CONTEXTS)))
+    for bug in payload.get("bugs") or []:
+        if not JIRA_KEY_RE.match(bug):
+            errs.append("invalid Jira issue key %r (expected PROJECT-123)" % bug)
     return errs
+
+
+def parse_jira_keys(value):
+    """Parse a comma-separated Jira key list, trimming and de-duplicating it."""
+    if value is None:
+        return None
+    return list(dict.fromkeys(key.strip() for key in value.split(",") if key.strip()))
 
 
 def request(method, url, token, payload=None):
@@ -58,17 +70,19 @@ def request(method, url, token, payload=None):
         return {"success": False, "error": "Failed to connect: %s" % e.reason}
 
 
-def build_update_payload(existing, title=None, explanation=None, hide_display_contexts=None):
+def build_update_payload(existing, title=None, explanation=None,
+                         hide_display_contexts=None, bugs=None):
     """Merge changed fields into the existing label for a full-replacement PUT.
 
     Pass None to preserve the existing value; an explicit empty string for
-    explanation clears it. hide_display_contexts is a list when overriding.
+    explanation clears it. Array arguments are lists when overriding.
     """
     return {"id": existing.get("id"),
             "label_title": title or existing.get("label_title"),
             "explanation": explanation if explanation is not None else existing.get("explanation", ""),
             "hide_display_contexts": hide_display_contexts if hide_display_contexts is not None
-                                     else existing.get("hide_display_contexts")}
+                                     else (existing.get("hide_display_contexts") or []),
+            "bugs": bugs if bugs is not None else (existing.get("bugs") or [])}
 
 
 def label_url(label_id):
@@ -91,6 +105,7 @@ def main():
     p.add_argument("--id", help="Label ID (required for update/delete; optional for create)")
     p.add_argument("--title", help="Human-readable label title (required for create)")
     p.add_argument("--explanation", help="Markdown explanation of the label")
+    p.add_argument("--bugs", help="Comma-separated Jira issue keys (empty value clears all)")
     p.add_argument("--hide-display-contexts", help="Comma-separated: spyglass,metrics,jaq-options")
     p.add_argument("--format", choices=["json", "summary"], default="json")
     args = p.parse_args()
@@ -109,12 +124,14 @@ def main():
     hide_contexts = None
     if args.hide_display_contexts is not None:
         hide_contexts = [c.strip() for c in args.hide_display_contexts.split(",") if c.strip()]
+    bugs = parse_jira_keys(args.bugs)
 
     if args.action == "delete":
         out = request("DELETE", label_url(args.id), token)
     else:
         if args.action == "create":
-            payload = {"label_title": args.title, "explanation": args.explanation or ""}
+            payload = {"label_title": args.title, "explanation": args.explanation or "",
+                       "bugs": bugs or []}
             if args.id:
                 payload["id"] = args.id
             if hide_contexts is not None:
@@ -126,7 +143,8 @@ def main():
             existing["id"] = args.id
             payload = build_update_payload(existing, title=args.title,
                                            explanation=args.explanation,
-                                           hide_display_contexts=hide_contexts)
+                                           hide_display_contexts=hide_contexts,
+                                           bugs=bugs)
         payload = {k: v for k, v in payload.items() if v is not None}
         errs = validate_label(payload)
         if errs:

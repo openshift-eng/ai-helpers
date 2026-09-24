@@ -37,7 +37,7 @@ python3 plugins/ci/skills/diagnose-job-run-symptoms/diagnose_job_run.py \
   "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job>/<build_id>"
 ```
 
-For each applied label the summary output shows: the label title and explanation, the symptom that applied it (summary, matcher type, file pattern, match string), and the actual matched file and matched text from the run's artifacts.
+For each applied label the summary output shows: the label title and explanation, links to associated Jira issues, the symptom that applied it (summary, matcher type, file pattern, match string), and the actual matched file and matched text from the run's artifacts.
 
 ### Step 2: Deep mode — server-side rescan
 
@@ -76,14 +76,15 @@ If default mode finds no labels, first suggest `--deep`: the run may simply neve
   "symptom_label_v1": {
     "symptom": {"id": "...", "summary": "...", "matcher_type": "string",
                 "file_pattern": "...", "match_string": "...", "label_ids": ["..."]},
-    "label": {"id": "...", "label_title": "...", "explanation": "..."},
+    "label": {"id": "...", "label_title": "...", "explanation": "...",
+              "bugs": ["OCPBUGS-12345"]},
     "file_match": "artifacts/.../nodes.json",
     "text_match": "the exact text that matched"
   }
 }
 ```
 
-The script also cross-references `GET /api/jobs/labels` and `GET /api/jobs/symptoms` on the public Sippy API to enrich entries with current explanations (embedded copies are snapshots from labeling time).
+The script also cross-references `GET /api/jobs/labels` and `GET /api/jobs/symptoms` on the public Sippy API to enrich entries with current explanations and Jira associations (embedded copies are snapshots from labeling time).
 
 **Deep mode** calls `POST https://sippy-auth.dptools.openshift.org/api/jobs/runs/reevaluate` with `{"prow_job_build_ids": ["<build_id>"], "dry_run": true}` — same request/response as the `reevaluate-job-runs` skill.
 

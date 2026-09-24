@@ -1,6 +1,7 @@
 import diagnose_job_run
 import pytest
-from diagnose_job_run import parse_prow_url, normalize_label_entry, classify_response
+from diagnose_job_run import (classify_response, format_jira_issues,
+                              jira_issue_url, normalize_label_entry, parse_prow_url)
 
 def test_parse_standard_prow_url():
     url = ("https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/"
@@ -99,6 +100,15 @@ def test_normalize_flat_fallback():
 
 def test_normalize_flat_fallback_id_key():
     assert normalize_label_entry({"id": "InfraFailure"})["label_id"] == "InfraFailure"
+
+def test_jira_issue_url():
+    assert jira_issue_url("OCPBUGS-12345") == (
+        "https://redhat.atlassian.net/browse/OCPBUGS-12345")
+
+def test_format_jira_issues():
+    assert format_jira_issues(["OCPBUGS-12345", "TRT-2896"]) == (
+        "OCPBUGS-12345 (https://redhat.atlassian.net/browse/OCPBUGS-12345), "
+        "TRT-2896 (https://redhat.atlassian.net/browse/TRT-2896)")
 
 def test_normalize_garbage_returns_empty_match():
     m = normalize_label_entry("not-a-dict")
