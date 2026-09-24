@@ -16,6 +16,7 @@ class RegressionFetcher:
     """Fetches and parses regression data from Sippy API."""
 
     BASE_URL = "https://sippy.dptools.openshift.org/api/component_readiness/regressions"
+    LABELS_URL = "https://sippy.dptools.openshift.org/api/jobs/labels"
 
     def __init__(self, regression_id: int):
         """
@@ -318,6 +319,19 @@ class RegressionFetcher:
 
         return jobs_by_name
 
+    def fetch_labels_catalog(self) -> List[Dict[str, Any]]:
+        """Fetch the public Sippy symptom label catalog (no auth required)."""
+        try:
+            with urllib.request.urlopen(self.LABELS_URL) as response:
+                data = json.loads(response.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            raise ValueError(f"HTTP error {e.code} fetching labels: {e.reason}")
+        except urllib.error.URLError as e:
+            raise ValueError(f"Failed to fetch labels: {e.reason}")
+        if not isinstance(data, list):
+            raise ValueError("Unexpected labels response format")
+        return data
+
     def fetch_and_parse(self) -> Dict[str, Any]:
         """
         Fetch and parse regression data in one call.
@@ -350,7 +364,30 @@ class RegressionFetcher:
         else:
             regression['sample_failed_jobs'] = {}
 
+        # Resolve Jira bugs associated with the symptom labels seen on failed runs
+        label_ids = collect_label_ids(regression['sample_failed_jobs'])
+        if label_ids:
+            try:
+                regression['label_bugs'] = build_label_bugs(label_ids, self.fetch_labels_catalog())
+            except ValueError as e:
+                regression['label_bugs'] = {}
+                regression['label_bugs_error'] = str(e)
+
         return regression
+
+
+def collect_label_ids(sample_failed_jobs: Dict[str, Any]) -> List[str]:
+    """Return the sorted set of symptom label IDs seen across sample failed jobs."""
+    ids = set()
+    for job_data in sample_failed_jobs.values():
+        ids.update(job_data.get('label_summary', {}).keys())
+    return sorted(ids)
+
+
+def build_label_bugs(label_ids: List[str], labels: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """Map each label ID to its associated Jira keys (empty list if none or unknown)."""
+    by_id = {label.get('id'): label for label in labels if isinstance(label, dict)}
+    return {label_id: list((by_id.get(label_id) or {}).get('bugs') or []) for label_id in label_ids}
 
 
 def format_summary(regression: Dict[str, Any]) -> str:
@@ -459,6 +496,16 @@ def format_summary(regression: Dict[str, Any]) -> str:
         else:
             lines.append("Sample Failed Jobs: None found")
             lines.append("")
+
+    # Jira bugs linked to the symptom labels
+    if regression.get('label_bugs_error'):
+        lines.append(f"Label Bugs: Error fetching - {regression['label_bugs_error']}")
+        lines.append("")
+    elif regression.get('label_bugs'):
+        lines.append("Label Bugs (Jira issues linked to symptom labels):")
+        for label_id, bugs in regression['label_bugs'].items():
+            lines.append(f"  - {label_id}: {', '.join(bugs) if bugs else '(none linked)'}")
+        lines.append("")
 
     # Job Runs (full history across regression lifetime)
     job_runs = regression.get('job_runs', [])
