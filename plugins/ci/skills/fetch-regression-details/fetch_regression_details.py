@@ -17,6 +17,7 @@ class RegressionFetcher:
 
     BASE_URL = "https://sippy.dptools.openshift.org/api/component_readiness/regressions"
     LABELS_URL = "https://sippy.dptools.openshift.org/api/jobs/labels"
+    LABELS_TIMEOUT = 30  # seconds
 
     def __init__(self, regression_id: int):
         """
@@ -322,12 +323,16 @@ class RegressionFetcher:
     def fetch_labels_catalog(self) -> List[Dict[str, Any]]:
         """Fetch the public Sippy symptom label catalog (no auth required)."""
         try:
-            with urllib.request.urlopen(self.LABELS_URL) as response:
+            with urllib.request.urlopen(self.LABELS_URL, timeout=self.LABELS_TIMEOUT) as response:
                 data = json.loads(response.read().decode('utf-8'))
         except urllib.error.HTTPError as e:
             raise ValueError(f"HTTP error {e.code} fetching labels: {e.reason}")
         except urllib.error.URLError as e:
             raise ValueError(f"Failed to fetch labels: {e.reason}")
+        except TimeoutError:
+            raise ValueError(f"Timed out after {self.LABELS_TIMEOUT}s fetching labels")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid labels response: {e}")
         if not isinstance(data, list):
             raise ValueError("Unexpected labels response format")
         return data

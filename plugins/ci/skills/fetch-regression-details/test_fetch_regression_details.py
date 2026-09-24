@@ -32,3 +32,13 @@ def test_summary_shows_label_bugs():
 
 def test_summary_shows_label_bugs_error():
     assert "Label Bugs: Error fetching - boom" in format_summary(_regression(label_bugs={}, label_bugs_error="boom"))
+
+def test_fetch_labels_catalog_timeout_becomes_value_error(monkeypatch):
+    import pytest
+    import fetch_regression_details as frd
+    def boom(url, timeout=None):
+        assert timeout == frd.RegressionFetcher.LABELS_TIMEOUT
+        raise TimeoutError()
+    monkeypatch.setattr(frd.urllib.request, "urlopen", boom)
+    with pytest.raises(ValueError, match="Timed out"):
+        frd.RegressionFetcher(1).fetch_labels_catalog()
