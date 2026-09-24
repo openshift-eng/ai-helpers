@@ -21,7 +21,7 @@ Rules: a rollout-flap disposition must name the mutator (which object changed, w
 
 Two parallel duty runs handled the same regression wave. One opened with a single dry-run `reevaluate` call: a payload-blocker label fired on all sampled runs across all platforms, attributing the entire board in seconds. The other skipped the catalog probe and spent **264 shell commands and 7 subagents** re-deriving the same known cause per bucket, then timed out before writing its report.
 
-Separately: a bootstrap failure flooding the etcd-operator log with `TargetConfigController missing env var values` (5,471×) was flagged as a *new* mechanism because a grep for the known bug's `getCipherSuites` string found nothing — but a dry-run `reevaluate` fired the existing symptom for OCPBUGS-94106 (today this link lives in the label's `bugs` field): the flood was a downstream consequence of the same defect (empty observedConfig → cipherSuites lookup fails → EnvVarController publishes nothing → TargetConfigController starves).
+Separately: a bootstrap failure flooding the etcd-operator log with `TargetConfigController missing env var values` (5,471×) was flagged as a *new* mechanism because a grep for the known bug's `getCipherSuites` string found nothing — but a dry-run `reevaluate` fired the existing OCPBUGS-94106 symptom: the flood was a downstream consequence of the same defect (empty observedConfig → cipherSuites lookup fails → EnvVarController publishes nothing → TargetConfigController starves).
 
 Rules: dry-run the symptom catalog before any artifact dive; a negative grep for one error string does not make a signature new — known causes surface through several messenger strings, and the armed catalog encodes the reliable ones.
 

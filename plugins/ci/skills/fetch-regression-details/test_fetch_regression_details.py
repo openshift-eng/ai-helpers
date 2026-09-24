@@ -1,44 +1,29 @@
-from fetch_regression_details import build_label_bugs, collect_label_ids, format_summary
+import io
+import json
 
-JOBS = {
-    "job-a": {"pass_sequence": "F", "failed_runs": [], "label_summary": {"InfraFailure": 2}},
-    "job-b": {"pass_sequence": "F", "failed_runs": [], "label_summary": {"EtcdSlow": 1, "InfraFailure": 1}},
-    "job-c": {"pass_sequence": "F", "failed_runs": []},
-}
+import fetch_regression_details as frd
 
-def test_collect_label_ids_dedupes_and_sorts():
-    assert collect_label_ids(JOBS) == ["EtcdSlow", "InfraFailure"]
 
-def test_collect_label_ids_empty():
-    assert collect_label_ids({}) == []
+def _fetch(monkeypatch, labels_response):
+    f = frd.RegressionFetcher(1)
+    monkeypatch.setattr(f, "fetch_raw_data", lambda: {})
+    monkeypatch.setattr(f, "parse_regression", lambda raw: {"test_details_url": "x"})
+    monkeypatch.setattr(f, "fetch_test_details", lambda url: {})
+    monkeypatch.setattr(f, "parse_analyses_metadata", lambda td: {})
+    monkeypatch.setattr(f, "parse_failed_jobs_by_job", lambda td: {
+        "a": {"label_summary": {"Infra": 2}}, "b": {"label_summary": {"Etcd": 1}}})
+    monkeypatch.setattr(frd.urllib.request, "urlopen", labels_response)
+    return f.fetch_and_parse()
 
-def test_build_label_bugs_maps_known_and_unknown():
-    labels = [{"id": "InfraFailure", "bugs": ["OCPBUGS-1", "TRT-2"]}, {"id": "Other"}]
-    assert build_label_bugs(["EtcdSlow", "InfraFailure"], labels) == {
-        "EtcdSlow": [], "InfraFailure": ["OCPBUGS-1", "TRT-2"]}
 
-def _regression(**extra):
-    base = {"regression_id": 1, "test_name": "t", "release": "5.0", "base_release": "4.22",
-            "component": "c", "capability": "", "opened": "", "closed": None, "status": "open",
-            "last_failure": None, "max_failures": 0, "variants": [], "triages": [],
-            "test_details_url": "", "api_url": ""}
-    base.update(extra)
-    return base
+def test_label_bugs_resolved(monkeypatch):
+    body = json.dumps([{"id": "Infra", "bugs": ["OCPBUGS-1"]}]).encode()
+    out = _fetch(monkeypatch, lambda url, timeout: io.BytesIO(body))
+    assert out["label_bugs"] == {"Etcd": [], "Infra": ["OCPBUGS-1"]}
 
-def test_summary_shows_label_bugs():
-    out = format_summary(_regression(label_bugs={"InfraFailure": ["OCPBUGS-1"], "EtcdSlow": []}))
-    assert "InfraFailure: OCPBUGS-1" in out
-    assert "EtcdSlow: (none linked)" in out
 
-def test_summary_shows_label_bugs_error():
-    assert "Label Bugs: Error fetching - boom" in format_summary(_regression(label_bugs={}, label_bugs_error="boom"))
-
-def test_fetch_labels_catalog_timeout_becomes_value_error(monkeypatch):
-    import pytest
-    import fetch_regression_details as frd
-    def boom(url, timeout=None):
-        assert timeout == frd.RegressionFetcher.LABELS_TIMEOUT
-        raise TimeoutError()
-    monkeypatch.setattr(frd.urllib.request, "urlopen", boom)
-    with pytest.raises(ValueError, match="Timed out"):
-        frd.RegressionFetcher(1).fetch_labels_catalog()
+def test_label_bugs_error_on_timeout(monkeypatch):
+    def boom(url, timeout):
+        raise TimeoutError("timed out")
+    out = _fetch(monkeypatch, boom)
+    assert "label_bugs" not in out and out["label_bugs_error"] == "timed out"
