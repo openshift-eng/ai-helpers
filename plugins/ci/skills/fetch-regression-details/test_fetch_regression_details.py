@@ -27,3 +27,22 @@ def test_label_bugs_error_on_timeout(monkeypatch):
         raise TimeoutError("timed out")
     out = _fetch(monkeypatch, boom)
     assert "label_bugs" not in out and out["label_bugs_error"] == "timed out"
+
+
+def _summary(**extra):
+    reg = {"regression_id": 1, "test_name": "t", "release": "r", "base_release": "b", "component": "c",
+           "capability": "", "opened": "", "closed": None, "status": "open", "last_failure": None,
+           "max_failures": 0, "variants": [], "triages": [], "test_details_url": "", "api_url": "",
+           "sample_failed_jobs": {"j": {"pass_sequence": "F", "label_summary": {"A": 1, "B": 1},
+                                        "failed_runs": []}}}
+    reg.update(extra)
+    return frd.format_summary(reg)
+
+
+def test_summary_keeps_bugs_per_label():
+    assert "Label Bugs: A -> OCPBUGS-1; B -> OCPBUGS-2" in _summary(
+        label_bugs={"A": ["OCPBUGS-1"], "B": ["OCPBUGS-2"]})
+
+
+def test_summary_shows_label_bugs_error():
+    assert "Label Bugs: Error fetching - boom" in _summary(label_bugs_error="boom")
