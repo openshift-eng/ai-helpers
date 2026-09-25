@@ -49,11 +49,24 @@ def gh_api_paginated(path):
     return items
 
 
+def dedup_statuses(statuses):
+    """Deduplicate statuses by context, keeping the first (newest) entry.
+
+    The /statuses endpoint returns the full history newest-first; retries
+    produce multiple entries and stale failures would otherwise block merge.
+    """
+    latest = {}
+    for status in statuses:
+        latest.setdefault(status["context"], status)
+    return list(latest.values())
+
+
 def fetch_pr_data(repo, pr_num):
-    """Two GitHub API calls per PR: pulls/{n} + commits/{sha}/status."""
+    """Two GitHub API calls per PR: pulls/{n} + commits/{sha}/statuses (paginated)."""
     pr_meta = gh_api(f"repos/{repo}/pulls/{pr_num}")
     sha = pr_meta["head"]["sha"]
-    status_data = gh_api(f"repos/{repo}/commits/{sha}/status?per_page=100")
+    statuses = gh_api_paginated(f"repos/{repo}/commits/{sha}/statuses?per_page=100")
+    status_data = {"statuses": dedup_statuses(statuses)}
     return pr_num, pr_meta, status_data
 
 
@@ -85,7 +98,7 @@ def fetch_presubmit_config(repo, branch):
 
 
 
-def match_tide_queries(tide_queries, repo, branch, pr_labels_set):
+def match_tide_queries(tide_queries, repo, branch, author, pr_labels_set):
     """Port of closestMatchingQueries (pr.ts:1062).
 
     Returns list of processed queries sorted by descending score.
@@ -108,6 +121,10 @@ def match_tide_queries(tide_queries, repo, branch, pr_labels_set):
         if inc and branch not in inc:
             continue
 
+        query_author = tq.get("author", "")
+        if query_author and query_author.lower() != (author or "").lower():
+            continue
+
         required = sorted(tq.get("labels", []), key=len)
         forbidden = sorted(tq.get("missingLabels", []), key=len)
 
@@ -125,6 +142,35 @@ def match_tide_queries(tide_queries, repo, branch, pr_labels_set):
 
     results.sort(key=lambda q: -q["score"])
     return results
+
+
+def classify_jobs(jobs, job_config):
+    """Cross-reference reported commit statuses against presubmit config.
+
+    Returns dict with:
+      required_jobs: all jobs with descriptive states:
+        - "success", "failure", "pending", "error" — normal reported states
+        - "not_reported" — required in config but no status reported
+        - "not_in_config" — has a reported status but NOT in the current config
+    """
+    required_jobs = []
+    config_contexts = set(job_config.keys())
+    reported_contexts = {j["name"] for j in jobs}
+
+    for j in jobs:
+        if j["name"] in config_contexts:
+            if not job_config[j["name"]]["optional"]:
+                required_jobs.append(j)
+        else:
+            # Reported but not in config (stale/removed job)
+            required_jobs.append({"name": j["name"], "state": "not_in_config"})
+
+    # Required contexts in config with no reported status
+    for ctx, cfg in job_config.items():
+        if not cfg["optional"] and cfg["always_run"] and ctx not in reported_contexts:
+            required_jobs.append({"name": ctx, "state": "not_reported"})
+
+    return {"required_jobs": required_jobs}
 
 
 def build_job_entry(name, state, description, url):
@@ -160,7 +206,8 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
             ))
 
     pr_labels_set = {label["name"] for label in pr_meta.get("labels", [])}
-    queries = match_tide_queries(tide_queries, repo, branch, pr_labels_set)
+    author = (pr_meta.get("user") or {}).get("login", "")
+    queries = match_tide_queries(tide_queries, repo, branch, author, pr_labels_set)
     best = queries[0] if queries else None
 
     # Labels
@@ -182,10 +229,8 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
     # Classify jobs
     job_config = presubmit_configs.get(branch)
     if job_config:
-        required_jobs = [
-            j for j in jobs
-            if j["name"] in job_config and not job_config[j["name"]]["optional"]
-        ]
+        classified = classify_jobs(jobs, job_config)
+        required_jobs = classified["required_jobs"]
     else:
         required_jobs = [{"error": f"could not fetch presubmit config from openshift/release for {repo} branch {branch} — job classification unavailable"}]
 
@@ -197,7 +242,7 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
         blockers.append("no Tide query matches this branch")
 
     for j in required_jobs:
-        if "error" not in j and j["state"] != "success":
+        if "error" not in j and j["state"] not in ("success", "not_in_config"):
             blockers.append(f"job not passing: {j['name']} ({j['state']})")
 
     if pr_meta.get("mergeable") is False:
@@ -206,12 +251,11 @@ def build_pr_result(pr_num, pr_meta, status_data, tide_queries, presubmit_config
     return {
         "number": pr_num,
         "title": pr_meta["title"],
-        "author": pr_meta["user"]["login"],
+        "author": (pr_meta.get("user") or {}).get("login", ""),
         "url": pr_meta["html_url"],
         "branch": branch,
         "state": pr_meta["state"],
-        "mergeable": pr_meta.get("mergeable"),
-        "tide": tide_status,
+        "tide_verdict": tide_status,
         "blockers": blockers,
         "labels": labels_section,
         "required_jobs": required_jobs,
