@@ -130,10 +130,15 @@ dependencies, and prepare the build environment.
    cd /workspace/console
    ```
 
-2. Fetch the PR branch and base branch:
+2. Fetch the PR branch and base branch. The remote name defaults to `origin`
+   but is configurable via `REMOTE_NAME`. We detach HEAD first so re-runs
+   don't fail when fetching into a previously checked-out branch, and use `+`
+   prefix on refspecs so force-pushed branches update without error:
    ```bash
-   git fetch origin "pull/${PR_NUMBER}/head:pr-branch"
-   git fetch origin "${BASE_REF}:base-branch"
+   REMOTE_NAME="${REMOTE_NAME:-origin}"
+   git checkout --detach HEAD 2>/dev/null || true
+   git fetch "$REMOTE_NAME" "+pull/${PR_NUMBER}/head:pr-branch"
+   git fetch "$REMOTE_NAME" "+refs/heads/${BASE_REF}:refs/heads/base-branch"
    git checkout base-branch
    ```
    After clone, we check out `base-branch` first — baseline is captured before
@@ -159,10 +164,11 @@ dependencies, and prepare the build environment.
    manager privileges. We download RPMs and extract shared libraries manually
    to a local directory, then set `LD_LIBRARY_PATH` so Chrome can find them.
 
-4. Install Puppeteer and Chrome browser:
+4. Install Puppeteer and Chrome browser in an isolated directory (avoids
+   modifying console's `package.json`, which would break `yarn install --immutable`):
    ```bash
-   cd /workspace/console/frontend
-   npm install puppeteer
+   mkdir -p /workspace/puppeteer-env && cd /workspace/puppeteer-env
+   npm init -y && npm install puppeteer
    npx puppeteer browsers install chrome
    ```
    Puppeteer v22+ defaults to `chrome-headless-shell` which does NOT render

@@ -24,6 +24,9 @@ log()  { echo "[setup] $(date '+%H:%M:%S') $*"; }
 warn() { echo "[setup] $(date '+%H:%M:%S') WARNING: $*" >&2; }
 die()  { echo "[setup] $(date '+%H:%M:%S') ERROR: $*" >&2; exit 1; }
 
+# Configurable remote name (default: origin)
+REMOTE_NAME="${REMOTE_NAME:-origin}"
+
 # ---------------------------------------------------------------------------
 # Phase 0 — Validate Inputs
 # ---------------------------------------------------------------------------
@@ -101,20 +104,24 @@ log "Metadata saved to /workspace/evidence/metadata.json"
 if [[ -d /workspace/console/.git ]]; then
   log "Console repo already cloned at /workspace/console — reusing"
   cd /workspace/console
-  git fetch origin
+  git fetch "$REMOTE_NAME"
 else
   log "Cloning openshift/console (full clone)..."
   git clone https://github.com/openshift/console.git /workspace/console
   cd /workspace/console
 fi
 
+# Detach HEAD so that re-runs don't fail when fetching into a checked-out branch
+git checkout --detach HEAD 2>/dev/null || true
+
 # --- Fetch branches ---
+# Use + prefix on refspecs so force-pushed PR branches update without error
 log "Fetching PR branch (pull/${PR_NUMBER}/head)..."
-git fetch origin "pull/${PR_NUMBER}/head:pr-branch" \
+git fetch "$REMOTE_NAME" "+pull/${PR_NUMBER}/head:pr-branch" \
   || die "Failed to fetch PR branch — PR #${PR_NUMBER} may not exist"
 
 log "Fetching base branch (${BASE_REF})..."
-git fetch origin "${BASE_REF}:base-branch" \
+git fetch "$REMOTE_NAME" "+refs/heads/${BASE_REF}:refs/heads/base-branch" \
   || die "Failed to fetch base branch '${BASE_REF}'"
 
 # Check out base branch first (baseline capture happens before candidate)
@@ -183,10 +190,14 @@ export LD_LIBRARY_PATH="${CHROME_LIBS_DIR}/usr/lib64:${LD_LIBRARY_PATH:-}"
 log "LD_LIBRARY_PATH set: ${CHROME_LIBS_DIR}/usr/lib64"
 
 # --- Install Puppeteer ---
-log "Installing Puppeteer in frontend directory..."
-cd /workspace/console/frontend
+# Install Puppeteer in an isolated directory to avoid modifying console's
+# package.json or package-lock.json, which would break yarn install --immutable.
+PUPPETEER_DIR="/workspace/puppeteer-env"
+log "Installing Puppeteer in isolated directory (${PUPPETEER_DIR})..."
+mkdir -p "$PUPPETEER_DIR"
+cd "$PUPPETEER_DIR"
 
-# Install puppeteer (adds Chrome download)
+npm init -y > /dev/null 2>&1
 npm install puppeteer 2>&1 | tail -5
 log "Puppeteer npm package installed"
 
@@ -200,8 +211,8 @@ CHROME_BIN=""
 for candidate in \
   "$HOME/.cache/puppeteer/chrome/"*/chrome-linux64/chrome \
   "$HOME/.cache/puppeteer/chrome/"*/chrome-linux/chrome \
-  /workspace/console/frontend/node_modules/puppeteer/.local-chromium/*/chrome-linux64/chrome \
-  /workspace/console/frontend/node_modules/puppeteer/.local-chromium/*/chrome-linux/chrome; do
+  "${PUPPETEER_DIR}/node_modules/puppeteer/.local-chromium/"*/chrome-linux64/chrome \
+  "${PUPPETEER_DIR}/node_modules/puppeteer/.local-chromium/"*/chrome-linux/chrome; do
   if [[ -x "$candidate" ]]; then
     CHROME_BIN="$candidate"
     break
@@ -209,10 +220,10 @@ for candidate in \
 done
 
 if [[ -z "$CHROME_BIN" ]]; then
-  # Try npx puppeteer to find it
+  # Try node to find it via puppeteer's API
   CHROME_BIN=$(node -e "
     try {
-      const puppeteer = require('puppeteer');
+      const puppeteer = require('${PUPPETEER_DIR}/node_modules/puppeteer');
       console.log(puppeteer.executablePath());
     } catch(e) {
       console.error(e.message);
@@ -249,18 +260,19 @@ log "  4. source ./contrib/oc-environment.sh    # Sets BRIDGE_K8S_AUTH_BEARER_TO
 log "  5. ./bin/bridge -branding openshift &    # Start bridge"
 log "  6. node scripts/capture-screenshots.js   # Capture baseline screenshots"
 
-# Write env vars to a sourceable file so subsequent scripts can pick them up
-cat > /workspace/evidence/setup-env.sh <<ENV_EOF
-# Source this file to set up the environment for capture
-export LD_LIBRARY_PATH="${CHROME_LIBS_DIR}/usr/lib64:\${LD_LIBRARY_PATH:-}"
-export PR_NUMBER="${PR_NUMBER}"
-export HEAD_REF="${HEAD_REF}"
-export BASE_REF="${BASE_REF}"
-ENV_EOF
-
-if [[ -n "$CHROME_BIN" ]]; then
-  echo "export CHROME_BIN=\"${CHROME_BIN}\"" >> /workspace/evidence/setup-env.sh
-fi
+# Write env vars to a sourceable file so subsequent scripts can pick them up.
+# Use printf '%q' to safely escape values — branch names (HEAD_REF, BASE_REF)
+# can contain shell-special characters and must not enable code injection.
+{
+  echo "# Source this file to set up the environment for capture"
+  echo "export LD_LIBRARY_PATH=\"${CHROME_LIBS_DIR}/usr/lib64:\${LD_LIBRARY_PATH:-}\""
+  printf 'export PR_NUMBER=%q\n' "$PR_NUMBER"
+  printf 'export HEAD_REF=%q\n' "$HEAD_REF"
+  printf 'export BASE_REF=%q\n' "$BASE_REF"
+  if [[ -n "$CHROME_BIN" ]]; then
+    printf 'export CHROME_BIN=%q\n' "$CHROME_BIN"
+  fi
+} > /workspace/evidence/setup-env.sh
 
 log "Environment file written to /workspace/evidence/setup-env.sh"
 log "Run: source /workspace/evidence/setup-env.sh"

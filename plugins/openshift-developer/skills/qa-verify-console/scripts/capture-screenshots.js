@@ -26,6 +26,10 @@
 const fs = require('fs');
 const path = require('path');
 
+// Puppeteer is installed in an isolated directory to avoid modifying
+// the console repo's package.json (which would break yarn install --immutable).
+const PUPPETEER_DIR = process.env.PUPPETEER_DIR || '/workspace/puppeteer-env';
+
 // ---------------------------------------------------------------------------
 // Argument parsing
 // ---------------------------------------------------------------------------
@@ -128,7 +132,7 @@ function findChromeBinary(puppeteer) {
   const homeDir = process.env.HOME || '/root';
   const cacheDirs = [
     path.join(homeDir, '.cache', 'puppeteer', 'chrome'),
-    path.join(process.cwd(), 'node_modules', 'puppeteer', '.local-chromium'),
+    path.join(PUPPETEER_DIR, 'node_modules', 'puppeteer', '.local-chromium'),
   ];
 
   for (const cacheDir of cacheDirs) {
@@ -259,13 +263,13 @@ async function captureScreenshots() {
   // Ensure output directory exists
   fs.mkdirSync(config.outputDir, { recursive: true });
 
-  // Load puppeteer
+  // Load puppeteer from the isolated install directory
   let puppeteer;
   try {
-    puppeteer = require('puppeteer');
+    puppeteer = require(path.join(PUPPETEER_DIR, 'node_modules', 'puppeteer'));
   } catch (err) {
     console.error(`[capture] ERROR: Failed to load puppeteer: ${err.message}`);
-    console.error('[capture] Run: cd frontend && npm install puppeteer');
+    console.error(`[capture] Run: cd ${PUPPETEER_DIR} && npm init -y && npm install puppeteer`);
     process.exit(1);
   }
 
@@ -438,9 +442,14 @@ async function captureScreenshots() {
   // Print JSON summary to stdout (all other output goes to stderr)
   console.log(JSON.stringify(summary, null, 2));
 
-  // Exit 0 even if some routes failed — the summary JSON reports individual failures
-  // This allows the caller to process partial results
+  // Exit 0 if at least one route was captured — the summary JSON reports individual failures.
+  // This allows the caller to process partial results. Exit 1 only when ALL captures fail.
   console.error(`[capture] Done: ${capturedCount}/${config.routes.length} captured, ${failedCount} failed, ${skippedCount} skipped`);
+
+  if (capturedCount === 0) {
+    console.error('[capture] ERROR: All route captures failed — exiting with error');
+    process.exit(1);
+  }
 }
 
 // ---------------------------------------------------------------------------
