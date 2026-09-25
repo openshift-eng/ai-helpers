@@ -12,7 +12,16 @@ against a live cluster, generates flicker GIFs to highlight visual differences,
 and posts evidence to the PR. It enables rapid visual QA without manual browser
 testing.
 
-The worker agent:
+> **"Agent"** throughout this document refers to the Claude Code agent executing
+> the skill — the LLM-driven process that runs commands, makes decisions about
+> which routes to capture, and interprets results.
+
+> **Post-PR design:** This skill operates on an already-published pull request.
+> It requires a valid PR number so it can fetch both the head and base branches,
+> read the diff to identify affected routes, and post evidence back as a PR
+> comment. It is not designed for pre-PR / local-branch workflows.
+
+The agent:
 1. Clones `openshift/console`, builds both the base and PR branches
 2. Runs the console bridge (dev server) against a real OCP cluster
 3. Uses Puppeteer to capture screenshots of affected routes
@@ -49,16 +58,19 @@ from multiple cores.
 
 ## Inputs
 
-The worker receives two inputs:
+The agent receives two inputs:
 
 1. **PR number** — The `openshift/console` pull request to verify (e.g., `17199`)
 2. **OC login command** — A full `oc login` command string with token and server
-   URL, provided as the `OC_LOGIN_CMD` environment variable
+   URL, passed explicitly as the `OC_LOGIN_CMD` environment variable. This is
+   not an ambient kubeconfig assumption — the caller must provide a complete
+   `oc login --token=... --server=...` command that the script `eval`s to
+   authenticate against the target cluster.
 
 Optional:
 
 3. **Routes** — Comma-separated list of console routes to capture. If not
-   provided, the worker analyzes the PR diff to determine affected routes.
+   provided, the agent analyzes the PR diff to determine affected routes.
 
 ---
 
@@ -87,104 +99,29 @@ Optional:
 
 ## Phases
 
-### Phase 0 — Validate Inputs
+### Phases 0–1 — Validate Inputs & Setup Environment
 
-**Goal:** Confirm all required inputs are present, the cluster is reachable,
-and the PR exists.
+Phases 0 and 1 are fully automated by `scripts/setup.sh`. The agent invokes it
+and checks the exit code:
 
-**Steps:**
+```bash
+OC_LOGIN_CMD="oc login --token=... --server=..." \
+  bash /workspace/qa-verify-console/scripts/setup.sh "$PR_NUMBER"
+```
 
-1. Parse `PR_NUMBER` from the first positional argument to `setup.sh`
-2. Verify `OC_LOGIN_CMD` environment variable is set
-3. Run the `oc login` command:
-   ```bash
-   eval "$OC_LOGIN_CMD"
-   oc whoami          # Must succeed
-   oc whoami --show-server  # Log cluster URL
-   ```
-4. Verify the PR exists and extract branch metadata:
-   ```bash
-   gh pr view "$PR_NUMBER" --repo openshift/console --json headRefName,baseRefName,title,author,number
-   ```
-   - Extract `headRefName` (PR branch) and `baseRefName` (target branch, usually `master`)
-   - Save metadata to `/workspace/evidence/metadata.json`
+On success (`exit 0`), the script produces:
+- `/workspace/evidence/metadata.json` — PR metadata
+- `/workspace/console/` — cloned repo with `base-branch` checked out and
+  `pr-branch` available
+- `/workspace/evidence/setup-env.sh` — sourceable env vars (`LD_LIBRARY_PATH`,
+  `CHROME_BIN`, `QA_TOOLS_DIR`, branch refs)
 
-**On failure:**
-- Missing PR_NUMBER → exit with usage message
-- Missing OC_LOGIN_CMD → exit with error asking for cluster credentials
-- `oc login` fails → exit with error about cluster connectivity/token
-- `gh pr view` fails → exit with error about PR not found or GH auth
+The agent should `source /workspace/evidence/setup-env.sh` before proceeding.
 
----
-
-### Phase 1 — Setup Environment
-
-**Goal:** Clone the console repo, fetch both branches, install Chrome
-dependencies, and prepare the build environment.
-
-**Steps:**
-
-1. Clone the console repository (full clone — both branches are needed):
-   ```bash
-   git clone https://github.com/openshift/console.git /workspace/console
-   cd /workspace/console
-   ```
-
-2. Fetch the PR branch and base branch. The remote name defaults to `origin`
-   but is configurable via `REMOTE_NAME`. We detach HEAD first so re-runs
-   don't fail when fetching into a previously checked-out branch, and use `+`
-   prefix on refspecs so force-pushed branches update without error:
-   ```bash
-   REMOTE_NAME="${REMOTE_NAME:-origin}"
-   git checkout --detach HEAD 2>/dev/null || true
-   git fetch "$REMOTE_NAME" "+pull/${PR_NUMBER}/head:pr-branch"
-   git fetch "$REMOTE_NAME" "+refs/heads/${BASE_REF}:refs/heads/base-branch"
-   git checkout base-branch
-   ```
-   After clone, we check out `base-branch` first — baseline is captured before
-   candidate to take advantage of the initial clean state.
-
-3. Install Chrome system libraries (RPM extraction workaround):
-   ```bash
-   mkdir -p /workspace/chrome-libs
-   cd /workspace/chrome-libs
-
-   dnf download --destdir=. \
-     nss nspr nss-util atk at-spi2-atk at-spi2-core \
-     libXcomposite libXdamage libXfixes libXrandr \
-     mesa-libgbm libxkbcommon alsa-lib cups-libs nss-softokn-freebl
-
-   for rpm in *.rpm; do
-     rpm2cpio "$rpm" | cpio -idmv 2>/dev/null
-   done
-
-   export LD_LIBRARY_PATH="/workspace/chrome-libs/usr/lib64:${LD_LIBRARY_PATH:-}"
-   ```
-   **Why RPM extraction?** The workspace pod runs as non-root with no package
-   manager privileges. We download RPMs and extract shared libraries manually
-   to a local directory, then set `LD_LIBRARY_PATH` so Chrome can find them.
-
-4. Install Puppeteer and Chrome browser in an isolated directory (avoids
-   modifying console's `package.json`, which would break `yarn install --immutable`):
-   ```bash
-   mkdir -p /workspace/puppeteer-env && cd /workspace/puppeteer-env
-   npm init -y && npm install puppeteer
-   npx puppeteer browsers install chrome
-   ```
-   Puppeteer v22+ defaults to `chrome-headless-shell` which does NOT render
-   React SPAs properly. We install the full Chrome binary and use
-   `executablePath` to point to it explicitly.
-
-5. Create evidence directories:
-   ```bash
-   mkdir -p /workspace/evidence/{baseline,candidate,flicker}
-   ```
-
-**On failure:**
-- `git clone` fails → exit with error about network/GitHub access
-- `git fetch` fails for PR → exit with error about PR branch not found
-- RPM download fails → warn but continue (Chrome may still work if libs exist)
-- Puppeteer install fails → exit with error about Node.js/npm issues
+On failure (non-zero exit), `setup.sh` prints a descriptive error to stderr.
+Common failure causes: missing `PR_NUMBER` or `OC_LOGIN_CMD`, cluster
+unreachable, PR not found, git clone/fetch failure, or Puppeteer install
+failure. The agent should report the error and stop.
 
 ---
 
@@ -193,7 +130,7 @@ dependencies, and prepare the build environment.
 **Goal:** Build the console from the base branch and capture screenshots of
 the routes that the PR affects.
 
-**Prerequisite:** The working tree is on `base-branch` (set in Phase 1).
+**Prerequisite:** The working tree is on `base-branch` (set by `setup.sh`).
 
 **Steps:**
 
@@ -233,7 +170,7 @@ the routes that the PR affects.
    ```
 
 4. Determine routes to capture:
-   - The worker agent analyzes the PR diff (`gh pr diff "$PR_NUMBER"`) to
+   - The agent analyzes the PR diff (`gh pr diff "$PR_NUMBER"`) to
      identify which console routes are affected by the changes
    - Common route patterns:
      - `/` (overview/dashboard)
@@ -415,7 +352,7 @@ After cloning `openshift/console`, these scripts are available under
 | `make-flicker-gif.sh`      | Generate before/after flicker GIF                |
 | `check-prerequisites.sh`   | Verify system dependencies                       |
 
-These scripts may or may not exist depending on the console version. The worker
+These scripts may or may not exist depending on the console version. The agent
 should check for their existence before using them and fall back to inline
 equivalents.
 
@@ -426,7 +363,7 @@ equivalents.
 ```
 User: "Run QA verification on console PR #17199"
 
-Worker:
+Agent:
 1. Receives PR_NUMBER=17199, OC_LOGIN_CMD from environment
 2. Runs setup.sh 17199
 3. Analyzes PR diff → affected routes: /, /k8s/cluster/nodes, /monitoring/alerts

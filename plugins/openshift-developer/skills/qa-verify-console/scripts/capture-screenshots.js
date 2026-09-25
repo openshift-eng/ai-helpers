@@ -26,9 +26,10 @@
 const fs = require('fs');
 const path = require('path');
 
-// Puppeteer is installed in an isolated directory to avoid modifying
-// the console repo's package.json (which would break yarn install --immutable).
-const PUPPETEER_DIR = process.env.PUPPETEER_DIR || '/workspace/puppeteer-env';
+// Puppeteer is installed in /workspace/qa-tools — outside the console repo —
+// to avoid modifying the console repo's package.json (which would break
+// yarn install --immutable).
+const QA_TOOLS_DIR = process.env.QA_TOOLS_DIR || '/workspace/qa-tools';
 
 // ---------------------------------------------------------------------------
 // Argument parsing
@@ -132,7 +133,7 @@ function findChromeBinary(puppeteer) {
   const homeDir = process.env.HOME || '/root';
   const cacheDirs = [
     path.join(homeDir, '.cache', 'puppeteer', 'chrome'),
-    path.join(PUPPETEER_DIR, 'node_modules', 'puppeteer', '.local-chromium'),
+    path.join(QA_TOOLS_DIR, 'node_modules', 'puppeteer', '.local-chromium'),
   ];
 
   for (const cacheDir of cacheDirs) {
@@ -263,13 +264,20 @@ async function captureScreenshots() {
   // Ensure output directory exists
   fs.mkdirSync(config.outputDir, { recursive: true });
 
-  // Load puppeteer from the isolated install directory
+  // Load puppeteer from the isolated QA tools directory. Use createRequire so
+  // Node resolves from QA_TOOLS_DIR regardless of where this script lives.
+  // Falls back to normal require() in case NODE_PATH or a local install works.
   let puppeteer;
   try {
-    puppeteer = require(path.join(PUPPETEER_DIR, 'node_modules', 'puppeteer'));
+    const { createRequire } = require('module');
+    try {
+      puppeteer = createRequire(path.join(QA_TOOLS_DIR, 'package.json'))('puppeteer');
+    } catch (_) {
+      puppeteer = require('puppeteer');
+    }
   } catch (err) {
     console.error(`[capture] ERROR: Failed to load puppeteer: ${err.message}`);
-    console.error(`[capture] Run: cd ${PUPPETEER_DIR} && npm init -y && npm install puppeteer`);
+    console.error(`[capture] Run: cd ${QA_TOOLS_DIR} && npm init -y && npm install puppeteer`);
     process.exit(1);
   }
 
@@ -443,12 +451,12 @@ async function captureScreenshots() {
   console.log(JSON.stringify(summary, null, 2));
 
   // Exit 0 if at least one route was captured — the summary JSON reports individual failures.
-  // This allows the caller to process partial results. Exit 1 only when ALL captures fail.
+  // This allows the caller to process partial results.
   console.error(`[capture] Done: ${capturedCount}/${config.routes.length} captured, ${failedCount} failed, ${skippedCount} skipped`);
 
   if (capturedCount === 0) {
     console.error('[capture] ERROR: All route captures failed — exiting with error');
-    process.exit(1);
+    process.exitCode = 2;
   }
 }
 

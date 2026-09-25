@@ -81,23 +81,33 @@ log "Base ref:  $BASE_REF"
 log "=== Phase 1: Setup Environment ==="
 
 # --- Evidence directories ---
+# Clear stale evidence from prior runs before creating fresh directories
 log "Creating evidence directories..."
+rm -rf /workspace/evidence/baseline /workspace/evidence/candidate /workspace/evidence/flicker
 mkdir -p /workspace/evidence/{baseline,candidate,flicker}
 
-# Save metadata
-cat > /workspace/evidence/metadata.json <<METADATA_EOF
-{
-  "pr_number": ${PR_NUMBER},
-  "title": $(echo "$PR_TITLE" | jq -Rs .),
-  "author": $(echo "$PR_AUTHOR" | jq -Rs .),
-  "head_ref": $(echo "$HEAD_REF" | jq -Rs .),
-  "base_ref": $(echo "$BASE_REF" | jq -Rs .),
-  "url": $(echo "$PR_URL" | jq -Rs .),
-  "cluster_user": $(echo "$CLUSTER_USER" | jq -Rs .),
-  "cluster_server": $(echo "$CLUSTER_SERVER" | jq -Rs .),
-  "setup_timestamp": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-}
-METADATA_EOF
+# Save metadata — use jq -Rn --arg to avoid trailing newlines from echo | jq -Rs
+jq -n \
+  --argjson pr_number "$PR_NUMBER" \
+  --arg title "$PR_TITLE" \
+  --arg author "$PR_AUTHOR" \
+  --arg head_ref "$HEAD_REF" \
+  --arg base_ref "$BASE_REF" \
+  --arg url "$PR_URL" \
+  --arg cluster_user "$CLUSTER_USER" \
+  --arg cluster_server "$CLUSTER_SERVER" \
+  --arg setup_timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+  '{
+    pr_number: $pr_number,
+    title: $title,
+    author: $author,
+    head_ref: $head_ref,
+    base_ref: $base_ref,
+    url: $url,
+    cluster_user: $cluster_user,
+    cluster_server: $cluster_server,
+    setup_timestamp: $setup_timestamp
+  }' > /workspace/evidence/metadata.json
 log "Metadata saved to /workspace/evidence/metadata.json"
 
 # --- Clone console ---
@@ -141,7 +151,10 @@ mkdir -p "$CHROME_LIBS_DIR"
 ORIGINAL_DIR=$(pwd)
 cd "$CHROME_LIBS_DIR"
 
-# List of required library packages for Chrome
+# List of required library packages for Chrome.
+# TODO(transitional): These runtime deps should be baked into the workspace
+# container image. RPM extraction at setup time is a workaround for the current
+# non-root pod environment that lacks a package manager.
 CHROME_LIB_PACKAGES=(
   nss
   nspr
@@ -190,12 +203,12 @@ export LD_LIBRARY_PATH="${CHROME_LIBS_DIR}/usr/lib64:${LD_LIBRARY_PATH:-}"
 log "LD_LIBRARY_PATH set: ${CHROME_LIBS_DIR}/usr/lib64"
 
 # --- Install Puppeteer ---
-# Install Puppeteer in an isolated directory to avoid modifying console's
-# package.json or package-lock.json, which would break yarn install --immutable.
-PUPPETEER_DIR="/workspace/puppeteer-env"
-log "Installing Puppeteer in isolated directory (${PUPPETEER_DIR})..."
-mkdir -p "$PUPPETEER_DIR"
-cd "$PUPPETEER_DIR"
+# Install Puppeteer in /workspace/qa-tools — outside the console repo — to
+# avoid modifying console's package.json, which would break yarn install --immutable.
+QA_TOOLS_DIR="/workspace/qa-tools"
+log "Installing Puppeteer in ${QA_TOOLS_DIR} (outside the console repo)..."
+mkdir -p "$QA_TOOLS_DIR"
+cd "$QA_TOOLS_DIR"
 
 npm init -y > /dev/null 2>&1
 npm install puppeteer 2>&1 | tail -5
@@ -211,8 +224,8 @@ CHROME_BIN=""
 for candidate in \
   "$HOME/.cache/puppeteer/chrome/"*/chrome-linux64/chrome \
   "$HOME/.cache/puppeteer/chrome/"*/chrome-linux/chrome \
-  "${PUPPETEER_DIR}/node_modules/puppeteer/.local-chromium/"*/chrome-linux64/chrome \
-  "${PUPPETEER_DIR}/node_modules/puppeteer/.local-chromium/"*/chrome-linux/chrome; do
+  "${QA_TOOLS_DIR}/node_modules/puppeteer/.local-chromium/"*/chrome-linux64/chrome \
+  "${QA_TOOLS_DIR}/node_modules/puppeteer/.local-chromium/"*/chrome-linux/chrome; do
   if [[ -x "$candidate" ]]; then
     CHROME_BIN="$candidate"
     break
@@ -223,7 +236,7 @@ if [[ -z "$CHROME_BIN" ]]; then
   # Try node to find it via puppeteer's API
   CHROME_BIN=$(node -e "
     try {
-      const puppeteer = require('${PUPPETEER_DIR}/node_modules/puppeteer');
+      const puppeteer = require('${QA_TOOLS_DIR}/node_modules/puppeteer');
       console.log(puppeteer.executablePath());
     } catch(e) {
       console.error(e.message);
@@ -258,7 +271,7 @@ log "  2. ./build.sh                           # Build baseline (base branch)"
 log "  3. export BRIDGE_USER_AUTH=\"disabled\""
 log "  4. source ./contrib/oc-environment.sh    # Sets BRIDGE_K8S_AUTH_BEARER_TOKEN"
 log "  5. ./bin/bridge -branding openshift &    # Start bridge"
-log "  6. node scripts/capture-screenshots.js   # Capture baseline screenshots"
+log "  6. node /workspace/qa-verify-console/scripts/capture-screenshots.js  # Capture screenshots"
 
 # Write env vars to a sourceable file so subsequent scripts can pick them up.
 # Use printf '%q' to safely escape values — branch names (HEAD_REF, BASE_REF)
@@ -269,6 +282,7 @@ log "  6. node scripts/capture-screenshots.js   # Capture baseline screenshots"
   printf 'export PR_NUMBER=%q\n' "$PR_NUMBER"
   printf 'export HEAD_REF=%q\n' "$HEAD_REF"
   printf 'export BASE_REF=%q\n' "$BASE_REF"
+  printf 'export QA_TOOLS_DIR=%q\n' "$QA_TOOLS_DIR"
   if [[ -n "$CHROME_BIN" ]]; then
     printf 'export CHROME_BIN=%q\n' "$CHROME_BIN"
   fi
