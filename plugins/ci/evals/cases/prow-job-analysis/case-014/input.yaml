@@ -1,0 +1,8 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results-public/pr-logs/pull/openshift_release/85710/rehearse-85710-pull-ci-openshift-hive-master-periodic-images/2102531995060932608"
+job_name: "rehearse-85710-pull-ci-openshift-hive-master-periodic-images"
+description: >-
+  Images-only rehearsal for openshift/release#85710 where the hive and
+  hive-tests image builds fail while downloading RHEL repository metadata and
+  packages from base-5-0-rhel9.ocp.svc. The job creates no test cluster and
+  produces no node journals, so the OS-layer evidence check is not applicable;
+  the agent must still identify the build-repository HTTP 502 failure.
