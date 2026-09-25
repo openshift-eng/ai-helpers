@@ -160,6 +160,7 @@ The structured data includes all necessary regression details:
   - `failed_runs`: List of failed runs for this job, sorted by start_time (newest first). Each run includes:
     - `test_failures`: Total number of tests failing in the entire job run (not just the regressed test). High values (>10) indicate a mass failure run where the regressed test may be collateral damage rather than the primary problem.
     - `job_labels`: List of symptom labels applied to this specific run. Labels are precise — they fire only when a human-defined regex matches job artifacts. An empty list means no known symptom was detected for this run.
+- `label_bugs`: `{label: [Jira keys]}` for labels seen in `sample_failed_jobs`, from the public label catalog. On fetch failure, `label_bugs_error` is set instead — treat it as unknown, not "no bugs".
 - `job_runs`: Complete list of all job runs where the failure was observed throughout the entire life of the regression (not just the last reporting period). Sorted by start_time (newest first). Each entry contains:
   - `id`: Unique ID for this job run record
   - `regression_id`: The regression this run belongs to

@@ -16,6 +16,7 @@ class RegressionFetcher:
     """Fetches and parses regression data from Sippy API."""
 
     BASE_URL = "https://sippy.dptools.openshift.org/api/component_readiness/regressions"
+    LABELS_URL = "https://sippy.dptools.openshift.org/api/jobs/labels"
 
     def __init__(self, regression_id: int):
         """
@@ -350,6 +351,15 @@ class RegressionFetcher:
         else:
             regression['sample_failed_jobs'] = {}
 
+        label_ids = {label for job in regression['sample_failed_jobs'].values() for label in job['label_summary']}
+        if label_ids:
+            try:
+                with urllib.request.urlopen(self.LABELS_URL, timeout=30) as response:
+                    labels = {label['id']: label for label in json.loads(response.read().decode('utf-8'))}
+                regression['label_bugs'] = {i: labels.get(i, {}).get('bugs') or [] for i in sorted(label_ids)}
+            except (OSError, ValueError, KeyError, TypeError) as e:
+                regression['label_bugs_error'] = str(e)
+
         return regression
 
 
@@ -445,6 +455,13 @@ def format_summary(regression: Dict[str, Any]) -> str:
                     total_failed = len(job_data['failed_runs'])
                     label_parts = [f"{label} ({count}/{total_failed} runs)" for label, count in sorted(label_summary.items(), key=lambda x: -x[1])]
                     lines.append(f"    Symptom Labels: {', '.join(label_parts)}")
+                    if regression.get('label_bugs_error'):
+                        lines.append(f"    Label Bugs: Error fetching - {regression['label_bugs_error']}")
+                    else:
+                        linked = [f"{label} -> {', '.join(regression['label_bugs'][label])}"
+                                  for label in sorted(label_summary) if regression.get('label_bugs', {}).get(label)]
+                        if linked:
+                            lines.append(f"    Label Bugs: {'; '.join(linked)}")
 
                 lines.append(f"    Failed Runs ({len(job_data['failed_runs'])}):")
                 for run in job_data['failed_runs']:
