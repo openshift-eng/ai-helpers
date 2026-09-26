@@ -5,8 +5,18 @@ Control ID: Mon-01
 ## 1. Runtime Integrity
 
 ### Headless/CronJob Execution
-- Verify that `.work/node-cve/triage-YYYY-MM-DD/` artifacts exist and are
-  non-empty after each scheduled run
+- The pod and its `.work/` directory are discarded after each run. Each run
+  writes its session transcript (`--output-format stream-json`) to stdout
+  and streams each audit event from `posting-history.log` to stderr.
+  Cluster logging captures both.
+  Verify that both are present in the logs after each scheduled run
+- Before relying on the transcript as the audit trail, test it against the
+  target logging stack: stream-json lines that carry whole file reads can
+  exceed per-line limits (CRI-O splits lines over 16 KiB, Loki drops lines
+  over 256 KB by default) and arrive truncated or not at all
+- The CronJob keeps the last 7 successful and 7 failed Jobs
+  (`successfulJobsHistoryLimit`, `failedJobsHistoryLimit`) for quick
+  inspection with `oc logs`
 - CronJob failure (non-zero exit) surfaces via standard OpenShift job
   monitoring and alerts
 - Monitor pod logs for errors (failed Jira API calls, clone timeouts,
@@ -16,16 +26,35 @@ Control ID: Mon-01
 - Track classification distribution over time. A sudden shift (e.g., all
   CVEs classified as "Uncertain" when they were previously mixed) may
   indicate a problem with repo connectivity or prompt drift.
-- Monitor for unexpected tool invocations. The agent should only use
-  `jira` CLI for Jira queries and comments, `git` for cloning, `curl`
-  for Jira/Slack API calls, and `gh` for GitHub operations. Any other
-  tool usage is anomalous.
+- Monitor for unexpected tool invocations in **headless node-cve runs**.
+  There the only Bash command is the node-cve helper script
+  (`node-cve-lib.sh`), next to the read-only file tools, `WebSearch` and
+  `WebFetch`. Any other tool usage in a headless run is anomalous, and in
+  `dontAsk` mode it shows up as a refused tool call in the transcript.
+- Interactive `node-team` sessions legitimately use a wider tool set (`oc`,
+  `ssh`/`scp`, `docker`/`podman`, `promtool`, `gh`, `vagrant`, `rm` during
+  cleanup; see the [capabilities inventory](capabilities-inventory.md)). These
+  are not anomalies. What to look for there: Jira writes or cluster changes
+  without a preceding user request and confirmation, support case access
+  without a named case, and tokens appearing in command lines.
 
 ### Overprivilege Audit
 - Quarterly review of API token scopes to confirm least privilege:
   - `JIRA_API_TOKEN`: verify the token owner has only the necessary
-    project permissions (OCPBUGS read + comment, OCPNODE read)
+    project permissions (OCPBUGS browse, add comments and edit own
+    comments; OCPNODE browse)
   - `SLACK_API_TOKEN`: verify bot is only added to #team-node
+  - `SLACK_WEBHOOK` (headless): verify the Slack app has only the
+    `incoming-webhook` scope and posts to #team-node
+  - Vertex AI credentials (headless): verify the service identity has only
+    Vertex AI access; rotate the service account key if one is used instead
+    of Workload Identity Federation
+  - Headless tool allowlist: verify the mounted `settings.json` matches the
+    capabilities inventory, including the sandbox settings
+  - Namespace RBAC: verify only the admin group can create Jobs, edit the
+    CronJob or read secrets
+  - `RH_API_OFFLINE_TOKEN`: confirm it is not present in the headless
+    environment (support case access is interactive only)
 - Confirm no access creep (no new repos, APIs, or data sources added
   without updating the capabilities inventory)
 
@@ -45,10 +74,15 @@ Control ID: Mon-01
 - Target: false positive rate below 20%, false negative rate below 10%
 
 ### Skill Invocation Audit
-- Review Claude Code session logs (JSONL transcripts) to verify the agent
-  used read-only tools (git clone, curl GET, jira list) for analysis and
-  only used write tools (curl POST for Jira comment, Slack message) when
-  `--notify-*` flags were provided
+- Review Claude Code session transcripts (local JSONL files for interactive
+  use, the stream-json output in the pod logs for headless runs) to verify
+  the agent used read-only helper subcommands (`search`, `clone`,
+  `find-comment`, `validate`) for analysis and only used the posting
+  subcommands (`post-comment`, `slack`, or `plan-comment`, `plan-slack` in
+  `--handoff` runs) when `--notify-*` flags were provided
+- For Chai RWS runs, check in the Chai traces that the coordinator only
+  called `comment_on_jira_issue` for keys in the worker's
+  `posting-plan.json`
 - Flag any invocation of write tools without the corresponding opt-in flag
 
 ## 3. Core Performance Tracking
@@ -60,7 +94,7 @@ Control ID: Mon-01
 | CVE count per run | `cves.json` total_cves field | Drops to 0 unexpectedly | Planned |
 | Classification confidence | % of "Low" confidence results | > 30% low confidence | Planned |
 | Jira comment failures | Return value `jira_comments_failed` | > 0 | Planned |
-| Slack delivery failures | Slack API response status | Non-200 response | Planned |
+| Slack delivery failures | Slack API response: HTTP status and the `ok` field (Slack returns 200 with `"ok": false` on errors) | Non-200 or `ok != true` | Planned |
 
 Dashboards and alerting will be wired up as part of CronJob deployment.
 Manual review against these thresholds applies until automated monitoring
@@ -70,10 +104,10 @@ is in place.
 
 | Anomaly | Detection | Response | Status |
 |---------|-----------|----------|--------|
-| Infinite loop | Pod runtime exceeds 1 hour | Kill pod, investigate | Planned |
-| Permission probing | Agent attempts to access files or APIs outside approved scope | Review session logs, update prompts | Manual |
+| Infinite loop | Pod runtime exceeds 1 hour | `activeDeadlineSeconds: 3600` kills the Job; investigate | Planned |
+| Permission probing | Agent attempts to access files or APIs outside approved scope; in headless runs these show up as refused tool calls in the transcript | Review session logs, update prompts | Manual |
 | Resource spike | Token consumption > 3x baseline | Throttle, investigate prompt complexity | Planned |
-| All-Uncertain results | Every CVE classified as Uncertain | Check repo clone connectivity, verify branch patterns | Manual |
+| All-Uncertain results | Every CVE classified as Uncertain | Check repo clone connectivity, verify branch patterns in `shared/components.md` against `git ls-remote --heads` | Manual |
 | Zero CVEs found | Query returns no results when CVEs are known to exist | Verify JQL query, check component names | Manual |
 
 ## 5. Prompt and Skill Refinement

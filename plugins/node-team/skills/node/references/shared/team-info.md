@@ -53,8 +53,8 @@ spreadsheet. The "AOS Main Calendar" also has the sprints scheduled.
 ## Upstream Communities
 
 The team participates in Kubernetes SIG-Node:
-- SIG-Node weekly meeting (Tuesdays 1 PM EST)
-- SIG-Node CI subgroup (Wednesdays 1 PM EST)
+- SIG-Node weekly meeting (Tuesdays 1 PM ET)
+- SIG-Node CI subgroup (Wednesdays 1 PM ET)
 - Kubernetes contributor guide: https://www.kubernetes.dev/docs/guide/
 
 ## Slack Channels
@@ -93,10 +93,10 @@ For setup instructions (hostnames, authentication), see
 
 | Plugin | Command / Skill | When to use |
 |--------|----------------|-------------|
-| `node-team` | `/node-team:overview` | Understand team scope, navigate to the right tool |
+| `node-team` | `/node-team:overview` | Understand team scope, navigate to the right tool; also syncs the team roster cache |
 | `node-team` | `/node-team:setup` | Set up a local development environment |
 | `node-team` | `/node-team:preflight` | Verify GitHub and Jira credentials and required CLI tools |
-| `node-team` | `/node-team:cleanup` | Purge cached plugin artifacts: triage reports, cloned repos, dist-git clones, Vagrant VMs, roster cache |
+| `node-team` | `/node-team:cleanup` | Purge cached plugin artifacts: triage reports, cloned repos, dist-git clones, Vagrant VMs, roster cache (onboarding progress and the posting audit log only after separate confirmation) |
 | `node-team` | `node-team:node` (skill) | General Node development, deployment, and debugging questions |
 | `node-cve` | `/node-cve:triage` | CVE triage with reachability analysis |
 | `node-bug` | `/node-bug:triage` | Bug triage, sub-team routing, assignment suggestions |
