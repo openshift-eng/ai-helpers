@@ -1,0 +1,50 @@
+name: Check Documentation Sync
+
+# Fails any PR that changed plugin metadata without running `make update`.
+# Replays the same generation sequence as the `update` target in the Makefile
+# (frontmatter fixer, marketplace version sync, docs regen), then requires the
+# generated output to be unchanged. This prevents docs/index.html and
+# .claude-plugin/marketplace.json from drifting out of sync with plugin
+# content (the post-merge auto-regen PRs from update-docs.yml often sit
+# unmerged, so drift accumulated on main).
+
+on:
+  pull_request:
+
+jobs:
+  check-docs-sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: '.python-version'
+          pip-install: -r requirements-dev.txt
+
+      - name: Fix frontmatter quotes
+        run: python3 scripts/fix_frontmatter_quotes.py
+
+      - name: Sync marketplace versions
+        run: python3 scripts/sync_marketplace_versions.py
+
+      - name: Regenerate documentation
+        run: skillsaw docs -o docs/ --theme crimson-red
+
+      - name: Verify no drift
+        run: |
+          drift="$(git status --porcelain=v1 --untracked-files=all -- docs/ .claude-plugin/marketplace.json)"
+          if [ -n "$drift" ]; then
+            echo "$drift"
+            echo ""
+            echo "::error::docs/ or .claude-plugin/marketplace.json is out of sync with plugin metadata."
+            echo "::error::Run 'make update' locally and commit the result."
+            exit 1
+          fi
