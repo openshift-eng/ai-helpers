@@ -1,0 +1,5 @@
+repo_url: https://github.com/ovn-org/ovn-kubernetes
+from_commit: a32f638885c5ad1241b4c28c1c91d8a1f2bbc5a6
+version: "1.34.1"
+known_good_url: https://github.com/ovn-org/ovn-kubernetes
+known_good_ref: 74e5e6f47aa7af9f797e3cc9579f2ac298c292ff

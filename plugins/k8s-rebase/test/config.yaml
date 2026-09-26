@@ -1,0 +1,34 @@
+version: "1.36.2"
+max_concurrent: 2
+
+# from_commit must be the merge-base of main and the known_good branch —
+# the commit the human started from when they did the rebase. If main
+# moved after the human branched (new PRs merged), from_commit should
+# be the OLDER commit, not the current main tip.
+
+repos:
+  ovn-org/ovn-kubernetes:
+    from_commit: f261f146c0625bbdb5933298cfcbebd7f392223d
+    known_good: af1d95ca97f9237e27d4c78fb8691946fa5cab73
+  ovn-kubernetes/ovn-kubernetes-mcp:
+    from_commit: 6c4c629e0d2df23f8a3a57b54a74d7a56c6672d9
+    known_good:
+      url: https://github.com/dfarrell07/ovn-kubernetes-mcp.git
+      ref: bump1.36-20260717052952
+  openshift/multus-cni:
+    from_commit: b4ec7d8239ce4bd3ed949bce9816a013377b44c7
+    known_good:
+      url: https://github.com/dfarrell07/multus-cni.git
+      ref: bump1.36
+  openshift/ingress-node-firewall:
+    from_commit: f1e4ccd4d9e9b51c74c8e2aa35137ce9744cd581
+    known_good: 577523c2bfd6ccb52f9fa7fa87bbb9034035c631
+  openshift/cloud-network-config-controller:
+    from_commit: 2d69ad953cfaa419e9b6221da9edb152ded91e0b
+    known_good:
+      url: https://github.com/dfarrell07/cloud-network-config-controller.git
+      ref: bump1.36
+  openshift/cluster-network-operator:
+    from_commit: 22c1bf1a43a1ad358bc6b779b3f0a0ced703dd3e
+    known_good: aab9941e9517d22ee552d7b171de3b5cd463c341
+model: claude-sonnet-4-6
