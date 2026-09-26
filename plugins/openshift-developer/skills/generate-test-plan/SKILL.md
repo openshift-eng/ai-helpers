@@ -93,7 +93,7 @@ Note skipped PRs in the output with reasoning.
 - **Troubleshooting**: Common issues and debug steps
 - **Notes**: Known limitations, links to Jira and PRs, dependencies between PRs
 
-**Exclusions**: Do NOT include build/deploy steps or cleanup steps. Assume the environment is already set up. Focus purely on testing procedures.
+**Scope**: Omit routine build, deploy, and cleanup steps; assume the environment is already set up. For a scenario that mutates shared, cluster-wide, or persistent state, require an isolated or explicitly approved environment, capture the exact pre-test state, restore it afterward, and verify restoration.
 
 ### Step 6: Report
 
