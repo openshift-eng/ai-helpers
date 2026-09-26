@@ -313,7 +313,7 @@ digraph somepath command-line-arguments.main "<package-path>.<vulnerable-functio
 # Result: HIGH RISK — reachable path found
 ```
 
-## Integration with Parent Command
+## Integration with analyze-cve
 
 This skill is called from Method 5 of the [codebase-impact-analysis](../codebase-impact-analysis/SKILL.md) skill.
 

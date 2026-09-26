@@ -16,7 +16,7 @@ Use this skill when:
 
 ## Prerequisites
 
-### Required Tools (validated in Phase 0 of parent command)
+### Required Tools (validated in Phase 0 of the analyze-cve skill)
 - `go` toolchain with `go.mod` in workspace root
 - `govulncheck`: `go install golang.org/x/vuln/cmd/govulncheck@latest`
 - `callgraph`: `go install golang.org/x/tools/cmd/callgraph@latest`
@@ -367,10 +367,10 @@ Return structured result to parent command:
 - This is **NOT** a valid reason to skip call graph. Proceed with Method 5.
 - Source code search misses interface dispatch, generated code, and indirect call paths.
 
-## Integration with Parent Command
+## Integration with analyze-cve
 
-This skill is called from Phase 2 of the `/compliance:analyze-cve` command, after the [Repo Guard](../../commands/analyze-cve.md#repo-guard--re-clone-if-missing) has confirmed `REPO_DIR` still exists.
+This skill is called from Phase 2 of the `analyze-cve` skill, after the [Repo Guard](../analyze-cve/references/implementation.md#repo-guard--re-clone-if-missing) has confirmed `REPO_DIR` still exists.
 
 **Input:** CVE profile from Phase 1, `--algo` preference from user, `REPO_DIR` set in Phase 0.7
 **Output:** Risk level, evidence package, confidence assessment
-**Next:** Parent command uses risk level to decide whether to generate report and proceed to remediation
+**Next:** The analyze-cve skill uses risk level to decide whether to generate report and proceed to remediation
