@@ -15,7 +15,6 @@ Use this skill whenever you need to:
 - Work with multiple OpenShift cluster contexts simultaneously
 
 This skill is used by all commands that need to authenticate with OpenShift clusters:
-- `ask-sippy` command (DPCR cluster)
 - `trigger-periodic`, `trigger-postsubmit`, `trigger-presubmit` commands (app.ci cluster)
 - `query-job-status` command (app.ci cluster)
 
@@ -67,7 +66,6 @@ Here are commonly used OpenShift clusters:
 ### 2. `dpcr` - DPCR Cluster
 - **Console URL**: https://console-openshift-console.apps.cr.j7t7.p1.openshiftapps.com/
 - **API Server**: https://api.cr.j7t7.p1.openshiftapps.com:6443
-- **Used by**: ask-sippy
 
 **Note**: The skill supports any OpenShift cluster - simply provide the cluster's API server URL.
 
@@ -108,12 +106,6 @@ Use the curl wrapper instead of regular curl for authenticated requests:
 curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -X POST \
   -d '{"job_name": "my-job", "job_execution_type": "1"}' \
   https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
-
-# Query Sippy API (DPCR cluster)
-curl_with_token.sh https://api.cr.j7t7.p1.openshiftapps.com:6443 -s -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"message": "question", "chat_history": []}' \
-  https://sippy-auth.dptools.openshift.org/api/chat
 
 # Query any other OpenShift cluster API
 curl_with_token.sh https://api.your-cluster.example.com:6443 -X GET \
