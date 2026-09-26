@@ -5,161 +5,168 @@ description: Retroactively re-run Sippy Symptom detection on completed Prow CI j
 
 # Reevaluate Job Runs
 
-Sippy Symptoms are known-failure signatures for OpenShift CI. A symptom is a rule made of a file pattern (a glob over a CI job run's artifact files, e.g. `**/build-log.txt`) and a matcher (`string` = substring, `regex` = regular expression, `none` = file merely exists, `cel` = a compound CEL expression over other label names). When a symptom matches a job run's artifacts, Sippy applies one or more **Labels** — human-readable tags like `InfraFailure` — to that run. Labels appear in the Sippy UI and Spyglass and help everyone quickly recognize known failure modes without re-debugging them. You do not need any prior Sippy knowledge to use this skill.
-
-Symptom detection normally runs automatically as job artifacts arrive. Reevaluation is for runs that completed **before** a symptom was created or changed — it asks Sippy to re-scan those runs server-side and apply the current symptom set.
+Sippy Symptoms are known-failure signatures for OpenShift CI. Reevaluation asks
+Sippy to re-scan completed job runs using the current symptom definitions and
+apply their Labels. Use it for runs that completed before a symptom was created
+or changed.
 
 ## When to Use This Skill
 
-Use this skill when you need to:
+Use this skill to:
 
-- Apply a newly created or updated symptom to job runs that finished before the change (see `manage-symptoms`)
-- Preview (`--dry-run`) which symptoms would match a run without writing anything
-- Re-scan every job run behind a triage or regression so known-failure labels appear on them
+- Preview which symptoms would match existing runs without writing anything.
+- Apply a new or updated symptom to older completed runs.
+- Re-scan every job run behind a triage or regression.
+
+Always suggest a dry run first.
 
 ## Prerequisites
 
-1. **OpenShift CLI Authentication**: Required for authenticating to the sippy-auth API
-   - Must be logged into the DPCR cluster via `oc login`
-   - Cluster API: `https://api.cr.j7t7.p1.openshiftapps.com:6443`
-   - Use the `oc-auth` skill to obtain the Bearer token
-
-2. **Python 3**: Python 3.6 or later
-   - Check: `python3 --version`
-   - Uses only standard library (no external dependencies)
-
-## Implementation Steps
-
-### Step 1: Obtain Authentication Token
-
-Use the `oc-auth` skill to obtain a Bearer token from the DPCR cluster:
+Authentication to the sippy-auth API requires a Bearer token from the DPCR
+OpenShift cluster (`https://api.cr.j7t7.p1.openshiftapps.com:6443`). Use the
+`oc-auth` skill to obtain it, then export it instead of putting it in the
+process list:
 
 ```bash
-# Get token from the DPCR cluster context
-# The oc-auth skill's curl_with_token.sh uses this cluster for sippy-auth
-DPCR_CLUSTER="https://api.cr.j7t7.p1.openshiftapps.com:6443"
-
-# Find the oc context for the DPCR cluster and get the token
-CONTEXT=$(oc config get-contexts -o name 2>/dev/null | while read -r ctx; do
-  server=$(oc config view -o jsonpath="{.clusters[?(@.name=='$(oc config view -o jsonpath="{.contexts[?(@.name=='$ctx')].context.cluster}" 2>/dev/null)')].cluster.server}" 2>/dev/null || echo "")
-  server_clean=$(echo "$server" | sed -E 's|^https?://||')
-  if [ "$server_clean" = "api.cr.j7t7.p1.openshiftapps.com:6443" ]; then
-    echo "$ctx"
-    break
-  fi
-done)
-
-if [ -z "$CONTEXT" ]; then
-  echo "Error: Not logged into DPCR cluster. Please run: oc login $DPCR_CLUSTER"
-  exit 1
-fi
-
-export SIPPY_TOKEN=$(oc whoami -t --context="$CONTEXT" 2>/dev/null)
-if [ -z "$SIPPY_TOKEN" ]; then
-  echo "Error: Failed to get token. Please re-authenticate to DPCR cluster."
-  exit 1
-fi
+DPCR_CONTEXT="your-dpcr-context"
+export SIPPY_TOKEN="$(oc whoami -t --context="$DPCR_CONTEXT")"
 ```
 
-Prefer exporting `SIPPY_TOKEN` as above rather than passing `--token` on the command line — command-line arguments are visible in process listings. `--token` still works and takes precedence over the environment variable.
+The implementation uses Python 3 and the standard library only.
 
-### Step 2: Dry-run First
+## Preview Changes
 
-Always suggest a `--dry-run` first — it reports what would match without writing anything. Pass numeric build IDs or full Prow job URLs (any count — the script deduplicates and batches automatically):
+`--dry-run` uses the same asynchronous batch API as an applied reevaluation,
+but River workers report matches without writing changes. Sippy returns HTTP
+202 and the script polls the provided status link for detailed per-run results.
 
 ```bash
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
-  https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job>/<build_id> --dry-run --format summary
+  "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job>/<build_id>" \
+  --dry-run --format summary
 ```
 
-### Step 3: Apply
+## Apply Changes
 
-Rerun without `--dry-run` to actually write labels:
+The script deduplicates all normalized IDs, submits them in one asynchronous
+batch, and polls the API-provided status link until the batch is `complete`,
+`failed`, or `cancelled`:
 
 ```bash
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
   1856789012345678848 1856789012345678849 --format summary
 ```
 
-### Bulk workflow: reevaluate all runs behind a triage
+The API accepts at most **10,000 unique job run IDs in one request**. The
+client validates this limit before making a request. Numeric build IDs and
+full Prow URLs ending in a numeric build ID are accepted; query strings,
+fragments, trailing slashes, and duplicate inputs are normalized.
 
-Sippy has no triage-level reevaluate endpoint. To "reevaluate symptoms on a triage", collect the `prowjob_run_id` of every job run from each regression in the triage using the `fetch-regression-details` skill, then pass them all to this script:
+### Bulk workflow for a triage
 
-```bash
-# For each regression ID in the triage, collect its job run IDs
-RUN_IDS=""
-for REG_ID in 12345 12346 12347; do
-  IDS=$(python3 plugins/ci/skills/fetch-regression-details/fetch_regression_details.py "$REG_ID" \
-        | jq -r '.job_runs[].prowjob_run_id')
-  RUN_IDS="$RUN_IDS $IDS"
-done
+Sippy has no triage-level reevaluate endpoint. Use the
+`fetch-regression-details` skill to collect every `prowjob_run_id` from each
+regression in the triage, then pass all IDs to this script in one invocation.
+The combined unique set must not exceed 10,000 IDs.
 
-# The script deduplicates and batches (default 10 per request) automatically
-python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
-  $RUN_IDS --format summary
-```
+## Arguments and Options
 
-**Arguments**:
-- `runs`: One or more Prow build IDs or Prow job URLs (positional, required; batched automatically)
+- `runs`: One or more Prow build IDs or Prow job URLs (required; maximum
+  10,000 unique IDs).
+- `--token <token>`: Bearer token. Prefer the `SIPPY_TOKEN` environment
+  variable because command-line arguments are visible in process listings;
+  `--token` takes precedence.
+- `--dry-run`: Preview matches asynchronously without writing changes.
+- `--poll-interval <seconds>`: Time between asynchronous status requests
+  (default 5; must be finite and greater than zero).
+- `--format json|summary`: Output format (default `json`).
 
-**Options**:
-- `--token <token>`: Bearer token from the oc-auth skill (optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
-- `--dry-run`: Report matches without writing anything
-- `--batch-size <n>`: Runs per API request (default 10; max 50, but large batches risk 504 gateway timeouts)
-- `--format json|summary`: Output format (default: json)
+## API Contract
 
-## API Details
+### Request
 
-**Endpoint**: `POST https://sippy-auth.dptools.openshift.org/api/jobs/runs/reevaluate`
-
-**Request**:
+`POST https://sippy-auth.dptools.openshift.org/api/jobs/runs/reevaluate`
 
 ```json
 {"prow_job_build_ids": ["1856789012345678848"], "dry_run": false}
 ```
 
-The API accepts a maximum of 50 build IDs per request.
+For both applied and dry-run requests, Sippy returns HTTP 202:
 
-**Response**: `results[]` with per-run fields:
+```json
+{
+  "batch_id": "d15dff1f-431c-48db-aa37-628ab42d755e",
+  "requested": 1,
+  "links": {
+    "status": "/api/jobs/runs/reevaluate/d15dff1f-431c-48db-aa37-628ab42d755e"
+  }
+}
+```
 
-| Field | Description |
-|-------|-------------|
-| `status` | `success`, `missing_error` (run artifacts not found), `eval_error`, or `rewrite_error` |
-| `symptoms_evaluated` | Number of symptoms checked against the run |
-| `symptoms_matched` | Number of symptoms that matched |
-| `labels_applied` | Label IDs applied to the run |
-| `bq_entries_written` | BigQuery rows written |
-| `gcs_artifacts_written` | GCS label artifacts written |
-| `postgres_updated` | Whether the Postgres record was updated |
+The client follows `links.status` with authenticated GET requests. For safety,
+it refuses a cross-origin status URL or HTTP redirect entirely.
 
-**Authentication**: `Authorization: Bearer <token>` from the DPCR cluster.
+### Status response
 
-Reevaluation is delete-then-insert and **idempotent** — running it twice on the same run is safe. Manually-applied labels (those with an empty `symptom_id`) are preserved.
+The final JSON output preserves the complete aggregate response and every
+item, including each optional River job result:
 
-## Batching & timeouts (field-tested 2026-07)
+```json
+{
+  "batch_id": "d15dff1f-431c-48db-aa37-628ab42d755e",
+  "status": "complete",
+  "requested": 2,
+  "enqueued": 2,
+  "deduped": 0,
+  "completed": 1,
+  "failed": 1,
+  "running": 0,
+  "pending": 0,
+  "items": [
+    {
+      "item_key": "1856789012345678848",
+      "state": "completed",
+      "result": {
+        "prow_job_build_id": "1856789012345678848",
+        "status": "success",
+        "symptoms_evaluated": 42,
+        "symptoms_matched": ["KnownFailure"],
+        "labels_applied": ["InfraFailure"]
+      }
+    },
+    {
+      "item_key": "1856789012345678849",
+      "state": "discarded",
+      "result": {
+        "prow_job_build_id": "1856789012345678849",
+        "status": "eval_error",
+        "error": "artifact scan failed"
+      }
+    }
+  ]
+}
+```
 
-- The server evaluates roughly **3-4 seconds per run**, and the fronting gateway times out around **60-90 seconds**, returning an HTML `504 Gateway Time-out` **page** (not JSON). This means 50-run batches reliably fail even though the API nominally accepts them.
-- The script therefore defaults to **batches of 10**, with **3 attempts per batch (2 retries)** and a 5-second backoff. Transient gateway errors (HTTP 502/503/504, HTML error pages, and non-JSON response bodies) are all retried. Retries are safe because reevaluation is idempotent — even a batch that partially completed server-side can be resent.
-- If 504s persist, lower `--batch-size` (e.g. `--batch-size 5`).
-- **Warning:** an HTML **login page** response means the token expired — the SSO proxy redirects to login instead of returning 401. The script detects this and tells you to refresh the token via the `oc-auth` skill.
+`state` is the River queue state and is authoritative for progress. The
+optional `result` is the latest JSON recorded in River
+`metadata->'output'`; it can describe an earlier failed attempt while a retry
+is pending. The summary format prints the aggregate counts and the complete
+JSON result for every item that has one.
 
-## Error Handling
+Valid nonterminal batch states are `pending`, `processing`, and `running`;
+terminal states are `complete`, `failed`, and `cancelled`. Unknown states are
+rejected. In either mode, a terminal `failed` or `cancelled` batch exits 1 and
+`complete` exits 0.
+Input, authentication, malformed response, API, connection, and socket/read
+timeout errors are reported as controlled errors and exit 1.
 
-- **Invalid/non-numeric IDs**: Caught client-side before any request (exit 1) — pass a numeric build ID or a Prow URL ending in one (query strings and `#fragments` are stripped automatically).
-- **Invalid `--batch-size`**: Must be between 1 and 50 (exit 1).
-- **Transient gateway errors (502/503/504, HTML error pages, non-JSON bodies)**: Retried automatically (3 attempts, i.e. 2 retries, 5s backoff); persistent failures are reported in `failed_batches` and the script exits 1 — rerun with just those IDs (idempotent, safe).
-- **Authentication failure (HTML login page or 401/403)**: Token missing/expired — the script **stops immediately** and marks all remaining batches as `not attempted` in `failed_batches` instead of hammering the API with a bad token. Refresh the token via the `oc-auth` skill and rerun.
-- **`missing_error` status**: The run's artifacts were not found — check the build ID.
-- **501**: You hit the read-only Sippy instance; make sure the sippy-auth base URL is used (the script already does).
-
-**Exit Codes**:
-- `0`: All batches succeeded
-- `1`: Validation error, or one or more batches failed (see `failed_batches` in JSON output)
+The Sippy API also has a DELETE endpoint for cancellation, but this skill has
+never exposed a cancellation operation, so the client does not introduce one.
 
 ## See Also
 
-- Related Skill: `oc-auth` (provides authentication tokens for sippy-auth)
-- Related Skill: `manage-symptoms` (create/update the symptoms you then apply retroactively)
-- Related Skill: `diagnose-job-run-symptoms` (explain which symptoms/labels apply to a run)
-- Related Skill: `fetch-regression-details` (source of `.job_runs[].prowjob_run_id` values for triage-wide reevaluation)
-- Related Skill: `fetch-prow-job-runs` (discover run IDs by job name, variant, result, or time window)
+- `oc-auth`: obtain authentication for sippy-auth.
+- `manage-symptoms`: create or update the symptoms to apply retroactively.
+- `diagnose-job-run-symptoms`: explain symptoms and labels on a run.
+- `fetch-regression-details`: obtain job run IDs for triage-wide reevaluation.
+- `fetch-prow-job-runs`: discover run IDs by job, variant, result, or time.

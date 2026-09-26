@@ -1,164 +1,301 @@
-"""Re-run Sippy symptom detection on completed Prow job runs (requires auth token).
+"""Re-run Sippy symptom detection on completed Prow job runs.
 
-Field lesson (2026-07): the API accepts up to 50 build IDs per request, but the
-server evaluates roughly 3-4 seconds per run and the fronting gateway times out
-around 60-90s, returning an HTML "504 Gateway Time-out" page. Batches of ~10
-are reliable. Reevaluation is delete-then-insert and idempotent, so retrying a
-batch (even one that may have partially completed server-side) is safe.
+Requests are submitted as one asynchronous batch and polled until the batch
+reaches a terminal state. Dry runs use the same flow without writing changes.
 """
 import argparse
+import http.client
 import json
+import math
 import os
+import socket
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 URL = "https://sippy-auth.dptools.openshift.org/api/jobs/runs/reevaluate"
-API_MAX_IDS = 50
-DEFAULT_BATCH_SIZE = 10
-RETRIES_PER_BATCH = 3
-RETRY_DELAY_SECONDS = 5
+API_MAX_IDS = 10_000
+REQUEST_TIMEOUT_SECONDS = 300
+DEFAULT_POLL_INTERVAL_SECONDS = 5
+NONTERMINAL_STATES = frozenset(("pending", "processing", "running"))
+TERMINAL_STATES = frozenset(("complete", "failed", "cancelled"))
+BATCH_STATES = NONTERMINAL_STATES | TERMINAL_STATES
+
+
+class ClientError(Exception):
+    """A controlled validation, network, or API error."""
 
 
 def resolve_token(arg_token, env=None):
-    """Return the Bearer token from --token or the SIPPY_TOKEN env var.
-
-    --token takes precedence over the environment variable. Prefer the env
-    var: command-line arguments are visible in process listings.
-    """
+    """Return the Bearer token from --token or the SIPPY_TOKEN env var."""
     env = os.environ if env is None else env
     return arg_token or env.get("SIPPY_TOKEN") or None
 
 
 def extract_build_id(value):
+    """Normalize a numeric build ID or a Prow URL ending in one."""
     value = value.strip().split("#", 1)[0].split("?", 1)[0].rstrip("/")
     candidate = value.rsplit("/", 1)[-1]
     if candidate.isdigit():
         return candidate
-    raise ValueError("cannot extract a numeric build ID from %r "
-                     "(pass a numeric prow build ID or a Prow job URL ending in one)" % value)
+    raise ValueError(
+        "cannot extract a numeric build ID from %r "
+        "(pass a numeric prow build ID or a Prow job URL ending in one)" % value
+    )
 
 
-def chunk(items, size):
-    return [items[i:i + size] for i in range(0, len(items), size)]
+def _origin(url):
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+        raise ValueError("URL must use HTTP(S) and include a hostname")
+    default_port = 443 if parsed.scheme.lower() == "https" else 80
+    return (parsed.scheme.lower(), (parsed.hostname or "").lower(), parsed.port or default_port)
 
 
-def send_batch(ids, token, dry_run):
-    """POST one batch. Returns (results, error, auth_failed).
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Reject redirects that would leave the authenticated API origin."""
 
-    Retries on transient gateway errors (502/503/504, HTML error pages, non-JSON
-    bodies). auth_failed=True signals the caller to stop sending further batches.
-    """
-    payload = {"prow_job_build_ids": ids, "dry_run": dry_run}
-    last_err = None
-    for attempt in range(1, RETRIES_PER_BATCH + 1):
-        req = urllib.request.Request(
-            URL, data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "Authorization": "Bearer %s" % token},
-            method="POST")
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
         try:
-            with urllib.request.urlopen(req, timeout=300) as resp:
-                body = resp.read().decode("utf-8")
-            if body.lstrip().startswith("<"):
-                # HTML instead of JSON: SSO login page (bad token) or gateway error page
-                if "log in" in body.lower():
-                    return None, ("got an SSO login page instead of JSON — token is "
-                                  "missing/expired; use the oc-auth skill to refresh it"), True
-                last_err = "gateway returned an HTML error page (likely 504 timeout)"
-            else:
-                try:
-                    return json.loads(body).get("results", []), None, False
-                except ValueError:
-                    last_err = "server returned a non-JSON response body"
-        except urllib.error.HTTPError as e:
-            detail = ""
-            try:
-                detail = e.read().decode("utf-8")
-            except Exception:
-                pass
-            if e.code == 501:
-                return None, "HTTP 501 (write endpoints disabled; use sippy-auth)", False
-            if e.code in (401, 403):
-                return None, "HTTP %d (token missing/expired; use the oc-auth skill)" % e.code, True
-            if e.code not in (502, 503, 504):
-                return None, "HTTP %d: %s\n%s" % (e.code, e.reason, detail), False
-            last_err = "HTTP %d gateway error" % e.code
-        except urllib.error.URLError as e:
-            last_err = "connection error: %s" % e.reason
-        if attempt < RETRIES_PER_BATCH:
-            print("Batch attempt %d/%d failed (%s); retrying in %ds (reevaluation is "
-                  "idempotent, retries are safe)..." % (attempt, RETRIES_PER_BATCH,
-                                                        last_err, RETRY_DELAY_SECONDS),
-                  file=sys.stderr)
-            time.sleep(RETRY_DELAY_SECONDS)
-    return None, "%s after %d attempts (try a smaller --batch-size)" % (last_err, RETRIES_PER_BATCH), False
+            same_origin = _origin(req.full_url) == _origin(newurl)
+        except ValueError as exc:
+            raise ClientError("invalid API URL or redirect: %s" % exc) from exc
+        if not same_origin:
+            raise ClientError("refusing to follow a cross-origin API redirect")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def main():
-    p = argparse.ArgumentParser(description="Reevaluate symptoms on Prow job runs")
-    p.add_argument("runs", nargs="+", help="Prow build IDs or Prow job URLs (any count; batched automatically)")
-    p.add_argument("--token", help="Bearer token (or set SIPPY_TOKEN env var, preferred; use oc-auth skill)")
-    p.add_argument("--dry-run", action="store_true", help="Report matches without writing anything")
-    p.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE,
-                   help="Runs per API request (default %d; max %d, but large batches "
-                        "risk 504 gateway timeouts)" % (DEFAULT_BATCH_SIZE, API_MAX_IDS))
-    p.add_argument("--format", choices=["json", "summary"], default="json")
-    args = p.parse_args()
+HTTP_OPENER = urllib.request.build_opener(SafeRedirectHandler())
+
+
+def _read_body(response):
+    try:
+        return response.read().decode("utf-8")
+    except (TimeoutError, socket.timeout) as exc:
+        raise ClientError("request timed out while reading the response") from exc
+    except (OSError, http.client.HTTPException, UnicodeError) as exc:
+        raise ClientError("could not read the API response: %s" % exc) from exc
+
+
+def _api_message(body):
+    if not body:
+        return ""
+    try:
+        decoded = json.loads(body)
+    except (TypeError, ValueError):
+        return body.strip()[:500]
+    if isinstance(decoded, dict) and decoded.get("message"):
+        return str(decoded["message"])[:500]
+    return body.strip()[:500]
+
+
+def request_json(method, url, token, expected_status, payload=None):
+    """Make one authenticated request and return its decoded JSON body."""
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Accept": "application/json",
+            "Authorization": "Bearer %s" % token,
+            **({"Content-Type": "application/json"} if data is not None else {}),
+        },
+        method=method,
+    )
+    try:
+        with HTTP_OPENER.open(req, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            status = response.getcode()
+            body = _read_body(response)
+    except urllib.error.HTTPError as exc:
+        try:
+            body = _read_body(exc)
+        except ClientError:
+            body = ""
+        detail = _api_message(body)
+        suffix = ": %s" % detail if detail else ""
+        if exc.code in (401, 403):
+            raise ClientError(
+                "HTTP %d (token missing/expired; use the oc-auth skill)%s" %
+                (exc.code, suffix)
+            ) from exc
+        if exc.code == 501:
+            raise ClientError("HTTP 501 (write endpoints disabled; use sippy-auth)%s" % suffix) from exc
+        raise ClientError("HTTP %d%s" % (exc.code, suffix)) from exc
+    except urllib.error.URLError as exc:
+        if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+            raise ClientError("request timed out connecting to the API") from exc
+        raise ClientError("connection error: %s" % exc.reason) from exc
+    except (TimeoutError, socket.timeout) as exc:
+        raise ClientError("request timed out connecting to the API") from exc
+    except ValueError as exc:
+        raise ClientError("invalid API URL or redirect: %s" % exc) from exc
+    except (OSError, http.client.HTTPException) as exc:
+        raise ClientError("connection error: %s" % exc) from exc
+
+    if status != expected_status:
+        detail = _api_message(body)
+        suffix = ": %s" % detail if detail else ""
+        raise ClientError(
+            "expected HTTP %d, got HTTP %d%s" % (expected_status, status, suffix)
+        )
+    if body.lstrip().startswith("<"):
+        if "log in" in body.lower():
+            raise ClientError(
+                "got an SSO login page instead of JSON — token is missing/expired; "
+                "use the oc-auth skill to refresh it"
+            )
+        raise ClientError("server returned an HTML response instead of JSON")
+    try:
+        return json.loads(body)
+    except ValueError as exc:
+        raise ClientError("server returned a malformed JSON response") from exc
+
+
+def _validate_submit_response(data):
+    if not isinstance(data, dict):
+        raise ClientError("submission response is not a JSON object")
+    if not isinstance(data.get("batch_id"), str) or not data["batch_id"]:
+        raise ClientError("submission response is missing batch_id")
+    if not isinstance(data.get("requested"), int):
+        raise ClientError("submission response is missing requested")
+    links = data.get("links")
+    if not isinstance(links, dict) or not isinstance(links.get("status"), str):
+        raise ClientError("submission response is missing links.status")
+    return data
+
+
+def _validate_batch_response(data, batch_id):
+    if not isinstance(data, dict):
+        raise ClientError("batch status response is not a JSON object")
+    if data.get("batch_id") != batch_id:
+        raise ClientError("batch status response has an unexpected batch_id")
+    if not isinstance(data.get("status"), str):
+        raise ClientError("batch status response is missing status")
+    if data["status"] not in BATCH_STATES:
+        raise ClientError("batch status response has unknown status %r" % data["status"])
+    for field in ("requested", "enqueued", "deduped", "completed", "failed", "running", "pending"):
+        if not isinstance(data.get(field), int):
+            raise ClientError("batch status response is missing integer %s" % field)
+    items = data.get("items")
+    if not isinstance(items, list):
+        raise ClientError("batch status response is missing items")
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise ClientError("batch status item %d is not a JSON object" % index)
+        if not isinstance(item.get("item_key"), str) or not isinstance(item.get("state"), str):
+            raise ClientError("batch status item %d is missing item_key or state" % index)
+    return data
+
+
+def submit(ids, token, dry_run):
+    """Submit one deduplicated asynchronous request."""
+    response = request_json(
+        "POST",
+        URL,
+        token,
+        202,
+        {"prow_job_build_ids": ids, "dry_run": dry_run},
+    )
+    return _validate_submit_response(response)
+
+
+def poll_batch(submission, token, poll_interval):
+    """Poll the returned status link until the batch reaches a terminal state."""
+    batch_id = submission["batch_id"]
+    try:
+        status_url = urllib.parse.urljoin(URL, submission["links"]["status"])
+        status_origin = _origin(status_url)
+    except ValueError as exc:
+        raise ClientError("invalid links.status URL: %s" % exc) from exc
+    if _origin(URL) != status_origin:
+        raise ClientError("refusing to send the Bearer token to a cross-origin status URL")
+
+    while True:
+        status = _validate_batch_response(
+            request_json("GET", status_url, token, 200), batch_id
+        )
+        if status["status"] in TERMINAL_STATES:
+            return status
+        time.sleep(poll_interval)
+
+
+def print_batch_summary(response, dry_run=False):
+    mode = "DRY RUN" if dry_run else "APPLIED"
+    print("Reevaluation (%s) — batch %s: %s" %
+          (mode, response["batch_id"], response["status"]))
+    print("=" * 60)
+    print("Requested: %(requested)s, enqueued: %(enqueued)s, deduped: %(deduped)s" % response)
+    print("Completed: %(completed)s, failed: %(failed)s, running: %(running)s, pending: %(pending)s" % response)
+    for item in response["items"]:
+        print("Run %s: %s" % (item["item_key"], item["state"]))
+        if "result" in item:
+            print("  Result:")
+            rendered = json.dumps(item["result"], indent=2, sort_keys=True)
+            for line in rendered.splitlines():
+                print("    %s" % line)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Reevaluate symptoms on Prow job runs")
+    parser.add_argument(
+        "runs", nargs="+",
+        help="Prow build IDs or Prow job URLs (maximum %d unique IDs)" % API_MAX_IDS,
+    )
+    parser.add_argument(
+        "--token",
+        help="Bearer token (or set SIPPY_TOKEN, preferred; use the oc-auth skill)",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Report matches without writing anything")
+    parser.add_argument(
+        "--poll-interval", type=float, default=DEFAULT_POLL_INTERVAL_SECONDS,
+        help="Seconds between status requests (default: %(default)s)",
+    )
+    parser.add_argument("--format", choices=["json", "summary"], default="json")
+    args = parser.parse_args(argv)
 
     token = resolve_token(args.token)
     if not token:
-        print("Error: no token provided — pass --token or set the SIPPY_TOKEN "
-              "environment variable (preferred; use the oc-auth skill to obtain "
-              "one)", file=sys.stderr)
+        print(
+            "Error: no token provided — pass --token or set SIPPY_TOKEN "
+            "(preferred; use the oc-auth skill to obtain one)",
+            file=sys.stderr,
+        )
+        return 1
+    if not math.isfinite(args.poll_interval) or args.poll_interval <= 0:
+        print("Error: --poll-interval must be finite and greater than zero", file=sys.stderr)
         return 1
 
-    if not 1 <= args.batch_size <= API_MAX_IDS:
-        print("Error: --batch-size must be between 1 and %d" % API_MAX_IDS, file=sys.stderr)
-        return 1
     try:
-        ids = [extract_build_id(r) for r in args.runs]
-    except ValueError as e:
-        print("Error: %s" % e, file=sys.stderr)
+        ids = sorted(set(extract_build_id(value) for value in args.runs))
+    except ValueError as exc:
+        print("Error: %s" % exc, file=sys.stderr)
         return 1
-    ids = sorted(set(ids))
+    if len(ids) > API_MAX_IDS:
+        print("Error: maximum %d unique job run IDs per request" % API_MAX_IDS, file=sys.stderr)
+        return 1
 
-    all_results = []
-    failed_batches = []
-    batches = chunk(ids, args.batch_size)
-    for i, batch in enumerate(batches, 1):
-        if len(batches) > 1:
-            print("Batch %d/%d (%d runs)..." % (i, len(batches), len(batch)), file=sys.stderr)
-        results, err, auth_failed = send_batch(batch, token, args.dry_run)
-        if err:
-            print("Error: batch %d failed: %s" % (i, err), file=sys.stderr)
-            failed_batches.append({"batch": i, "ids": batch, "error": err})
-            if auth_failed:
-                auth_err = "not attempted: %s" % err
-                for j, remaining in enumerate(batches[i:], i + 1):
-                    failed_batches.append({"batch": j, "ids": remaining, "error": auth_err})
-                print("Error: authentication failed; skipping remaining batches. "
-                      "Refresh the token via the oc-auth skill and rerun.", file=sys.stderr)
-                break
-        else:
-            all_results.extend(results)
+    try:
+        response = submit(ids, token, args.dry_run)
+        if response["requested"] != len(ids):
+            raise ClientError(
+                "submission response requested %d items, expected %d" %
+                (response["requested"], len(ids))
+            )
+        response = poll_batch(response, token, args.poll_interval)
+    except ClientError as exc:
+        print("Error: %s" % exc, file=sys.stderr)
+        return 1
 
     if args.format == "json":
-        print(json.dumps({"results": all_results, "failed_batches": failed_batches}, indent=2))
+        print(json.dumps(response, indent=2, sort_keys=True))
     else:
-        mode = "DRY RUN" if args.dry_run else "APPLIED"
-        print("Reevaluation (%s) — %d runs processed, %d batches failed" %
-              (mode, len(all_results), len(failed_batches)))
-        print("=" * 60)
-        for r in all_results:
-            print("Run %s: %s" % (r.get("prow_job_build_id", "?"), r.get("status")))
-            print("  Symptoms evaluated: %s, matched: %s" %
-                  (r.get("symptoms_evaluated"), r.get("symptoms_matched")))
-            labels = r.get("labels_applied") or []
-            print("  Labels applied: %s" % (", ".join(map(str, labels)) if labels else "none"))
-        for fb in failed_batches:
-            print("FAILED batch %d (%d runs): %s" % (fb["batch"], len(fb["ids"]), fb["error"]))
-    return 1 if failed_batches else 0
+        print_batch_summary(response, args.dry_run)
+
+    if response["status"] in ("failed", "cancelled"):
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
