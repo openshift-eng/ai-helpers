@@ -65,6 +65,16 @@ User-invocable only (`/golang:lint-fix`) — not triggered automatically due to 
 
 Audits an OCP release image or payload against a requested Go version using resolved ci-operator build configuration and Dockerfile `FROM` builder evidence. Reports only mismatching images plus explicitly limited-evidence items; it does not modify repositories, images, or Jira.
 
+### `golang:native-fips`
+
+Configures Go projects to use Go's native FIPS 140 module (`GOFIPS140`) without the `openssl` RPM dependency. Works for both new projects and migrating existing openssl-based FIPS setups (`GOEXPERIMENT=strictfipsruntime`). Covers build flags, runtime FIPS activation, upstream vs downstream toolchain differences, and post-quantum cryptography (ML-KEM).
+
+Triggered automatically when FIPS-related patterns are detected, or on demand:
+
+```bash
+/golang:native-fips
+```
+
 ## Dependencies
 
 | Plugin | Marketplace | Purpose |
