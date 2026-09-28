@@ -678,9 +678,9 @@ Evaluate whether to offer automated fix application by considering:
 
 ---
 
-## Integration with Parent Command
+## Integration with analyze-cve
 
-This skill is called from Phase 4 of `/compliance:analyze-cve`.
+This skill is called from Phase 4 of the [analyze-cve](../analyze-cve/SKILL.md) skill.
 
 **Input Pipeline:**
 ```text

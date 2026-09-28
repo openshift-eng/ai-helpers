@@ -1,49 +1,13 @@
----
-description: Analyze Go codebase for CVE vulnerabilities and suggest fixes
-argument-hint: "<CVE-ID> | --jira=<PROJ-NNN> | --jql=\"...\" [--repo=<url-or-component>] [--algo=vta|rta|cha|static] [--auto-approve=yes|no]"
----
+# analyze-cve: Full Implementation
 
-## Name
-compliance:analyze-cve
-
-## Synopsis
-```
-/compliance:analyze-cve <CVE-ID> [--repo=<url-or-component>] [--algo=vta|rta|cha|static] [--auto-approve=yes|no]
-/compliance:analyze-cve --jira=<PROJ-NNN> [--repo=...] [--algo=...] [--auto-approve=yes|no]
-/compliance:analyze-cve --jql="<JQL query>" [--repo=...] [--algo=...] [--auto-approve=yes|no]
-```
-
-## Description
-The `compliance:analyze-cve` command performs comprehensive security vulnerability analysis for Go projects. Given a CVE identifier — supplied directly, or resolved from a Jira ticket — it resolves and clones the affected repository, gathers vulnerability intelligence, analyzes the codebase for impact, generates a risk report, optionally applies fixes, and optionally opens a GitHub pull request after a verified fix.
-
-Repository resolution works in four ways, in priority order: (1) an explicit `--repo=` (full URL or short image/component name), (2) exactly one pre-cloned repository already present in this workspace's `repos/` directory when `--repo=` was not passed, (3) an image name extracted from a Jira ticket's summary/labels/custom fields when `--jira=`/`--jql=` was used, or (4) an interactive prompt for the repository URL or image name. See [Phase 0.7](#phase-07-repository-resolution-and-cloning) for the full resolution and cloning logic.
-
-Designed for both interactive use and headless execution (e.g. `claude --print "/compliance:analyze-cve --jira=OCPBUGS-12345 --auto-approve=yes"`) for scheduled/periodic runs.
-
-## Arguments
-
-Exactly one of the following input modes is required:
-
-- **`<CVE-ID>`** — Direct CVE identifier (format: `CVE-YYYY-NNNNN`, case-insensitive). Use when you already know the CVE.
-- **`--jira=PROJ-NNN`** — Jira ticket key (e.g. `--jira=OCPBUGS-12345`). The command fetches the ticket and extracts the CVE ID, affected image name, and enrichment context (CVSS, CWE, priority, workarounds) from it.
-- **`--jql="..."`** — JQL query (e.g. `--jql="project = OCPBUGS AND labels = needs-cve-analysis"`). The command fetches a batch of matching issues, filters out any already labeled `ai-cve-analyzed`, and processes exactly **one** of the remainder per run (see [Phase 0.3](#phase-03-jql-resolution-only-when---jql-is-provided)). Re-running the same JQL periodically works through the queue over multiple invocations.
-
-Optional flags:
-
-- **`--repo=<url-or-component>`**: Repository to analyze. Accepts:
-  - A full GitHub URL: `--repo=https://github.com/openshift/cert-manager-operator`
-  - A short image/component name: `--repo=cert-manager-operator-rhel9` (resolved via the [image-repo-mapping](../skills/image-repo-mapping/SKILL.md) skill)
-  - If omitted, Phase 0.7 checks for exactly one pre-cloned repo in this workspace first, then resolves from the Jira ticket's image name (if `--jira`/`--jql` was used), then prompts the user.
-- **`--algo`** (default: `vta`): Call graph construction algorithm.
-  - `vta` — Most precise, fewest false positives (recommended)
-  - `rta` — Good balance of precision and speed
-  - `cha` — Fast, less precise
-  - `static` — Fastest, least precise
-- **`--auto-approve=yes|no`** (default: `no`): Run end-to-end without interactive approval prompts. See [Autonomous Mode](#autonomous-mode---auto-approveyesno) below. Intended for scheduled/headless runs.
+Phase-by-phase procedure for the [analyze-cve](../SKILL.md) skill. Read and execute
+this file — do not paraphrase or improvise the steps below once `AUTO_APPROVE`,
+input mode, and (if applicable) `jira_context` are resolved from `SKILL.md`'s
+Arguments section.
 
 ## Autonomous Mode (`--auto-approve=yes|no`)
 
-`AUTO_APPROVE` is parsed **once**, in Phase 0, from `--auto-approve` (default `no`). It is the **single source of truth** for every approval prompt in this command and its skills — every phase and skill below reads this same value instead of asking independently. Do not add new local "yes/no" prompts anywhere; gate them on `AUTO_APPROVE` the same way.
+`AUTO_APPROVE` is parsed **once**, in Phase 0, from `--auto-approve` (default `no`). It is the **single source of truth** for every approval prompt in this skill and its sub-skills — every phase and skill below reads this same value instead of asking independently. Do not add new local "yes/no" prompts anywhere; gate them on `AUTO_APPROVE` the same way.
 
 `AUTO_APPROVE` only answers **yes/no risk decisions** that a human would otherwise approve — it does **not** authorize guessing when required information is missing or ambiguous. Guessing in those cases (wrong repo, wrong branch, wrong CVE, wrong file set) is a correctness/security risk, not a convenience trade-off, so those points **always hard-fail** regardless of `AUTO_APPROVE`, exactly as they do today for a human who doesn't answer.
 
@@ -73,7 +37,7 @@ All other absolute rules are unaffected by `AUTO_APPROVE`: embargo abort, creden
 
 ## Security — Credential Handling
 
-> **This rule applies to every shell command, log line, and model response in this command, without exception.**
+> **This rule applies to every shell command, log line, and model response in this skill, without exception.**
 
 - **Never print, echo, log, or display credentials in any form.** This includes API tokens, passwords, PATs, service-account keys, and any environment variable whose name contains `TOKEN`, `KEY`, `SECRET`, `PASSWORD`, `PAT`, `CREDENTIAL`, or `AUTH`.
 - If a command requires a credential, pass it directly via the environment variable reference (e.g. `$JIRA_API_TOKEN`). Never interpolate the value into a string that will be printed or logged.
@@ -101,8 +65,8 @@ All other absolute rules are unaffected by `AUTO_APPROVE`: embargo abort, creden
 
 ## Runtime Configuration
 
-- **`AI_HELPERS_WORKSPACE`** (optional, default: `.` — the current working directory): base directory for everything this command writes — cloned repos (`${AI_HELPERS_WORKSPACE}/.work/compliance/analyze-cve/repos/`), reports, and Phase 5 artifacts (`${AI_HELPERS_WORKSPACE}/.work/compliance/analyze-cve/{CVE-ID}/`). Leave unset for normal local/CLI use. Set it when this command runs somewhere the caller's cwd isn't a stable, writable location for `.work/` — e.g. a Remote Workspace pod (set `AI_HELPERS_WORKSPACE=/workspace`) or another headless/CI runner with its own persistent mount.
-- **`FORK_ORG`** (optional): if set, Phase 6 pushes the fix branch to a fork under this org instead of the resolved repo's own `origin`, and opens a cross-repo PR. See `create-fix-pr`'s [Fork Mode](../skills/create-fix-pr/SKILL.md#fork-mode-fork_org-set). Use this when the identity running Phase 6 isn't a direct collaborator on every repo `image-repo-mapping` might resolve to (common for a bot identity in CI/RWS).
+- **`AI_HELPERS_WORKSPACE`** (optional, default: `.` — the current working directory): base directory for everything this skill writes — cloned repos (`${AI_HELPERS_WORKSPACE}/.work/compliance/analyze-cve/repos/`), reports, and Phase 5 artifacts (`${AI_HELPERS_WORKSPACE}/.work/compliance/analyze-cve/{CVE-ID}/`). Leave unset for normal local/CLI use. Set it when this skill runs somewhere the caller's cwd isn't a stable, writable location for `.work/` — e.g. a Remote Workspace pod (set `AI_HELPERS_WORKSPACE=/workspace`) or another headless/CI runner with its own persistent mount.
+- **`FORK_ORG`** (optional): if set, Phase 6 pushes the fix branch to a fork under this org instead of the resolved repo's own `origin`, and opens a cross-repo PR. See `create-fix-pr`'s [Fork Mode](../../create-fix-pr/SKILL.md#fork-mode-fork_org-set). Use this when the identity running Phase 6 isn't a direct collaborator on every repo `image-repo-mapping` might resolve to (common for a bot identity in CI/RWS).
 
 ---
 
@@ -211,7 +175,7 @@ JQL matched <N> issue(s) in this batch (there may be more beyond max_results=10)
 
 ### Phase 0.5: Jira CVE Extraction _(only when `--jira` or `--jql` is provided)_
 
-- **Skill**: [jira-cve-extraction](../skills/jira-cve-extraction/SKILL.md)
+- **Skill**: [jira-cve-extraction](../../jira-cve-extraction/SKILL.md)
 - **Input**: Jira ticket key from `--jira=` (or resolved in Phase 0.3), `AUTO_APPROVE`
 - **Output**: `CVE_ID`, `IMAGE_NAME`, `BRANCH`, `SOURCE_TICKET`, full `jira_context` enrichment block, and top-level `analysis_hints` (including `urgency_override`)
 
@@ -233,11 +197,11 @@ JQL matched <N> issue(s) in this batch (there may be more beyond max_results=10)
 
 ### Phase 0.7: Repository Resolution and Cloning
 
-- **Skill**: [image-repo-mapping](../skills/image-repo-mapping/SKILL.md)
+- **Skill**: [image-repo-mapping](../../image-repo-mapping/SKILL.md)
 
 #### Storage path
 
-Cloned repos are stored under this command's own workspace directory (see [Runtime Configuration](#runtime-configuration) for `AI_HELPERS_WORKSPACE`), gitignored and persistent across runs:
+Cloned repos are stored under this skill's own workspace directory (see [Runtime Configuration](#runtime-configuration) for `AI_HELPERS_WORKSPACE`), gitignored and persistent across runs:
 
 ```bash
 REPOS_BASE="${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/repos"
@@ -470,7 +434,7 @@ echo "  go.mod : $([ -f "${REPO_DIR}/go.mod" ] && echo 'present' || echo 'MISSIN
 
 #### Repo Guard — Re-clone if Missing
 
-Even though repos are cloned under this command's own `.work/` directory (not a temp mount), external cleanup (e.g. `git clean -fdx`, a stray `rm -rf .work`) can still remove `REPO_DIR` between phases. Every phase that needs `REPO_DIR` runs this guard first:
+Even though repos are cloned under this skill's own `.work/` directory (not a temp mount), external cleanup (e.g. `git clean -fdx`, a stray `rm -rf .work`) can still remove `REPO_DIR` between phases. Every phase that needs `REPO_DIR` runs this guard first:
 
 ```bash
 if [ ! -d "${REPO_DIR}/.git" ]; then
@@ -491,7 +455,7 @@ Run this guard at the start of **Phase 2, Phase 4, Phase 5, and Phase 6**.
 
 ### Phase 1: CVE Intelligence Gathering
 
-- **Skill**: [cve-intelligence-gathering](../skills/cve-intelligence-gathering/SKILL.md)
+- **Skill**: [cve-intelligence-gathering](../../cve-intelligence-gathering/SKILL.md)
 - **Input**: `CVE_ID` (from argument or Phase 0.5) **+ `jira_context` from Phase 0.5 (if `--jira`/`--jql` was provided)**
 - **Output**: Merged CVE profile combining Jira internal data (when present) with public sources (NVD, GHSA, Go vulndb)
 
@@ -509,8 +473,8 @@ Pass the full `jira_context` object from Phase 0.5 into the skill, when present.
 
 **Before starting:** Run the [Repo Guard](#repo-guard--re-clone-if-missing) to verify `REPO_DIR` still exists. Re-clone if needed.
 
-- **Skill**: [codebase-impact-analysis](../skills/codebase-impact-analysis/SKILL.md)
-  - Sub-skill: [call-graph-analysis](../skills/call-graph-analysis/SKILL.md)
+- **Skill**: [codebase-impact-analysis](../../codebase-impact-analysis/SKILL.md)
+  - Sub-skill: [call-graph-analysis](../../call-graph-analysis/SKILL.md)
 - **Working directory**: `REPO_DIR` set in Phase 0.7 (e.g. `.work/compliance/analyze-cve/repos/hypershift`)
 - **Input**: CVE profile from Phase 1, `--algo` preference
 - **Output**: Risk level (HIGH/MEDIUM/LOW/NEEDS_REVIEW), evidence package, confidence assessment
@@ -526,7 +490,7 @@ Pass the full `jira_context` object from Phase 0.5 into the skill, when present.
 
 Generate analysis report at `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/{CVE-ID}/report.md` — the same workspace base as Phase 0.7's `REPOS_BASE`, so the report lands in the configured workspace regardless of the caller's current directory.
 
-When `--jira`/`--jql` is used, Phase 4 posts **this file in full** to the source ticket (see [report-to-jira](../skills/report-to-jira/SKILL.md)). Include all collected evidence here.
+When `--jira`/`--jql` is used, Phase 4 posts **this file in full** to the source ticket (see [report-to-jira](../../report-to-jira/SKILL.md)). Include all collected evidence here.
 
 **Report structure:**
 - Executive Summary: risk level, confidence, key takeaway
@@ -549,7 +513,7 @@ When `--jira`/`--jql` is used, Phase 4 posts **this file in full** to the source
 
 **Before starting:** Run the [Repo Guard](#repo-guard--re-clone-if-missing) to verify `REPO_DIR` still exists. Re-clone if needed.
 
-- **Skill**: [remediation-planning](../skills/remediation-planning/SKILL.md)
+- **Skill**: [remediation-planning](../../remediation-planning/SKILL.md)
 - **Input**: CVE profile from Phase 1, risk level and evidence from Phase 2
 - **Output**: Remediation plan (strategy, commands, verification steps, risk assessment)
 
@@ -560,7 +524,7 @@ When `--jira`/`--jql` is used, Phase 4 posts **this file in full** to the source
 
 After presenting the report (regardless of whether the user proceeds to Phase 5), IF a Jira ticket is involved (`--jira`/`--jql` was used), invoke the report-to-jira skill:
 
-- **Skill**: [report-to-jira](../skills/report-to-jira/SKILL.md)
+- **Skill**: [report-to-jira](../../report-to-jira/SKILL.md)
 - **Input**: completed report (`report.md`), `CVE_ID`, risk level, `SOURCE_TICKET`, `jira_context` (label snapshot from Phase 0.5), `AUTO_APPROVE`
 - **Output**: comment and `ai-cve-analyzed` label posted to `SOURCE_TICKET`; skipped silently in direct CVE mode; if posting fails, comment body is displayed in session for manual copy-paste
 
@@ -572,7 +536,7 @@ After presenting the report (regardless of whether the user proceeds to Phase 5)
 
 Requires **explicit approval** before proceeding — this is the Phase 4 decision point above (`AUTO_APPROVE=yes` counts as that approval; no separate prompt here). Do not change live cluster or production-environment configuration. Repo-tracked config files are allowed only as the approved remediation.
 
-**Before applying anything**, snapshot the worktree so Phase 6 can stage only Phase 5 files (including new untracked paths). `WORK_CVE` is in **this command's own workspace**, not inside `REPO_DIR` — derive it from the same base as `REPOS_BASE` (Phase 0.7), not a bare relative path, so it doesn't depend on the caller's current directory:
+**Before applying anything**, snapshot the worktree so Phase 6 can stage only Phase 5 files (including new untracked paths). `WORK_CVE` is in **this skill's own workspace**, not inside `REPO_DIR` — derive it from the same base as `REPOS_BASE` (Phase 0.7), not a bare relative path, so it doesn't depend on the caller's current directory:
 
 ```bash
 WORK_CVE="${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/${CVE_ID}"
@@ -610,8 +574,8 @@ git -C "${REPO_DIR}" status --porcelain > "${WORK_CVE}/phase5-before.status"
 
 **Before starting:** Run the [Repo Guard](#repo-guard--re-clone-if-missing) to verify `REPO_DIR` still exists. Re-clone if needed.
 
-- **Skill**: [create-fix-pr](../skills/create-fix-pr/SKILL.md)
-- **Input**: `REPO_DIR`, `GIT_BRANCH`, `REPO_URL`, `CVE_ID`, `SOURCE_TICKET` (if `--jira`/`--jql` was provided), `PHASE5_FILES` allowlist, Phase 5 change summary, module bump (`old` → `new`) **only if** the fix is a dependency bump, `AUTO_APPROVE`, and `FORK_ORG` (optional env var — if set, the skill pushes to a fork under that org and opens a cross-repo PR instead of pushing directly to the resolved upstream repo; see the skill's [Fork Mode](../skills/create-fix-pr/SKILL.md#fork-mode-fork_org-set) section)
+- **Skill**: [create-fix-pr](../../create-fix-pr/SKILL.md)
+- **Input**: `REPO_DIR`, `GIT_BRANCH`, `REPO_URL`, `CVE_ID`, `SOURCE_TICKET` (if `--jira`/`--jql` was provided), `PHASE5_FILES` allowlist, Phase 5 change summary, module bump (`old` → `new`) **only if** the fix is a dependency bump, `AUTO_APPROVE`, and `FORK_ORG` (optional env var — if set, the skill pushes to a fork under that org and opens a cross-repo PR instead of pushing directly to the resolved upstream repo; see the skill's [Fork Mode](../../create-fix-pr/SKILL.md#fork-mode-fork_org-set) section)
 - **Output**: GitHub PR URL (created or updated); optional follow-up Jira comment with that URL
 
 Requires **explicit approval** before any commit, push, or `gh pr create`. This is a separate approval from Phase 5 (applying the fix locally does not imply opening a PR) — `AUTO_APPROVE=yes` must satisfy both approvals independently.
@@ -636,70 +600,3 @@ Requires **explicit approval** before any commit, push, or `gh pr create`. This 
 
 - **Format**: Markdown report at `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/{CVE-ID}/report.md`
 - **Content**: Vulnerability details, risk assessment, evidence, remediation recommendations, applied fixes (if approved), GitHub PR URL (if Phase 6 ran)
-
-## Arguments
-
-- `<CVE-ID>`: The CVE identifier to analyze (e.g., CVE-2024-1234, CVE-2023-45678)
-  - Format: CVE-YYYY-NNNNN
-  - Case insensitive
-  - Required unless `--jira=` or `--jql=` is used
-- `--jira=PROJ-NNN`: A Jira ticket key to extract the CVE from (e.g. `--jira=OCPBUGS-12345`)
-- `--jql="..."`: A JQL query to select one unprocessed ticket per run (e.g. `--jql="project = OCPBUGS AND labels = needs-cve-analysis"`)
-- `--repo=<url-or-component>`: Repository to analyze — a full GitHub URL, or a short image/component name resolved via [image-repo-mapping](../skills/image-repo-mapping/SKILL.md) (optional; see [Phase 0.7](#phase-07-repository-resolution-and-cloning) for resolution order)
-- `--algo`: Call graph construction algorithm (optional, default: `vta`)
-  - `vta` - Most precise, fewest false positives (recommended)
-  - `rta` - Good balance of precision and speed
-  - `cha` - Fast, less precise
-  - `static` - Fastest, least precise
-- `--auto-approve=yes|no`: Run end-to-end without interactive approval prompts (optional, default: `no`). See [Autonomous Mode](#autonomous-mode---auto-approveyesno).
-
-## Examples
-
-1. **Basic CVE analysis against an explicit repo**:
-   ```
-   /compliance:analyze-cve CVE-2024-45338 --repo=https://github.com/golang/net
-   ```
-
-2. **With specific algorithm**:
-   ```
-   /compliance:analyze-cve CVE-2024-45338 --repo=https://github.com/golang/net --algo=rta
-   ```
-
-3. **Starting from a Jira ticket (repo/branch resolved automatically from the ticket's image name)**:
-   ```
-   /compliance:analyze-cve --jira=OCPBUGS-12345
-   ```
-
-4. **Unattended run from a JQL queue, applying fixes and opening a PR without prompts**:
-   ```bash
-   claude --print "/compliance:analyze-cve --jql=\"project = OCPBUGS AND labels = needs-cve-analysis ORDER BY created ASC\" --auto-approve=yes"
-   ```
-
-## Prerequisites
-
-All tools below are **required**. The command exits with an error if any are missing.
-
-```bash
-# Install all required Go tools
-go install golang.org/x/vuln/cmd/govulncheck@latest
-go install golang.org/x/tools/cmd/callgraph@latest
-go install golang.org/x/tools/cmd/digraph@latest
-
-# git is also required (Phase 0.7 repository cloning) — install via your OS package manager
-```
-
-**Optional**:
-- `graphviz` for visual call graph generation (`brew install graphviz` or `sudo apt-get install graphviz`)
-- `gh` (GitHub CLI, authenticated via `gh auth login`) for Phase 6 pull-request creation. Missing `gh` does **not** fail Phase 0 — analysis and local fixes still run; Phase 6 is skipped until it's available.
-- An Atlassian MCP server (e.g. the `jira` plugin's bundled Rovo MCP) or `jira-cli` for `--jira=`/`--jql=` input modes and posting reports back to Jira
-
-**Internet access** is recommended for CVE data fetching but not required if you can provide CVE details manually.
-
-## Notes
-
-- Focuses on Go-specific vulnerabilities.
-- Resolves and clones the target repository automatically — via `--repo=`, Jira image-name mapping, or reusing a repo already cloned into `.work/compliance/analyze-cve/repos/` by a previous run — see [Phase 0.7](#phase-07-repository-resolution-and-cloning). All analysis and fix-application phases run against that cloned `REPO_DIR`, not the directory the command happened to be invoked from.
-- Falls back to user-provided information if internet access fails.
-- Does NOT make changes, commits, or pull requests without explicit approval — either interactive, or given once upfront via `--auto-approve=yes` (see [Autonomous Mode](#autonomous-mode---auto-approveyesno)).
-- Reports are saved locally (`.work/compliance/analyze-cve/`, gitignored) and not committed to git — see [Runtime Configuration](#runtime-configuration) (`AI_HELPERS_WORKSPACE`) to relocate this base directory.
-- Never process or disclose embargoed CVEs — if a Jira ticket's Embargo Status is `True`, the command stops immediately and outputs nothing about the ticket.

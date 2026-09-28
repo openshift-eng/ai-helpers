@@ -5,9 +5,9 @@ description: Use when opening or updating a GitHub pull request after Phase 5 of
 
 # Create Fix PR
 
-Opens a GitHub pull request for the CVE fix already applied in `REPO_DIR` (Phase 5). Never commits, pushes, or opens a PR without **explicit approval** — interactive, or `AUTO_APPROVE=yes` recorded once upfront (see [Autonomous Mode](../../commands/analyze-cve.md#autonomous-mode---auto-approveyesno)). Direct CVE mode (no `--jira=`/`--jql=`) still creates the PR; it just omits Jira `Fixes:` links and the Jira follow-up comment.
+Opens a GitHub pull request for the CVE fix already applied in `REPO_DIR` (Phase 5). Never commits, pushes, or opens a PR without **explicit approval** — interactive, or `AUTO_APPROVE=yes` recorded once upfront (see [Autonomous Mode](../analyze-cve/references/implementation.md#autonomous-mode---auto-approveyesno)). Direct CVE mode (no `--jira=`/`--jql=`) still creates the PR; it just omits Jira `Fixes:` links and the Jira follow-up comment.
 
-Called from **Phase 6** of `/compliance:analyze-cve` after Phase 5 verification succeeds.
+Called from **Phase 6** of the [analyze-cve](../analyze-cve/SKILL.md) skill after Phase 5 verification succeeds.
 
 ---
 
@@ -500,9 +500,9 @@ IF posting fails → display the comment in session for manual paste. The GitHub
 
 ---
 
-## Integration with Parent Command
+## Integration with analyze-cve
 
-Called from **Phase 6** of `/compliance:analyze-cve` after Phase 5 verification succeeds. Runs after the [Repo Guard](../../commands/analyze-cve.md#repo-guard--re-clone-if-missing) has confirmed `REPO_DIR` still exists.
+Called from **Phase 6** of the [analyze-cve](../analyze-cve/SKILL.md) skill after Phase 5 verification succeeds. Runs after the [Repo Guard](../analyze-cve/references/implementation.md#repo-guard--re-clone-if-missing) has confirmed `REPO_DIR` still exists.
 
 ---
 

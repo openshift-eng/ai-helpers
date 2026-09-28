@@ -341,9 +341,9 @@ The namespace spans **two** repositories. The mustgather image is built from the
 
 ---
 
-## Integration with Parent Command
+## Integration with analyze-cve
 
-Called from **Phase 0.7** of `/compliance:analyze-cve` (see `commands/analyze-cve.md`).
+Called from **Phase 0.7** of the [analyze-cve](../analyze-cve/SKILL.md) skill.
 
 **Input:** image name extracted by `jira-cve-extraction` skill (from summary, `pscomponent:` label, or `Downstream Component Name` field), or the short name passed via `--repo=<name>`
 **Output:** `(image_name, repo_url, clone_path)` tuple passed to Phase 0.7 for cloning
