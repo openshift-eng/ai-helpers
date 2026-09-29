@@ -30,6 +30,16 @@ class FakeResponse:
         return False
 
 
+class FlushRecordingStream(io.StringIO):
+    def __init__(self):
+        super().__init__()
+        self.flushed_snapshots = []
+
+    def flush(self):
+        self.flushed_snapshots.append(self.getvalue())
+        super().flush()
+
+
 def queue_responses(monkeypatch, *responses):
     calls = []
     pending = list(responses)
@@ -159,6 +169,98 @@ def test_dry_run_submits_202_and_polls_detailed_results(monkeypatch, capsys):
     assert json.loads(calls[0][0].data)["dry_run"] is True
 
 
+@pytest.mark.parametrize("output_format", ["json", "summary"])
+@pytest.mark.parametrize("dry_run", [False, True])
+@pytest.mark.parametrize(
+    "terminal, expected_exit", [("complete", 0), ("failed", 1)]
+)
+def test_batch_id_is_flushed_before_first_get_and_final_output_is_intact(
+    monkeypatch, output_format, dry_run, terminal, expected_exit
+):
+    stdout = FlushRecordingStream()
+    stderr = FlushRecordingStream()
+    monkeypatch.setattr(client.sys, "stdout", stdout)
+    monkeypatch.setattr(client.sys, "stderr", stderr)
+    calls = []
+    submission = {
+        "batch_id": "batch-early",
+        "requested": 1,
+        "links": {"status": client.URL + "/batch-early"},
+    }
+    final = batch_response(batch_id="batch-early", status=terminal, items=[
+        {"item_key": "1", "state": "completed"},
+    ])
+    final.update(requested=1, enqueued=1)
+
+    def fake_open(req, timeout=None):
+        calls.append(req)
+        if req.get_method() == "POST":
+            return FakeResponse(202, submission)
+        notice_stream = stderr if output_format == "json" else stdout
+        other_stream = stdout if output_format == "json" else stderr
+        assert notice_stream.flushed_snapshots
+        early_output = notice_stream.flushed_snapshots[-1]
+        assert "batch-early" in early_output
+        assert client.URL + "/batch-early" in early_output
+        assert "secret" not in early_output
+        assert other_stream.getvalue() == ""
+        return FakeResponse(200, final)
+
+    monkeypatch.setattr(client.HTTP_OPENER, "open", fake_open)
+    args = ["1", "--token", "secret", "--format", output_format]
+    if dry_run:
+        args.append("--dry-run")
+
+    assert client.main(args) == expected_exit
+    assert [call.get_method() for call in calls] == ["POST", "GET"]
+    if output_format == "json":
+        assert json.loads(stdout.getvalue()) == final
+        assert "batch-early" in stderr.getvalue()
+    else:
+        assert "batch-early" in stdout.getvalue()
+        assert "Run 1: completed" in stdout.getvalue()
+
+
+@pytest.mark.parametrize("output_format", ["json", "summary"])
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_flushed_batch_id_remains_recoverable_after_poll_failure(
+    monkeypatch, output_format, dry_run
+):
+    stdout = FlushRecordingStream()
+    stderr = FlushRecordingStream()
+    monkeypatch.setattr(client.sys, "stdout", stdout)
+    monkeypatch.setattr(client.sys, "stderr", stderr)
+    submission = {
+        "batch_id": "batch-recover",
+        "requested": 1,
+        "links": {"status": client.URL + "/batch-recover"},
+    }
+    call_count = 0
+
+    def fake_open(req, timeout=None):
+        nonlocal call_count
+        call_count += 1
+        if req.get_method() == "POST":
+            return FakeResponse(202, submission)
+        notice_stream = stderr if output_format == "json" else stdout
+        assert notice_stream.flushed_snapshots
+        assert "batch-recover" in notice_stream.flushed_snapshots[-1]
+        raise urllib.error.URLError("connection lost")
+
+    monkeypatch.setattr(client.HTTP_OPENER, "open", fake_open)
+    args = ["1", "--token", "secret", "--format", output_format]
+    if dry_run:
+        args.append("--dry-run")
+
+    assert client.main(args) == 1
+    assert call_count == 2
+    notice_output = stderr.getvalue() if output_format == "json" else stdout.getvalue()
+    assert "batch-recover" in notice_output
+    assert client.URL + "/batch-recover" in notice_output
+    assert "secret" not in stdout.getvalue() + stderr.getvalue()
+    assert "connection error" in stderr.getvalue()
+
+
 @pytest.mark.parametrize("terminal", ["failed", "cancelled"])
 @pytest.mark.parametrize("dry_run", [False, True])
 def test_failed_and_cancelled_batches_are_terminal_errors(monkeypatch, capsys, terminal, dry_run):
@@ -276,6 +378,24 @@ def test_malformed_api_responses_are_controlled(monkeypatch, capsys, response, m
 
     assert client.main(["1", "--token", "secret"]) == 1
     assert message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("output_format", ["json", "summary"])
+def test_submission_validation_failure_does_not_emit_batch_id(
+    monkeypatch, capsys, output_format
+):
+    queue_responses(monkeypatch, FakeResponse(202, {
+        "batch_id": "batch-unconfirmed",
+        "requested": 2,
+        "links": {"status": client.URL + "/batch-unconfirmed"},
+    }))
+
+    assert client.main([
+        "1", "--token", "secret", "--format", output_format,
+    ]) == 1
+    captured = capsys.readouterr()
+    assert "requested 2 items, expected 1" in captured.err
+    assert "batch-unconfirmed" not in captured.out + captured.err
 
 
 @pytest.mark.parametrize(

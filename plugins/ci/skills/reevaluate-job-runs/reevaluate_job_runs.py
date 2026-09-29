@@ -201,9 +201,8 @@ def submit(ids, token, dry_run):
     return _validate_submit_response(response)
 
 
-def poll_batch(submission, token, poll_interval):
-    """Poll the returned status link until the batch reaches a terminal state."""
-    batch_id = submission["batch_id"]
+def resolve_status_url(submission):
+    """Return the submission's same-origin status URL."""
     try:
         status_url = urllib.parse.urljoin(URL, submission["links"]["status"])
         status_origin = _origin(status_url)
@@ -211,6 +210,26 @@ def poll_batch(submission, token, poll_interval):
         raise ClientError("invalid links.status URL: %s" % exc) from exc
     if _origin(URL) != status_origin:
         raise ClientError("refusing to send the Bearer token to a cross-origin status URL")
+    return status_url
+
+
+def print_submission_notice(submission, status_url, dry_run, output_format):
+    """Flush a recovery notice before polling without corrupting JSON stdout."""
+    mode = "DRY RUN" if dry_run else "APPLIED"
+    stream = sys.stderr if output_format == "json" else sys.stdout
+    print(
+        "Submitted reevaluation (%s) batch %s; status: %s "
+        "(save this URL to check later with a fresh token)" %
+        (mode, submission["batch_id"], status_url),
+        file=stream,
+        flush=True,
+    )
+
+
+def poll_batch(submission, token, poll_interval, status_url=None):
+    """Poll the returned status link until the batch reaches a terminal state."""
+    batch_id = submission["batch_id"]
+    status_url = status_url or resolve_status_url(submission)
 
     while True:
         status = _validate_batch_response(
@@ -277,13 +296,19 @@ def main(argv=None):
         return 1
 
     try:
-        response = submit(ids, token, args.dry_run)
-        if response["requested"] != len(ids):
+        submission = submit(ids, token, args.dry_run)
+        if submission["requested"] != len(ids):
             raise ClientError(
                 "submission response requested %d items, expected %d" %
-                (response["requested"], len(ids))
+                (submission["requested"], len(ids))
             )
-        response = poll_batch(response, token, args.poll_interval)
+        status_url = resolve_status_url(submission)
+        print_submission_notice(
+            submission, status_url, args.dry_run, args.format
+        )
+        response = poll_batch(
+            submission, token, args.poll_interval, status_url=status_url
+        )
     except ClientError as exc:
         print("Error: %s" % exc, file=sys.stderr)
         return 1
