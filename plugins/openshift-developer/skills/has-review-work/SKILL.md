@@ -22,6 +22,8 @@ When `--ci` is passed: print only `COMMENT_WORK=`, `CI_WORK=`, `WORK=`, and `FAI
 
 ## Implementation
 
+Run this whole process in one Bash invocation. A later Bash tool call is a new shell and does not keep variables from this one. Fetch the comments and set `COMMENT_WORK` in that same invocation.
+
 ### Resolve arguments
 
 Resolve PR number and repository into named variables before any shell commands. Quote those variables in every `gh` invocation — never pass raw `$1` or `$2` to commands.
@@ -116,18 +118,25 @@ Cache per login.
 
 ### Skip already-replied comments
 
-Dispatch the identifier that matches the item's type. Never pass a REST numeric id as `--type review_thread`.
+Dispatch the identifier that matches the item's type (`review`, `review_comment`, `issue_comment`, or `review_thread`). Never pass a REST numeric id as `--type review_thread`.
+
+Exit 0 means unanswered. That is work. Do not treat exit 0 as "already replied," and do not `continue` when the command succeeds.
 
 ```sh
-python3 ${CLAUDE_SKILL_DIR}/../address-review-pr/scripts/check_replied.py "${OWNER}" "${REPO_NAME}" "${PR_NUMBER}" "${id}" --type <review|review_comment|issue_comment|review_thread>
+if replied_json=$(python3 "${CLAUDE_SKILL_DIR}/../address-review-pr/scripts/check_replied.py" "${OWNER}" "${REPO_NAME}" "${PR_NUMBER}" "${id}" --type review_comment); then
+  reason=$(printf '%s' "$replied_json" | jq -r '.reason // empty')
+  if [ "$reason" != "thread_not_found" ] && [ "$reason" != "thread_resolved" ] && [ "$reason" != "comment_not_found" ] && [ "$reason" != "no_comments_found" ]; then
+    COMMENT_WORK=yes
+  fi
+fi
 ```
 
-Read the JSON `reason` as well as the exit code:
+Use the item's real `--type` in place of `review_comment`. The `if` test is true only for exit 0, so `set -e` does not abort on exit 1 or 2.
 
-- `thread_not_found` or `thread_resolved`: skip — missing or resolved; not work (even if exit 0)
-- Exit 0: unanswered — this is work
-- Exit 1: already replied — skip
-- Exit 2: unknown — skip (not work)
+- Exit 0 and reason `thread_not_found`, `thread_resolved`, `comment_not_found`, or `no_comments_found`: skip — missing or resolved; not work
+- Exit 0 otherwise: unanswered — set `COMMENT_WORK=yes`
+- Exit 1: already replied, or the comment is gone — leave `COMMENT_WORK` unchanged
+- Exit 2: unknown — leave `COMMENT_WORK` unchanged (not work)
 
 ### CI failures
 
