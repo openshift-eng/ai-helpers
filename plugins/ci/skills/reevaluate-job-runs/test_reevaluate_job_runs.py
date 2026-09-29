@@ -221,10 +221,19 @@ def test_batch_id_is_flushed_before_first_get_and_final_output_is_intact(
         assert "Run 1: completed" in stdout.getvalue()
 
 
+@pytest.mark.parametrize(
+    "failure_kind, expected_error",
+    [
+        ("network", "connection error: connection lost"),
+        ("auth", "HTTP 401 (token missing/expired; use the oc-auth skill): expired"),
+        ("malformed_json", "server returned a malformed JSON response"),
+        ("invalid_status", "batch status response is missing integer requested"),
+    ],
+)
 @pytest.mark.parametrize("output_format", ["json", "summary"])
 @pytest.mark.parametrize("dry_run", [False, True])
 def test_flushed_batch_id_remains_recoverable_after_poll_failure(
-    monkeypatch, output_format, dry_run
+    monkeypatch, output_format, dry_run, failure_kind, expected_error
 ):
     stdout = FlushRecordingStream()
     stderr = FlushRecordingStream()
@@ -245,7 +254,20 @@ def test_flushed_batch_id_remains_recoverable_after_poll_failure(
         notice_stream = stderr if output_format == "json" else stdout
         assert notice_stream.flushed_snapshots
         assert "batch-recover" in notice_stream.flushed_snapshots[-1]
-        raise urllib.error.URLError("connection lost")
+        if output_format == "json":
+            assert stdout.getvalue() == ""
+        if failure_kind == "network":
+            raise urllib.error.URLError("connection lost")
+        if failure_kind == "auth":
+            raise urllib.error.HTTPError(
+                req.full_url, 401, "Unauthorized", {},
+                io.BytesIO(b'{"message":"expired"}'),
+            )
+        if failure_kind == "malformed_json":
+            return FakeResponse(200, "not json")
+        return FakeResponse(200, {
+            "batch_id": "batch-recover", "status": "complete",
+        })
 
     monkeypatch.setattr(client.HTTP_OPENER, "open", fake_open)
     args = ["1", "--token", "secret", "--format", output_format]
@@ -258,7 +280,13 @@ def test_flushed_batch_id_remains_recoverable_after_poll_failure(
     assert "batch-recover" in notice_output
     assert client.URL + "/batch-recover" in notice_output
     assert "secret" not in stdout.getvalue() + stderr.getvalue()
-    assert "connection error" in stderr.getvalue()
+    assert expected_error in stderr.getvalue()
+    if output_format == "json":
+        assert json.loads(stdout.getvalue()) == {
+            "batch_id": "batch-recover",
+            "error": expected_error,
+            "status_url": client.URL + "/batch-recover",
+        }
 
 
 @pytest.mark.parametrize("terminal", ["failed", "cancelled"])

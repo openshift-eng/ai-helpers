@@ -36,7 +36,8 @@ putting it in the process list:
 
 ```bash
 DPCR_CONTEXT="dpcr-context-name"
-export SIPPY_TOKEN="$(oc whoami -t --context="$DPCR_CONTEXT")"
+SIPPY_TOKEN="$(oc whoami -t --context="$DPCR_CONTEXT")"
+export SIPPY_TOKEN
 test -n "$SIPPY_TOKEN"
 ```
 
@@ -77,8 +78,9 @@ normalized.
 Immediately after Sippy accepts and validates a submission, the script prints
 and flushes the batch ID and same-origin status URL **before the first status
 GET**. Summary mode writes this notice to stdout. JSON mode writes it to stderr
-so stdout remains one parseable terminal response document on both completed
-and failed/cancelled batches. Save the notice: the server-side batch can keep
+so stdout remains one parseable document: either the unchanged terminal API
+response or, if polling fails, an error object containing `batch_id`,
+`status_url`, and `error`. Save the notice: the server-side batch can keep
 running if the client loses its connection, exits, or its token expires.
 
 To inspect that same batch later, obtain a fresh token with `oc-auth`, copy the
@@ -210,7 +212,9 @@ confirm all stores were updated.
   status URL with the fresh token instead of assuming the batch stopped.
 - **Connection, timeout, or malformed/non-JSON status response after the
   notice**: save the flushed ID and URL. The failure is in client polling and
-  does not prove the server-side batch failed. Query the URL later.
+  does not prove the server-side batch failed. In JSON mode, stdout contains a
+  single recovery object with `batch_id`, `status_url`, and `error`. Query the
+  URL later.
 - **501**: the request reached an instance with write endpoints disabled. Use
   the documented `https://sippy-auth.dptools.openshift.org` endpoint.
 - **`missing_error`**: verify the numeric build ID, that Sippy has ingested the

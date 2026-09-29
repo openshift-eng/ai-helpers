@@ -226,6 +226,15 @@ def print_submission_notice(submission, status_url, dry_run, output_format):
     )
 
 
+def print_poll_error_json(submission, status_url, error):
+    """Print one machine-readable recovery object after polling fails."""
+    print(json.dumps({
+        "batch_id": submission["batch_id"],
+        "error": str(error),
+        "status_url": status_url,
+    }, indent=2, sort_keys=True))
+
+
 def poll_batch(submission, token, poll_interval, status_url=None):
     """Poll the returned status link until the batch reaches a terminal state."""
     batch_id = submission["batch_id"]
@@ -306,10 +315,17 @@ def main(argv=None):
         print_submission_notice(
             submission, status_url, args.dry_run, args.format
         )
+    except ClientError as exc:
+        print("Error: %s" % exc, file=sys.stderr)
+        return 1
+
+    try:
         response = poll_batch(
             submission, token, args.poll_interval, status_url=status_url
         )
     except ClientError as exc:
+        if args.format == "json":
+            print_poll_error_json(submission, status_url, exc)
         print("Error: %s" % exc, file=sys.stderr)
         return 1
 
