@@ -123,9 +123,9 @@ Dispatch the identifier that matches the item's type (`review`, `review_comment`
 Exit 0 means unanswered. That is work. Do not treat exit 0 as "already replied," and do not `continue` when the command succeeds.
 
 ```sh
-if replied_json=$(python3 ${CLAUDE_SKILL_DIR}/../address-review-pr/scripts/check_replied.py "${OWNER}" "${REPO_NAME}" "${PR_NUMBER}" "${id}" --type review_comment); then
+if replied_json=$(python3 "${CLAUDE_SKILL_DIR}/../address-review-pr/scripts/check_replied.py" "${OWNER}" "${REPO_NAME}" "${PR_NUMBER}" "${id}" --type review_comment); then
   reason=$(printf '%s' "$replied_json" | jq -r '.reason // empty')
-  if [ "$reason" != "thread_not_found" ] && [ "$reason" != "thread_resolved" ]; then
+  if [ "$reason" != "thread_not_found" ] && [ "$reason" != "thread_resolved" ] && [ "$reason" != "comment_not_found" ] && [ "$reason" != "no_comments_found" ]; then
     COMMENT_WORK=yes
   fi
 fi
@@ -133,9 +133,9 @@ fi
 
 Use the item's real `--type` in place of `review_comment`. The `if` test is true only for exit 0, so `set -e` does not abort on exit 1 or 2.
 
-- Exit 0 and reason `thread_not_found` or `thread_resolved`: skip — missing or resolved; not work
+- Exit 0 and reason `thread_not_found`, `thread_resolved`, `comment_not_found`, or `no_comments_found`: skip — missing or resolved; not work
 - Exit 0 otherwise: unanswered — set `COMMENT_WORK=yes`
-- Exit 1: already replied — leave `COMMENT_WORK` unchanged
+- Exit 1: already replied, or the comment is gone — leave `COMMENT_WORK` unchanged
 - Exit 2: unknown — leave `COMMENT_WORK` unchanged (not work)
 
 ### CI failures

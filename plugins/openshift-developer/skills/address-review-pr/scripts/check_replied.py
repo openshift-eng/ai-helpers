@@ -7,7 +7,7 @@ Usage:
 
 Returns:
     Exit 0: Safe to reply (no existing bot reply found)
-    Exit 1: Already replied (bot reply exists after this comment)
+    Exit 1: Already replied, or the comment is gone (comment_not_found, no_comments_found)
     Exit 2: Error occurred
 
 Output:
@@ -180,7 +180,7 @@ def check_issue_comment(owner: str, repo: str, pr_number: int, comment_id: str) 
 
     if not comments:
         return {
-            "safe_to_reply": True,
+            "safe_to_reply": False,
             "reason": "no_comments_found"
         }
 
@@ -196,7 +196,7 @@ def check_issue_comment(owner: str, repo: str, pr_number: int, comment_id: str) 
 
     if not target_comment:
         return {
-            "safe_to_reply": True,
+            "safe_to_reply": False,
             "reason": "comment_not_found",
             "message": f"Comment {comment_id} not found"
         }
@@ -300,7 +300,7 @@ def check_review_comment(owner: str, repo: str, pr_number: int, comment_id: str)
 
     if not comments:
         return {
-            "safe_to_reply": True,
+            "safe_to_reply": False,
             "reason": "no_comments_found"
         }
 
@@ -313,7 +313,7 @@ def check_review_comment(owner: str, repo: str, pr_number: int, comment_id: str)
 
     if not target_comment:
         return {
-            "safe_to_reply": True,
+            "safe_to_reply": False,
             "reason": "comment_not_found",
             "message": f"Review comment {comment_id} not found"
         }
