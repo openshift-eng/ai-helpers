@@ -5,12 +5,11 @@ description: Retroactively re-run Sippy Symptom detection on completed Prow CI j
 
 # Reevaluate Job Runs
 
-Sippy **Symptoms** are known-failure signatures for OpenShift CI. A symptom
+Sippy **Symptoms** recognize known conditions in OpenShift CI artifacts. A symptom
 selects artifact files with a glob and uses a `string`, `regex`, or `file`
 (existence) matcher. A match applies one or more **Labels**: stable,
-human-readable tags such as `InfraFailure` that appear in Sippy, Spyglass, and
-triage workflows. Sippy also defines a CEL matcher type, but reevaluation does
-not currently evaluate CEL symptoms.
+human-readable tags such as `ImagePullNeverCompletes` that appear in Sippy, Spyglass, and
+triage workflows.
 
 Symptom detection normally runs automatically as new job artifacts arrive.
 Reevaluation asks Sippy to scan completed runs with the current symptom
@@ -24,8 +23,6 @@ Use this skill to:
 - Preview which symptoms and labels match existing runs without writing.
 - Apply a new or updated symptom to older completed runs.
 - Re-scan every job run behind a Component Readiness regression or triage.
-
-Always start with `--dry-run`.
 
 ## Prerequisites
 
