@@ -101,8 +101,8 @@ Optional:
 
 ### Phases 0–1 — Validate Inputs & Setup Environment
 
-Phases 0 and 1 are fully automated by `scripts/setup.sh`. The agent invokes it
-and checks the exit code:
+Fully automated by `scripts/setup.sh` — the agent just runs it and checks the
+exit code. No LLM decisions needed.
 
 ```bash
 OC_LOGIN_CMD="oc login --token=... --server=..." \
@@ -119,89 +119,49 @@ On success (`exit 0`), the script produces:
 The agent should `source /workspace/evidence/setup-env.sh` before proceeding.
 
 On failure (non-zero exit), `setup.sh` prints a descriptive error to stderr.
-Common failure causes: missing `PR_NUMBER` or `OC_LOGIN_CMD`, cluster
-unreachable, PR not found, git clone/fetch failure, or Puppeteer install
-failure. The agent should report the error and stop.
+The agent should report the error and stop.
 
 ---
 
-### Phase 2 — Capture Baseline (Base Branch)
+### Phase 2 — Determine Routes & Capture Baseline
 
-**Goal:** Build the console from the base branch and capture screenshots of
-the routes that the PR affects.
+**Goal:** Decide which console routes to screenshot, then build the base branch
+and capture them.
 
-**Prerequisite:** The working tree is on `base-branch` (set by `setup.sh`).
+**Agent decisions (LLM judgement required):**
 
-**Steps:**
-
-1. Build the console:
-   ```bash
-   cd /workspace/console
-   ./build.sh
-   ```
-   This runs `build-backend.sh` (Go build of the bridge binary) and
-   `build-frontend.sh` (`cd frontend && yarn install --immutable && yarn run build`).
-
-   **Note:** `package.json` is in `frontend/`, NOT the repo root. Do not run
-   `yarn install` from the root directory.
-
-2. Source cluster environment and start the bridge:
-   ```bash
-   export BRIDGE_USER_AUTH="disabled"
-   source ./contrib/oc-environment.sh
-
-   nohup ./bin/bridge -branding openshift > /tmp/bridge-baseline.log 2>&1 &
-   BRIDGE_PID=$!
-   ```
-
-   **Critical:** `BRIDGE_USER_AUTH="disabled"` is required. Without it, the
-   bridge attempts OAuth flows that fail in headless mode. Additionally,
-   `oc-environment.sh` sets `BRIDGE_K8S_AUTH_BEARER_TOKEN` — without this env
-   var, the bridge disables the console entirely and serves an error page.
-
-3. Wait for bridge to be ready:
-   ```bash
-   for i in $(seq 1 60); do
-     if curl -s -o /dev/null -w '%{http_code}' http://localhost:9000 | grep -q '200'; then
-       break
-     fi
-     sleep 2
-   done
-   ```
-
-4. Determine routes to capture:
-   - The agent analyzes the PR diff (`gh pr diff "$PR_NUMBER"`) to
-     identify which console routes are affected by the changes
+1. **Route selection** — Analyze the PR diff (`gh pr diff "$PR_NUMBER"`) to
+   determine which console routes are visually affected by the changes.
+   Consider:
+   - Which React components are modified and what routes render them
+   - Whether the change is cosmetic (CSS/layout) vs. behavioral
    - Common route patterns:
      - `/` (overview/dashboard)
-     - `/k8s/cluster/nodes` (nodes list)
-     - `/k8s/cluster/projects` (projects list)
-     - `/k8s/ns/<namespace>/pods` (pods list)
-     - `/monitoring/alerts` (alerting)
-     - `/settings/cluster` (cluster settings)
-   - If the AI cannot determine routes from the diff, ask the user
+     - `/k8s/cluster/nodes`, `/k8s/cluster/projects`
+     - `/k8s/ns/<namespace>/pods`
+     - `/monitoring/alerts`, `/settings/cluster`
+   - If the diff doesn't clearly map to routes, ask the user
 
-5. Run the capture script:
-   ```bash
-   node /workspace/qa-verify-console/scripts/capture-screenshots.js \
-     --routes "/" --routes "/k8s/cluster/nodes" \
-     --output-dir /workspace/evidence/baseline \
-     --base-url http://localhost:9000
-   ```
-   Save the JSON summary to `/workspace/evidence/baseline.json`.
+2. **Failure triage** — If the build or bridge fails, read the error log and
+   decide whether the failure is environmental (retry/report) or a real issue.
 
-6. Stop the bridge:
-   ```bash
-   kill "$BRIDGE_PID" 2>/dev/null
-   wait "$BRIDGE_PID" 2>/dev/null || true
-   ```
+**Mechanical steps** (run these; no decisions needed):
 
-**On failure:**
-- `./build.sh` fails → exit with build error details
-- Bridge doesn't start → check `/tmp/bridge-baseline.log` for errors
-- Bridge returns non-200 → check bearer token / cluster connectivity
-- Screenshot capture fails for some routes → continue, mark as skipped
-- Screenshot capture fails for ALL routes → exit with error
+```bash
+cd /workspace/console && ./build.sh                       # Build backend + frontend
+export BRIDGE_USER_AUTH="disabled"                         # Required for headless mode
+source ./contrib/oc-environment.sh                         # Sets BRIDGE_K8S_AUTH_BEARER_TOKEN
+nohup ./bin/bridge -branding openshift > /tmp/bridge-baseline.log 2>&1 &
+# Wait for HTTP 200 on localhost:9000, then capture:
+# NOTE: Replace the example routes below with the routes you selected from PR diff analysis in Phase 2.
+node /workspace/qa-verify-console/scripts/capture-screenshots.js \
+  --routes "/" --routes "/k8s/cluster/nodes" \
+  --output-dir /workspace/evidence/baseline \
+  --base-url http://localhost:9000
+# Kill bridge after capture
+```
+
+Save the JSON summary to `/workspace/evidence/baseline.json`.
 
 ---
 
@@ -209,110 +169,56 @@ the routes that the PR affects.
 
 **Goal:** Switch to the PR branch, rebuild, and capture the same routes.
 
-**Steps:**
+**Agent decisions:** None — use the same route list from Phase 2. The only
+judgement call is **failure triage**: if the PR branch fails to build, that
+likely indicates a real issue with the PR (report it rather than retrying).
 
-1. Switch to the PR branch:
-   ```bash
-   cd /workspace/console
-   git checkout pr-branch
-   ```
+**Mechanical steps:**
 
-2. Rebuild the console:
-   ```bash
-   ./build.sh
-   ```
-   **Performance note:** The Yarn Berry cache from the baseline build is
-   reused. The second `yarn install --immutable` resolves from cache and is
-   significantly faster than the first build.
+```bash
+cd /workspace/console && git checkout pr-branch
+./build.sh
+export BRIDGE_USER_AUTH="disabled"
+source ./contrib/oc-environment.sh
+nohup ./bin/bridge -branding openshift > /tmp/bridge-candidate.log 2>&1 &
+# Wait for HTTP 200, then capture same routes as Phase 2
+node /workspace/qa-verify-console/scripts/capture-screenshots.js \
+  --routes "/" --routes "/k8s/cluster/nodes" \
+  --output-dir /workspace/evidence/candidate \
+  --base-url http://localhost:9000
+# Kill bridge after capture
+```
 
-3. Start the bridge (same process as Phase 2):
-   ```bash
-   export BRIDGE_USER_AUTH="disabled"
-   source ./contrib/oc-environment.sh
-
-   nohup ./bin/bridge -branding openshift > /tmp/bridge-candidate.log 2>&1 &
-   BRIDGE_PID=$!
-   # Wait for ready (same loop as Phase 2)
-   ```
-
-4. Capture the same routes as baseline:
-   ```bash
-   node /workspace/qa-verify-console/scripts/capture-screenshots.js \
-     --routes "/" --routes "/k8s/cluster/nodes" \
-     --output-dir /workspace/evidence/candidate \
-     --base-url http://localhost:9000
-   ```
-   Save the JSON summary to `/workspace/evidence/candidate.json`.
-
-5. Stop the bridge:
-   ```bash
-   kill "$BRIDGE_PID" 2>/dev/null
-   wait "$BRIDGE_PID" 2>/dev/null || true
-   ```
-
-**On failure:**
-- `git checkout` fails → exit with error about PR branch
-- Rebuild fails → exit with build error (may indicate PR has build issues)
-- Bridge doesn't start → check candidate-specific errors
-- Screenshot failures → same handling as Phase 2
+Save the JSON summary to `/workspace/evidence/candidate.json`.
 
 ---
 
-### Phase 4 — Compile & Publish Evidence
+### Phase 4 — Compare Results & Publish Evidence
 
-**Goal:** Generate comparison artifacts and post evidence to the PR.
+**Goal:** Generate visual comparisons and post evidence to the PR.
 
-**Steps:**
+**Agent decisions (LLM judgement required):**
 
-1. Generate flicker GIFs (if ImageMagick/ffmpeg available):
-   ```bash
-   for baseline_img in /workspace/evidence/baseline/*.png; do
-     slug=$(basename "$baseline_img" .png)
-     candidate_img="/workspace/evidence/candidate/${slug}.png"
-     if [ -f "$candidate_img" ]; then
-       # Use console's make-flicker-gif.sh if available
-       /workspace/console/.claude/skills/qa-verify/scripts/make-flicker-gif.sh \
-         "$baseline_img" "$candidate_img" \
-         "/workspace/evidence/flicker/${slug}.gif"
-     fi
-   done
-   ```
-   If the console repo's scripts are not available, fall back to ImageMagick:
-   ```bash
-   convert -delay 100 -loop 0 "$baseline_img" "$candidate_img" "${slug}.gif"
-   ```
+1. **Interpret visual differences** — Compare baseline vs. candidate screenshots
+   (file size deltas, visual inspection). Decide which routes show meaningful
+   visual changes (>5% file size difference is a useful heuristic) vs. noise.
 
-2. Compare file sizes to detect significant visual changes:
-   ```bash
-   for baseline_img in /workspace/evidence/baseline/*.png; do
-     slug=$(basename "$baseline_img" .png)
-     candidate_img="/workspace/evidence/candidate/${slug}.png"
-     if [ -f "$candidate_img" ]; then
-       baseline_size=$(stat -c%s "$baseline_img")
-       candidate_size=$(stat -c%s "$candidate_img")
-       diff_pct=$(( (candidate_size - baseline_size) * 100 / baseline_size ))
-       echo "${slug}: baseline=${baseline_size} candidate=${candidate_size} diff=${diff_pct}%"
-     fi
-   done
-   ```
-   Pages with >5% file size difference likely have meaningful visual changes.
+2. **Compose the PR comment** — Summarize what changed visually, highlight
+   routes with significant differences, and note any routes that failed to
+   capture. Use console's `build-comment-attach.sh` if available, otherwise
+   fall back to `gh pr comment` with embedded image links.
 
-3. Post evidence to the PR:
-   - Use console's `build-comment-attach.sh` if available
-   - Otherwise use `gh pr comment` with embedded image links
-   - Attribution line: "QA verification requested by @user via Chai Bot"
+3. **Handle partial results** — If some screenshots are missing or GIF
+   generation fails, decide what to include in the report and what to note as
+   skipped. Post what is available rather than failing entirely.
 
-4. Store evidence in result store for coordinator access:
-   ```bash
-   # Store each screenshot pair and flicker GIF
-   store_text baseline.json "baseline-capture-summary"
-   store_text candidate.json "candidate-capture-summary"
-   ```
+**Mechanical steps:**
 
-**On failure:**
-- GIF generation fails → skip GIFs, post screenshots only
-- `gh pr comment` fails → store evidence locally, report to coordinator
-- Some pairs missing → post what we have, note missing routes
+- Generate flicker GIFs for each baseline/candidate pair (use console's
+  `make-flicker-gif.sh` if available, otherwise `convert -delay 100 -loop 0`)
+- Upload images via `stage-attachments.sh` if available
+- Post the PR comment via `gh pr comment`
+- Store evidence summaries in the result store for coordinator access
 
 ---
 

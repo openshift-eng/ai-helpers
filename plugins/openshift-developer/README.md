@@ -27,7 +27,7 @@ Alternatively, invoke the building blocks directly when you need manual control:
 1. `/openshift-developer:backport` — coordinator playbook: plan the Jira clone
    chain with `ocp_backport_*` tools, open one cherry-pick PR per release branch,
    and monitor progression (used by Slack chai-bot).
-2. `/openshift-developer:cherry-pick` — worker skill: apply the coordinator's
+2. `/openshift-developer:cherry-pick` — the agent applies the coordinator's
    BACKPORT BRIEF (`git cherry-pick -x`, conflict policy, tests, push). Never
    opens the PR.
 
