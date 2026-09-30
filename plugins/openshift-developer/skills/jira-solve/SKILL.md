@@ -22,7 +22,8 @@ Available building blocks:
 
 - `/openshift-developer:implement` — implement ticket requirements or apply pre-commit
   review findings.
-- `/code-review:pre-commit-review` — independently review the current diff.
+- `/code-review:pre-commit-review` — independently review the current diff with
+  the language and profile guidance available in the repository.
 - `/openshift-developer:check-gates` — fix and revalidate until the implementation is
   complete, production-ready, validated, committed, and the working tree is clean.
 - `/openshift-developer:create-pr` — push the completed branch and open the Jira-linked PR.
