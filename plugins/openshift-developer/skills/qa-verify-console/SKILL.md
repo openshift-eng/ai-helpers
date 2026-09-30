@@ -153,6 +153,7 @@ export BRIDGE_USER_AUTH="disabled"                         # Required for headle
 source ./contrib/oc-environment.sh                         # Sets BRIDGE_K8S_AUTH_BEARER_TOKEN
 nohup ./bin/bridge -branding openshift > /tmp/bridge-baseline.log 2>&1 &
 # Wait for HTTP 200 on localhost:9000, then capture:
+# NOTE: Replace the example routes below with the routes you selected from PR diff analysis in Phase 2.
 node /workspace/qa-verify-console/scripts/capture-screenshots.js \
   --routes "/" --routes "/k8s/cluster/nodes" \
   --output-dir /workspace/evidence/baseline \
