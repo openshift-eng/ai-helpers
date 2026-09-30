@@ -1,120 +1,75 @@
 # code-review Plugin
 
-Automated code quality review with language-aware analysis for pre-commit
-verification, plus an optional multi-specialist deep review skill.
+Automated code quality review with language-aware analysis for pull requests and
+pre-commit changes, plus an optional multi-specialist deep review skill.
 
-## Commands
+## Pre-Commit Review Skill
 
-### `/code-review:pre-commit-review`
+`/code-review:pre-commit-review` reviews staged and unstaged changes for test
+coverage, idiomatic code, duplication, design, and build verification. Its slash
+invocation is unchanged from the former command.
 
-Performs a comprehensive code quality review of staged and unstaged changes before committing. Analyzes unit test coverage, idiomatic code patterns, DRY compliance, SOLID principles, and build verification.
-
-**Usage:**
-```bash
+```text
 /code-review:pre-commit-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]
 ```
 
-**Arguments:**
-- `--language <lang>`: Language skill to load. Currently shipped: `go`. Planned: `python`, `rust`, `typescript`, `java`. Auto-detected if omitted.
-- `--profile <name>`: Project profile to load for project-specific conventions.
+- `--language <lang>`: Load language-specific guidance. Go is currently available; other languages use general checks until guidance is added. If omitted, detect the language from changed-file extensions.
+- `--profile <name>`: Load project-specific conventions and checks.
 - `--skip-build`: Skip build verification.
-- `--skip-tests`: Skip unit test coverage review.
+- `--skip-tests`: Skip unit-test coverage review.
 
-## Skills
+## PR Review Command
 
-### `deep-review`
+`/code-review:pr` reviews a GitHub pull request. It remains a plugin command.
 
-Use when a deeper level of code review is requested. Runs a multi-specialist
-panel (bugs, adversarial, security, architecture, consistency, qa, writer),
-verifies BLOCKING findings with runtime reproducers, and optionally posts a
-PENDING review to GitHub/GitLab.
+```text
+/code-review:pr <pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]
+```
 
-**Usage:**
-```bash
+## Deep Review Skill
+
+Use `/code-review:deep-review` for a deeper multi-specialist panel review. It
+checks bugs, security, architecture, consistency, and test coverage; verifies
+blocking bug findings with runtime reproducers; and can optionally post a
+pending review to GitHub or GitLab.
+
+```text
 /code-review:deep-review [--serial] [--comment] [--coderabbit] [--codex] [-reviewer,...] [pr-url-or-number]
 ```
 
-## Language Skills
+## Language and Profile Skills
 
-Language skills provide language-specific guidance for idiomatic code review, test conventions, and build commands. They are stored in `skills/lang-<lang>/SKILL.md`.
+Language skills provide idiomatic code, test-convention, and build guidance.
+Store them at `skills/<language>-code-review/SKILL.md`; Go is currently available
+at `skills/go-code-review/`.
 
-### Available Languages
+Profile skills add project-specific conventions, shared utilities, build
+commands, and additional review criteria. Store them at
+`skills/<profile>-code-review/SKILL.md`; the HyperShift profile is
+`skills/hypershift-code-review/`.
 
-| Language | Skill Directory | Key Features |
-|----------|----------------|--------------|
-| Go | `skills/go-code-review/` | Table-driven tests, `gofmt`, error wrapping, race detection |
+### Adding language guidance
 
-### Adding a New Language
+Add `skills/<language>-code-review/SKILL.md` with test conventions, idiomatic
+code checks, and priority-ordered build commands.
 
-1. Create a directory: `skills/lang-<lang>/`
-2. Create `SKILL.md` with the following sections:
-   - **When to Use This Skill**: Describe when this skill is loaded.
-   - **Test Conventions**: Language-specific test patterns, file organization, and best practices.
-   - **Idiomatic Code Checklist**: Language-specific code quality checks (formatting, naming, error handling, idioms).
-   - **Build Commands**: Priority-ordered build, test, and verification commands.
-3. Use the frontmatter format:
-   ```yaml
-   ---
-   name: "<Language> Language Review"
-   description: "Language-specific review guidance for <Language> code"
-   ---
-   ```
+### Adding a project profile
 
-## Profile Skills
+Add `skills/<profile>-code-review/SKILL.md` with project-specific test
+conventions, architectural patterns, shared utilities, build commands, and
+additional checks. Keep guidance self-contained when it refers to paths that
+may not exist outside that project.
 
-Profile skills provide project-specific conventions that layer on top of language checks. They are stored in `skills/profile-<name>/SKILL.md`.
+## OpenCode Installation
 
-### Available Profiles
+AI Helpers plugins can be installed for OpenCode with the Agent Package Manager
+(APM). Add this dependency to your project's `apm.yml`, then run `apm install`:
 
-| Profile | Skill Directory | Key Features |
-|---------|----------------|--------------|
-| HyperShift | `skills/hypershift-code-review/` | controller-runtime patterns, `support/upsert/`, `make api`, structured logging |
-
-### Adding a New Profile
-
-1. Create a directory: `skills/profile-<name>/`
-2. Create `SKILL.md` with the following sections:
-   - **When to Use This Skill**: Describe when this profile is loaded.
-   - **Additional Test Conventions**: Project-specific test patterns that supplement the language conventions.
-   - **Project-Specific Patterns**: Architectural patterns, framework usage, and coding conventions specific to the project.
-   - **Project Utilities**: Shared packages or utilities that should be used instead of reimplementing.
-   - **Build Commands**: Project-specific build, test, and verification commands.
-   - **Additional Checks**: Any project-specific checks (e.g., API generation, commit format).
-3. Use the frontmatter format:
-   ```yaml
-   ---
-   name: "<Project> Project Profile"
-   description: "Project-specific review profile for <project>"
-   ---
-   ```
-4. All guidance must be self-contained within the SKILL.md. Do not reference external paths that may not exist in every repository.
-
-## How It Works
-
-The command runs in a defined sequence of steps:
-
-1. **Parse arguments** and load applicable language and profile skills.
-2. **Identify changed files** from `git diff`.
-3. **Unit test coverage review** with language and profile conventions applied.
-4. **Idiomatic code review** with language-specific checklist.
-5. **DRY principle review** with profile-aware utility checks.
-6. **SOLID principles review** with profile-aware structural patterns.
-7. **Build verification** using profile, language, or auto-detected build commands.
-8. **Project-specific checks** from the profile (if loaded).
-9. **Generate report** with verdict and actionable findings.
-
-## Examples
-
-```bash
-# Auto-detect language, no profile
-/code-review:pre-commit-review
-
-# Go code with HyperShift conventions
-/code-review:pre-commit-review --language go --profile hypershift
-
-# Skip build for docs-only changes
-/code-review:pre-commit-review --skip-build
-
-# Python review without test checks
-/code-review:pre-commit-review --language python --skip-tests
+```yaml
+target: [opencode]
+dependencies:
+  - openshift-eng/ai-helpers/plugins/code-review
 ```
+
+See the [AI Helpers installation guide](../../README.md#other-tools) for the full
+manifest example and other supported agent targets.
