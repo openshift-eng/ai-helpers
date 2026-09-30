@@ -21,7 +21,7 @@ The command accepts:
 **What it does:**
 1. Validates the PR URL and checks ownership
 2. Finds running (PENDING) jobs on the PR
-3. Determines the build cluster (via GCS for public jobs, or via job config in the repo for qe-private-deck jobs)
+3. Determines the build cluster (via GCS for public jobs, via job config for qe-private-deck jobs, or by asking the user for the console URL or cluster name as a last resort)
 4. Logs into the build cluster and finds the CI namespace
 5. Checks step status via pod statuses to verify the cluster is ready
 6. Extracts the kubeconfig (and nested kubeconfig for HyperShift) from the running pod
@@ -92,7 +92,7 @@ gh pr view <number> --repo openshift/release --json title,state,statusCheckRollu
 
 ### Step 4: Determine the Build Cluster
 
-From the matching check, extract the `targetUrl` which points to the Prow job page. Determine the build cluster using one of two methods:
+From the matching check, extract the `targetUrl` which points to the Prow job page. Determine the build cluster using one of three methods:
 
 **Method A — Via GCS prowjob.json** (preferred when `gsutil` is installed and the job uses public `prow.ci.openshift.org`):
 
@@ -128,6 +128,37 @@ Find the build cluster from the generated job config in the openshift/release re
    curl -sL "https://raw.githubusercontent.com/<owner>/<repo>/<branch>/ci-operator/jobs/<org>/<repo_dir>/<periodics_file>" \
      | grep -B 30 "name: <original_job_name>" | grep "cluster:"
    ```
+
+**Method C — Ask the user** (fallback when Methods A and B both fail):
+
+This happens when:
+- The job uses `qe-private-deck` (gsutil gets 403 AccessDeniedException on the private GCS bucket)
+- The generated job config has no `cluster:` field (build cluster is dynamically assigned by the Prow dispatcher)
+
+In this case, ask the user to provide the **OpenShift console URL** from the build cluster where the job is running. The user can find this on the Prow job page (qe-private-deck) — it typically shows a link to the build cluster console or displays the cluster name in the job metadata.
+
+```text
+Unable to determine the build cluster automatically:
+- GCS bucket "qe-private-deck" requires authentication
+- Job config has no cluster: field (dynamically assigned)
+
+Please provide the OpenShift console URL of the build cluster from the Prow job page.
+Example: https://console-openshift-console.apps.build09.ci.devcluster.openshift.com/
+
+Alternatively, provide just the build cluster name (e.g., build09):
+```
+
+Extract the cluster name from the console URL:
+- Pattern: `https://console-openshift-console.apps.<cluster>.ci.devcluster.openshift.com/...`
+- Extract `<cluster>` (e.g., `build09`, `build01`, `build11`)
+
+If the user provides a plain cluster name (e.g., `build09`) instead of a URL, use it directly.
+
+**Validate the cluster identifier** before constructing the login URL. The cluster name must match the pattern `build[0-9]+` (e.g., `build01`, `build09`, `build12`). Reject any input that does not match — this prevents credential redirection to unexpected hosts.
+
+Construct the API server URL: `https://api.<cluster>.ci.devcluster.openshift.com:6443`
+
+→ Continue to **Step 5: Login to the Build Cluster**
 
 ### Step 5: Login to the Build Cluster
 
@@ -315,8 +346,8 @@ Report includes:
 - **Credential hygiene**: Extracted kubeconfig and proxy files contain credentials. They are created with restrictive permissions (`chmod 600`). Delete them when finished (`rm -f /tmp/<namespace>-*.yaml /tmp/<namespace>-proxy-conf.sh`).
 - **Kubeconfig expiry**: Extracted kubeconfig files become invalid when the CI job finishes. The credentials are tied to the ephemeral CI cluster and cannot be reused after the job completes.
 - **PR ownership**: You must be the PR author to have access to the ci-op namespace on the build cluster. The command warns if you're not the author.
-- **Private QE deck**: Jobs using `qe-private-deck` have inaccessible GCS artifacts. The command finds the build cluster from the job config in the openshift/release repo instead.
-- **Build clusters**: OpenShift CI uses multiple build clusters (build01-build12). The command automatically determines which cluster from `prowjob.json` (when `gsutil` is available and the job is public) or from the job config YAML in the repo (fallback).
+- **Private QE deck**: Jobs using `qe-private-deck` have inaccessible GCS artifacts (gsutil gets 403). The command tries the job config first; if that also lacks a `cluster:` field (dynamically assigned jobs), it asks the user for the build cluster console URL or name.
+- **Build clusters**: OpenShift CI uses multiple build clusters (build01-build12). The command determines which cluster via: (1) `prowjob.json` from GCS for public jobs, (2) job config YAML in the repo, or (3) user-provided console URL/cluster name as a last resort.
 - **Context isolation**: All build cluster operations use a dedicated temporary kubeconfig (`/tmp/build-cluster-kubeconfig.yaml`) to avoid modifying the user's current kubeconfig context. The temp kubeconfig can accumulate contexts from multiple build clusters across runs. If a valid context for the target build cluster already exists in the temp kubeconfig, it is reused without requiring a new login.
 - **Namespace discovery**: The ci-op namespace is found via `oc get projects` filtered by PR number and job name, which works reliably for running jobs.
 - **Multiple extractions**: Kubeconfig files use the ci-op namespace as prefix (e.g., `/tmp/ci-op-abc123-kubeconfig.yaml`) to support extracting from multiple jobs without overwriting.
