@@ -53,12 +53,14 @@ failing_jobs:
     underlying_job_name: ""
     failure_type: "infra"
     root_cause_summary: "Step pod unschedulable on build04: DiskPressure, 0/N nodes available"
+    cluster_profile: "gcp"
     streak_length: 1
     originating_payload_tag: "4.22.0-0.nightly-2026-02-25-152806"
     failure_pattern: "F"
     ship_status:
       component_slug: build-farm
       sub_component_slug: build04
+      cluster_profile: "gcp"
       window_start: "2026-02-25T14:00:00Z"
       window_end: "2026-02-25T15:30:00Z"
       observed_health: healthy
@@ -134,6 +136,7 @@ All failed blocking jobs in the payload. Written once by `payload-analysis`. Nev
 | `streak_length` | int | Consecutive payloads this job has been failing |
 | `originating_payload_tag` | string | The payload where this job first started failing in the current streak |
 | `failure_pattern` | string | Pass/fail history across the lookback window, most recent first (e.g., `"F F F S F F"`) |
+| `cluster_profile` | string | Optional. Exact CI cluster profile name (for example `azure4`, `hypershift-aws`, `hypershift-aks`). Required on infra jobs. Copy it from the job's `cluster_profile`; do not invent a name from the cloud vendor or the job name. |
 | `ship_status` | object | Optional. SHIP Status observation for `failure_type: infra` jobs (and when infra is suspected). Omit the key entirely when SHIP read tools (`get_outages_during` / `list_components`) are not in the tool list. Do not write `action: skipped` as a stand-in for missing tools. |
 
 #### `failing_jobs[].ship_status` (optional)
@@ -142,8 +145,9 @@ Recorded by `payload-analysis` steps 6.5 (read) and 6.6 (write, only when `recor
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `component_slug` | string | SHIP Status component from the root-cause map (e.g. `downstream-ci`, `boskos`, `prow`, `build-farm`). `build-farm` only when that CI cluster itself failed, never as a default from `spec.cluster`. |
+| `component_slug` | string | SHIP Status component from the root-cause map (e.g. `downstream-ci`, `boskos`, `boskos-hypershift`, `prow`, `build-farm`). `build-farm` only when that CI cluster itself failed, never as a default from `spec.cluster`. |
 | `sub_component_slug` | string | SHIP Status sub-component (e.g. `ci-config`, `gcp`, `build04`) |
+| `cluster_profile` | string | Optional. Same exact cluster profile as on the job. Required on every infra `ship_status` observation. |
 | `window_start` | string | RFC3339 UTC start of the job's Prow run (same bound passed to `get_outages_during`) |
 | `window_end` | string | RFC3339 UTC end of the job's Prow run (job completion, or `--as-of` if missing) |
 | `observed_health` | string | Health overlapping the **job run window** from `get_outages_during` (`healthy` if none; otherwise the overlapping outage severity). Never live "now" status from `get_infrastructure_status`. |
