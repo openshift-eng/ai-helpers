@@ -4,13 +4,13 @@ argument-hint: <project-id> <timeframe>
 ---
 
 ## Name
-bigquery:analyze-usage
+bigquery-cost-analysis:analyze-usage
 
 ## Synopsis
 ```
-/bigquery:analyze-usage <project-id> <timeframe>
-/bigquery:analyze-usage openshift-ci-data-analysis "24 hours"
-/bigquery:analyze-usage my-project "7 days"
+/bigquery-cost-analysis:analyze-usage <project-id> <timeframe>
+/bigquery-cost-analysis:analyze-usage openshift-ci-data-analysis "24 hours"
+/bigquery-cost-analysis:analyze-usage my-project "7 days"
 ```
 
 ## Description
@@ -35,7 +35,7 @@ The analysis includes:
 
 ## Implementation
 
-This command uses the `bigquery:analyze-usage` skill to perform the analysis.
+This command uses the `bigquery-cost-analysis:analyze-usage` skill to perform the analysis.
 
 ### Prerequisites
 - Google Cloud SDK (`bq` command-line tool) must be installed
@@ -51,7 +51,7 @@ This command uses the `bigquery:analyze-usage` skill to perform the analysis.
 
 2. **Invoke the analyze-usage Skill**:
    ```
-   Use the Skill tool to invoke "bigquery:analyze-usage"
+   Use the Skill tool to invoke "bigquery-cost-analysis:analyze-usage"
    ```
    The skill will handle all the data collection and analysis.
 
@@ -74,7 +74,7 @@ This command uses the `bigquery:analyze-usage` skill to perform the analysis.
 - **Error**: Authentication errors, missing permissions, invalid project, or bq tool not found
 
 **Important for Claude**:
-1. **REQUIRED**: You MUST invoke the `bigquery:analyze-usage` skill using the Skill tool
+1. **REQUIRED**: You MUST invoke the `bigquery-cost-analysis:analyze-usage` skill using the Skill tool
 2. Always validate both arguments before proceeding
 3. If arguments are missing, use AskUserQuestion to collect them
 4. Present the report in a clean, readable format
@@ -85,7 +85,7 @@ This command uses the `bigquery:analyze-usage` skill to perform the analysis.
 
 1. **Analyze last 24 hours for a project**:
    ```
-   /bigquery:analyze-usage openshift-ci-data-analysis "24 hours"
+   /bigquery-cost-analysis:analyze-usage openshift-ci-data-analysis "24 hours"
    ```
    Returns comprehensive report showing:
    - Total of 9.76 TB scanned
@@ -96,13 +96,13 @@ This command uses the `bigquery:analyze-usage` skill to perform the analysis.
 
 2. **Analyze last 7 days**:
    ```
-   /bigquery:analyze-usage my-project "7 days"
+   /bigquery-cost-analysis:analyze-usage my-project "7 days"
    ```
    Provides weekly usage analysis with trends and patterns.
 
 3. **Missing arguments - prompts user**:
    ```
-   /bigquery:analyze-usage
+   /bigquery-cost-analysis:analyze-usage
    ```
    Claude asks:
    - "Which project would you like to analyze?"
@@ -110,7 +110,7 @@ This command uses the `bigquery:analyze-usage` skill to perform the analysis.
 
 4. **Partial arguments**:
    ```
-   /bigquery:analyze-usage openshift-ci-data-analysis
+   /bigquery-cost-analysis:analyze-usage openshift-ci-data-analysis
    ```
    Claude asks: "What timeframe should I analyze?" (with options: 1 hour, 6 hours, 24 hours, 7 days, 30 days)
 
