@@ -75,6 +75,16 @@ Triggered automatically when FIPS-related patterns are detected, or on demand:
 /golang:native-fips
 ```
 
+### `golang:hi-static-compatibility`
+
+Assesses whether a Go project can run on `registry.access.redhat.com/hi/static:latest`. Checks production executable linkage, CGO/native dependencies, shell and helper usage, runtime assets, deployment permissions, and representative container behavior. Reports compatibility, required changes, blockers, or missing evidence, with remedies grounded in the actual build and image digest.
+
+```bash
+/golang:hi-static-compatibility
+```
+
+Uses available Go build tools, ELF inspection tools such as `file` and `readelf`, and image tools such as `skopeo` and Podman/Docker. Missing tools limit the assessment rather than implying incompatibility. Project changes require a request to implement them.
+
 ## Dependencies
 
 | Plugin | Marketplace | Purpose |
