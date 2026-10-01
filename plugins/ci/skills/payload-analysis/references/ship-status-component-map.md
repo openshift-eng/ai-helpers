@@ -49,6 +49,4 @@ These accounts are Hypershift-owned. They are not openshift-org cluster-profile-
 
 `hypershift-azure`, `hypershift-gcp`, QE, ARO, PowerVS, and any other profile that is not in the tables above: `action: skipped`, `reason: unmapped`, unless `list_components` shows a live slug for that exact account.
 
-Do not blame `boskos/azure`, `boskos/aws`, or `boskos/gcp` from the cloud vendor name or from "hypershift" in the job name.
-
 Mapping misses are `skipped`, not silent creates.
