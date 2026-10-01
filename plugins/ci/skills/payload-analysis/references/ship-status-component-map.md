@@ -27,10 +27,10 @@ On every infra `ship_status` observation, record the exact cluster profile name 
 |-----|------------------|------|
 | `openshift-org-aws` | `aws`, `aws-2`, `aws-3`, `aws-4` | `boskos/aws` |
 | `openshift-org-azure` | `azure-2`, `azure4` | `boskos/azure` |
-| `openshift-org-gcp` | `gcp`, `gcp-openshift-gce-devel-ci-2`, `gcp-3` | `boskos/gcp` |
-| `openshift-org-gcp-arm64` | arm64 jobs leasing `openshift-org-gcp-arm64-quota-slice` | `boskos/gcp-arm64` |
+| `openshift-org-gcp` | `openshift-org-gcp` | `boskos/gcp` |
+| `openshift-org-gcp-arm64` | `openshift-org-gcp-arm64` | `boskos/gcp-arm64` |
 
-The arm64 set reuses profile names `gcp`, `gcp-3`, and `gcp-openshift-gce-devel-ci-2`. Those names are `boskos/gcp` when the job leases `openshift-org-gcp-quota-slice`, and `boskos/gcp-arm64` when it leases `openshift-org-gcp-arm64-quota-slice`. There is no cluster profile named `gcp-arm64`.
+`gcp`, `gcp-3`, and `gcp-openshift-gce-devel-ci-2` are `set_members` of both GCP sets in [`cluster-profiles-config.yaml`](https://github.com/openshift/release/blob/master/ci-operator/step-registry/cluster-profiles/cluster-profiles-config.yaml). Map from the job's `steps.cluster_profile` (Prow annotation `ci-operator.openshift.io/cloud-cluster-profile`). That name's `lease_type` in the same file is the Boskos quota slice the job leases: `openshift-org-gcp` leases `openshift-org-gcp-quota-slice` (`boskos/gcp`); `openshift-org-gcp-arm64` leases `openshift-org-gcp-arm64-quota-slice` (`boskos/gcp-arm64`). When a log names one of those shared members, use this `lease_type` to choose the slug. The arm64 profile name is `openshift-org-gcp-arm64`.
 
 Use `leasing-server` when the leasing service itself is down, not when one account is out of quota.
 
