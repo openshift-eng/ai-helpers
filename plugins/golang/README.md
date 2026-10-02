@@ -61,9 +61,23 @@ Runs `golangci-lint --fix` to auto-fix issues, then uses AI to resolve any remai
 
 User-invocable only (`/golang:lint-fix`) — not triggered automatically due to its destructive nature.
 
-### `golang:audit-release-go-version`
+### `golang:analyze-release-go-versions`
 
-Audits an OCP release image or payload against a requested Go version using resolved ci-operator build configuration and Dockerfile `FROM` builder evidence. Reports only mismatching images plus explicitly limited-evidence items; it does not modify repositories, images, or Jira.
+Filters and explains release Go builder, `go.mod` directive, and module version data using the two scripts below.
+
+## Release Go version scripts
+
+Run these from the repository root with Python 3 and `oc`. They query GitHub through its API, falling back to existing `gh` access on HTTP 403/404. `--correlate-builder` also requires PyYAML and access to `openshift-eng/ocp-build-data`.
+
+```bash
+RELEASE_IMAGE='registry.ci.openshift.org/ocp/release-5:5.1.0-0.nightly-2026-09-28-133913'
+python3 plugins/golang/scripts/release_go_module_versions.py "$RELEASE_IMAGE" google.golang.org/protobuf
+python3 plugins/golang/scripts/release_go_module_versions.py "$RELEASE_IMAGE" --go-version
+python3 plugins/golang/scripts/release_go_builder_versions.py "$RELEASE_IMAGE"
+python3 plugins/golang/scripts/release_go_builder_versions.py "$RELEASE_IMAGE" --correlate-builder
+```
+
+The module script checks all `go.mod` files for the requested module or their declared Go version. For a requested module, it reports a matching `replace` target in place of the required version, including fork modules and local paths. The builder script checks Dockerfiles and Containerfiles for Go builder images; `--correlate-builder` limits the scan to files selected by build-data image configs, including distinct OKD variants. It explicitly maps the two installer artifact components to their build-data configs, which lack `payload_name`. When Nutanix cluster API controllers have no build-data config, it scans `openshift/Dockerfile.openshift` in that component's source repository at the release-recorded ref and labels the evidence as `source repo`.
 
 ### `golang:native-fips`
 
