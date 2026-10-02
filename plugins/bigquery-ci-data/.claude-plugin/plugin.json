@@ -1,0 +1,8 @@
+{
+  "name": "bigquery-ci-data",
+  "description": "Query and analyze OpenShift CI data in BigQuery across multiple datasets and tables",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

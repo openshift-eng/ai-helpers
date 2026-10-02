@@ -385,16 +385,30 @@
       ]
     },
     {
-      "name": "bigquery",
-      "source": "./plugins/bigquery",
-      "description": "BigQuery analysis utilities",
-      "version": "0.0.6",
+      "name": "bigquery-cost-analysis",
+      "source": "./plugins/bigquery-cost-analysis",
+      "description": "BigQuery cost analysis and optimization utilities",
+      "version": "0.0.7",
       "category": "data",
       "keywords": [
         "bigquery",
         "sql",
-        "analytics",
-        "cost-analysis"
+        "cost-analysis",
+        "optimization"
+      ]
+    },
+    {
+      "name": "bigquery-ci-data",
+      "source": "./plugins/bigquery-ci-data",
+      "description": "Query and analyze OpenShift CI data in BigQuery across multiple datasets and tables",
+      "version": "0.0.1",
+      "category": "data",
+      "keywords": [
+        "bigquery",
+        "ci",
+        "test-data",
+        "autodl",
+        "risk-analysis"
       ]
     },
     {
