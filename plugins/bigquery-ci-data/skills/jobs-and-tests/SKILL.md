@@ -158,8 +158,7 @@ WITH deduped AS (
     CASE WHEN flake_count > 0 THEN 0 ELSE success_val END AS adjusted_success_val,
     CASE WHEN flake_count > 0 THEN 1 ELSE 0 END AS adjusted_flake_count
   FROM `openshift-gce-devel.ci_analysis_us.junit`
-  WHERE modified_time >= DATETIME("2026-05-01")
-    AND modified_time < DATETIME("2026-05-08")
+  WHERE modified_time >= DATETIME_SUB(CURRENT_DATETIME(), INTERVAL 7 DAY)
     AND release = '4.22'
     AND skipped = false
     AND test_name LIKE '%your test pattern%'
@@ -189,8 +188,7 @@ WHERE jv_release.variant_value = '4.19'
 ```sql
 LEFT JOIN `openshift-gce-devel.ci_analysis_us.job_labels` jl
   ON junit.prowjob_build_id = jl.prowjob_build_id
-  AND jl.prowjob_start >= DATETIME("2026-05-01")
-  AND jl.prowjob_start < DATETIME("2026-05-08")
+  AND jl.prowjob_start >= DATETIME_SUB(CURRENT_DATETIME(), INTERVAL 7 DAY)
   AND jl.label = 'InfraFailure'
 WHERE jl.label IS NULL
 ```
@@ -203,8 +201,7 @@ SELECT
   COUNT(DISTINCT jobs.prowjob_build_id) AS total_runs,
   COUNT(DISTINCT IF(jobs.prowjob_state = 'success', jobs.prowjob_build_id, NULL)) AS successful_runs
 FROM `openshift-gce-devel.ci_analysis_us.jobs` jobs
-WHERE jobs.prowjob_start >= DATETIME("2026-05-01")
-  AND jobs.prowjob_start < DATETIME("2026-05-08")
+WHERE jobs.prowjob_start >= DATETIME_SUB(CURRENT_DATETIME(), INTERVAL 7 DAY)
   AND jobs.prowjob_type = 'periodic'
 GROUP BY jobs.prowjob_job_name
 ORDER BY total_runs DESC

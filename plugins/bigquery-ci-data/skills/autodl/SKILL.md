@@ -251,8 +251,7 @@ SELECT
   JobRunTestCount,
   JobRunTestFailures
 FROM `openshift-ci-data-analysis.ci_data_autodl.risk_analysis_overall_results`
-WHERE PartitionTime >= TIMESTAMP("2026-09-24")
-  AND PartitionTime < TIMESTAMP("2026-10-01")
+WHERE PartitionTime >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
   AND RiskLevel >= 3
 ORDER BY RiskLevel DESC, JobRunTestFailures DESC
 ```
@@ -268,8 +267,7 @@ SELECT
   ROUND(AVG(IF(TotalAttempts > 1, TotalAttempts, NULL)), 1) AS avg_attempts_when_retried,
   COUNTIF(FinalOutcome = 'passed') / COUNT(*) AS final_pass_rate
 FROM `openshift-ci-data-analysis.ci_data_autodl.retry_statistics`
-WHERE PartitionTime >= TIMESTAMP("2026-09-24")
-  AND PartitionTime < TIMESTAMP("2026-10-01")
+WHERE PartitionTime >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
 GROUP BY TestName
 HAVING total_runs >= 5
 ORDER BY retry_pct DESC
@@ -284,8 +282,7 @@ SELECT
   AVG(TotalSeconds) AS avg_degraded_seconds,
   MAX(MaxIndividualDurationSeconds) AS worst_degraded_seconds
 FROM `openshift-ci-data-analysis.ci_data_autodl.operator_state_metrics`
-WHERE PartitionTime >= TIMESTAMP("2026-09-24")
-  AND PartitionTime < TIMESTAMP("2026-10-01")
+WHERE PartitionTime >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
   AND State = 'Degraded'
   AND Count > 0
 GROUP BY Operator
@@ -301,8 +298,7 @@ SELECT
   Verb,
   SUM(RequestCount) AS total_requests
 FROM `openshift-ci-data-analysis.ci_data_autodl.audit_resource_requests_per_user`
-WHERE PartitionTime >= TIMESTAMP("2026-09-24")
-  AND PartitionTime < TIMESTAMP("2026-10-01")
+WHERE PartitionTime >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
 GROUP BY User, Resource, Verb
 ORDER BY total_requests DESC
 LIMIT 20
