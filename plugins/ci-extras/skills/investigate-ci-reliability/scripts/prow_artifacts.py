@@ -133,12 +133,12 @@ class Client:
                     raise ValueError("Oversized cache sidecar")
                 meta = json.loads(meta_path.read_text())
                 size = data_path.stat().st_size
-                if size > self.budget.maximum - self.budget.used:
-                    raise ArtifactError("Cached artifact exceeds remaining byte limit")
-                self.budget.charge(size)
-                data = data_path.read_bytes()
-                if meta.get("source_url") == url and meta.get("sha256") == digest(data) and meta.get("bytes") == size:
-                    return data, dict(meta, cache_hit=True, cache_path=str(data_path))
+                if (meta.get("source_url") == url and meta.get("bytes") == size
+                        and size <= self.budget.maximum - self.budget.used):
+                    data = data_path.read_bytes()
+                    self.budget.charge(len(data))
+                    if len(data) == size and meta.get("sha256") == digest(data):
+                        return data, dict(meta, cache_hit=True, cache_path=str(data_path))
             except (ValueError, OSError):
                 pass
         data = self.request(url)

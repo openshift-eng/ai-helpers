@@ -1,6 +1,6 @@
 # Collecting the reliability inventory
 
-The collector is self-contained Python 3.9+ standard library code. It does not import another
+The collector is self-contained Python 3.10+ standard library code. It does not import another
 plugin, require an experiment checkout, or assume existing evidence. Run it from this
 skill directory, or use an absolute path to its `scripts/collect_runs.py`.
 

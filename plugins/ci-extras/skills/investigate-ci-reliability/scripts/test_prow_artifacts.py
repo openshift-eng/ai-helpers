@@ -100,6 +100,56 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(new["sha256"], p.digest(third))
         self.assertFalse(new["cache_hit"])
 
+    def test_stale_or_oversized_cache_metadata_is_not_charged(self):
+        for stale in ("source_url", "bytes", "oversized"):
+            with self.subTest(stale=stale):
+                client, http = self.client([b"fresh"], maximum=5)
+                obj = "build-log.txt"
+                key = p.digest(obj.encode())
+                client.cache.mkdir(parents=True, exist_ok=True)
+                data_path = client.cache / (key + ".data")
+                meta_path = client.cache / (key + ".json")
+                cached = b"cached" if stale != "oversized" else b"oversized"
+                data_path.write_bytes(cached)
+                meta = {
+                    "source_url": p.object_url(RUN, obj),
+                    "bytes": len(cached),
+                    "sha256": p.digest(cached),
+                }
+                if stale == "source_url":
+                    meta["source_url"] += "-stale"
+                elif stale == "bytes":
+                    meta["bytes"] += 1
+                meta_path.write_text(json.dumps(meta))
+
+                data, proof = client.fetch(obj)
+
+                self.assertEqual(data, b"fresh")
+                self.assertFalse(proof["cache_hit"])
+                self.assertEqual(client.budget.used, len(data))
+                self.assertEqual(len(http.urls), 1)
+
+    def test_rejected_cache_content_counts_as_a_cache_read(self):
+        client, http = self.client([b"new"], maximum=6)
+        obj = "build-log.txt"
+        key = p.digest(obj.encode())
+        client.cache.mkdir(parents=True)
+        data_path = client.cache / (key + ".data")
+        meta_path = client.cache / (key + ".json")
+        data_path.write_bytes(b"bad")
+        meta_path.write_text(json.dumps({
+            "source_url": p.object_url(RUN, obj),
+            "bytes": 3,
+            "sha256": p.digest(b"expected"),
+        }))
+
+        data, proof = client.fetch(obj)
+
+        self.assertEqual(data, b"new")
+        self.assertFalse(proof["cache_hit"])
+        self.assertEqual(client.budget.used, 6)
+        self.assertEqual(len(http.urls), 1)
+
     def test_retryable_http_and_nonretryable_404(self):
         unavailable = urllib.error.HTTPError("https://storage.googleapis.com/x", 503, "unavailable", {}, None)
         client, http = self.client([unavailable, b"ok"])
