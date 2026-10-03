@@ -1,0 +1,14 @@
+expected_phase: Rejected
+expected_failed_job_count: 13
+has_revert_candidates: false
+force_accept_expected: false
+
+expected_candidates: []
+
+notes: >
+  Kubernetes 1.36.2 rebase (openshift/kubernetes#2653) introduced kubelet version
+  skew — kube-apiserver runs 1.36.2 but kubelet remains at v1.35.3. This is an
+  expected transient state while the kubelet is rebuilt from the rebased source and
+  delivered via an updated RHCOS image. The agent should classify this as "transient
+  build lag" and NOT recommend reverting the rebase PR. Force-accept and force-reject
+  are also NOT appropriate — the correct action is to wait for the rebuilt kubelet.
