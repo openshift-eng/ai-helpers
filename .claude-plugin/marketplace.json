@@ -572,6 +572,21 @@
         "pr-triage",
         "team-tools"
       ]
+    },
+    {
+      "name": "debugging",
+      "source": "./plugins/debugging",
+      "description": "Evidence-backed debugging for arbitrary software and systems investigations",
+      "version": "0.1.0",
+      "category": "development",
+      "keywords": [
+        "debugging",
+        "diagnosis",
+        "troubleshooting",
+        "root-cause",
+        "evidence",
+        "verification"
+      ]
     }
   ]
 }
