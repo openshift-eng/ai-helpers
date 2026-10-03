@@ -1,0 +1,8 @@
+{
+  "name": "okd-scos",
+  "description": "OKD SCOS bootimage management — bump pinned CentOS Stream CoreOS images in openshift/installer",
+  "version": "0.1.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
