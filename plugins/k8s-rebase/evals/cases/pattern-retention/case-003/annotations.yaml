@@ -1,0 +1,5 @@
+notes: >
+  openshift/multus-cni — CNI meta-plugin that delegates configuration
+  via a CNI conf list. The primary k8s API consumer is the admission
+  controller in pkg/. Narrow k8s API surface; expect go.mod/vendor
+  changes plus a small number of .go call-site fixes.

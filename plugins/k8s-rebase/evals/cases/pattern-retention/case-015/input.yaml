@@ -1,0 +1,5 @@
+repo_url: https://github.com/openshift/cloud-network-config-controller
+from_commit: 035723854d7b53fb85783d521368d0002d212e47
+version: "1.35.3"
+known_good_url: https://github.com/openshift/cloud-network-config-controller
+known_good_ref: e846a6c960d2c0f976ff00fc944b854b322ffbe7

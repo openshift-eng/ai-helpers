@@ -1,0 +1,8 @@
+notes: >
+  ovn-kubernetes/ovn-kubernetes-mcp @ k8s 1.35.3 — small MCP server repo
+  for OVN-K troubleshooting. Minimal source surface: expect most diff to be
+  go.mod and vendor/ only, with few or no .go file changes. Module path
+  contains "ovn-kubernetes/" but this is a separate repo from
+  ovn-org/ovn-kubernetes (do not conflate them). Go toolchain version in
+  go.mod may differ from known-good by a minor version (MVS-driven); this
+  is acceptable variance.

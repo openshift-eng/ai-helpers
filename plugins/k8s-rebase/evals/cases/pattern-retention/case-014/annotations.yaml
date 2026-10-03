@@ -1,0 +1,9 @@
+notes: >
+  openshift/ingress-node-firewall @ k8s 1.35.3 — manages EgressFirewall
+  node-level rules. Narrow k8s API surface; expect go.mod/vendor changes
+  plus a small number of .go call-site fixes. IngressNodeFirewall CRD types
+  are defined in openshift/api (an indirect dep) and are read-only from this
+  repo's perspective — a diff touching them is almost certainly out-of-scope.
+  Note: the known-good rebase is AI-produced (no complete human-authored
+  1.35 rebase exists for this repo); treat score-3 differences with
+  slightly more tolerance than for human-reviewed known-goods.

@@ -572,6 +572,12 @@
         "pr-triage",
         "team-tools"
       ]
+    },
+    {
+      "name": "k8s-rebase",
+      "source": "./plugins/k8s-rebase",
+      "description": "Automate Kubernetes dependency rebases for Go projects that consume k8s.io/* packages. Scans go.mod, derives version bumps, runs codegen, updates version references, and guides agent-driven fixups with antagonistic review.",
+      "version": "0.0.1"
     }
   ]
 }
