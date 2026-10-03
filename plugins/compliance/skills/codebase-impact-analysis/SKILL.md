@@ -17,7 +17,7 @@ Use this skill when:
 ## Prerequisites
 
 ### Required Tools (validated in Phase 0 of the analyze-cve skill)
-- `go` toolchain with `go.mod` in workspace root
+- `go` toolchain with `go.mod` somewhere in the repository (root or a subdirectory — resolved to `GO_MODULE_DIR` in Phase 0.7 Step 4)
 - `govulncheck`: `go install golang.org/x/vuln/cmd/govulncheck@latest`
 - `callgraph`: `go install golang.org/x/tools/cmd/callgraph@latest`
 - `digraph`: `go install golang.org/x/tools/cmd/digraph@latest`
@@ -33,13 +33,16 @@ Use this skill when:
 
 **From Parent Command:**
 - `--algo` preference for call graph analysis (default: `vta`)
-- `REPO_DIR` — the repository cloned in Phase 0.7 (e.g. `.work/compliance/analyze-cve/repos/hypershift`). All commands below run against this directory, not necessarily the shell's current working directory.
+- `REPO_DIR` — the repository cloned in Phase 0.7 (e.g. `.work/compliance/analyze-cve/repos/hypershift`). Git-level operations (status, staging, PR diffing) run against this directory.
+- `GO_MODULE_DIR` — the Go module root resolved by Phase 0.7 Step 4 (equal to `REPO_DIR` when `go.mod` is at the repository root; a subdirectory when it isn't — see [Non-root / multi-module repos](../analyze-cve/references/implementation.md#step-4-locate-the-go-module-and-verify-go-project)). **All `go`, `govulncheck`, and `callgraph` commands below run with this as the working directory**, not `REPO_DIR` and not necessarily the shell's current working directory. If `GO_MODULE_DIR` is unset (no `go.mod` found anywhere in `REPO_DIR`), skip straight to risk assignment with dependency-based methods unavailable.
 
 ## Implementation Steps
 
 ### Step 1: Identify Go Module Dependencies
 
 ```bash
+cd "${GO_MODULE_DIR}"
+
 # Parse dependencies from go.mod
 go list -m all
 
@@ -47,9 +50,22 @@ go list -m all
 go list -m -json all
 ```
 
-- Read `go.mod` from workspace root
+- Read `go.mod` from `GO_MODULE_DIR` (the resolved module root, not necessarily `REPO_DIR`)
 - Parse direct and indirect dependencies
 - Extract module versions
+
+### Step 1.5: Go Stdlib CVE — Build-Time Version Check (only when the vulnerable "package" is Go stdlib)
+
+Skip this step for third-party module CVEs — go directly to Step 2. Run it only when the CVE's affected package is part of the Go standard library itself (e.g. `crypto/tls`, `net/http`, `encoding/xml`, `archive/zip`) rather than something listed in `go.mod`.
+
+**Why this needs its own check:** `go.mod`'s `go` directive states the *minimum language version* the module requires to build — it is not proof of the toolchain that actually compiled the shipped binary. A component can declare `go 1.21` while its Dockerfile's build stage uses a much newer (or older) Go builder image — the public `golang:` image, or (common in OpenShift/Red Hat repos) a `go-toolset`/UBI-based builder image instead. Stdlib CVE exposure depends on the **compiler that actually built the binary**, not the declared minimum.
+
+Run the commands in [references/procedures.md#step-15-go-stdlib-build-time-version-check--commands](references/procedures.md#step-15-go-stdlib-build-time-version-check--commands) to collect three version signals — the Dockerfile/Containerfile build-image tag, a `toolchain` directive, and (informational only) the locally installed `go` — then apply the rules below. The version-extraction regex is anchored to the digits immediately after `golang`/`go-toolset` specifically because ART-built OpenShift images pack extra version numbers into the same reference (e.g. an OCP release number ahead of the Go version); anchor your own reasoning the same way if you extend this check.
+
+- IF `DOCKERFILE_GO`/`TOOLCHAIN_GO` resolves to a version **at or above** the CVE's fixed Go version → the shipped binary is very likely already patched, **even though `go.mod`'s declared minimum looks vulnerable**. Note this as a discrepancy in the report and recommend confirming the exact builder-image tag against the fix — do not assert NOT AFFECTED from this signal alone, since a Dockerfile tag can be stale or floating (e.g. `golang:1.22` or a `go-toolset:1.22` image tracking a moving patch level).
+- IF `DOCKERFILE_GO`/`TOOLCHAIN_GO` resolves to a version **below** the fix → treat as vulnerable at the toolchain level. This is a stdlib/toolchain fix that must come from a rebuilt builder image, not a `go.mod` dependency bump — flag it for `remediation-planning`'s Go Runtime Update path (Step 2A) and do **not** edit the `go` directive locally to "fix" it.
+- IF neither signal is found (no Dockerfile, no toolchain directive) → fall back to `DECLARED_GO` with an explicit caveat in the report: "declared `go.mod` minimum only — actual build-time compiler version could not be confirmed."
+- Record `DECLARED_GO`, `DOCKERFILE_GO`, and `TOOLCHAIN_GO` as evidence regardless of outcome, then continue to Step 2.
 
 ### Step 2: Cross-Reference Vulnerable Packages
 
@@ -68,7 +84,19 @@ go list -m <vulnerable-package>
 
 **Decision Point:**
 - IF package NOT in dependencies → Skip to risk assignment (likely LOW RISK)
-- IF package found → Continue to Method 2
+- IF package found → Continue to Method 1.5
+
+#### Method 1.5: Dynamic-Pattern Confidence Scan (always run once the package is present)
+
+Both govulncheck (Method 2) and the call graph (Method 5) are static analyses — they only see a call that appears as a literal call expression in the source. `reflect`-based dispatch, `unsafe` pointer casts, cgo call-backs, and `plugin.Open`-loaded code can all reach a vulnerable function without ever producing that call expression. This method doesn't prove reachability by itself; it sets a confidence level for how much to trust a **negative** result from Methods 2 and 5 later.
+
+Count non-test, non-vendored uses of `reflect`, `unsafe`, `import "C"`, and `plugin.Open`/`plugin.Lookup` under `${GO_MODULE_DIR}` (a `grep -rln` per pattern is enough — the exact command doesn't matter, but keep the list of **matching file paths**, not just the counts: Method 5.5 needs to know which files to read). Sum the four counts as `TOTAL_DYNAMIC` and classify:
+
+- **0** → `STATIC_CONFIDENCE=HIGH`: a "not reachable" result from Method 2/5 later can be trusted as-is.
+- **1–9** → `STATIC_CONFIDENCE=MEDIUM`: a later "not reachable" result is provisional — if the package is present, Method 5.5 (reflection/CGO reachability check) must run before finalizing.
+- **10+** → `STATIC_CONFIDENCE=LOW`: static tooling is unreliable on this codebase. Method 5.5 is mandatory whenever the package is present, and the report must say so explicitly even if the final level ends up LOW.
+
+Record the four counts, the matching file paths, and `STATIC_CONFIDENCE` as evidence (e.g. `${OUT_DIR}/dynamic-pattern-scan.txt`). Carry `STATIC_CONFIDENCE` and the file list forward — they drive the Confidence Downgrade rule in [Step 4](#step-4-assign-risk-level) and are exactly what Method 5.5 reads when it's mandatory. Continue to Method 2.
 
 #### Method 2: Go Vulnerability Scanner
 
@@ -78,144 +106,27 @@ go list -m <vulnerable-package>
 > 3. **"No findings" is a valid and final result** — it means the CVE is not yet in the Go vuln database. Proceed to Method 3 immediately. Do NOT re-run in a different mode or format.
 > 4. **Always use `timeout -k 10`** to force-kill if SIGTERM is ignored. Plain `timeout` sends SIGTERM but govulncheck can ignore it when stuck in package loading.
 
-This method has 4 sequential steps. If any step fails or times out, skip the remaining steps and proceed to Method 3 — govulncheck is one signal, not the only one.
+This method has 4 sequential steps, in [references/procedures.md#method-2-go-vulnerability-scanner--detailed-procedure](references/procedures.md#method-2-go-vulnerability-scanner--detailed-procedure): **2a** go.mod presence check (instant) → **2b** pre-flight module download + `go list` toolchain check (max 2 min) → **2c** CGO probe, only if 2b's `CGO_ENABLED=0` load failed (max 60s) → **2d** the govulncheck scan itself, package-level first and escalating to symbol-level only if that finds something (max 5 min). If any step fails or times out, skip the remaining steps and proceed to Method 3 — govulncheck is one signal, not the only one. Each step's own IF/THEN skip conditions are documented alongside its commands in the reference.
 
-```bash
-OUT_DIR="${OUT_DIR:-${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/${CVE_ID}}"
-mkdir -p "${OUT_DIR}"
-```
+**Decision Point — govulncheck is ONE signal. Always continue to Method 2.5 next.**
+- IF scan reports vulnerable symbols called → Strong evidence for HIGH RISK; still continue to Method 2.5
+- IF scan reports **no findings** → CVE likely not yet in Go vuln database. **Do NOT re-run.** Proceed to Method 2.5.
+- IF scan timed out or was skipped → Proceed to Method 2.5; note the gap in the report
 
----
+#### Method 2.5: Vendor Directory Verification (when `vendor/` exists)
 
-**Step 2a — go.mod check (instant)**
+`go.mod` listing a dependency does not prove the *vulnerable* code is actually vendored — some repos vendor only a subset of a module's packages (e.g. a parser library but not the daemon package a CVE actually requires). This catches that "partial vendoring" case, which govulncheck and the call graph (Method 5) cannot see on their own since both operate on whatever `vendor/` happens to contain.
 
-```bash
-VULN_PKG="google.golang.org/grpc"   # replace with actual vulnerable package
-echo "=== Step 2a: go.mod check for ${VULN_PKG} ==="
-grep "${VULN_PKG}" "${REPO_DIR}/go.mod" && echo "FOUND in go.mod" || echo "NOT FOUND in go.mod"
-```
+**Decision Point:**
+- IF `${GO_MODULE_DIR}/vendor/` does not exist (module-mode build, no vendoring) → skip this method entirely; note "not a vendored repo" and continue to Method 3.
+- IF `vendor/` exists → run the commands in [references/procedures.md#method-25-vendor-directory-verification--commands](references/procedures.md#method-25-vendor-directory-verification--commands), which set `VENDOR_STATUS` to one of `not_vendored`, `present`, or `partial_not_vulnerable_part`, then apply the rules below.
 
-- IF **NOT FOUND** → record "package not in module graph" as LOW signal; **skip Steps 2b–2d entirely**; proceed to Method 3
-- IF **FOUND** → note the version; continue
+- IF `VENDOR_STATUS=not_vendored` → the module isn't in the vendored tree that actually ships in the build, even though `go.mod` lists it (e.g. an unused indirect dependency, or a build-tag-excluded path). This **caps risk at LOW** regardless of what govulncheck or the call graph found — the vulnerable code cannot execute if it was never vendored into the build.
+- IF `VENDOR_STATUS=partial_not_vulnerable_part` → the specific vulnerable sub-package/file from the advisory isn't in the vendored subset even though the module is. This **caps risk at LOW**; state the mismatch explicitly in the report (e.g. "go.mod lists `<module>`, but the vendored subset excludes the vulnerable `<sub-package>`").
+- IF `VENDOR_STATUS=present` → no downgrade from this method; continue to Method 3 and give full weight to Method 2 and Method 5's results.
+- Record `VENDOR_STATUS` and the `find` output as evidence regardless of outcome.
 
----
-
-**Step 2b — Pre-flight: download modules and verify toolchain (max 2 min)**
-
-Large repos (300+ deps like spiffe-spire) need all modules cached before govulncheck can load them. Separate this from the scan to isolate network issues from analysis hangs.
-
-```bash
-cd "${REPO_DIR}"
-echo "=== Step 2b: Pre-flight ==="
-
-# Download all modules (network-bound, do first)
-echo "Downloading modules..."
-timeout -k 10 120 env CGO_ENABLED=0 go mod download > "${OUT_DIR}/go-mod-download.txt" 2>&1
-if [ $? -ne 0 ]; then
-  echo "⚠ go mod download failed or timed out — govulncheck may fail"
-  cat "${OUT_DIR}/go-mod-download.txt"
-fi
-
-# Verify the Go toolchain can load the package graph (CGO disabled first — many repos fail only with CGO enabled)
-echo "Loading package list (CGO_ENABLED=0)..."
-timeout -k 10 60 env CGO_ENABLED=0 go list ./... > "${OUT_DIR}/go-list-packages.txt" 2>&1
-LIST_EXIT=$?
-PKG_COUNT=$(wc -l < "${OUT_DIR}/go-list-packages.txt" 2>/dev/null || echo 0)
-echo "Package count: ${PKG_COUNT}, exit code: ${LIST_EXIT}"
-
-if [ $LIST_EXIT -ne 0 ]; then
-  echo "go list with CGO_ENABLED=0 failed — retrying after CGO probe (Step 2c) before skipping govulncheck"
-fi
-```
-
-- IF `go list` succeeds with `CGO_ENABLED=0` → continue to Step 2c, then 2d
-- IF `go list` still fails after Step 2c's CGO probe (with the chosen `CGO_SETTING`) → write the error to `${OUT_DIR}/govulncheck-source.txt`, **skip Steps 2c–2d**, proceed to Method 3
-
----
-
-**Step 2c — CGO probe (max 60s, skip if compiler absent)**
-
-```bash
-echo "=== Step 2c: CGO probe ==="
-CGO_SETTING=0
-if command -v gcc >/dev/null 2>&1 || command -v cc >/dev/null 2>&1; then
-  timeout -k 10 60 env CGO_ENABLED=1 go build ./... > "${OUT_DIR}/cgo-probe.txt" 2>&1
-  if [ $? -eq 0 ]; then
-    CGO_SETTING=1
-    echo "✓ CGO works — using CGO_ENABLED=1"
-  else
-    echo "✗ CGO build failed — using CGO_ENABLED=0"
-  fi
-else
-  echo "✗ No C compiler — using CGO_ENABLED=0"
-fi
-echo "CGO_ENABLED=${CGO_SETTING}"
-
-if [ $LIST_EXIT -ne 0 ]; then
-  echo "Retrying go list with CGO_ENABLED=${CGO_SETTING}..."
-  timeout -k 10 60 env CGO_ENABLED=${CGO_SETTING} go list ./... > "${OUT_DIR}/go-list-packages.txt" 2>&1
-  LIST_EXIT=$?
-  PKG_COUNT=$(wc -l < "${OUT_DIR}/go-list-packages.txt" 2>/dev/null || echo 0)
-  echo "Retry package count: ${PKG_COUNT}, exit code: ${LIST_EXIT}"
-  if [ $LIST_EXIT -ne 0 ]; then
-    echo "✗ go list failed after CGO probe — skipping govulncheck entirely"
-    echo "go list failed (exit ${LIST_EXIT})" > "${OUT_DIR}/govulncheck-source.txt"
-    cat "${OUT_DIR}/go-list-packages.txt" >> "${OUT_DIR}/govulncheck-source.txt"
-  fi
-fi
-```
-
-- IF `go list` still fails after retry → `${OUT_DIR}/govulncheck-source.txt` is populated; skip Step 2d and proceed to Method 3
-- IF `go list` succeeds → continue
-
----
-
-**Step 2d — govulncheck scan (max 5 min)**
-
-Use `-scan=package` first (fast, checks if CVE is in vuln DB and package imported). Only escalate to symbol-level if package-level finds something.
-
-```bash
-if [ ! -s "${OUT_DIR}/govulncheck-source.txt" ] && [ $LIST_EXIT -eq 0 ]; then
-  # Package-level scan first (fast — no symbol resolution)
-  echo "=== Step 2d: govulncheck package scan ==="
-  timeout -k 10 120 env CGO_ENABLED=${CGO_SETTING} govulncheck -scan=package ./... > "${OUT_DIR}/govulncheck-package.txt" 2>&1
-  PKG_EXIT=$?
-  echo "govulncheck -scan=package exit: ${PKG_EXIT}"
-  cat "${OUT_DIR}/govulncheck-package.txt"
-
-  # Check if the package scan found anything worth escalating to symbol level
-  if grep -qi "Vulnerability\|finding\|${VULN_PKG}" "${OUT_DIR}/govulncheck-package.txt" 2>/dev/null; then
-    echo "=== Step 2d: govulncheck symbol scan (escalating — CVE found at package level) ==="
-    timeout -k 10 300 env CGO_ENABLED=${CGO_SETTING} govulncheck ./... > "${OUT_DIR}/govulncheck-source.txt" 2>&1
-    SOURCE_EXIT=$?
-    if [ $SOURCE_EXIT -eq 124 ] || [ $SOURCE_EXIT -eq 137 ]; then
-      echo "govulncheck symbol scan timed out or was killed — using package-level results"
-      cp "${OUT_DIR}/govulncheck-package.txt" "${OUT_DIR}/govulncheck-source.txt"
-    fi
-  else
-    echo "Package scan found no findings — CVE likely not in Go vuln DB yet"
-    cp "${OUT_DIR}/govulncheck-package.txt" "${OUT_DIR}/govulncheck-source.txt"
-  fi
-  echo "govulncheck complete"
-else
-  echo "=== govulncheck (using cached result) ==="
-fi
-cat "${OUT_DIR}/govulncheck-source.txt"
-
-# Verify repo is still accessible after govulncheck
-echo "=== Post-govulncheck repo check ==="
-ls "${REPO_DIR}/go.mod" > /dev/null 2>&1 && echo "✓ Repo intact at ${REPO_DIR}" || echo "✗ WARNING: Repo missing at ${REPO_DIR}"
-```
-
-- IF CGO was disabled → note in report: "CGO-gated code paths excluded from analysis"
-- IF package scan found no findings → CVE is not in Go vuln DB; do NOT escalate to symbol scan; proceed to Method 3
-- IF symbol scan timed out → use package-level results instead; proceed to Method 3
-- Save `${OUT_DIR}/govulncheck-source.txt` as a workflow artifact
-
-**Decision Point — govulncheck is ONE signal. Always continue to Method 3 next.**
-- IF scan reports vulnerable symbols called → Strong evidence for HIGH RISK; still continue to Method 3
-- IF scan reports **no findings** → CVE likely not yet in Go vuln database. **Do NOT re-run.** Proceed to Method 3.
-- IF scan timed out or was skipped → Proceed to Method 3; note the gap in the report
+> This method only ever **caps risk downward** toward LOW — it never raises risk on its own. `present` is neutral, not confirmatory; reachability still comes from Method 2/5.
 
 #### Method 3: Direct Dependency Check
 
@@ -255,6 +166,22 @@ Delegate to the [call-graph-analysis](../call-graph-analysis/SKILL.md) skill.
 - govulncheck did not flag it (CVE may not be in the Go vuln DB yet)
 - The analysis "feels" complete from earlier methods
 
+#### Method 5.5: Reflection/CGO Reachability Check (mandatory when Method 1.5 confidence is MEDIUM or LOW)
+
+Run this method whenever Method 1.5 flagged reflect/unsafe/cgo/plugin usage (`STATIC_CONFIDENCE` MEDIUM or LOW) **and** the vulnerable function was not proven reachable by Method 5 (no path found, or call graph skipped/build failed). Skip it when `STATIC_CONFIDENCE=HIGH` (nothing to find) or when Method 5 already proved a direct reachable path (no need to also look for an indirect one).
+
+Rather than trust the call graph's silence, read the specific files Method 1.5 flagged — not the whole repo, and not by writing a separate analysis tool; this is a small enough set of files to read directly. Look for:
+- `reflect.ValueOf(...).MethodByName("<literal>")` — does the literal method name match (or plausibly match) the vulnerable function's name from the CVE advisory?
+- `unsafe.Pointer` casts near a call site that could route into the vulnerable function.
+- `import "C"` plus a `//export`ed function — the C side may call it; open the paired `.c`/`.h` file and check whether it does.
+
+**Interpretation:**
+- A `MethodByName` literal matching the vulnerable function → reachable via reflection. Escalate toward **HIGH**, and note in the report that reachability was established via reflection, not a static call graph.
+- An `//export`ed function whose C caller reaches the vulnerable path → reachable. Escalate toward **HIGH**.
+- Nothing found across every flagged file → no evidence of indirect dispatch reaching the vulnerable function. Combined with Method 5's own negative result, this is what justifies a LOW (not NEEDS_REVIEW) conclusion despite MEDIUM/LOW `STATIC_CONFIDENCE` — see the Confidence Downgrade rule in [Step 4](#step-4-assign-risk-level).
+
+Record which files were checked and what was found as evidence either way (e.g. `${OUT_DIR}/reflection-cgo-check.txt`).
+
 #### Method 6: Configuration and Context Analysis
 
 - Review if vulnerable features are actually enabled
@@ -264,15 +191,19 @@ Delegate to the [call-graph-analysis](../call-graph-analysis/SKILL.md) skill.
 
 ### Confidence Levels
 
-Each method provides increasing confidence:
+Each method contributes evidence of a different strength, listed in the order they run:
 
-1. **Basic Presence** (Low) — Package in `go.mod` (Method 1, 3)
-2. **Import & Version Analysis** (Medium) — Package imported, version in vulnerable range, function names found (Method 4)
-3. **Vulnerability Scanner** (Medium-High) — `govulncheck` confirms reachable vulnerable symbols (Method 2)
-4. **Call Graph Reachability** (Definitive) — Proven execution path from entry point to vulnerable function (Method 5)
-5. **Context Analysis** — Mitigating or aggravating factors (Method 6)
+- **Method 1 (Dependency Matching)** — Basic presence: is the package in `go.mod`.
+- **Method 1.5 (Dynamic-Pattern Confidence Scan)** — Sets how much to trust a later negative result from Method 2 or Method 5.
+- **Method 2 (Go Vulnerability Scanner)** — Medium-high: `govulncheck` confirms reachable vulnerable symbols.
+- **Method 2.5 (Vendor Directory Verification)** — Can only cap risk down toward LOW; never raises it.
+- **Method 3 (Direct Dependency Check)** — Same tier as Method 1: presence, direct or transitive.
+- **Method 4 (Source Code Analysis)** — Medium: import/version/usage evidence found in source.
+- **Method 5 (Call Graph Reachability Analysis)** — Definitive: proven execution path from entry point to vulnerable function.
+- **Method 5.5 (Reflection/CGO Reachability Check)** — Reachability a static call graph cannot represent.
+- **Method 6 (Configuration and Context Analysis)** — Mitigating or aggravating factors layered on top of all of the above.
 
-**Required minimum:** If the package is in `go.mod`, the analysis is not complete until Method 5 has run or a valid skip reason has been documented. Never stop at Method 4 alone.
+**Required minimum:** If the package is in `go.mod`, the analysis is not complete until Method 5 has run or a valid skip reason has been documented. Never stop at Method 4 alone. If `STATIC_CONFIDENCE` (Method 1.5) is MEDIUM or LOW and Method 5 returned a negative result, Method 5.5 must also run before the analysis is considered complete.
 
 ### Step 3: Build Evidence Package
 
@@ -304,6 +235,21 @@ Evaluate all evidence and assign a risk level. The determination should be data-
 
 > **Rule:** If package is in `go.mod` and call graph was skipped because source analysis "found nothing", assign **NEEDS REVIEW**, not LOW RISK. Document the skip reason explicitly.
 
+Apply the three overlays below **in this order**, on top of the HIGH/MEDIUM/LOW/NEEDS_REVIEW level assigned above:
+
+**Vendor Override (Method 2.5 — applied after the levels above):**
+- IF Method 2.5 was skipped (no `vendor/` directory — module-mode build) → no override; use the level assigned above.
+- IF Method 2.5 found `not_vendored` or `partial_not_vulnerable_part` → override the level to **LOW**, regardless of what govulncheck or the call graph found. State in the report that the override happened and why. This is the one case where module-level evidence (govulncheck, call graph) is superseded by vendor-directory evidence.
+- IF Method 2.5 found `present` → no override.
+
+**Confidence Downgrade (Method 1.5 / Method 5.5 — applies to a LOW result only):**
+- IF the level assigned above is LOW **and** `STATIC_CONFIDENCE` (Method 1.5) is MEDIUM or LOW **and** Method 5.5 either wasn't run or found nothing across the flagged files → do not finalize as LOW. Assign **NEEDS_REVIEW** instead, and state explicitly which dynamic-pattern category (reflect/unsafe/cgo/plugin) drove the downgrade.
+- IF `STATIC_CONFIDENCE=HIGH` → no downgrade; a LOW result stands.
+- IF Method 5.5 found a reachability match (a matching reflection call or a CGO path into the vulnerable function) → this already escalates the level per Method 5.5's own interpretation rules above; the downgrade rule here does not apply (the level is no longer LOW).
+
+**Stdlib Build-Version Note (Step 1.5 — Go stdlib CVEs only):**
+- IF Step 1.5 found a discrepancy between `go.mod`'s declared version and the Dockerfile/toolchain build-time version → state it in the report regardless of the assigned risk level (see Step 1.5 for the exact wording). This does not change the risk level by itself — it's evidence for the human reviewer that the `go.mod` minimum may not reflect the shipped binary's actual exposure.
+
 ## Return Value
 
 Return structured result to parent command:
@@ -313,18 +259,44 @@ Return structured result to parent command:
   "skill": "codebase-impact-analysis",
   "status": "success",
   "risk_level": "<HIGH|MEDIUM|LOW|NEEDS_REVIEW>",
-  "methods_used": ["dependency_matching", "govulncheck", "direct_dependency_check", "source_code_analysis", "call_graph", "context_analysis"],
+  "go_module_dir": "<GO_MODULE_DIR, relative to REPO_DIR — '.' when go.mod is at repo root>",
+  "methods_used": ["stdlib_build_version_check", "dependency_matching", "dynamic_pattern_scan", "govulncheck", "vendor_check", "direct_dependency_check", "source_code_analysis", "call_graph", "reflection_cgo_check", "context_analysis"],
   "evidence": {
+    "stdlib_build_version": {
+      "applicable": false,
+      "declared_go_mod_version": "<version|null>",
+      "dockerfile_build_version": "<version|null>",
+      "toolchain_directive": "<version|null>",
+      "discrepancy_noted": false
+    },
     "dependency": {
       "package_found": true,
       "current_version": "<version>",
       "dependency_type": "<direct|indirect>",
       "in_vulnerable_range": true
     },
+    "dynamic_pattern_scan": {
+      "reflect_count": 0,
+      "unsafe_count": 0,
+      "cgo_count": 0,
+      "plugin_count": 0,
+      "flagged_files": ["<file1>", "<file2>"],
+      "static_analysis_confidence": "<HIGH|MEDIUM|LOW>"
+    },
     "govulncheck": {
       "ran": true,
       "cve_found": true,
       "vulnerable_symbols_called": true
+    },
+    "vendor_check": {
+      "ran": true,
+      "vendor_status": "<present|not_vendored|partial_not_vulnerable_part|null if skipped (no vendor/)>",
+      "risk_capped_to_low": false
+    },
+    "source_analysis": {
+      "import_found": true,
+      "function_usage_found": true,
+      "files": ["<file1>:<line>", "<file2>:<line>"]
     },
     "call_graph": {
       "ran": true,
@@ -334,10 +306,11 @@ Return structured result to parent command:
       "evidence_files": ["callgraph.dot", "callgraph.svg"],
       "skip_reason": "<null if ran | 'package_not_in_gomod' | 'build_failure' | 'unknown_function_signature'>"
     },
-    "source_analysis": {
-      "import_found": true,
-      "function_usage_found": true,
-      "files": ["<file1>:<line>", "<file2>:<line>"]
+    "reflection_cgo_check": {
+      "ran": false,
+      "reason_if_not_ran": "<'static_confidence_high' | 'call_graph_already_reachable' | null if ran>",
+      "files_checked": ["<file1>", "<file2>"],
+      "finding": "<reflection_match|cgo_match|negative|null if not ran>"
     },
     "mitigation_factors": []
   },
@@ -351,26 +324,37 @@ Return structured result to parent command:
 
 ## Error Handling
 
-### Build Failures
-- IF project doesn't compile → Note limitation, skip call graph analysis, rely on other methods
+Listed in the order the corresponding step/method runs.
 
-### Missing CVE in govulncheck Database
+### Dockerfile Uses a Floating/Unpinned Base Image Tag (Step 1.5)
+- IF the Dockerfile's Go builder-image line uses a moving tag (e.g. `golang:1.22` or `go-toolset:1.22` without a patch version, or a `latest`-style tag) → note this explicitly; the resolved version at analysis time may not match what was actually used for the shipped build. Do not treat this signal as definitive — fall back to the `go.mod` declared minimum with the standard caveat.
+
+### Missing CVE in govulncheck Database (Method 2)
 - IF govulncheck doesn't know about this CVE → Continue with other methods, note gap
 
-### Large Codebases
-- IF call graph times out → Follow fallback strategy in call-graph-analysis skill: algorithm fallback (`vta` → `rta` → `cha`), always targeting a specific main package. Never use `./...` as scope.
+### No `vendor/` Directory (Method 2.5)
+- IF the repo builds in module mode (no `vendor/`) → skip Method 2.5 entirely; this is expected and not a gap. Note "not a vendored repo" and rely on Methods 2/4/5 as usual.
 
-### Incomplete CVE Information
-- IF vulnerable function signature unknown → Skip call graph, note `skip_reason: unknown_function_signature`, assign MEDIUM at best — do NOT assign LOW based on source analysis alone
-
-### Source Code Analysis Shows No Usage
+### Source Code Analysis Shows No Usage (Method 4)
 - This is **NOT** a valid reason to skip call graph. Proceed with Method 5.
 - Source code search misses interface dispatch, generated code, and indirect call paths.
+
+### Build Failures (Method 5)
+- IF project doesn't compile → Note limitation, skip call graph analysis, rely on other methods
+
+### Large Codebases (Method 5)
+- IF call graph times out → Follow fallback strategy in call-graph-analysis skill: algorithm fallback (`vta` → `rta` → `cha`), always targeting a specific main package. Never use `./...` as scope.
+
+### Incomplete CVE Information (Method 5)
+- IF vulnerable function signature unknown → Skip call graph, note `skip_reason: unknown_function_signature`, assign MEDIUM at best — do NOT assign LOW based on source analysis alone
+
+### Too Many Files Flagged for Method 5.5 to Read Individually
+- IF Method 1.5 flags an unusually large number of files (e.g. generated code, a vendored copy that wasn't excluded) → prioritize files whose import graph is closest to the vulnerable package, note the ones skipped, and don't treat an incomplete sweep as a clean "nothing found" result. This is a scope/priority call, not a hard rule — use judgment.
 
 ## Integration with analyze-cve
 
 This skill is called from Phase 2 of the `analyze-cve` skill, after the [Repo Guard](../analyze-cve/references/implementation.md#repo-guard--re-clone-if-missing) has confirmed `REPO_DIR` still exists.
 
-**Input:** CVE profile from Phase 1, `--algo` preference from user, `REPO_DIR` set in Phase 0.7
+**Input:** CVE profile from Phase 1, `--algo` preference from user, `REPO_DIR` and `GO_MODULE_DIR` set in Phase 0.7
 **Output:** Risk level, evidence package, confidence assessment
 **Next:** The analyze-cve skill uses risk level to decide whether to generate report and proceed to remediation
