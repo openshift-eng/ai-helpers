@@ -571,6 +571,21 @@
         "dns",
         "pr-triage",
         "team-tools"
+      ] 
+    },
+    {
+      "name": "check-pr-tests",
+      "source": "./plugins/check-pr-tests",
+      "description": "Deep test coverage verification and CI validation for GitHub PRs linked to Jira issues",
+      "version": "0.1.0",
+      "category": "ci",
+      "keywords": [
+        "test-coverage",
+        "ci",
+        "prow",
+        "verification",
+        "jira",
+        "pr-review"
       ]
     }
   ]
