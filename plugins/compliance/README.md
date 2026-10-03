@@ -110,7 +110,7 @@ If internet access fails, the skill prompts for manual CVE information (descript
 
 ## Autonomous Mode
 
-`--auto-approve=yes` answers every yes/no approval prompt in the pipeline (proceed past `NEEDS_REVIEW`, apply fixes, create a PR, post to Jira with reduced visibility if restricted posting isn't available) so the skill can run end-to-end unattended. It never bypasses hard-fail safety checks: embargoed Jira tickets, ambiguous CVE matches within a ticket, or a fix-file allowlist that can't be determined all stop the run regardless of this flag. See the [`analyze-cve` skill's Autonomous Mode section](skills/analyze-cve/references/implementation.md#autonomous-mode---auto-approveyesno) for the full decision table.
+`--auto-approve=yes` answers every yes/no approval prompt in the pipeline (proceed past `NEEDS_REVIEW`, apply fixes, create a PR) so the skill can run end-to-end unattended. It never bypasses hard-fail safety checks: embargoed Jira tickets, ambiguous CVE matches within a ticket, or a fix-file allowlist that can't be determined all stop the run regardless of this flag. See the [`analyze-cve` skill's Autonomous Mode section](skills/analyze-cve/references/implementation.md#autonomous-mode---auto-approveyesno) for the full decision table.
 
 ## Report Includes
 
