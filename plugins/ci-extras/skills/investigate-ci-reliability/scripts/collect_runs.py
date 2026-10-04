@@ -100,6 +100,7 @@ class Client:
                 except (ValueError, UnicodeError) as exc:
                     raise CollectionError("invalid JSON response from " + url) from exc
             except urllib.error.HTTPError as exc:
+                exc.close()
                 if exc.code not in (429, 500, 502, 503, 504) or attempt == self.retries:
                     raise CollectionError("HTTP %s from %s" % (exc.code, url)) from exc
             except (urllib.error.URLError, TimeoutError, OSError) as exc:
@@ -264,7 +265,7 @@ def collect(args, client, start, end):
         previous_page = None
         for page in range(args.max_pages):
             filters = {"items": [{"columnField": "timestamp", "operatorValue": ">=", "value": stamp(start)},
-                                  {"columnField": "timestamp", "operatorValue": "<=", "value": stamp(end)}],
+                                  {"columnField": "timestamp", "operatorValue": "<", "value": stamp(end)}],
                        "linkOperator": "and"}
             query = {"release": release, "filter": json.dumps(filters), "sortField": "id", "sort": "asc",
                      "perPage": args.per_page, "page": page}

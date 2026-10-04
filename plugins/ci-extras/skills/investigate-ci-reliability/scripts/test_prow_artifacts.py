@@ -187,6 +187,12 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(report["suite_errors"][0]["message"], "runner died")
         self.assertEqual(report["declared_counts"]["errors"], "1")
 
+    def test_invalid_junit_xml_raises_artifact_error(self):
+        for parser in (p.junit_attempts, p.suite_reports):
+            with self.subTest(parser=parser.__name__), self.assertRaisesRegex(
+                    p.ArtifactError, "Invalid JUnit XML in broken.xml"):
+                parser(b"<testsuite>", "broken.xml")
+
     def test_children_only_recorded_urls_keep_missing_edges_unknown(self):
         child = "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/child/2093824069861380097"
         text = json.dumps({"attempts": [{"url": child}, {"url": child + "/build-log.txt"}], "missing_id": "2093824069861380098"})

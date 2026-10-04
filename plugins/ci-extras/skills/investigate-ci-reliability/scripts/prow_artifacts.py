@@ -206,7 +206,10 @@ def first_child(node, tag):
 
 
 def suite_reports(data, path):
-    root = ET.fromstring(data)
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError as exc:
+        raise ArtifactError("Invalid JUnit XML in %s: %s" % (path, exc)) from exc
     reports = []
     for suite in root.iter():
         if local_tag(suite) != "testsuite":

@@ -66,7 +66,7 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual({"S", "R", "A"}, {r["result"] for r in rows})
         query = urllib.parse.parse_qs(urllib.parse.urlsplit(client.calls[0]).query)
         filters = json.loads(query["filter"][0])
-        self.assertEqual([">=", "<="], [v["operatorValue"] for v in filters["items"]])
+        self.assertEqual([">=", "<"], [v["operatorValue"] for v in filters["items"]])
         self.assertEqual("and", filters["linkOperator"])
 
     def test_client_enforces_half_open_bounds(self):
@@ -205,6 +205,16 @@ class BlockingTests(unittest.TestCase):
 
 
 class BudgetTests(unittest.TestCase):
+    def test_retry_closes_http_error_response(self):
+        response = io.BytesIO(b"retry later")
+        error = collector.urllib.error.HTTPError(
+            "https://example.invalid/data", 503, "unavailable", {}, response)
+        with temporary() as directory, mock.patch(
+                "urllib.request.urlopen", side_effect=[error, io.BytesIO(b"{}")]), mock.patch("time.sleep"):
+            client = collector.Client(pathlib.Path(directory), 100, 2, 1, 10)
+            self.assertEqual({}, client.get("https://example.invalid/data"))
+        self.assertTrue(response.closed)
+
     def test_download_byte_budget_stops_before_exceeding_limit(self):
         with temporary() as directory, mock.patch("urllib.request.urlopen", return_value=io.BytesIO(b"1234567890")):
             client = collector.Client(pathlib.Path(directory), 5, 10, 1, 10)
