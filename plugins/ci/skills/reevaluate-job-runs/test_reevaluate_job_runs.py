@@ -333,6 +333,48 @@ def test_summary_preserves_detailed_item_result(monkeypatch, capsys):
     assert '"labels_applied": [' in output
 
 
+@pytest.mark.parametrize("output_format", ["json", "summary"])
+def test_complete_mixed_outcome_keeps_failed_item_details_and_exit_zero(
+    monkeypatch, capsys, output_format
+):
+    failed_result = {
+        "prow_job_build_id": "2",
+        "status": "eval_error",
+        "error": "artifact scan failed",
+    }
+    response = batch_response(status="complete", items=[
+        {
+            "item_key": "1",
+            "state": "completed",
+            "result": {"prow_job_build_id": "1", "status": "success"},
+        },
+        {"item_key": "2", "state": "discarded", "result": failed_result},
+    ])
+    response.update(completed=1, failed=1)
+    queue_responses(
+        monkeypatch,
+        FakeResponse(202, {
+            "batch_id": "batch-1",
+            "requested": 2,
+            "links": {"status": client.URL + "/batch-1"},
+        }),
+        FakeResponse(200, response),
+    )
+
+    assert client.main([
+        "1", "2", "--token", "secret", "--format", output_format,
+    ]) == 0
+    captured = capsys.readouterr()
+    if output_format == "json":
+        assert json.loads(captured.out) == response
+    else:
+        assert "batch batch-1: complete" in captured.out
+        assert "Completed: 1, failed: 1" in captured.out
+        assert "Run 2: discarded" in captured.out
+        assert '"status": "eval_error"' in captured.out
+        assert '"error": "artifact scan failed"' in captured.out
+
+
 def test_dry_run_summary_preserves_detailed_item_result(monkeypatch, capsys):
     result = {
         "prow_job_build_id": "1",
