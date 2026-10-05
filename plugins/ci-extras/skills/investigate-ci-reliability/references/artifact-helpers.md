@@ -6,9 +6,9 @@ bundled `prow_artifacts.py` acquisition interface and its limits.
 
 The helper accepts a run URL in these forms:
 
-- `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/JOB/BUILD_ID`
-- `https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/ORG_REPO/PR/JOB/BUILD_ID`
-- The equivalent `gs://test-platform-results/...`, `https://storage.googleapis.com/test-platform-results/...`, or OpenShift GCS browser `/gcs/test-platform-results/...` URL.
+- `https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/JOB/BUILD_ID`
+- `https://prow.ci.openshift.org/view/gs/test-platform-results-public/pr-logs/pull/ORG_REPO/PR/JOB/BUILD_ID`
+- The equivalent `gs://test-platform-results-public/...`, `https://storage.googleapis.com/test-platform-results-public/...`, or OpenShift GCS browser `/gcs/test-platform-results-public/...` URL.
 
 Supply the run root, not an artifact URL. Build IDs must contain at least ten digits. URLs outside the supported public results bucket, traversal paths, credentials, query strings, and fragments are rejected. Object names are relative to the validated run root.
 
