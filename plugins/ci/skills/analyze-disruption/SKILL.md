@@ -1,6 +1,6 @@
 ---
 name: analyze-disruption
-description: Analyze disruption from a DisruptionRegression alert, a Grafana disruption dashboard URL, or Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics
+description: Use when analyzing disruption from a DisruptionRegression alert, a Grafana disruption dashboard URL, or Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics
 ---
 
 # Analyze Disruption
