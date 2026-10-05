@@ -50,7 +50,8 @@ component-repo/
 If running inside the Chai Bot environment, use the documentation and other
 resources configured there, including Slack, Jira, and CodeRAG knowledge.
 Verify cross-repository facts against authoritative sources, such as upstream
-GitHub sources or Chai Bot's configured CodeRAG.
+GitHub sources or Chai Bot's configured CodeRAG. See Phase 1 for specific
+query steps.
 
 ## Execution Workflow
 
@@ -66,6 +67,13 @@ GitHub sources or Chai Bot's configured CodeRAG.
 - [ ] Determine repo path: `REPO_PATH="${provided_path:-$PWD}"`
 - [ ] Detect component name from repo (e.g., machine-config-operator → MCO)
 - [ ] Run the resolved `scripts/create-structure.sh` with `"$REPO_PATH"`.
+- [ ] **Gather tribal knowledge** (Chai Bot / hosted environment): If knowledge tools (researcher, Slack, Jira) are available, query them for tribal knowledge about this repository:
+  - Search for `"<repo-name> convention OR pitfall OR mistake OR gotcha"`
+  - Search for `"<repo-name> review process OR reviewer expectations"`
+  - Search for `"<repo-name> common rejection OR frequently rejected"`
+  - Search for `"<repo-name> design decision OR historical context"`
+  - Save findings to `ai-docs/_sources/tribal-knowledge-notes.md` for use in later phases
+  - If no hosted knowledge tools are available, skip this step
 
 ### Phase 2: Create AGENTS.md (40-60 lines)
 - [ ] Create initial AGENTS.md at repo root using `templates/AGENTS-template.md`
@@ -116,6 +124,10 @@ GitHub sources or Chai Bot's configured CodeRAG.
 - [ ] Link to existing repo docs (from `docs/`, design docs) where they provide deeper detail — ARCHITECTURE.md is a map, not a replacement for existing documentation
 - [ ] Keep lean but dense (every line should tell the reader something they can't infer from file names alone)
 - [ ] Every pattern claim must include a file:line reference. If you can't point to source, flag as unverified
+- [ ] **Integrate tribal knowledge**: If `ai-docs/_sources/tribal-knowledge-notes.md` exists from Phase 1, incorporate relevant findings:
+  - Historical design decisions → "Design References" section
+  - Cross-repo interaction patterns → "OpenShift Integration Points" section
+  - Attribute integrated knowledge where it adds credibility (e.g. "Historically, the team has...")
 
 ### Phase 5: Development & Testing Docs
 
@@ -146,6 +158,10 @@ GitHub sources or Chai Bot's configured CodeRAG.
   - Fill "Component-Specific" sections with real test scenarios
 - [ ] Link to Platform for generic practices
 - [ ] Document ONLY verified component-specific details (target: 100-200 lines each)
+- [ ] **Integrate tribal knowledge**: If tribal knowledge notes exist, incorporate:
+  - Undocumented conventions → DEVELOPMENT.md
+  - Common pitfalls → "Common Mistakes" section
+  - Review process norms → DEVELOPMENT.md or REVIEW.md as appropriate
 
 ### Phase 6: Generate REVIEW.md + .coderabbit.yaml (REQUIRED)
 
@@ -165,6 +181,7 @@ GitHub sources or Chai Bot's configured CodeRAG.
 - [ ] **REVIEW.md checks**: exists at repo root, ≤100 lines (`wc -l REVIEW.md`), skip paths reference real directories (`test -d`), platform citations present (grep for "dev-guide" or "CONVENTIONS"), no content overlap with AGENTS.md
 - [ ] **.coderabbit.yaml checks**: valid YAML (`python3 -c "import yaml; yaml.safe_load(open('.coderabbit.yaml'))"`), `filePatterns` contains "REVIEW.md" but NOT "CLAUDE.md", `path_filters` match "Do not report" globs, `path_instructions` match "Path-specific rules"
 - [ ] Cross-check with openshift-docs if time permits
+- [ ] **Verify tribal knowledge integration**: If tribal knowledge was gathered in Phase 1, confirm that relevant findings were integrated into the documentation. If relevant findings were discovered but none were integrated, flag this as incomplete and explain why each finding was excluded.
 - [ ] **Flag discovery gaps**: At the end of ARCHITECTURE.md and DEVELOPMENT.md, add a brief "SME Review Recommended" note listing areas where automated discovery may be incomplete
 - [ ] **No silent drops**: Compare the prior `CLAUDE.md` / `AGENTS.md` against the generated docs and ensure repo-specific commands, CI notes, metrics/debug tips, hard warnings, retrieval instructions, documentation maps, and useful direct links were preserved. For every relocated item, verify the new location and leave a discoverable route from `AGENTS.md`. Record any intentional drop and its rationale in the completion report.
 - [ ] **Source-document links**: For every path recorded in

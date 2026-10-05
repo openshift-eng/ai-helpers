@@ -105,7 +105,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.100",
+      "version": "0.0.101",
       "category": "ci",
       "keywords": [
         "prow",
@@ -540,7 +540,7 @@
       "name": "agentic-docs",
       "source": "./plugins/agentic-docs",
       "description": "Create and maintain AI-optimized documentation for OpenShift",
-      "version": "2.2.11"
+      "version": "2.2.12"
     },
     {
       "name": "metrics",
