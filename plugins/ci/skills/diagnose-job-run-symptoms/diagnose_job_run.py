@@ -244,8 +244,8 @@ def _validate_batch_response(data, batch_id):
     return data
 
 
-def deep_reevaluate(build_id, token):
-    """Submit and poll one asynchronous dry-run reevaluation."""
+def submit_deep_reevaluation(build_id, token):
+    """Submit one asynchronous dry-run reevaluation."""
     submission = _validate_submit_response(request_json(
         "POST",
         REEVALUATE_URL,
@@ -257,6 +257,11 @@ def deep_reevaluate(build_id, token):
         raise ClientError(
             "submission response requested %d items, expected 1" % submission["requested"]
         )
+    return submission
+
+
+def resolve_status_url(submission):
+    """Return the submission's same-origin status URL."""
 
     try:
         status_url = urllib.parse.urljoin(REEVALUATE_URL, submission["links"]["status"])
@@ -265,7 +270,35 @@ def deep_reevaluate(build_id, token):
         raise ClientError("invalid links.status URL: %s" % exc) from exc
     if _origin(REEVALUATE_URL) != status_origin:
         raise ClientError("refusing to send the Bearer token to a cross-origin status URL")
+    return status_url
 
+
+def print_submission_notice(submission, status_url, output_format):
+    """Flush recovery context before polling without corrupting JSON stdout."""
+    stream = sys.stderr if output_format == "json" else sys.stdout
+    print(
+        "Submitted deep reevaluation (DRY RUN) batch %s; status: %s "
+        "(save this URL to check later with a fresh token)" %
+        (submission["batch_id"], status_url),
+        file=stream,
+        flush=True,
+    )
+
+
+def failure_payload(submission, status_url, error, status=None):
+    """Build a machine-readable failure object with recovery context."""
+    payload = {
+        "batch_id": submission["batch_id"],
+        "error": str(error),
+        "status_url": status_url,
+    }
+    if status is not None:
+        payload["batch"] = status
+    return payload
+
+
+def poll_deep_reevaluation(submission, status_url, token):
+    """Poll one dry-run batch until it reaches a terminal state."""
     while True:
         status = _validate_batch_response(
             request_json("GET", status_url, token, 200), submission["batch_id"]
@@ -323,6 +356,21 @@ def format_jira_issues(keys):
     return ", ".join("%s (%s)" % (key, jira_issue_url(key)) for key in keys)
 
 
+def print_failed_batch_summary(status):
+    """Render raw terminal item diagnostics for a failed deep batch."""
+    print("Deep reevaluation batch %s: %s" % (status["batch_id"], status["status"]))
+    print("=" * 60)
+    print("Requested: %(requested)s, enqueued: %(enqueued)s, deduped: %(deduped)s" % status)
+    print("Completed: %(completed)s, failed: %(failed)s, running: %(running)s, pending: %(pending)s" % status)
+    for item in status["items"]:
+        print("Run %s: %s" % (item["item_key"], item["state"]))
+        if "result" in item:
+            print("  Result:")
+            rendered = json.dumps(item["result"], indent=2, sort_keys=True)
+            for line in rendered.splitlines():
+                print("    %s" % line)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description="Diagnose which Sippy symptoms/labels apply to a job run")
     p.add_argument("prow_url", help="Prow job run URL (https://prow.ci.openshift.org/view/gs/...)")
@@ -357,13 +405,47 @@ def main(argv=None):
 
     if args.deep:
         try:
-            status = deep_reevaluate(build_id, token)
-            if status["status"] != "complete":
-                raise ClientError(
-                    "deep reevaluation batch ended in %s" % status["status"]
-                )
+            submission = submit_deep_reevaluation(build_id, token)
+            status_url = resolve_status_url(submission)
+            print_submission_notice(submission, status_url, args.format)
+        except ClientError as exc:
+            print("Error: %s" % exc, file=sys.stderr)
+            return 1
+
+        try:
+            status = poll_deep_reevaluation(submission, status_url, token)
+        except ClientError as exc:
+            if args.format == "json":
+                print(json.dumps(
+                    failure_payload(submission, status_url, exc),
+                    indent=2,
+                    sort_keys=True,
+                ))
+            print("Error: %s" % exc, file=sys.stderr)
+            return 1
+
+        if status["status"] != "complete":
+            error = "deep reevaluation batch ended in %s" % status["status"]
+            if args.format == "json":
+                print(json.dumps(
+                    failure_payload(submission, status_url, error, status),
+                    indent=2,
+                    sort_keys=True,
+                ))
+            else:
+                print_failed_batch_summary(status)
+            print("Error: %s" % error, file=sys.stderr)
+            return 1
+
+        try:
             results = _results_for_build(status, build_id)
         except ClientError as exc:
+            if args.format == "json":
+                print(json.dumps(
+                    failure_payload(submission, status_url, exc, status),
+                    indent=2,
+                    sort_keys=True,
+                ))
             print("Error: %s" % exc, file=sys.stderr)
             return 1
         report["reevaluate_results"] = results
