@@ -1,6 +1,6 @@
 ---
 name: analyze-usage
-description: Comprehensive analysis of BigQuery usage patterns, costs, and query performance
+description: Use when analyzing BigQuery usage patterns, costs, and query performance for a GCP project
 ---
 
 # Analyze BigQuery Usage
@@ -9,7 +9,7 @@ This skill performs comprehensive analysis of BigQuery usage patterns, costs, an
 
 ## When to Use This Skill
 
-This skill is automatically invoked by the `/bigquery:analyze-usage` command to perform usage analysis.
+This skill is automatically invoked by the `/bigquery-cost-analysis:analyze-usage` command to perform usage analysis.
 
 ## Prerequisites
 

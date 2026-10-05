@@ -72,7 +72,7 @@ description: My project is great.
 target: [claude, cursor, gemini, opencode]
 
 dependencies:
-  - openshift-eng/ai-helpers/plugins/bigquery
+  - openshift-eng/ai-helpers/plugins/bigquery-cost-analysis
 ```
 
 Then run `apm install`.  It can install to your project only, or with a `--global` scope.

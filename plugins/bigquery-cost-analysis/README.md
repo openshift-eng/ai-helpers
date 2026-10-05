@@ -1,4 +1,4 @@
-# BigQuery Plugin
+# BigQuery Cost Analysis Plugin
 
 BigQuery cost analysis and optimization utilities for Google Cloud Platform projects.
 
@@ -37,13 +37,13 @@ gcloud auth list
 
 ## Commands
 
-### `/bigquery:analyze-usage`
+### `/bigquery-cost-analysis:analyze-usage`
 
 Analyze BigQuery usage and costs for a project.
 
 **Usage:**
 ```
-/bigquery:analyze-usage <project-id> <timeframe>
+/bigquery-cost-analysis:analyze-usage <project-id> <timeframe>
 ```
 
 **Arguments:**
@@ -52,9 +52,9 @@ Analyze BigQuery usage and costs for a project.
 
 **Examples:**
 ```
-/bigquery:analyze-usage openshift-ci-data-analysis "24 hours"
-/bigquery:analyze-usage my-project "7 days"
-/bigquery:analyze-usage prod-data-warehouse "30 days"
+/bigquery-cost-analysis:analyze-usage openshift-ci-data-analysis "24 hours"
+/bigquery-cost-analysis:analyze-usage my-project "7 days"
+/bigquery-cost-analysis:analyze-usage prod-data-warehouse "30 days"
 ```
 
 **Output:**
@@ -67,7 +67,7 @@ Analyze BigQuery usage and costs for a project.
 
 ## Skills
 
-### `bigquery:analyze-usage`
+### `bigquery-cost-analysis:analyze-usage`
 
 Core analysis skill that:
 - Queries INFORMATION_SCHEMA.JOBS for usage data
@@ -75,7 +75,7 @@ Core analysis skill that:
 - Calculates costs and usage metrics
 - Generates actionable recommendations
 
-This skill is automatically invoked by the `/bigquery:analyze-usage` command.
+This skill is automatically invoked by the `/bigquery-cost-analysis:analyze-usage` command.
 
 ## Features
 
@@ -123,25 +123,25 @@ The reports note this and focus on relative costs for comparison.
 
 ### 1. Daily Cost Monitoring
 ```
-/bigquery:analyze-usage my-project "24 hours"
+/bigquery-cost-analysis:analyze-usage my-project "24 hours"
 ```
 Monitor daily usage and catch cost spikes early.
 
 ### 2. Weekly Review
 ```
-/bigquery:analyze-usage my-project "7 days"
+/bigquery-cost-analysis:analyze-usage my-project "7 days"
 ```
 Review weekly trends and identify optimization opportunities.
 
 ### 3. Monthly Reporting
 ```
-/bigquery:analyze-usage my-project "30 days"
+/bigquery-cost-analysis:analyze-usage my-project "30 days"
 ```
 Generate monthly reports for stakeholders.
 
 ### 4. Debugging Cost Overruns
 ```
-/bigquery:analyze-usage my-project "1 hour"
+/bigquery-cost-analysis:analyze-usage my-project "1 hour"
 ```
 When you see a cost spike, analyze the last hour to identify the culprit.
 
