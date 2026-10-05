@@ -10,6 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+import xml.parsers.expat as expat
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,6 +21,7 @@ HOSTS = {
     "storage.googleapis.com": "/",
     "gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com": "/gcs/",
 }
+MIN_EXPAT = (2, 7, 2)
 
 
 class ArtifactError(Exception):
@@ -205,11 +207,19 @@ def first_child(node, tag):
     return next((child for child in node if local_tag(child) == tag), None)
 
 
-def suite_reports(data, path):
+def parse_junit_xml(data, path):
+    if expat.version_info < MIN_EXPAT:
+        found = ".".join(str(part) for part in expat.version_info)
+        required = ".".join(str(part) for part in MIN_EXPAT)
+        raise ArtifactError("Expat %s+ required to parse JUnit XML; found %s" % (required, found))
     try:
-        root = ET.fromstring(data)
+        return ET.fromstring(data)
     except ET.ParseError as exc:
         raise ArtifactError("Invalid JUnit XML in %s: %s" % (path, exc)) from exc
+
+
+def suite_reports(data, path):
+    root = parse_junit_xml(data, path)
     reports = []
     for suite in root.iter():
         if local_tag(suite) != "testsuite":
@@ -224,10 +234,7 @@ def suite_reports(data, path):
 
 
 def junit_attempts(data, path):
-    try:
-        root = ET.fromstring(data)
-    except ET.ParseError as exc:
-        raise ArtifactError("Invalid JUnit XML in %s: %s" % (path, exc)) from exc
+    root = parse_junit_xml(data, path)
     attempts = []
 
     def walk(node, suites):

@@ -7,6 +7,7 @@ import unittest
 import urllib.error
 import urllib.parse
 from pathlib import Path
+from unittest import mock
 
 spec = importlib.util.spec_from_file_location("prow_artifacts", Path(__file__).with_name("prow_artifacts.py"))
 p = importlib.util.module_from_spec(spec)
@@ -192,6 +193,15 @@ class ArtifactTests(unittest.TestCase):
             with self.subTest(parser=parser.__name__), self.assertRaisesRegex(
                     p.ArtifactError, "Invalid JUnit XML in broken.xml"):
                 parser(b"<testsuite>", "broken.xml")
+
+    def test_junit_xml_requires_safe_expat(self):
+        with mock.patch.object(p.expat, "version_info", (2, 7, 1)):
+            for parser in (p.junit_attempts, p.suite_reports):
+                with self.subTest(parser=parser.__name__), self.assertRaisesRegex(
+                        p.ArtifactError, r"Expat 2\.7\.2\+ required.*found 2\.7\.1"):
+                    parser(b"<testsuite/>", "junit.xml")
+        with mock.patch.object(p.expat, "version_info", (2, 7, 2)):
+            self.assertEqual("testsuite", p.parse_junit_xml(b"<testsuite/>", "junit.xml").tag)
 
     def test_children_only_recorded_urls_keep_missing_edges_unknown(self):
         child = "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/child/2093824069861380097"

@@ -14,6 +14,9 @@ Supply the run root, not an artifact URL. Build IDs must contain at least ten di
 
 Use `python3 scripts/prow_artifacts.py --help` from this skill directory. All subcommands write structured JSON to stdout; fatal acquisition errors use stderr and exit status 2. The default scratch directory is `~/tmp/ci-reliability`. Never silently substitute `/tmp`. `--scratch` explicitly selects a different scratch location; account for environment sandbox approval before writing there.
 
+JUnit parsing requires the Python runtime to use Expat 2.7.2 or newer. The helper checks
+the linked Expat version before parsing remote XML and fails closed when it is older.
+
 Examples, with `RUN_URL` set to the actual run URL:
 
 ```bash

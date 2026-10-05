@@ -28,8 +28,9 @@ no prior investigation repository is required.
 
 Invoke `/investigate-ci-reliability 5.1 --max-issues 10` directly. The skill accepts
 these inputs in natural language or flags. Resolve bundled script paths relative to this `SKILL.md`, regardless of cwd.
-The bundled scripts need Python 3.10+ and public HTTPS access. The investigation
-also requires the `prow-job-analysis` skill from the `ci` plugin.
+The bundled scripts need Python 3.10+ and public HTTPS access. JUnit parsing requires
+Expat 2.7.2+ in that Python runtime. The investigation also requires the
+`prow-job-analysis` skill from the `ci` plugin.
 
 ## Start and collect
 
