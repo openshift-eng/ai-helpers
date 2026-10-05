@@ -171,6 +171,15 @@ and optionally a `result`. Queue `state` is authoritative for progress. The
 attempt while River has the item waiting to retry. Deduplicated items share the
 existing River job's output, and items without recorded output omit `result`.
 
+**A terminal batch `status: complete` and client exit 0 mean batch processing
+finished, not that every item succeeded.** Sippy reports a mixed terminal
+batch as `complete` when at least one item completed, even if other items were
+discarded, cancelled, or orphaned. Consumers must inspect the aggregate
+`failed` count and every `items[].state`; when `result` is present, inspect its
+`status` and `error` too, even after exit 0. Do not reinterpret a non-success
+result as a batch-level client failure; retain the per-item outcome and apply
+workflow-specific handling.
+
 When present, the per-run `result` fields mean:
 
 | Field | Meaning |
@@ -220,7 +229,8 @@ confirm all stores were updated.
   optional results. The client prints the terminal response and exits 1.
 
 Input validation failures and API/polling errors exit 1. A `complete` batch
-exits 0; terminal `failed` or `cancelled` exits 1.
+exits 0, including mixed terminal outcomes with `failed > 0`; terminal `failed`
+or `cancelled` exits 1. Exit 0 is therefore not an all-items-success signal.
 
 ## Related Skills
 
