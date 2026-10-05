@@ -10,9 +10,12 @@ artifacts/job_labels/*.json contains a single wrapped entry:
                           "file_match": "<path>", "text_match": "<line>"}}
 """
 import argparse
+import http.client
 import json
 import os
+import socket
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,6 +24,15 @@ READ_BASE = "https://sippy.dptools.openshift.org/api/jobs"
 JIRA_URL_PREFIX = "https://redhat.atlassian.net/browse/"
 REEVALUATE_URL = "https://sippy-auth.dptools.openshift.org/api/jobs/runs/reevaluate"
 GCS_API = "https://storage.googleapis.com/storage/v1/b"
+REQUEST_TIMEOUT_SECONDS = 300
+POLL_INTERVAL_SECONDS = 5
+NONTERMINAL_STATES = frozenset(("pending", "processing", "running"))
+TERMINAL_STATES = frozenset(("complete", "failed", "cancelled"))
+BATCH_STATES = NONTERMINAL_STATES | TERMINAL_STATES
+
+
+class ClientError(Exception):
+    """A controlled authenticated API error."""
 
 
 def resolve_token(arg_token, env=None):
@@ -31,6 +43,39 @@ def resolve_token(arg_token, env=None):
     """
     env = os.environ if env is None else env
     return arg_token or env.get("SIPPY_TOKEN") or None
+
+
+def _origin(url):
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+        raise ValueError("URL must use HTTP(S) and include a hostname")
+    default_port = 443 if parsed.scheme.lower() == "https" else 80
+    return (parsed.scheme.lower(), parsed.hostname.lower(), parsed.port or default_port)
+
+
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Reject redirects that would leave the authenticated API origin."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        try:
+            same_origin = _origin(req.full_url) == _origin(newurl)
+        except ValueError as exc:
+            raise ClientError("invalid API URL or redirect: %s" % exc) from exc
+        if not same_origin:
+            raise ClientError("refusing to follow a cross-origin API redirect")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+HTTP_OPENER = urllib.request.build_opener(SafeRedirectHandler())
+
+
+def _read_body(response):
+    try:
+        return response.read().decode("utf-8")
+    except (TimeoutError, socket.timeout) as exc:
+        raise ClientError("request timed out while reading the response") from exc
+    except (OSError, http.client.HTTPException, UnicodeError) as exc:
+        raise ClientError("could not read the API response: %s" % exc) from exc
 
 
 def parse_prow_url(url):
@@ -96,6 +141,151 @@ def classify_response(body):
         return None, "server returned a non-JSON response body"
 
 
+def _api_message(body):
+    if not body:
+        return ""
+    try:
+        decoded = json.loads(body)
+    except (TypeError, ValueError):
+        return body.strip()[:500]
+    if isinstance(decoded, dict) and decoded.get("message"):
+        return str(decoded["message"])[:500]
+    return body.strip()[:500]
+
+
+def request_json(method, url, token, expected_status, payload=None):
+    """Make one authenticated request and return its decoded JSON body."""
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Accept": "application/json",
+            "Authorization": "Bearer %s" % token,
+            **({"Content-Type": "application/json"} if data is not None else {}),
+        },
+        method=method,
+    )
+    try:
+        with HTTP_OPENER.open(req, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            status = response.getcode()
+            body = _read_body(response)
+    except urllib.error.HTTPError as exc:
+        try:
+            body = _read_body(exc)
+        except ClientError:
+            body = ""
+        detail = _api_message(body)
+        suffix = ": %s" % detail if detail else ""
+        if exc.code in (401, 403):
+            raise ClientError(
+                "HTTP %d (token missing/expired; use the oc-auth skill)%s" %
+                (exc.code, suffix)
+            ) from exc
+        raise ClientError("HTTP %d%s" % (exc.code, suffix)) from exc
+    except urllib.error.URLError as exc:
+        if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+            raise ClientError("request timed out connecting to the API") from exc
+        raise ClientError("connection error: %s" % exc.reason) from exc
+    except (TimeoutError, socket.timeout) as exc:
+        raise ClientError("request timed out connecting to the API") from exc
+    except ValueError as exc:
+        raise ClientError("invalid API URL or redirect: %s" % exc) from exc
+    except (OSError, http.client.HTTPException) as exc:
+        raise ClientError("connection error: %s" % exc) from exc
+
+    if status != expected_status:
+        detail = _api_message(body)
+        suffix = ": %s" % detail if detail else ""
+        raise ClientError(
+            "expected HTTP %d, got HTTP %d%s" % (expected_status, status, suffix)
+        )
+    decoded, error = classify_response(body)
+    if error:
+        raise ClientError(error)
+    return decoded
+
+
+def _validate_submit_response(data):
+    if not isinstance(data, dict):
+        raise ClientError("submission response is not a JSON object")
+    if not isinstance(data.get("batch_id"), str) or not data["batch_id"]:
+        raise ClientError("submission response is missing batch_id")
+    if not isinstance(data.get("requested"), int):
+        raise ClientError("submission response is missing requested")
+    links = data.get("links")
+    if not isinstance(links, dict) or not isinstance(links.get("status"), str):
+        raise ClientError("submission response is missing links.status")
+    return data
+
+
+def _validate_batch_response(data, batch_id):
+    if not isinstance(data, dict):
+        raise ClientError("batch status response is not a JSON object")
+    if data.get("batch_id") != batch_id:
+        raise ClientError("batch status response has an unexpected batch_id")
+    if not isinstance(data.get("status"), str):
+        raise ClientError("batch status response is missing status")
+    if data["status"] not in BATCH_STATES:
+        raise ClientError("batch status response has unknown status %r" % data["status"])
+    for field in ("requested", "enqueued", "deduped", "completed", "failed", "running", "pending"):
+        if not isinstance(data.get(field), int):
+            raise ClientError("batch status response is missing integer %s" % field)
+    items = data.get("items")
+    if not isinstance(items, list):
+        raise ClientError("batch status response is missing items")
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise ClientError("batch status item %d is not a JSON object" % index)
+        if not isinstance(item.get("item_key"), str) or not isinstance(item.get("state"), str):
+            raise ClientError("batch status item %d is missing item_key or state" % index)
+        if "result" in item and not isinstance(item["result"], dict):
+            raise ClientError("batch status item %d has a non-object result" % index)
+    return data
+
+
+def deep_reevaluate(build_id, token):
+    """Submit and poll one asynchronous dry-run reevaluation."""
+    submission = _validate_submit_response(request_json(
+        "POST",
+        REEVALUATE_URL,
+        token,
+        202,
+        {"prow_job_build_ids": [build_id], "dry_run": True},
+    ))
+    if submission["requested"] != 1:
+        raise ClientError(
+            "submission response requested %d items, expected 1" % submission["requested"]
+        )
+
+    try:
+        status_url = urllib.parse.urljoin(REEVALUATE_URL, submission["links"]["status"])
+        status_origin = _origin(status_url)
+    except ValueError as exc:
+        raise ClientError("invalid links.status URL: %s" % exc) from exc
+    if _origin(REEVALUATE_URL) != status_origin:
+        raise ClientError("refusing to send the Bearer token to a cross-origin status URL")
+
+    while True:
+        status = _validate_batch_response(
+            request_json("GET", status_url, token, 200), submission["batch_id"]
+        )
+        if status["status"] in TERMINAL_STATES:
+            return status
+        time.sleep(POLL_INTERVAL_SECONDS)
+
+
+def _results_for_build(status, build_id):
+    matching = [item for item in status["items"] if item["item_key"] == build_id]
+    if len(matching) != 1:
+        raise ClientError(
+            "batch status response has %d items for requested build %s" %
+            (len(matching), build_id)
+        )
+    result = matching[0].get("result")
+    return [] if result is None else [result]
+
+
 def get_json(url):
     with urllib.request.urlopen(url, timeout=30) as resp:
         return json.loads(resp.read().decode("utf-8"))
@@ -133,7 +323,7 @@ def format_jira_issues(keys):
     return ", ".join("%s (%s)" % (key, jira_issue_url(key)) for key in keys)
 
 
-def main():
+def main(argv=None):
     p = argparse.ArgumentParser(description="Diagnose which Sippy symptoms/labels apply to a job run")
     p.add_argument("prow_url", help="Prow job run URL (https://prow.ci.openshift.org/view/gs/...)")
     p.add_argument("--deep", action="store_true",
@@ -141,7 +331,7 @@ def main():
     p.add_argument("--token", help="Bearer token, required with --deep "
                    "(or set SIPPY_TOKEN env var, preferred; use oc-auth skill)")
     p.add_argument("--format", choices=["json", "summary"], default="summary")
-    args = p.parse_args()
+    args = p.parse_args(argv)
 
     token = resolve_token(args.token)
     if args.deep and not token:
@@ -166,27 +356,18 @@ def main():
     report = {"build_id": build_id, "mode": "deep" if args.deep else "applied", "matches": []}
 
     if args.deep:
-        req = urllib.request.Request(
-            REEVALUATE_URL,
-            data=json.dumps({"prow_job_build_ids": [build_id], "dry_run": True}).encode("utf-8"),
-            headers={"Content-Type": "application/json", "Authorization": "Bearer %s" % token},
-            method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=300) as resp:
-                body = resp.read().decode("utf-8")
-        except urllib.error.HTTPError as e:
-            hint = " (token expired? use oc-auth)" if e.code in (401, 403) else ""
-            print("Error: HTTP %d: %s%s" % (e.code, e.reason, hint), file=sys.stderr)
+            status = deep_reevaluate(build_id, token)
+            if status["status"] != "complete":
+                raise ClientError(
+                    "deep reevaluation batch ended in %s" % status["status"]
+                )
+            results = _results_for_build(status, build_id)
+        except ClientError as exc:
+            print("Error: %s" % exc, file=sys.stderr)
             return 1
-        except urllib.error.URLError as e:
-            print("Error: failed to connect to Sippy API: %s" % e.reason, file=sys.stderr)
-            return 1
-        result, err = classify_response(body)
-        if err:
-            print("Error: %s" % err, file=sys.stderr)
-            return 1
-        report["reevaluate_results"] = result.get("results", [])
-        for r in result.get("results", []):
+        report["reevaluate_results"] = results
+        for r in results:
             for lid in r.get("labels_applied") or []:
                 report["matches"].append({"label_id": lid,
                                           "label": labels_catalog.get(lid, {})})
