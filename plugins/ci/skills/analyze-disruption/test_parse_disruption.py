@@ -1,7 +1,9 @@
 """Tests for parse_disruption.py — format_summary, blast_radius, classify_backend, node_name, e2e filtering."""
 from parse_disruption import (
+    backend_matches_filter,
     classify_backend,
     extract_concurrent_events,
+    extract_disruptions,
     format_blast_radius,
     format_summary,
     node_name,
@@ -294,6 +296,51 @@ def test_blast_radius_none_when_no_others():
     ]
     result = format_blast_radius(disruptions, ["host-to-host"])
     assert result is None
+
+
+def test_blast_radius_keeps_derived_backends():
+    disruptions = [
+        {"backend": "kube-api-new-connections", "backend_type": "non-cache"},
+        {"backend": "kube-api-http2-localhost-new-connections", "backend_type": "non-cache"},
+        {"backend": "cache-kube-api-new-connections", "backend_type": "cache"},
+    ]
+    result = format_blast_radius(disruptions, ["kube-api-new-connections"])
+    names = [entry["backend"] for entry in result["backends"]]
+    assert "kube-api-new-connections" not in names
+    assert "kube-api-http2-localhost-new-connections" in names
+    assert "cache-kube-api-new-connections" in names
+
+
+def test_backend_filter_does_not_match_derived_names():
+    assert backend_matches_filter("kube-api-new-connections", ["kube-api-new-connections"])
+    assert not backend_matches_filter(
+        "kube-api-http2-localhost-new-connections", ["kube-api-new-connections"])
+    assert not backend_matches_filter(
+        "cache-kube-api-new-connections", ["kube-api-new-connections"])
+    # A bare base still matches only the two connection variants.
+    assert backend_matches_filter("kube-api-reused-connections", ["kube-api"])
+    assert not backend_matches_filter("kube-api-http2-localhost-new-connections", ["kube-api"])
+
+
+def _disruption_item(backend):
+    return {
+        "source": "Disruption",
+        "level": "Error",
+        "from": "2026-10-01T00:00:00Z",
+        "to": "2026-10-01T00:00:10Z",
+        "locator": {"keys": {"backend-disruption-name": backend}},
+        "message": {"humanMessage": "%s stopped responding" % backend, "reason": "DisruptionBegan"},
+    }
+
+
+def test_extract_disruptions_exact_backend_names():
+    items = [
+        _disruption_item("kube-api-new-connections"),
+        _disruption_item("kube-api-http2-localhost-new-connections"),
+        _disruption_item("cache-kube-api-new-connections"),
+    ]
+    result = extract_disruptions(items, ["kube-api-new-connections"])
+    assert [event["backend"] for event in result] == ["kube-api-new-connections"]
 
 
 def test_blast_radius_compact_format():

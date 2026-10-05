@@ -42,6 +42,38 @@ def classify_backend(name):
     return "non-cache"
 
 
+_CONNECTION_SUFFIXES = ("-new-connections", "-reused-connections")
+
+
+def expand_backend_selectors(selectors):
+    """Exact backend names a --backends selector scores.
+
+    Kept in step with find_disruption_runs.expand_backend_selectors. A full
+    connection name matches only itself. A bare base matches only
+    `{base}-new-connections` and `{base}-reused-connections`, not localhost,
+    http1/http2, service-network, internal-lb, or cache derivatives.
+    """
+    if isinstance(selectors, str):
+        selectors = [selectors]
+    names = set()
+    for selector in selectors or []:
+        if not selector:
+            continue
+        if selector.endswith(_CONNECTION_SUFFIXES):
+            names.add(selector)
+        else:
+            for suffix in _CONNECTION_SUFFIXES:
+                names.add(selector + suffix)
+    return names
+
+
+def backend_matches_filter(backend_name, backend_filter):
+    """True when backend_name is one of the exact names backend_filter selects."""
+    if not backend_filter:
+        return True
+    return backend_name in expand_backend_selectors(backend_filter)
+
+
 # ---------------------------------------------------------------------------
 # Timestamp helpers
 # ---------------------------------------------------------------------------
@@ -96,9 +128,8 @@ def extract_disruptions(items, backend_filter=None):
         if not backend:
             continue
 
-        if backend_filter:
-            if not any(bf in backend for bf in backend_filter):
-                continue
+        if backend_filter and not backend_matches_filter(backend, backend_filter):
+            continue
 
         disruption_path = keys.get("disruption", "")
         src_node, dst_node, dst_endpoint = parse_disruption_path(disruption_path)
@@ -614,8 +645,9 @@ def format_blast_radius(all_disruptions, backend_filter):
     """Summarize all disrupted backends NOT covered by the --backends filter."""
     by_backend = defaultdict(int)
     for d in all_disruptions:
-        if not any(bf in d["backend"] for bf in backend_filter):
-            by_backend[d["backend"]] += 1
+        if backend_matches_filter(d["backend"], backend_filter):
+            continue
+        by_backend[d["backend"]] += 1
 
     if not by_backend:
         return None
