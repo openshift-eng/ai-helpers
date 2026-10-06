@@ -12,10 +12,16 @@ be resolved locally.
 ## Prerequisites
 
 Verify cross-repository facts against authoritative sources, such as upstream
-GitHub sources or Chai Bot's configured CodeRAG. If running inside the Chai Bot
-environment, also use its configured documentation, Slack, and Jira knowledge
-for relevant historical or cross-functional context. Claims that cannot be
+GitHub sources or Chai Bot's configured CodeRAG. Claims that cannot be
 checked remain `unverified`; local verification still runs fully.
+
+**Tribal knowledge:** When running inside an environment with access to
+researcher and knowledge-source callbacks (e.g. Chai Bot), query the researcher
+and configured knowledge sources (Slack, Jira) directly for tribal knowledge
+about this repository. Cross-reference generated documentation against
+discovered tribal knowledge during verification — particularly for undocumented
+conventions, common pitfalls, and historical context that may not appear in
+source code.
 
 ## When to Use
 
