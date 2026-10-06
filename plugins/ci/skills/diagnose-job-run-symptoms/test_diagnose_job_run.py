@@ -279,16 +279,53 @@ def test_deep_mode_submits_202_polls_all_states_and_reads_item_result(monkeypatc
     assert "secret" not in captured.out + captured.err
 
 
-def test_deep_mode_rejects_cross_origin_status_without_get(monkeypatch, capsys):
+@pytest.mark.parametrize("output_format", ["json", "summary"])
+@pytest.mark.parametrize(
+    "unsafe_status,unsafe_marker",
+    [
+        ("https://unsafe-cross-origin.invalid/status", "unsafe-cross-origin"),
+        ("https://sippy-auth.dptools.openshift.org:unsafe-port/status", "unsafe-port"),
+        ("https://[unsafe-bracket.invalid/status", "unsafe-bracket"),
+        (
+            "https://unsafe-user:unsafe-password@"
+            "sippy-auth.dptools.openshift.org/status",
+            "unsafe-user",
+        ),
+    ],
+)
+def test_deep_mode_invalid_status_link_retains_safe_batch_id_without_get(
+    monkeypatch, capsys, output_format, unsafe_status, unsafe_marker
+):
     mock_catalogs(monkeypatch)
     calls = queue_authenticated_responses(monkeypatch, FakeResponse(202, {
         "batch_id": "batch-1",
         "requested": 1,
-        "links": {"status": "https://attacker.invalid/status"},
+        "links": {"status": unsafe_status},
     }))
 
-    assert diagnose_job_run.main([PROW_URL, "--deep", "--token", "secret"]) == 1
-    assert "cross-origin status URL" in capsys.readouterr().err
+    assert diagnose_job_run.main([
+        PROW_URL, "--deep", "--token", "cli-secret-token", "--format", output_format,
+    ]) == 1
+    captured = capsys.readouterr()
+    expected_error = (
+        "deep reevaluation batch batch-1 was accepted, but its status link "
+        "failed validation"
+    )
+    assert captured.err == "Error: %s\n" % expected_error
+    assert "Submitted deep reevaluation" not in captured.out + captured.err
+    assert unsafe_status not in captured.out + captured.err
+    assert unsafe_marker not in captured.out + captured.err
+    assert "unsafe-password" not in captured.out + captured.err
+    assert "cli-secret-token" not in captured.out + captured.err
+    if output_format == "json":
+        assert json.loads(captured.out) == {
+            "batch_id": "batch-1",
+            "error": expected_error,
+        }
+    else:
+        assert captured.out == ""
+        assert "batch-1" in captured.err
+    assert [call[0].get_method() for call in calls] == ["POST"]
     assert len(calls) == 1
 
 

@@ -49,6 +49,8 @@ def _origin(url):
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
         raise ValueError("URL must use HTTP(S) and include a hostname")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("URL must not include user information")
     default_port = 443 if parsed.scheme.lower() == "https" else 80
     return (parsed.scheme.lower(), parsed.hostname.lower(), parsed.port or default_port)
 
@@ -406,11 +408,26 @@ def main(argv=None):
     if args.deep:
         try:
             submission = submit_deep_reevaluation(build_id, token)
-            status_url = resolve_status_url(submission)
-            print_submission_notice(submission, status_url, args.format)
         except ClientError as exc:
             print("Error: %s" % exc, file=sys.stderr)
             return 1
+
+        try:
+            status_url = resolve_status_url(submission)
+        except ClientError:
+            error = (
+                "deep reevaluation batch %s was accepted, but its status link "
+                "failed validation" % submission["batch_id"]
+            )
+            if args.format == "json":
+                print(json.dumps({
+                    "batch_id": submission["batch_id"],
+                    "error": error,
+                }, indent=2, sort_keys=True))
+            print("Error: %s" % error, file=sys.stderr)
+            return 1
+
+        print_submission_notice(submission, status_url, args.format)
 
         try:
             status = poll_deep_reevaluation(submission, status_url, token)
