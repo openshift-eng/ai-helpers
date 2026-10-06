@@ -440,8 +440,8 @@
     {
       "name": "golang",
       "source": "./plugins/golang",
-      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, CVE dependency patching, Go stdlib CVE triage, and OCP and OKD release Go builder audits",
-      "version": "0.6.0",
+      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, CVE dependency patching, Go stdlib CVE triage, and OCP and OKD release Go builder, module, and Dockerfile inventories",
+      "version": "0.7.0",
       "category": "development",
       "keywords": [
         "go",
