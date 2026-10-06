@@ -279,6 +279,20 @@ def test_sanitize_process_output_redacts_tokens():
     assert "secret-value" not in text
 
 
+def test_sanitize_process_output_redacts_authorization_headers():
+    text = sanitize_process_output(
+        "Authorization: Bearer ya29.secret extra context\n"
+        "Proxy-Authorization: Basic abcdef== more context\n"
+        "access_token=ya29.other-token\n"
+    )
+    assert "ya29." not in text
+    assert "secret" not in text
+    assert "abcdef" not in text
+    assert "extra context" not in text
+    assert "more context" not in text
+    assert "other-token" not in text
+
+
 def test_exit_code_total_partial_and_success():
     assert exit_code([{"error": None, "timeline_files": ["a.json"]}]) == 0
     assert exit_code([

@@ -38,6 +38,7 @@ GCLOUD_TIMEOUT_SECONDS = 120
 # Values that look like credentials. The reauthentication message gcloud prints
 # for an expired login does not match these and is kept.
 _SECRET_PATTERNS = (
+    re.compile(r"(?i)\b(?:proxy-)?authorization\s*:.*", re.MULTILINE),
     re.compile(r"ya29\.[A-Za-z0-9_\-]+"),
     re.compile(r"(?i)\bbearer\s+[A-Za-z0-9_\-\.]+"),
     re.compile(r"(?i)\b(authorization|refresh_token|access_token|id_token|client_secret)\b\s*[=:]\s*\S+"),

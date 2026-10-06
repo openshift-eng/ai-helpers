@@ -535,6 +535,18 @@ def test_select_clean_comparison_replaces_when_early_selection_is_full():
     assert select_representative_runs(rows, dd, "kube-api", n=3) == [0, 1, 3]
 
 
+def test_select_clean_comparison_keeps_only_same_job_disrupted_run():
+    # The only job-a disrupted run is last. Replace another job, not that run.
+    rows = [
+        {"prow_id": "1", "job": "job-b", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-c", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-a", "timestamp": "1970-01-01T00:50:00Z"},
+        {"prow_id": "4", "job": "job-a", "timestamp": "1970-01-01T01:06:40Z"},
+    ]
+    dd = _make_disruption_data({"1": 40, "2": 20, "3": 10, "4": 0})
+    assert select_representative_runs(rows, dd, "kube-api", n=3) == [0, 2, 3]
+
+
 def test_select_skips_clean_comparison_below_three_slots():
     rows = [
         {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
@@ -909,35 +921,73 @@ def _timestamp_lower_bound(filter_dict):
     raise AssertionError("no timestamp lower bound in %s" % filter_dict)
 
 
+def _timestamp_filters(filter_dict):
+    return [
+        (item["operatorValue"], item["value"])
+        for item in filter_dict["items"]
+        if item["columnField"] == "timestamp"
+    ]
+
+
 @patch("find_disruption_runs.fetch_runs")
 def test_fetch_runs_in_window_pages_until_short_page_and_dedups(mock_fetch_runs):
     since = datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
-    mock_fetch_runs.side_effect = [
-        [
+
+    def fake_fetch(_release, filter_dict, _limit):
+        bounds = _timestamp_filters(filter_dict)
+        if ("<", "2026-09-29T12:00:00Z") in bounds:
+            return [{"prow_id": "EDGE", "timestamp": "2026-09-28T03:00:00Z"}]
+        if ("<", "2026-10-01T00:00:00Z") in bounds:
+            return [
+                {"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"},
+                {"prow_id": "OLDER", "timestamp": "2026-09-29T12:00:00Z"},
+            ]
+        if ("<", "2026-10-05T00:00:00Z") in bounds:
+            return [{"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"}]
+        return [
             {"prow_id": "NEW", "timestamp": "2026-10-05T00:00:00Z"},
             {"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"},
-        ],
-        [
-            {"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"},
-            {"prow_id": "OLDER", "timestamp": "2026-09-29T12:00:00Z"},
-        ],
-        [
-            {"prow_id": "EDGE", "timestamp": "2026-09-28T03:00:00Z"},
-        ],
-    ]
+        ]
+
+    mock_fetch_runs.side_effect = fake_fetch
     rows, truncated = fetch_runs_in_window(
         "5.0", {"Platform": "aws"}, since, page_size=2, max_runs=5000)
     assert truncated is False
     assert [row["prow_id"] for row in rows] == ["NEW", "MID", "OLDER", "EDGE"]
-    assert mock_fetch_runs.call_count == 3
-    second = mock_fetch_runs.call_args_list[1][0][1]
-    third = mock_fetch_runs.call_args_list[2][0][1]
-    assert {
-        "columnField": "timestamp", "operatorValue": "<", "value": "2026-10-01T00:00:00Z",
-    } in second["items"]
-    assert {
-        "columnField": "timestamp", "operatorValue": "<", "value": "2026-09-29T12:00:00Z",
-    } in third["items"]
+    filters = [_timestamp_filters(call[0][1]) for call in mock_fetch_runs.call_args_list]
+    assert any(("<", "2026-10-01T00:00:00Z") in bounds for bounds in filters)
+    assert any(("<", "2026-09-29T12:00:00Z") in bounds for bounds in filters)
+
+
+@patch("find_disruption_runs.fetch_runs")
+def test_fetch_runs_in_window_keeps_equal_timestamps_across_page_boundary(mock_fetch_runs):
+    since = datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
+
+    def fake_fetch(_release, filter_dict, limit):
+        bounds = _timestamp_filters(filter_dict)
+        if any(op == "<" and value == "2026-10-02T00:00:00Z" for op, value in bounds):
+            return [
+                {"prow_id": "TIE-HIGH", "timestamp": "2026-10-01T00:00:00Z"},
+                {"prow_id": "TIE-LOW", "timestamp": "2026-10-01T00:00:00Z"},
+            ]
+        if any(op == "<" and value == "2026-10-01T00:00:00Z" for op, value in bounds):
+            return [{"prow_id": "OLDER", "timestamp": "2026-09-30T00:00:00Z"}]
+        return [
+            {"prow_id": "NEW", "timestamp": "2026-10-02T00:00:00Z"},
+            {"prow_id": "TIE-HIGH", "timestamp": "2026-10-01T00:00:00Z"},
+        ]
+
+    mock_fetch_runs.side_effect = fake_fetch
+    rows, truncated = fetch_runs_in_window(
+        "5.0", {"Platform": "aws"}, since, page_size=2, max_runs=5000)
+    assert truncated is False
+    assert [row["prow_id"] for row in rows] == ["NEW", "TIE-HIGH", "TIE-LOW", "OLDER"]
+    tie_calls = [
+        call for call in mock_fetch_runs.call_args_list
+        if ("<", "2026-10-02T00:00:00Z") in _timestamp_filters(call[0][1])
+    ]
+    assert tie_calls
+    assert tie_calls[0][0][2] > 2
 
 
 @patch("find_disruption_runs.fetch_runs")

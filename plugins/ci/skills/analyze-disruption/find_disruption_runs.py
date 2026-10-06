@@ -357,11 +357,59 @@ def fetch_runs(release, filter_dict, limit):
     return data.get("rows") or []
 
 
+def _just_before(timestamp):
+    """A timestamp strictly earlier than `timestamp`, still after any older instant."""
+    return timestamp - timedelta(microseconds=1)
+
+
+def _take_unseen(batch, seen, rows, max_runs):
+    """Append unseen rows. Returns (oldest timestamp, truncated)."""
+    oldest = None
+    truncated = False
+    for row in batch:
+        ts = _parse_timestamp(row.get("timestamp", ""))
+        if oldest is None or ts < oldest:
+            oldest = ts
+        if len(rows) >= max_runs:
+            truncated = True
+            break
+        pid = str(row.get("prow_id", ""))
+        if pid and pid not in seen:
+            seen.add(pid)
+            rows.append(row)
+            if len(rows) >= max_runs:
+                truncated = True
+                break
+    return oldest, truncated
+
+
+def _fetch_timestamp_ties(release, variants, since, oldest, upper, max_runs, seen, rows):
+    """Fetch runs that share `oldest` and did not fit on the page that ended there.
+
+    Sippy has no offset. `timestamp < oldest` would drop the rest of that tie.
+    This asks for `oldest` inclusive up to the next newer timestamp, using the
+    remaining scan budget so the tie is not cut at the page size.
+    """
+    lower = _just_before(oldest)
+    if since is not None and lower < since:
+        lower = since
+    remaining = max_runs - len(rows)
+    if remaining <= 0:
+        return True
+    filter_dict = build_sippy_filter(variants, lower, upper)
+    batch = fetch_runs(release, filter_dict, remaining)
+    if not batch:
+        return False
+    _oldest, truncated = _take_unseen(batch, seen, rows, max_runs)
+    return truncated
+
+
 def fetch_runs_in_window(release, variants, since, page_size=PAGE_SIZE, max_runs=MAX_SCANNED_RUNS):
     """Page Sippy newest-first until the window start or a short page.
 
     Sippy ignores offset and page. The next page is `timestamp <` the oldest
-    row of the previous page. Rows are deduped by prow_id. Returns
+    row of the previous page. A full page also refetches that oldest timestamp
+    so other runs sharing it are kept. Rows are deduped by prow_id. Returns
     (rows, truncated).
     """
     seen = set()
@@ -378,23 +426,22 @@ def fetch_runs_in_window(release, variants, since, page_size=PAGE_SIZE, max_runs
         batch = fetch_runs(release, filter_dict, request_limit)
         if not batch:
             break
-        oldest = None
-        for row in batch:
-            ts = _parse_timestamp(row.get("timestamp", ""))
-            if oldest is None or ts < oldest:
-                oldest = ts
-            pid = str(row.get("prow_id", ""))
-            if pid and pid not in seen:
-                seen.add(pid)
-                rows.append(row)
-                if len(rows) >= max_runs:
-                    truncated = True
-                    break
+        oldest, truncated = _take_unseen(batch, seen, rows, max_runs)
         if truncated or len(batch) < request_limit:
             break
         if oldest is None or oldest <= since:
             break
         if until is not None and oldest >= until:
+            break
+        newer = []
+        for row in batch:
+            ts = _parse_timestamp(row.get("timestamp", ""))
+            if ts > oldest:
+                newer.append(ts)
+        upper = min(newer) if newer else until
+        if _fetch_timestamp_ties(
+                release, variants, since, oldest, upper, max_runs, seen, rows):
+            truncated = True
             break
         until = oldest
     return rows, truncated
@@ -684,7 +731,7 @@ def select_representative_runs(rows, disruption_data, base_backend, n=5):
                 if len(selected) < n:
                     selected.append(clean_pick["index"])
                 else:
-                    selected[-1] = clean_pick["index"]
+                    selected = _replace_disrupted_with_clean(selected, candidates, clean_pick)
         return sorted(selected)
 
     # Phase 4: Categorize by disruption level
@@ -743,9 +790,28 @@ def select_representative_runs(rows, disruption_data, base_backend, n=5):
     clean = [c for c in zero_runs if c["job"] in selected_jobs]
     if clean and n >= 3 and len(selected) >= n:
         clean_pick = min(clean, key=lambda c: c["index"])
-        selected[-1] = clean_pick["index"]
+        selected = _replace_disrupted_with_clean(selected, candidates, clean_pick)
 
     return sorted(selected)
+
+
+def _replace_disrupted_with_clean(selected, candidates, clean_pick):
+    """Swap one selected disrupted run for clean_pick without breaking its pair.
+
+    The only selected disrupted run from clean_pick's job stays. When a
+    disrupted run from another job is selected, that run is the one replaced.
+    """
+    job_of = {c["index"]: c["job"] for c in candidates}
+    clean_job = clean_pick["job"]
+    same_job = [idx for idx in selected if job_of.get(idx) == clean_job]
+    others = [idx for idx in selected if job_of.get(idx) != clean_job]
+    if len(same_job) <= 1:
+        if not others:
+            return list(selected)
+        drop = others[-1]
+    else:
+        drop = selected[-1]
+    return [clean_pick["index"] if idx == drop else idx for idx in selected]
 
 
 def _select_by_job_diversity(candidates, n):
