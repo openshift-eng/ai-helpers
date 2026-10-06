@@ -512,6 +512,38 @@ def test_select_is_deterministic():
     assert r1 == r2
 
 
+def test_select_clean_comparison_when_disrupted_set_fits():
+    # Fewer disrupted runs than n leaves a free slot for a same-job 0s run.
+    rows = [
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-b", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-a", "timestamp": "1970-01-01T00:50:00Z"},
+    ]
+    dd = _make_disruption_data({"1": 40, "2": 20, "3": 0})
+    assert select_representative_runs(rows, dd, "kube-api", n=5) == [0, 1, 2]
+
+
+def test_select_clean_comparison_replaces_when_early_selection_is_full():
+    # Exactly n disrupted runs: keep the limit by replacing one with the clean run.
+    rows = [
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-b", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-c", "timestamp": "1970-01-01T00:50:00Z"},
+        {"prow_id": "4", "job": "job-a", "timestamp": "1970-01-01T01:06:40Z"},
+    ]
+    dd = _make_disruption_data({"1": 40, "2": 20, "3": 10, "4": 0})
+    assert select_representative_runs(rows, dd, "kube-api", n=3) == [0, 1, 3]
+
+
+def test_select_skips_clean_comparison_below_three_slots():
+    rows = [
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-a", "timestamp": "1970-01-01T00:33:20Z"},
+    ]
+    dd = _make_disruption_data({"1": 40, "2": 0})
+    assert select_representative_runs(rows, dd, "kube-api", n=2) == [0]
+
+
 def test_select_zero_disruption_as_clean_comparison():
     # Clean run from same job as a disrupted run gets the clean-comparison slot.
     # Need >n disrupted candidates so the algorithm reaches Phase 5.5.

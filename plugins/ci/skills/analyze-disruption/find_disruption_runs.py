@@ -667,8 +667,7 @@ def select_representative_runs(rows, disruption_data, base_backend, n=5):
     candidates = [c for c in candidates if c["disruption_seconds"] is not None]
 
     # Separate 0s runs — they're only useful as a dedicated clean comparison, not
-    # for diversity selection. They'll be considered in Phase 5.5 if they share a
-    # job with a disrupted run.
+    # for diversity selection. A same-job 0s run is added when n is at least 3.
     zero_runs = [c for c in candidates if c["disruption_seconds"] == 0]
     candidates = [c for c in candidates if c["disruption_seconds"] > 0]
 
@@ -676,7 +675,17 @@ def select_representative_runs(rows, disruption_data, base_backend, n=5):
         return []
 
     if len(candidates) <= n:
-        return sorted([c["index"] for c in candidates])
+        selected = [c["index"] for c in candidates]
+        if n >= 3:
+            selected_jobs = {c["job"] for c in candidates}
+            clean = [c for c in zero_runs if c["job"] in selected_jobs]
+            if clean:
+                clean_pick = min(clean, key=lambda c: c["index"])
+                if len(selected) < n:
+                    selected.append(clean_pick["index"])
+                else:
+                    selected[-1] = clean_pick["index"]
+        return sorted(selected)
 
     # Phase 4: Categorize by disruption level
     non_zero = sorted([c["disruption_seconds"] for c in candidates])
