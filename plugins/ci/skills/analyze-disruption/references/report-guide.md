@@ -15,7 +15,7 @@ wherever the run or a specific artifact is referenced, not in a separate table:
 
 **GCS artifact deep links** (use when citing specific evidence):
 - Base: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/{job_name}/{build_id}/artifacts/`
-- Timeline file: `{gcs_base}{target}/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_{timestamp}.json`
+- Timeline file: the gcsweb URL for the object listed by `gs://test-platform-results-public/logs/{job_name}/{build_id}/artifacts/**/e2e-timelines_spyglass_*.json`. Replace the `gs://` prefix with `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/` and keep the rest of that object path. Do not rebuild the link under `artifacts/junit/`.
 - Audit logs dir: `{gcs_base}{target}/gather-extra/artifacts/audit_logs/`
 - etcd pod logs: `{gcs_base}{target}/gather-extra/artifacts/pods/openshift-etcd/`
 - Journal logs: `{gcs_base}{target}/gather-extra/artifacts/journal_logs/`

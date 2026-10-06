@@ -71,7 +71,7 @@ etcd log context beyond what the timeline summaries provide.
 ```bash
 CLOUDSDK_AUTH_DISABLE_CREDENTIALS=true gcloud storage cp -r \
   "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/audit_logs/" \
-  .work/disruption-analysis/{date}/{build_id}/logs/audit_logs/ --no-user-output-enabled || true
+  .work/disruption-analysis/{date}/{build_id}/logs/audit_logs/
 ```
 
 Query for sampler requests during disruption windows to identify request gaps.
@@ -81,15 +81,17 @@ Query for sampler requests during disruption windows to identify request gaps.
 ```bash
 CLOUDSDK_AUTH_DISABLE_CREDENTIALS=true gcloud storage cp -r \
   "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/" \
-  .work/disruption-analysis/{date}/{build_id}/logs/etcd-pods/ --no-user-output-enabled || true
+  .work/disruption-analysis/{date}/{build_id}/logs/etcd-pods/
 ```
 
 Search for leader changes, write delays, member issues, and disk problems.
 
-The same `CLOUDSDK_AUTH_DISABLE_CREDENTIALS=true` prefix applies to any other direct
-`gcloud storage ls` or `cp` against this bucket, including journal logs. Do not hide
-stderr: the gcloud message is the diagnostic. A missing optional directory is not an
-auth failure.
+Leave stderr visible and keep the command's exit status. The same
+`CLOUDSDK_AUTH_DISABLE_CREDENTIALS=true` prefix applies to any other direct
+`gcloud storage ls` or `cp` against this bucket, including journal logs.
+
+- If gcloud says the URL matched no objects or files, that optional directory is absent. Note it in the report and continue. A missing directory is not an auth failure.
+- Any other non-zero exit is an auth, network, timeout, or copy failure. Report the gcloud message and do not treat the download as successful.
 
 ### 4.3: PromQL Queries for Manual Investigation
 

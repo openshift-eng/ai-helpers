@@ -34,11 +34,13 @@ disrupted run), perform a same-job A/B comparison to filter out red herrings:
 1. **Identify the pair**: The clean run shares a job name with one or more disrupted runs.
    Compare their concurrent events side by side.
 
-2. **Signals present in both**: Any concurrent events that appear in *both* the clean and
-   disrupted runs are **not the cause** of disruption — they are normal job behavior. Examples:
-   - E2E tests that run during disruption windows but also run in clean runs
-   - OVS log entries that appear at similar relative times in both runs
-   - Operator rollouts that happen in both upgrade phases
+2. **Signals present in both**: Shared presence does not exclude an event. Compare each
+   event's duration, intensity, and effect. Rule it out only when those are comparable
+   across the clean and disrupted runs. A signal that is brief or mild in the clean run
+   and severe in the disrupted run can still be the cause. Compare:
+   - E2E tests that run during disruption windows and also run in clean runs
+   - OVS log entries at similar relative times in both runs
+   - Operator rollouts in both upgrade phases
 
 3. **Signals unique to disrupted runs**: Concurrent events that appear *only* in disrupted runs
    (and not in the clean comparison) are the strongest root cause candidates. Highlight these
@@ -47,8 +49,9 @@ disrupted run), perform a same-job A/B comparison to filter out red herrings:
 4. **Infrastructure differences**: Note any differences in the cluster setup (node types, regions,
    etc.) between the clean and disrupted runs if visible in the artifacts.
 
-This comparison is especially valuable for filtering out E2E test correlation noise — if the same
-tests run during disruption windows and during clean runs, they are not causing the disruption.
+This comparison filters E2E test correlation noise. The same test in both runs is not a
+cause when its duration, intensity, and effect match. A test that is uneventful in the
+clean run and coincides with much stronger pressure in the disrupted run stays a candidate.
 
 ## 6.4: Correlate etcd and CPU Findings
 
