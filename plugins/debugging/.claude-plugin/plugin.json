@@ -1,0 +1,8 @@
+{
+  "name": "debugging",
+  "description": "Evidence-backed debugging for arbitrary software and systems investigations",
+  "version": "0.1.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
