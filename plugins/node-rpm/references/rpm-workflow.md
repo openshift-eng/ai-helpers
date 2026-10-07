@@ -8,6 +8,12 @@ Reference for RPM packaging workflows used by the OpenShift Node team.
 |---------|-------------|--------------|------------------------|------------------|
 | cri-tools | kubernetes-sigs | cri-tools | `rhaos-<version>-rhel-{8,9,10}` (most OCP versions have two RHEL branches; check which exist for the target version) | `commit0`, `Version`, `Release` |
 
+The upstream repo must agree with the `pscomponent:<package>` row in the
+node-team plugin's `shared/components.md` when one exists; that file is the
+canonical component data. The expected upstream version for an OCP release
+comes from node-team `shared/version-map.md` (cri-tools follows the Kubernetes
+minor). `/node-rpm:bump` checks both.
+
 > **Note:** Only cri-tools is currently supported. To add a new package, add a
 > row to this table with its upstream org, repo, branch pattern, and spec
 > conventions. The `/node-rpm:bump` command currently hardcodes the cri-tools
@@ -30,37 +36,43 @@ Reference for RPM packaging workflows used by the OpenShift Node team.
    - Set `Version:` to the new upstream version
    - Save the file before proceeding (spectool reads macros from it)
 
-3. **Clean old sources and download new ones:**
-   ```bash
-   rm -f <package>-*.tar.gz
-   spectool -g <package>.spec
-   ```
-
-4. **Declare new sources in dist-git:**
-   ```bash
-   rhpkg new-sources <package>-*.tar.gz
-   ```
-
-5. **Reset Release and bump the changelog:**
+3. **Reset Release and bump the changelog:**
    ```bash
    sed -i 's/^Release:.*/Release: 0%{?dist}/' <package>.spec
    rpmdev-bumpspec -c "Bump to v<new-version>" <package>.spec
    ```
 
-6. **Commit and push:**
+4. **Clean old sources and download new ones** (local only):
+   ```bash
+   rm -f <package>-*.tar.gz
+   spectool -g <package>.spec
+   ```
+
+5. **Review `git diff`** before anything leaves the machine. For a scratch
+   build, stop here and see Scratch Builds below.
+
+6. **Declare new sources in dist-git** (uploads to the lookaside cache, cannot
+   be undone):
+   ```bash
+   rhpkg new-sources <package>-*.tar.gz
+   ```
+
+7. **Commit and push:**
    ```bash
    git commit -asm "Bump to v<new-version>"
    git push
    ```
 
-7. **Start the build:**
+8. **Start the build:**
    ```bash
    rhpkg build
    ```
 
 ## Scratch Builds
 
-Use scratch builds to test changes before committing to a full build.
+Use scratch builds to test changes before committing to a full build. With
+`--srpm` the SRPM is built from the local working tree, so no
+`rhpkg new-sources`, commit or push is needed.
 
 Standard approach (works on public release branches):
 
@@ -97,7 +109,8 @@ and useful for verifying spec changes compile correctly.
 
 ## Environment Setup
 
-A Fedora Vagrant VM (Fedora 42+) is the recommended environment for RPM
+A Fedora Vagrant VM (a currently supported Fedora release; the vendored
+Vagrantfile pins Fedora 44) is the recommended environment for RPM
 packaging. The vendored [`Vagrantfile`](Vagrantfile) is the source of truth for
 provisioning: it installs Red Hat CA certs, RCM tools (rhpkg, spectool,
 rpmdev-bumpspec, krb5-workstation), configures RPM macros, and sets up SSH
@@ -113,6 +126,11 @@ The `--vagrant` flag on `/node-rpm:bump` manages a Fedora VM automatically:
   (rhpkg, spectool, rpmdev-bumpspec, krb5-workstation) and configures SSH
   and RPM macros. This takes a few minutes on first boot.
 - **Subsequent runs:** Detects the existing VM and reuses it. No re-provisioning.
+  If the vendored Vagrantfile changed since the VM was created (for example a
+  newer Fedora release), the command offers to recreate the VM.
+- **Spec file access:** No folder is synced between host and VM. The command
+  reads the spec with `vagrant ssh -c "cat ..."` and edits it with `sed` and
+  `rpmdev-bumpspec` inside the VM.
 - **Kerberos:** Tickets inside the VM expire independently. If `klist -s`
   fails, the command stops and asks you to authenticate. Open an interactive
   session to refresh:

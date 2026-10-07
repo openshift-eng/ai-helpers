@@ -6,27 +6,40 @@ RHCOS worker nodes are not directly accessible via SSH. The [ssh-bastion](https:
 
 ### 1. Deploy the Bastion
 
-Use the deploy script from the upstream repo:
+Use the deploy script from the upstream repo, pinned to a reviewed commit.
+Never pipe an unpinned script from the network into a shell against a live
+cluster. Download it, read it, show the user what it will create, and run it
+only after they confirm:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/eparis/ssh-bastion/master/deploy/deploy.sh | bash
+# Pinned commit (master as of 2026-09-21). Re-pin deliberately, not implicitly.
+BASTION_REF=8c73d4ec1872983a9ba41442bb38853387589c59
+BASTION_RAW="https://raw.githubusercontent.com/eparis/ssh-bastion/${BASTION_REF}/deploy"
+
+curl -fsSL -o /tmp/ssh-bastion-deploy.sh "${BASTION_RAW}/deploy.sh"
+less /tmp/ssh-bastion-deploy.sh        # review before running
+
+# BASEDIR makes the script fetch its manifests from the same pinned commit
+BASEDIR="${BASTION_RAW}" bash /tmp/ssh-bastion-deploy.sh
 ```
 
-The script creates the `openshift-ssh-bastion` namespace, deploys the bastion pod, and prints the LoadBalancer IP.
+The script creates the `openshift-ssh-bastion` namespace, generates the
+`ssh-host-keys` secret, deploys the bastion pod behind a LoadBalancer service,
+and prints the LoadBalancer IP. Applying only the YAML manifests by hand does
+not work, because the namespace and the host key secret come from the script.
 
-If the script is unavailable, apply the individual manifests:
+The bastion exposes SSH to the internet through a LoadBalancer. Use it on
+development clusters only, and remove it when done:
 
 ```bash
-for f in serviceaccount role clusterrole deployment service; do
-  oc apply -f "https://raw.githubusercontent.com/eparis/ssh-bastion/master/deploy/${f}.yaml"
-done
+oc delete namespace openshift-ssh-bastion
 ```
 
-**LoadBalancer warm-up:** After deployment, the cloud LoadBalancer (especially on GCP) takes 30-60 seconds to become reachable. SSH connections will be refused during this period. Wait and retry -- do not assume the bastion is broken.
+**LoadBalancer warm-up:** After deployment, the cloud LoadBalancer (especially on GCP) takes 30-60 seconds to become reachable. SSH connections will be refused during this period. Wait and retry; do not assume the bastion is broken.
 
 ```bash
 sleep 30
-ssh -i $SSH_KEY -o ConnectTimeout=15 core@${BASTION_HOST} echo "connected"
+ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 "core@${BASTION_HOST}" echo "connected"
 ```
 
 ### 2. Discover the SSH Key
@@ -55,29 +68,45 @@ echo "Bastion: $BASTION_HOST"
 
 Use raw SSH with the proxy command. The upstream `ssh-bastion.sh` script appends `sudo -i` which makes it unsuitable for non-interactive command execution.
 
+Define two wrappers once and use them for every command. The other
+debug-binary references write `node_ssh` / `node_scp` and mean exactly these
+functions. Shell functions do not persist between Bash tool calls, so define
+them at the top of each invocation (or source them from a file):
+
 ```bash
 SSH_KEY=~/.ssh/<matching-key>
 BASTION_HOST=<from-above>
 WORKER=<node-name>
 
-ssh -i $SSH_KEY \
-  -o StrictHostKeyChecking=no \
-  -o ProxyCommand="ssh -i $SSH_KEY -A -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -W %h:%p core@${BASTION_HOST}" \
-  core@${WORKER} "<command>"
+NODE_SSH_OPTS=(-i "$SSH_KEY"
+  -o StrictHostKeyChecking=accept-new
+  -o ProxyCommand="ssh -i \"$SSH_KEY\" -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -W %h:%p core@${BASTION_HOST}")
+
+node_ssh() { ssh "${NODE_SSH_OPTS[@]}" "core@${WORKER}" "$@"; }
+node_scp() { scp "${NODE_SSH_OPTS[@]}" "$@"; }
+
+node_ssh "<command>"
 ```
+
+Notes:
+
+- No `-A`: `-W` only forwards a TCP stream, so agent forwarding is not needed.
+  Forwarding your agent to a shared bastion would let anyone with root there
+  use your keys.
+- `StrictHostKeyChecking=accept-new` records host keys on first contact and
+  refuses changed keys afterwards. Clusters are often recreated behind the
+  same names; when a key legitimately changed, remove the stale entry with
+  `ssh-keygen -R <host>` instead of disabling the check.
 
 ## SCP (Transferring Files)
 
-Use SCP with the same proxy command:
+Use the `node_scp` wrapper from above:
 
 ```bash
-scp -i $SSH_KEY \
-  -o StrictHostKeyChecking=no \
-  -o ProxyCommand="ssh -i $SSH_KEY -A -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -W %h:%p core@${BASTION_HOST}" \
-  ./local-file core@${WORKER}:/home/core/remote-file
+node_scp ./local-file "core@${WORKER}:/home/core/remote-file"
 ```
 
-The upstream [scp.sh](https://github.com/eparis/ssh-bastion/blob/master/scp.sh) script is also available but requires `SSH_KEY_PATH` to be set.
+The upstream `scp.sh` script is also available but requires `SSH_KEY_PATH` to be set.
 
 ## Alternative: oc debug node
 
@@ -99,10 +128,10 @@ Use `oc debug node` for inspection. Use the SSH bastion for deployment workflows
 ## Writable Paths on RHCOS
 
 RHCOS has an immutable rootfs. You can only write to:
-- `/home/core/` -- user home
-- `/var/` -- variable data
-- `/etc/` -- configuration (overlayed)
-- `/tmp/` -- temporary
+- `/home/core/`: user home
+- `/var/`: variable data
+- `/etc/`: configuration (overlayed)
+- `/tmp/`: temporary
 
 Always SCP files to `/home/core/` first.
 
@@ -134,7 +163,7 @@ oc get svc -n openshift-ssh-bastion ssh-bastion
 
 ```bash
 BASTION_HOST=$(oc get service -n openshift-ssh-bastion ssh-bastion \
-  -o go-template='{{ with (index (index .status.loadBalancer.ingress 0)) }}{{ or .hostname .ip }}{{end}}')
+  -o go-template='{{ with (index .status.loadBalancer.ingress 0) }}{{ or .hostname .ip }}{{end}}')
 ```
 
 ### Permission denied

@@ -8,11 +8,16 @@ RHCOS (Red Hat Enterprise Linux CoreOS) has an **immutable `/usr` filesystem**. 
 
 ## The Solution
 
-**Bind-mount** your custom binary over the original. The bind mount shadows the original file without modifying the rootfs. The original binary remains intact underneath and is instantly recoverable by unmounting.
+Leave the original binary alone and make the service run yours instead. Two
+methods, both described in [debug-binary/deploy.md](debug-binary/deploy.md):
 
-```bash
-mount --bind /home/core/crio /usr/bin/crio
-```
+- **systemd drop-in (recommended):** override `ExecStart` to point at
+  `/home/core/<binary>`. No service stop needed to set up, survives reboots,
+  rollback is deleting one file.
+- **Bind mount:** `mount --bind /home/core/crio /usr/bin/crio` shadows the
+  original file without modifying the rootfs. Use it when other callers invoke
+  the binary by path (for example crun, which CRI-O executes) or the unit is
+  awkward to override.
 
 For cluster-wide deployment that survives reboots, use layered images instead (see the comparison below).
 
@@ -30,7 +35,7 @@ Reach the worker node via an SSH bastion pod. RHCOS nodes are not directly acces
 
 See [debug-binary/ssh-bastion.md](debug-binary/ssh-bastion.md)
 
-### Phase 3: Deploy (Bind Mount)
+### Phase 3: Deploy (Drop-in or Bind Mount)
 
 Transfer the binary to the node, verify it works, cordon/drain the node, set SELinux context, point the service at the new binary (systemd drop-in override or bind mount), restart the service. This phase has the most gotchas around SELinux, systemd, and service dependencies.
 
@@ -46,7 +51,7 @@ See the Rollback section in [debug-binary/deploy.md](debug-binary/deploy.md)
 
 Each binary has its own reference with build dependencies, systemd units, and deployment details:
 
-- **CRI-O**: [debug-binary/crio.md](debug-binary/crio.md) -- build tags, library deps, kubelet restart, config drop-ins
+- **CRI-O**: [debug-binary/crio.md](debug-binary/crio.md): build tags, library deps, kubelet restart, config drop-ins
 
 ## Safety Rules
 
@@ -60,7 +65,7 @@ These are non-negotiable. Skipping any of these can take a node out of the clust
 
 4. **Always test on ONE worker node.** Keep at least one healthy worker to maintain cluster capacity.
 
-5. **Always set the SELinux context** before bind-mounting:
+5. **Always set the SELinux context** before pointing the service at the binary:
    ```bash
    sudo chcon --reference=/usr/bin/<original> /home/core/<binary>
    ```
@@ -78,19 +83,20 @@ These are non-negotiable. Skipping any of these can take a node out of the clust
 | Drain node | `oc adm drain <node> --ignore-daemonsets --delete-emptydir-data` |
 | Uncordon node | `oc adm uncordon <node>` |
 | Verify node health | `oc get node <node>` (wait for Ready) |
-| Check bind mounts | `ssh core@<node> "mount \| grep /usr/bin"` |
+| Check bind mounts | `node_ssh "findmnt \| grep /usr/bin"` (wrapper from [debug-binary/ssh-bastion.md](debug-binary/ssh-bastion.md)) |
+| Check drop-ins | `node_ssh "systemctl cat <service>"` |
 
-## Deciding: Bind Mount vs Layered Image
+## Deciding: Single-Node Override vs Layered Image
 
-| | Bind Mount | Layered Image |
+| | Drop-in / Bind Mount | Layered Image |
 |---|---|---|
 | Scope | Single node | All nodes in a pool |
-| Survives reboot | No (unless systemd drop-in) | Yes |
+| Survives reboot | Drop-in: yes. Bind mount: only with the extra drop-in | Yes |
 | Speed | Minutes | 30-60 min (MCO rollout) |
 | Use case | Quick debug/test | Cluster-wide validation, customer simulation |
-| Rollback | `umount` | Delete MachineConfig |
+| Rollback | Remove drop-in or `umount -R` | Delete MachineConfig |
 
-Use bind mounts for quick single-node testing. Use layered images when you need the binary on all nodes or need it to persist across reboots.
+Use the single-node override for quick testing. Use layered images when you need the binary on all nodes or need it to persist across reboots.
 
 ## Workflow Diagram
 
@@ -105,7 +111,7 @@ Local Machine                    RHCOS Worker Node
                                  4. chcon (SELinux)
           │                      
    oc adm cordon/drain           
-                                 5. mount --bind
+                                 5. drop-in or mount --bind
                                  6. systemctl restart
           │                      
    oc adm uncordon               

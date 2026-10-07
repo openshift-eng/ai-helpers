@@ -39,5 +39,9 @@ Query open Node bugs, classify by priority and sub-team, suggest assignments, an
 
 ## Prerequisites
 
-- `JIRA_API_TOKEN` (env var, macOS Keychain, or Linux secret-tool) and `curl`
-- Optional: `~/.node-assistant/team-roster-{core,dra,kueue}.json` (for assignment suggestions)
+- `JIRA_API_TOKEN` (env var, macOS Keychain, or Linux secret-tool)
+- Jira user email in `JIRA_USER` or `JIRA_EMAIL` (`JIRA_USER` wins; falls back to the Keychain account, then `git config user.email`)
+- `curl` and `jq`
+- Optional: `~/.node-assistant/team-roster-{core,dra,kueue}.json` for assignment suggestions. This plugin only reads them; `/node-team:overview` syncs them.
+
+Run `/node-team:preflight` to verify credentials. The token is passed to curl through a config on stdin and never appears on a command line.

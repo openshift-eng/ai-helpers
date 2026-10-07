@@ -15,7 +15,7 @@ node-rpm:bump
 
 Guides the user through bumping a downstream RPM package to a new upstream version in Red Hat's dist-git. Handles spec file updates, source downloads, changelog bumps, and Brew builds.
 
-The workflow follows the established pattern for Node team RPM packages (cri-tools as the primary template). Each phase presents its changes to the user for review before proceeding.
+The workflow follows the established pattern for Node team RPM packages (cri-tools as the primary template). Each phase presents its changes to the user for review before proceeding. Nothing leaves the machine before the user has reviewed the diff: the lookaside upload (`rhpkg new-sources`), the push and the full Brew build each need an explicit confirmation. With `--scratch` nothing is uploaded to the lookaside cache, committed or pushed.
 
 When `--vagrant` is passed, the entire workflow runs inside a Fedora Vagrant VM that is automatically provisioned with all required tools. This is the recommended approach when rhpkg and related tools are not installed locally.
 
@@ -29,16 +29,21 @@ When `--vagrant` is passed, the entire workflow runs inside a Fedora Vagrant VM 
 
 2. **Parse optional arguments:**
    - `--ocp-version <version>`: Target OCP version. If omitted, prompt the user to specify one.
-   - `--scratch`: Run a scratch build instead of a full build.
+   - `--scratch`: Run a scratch build from the local working tree instead of a full build. Does not upload sources, commit or push.
    - `--vagrant`: Run the workflow inside a Vagrant VM.
 
-3. **Check VPN connectivity:**
+3. **Sanity-check the version against the OCP release** using the `node-team` shared data (declared plugin dependency):
+   - Read [shared/version-map.md](../../node-team/skills/node/references/shared/version-map.md) and compute the Kubernetes minor for `--ocp-version` with the formula given there. For packages that follow Kubernetes versioning (cri-tools), the minor of `<new-version>` must equal that Kubernetes minor, for example cri-tools `1.36.x` for OCP 5.0 (K8s 1.36). On a mismatch, show both numbers and ask the user whether to continue. Do not continue silently.
+   - If [shared/components.md](../../node-team/skills/node/references/shared/components.md) has a `pscomponent:<package>` row, its upstream repo must match the Upstream Repo in the Packages table of `rpm-workflow.md`. On a mismatch, stop and ask the user which one is right.
+   - Locating shared data: the links above are relative to a repo checkout. When the plugin is installed, read the files from `"${CLAUDE_PLUGIN_ROOT}"/../../node-team/*/skills/node/references/shared/` (glob the version directory), or invoke the `node-team:node` skill and read from its base directory. If the files cannot be found, say so, skip this check, and ask the user to confirm the version pairing.
+
+4. **Check VPN connectivity:**
    ```bash
    curl -s --connect-timeout 5 http://download.devel.redhat.com > /dev/null 2>&1 || echo "UNREACHABLE"
    ```
    If unreachable, warn the user to connect to the Red Hat VPN and stop.
 
-4. **Validate prerequisites:**
+5. **Validate prerequisites:**
 
    **Without `--vagrant` (local execution):**
    ```bash
@@ -57,6 +62,7 @@ When `--vagrant` is passed, the entire workflow runs inside a Fedora Vagrant VM 
      ```bash
      cp "${CLAUDE_PLUGIN_ROOT}/references/Vagrantfile" .work/node-rpm/Vagrantfile
      ```
+     If it exists but differs from the vendored file (`diff -q`), the VM was created from an older Vagrantfile (for example an end-of-life Fedora release). Tell the user and offer to recreate the VM (`vagrant destroy -f`, copy the new file, `vagrant up`). Do not destroy the VM without confirmation.
    - Check if the VM is already running:
      ```bash
      cd .work/node-rpm && vagrant status --machine-readable | grep ",state," | grep -q "running"
@@ -99,9 +105,9 @@ When `--vagrant` is passed, the entire workflow runs inside a Fedora Vagrant VM 
      exit
      ```
 
-5. **Resolve the dist-git branch:**
-   - Look up the package in [`../references/rpm-workflow.md`](../references/rpm-workflow.md) for the branch pattern and RHEL version cutoff. The branch comes from `--ocp-version` plus the Dist-git Branch Pattern column (e.g. `rhaos-<version>-rhel-{8,9,10}`).
-   - For cri-tools: branches follow `rhaos-<version>-rhel-{8,9,10}`. Most OCP versions have two RHEL branches (e.g. RHEL 9 + RHEL 10 for OCP 5.0). Check which branches exist for the target version and repeat Phases 1-3 for each branch.
+6. **Resolve the dist-git branch pattern:**
+   - Look up the package in [`../references/rpm-workflow.md`](../references/rpm-workflow.md) for the branch pattern and RHEL version cutoff. The pattern comes from `--ocp-version` plus the Dist-git Branch Pattern column (e.g. `rhaos-<version>-rhel-{8,9,10}`).
+   - Most OCP versions have two RHEL branches (e.g. RHEL 9 + RHEL 10 for OCP 5.0). Which ones exist is checked against the clone in Phase 1 step 3.
 
 ---
 
@@ -109,8 +115,9 @@ When `--vagrant` is passed, the entire workflow runs inside a Fedora Vagrant VM 
 
 All shell commands in Phases 1-3 run differently depending on `--vagrant`:
 
-- **Local (default):** Commands run directly in the shell.
+- **Local (default):** Commands run directly in the shell, inside `.work/node-rpm/<package>`. Shell state does not persist between Bash tool calls, so each call starts with `cd .work/node-rpm/<package> && ...`.
 - **Vagrant:** Commands are prefixed with `cd .work/node-rpm && vagrant ssh -c "cd <package> && ..."`. Each `vagrant ssh -c` invocation opens a fresh session in `/home/vagrant`, so every command after the initial clone must include the `cd <package>` prefix. The dist-git clone and build happen inside the VM. Output is captured and shown to the user as normal.
+- **Spec file access in Vagrant mode:** the clone exists only inside the VM and no folder is synced to the host, so the Read and Edit tools cannot reach the spec. Read it with `vagrant ssh -c "cat <package>/<package>.spec"` and change it only with the `sed` and `rpmdev-bumpspec` commands given in Phase 2, run through `vagrant ssh -c`. Put the remote command in double quotes and keep the `sed` scripts in single quotes inside it, exactly as shown in Phase 2, so the host shell does not expand `%{?dist}` or `\1`.
 - **Exception:** `git ls-remote` against public GitHub repos (Phase 2 step 1) always runs locally, since it does not require Red Hat internal access.
 
 ---
@@ -130,17 +137,29 @@ All shell commands in Phases 1-3 run differently depending on `--vagrant`:
    ```bash
    rhpkg clone <package>
    cd <package>
+   ```
+   With `--vagrant`, this runs inside the VM. The clone lives in the VM's filesystem. Offer `rm -rf` or `git reset --hard` only after showing `git status --short` of the existing clone, since both discard local changes.
+
+3. **Check which release branches exist** for the target version (run in the clone):
+   ```bash
+   git branch -r --list 'origin/rhaos-<ocp-version>-rhel-*'
+   ```
+   - No match: stop and report that no dist-git branch exists for that OCP version. List `git branch -r --list 'origin/rhaos-*'` so the user can pick a valid version.
+   - One or more matches: show them and let the user confirm which to bump. Repeat Phases 1 (from step 4) to 3 for each selected branch.
+
+4. **Check out the branch:**
+   ```bash
    git checkout <branch>
    ```
-   With `--vagrant`, this runs inside the VM. The clone lives in the VM's filesystem.
 
-3. **Read the current spec file** and extract:
+5. **Read the current spec file** (`cat <package>.spec`, through `vagrant ssh -c` in Vagrant mode) and extract:
    - Current `Version:` value
    - Current `Release:` value
    - Current `%global commit0` value (the upstream commit hash)
 
-4. **Display current state** to the user:
+6. **Display current state** to the user:
    - Package name, current version, current commit hash, branch name
+   - If the current version already equals `<new-version>`, say so and ask whether to continue.
 
 ---
 
@@ -155,23 +174,14 @@ All shell commands in Phases 1-3 run differently depending on `--vagrant`:
 
    Verify the result is a non-empty 40-character hex SHA. If empty, the tag does not exist upstream; stop with a clear error (e.g. "Tag v<new-version> not found in <upstream-org>/<upstream-repo>").
 
-2. **Update the spec file:**
-   - Set `%global commit0` to the new upstream commit SHA
-   - Set `Version:` to `<new-version>`
-   - Save the spec file to disk before proceeding (spectool reads macros from it).
-
-3. **Clean old sources and download new ones:**
+2. **Update the spec file** with these commands (identical in local and Vagrant mode, so the edit is reproducible and works without host access to the file):
    ```bash
-   rm -f <package>-*.tar.gz
-   spectool -g <package>.spec
+   sed -i -E 's/^(%global[[:space:]]+commit0[[:space:]]+).*/\1<commit-sha>/; s/^(Version:[[:space:]]+).*/\1<new-version>/' <package>.spec
+   grep -E '^(%global[[:space:]]+commit0|Version:)' <package>.spec
    ```
+   Verify that the `grep` output shows the new SHA and version. If a line did not change, the spec does not follow the conventions in the Packages table; stop and show the relevant lines to the user.
 
-4. **Declare new sources:**
-   ```bash
-   rhpkg new-sources <package>-*.tar.gz
-   ```
-
-5. **Reset Release and bump the changelog:**
+3. **Reset Release and bump the changelog:**
    First, reset Release in the spec file for the new Version:
    ```bash
    sed -i 's/^Release:.*/Release: 0%{?dist}/' <package>.spec
@@ -182,29 +192,53 @@ All shell commands in Phases 1-3 run differently depending on `--vagrant`:
    ```
    The result is `Release: 1%{?dist}` with a new changelog entry.
 
-6. **Show the full diff** to the user and wait for confirmation before proceeding:
+4. **Clean old sources and download new ones** (local download only, nothing is uploaded yet):
+   ```bash
+   rm -f <package>-*.tar.gz
+   spectool -g <package>.spec
+   sha256sum <package>-*.tar.gz
+   ```
+
+5. **Review gate.** Show the user the full diff and the downloaded tarball name and checksum, then wait for confirmation:
    ```bash
    git diff
+   ```
+   State what happens next: with `--scratch`, a scratch build from the working tree (no upload, commit or push); otherwise an upload of the tarball to the dist-git lookaside cache, which cannot be undone. Do not continue without an explicit yes.
+
+6. **Declare new sources** (full build only, skip with `--scratch`). This uploads the tarball to the lookaside cache and rewrites `sources` and `.gitignore`:
+   ```bash
+   rhpkg new-sources <package>-*.tar.gz
+   git status --short
    ```
 
 ---
 
 ### Phase 3: Build
 
+**With `--scratch`:** do not commit and do not push. Build the SRPM from the working tree and submit it:
+
+1. `rhpkg build --scratch --srpm`
+2. If that fails on a private branch, fall back to the two-step approach: `rhpkg srpm` (capture the exact SRPM filename from its output), then `brew build --scratch <branch>-candidate <srpm-file>`.
+3. Report the build task URL. The working tree keeps the uncommitted changes, so after a successful scratch build the user can re-run the command without `--scratch` and choose to reuse the clone.
+
+**Without `--scratch`:**
+
 1. **Commit the changes:**
    ```bash
    git commit -asm "Bump to v<new-version>"
+   git log -1 --stat
    ```
 
-2. **Push** (confirm with the user first):
+2. **Push.** Show the commit and the target (`origin/<branch>`), then ask for confirmation. Only after an explicit yes:
    ```bash
    git push
    ```
+   If the user declines, stop here and leave the commit in the clone.
 
-3. **Start the build:**
-   - Full build: `rhpkg build`
-   - Scratch build (if `--scratch`): `rhpkg build --scratch --srpm`
-   - If `rhpkg build --scratch` fails on a private branch, fall back to the two-step approach: `rhpkg srpm` (capture the exact SRPM filename from its output), then `brew build --scratch <branch>-candidate <srpm-file>`
+3. **Start the build.** A full build produces an official Brew build for the release branch. Ask for confirmation again, separately from the push. Only after an explicit yes:
+   ```bash
+   rhpkg build
+   ```
 
 4. **Report the build task URL** from the rhpkg output.
 
@@ -221,13 +255,15 @@ Print a summary table:
 
 List next steps:
 - Verify the build in Brew
-- Update cri-tools version in `kubernetes/kubernetes` (if applicable)
-- Update cri-tools in `cri-o/packaging` (if applicable)
-- Open a PR or notify the team
+- After a scratch build: re-run without `--scratch` for the official build
+- Repeat for the remaining RHEL branches of the OCP version, if any
+- Notify the team
+
+The downstream bump is the last step of the upstream release checklist in [`../references/rpm-workflow.md`](../references/rpm-workflow.md). The `kubernetes/kubernetes` and `cri-o/packaging` updates come before it. Remind the user to confirm those are done; do not list them as follow-ups.
 
 ## Return Value
 
-Prints a structured summary to stdout including old version, new version, branch, and build URL. Exit status reflects the build outcome.
+Prints a structured summary including old version, new version, branch, build type (scratch or full), build status and the Brew task URL. If the user declined a confirmation, the summary states at which step the workflow stopped and what was left in `.work/node-rpm/<package>`.
 
 ## Examples
 
@@ -235,13 +271,13 @@ Prints a structured summary to stdout including old version, new version, branch
 ```text
 /node-rpm:bump cri-tools 1.36.0 --ocp-version 5.0
 ```
-Clones cri-tools from dist-git, checks out the matching release branch, updates the spec to version 1.36.0, and starts a full Brew build.
+Clones cri-tools from dist-git, checks out the matching release branch, updates the spec to version 1.36.0, and, after the user confirms the diff, the push and the build, starts a full Brew build.
 
 ### Scratch build to test changes
 ```text
 /node-rpm:bump cri-tools 1.36.0 --ocp-version 5.0 --scratch
 ```
-Same workflow but runs `rhpkg build --scratch --srpm` instead of a full build. Useful for validating spec changes before committing.
+Same spec changes, but builds with `rhpkg build --scratch --srpm` from the working tree. Nothing is uploaded to the lookaside cache, committed or pushed, so this validates spec changes before committing.
 
 ### Bump using a Vagrant VM
 ```text
@@ -262,7 +298,7 @@ Omits `--ocp-version`, so the command prompts the user to select the target OCP 
 | `<package>` | Yes | Package name (e.g. `cri-tools`) |
 | `<new-version>` | Yes | Target upstream version (e.g. `1.36.0`) |
 | `--ocp-version <version>` | No | Target OCP version; prompted if omitted |
-| `--scratch` | No | Run a scratch build instead of a full build |
+| `--scratch` | No | Run a scratch build from the working tree; no source upload, commit or push |
 | `--vagrant` | No | Run the workflow inside a Vagrant VM |
 
 ## Notes
@@ -271,5 +307,7 @@ Omits `--ocp-version`, so the command prompts the user to select the target OCP 
 - VPN connection to the Red Hat network is required. The command checks connectivity before starting.
 - Kerberos tickets expire; run `kinit` before starting if your ticket is stale. With `--vagrant`, open an interactive session (`cd .work/node-rpm && vagrant ssh`) and run `kinit` inside the VM.
 - Scratch builds do not produce official Brew builds. They are disposable test builds.
+- Outward-facing steps (lookaside upload, push, full build) each require an explicit confirmation. There is no flag to skip them.
+- Version pairing is checked against the `node-team` plugin's `shared/version-map.md`.
 - The command operates in `.work/node-rpm/` to keep dist-git clones and the Vagrant VM separate from other work directories.
 - The Vagrant VM persists between runs. Run `cd .work/node-rpm && vagrant destroy` to clean up.
