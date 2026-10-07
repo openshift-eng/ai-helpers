@@ -175,6 +175,7 @@ echo ""
 # every other team's PRs too. This manually fetches team-authored PRs only.
 echo "--- Operation C: Add shared repo team PRs ---"
 
+ADDED_URLS=""
 EXISTING_URLS=$(echo "$ITEMS_JSON" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
@@ -199,6 +200,8 @@ for repo in "${SHARED_REPOS[@]}"; do
                 continue
             fi
             EXISTING_URLS="$EXISTING_URLS
+$url"
+            ADDED_URLS="$ADDED_URLS
 $url"
             SHARED_ADDED=$((SHARED_ADDED + 1))
         done
@@ -240,6 +243,8 @@ for repo in "${SHARED_REPOS[@]}"; do
             continue
         fi
         EXISTING_URLS="$EXISTING_URLS
+$url"
+        ADDED_URLS="$ADDED_URLS
 $url"
         BUGPR_ADDED=$((BUGPR_ADDED + 1))
     done <<< "$prs"
@@ -289,6 +294,8 @@ for key in $ALL_DOCS_KEYS; do
         fi
         EXISTING_URLS="$EXISTING_URLS
 $url"
+        ADDED_URLS="$ADDED_URLS
+$url"
         DOCS_ADDED=$((DOCS_ADDED + 1))
     done <<< "$urls"
 done
@@ -298,7 +305,24 @@ echo ""
 # Re-fetch items if we added new ones
 if [ "$SHARED_ADDED" -gt 0 ] || [ "$BUGPR_ADDED" -gt 0 ] || [ "$DOCS_ADDED" -gt 0 ]; then
     echo "Re-fetching project items after additions..."
-    ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+    # Project item-list can briefly omit newly added PRs. Wait for all additions
+    # before processing fields, so the same run populates their metadata.
+    for attempt in 1 2 3 4 5 6; do
+        ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+        missing=$(printf '%s' "$ITEMS_JSON" | python3 -c "
+import json, sys
+expected = {url for url in sys.argv[1].splitlines() if url}
+present = {item.get('content', {}).get('url', '') for item in json.load(sys.stdin)['items']}
+print(len(expected - present))
+" "$ADDED_URLS")
+        [ "$missing" -eq 0 ] && break
+        if [ "$attempt" -lt 6 ]; then
+            echo "  Waiting for $missing newly added PRs to appear on the board..."
+            sleep 5
+        else
+            echo "  WARNING: $missing newly added PRs are not visible yet" >&2
+        fi
+    done
     ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['items']))")
     echo "Now $ITEM_COUNT items"
     echo ""
@@ -307,7 +331,8 @@ fi
 # --- Operation A: Populate PR Author ---
 # GitHub Projects doesn't have a built-in Author column, so we use a free-text
 # field and populate it with display names from the team map (or raw login).
-# Runs after C/C2/F so newly added items get their author set in one pass.
+# Runs after C/C2/F and again at the end for items added during the sync.
+populate_pr_authors() {
 echo "--- Operation A: Populate PR Author ---"
 
 echo "$ITEMS_JSON" | python3 -c "
@@ -336,6 +361,8 @@ for item in data['items']:
         echo "  ERROR: failed to set PR Author for $repo#$number" >&2
     fi
 done
+}
+populate_pr_authors
 
 echo ""
 
@@ -690,6 +717,14 @@ while IFS='|' read -r item_id repo number title labels; do
 done < "$PRIORITY_FILE"
 
 rm -f "$PRIORITY_FILE"
+
+# Auto-add workflows may add items during the sync after the first snapshot.
+# Sweep blank author fields again using the latest board state.
+echo ""
+echo "--- Final refresh for late project items ---"
+ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['items']))")
+populate_pr_authors
 
 echo ""
 echo "=== Sync Complete ==="
