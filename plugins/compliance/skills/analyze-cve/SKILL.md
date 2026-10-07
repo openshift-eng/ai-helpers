@@ -108,6 +108,7 @@ go install golang.org/x/tools/cmd/digraph@latest
 
 - Focuses on Go-specific vulnerabilities.
 - Resolves and clones the target repository automatically — via `--repo=`, Jira image-name mapping, or reusing a repo already cloned into `.work/compliance/analyze-cve/repos/` by a previous run — see [Phase 0.7](references/implementation.md#phase-07-repository-resolution-and-cloning). All analysis and fix-application phases run against that cloned `REPO_DIR`, not the directory this skill happened to be invoked from.
+- Locates the Go module automatically even when `go.mod` isn't at the repository root (a single-module subdirectory, or the shallowest of several) — see [Phase 0.7 Step 4](references/implementation.md#step-4-locate-the-go-module-and-verify-go-project). Go tooling runs against the resolved `GO_MODULE_DIR`; git/PR operations still use `REPO_DIR`.
 - Falls back to user-provided information if internet access fails.
 - Does NOT make changes, commits, or pull requests without explicit approval — either interactive, or given once upfront via `--auto-approve=yes` (see [Autonomous Mode](references/implementation.md#autonomous-mode---auto-approveyesno)).
 - Reports are saved locally (`.work/compliance/analyze-cve/`, gitignored) and not committed to git — see [Runtime Configuration](references/implementation.md#runtime-configuration) to relocate this base directory.
