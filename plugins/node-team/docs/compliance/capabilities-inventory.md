@@ -7,9 +7,10 @@ Control ID: GLC-08
 | Tool | Purpose | Plugin |
 |------|---------|--------|
 | `jira` CLI | Query and comment on Jira issues | node-cve |
-| `git` | Clone downstream repository forks | node-cve, node-team |
+| `git` | Clone downstream repository forks; commit and push to dist-git (node-rpm, interactive only) | node-cve, node-team, node-rpm |
 | `curl` | Jira REST API calls, Slack API calls | node-bug, node-cve, node-team |
 | `gh` | GitHub CLI for repo operations | node-team |
+| `rhpkg`, `brew` | Dist-git clone, source upload, Brew builds | node-rpm (interactive only) |
 
 ## APIs
 
@@ -36,6 +37,8 @@ Authentication: HTTP Basic Auth with `JIRA_API_TOKEN`.
 Authentication: Bearer token via `SLACK_API_TOKEN`.
 
 Alternative: `SLACK_WEBHOOK` (incoming webhook, POST only, no threading).
+Headless runs use `SLACK_WEBHOOK` only: the Slack app holds just the
+`incoming-webhook` scope and can post to a single channel.
 
 ### GitHub
 
@@ -84,12 +87,79 @@ Authentication: `gh` CLI auth or unauthenticated for public repos.
 |-----------|----------------|
 | Isolation | All artifacts written to `.work/` (gitignored) |
 | No persistence | Roster cache at `~/.node-assistant/` can be purged with `/node-team:cleanup` |
-| No code modification | Agent never writes to source repositories |
+| No code modification | Agent never writes to source repositories (except node-rpm dist-git pushes, see below) |
+
+### Dist-git and Brew (node-rpm, interactive only)
+
+`/node-rpm:bump` updates a spec file in dist-git, pushes the change and
+starts a Brew build. It is never run headless.
+
+| Guardrail | Implementation |
+|-----------|----------------|
+| Human approval | Each phase presents its changes for review; push and build require explicit user confirmation |
+| Credentials | User's own Kerberos ticket and dist-git permissions; no service account |
+| Scope | Only packages listed in `rpm-workflow.md`; `--scratch` for disposable test builds |
+| Reversibility | Dist-git commits can be reverted by a follow-up commit; official Brew builds cannot be deleted, but do not ship outside the regular release process |
+| Headless | Not part of the CronJob deployment; the container image has no `rhpkg` or Kerberos credentials |
 
 ## Tool Access Model
 
-The `jira` and `git` CLIs are invoked through Claude Code's direct tool
-integrations, not through the Bash tool. The Bash tool is used only for
-`curl` commands (Jira REST API and Slack API calls). The node-team skill
-enforces `Bash(curl:*)` via its `allowed-tools` frontmatter. The node-cve
-plugin does not yet have equivalent enforcement; adding it is planned.
+The `jira`, `git` and `curl` commands run through Claude Code's Bash tool.
+The node-team skill restricts itself to `Bash(curl:*)` via its
+`allowed-tools` frontmatter.
+
+- **Interactive:** Claude Code asks the user before each tool call that is not
+  already allowed in the user's settings.
+- **Headless:** no one is there to approve. The `dontAsk` permission mode
+  refuses every tool call outside the allowlist below.
+
+### Headless Tool Allowlist
+
+The CronJob mounts a `settings.json` that enables only the `node-team` and
+`node-cve` plugins (full file in the
+[node-cve README](../../../node-cve/README.md#headless-execution)):
+
+| Rule | Purpose |
+|------|---------|
+| `Skill(node-cve:*)` | Load the node-cve skills |
+| `Bash(jira issue list:*)`, `Bash(jira issue view:*)` | Query trackers and validate component and version before posting |
+| `Bash(jira issue comment add:*)` | Post analysis comments (`--notify-jira`) |
+| `Bash(git clone:*github.com/*)` | Shallow clones of downstream forks (GitHub only) |
+| `Bash(curl:*redhat.atlassian.net/*)`, `Bash(curl:*hooks.slack.com/*)` | Jira REST calls and the Slack webhook (host-scoped) |
+| `Bash(date:*)`, `Bash(sleep:*)` | Dates and rate limiting used by the skills |
+| `Bash(mkdir -p .work/node-cve/*)`, `Bash(tee -a .work/node-cve/*)`, `Edit(.work/node-cve/**)` | Working directory, reports and audit logs (file writes and shell redirects are checked against `Edit` rules) |
+| `WebSearch`, `WebFetch` (nvd.nist.gov, access.redhat.com, github.com, pkg.go.dev) | Public CVE intelligence |
+| Deny `Read` on `/var/run/secrets/**`, `/etc/node-cve-triage/**`, `/proc/**` | Keep credentials and the projected token out of Claude Code's file tools |
+| Sandbox: deny `/var/run/secrets` and `/etc/node-cve-triage` in `sandbox.credentials`, network limited to Jira, Slack and GitHub | Keep the same files out of every Bash command, including the built-in read-only ones; fail the run if the sandbox cannot start |
+
+In addition, Claude Code always allows its built-in read-only commands (`ls`,
+`cat`, `echo`, `head`, `tail`, `grep`, `find`, `wc`, `which` and similar),
+reads inside the working directory, and nothing else. Source code analysis
+uses `grep` and `find` through Bash. The `Read` deny rules do not apply to
+these commands; the sandbox does.
+
+### Security Boundary
+
+The allowlist limits what the agent does by default; it is not a security
+boundary. Claude Code's own documentation says so for Bash rules, and several
+rules here can run arbitrary code or send data out: `git clone` accepts
+`--upload-pack` and `ext::` URLs, `curl` can post any readable data to an
+allowed host, and the credentials are environment variables that `echo` can
+print. The agent reads untrusted text (Jira descriptions, advisory pages, cloned
+source code), so a prompt injection could try to use these paths.
+
+The actual boundary is the pod:
+
+- **Egress policy (required):** only Jira, Slack, GitHub, the public advisory
+  sites and Vertex AI are reachable
+- **Least-privilege credentials:** the Jira service account can only browse
+  and comment, the Slack webhook posts to one channel, the Vertex identity
+  can only call Vertex AI, and there is no Kubernetes API token
+- **Ephemeral pod:** nothing persists between runs
+- **Bash sandbox:** Bash commands cannot read the Vertex AI token or the
+  mounted config and only reach Jira, Slack and GitHub. The environment
+  variables stay readable, and a comment or Slack post can still carry data
+  out, so the credentials above must stay least privilege
+- **Audit:** every tool call is in the session transcript in the pod logs
+
+Any change to the allowlist must update this table.
