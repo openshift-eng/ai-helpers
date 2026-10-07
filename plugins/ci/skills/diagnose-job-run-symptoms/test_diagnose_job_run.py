@@ -51,7 +51,7 @@ def batch_response(status="complete", items=None):
         "running": 0,
         "pending": 0 if terminal else 1,
         "items": items if items is not None else [
-            {"item_key": "1856789012345678848", "state": "completed"},
+            {"item_key": "1856789012345678848", "state": "completed", "result": {"status": "success"}},
         ],
     }
 
@@ -332,3 +332,22 @@ def test_deep_redirect_handler_rejects_cross_origin_and_preserves_same_origin_au
         handler.redirect_request(
             original, None, 302, "Found", {}, "https://other.invalid/batch-1"
         )
+
+
+@pytest.mark.parametrize("item", [
+    {"item_key": "1856789012345678848", "state": "orphaned"},
+    {"item_key": "1856789012345678848", "state": "cancelled",
+     "result": {"status": "missing_error"}},
+])
+def test_deep_mode_without_a_successful_result_is_not_a_negative(monkeypatch, capsys, item):
+    mock_catalogs(monkeypatch)
+    queue_authenticated_responses(
+        monkeypatch,
+        FakeResponse(202, {"batch_id": "batch-1", "requested": 1,
+                           "links": {"status": diagnose_job_run.REEVALUATE_URL + "/batch-1"}}),
+        FakeResponse(200, batch_response(items=[item])),
+    )
+    assert diagnose_job_run.main([PROW_URL, "--deep", "--token", "secret"]) == 1
+    captured = capsys.readouterr()
+    assert "unknown" in captured.err
+    assert "No symptom labels found" not in captured.out

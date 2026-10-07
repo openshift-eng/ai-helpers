@@ -51,7 +51,8 @@ python3 plugins/ci/skills/diagnose-job-run-symptoms/diagnose_job_run.py \
 Note: deep mode reports label IDs only — the matched file/text detail is only available in default mode (it comes from the GCS artifacts).
 Deep mode submits an asynchronous batch, polls its same-origin status link
 through `pending`, `processing`, and `running`, and reports results after the
-batch reaches `complete`. A `failed` or `cancelled` batch is an error.
+batch reaches `complete`. A `failed` or `cancelled` batch, or a run without a
+`success` result, is an error: its symptom state is unknown, not "nothing matched".
 
 ### Step 3: Nothing matched?
 

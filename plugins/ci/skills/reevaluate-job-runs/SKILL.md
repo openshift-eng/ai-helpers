@@ -220,7 +220,9 @@ confirm all stores were updated.
   optional results. The client prints the terminal response and exits 1.
 
 Input validation failures and API/polling errors exit 1. A `complete` batch
-exits 0; terminal `failed` or `cancelled` exits 1.
+exits 0 only if every submitted run has a `success` result; any other run
+(no result, `missing_error`, ...) has an unknown symptom state, so it exits 1.
+Terminal `failed` or `cancelled` exits 1.
 
 ## Related Skills
 

@@ -265,6 +265,14 @@ def print_batch_summary(response, dry_run=False):
                 print("    %s" % line)
 
 
+def runs_without_success(response, ids):
+    """Submitted run IDs that the terminal batch did not report a success result for."""
+    succeeded = {item["item_key"] for item in response["items"]
+                 if isinstance(item.get("result"), dict)
+                 and item["result"].get("status") == "success"}
+    return [run_id for run_id in ids if run_id not in succeeded]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Reevaluate symptoms on Prow job runs")
     parser.add_argument(
@@ -334,6 +342,11 @@ def main(argv=None):
     else:
         print_batch_summary(response, args.dry_run)
 
+    unknown = runs_without_success(response, ids)
+    if unknown:
+        print("Error: no successful result for run(s) %s; their symptom state is "
+              "unknown, not 'no symptoms matched'" % ", ".join(unknown), file=sys.stderr)
+        return 1
     if response["status"] in ("failed", "cancelled"):
         return 1
     return 0

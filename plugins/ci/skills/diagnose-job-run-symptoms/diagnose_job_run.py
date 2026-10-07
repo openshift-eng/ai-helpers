@@ -283,7 +283,16 @@ def _results_for_build(status, build_id):
             (len(matching), build_id)
         )
     result = matching[0].get("result")
-    return [] if result is None else [result]
+    # Without a successful result the run's symptom state is unknown; returning
+    # [] would print "No symptom labels found", a false negative.
+    if not isinstance(result, dict) or result.get("status") != "success":
+        raise ClientError(
+            "rescan of run %s did not succeed (item state %r, result status %r); "
+            "its symptom state is unknown" % (
+                build_id, matching[0].get("state"),
+                result.get("status") if isinstance(result, dict) else None)
+        )
+    return [result]
 
 
 def get_json(url):
