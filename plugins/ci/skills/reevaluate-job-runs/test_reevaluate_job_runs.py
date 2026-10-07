@@ -68,8 +68,8 @@ def batch_response(batch_id="batch-1", status="complete", items=None):
         "running": 0,
         "pending": 0 if status in client.TERMINAL_STATES else 2,
         "items": items if items is not None else [
-            {"item_key": "1", "state": "completed"},
-            {"item_key": "2", "state": "completed"},
+            {"item_key": "1", "state": "completed", "result": {"status": "success"}},
+            {"item_key": "2", "state": "completed", "result": {"status": "success"}},
         ],
     }
 
@@ -111,7 +111,7 @@ def test_non_dry_run_submits_one_deduplicated_batch_and_polls_complete(monkeypat
     pending.update(completed=0, running=1, pending=1)
     complete = batch_response(items=[
         {"item_key": "1", "state": "completed", "result": result},
-        {"item_key": "2", "state": "completed"},
+        {"item_key": "2", "state": "completed", "result": {"status": "success"}},
     ])
     calls = queue_responses(
         monkeypatch,
@@ -188,7 +188,7 @@ def test_batch_id_is_flushed_before_first_get_and_final_output_is_intact(
         "links": {"status": client.URL + "/batch-early"},
     }
     final = batch_response(batch_id="batch-early", status=terminal, items=[
-        {"item_key": "1", "state": "completed"},
+        {"item_key": "1", "state": "completed", "result": {"status": "success"}},
     ])
     final.update(requested=1, enqueued=1)
 
@@ -313,7 +313,7 @@ def test_summary_preserves_detailed_item_result(monkeypatch, capsys):
     result = {"status": "rewrite_error", "error": "backend failed", "labels_applied": ["a", "b"]}
     response = batch_response(items=[
         {"item_key": "1", "state": "completed", "result": result},
-        {"item_key": "2", "state": "completed"},
+        {"item_key": "2", "state": "completed", "result": {"status": "success"}},
     ])
     queue_responses(
         monkeypatch,
@@ -325,7 +325,7 @@ def test_summary_preserves_detailed_item_result(monkeypatch, capsys):
         FakeResponse(200, response),
     )
 
-    assert client.main(["1", "2", "--token", "secret", "--format", "summary"]) == 0
+    assert client.main(["1", "2", "--token", "secret", "--format", "summary"]) == 1
     output = capsys.readouterr().out
     assert "Requested: 2, enqueued: 2, deduped: 0" in output
     assert "Run 1: completed" in output
@@ -376,7 +376,9 @@ def test_10000_ids_are_submitted_in_one_request(monkeypatch, capsys):
     ids = [str(value) for value in range(client.API_MAX_IDS)]
     terminal = batch_response()
     terminal.update(requested=client.API_MAX_IDS, enqueued=client.API_MAX_IDS,
-                    completed=client.API_MAX_IDS, items=[])
+                    completed=client.API_MAX_IDS, items=[
+                        {"item_key": i, "state": "completed", "result": {"status": "success"}}
+                        for i in ids])
     calls = queue_responses(
         monkeypatch,
         FakeResponse(202, {
@@ -583,3 +585,21 @@ def test_nonfinite_poll_interval_is_rejected_before_network(monkeypatch, capsys,
     assert client.main(["1", "--token", "secret", "--poll-interval=" + value]) == 1
     assert "finite and greater than zero" in capsys.readouterr().err
     assert calls == []
+
+
+
+@pytest.mark.parametrize("item2", [
+    {"item_key": "2", "state": "orphaned"},
+    {"item_key": "2", "state": "cancelled", "result": {"status": "missing_error"}},
+    {"item_key": "1", "state": "completed", "result": {"status": "success"}},
+])
+def test_run_without_a_success_result_is_unknown(monkeypatch, capsys, item2):
+    items = [{"item_key": "1", "state": "completed", "result": {"status": "success"}}, item2]
+    queue_responses(
+        monkeypatch,
+        FakeResponse(202, {"batch_id": "batch-1", "requested": 2,
+                           "links": {"status": client.URL + "/batch-1"}}),
+        FakeResponse(200, batch_response(items=items)),
+    )
+    assert client.main(["1", "2", "--token", "secret"]) == 1
+    assert "run(s) 2;" in capsys.readouterr().err

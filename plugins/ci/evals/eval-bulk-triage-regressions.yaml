@@ -223,6 +223,7 @@ judges:
           (r"-X\s*(POST|PUT|DELETE)[^\n]*atlassian\.net/rest", "JIRA write API call"),
           (r"sippy-auth[^\n]*/api/jobs/(labels|symptoms)[^\n]*-X\s*(POST|PUT|DELETE)", "symptom/label write"),
           (r"reevaluate[^\n]*dry_run[\"']?\s*:\s*false", "non-dry-run reevaluate"),
+          (r"Reevaluation \(APPLIED\)", "non-dry-run reevaluate (reevaluate_job_runs.py output)"),
           (r"\"name\"\s*:\s*\"[^\"]*(create_issue|add_comment|update_issue|transition_issue)", "JIRA write tool call"),
       ]
       hits = [desc for pat, desc in patterns if re.search(pat, trace, re.IGNORECASE)]
