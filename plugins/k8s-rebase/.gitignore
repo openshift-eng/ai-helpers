@@ -1,0 +1,6 @@
+# Scratch output from manual skill runs (test-skill.sh, run-rebase.sh)
+output/
+
+# Eval harness state — repo clones and run results (never commit)
+evals/.repos/
+evals/results/

@@ -1,0 +1,3 @@
+# Test results are local state, not committed
+*
+!.gitignore

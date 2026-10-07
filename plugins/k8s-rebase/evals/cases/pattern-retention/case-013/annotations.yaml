@@ -1,0 +1,6 @@
+notes: >
+  openshift/multus-cni @ k8s 1.35.3 — CNI meta-plugin that delegates
+  configuration via a CNI conf list. Its k8s API consumers are the client
+  in pkg/k8sclient, the thick-plugin server in pkg/server, and a few cmd/
+  tools. Narrow k8s API surface; expect go.mod/vendor changes plus a small
+  number of .go call-site fixes.
