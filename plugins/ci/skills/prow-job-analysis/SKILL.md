@@ -111,8 +111,8 @@ gcloud storage cp gs://{bucket}/{bucket-path}/build-log.txt \
 # JUnit XML (always — identifies failed tests/steps)
 gcloud storage ls "gs://{bucket}/{bucket-path}/artifacts/**/junit*.xml" 2>/dev/null
 
-# Node journals (always, when the job created a cluster) — required input for the
-# Step 6 OS-layer check. Gzip-compressed WITHOUT a .gz extension: zcat/zgrep only.
+# Node journals — ONLY when the Step 6 OS-layer check is triggered (often 10-30 MB).
+# Gzip-compressed WITHOUT a .gz extension: zcat/zgrep only.
 gcloud storage cp -r \
   "gs://{bucket}/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes" \
   .work/prow-job-analysis/{build_id}/ --no-user-output-enabled 2>/dev/null || true
@@ -123,16 +123,41 @@ gcloud storage cp -r \
 Use the Step 3 summaries, the build log, and JUnit results to classify the failure, then consult the
 appropriate reference file for detailed analysis procedures.
 
-#### OS-layer evidence check (mandatory for every job, before routing)
+#### OS-layer evidence check (conditional, before routing)
 
 Operating-system (RHCOS) layer breakage frequently masquerades as an unrelated product
 failure: a single RHCOS bump swaps the kernel, cri-o, systemd, NetworkManager, and SELinux
 policy across the whole cluster at once, so the real cause surfaces as a symptom in some
-other domain. Before selecting a row from the routing table, complete BOTH steps:
+other domain. The full check needs the node journals, so first decide whether it applies
+using artifacts you already have.
 
-**1. Compare runtime versions across boots in the node journals** (downloaded in
-Step 5; gzip-compressed **without** a `.gz` extension — plain `grep` silently matches
-nothing, use `zcat`/`zgrep`):
+**Triggers — run the full check if ANY holds:**
+
+1. **Upgrade job**, or `ClusterVersionHistory` in `test-failures-summary_*.json` has more
+   than one entry. Nodes reboot into a new RHCOS mid-run, and OS-layer causes (cri-o
+   regressions, systemd stop timeouts on reboot) are often visible only in the journals.
+2. **OS/runtime variant in the job name**: `rhcos9`, `rhcos10`, `rhcos9_10`, `rt`, `runc`, `crun`.
+3. **Node-scoped failure**: a failed `[sig-node]` test, a node-lifecycle monitor test
+   (e.g. `detects unexpected not ready node`), or `machine-config` unavailable/degraded in
+   `junit_install_status.xml` or `oc_cmds/clusteroperators`.
+4. **Any signal below** in the build log, JUnit failure text, `job_labels/`,
+   `junit_symptoms.xml`, or `oc_cmds/nodes` / `oc_cmds/clusteroperators`:
+   - `NetworkPluginNotReady`, or a missing CNI config (`/etc/cni/net.d` empty / no CNI plugin)
+   - A `ContainerRuntimeVersion` change on nodes (cri-o version bump between runs)
+   - A MachineConfigDaemon (MCD) rendered-config diff touching `passwd`, `files`, or `units`
+   - Multiple nodes going `NotReady` after a reboot
+   - `CreateContainerError`, `RunContainerError`, or OCI runtime errors (`crun` / `runc`)
+   - Kernel `panic`, `BUG`, `Oops`, or `soft lockup`, or a failed panic/segfault case in
+     `junit_symptoms.xml`
+   - `avc: denied` / SELinux denials
+   - The same failure spanning multiple unrelated jobs at a payload boundary
+5. **Unexplained failure**: routing below did not yield a root cause, and you are about to
+   conclude "flake" or "unknown".
+
+**Full check** (download the journals per Step 5, then complete BOTH steps):
+
+**1. Compare runtime versions across boots in the node journals** (gzip-compressed
+**without** a `.gz` extension — plain `grep` silently matches nothing, use `zcat`/`zgrep`):
 
 ```bash
 # Runtime versions per boot. End-of-run snapshots (oc_cmds/nodes, nodes.json)
@@ -141,23 +166,19 @@ zgrep -hE "Starting CRI-O, version|Container runtime initialized" \
   .work/prow-job-analysis/{build_id}/nodes/*/journal | sort | uniq -c
 ```
 
-**2. Scan the build log, JUnit, `oc_cmds` (node / clusteroperator status),
-MachineConfig data, and the journals for these signals:**
+**2. Scan the journals** for the trigger-4 signals, plus failed units and stop timeouts
+around reboots (`Stopping timed out. Killing.`, `Failed with result 'timeout'`).
 
-- `NetworkPluginNotReady`, or a missing CNI config (`/etc/cni/net.d` empty / no CNI plugin)
-- A `ContainerRuntimeVersion` change on nodes (cri-o version bump between runs)
-- A MachineConfigDaemon (MCD) rendered-config diff touching `passwd`, `files`, or `units`
-- Multiple nodes going `NotReady` after a reboot
-- `CreateContainerError`, `RunContainerError`, or OCI runtime errors (`crun` / `runc`)
-- Kernel `panic`, `BUG`, `Oops`, or `soft lockup` in node journals or the serial console
-- `avc: denied` / SELinux denials
-- The same failure spanning multiple unrelated jobs at a payload boundary
-
-If step 1 shows more than one runtime version on any node, or any step-2 signal is
-present, the RHCOS layer is implicated: still route via the table below using whichever
-reference matches the surface symptom, but **also** read
+If step 1 shows more than one runtime version on any node, or step 2 finds a signal, the
+RHCOS layer is implicated: still route via the table below using whichever reference
+matches the surface symptom, but **also** read
 [operating-system-changes.md](references/operating-system-changes.md) alongside it.
 Never clear the OS layer from end-of-run snapshots alone.
+
+**No trigger** (e.g. a ci-operator setup reason with no cluster, or failures confined to
+tests whose error text names a non-node cause): skip the journals, and state in the
+report that the OS-layer check was skipped because no trigger applied. Skipping is not
+clearing — do not claim the OS layer was ruled out.
 
 ## Failure Routing Table
 
