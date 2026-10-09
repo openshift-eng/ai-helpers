@@ -527,15 +527,15 @@ is fully operational.
 ### Location and Extraction
 
 ```text
-{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar
+{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz
 ```
 
 ```bash
 # Download and extract
 gcloud storage cp \
-  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar" \
-  ./libvirt-logs.tar --no-user-output-enabled
-tar -xf ./libvirt-logs.tar
+  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz" \
+  ./libvirt-logs.tar.gz --no-user-output-enabled
+tar -xf ./libvirt-logs.tar.gz
 
 # Find console logs
 find . -name "*console*.log"
@@ -764,12 +764,12 @@ artifacts/{target}/
 │
 ├── baremetalds-devscripts-gather/
 │   └── artifacts/
-│       ├── libvirt-logs.tar                     # VM console logs
+│       ├── libvirt-logs.tar.gz                  # VM console logs
 │       │   └── {cluster}-bootstrap_console.log
 │       │   └── {cluster}-master-0_console.log
 │       │   └── {cluster}-master-1_console.log
 │       │   └── {cluster}-master-2_console.log
-│       ├── log-bundle-*.tar                     # Log bundle with Ironic logs
+│       ├── log-bundle-*.tar.gz                  # Log bundle with Ironic logs (often a censored ~76-byte placeholder)
 │       │   └── bootstrap/journals/
 │       │   │   ├── ironic.log                      # Master provisioning
 │       │   │   ├── metal3-baremetal-operator.log
@@ -779,7 +779,7 @@ artifacts/{target}/
 │       │       ├── metal3-ironic-*.log              # Worker provisioning
 │       │       └── metal3-baremetal-operator-*.log
 │       ├── sosreport-*.tar.xz                      # Hypervisor diagnostics
-│       └── squid-logs-*.tar                     # CI access proxy logs
+│       └── squid-logs-*.tar.gz                  # CI access proxy logs
 ```
 
 ### Downloading Metal Artifacts
@@ -799,13 +799,13 @@ gcloud storage cp -r \
 ```
 
 The tarball artifacts share one locate → copy → extract recipe. Substitute the filename
-pattern for the artifact you need: console logs `libvirt-logs\.tar$`, log bundle
-`log-bundle.*\.tar$`, sosreport `sosreport.*\.tar\.xz$`, squid `squid-logs.*\.tar$`:
+pattern for the artifact you need: console logs `libvirt-logs\.tar\.gz$`, log bundle
+`log-bundle.*\.tar\.gz$`, sosreport `sosreport.*\.tar\.xz$`, squid `squid-logs.*\.tar\.gz$`:
 
 ```bash
 gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 | grep "PATTERN"
-gcloud storage cp {path-from-ls} ./artifact.tar --no-user-output-enabled
-tar -xf ./artifact.tar    # use tar -xJf for .tar.xz (sosreport)
+gcloud storage cp {path-from-ls} ./ --no-user-output-enabled
+tar -xf ./{artifact}.tar.gz    # tar auto-detects gzip/xz; sosreport is .tar.xz
 ```
 
 ---
@@ -877,7 +877,7 @@ infrastructure to the cluster under test, especially in IPv6/disconnected enviro
 ### Location
 
 ```text
-{target}/baremetalds-devscripts-gather/artifacts/squid-logs-*.tar
+{target}/baremetalds-devscripts-gather/artifacts/squid-logs-*.tar.gz
 ```
 
 ### Key Squid Log Patterns
@@ -922,7 +922,7 @@ Read the numbered logs in order. Identify the **first step that failed**.
 
 ### Step 3: Check Console Logs (if available)
 
-Extract and read `libvirt-logs.tar`. Look for:
+Extract and read `libvirt-logs.tar.gz`. Look for:
 - Kernel panics
 - Ignition failures
 - Network configuration problems during boot

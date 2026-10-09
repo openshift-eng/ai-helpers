@@ -427,7 +427,7 @@ artifacts/{target}/gather-extra/
     ├── pods/                  # Pod logs organized by namespace
     ├── audit_logs/            # API server audit logs
     ├── nodes/<node>/journal   # Per-node systemd journal (gzip, no .gz extension)
-    ├── journal_logs/          # Node journal logs (older/alternate layout)
+    ├── inspect/               # oc adm inspect output (YAML per resource, incl. PDBs)
     └── must-gather/           # Inline must-gather data (sometimes)
 ```
 
@@ -498,12 +498,11 @@ gcloud storage cp -r "gs://test-platform-results-public/{bucket-path}/artifacts/
   local/audit_logs/ --no-user-output-enabled 2>/dev/null || true
 ```
 
-### Node journals — `nodes/<node>/journal` (or `journal_logs/`)
+### Node journals — `nodes/<node>/journal`
 
 Systemd journal logs from cluster nodes: kernel messages, service logs, and system-level
-events. Most jobs place them at `gather-extra/artifacts/nodes/<node>/journal`; some use a
-flat `journal_logs/` directory. **The per-node `journal` files are gzip-compressed without
-a `.gz` extension** — plain `grep` matches nothing; use `zcat`/`zgrep`:
+events. They are at `gather-extra/artifacts/nodes/<node>/journal`. **The per-node `journal`
+files are gzip-compressed without a `.gz` extension** — plain `grep` matches nothing; use `zcat`/`zgrep`:
 
 ```bash
 gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes/"
@@ -534,18 +533,18 @@ Location depends on job type:
 
 | Pattern | Location | Job Type |
 |---------|----------|----------|
-| Standard | `{target}/gather-must-gather/artifacts/must-gather.tar` | Most jobs |
+| Standard | `{target}/gather-must-gather/artifacts/must-gather.tar.gz` | Most jobs |
 | HyperShift Unified | `{target}/dump-management-cluster/artifacts/artifacts.tar` or `.tar.gz` | HyperShift (unified) |
-| HyperShift Dump | `{target}/**/artifacts/hypershift-dump.tar` | HyperShift (dual) |
-| HyperShift Hosted | `{target}/**/artifacts/**/hostedcluster.tar` | HyperShift (dual) |
+| HyperShift Dump | `{target}/**/artifacts/hypershift-dump.tar[.gz]` | HyperShift (dual) |
+| HyperShift Hosted | `{target}/**/artifacts/**/hostedcluster.tar.gz` | HyperShift (dual) |
 
 ```bash
 # Find must-gather archives
 gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/must-gather*"
 
 # Find HyperShift dumps
-gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/hypershift-dump.tar" 2>/dev/null
-gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/hostedcluster.tar" 2>/dev/null
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/hypershift-dump.tar*" 2>/dev/null
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/hostedcluster.tar*" 2>/dev/null
 ```
 
 ### Must-Gather Download & Extraction
@@ -557,11 +556,11 @@ failure needs cluster-state diagnostics.
 # 1. Download the archive (path from the Common Artifact Paths / routing table)
 mkdir -p .work/prow-job-analysis/{build_id}/must-gather
 gcloud storage cp \
-  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-must-gather/artifacts/must-gather.tar" \
+  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-must-gather/artifacts/must-gather.tar.gz" \
   .work/prow-job-analysis/{build_id}/must-gather/ --no-user-output-enabled
 
-# 2. Extract the outer archive (use `tar -xzf` if it is gzipped / named *.tar.gz)
-tar -xf .work/prow-job-analysis/{build_id}/must-gather/must-gather.tar \
+# 2. Extract the outer archive (it is gzipped)
+tar -xzf .work/prow-job-analysis/{build_id}/must-gather/must-gather.tar.gz \
   -C .work/prow-job-analysis/{build_id}/must-gather/
 
 # 3. Decompress any nested archives (collectors sometimes gzip logs or bundle sub-dumps)
@@ -678,15 +677,17 @@ Alongside the installer log at `artifacts/{target}/{install-step}/artifacts/inst
 the installer's exit code (a single number). `junit_install.xml` translates this into a
 human-readable failure mode — prefer it.
 
-### Installer Log Bundle (`log-bundle-*.tar.gz`)
+### Installer Log Bundle (`expanded-log-bundle/log-bundle-*/`)
 
 ```bash
-# Find log bundles (metal bundles are gzipped; some cloud bundles are uncompressed .tar)
+# Find the exploded log bundle directory
 gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
-  | grep -E "log-bundle.*\.tar(\.gz)?$"
+  | grep -E "expanded-log-bundle/log-bundle-[^/]+/$"
 ```
 
-A tar archive (NOT `.tar.gz`) of detailed node-level diagnostics. Prefer non-deprovision
+Detailed node-level diagnostics, uploaded exploded under
+`{install-step}/artifacts/expanded-log-bundle/log-bundle-*/`. The sibling `log-bundle-*.tar.gz`
+is a ~76-byte placeholder left by CI's secret sweep — do not download it. Prefer non-deprovision
 bundles.
 
 **Log bundle structure**:
@@ -709,8 +710,8 @@ log-bundle-{timestamp}/
 │       └── containers/
 │           ├── metal3-ironic-*.log    # Worker provisioning Ironic logs (metal)
 │           └── metal3-baremetal-operator-*.log
-├── serial/                            # Serial console logs
-│   ├── {cluster}-bootstrap-serial.log
+├── serial/                            # Serial console logs (name varies by platform)
+│   ├── {cluster}-bootstrap-serial.log # GCP/AWS; Azure: {cluster}-bootstrap.{uuid}.serialconsole.log
 │   └── {cluster}-master-N-serial.log
 ├── clusterapi/
 │   ├── *.yaml                         # Cluster API resources
@@ -722,7 +723,7 @@ log-bundle-{timestamp}/
 
 **Analysis by failure mode**:
 - **Bootstrap failures**: Check `bootstrap/journals/bootkube.log`, `clusterapi/etcd.log`,
-  `clusterapi/kube-apiserver.log`, `serial/*-bootstrap-serial.log`
+  `clusterapi/kube-apiserver.log`, `serial/*bootstrap*.log`
 - **Infrastructure failures**: Focus on installer log — cloud API errors, quota, rate limiting
 - **Cluster creation**: Check must-gather operator logs
 - **Operator stability**: Check must-gather operator conditions and logs
@@ -742,13 +743,13 @@ Raw console output of VMs or bare metal nodes, as if watching a physical console
 
 In log bundles:
 ```text
-log-bundle-{timestamp}/serial/{cluster}-bootstrap-serial.log
+log-bundle-{timestamp}/serial/{cluster}-bootstrap-serial.log      # Azure: *.serialconsole.log
 log-bundle-{timestamp}/serial/{cluster}-master-N-serial.log
 ```
 
 For metal jobs (libvirt console logs):
 ```text
-artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar
+artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz
 ```
 Extract to find `{cluster}-bootstrap_console.log`, `{cluster}-master-{N}_console.log`.
 
@@ -804,7 +805,7 @@ directories.
 ### Libvirt Console Logs
 
 ```text
-artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar
+artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz
 ```
 
 Extract to get VM/node console logs showing the complete boot sequence.
@@ -830,7 +831,7 @@ output. Useful for hypervisor-level issues.
 ### Squid Proxy Logs
 
 ```text
-artifacts/{target}/baremetalds-devscripts-gather/artifacts/squid-logs-*.tar
+artifacts/{target}/baremetalds-devscripts-gather/artifacts/squid-logs-*.tar.gz
 ```
 
 The squid proxy runs on the hypervisor. Logs show **inbound** CI access to the cluster
@@ -897,7 +898,7 @@ gather-extra/artifacts/pods/openshift-monitoring/
 ### Operator Status
 
 Cluster operator status is available in several places:
-- `gather-extra/artifacts/oc_cmds/co` — `oc get clusteroperators` output
+- `gather-extra/artifacts/oc_cmds/clusteroperators` — `oc get clusteroperators` output
 - Must-gather `cluster-scoped-resources/config.openshift.io/clusteroperators/` — Full YAML
 - Timeline files `source: "ClusterOperator"` — Status transitions over time
 
@@ -972,7 +973,7 @@ gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{ta
   local/clusterversion --no-user-output-enabled
 
 # Cluster operators (shows operator status post-upgrade)
-gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/co" \
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/clusteroperators" \
   local/co --no-user-output-enabled
 ```
 
@@ -1007,7 +1008,7 @@ gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{ta
 gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/junit*.xml"
 gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/e2e-timelines_spyglass_*.json"
 gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/must-gather*"
-gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/*.tar"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/*.tar*"
 
 # Recursive listing (pipe to grep for filtering)
 gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
@@ -1063,15 +1064,15 @@ python3 .../prow_job_artifact_search.py <url> search "**/nodes" artifacts
 | Test results (which tests failed) | `artifacts/**/junit*.xml` |
 | Test console output | `artifacts/{target}/openshift-e2e-test/build-log.txt` |
 | Disruption data | `artifacts/**/e2e-timelines_spyglass_*.json` |
-| Cluster operator status | `gather-extra/artifacts/oc_cmds/co` |
+| Cluster operator status | `gather-extra/artifacts/oc_cmds/clusteroperators` |
 | Pod status and logs | `gather-extra/artifacts/pods/{namespace}/` |
 | API audit logs | `gather-extra/artifacts/audit_logs/` |
-| Node journal logs | `gather-extra/artifacts/nodes/<node>/journal` (gzip, no extension — use zcat) or `journal_logs/` |
+| Node journal logs | `gather-extra/artifacts/nodes/<node>/journal` (gzip, no extension — use zcat) |
 | Cluster events | `gather-extra/artifacts/oc_cmds/events` |
-| Must-gather (full cluster state) | `gather-must-gather/artifacts/must-gather.tar` |
+| Must-gather (full cluster state) | `gather-must-gather/artifacts/must-gather.tar.gz` |
 | Installer log | `{install-step}/artifacts/.openshift_install.log` |
-| Installer log bundle | `{install-step}/artifacts/log-bundle-*.tar` |
-| Serial console (VM boot) | `log-bundle-*/serial/` or `libvirt-logs.tar` |
+| Installer log bundle | `{install-step}/artifacts/expanded-log-bundle/log-bundle-*/` |
+| Serial console (VM boot) | `log-bundle-*/serial/` or `libvirt-logs.tar.gz` |
 | Step dependency graph | `artifacts/ci-operator-step-graph.json` |
 | Symptom labels | `artifacts/job_labels/*.json` |
 | Pod lifecycle (job pod) | `podinfo.json` |

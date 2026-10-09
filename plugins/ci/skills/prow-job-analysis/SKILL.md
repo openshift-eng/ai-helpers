@@ -162,7 +162,7 @@ These are the most frequently needed artifacts. See [artifacts reference](refere
 | `artifacts/{target}/gather-extra/artifacts/oc_cmds/` | Cluster state snapshots |
 | `artifacts/{target}/gather-extra/artifacts/pods/` | Pod logs by namespace |
 | `artifacts/{target}/gather-extra/artifacts/audit_logs/` | API server audit logs |
-| `artifacts/{target}/gather-must-gather/artifacts/must-gather.tar` | Must-gather archive |
+| `artifacts/{target}/gather-must-gather/artifacts/must-gather.tar.gz` | Must-gather archive |
 | `prowjob.json` | Job metadata and timing |
 
 ## URL Formats

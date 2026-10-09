@@ -49,8 +49,8 @@ The three patterns, and which cluster each half maps to:
 | Pattern | Detect (under `artifacts/<job-name>/`) | Management data | Hosted data |
 |---------|----------------------------------------|-----------------|-------------|
 | **Unified** | `dump-management-cluster/artifacts/artifacts.tar[.gz]` | extracted `output/` root | `output/hostedcluster-<name>/` |
-| **Dual** | `gather-must-gather/…/must-gather.tar` **and** `**/artifacts/hypershift-dump.tar` (or `**/hostedcluster.tar`) | standard must-gather | the `hostedcluster-*` dir inside the dump (may be absent) |
-| **Standard only** | `gather-must-gather/…/must-gather.tar` alone | standard must-gather | none — management only |
+| **Dual** | `gather-must-gather/…/must-gather.tar.gz` **and** `**/artifacts/hypershift-dump.tar[.gz]` (or `**/hostedcluster.tar.gz`) | standard must-gather | the `hostedcluster-*` dir inside the dump (may be absent) |
+| **Standard only** | `gather-must-gather/…/must-gather.tar.gz` alone | standard must-gather | none — management only |
 
 ### Finding the hosted cluster namespace from artifacts
 
@@ -79,13 +79,13 @@ grep -Eo 'clusters-[a-z0-9-]+' build-log.txt | sort -u
 ## Correlating Across Both Clusters
 
 1. **Download and extract both halves separately.** HyperShift jobs produce a management-side and a
-   hosted-side archive (e.g. `hypershift-dump.tar` / `hostedcluster.tar`, or a unified
+   hosted-side archive (e.g. `hypershift-dump.tar[.gz]` / `hostedcluster.tar.gz`, or a unified
    `dump-management-cluster/artifacts/artifacts.tar` — see the [artifacts reference](artifacts.md)
    for exact paths and general extraction steps):
 
    ```bash
-   mkdir -p must-gather-mgmt && tar -xf hypershift-dump.tar -C must-gather-mgmt/
-   mkdir -p must-gather-hosted && tar -xf hostedcluster.tar -C must-gather-hosted/
+   mkdir -p must-gather-mgmt && tar -xf hypershift-dump.tar* -C must-gather-mgmt/
+   mkdir -p must-gather-hosted && tar -xzf hostedcluster.tar.gz -C must-gather-hosted/
    # Decompress any nested archives in either root
    find must-gather-mgmt must-gather-hosted -name '*.gz' -exec gunzip -f {} +
    ```
