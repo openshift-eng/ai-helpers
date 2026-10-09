@@ -75,7 +75,7 @@ gcloud storage ls "gs://{bucket}/{bucket-path}/artifacts/{target}/gather-extra/a
 | `artifacts/job_labels/*.json` | Sippy symptoms already matched on this run (e.g. `OVSExcessivePollIntervals200`, `QuayCDNImageConfigEOF`) | Skip `label-summary.html`. Context, not cause — see [flaky-test-identification.md](references/flaky-test-identification.md#symptom-labels-correlation-not-cause). `ci:diagnose-job-run-symptoms` explains each label |
 | `gather-extra/artifacts/junit/junit_install_status.xml` | One testcase per ClusterOperator; a failure means it was unavailable, degraded, or progressing **at gather time** | Despite the name it is not install-specific; useful for every job that created a cluster |
 | `gather-extra/artifacts/junit/junit_symptoms.xml` | Gather-time grep of pods and node journals for panics, segfaults, quota errors | A failure here is an OS-layer trigger (Step 6) |
-| `{target}/*/artifacts/junit/alerts_*.json` | Every alert that fired, with namespace, level, and duration | Read when an alert test (`... shouldn't report any alerts in firing state ...`) failed |
+| `{target}/*/artifacts/junit/alerts_*.json` | Every alert that fired, with namespace, level, and duration | Read when an alert test failed — see [alerts.md](references/alerts.md) |
 
 Optionally, `ci:fetch-job-run-summary {build_id}` returns the failed tests **with** error
 messages, grouped by SIG. It works only after Sippy imports the run (typically a few hours
@@ -97,6 +97,7 @@ Parse the job name to determine the environment and expected failure modes:
 | `aggregated-` prefix | Aggregated | Statistical analysis of multiple runs — see [aggregated reference](references/aggregated.md) |
 | `aws`, `gcp`, `azure` | Cloud platform | Platform-specific errors — see [cloud provider reference](references/cloud-provider-errors.md) |
 | `techpreview` | Tech preview | Feature gates enabled, features may be unstable |
+| `runc`, `crun` | Container runtime override | Non-default OCI runtime; compare against the sibling job without the override before blaming the product — see [operating system changes reference](references/operating-system-changes.md) |
 | `rhcos9`, `rhcos10`, `rhcos9_10`, `rt` | RHCOS variant / RT kernel | OS variant pinned or heterogeneous; OS-level differences (kernel/systemd/SELinux) — see [operating system changes reference](references/operating-system-changes.md) |
 
 ### Step 5: Download Key Artifacts
@@ -189,6 +190,7 @@ clearing — do not claim the OS layer was ruled out.
 | A test failed (start here) | [Flaky Test Identification](references/flaky-test-identification.md) | Triage entry for any failing test: classify infra vs product regression vs flake, then route onward |
 | Confirmed regression in a plain e2e test | [Test Failure Root-Cause](references/test-failure.md) | Root-cause a real product regression in a plain (non-extension/install/upgrade) e2e test — e.g. `[sig-network] ... should serve endpoints`: test source, cluster state, originating error |
 | `*-tests-ext` extension binary error | [Test Extension Binaries](references/test-extension-binaries.md) | OTE extension-binary extraction/discovery/version-skew failures — not core `openshift-tests` |
+| Alert test fails (`... alerts in firing state ...`, `[invariant] alert/...`, `No alerts without an explicit test ...`) | [Alerts](references/alerts.md) | Name the alert, pin its window, trace the labelled object to its originating error, and separate blocking failures from fail+pass flakes |
 | Disruption events in intervals | [Disruption](references/disruption.md) | API backends stopped responding; interpret interval/timeline data (cause vs symptom vs noise) |
 | Upgrade-phase failure or regression | [Upgrade](references/upgrade.md) | CVO stuck, operators degraded, MCO drain/reboot stalls, or version skew during upgrade |
 | HyperShift / HCP job failure | [HyperShift](references/hypershift.md) | Hosted control planes — correlate management and hosted clusters |
