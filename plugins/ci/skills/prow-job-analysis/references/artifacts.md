@@ -13,6 +13,12 @@ job failures.
 - **Prow UI URL**: `https://prow.ci.openshift.org/view/gs/test-platform-results-public/{bucket-path}`
 - **gcsweb URL**: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/{bucket-path}`
 
+**Censored placeholders.** CI's secret sweep replaces some files with a ~76-byte text file
+reading "This file contained potentially sensitive information and has been removed." while
+keeping the original name — seen on `log-bundle-*.tar.gz`, `extension_test_result_*.json`,
+and `resource-*.zip`. Check the size (`gcloud storage ls -l`) before downloading or parsing
+an archive; a tiny file is a placeholder, not corrupt data.
+
 ### URL Formats
 
 Both formats are interchangeable:
@@ -208,6 +214,17 @@ to determine which phase a failed step belongs to and the overall execution time
 More detailed than `build-log.txt`: image resolution details, step scheduling decisions, and
 error details.
 
+### `ci-operator-metrics.json` — Step Timing Events
+
+ci-operator events per step (`source`, `reason` such as `Finished`, timestamps). Use it to
+see how long each image build and test step took when hunting for slow or timed-out steps.
+
+### `release/artifacts/release-images-latest` — Payload Contents
+
+The release ImageStream for the payload under test: its name (e.g.
+`4.20.0-0.nightly-2026-10-07-182140`) and every component image tag. Use it to answer
+"which component versions were in this run" without querying the release controller.
+
 ### `job_labels/` — Symptom Labels
 
 Machine-detected symptom labels attached by the CI system. Each JSON file describes a
@@ -276,6 +293,24 @@ artifacts/{target}/openshift-e2e-test/
     │   └── e2e-timelines_spyglass_*.json      # Disruption interval/timeline data
     └── e2e-*.json                             # Additional test metadata
 ```
+
+### Other `openshift-tests` Outputs (`openshift-e2e-test/artifacts/junit/`)
+
+Besides JUnit and timelines, openshift-tests writes small summaries worth reading before
+anything large (`{TS}` is the suite start time, e.g. `20261009-034916`):
+
+| File | Contents |
+|------|----------|
+| `test-failures-summary_{TS}.json` / `test-failures-summary_monitor_{TS}.json` | Failed test names and `ClusterData` (release, platform, network, topology, zone, version history) |
+| `cluster-data_{TS}.json` | `ClusterData` alone |
+| `alerts_{TS}.json` | Every alert that fired, with namespace, level, and duration — see [alerts.md](alerts.md) |
+| `backend-disruption_{TS}.json` | Per-backend disrupted duration and messages — see [disruption.md](disruption.md) |
+| `e2e-events_{TS}.json` | The full interval list (same schema as the timeline JSON) |
+| `e2e-timelines_{area}_{TS}.json` / `.html` | Interval subsets per area: `kube-apiserver`, `openshift-networking`, `operators`, `openshift-monitoring`, `e2e-namespaces`, `everything`, … (`spyglass` is the disruption-focused view) |
+| `openshift-tests-monitor_{TS}.txt` | Monitor-test verdicts, including "Flaky invariants" |
+| `pod-transitions.txt` | Per-workload pod reschedules with node and time spans |
+| `audit-log-summary__{TS}.json` | API request counts by status, user, and resource (`just-users-`/`just-resources-` variants) |
+| `*-autodl.json` | Data loaded into BigQuery (`ci_data_autodl`) — see the `bigquery-ci-data:autodl` skill |
 
 ### `build-log.txt` (Step-Level)
 
@@ -427,7 +462,7 @@ artifacts/{target}/gather-extra/
     ├── pods/                  # Pod logs organized by namespace
     ├── audit_logs/            # API server audit logs
     ├── nodes/<node>/journal   # Per-node systemd journal (gzip, no .gz extension)
-    ├── journal_logs/          # Node journal logs (older/alternate layout)
+    ├── inspect/               # oc adm inspect output (YAML per resource, incl. PDBs)
     └── must-gather/           # Inline must-gather data (sometimes)
 ```
 
@@ -498,12 +533,11 @@ gcloud storage cp -r "gs://test-platform-results-public/{bucket-path}/artifacts/
   local/audit_logs/ --no-user-output-enabled 2>/dev/null || true
 ```
 
-### Node journals — `nodes/<node>/journal` (or `journal_logs/`)
+### Node journals — `nodes/<node>/journal`
 
 Systemd journal logs from cluster nodes: kernel messages, service logs, and system-level
-events. Most jobs place them at `gather-extra/artifacts/nodes/<node>/journal`; some use a
-flat `journal_logs/` directory. **The per-node `journal` files are gzip-compressed without
-a `.gz` extension** — plain `grep` matches nothing; use `zcat`/`zgrep`:
+events. They are at `gather-extra/artifacts/nodes/<node>/journal`. **The per-node `journal`
+files are gzip-compressed without a `.gz` extension** — plain `grep` matches nothing; use `zcat`/`zgrep`:
 
 ```bash
 gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes/"
@@ -521,6 +555,17 @@ zgrep -E "Out of memory|Kernel panic" local/nodes/*/journal
 - Network interface events
 - kubelet log entries
 
+### Other `gather-extra` Artifacts
+
+| Path | Contents |
+|------|----------|
+| `inspect/` | `oc adm inspect` output: YAML per resource under `cluster-scoped-resources/` and `namespaces/<ns>/`, including pod logs at `namespaces/<ns>/pods/<pod>/<container>/<container>/logs/{current,previous}.log`. Already unpacked — often enough without downloading must-gather |
+| `metrics/prometheus.tar.gz` | Prometheus TSDB snapshot (hundreds of MB). Load it with PromeCIeus (`https://promecieus.dptools.openshift.org/`) to run PromQL against the run; `metrics/job_metrics.json` holds a few precomputed queries (capacity, CPU usage) |
+| `network/` | Per-`ovnkube-node` pod `iptables-save-*`, `nft-list-ruleset-*`, and `ss-*` output, plus multus logs |
+| `nodes/<node>/heap`, `nodes/<node>/lsmod` | Kubelet pprof heap profile and loaded kernel modules per node |
+| `junit/junit_install_status.xml`, `junit/junit_symptoms.xml` | Operator conditions and journal/pod panic checks at gather time (see SKILL.md Step 3) |
+| `*.json` at the top level (`pods.json`, `nodes.json`, `clusteroperators.json`, `events.json`, …) | Full `-o json` versions of most `oc_cmds/` snapshots |
+
 ---
 
 ## Must-Gather Archives
@@ -534,18 +579,18 @@ Location depends on job type:
 
 | Pattern | Location | Job Type |
 |---------|----------|----------|
-| Standard | `{target}/gather-must-gather/artifacts/must-gather.tar` | Most jobs |
+| Standard | `{target}/gather-must-gather/artifacts/must-gather.tar.gz` | Most jobs |
 | HyperShift Unified | `{target}/dump-management-cluster/artifacts/artifacts.tar` or `.tar.gz` | HyperShift (unified) |
-| HyperShift Dump | `{target}/**/artifacts/hypershift-dump.tar` | HyperShift (dual) |
-| HyperShift Hosted | `{target}/**/artifacts/**/hostedcluster.tar` | HyperShift (dual) |
+| HyperShift Dump | `{target}/**/artifacts/hypershift-dump.tar[.gz]` | HyperShift (dual) |
+| HyperShift Hosted | `{target}/**/artifacts/**/hostedcluster.tar.gz` | HyperShift (dual) |
 
 ```bash
 # Find must-gather archives
 gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/must-gather*"
 
 # Find HyperShift dumps
-gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/hypershift-dump.tar" 2>/dev/null
-gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/hostedcluster.tar" 2>/dev/null
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/hypershift-dump.tar*" 2>/dev/null
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/hostedcluster.tar*" 2>/dev/null
 ```
 
 ### Must-Gather Download & Extraction
@@ -557,11 +602,11 @@ failure needs cluster-state diagnostics.
 # 1. Download the archive (path from the Common Artifact Paths / routing table)
 mkdir -p .work/prow-job-analysis/{build_id}/must-gather
 gcloud storage cp \
-  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-must-gather/artifacts/must-gather.tar" \
+  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-must-gather/artifacts/must-gather.tar.gz" \
   .work/prow-job-analysis/{build_id}/must-gather/ --no-user-output-enabled
 
-# 2. Extract the outer archive (use `tar -xzf` if it is gzipped / named *.tar.gz)
-tar -xf .work/prow-job-analysis/{build_id}/must-gather/must-gather.tar \
+# 2. Extract the outer archive (it is gzipped)
+tar -xzf .work/prow-job-analysis/{build_id}/must-gather/must-gather.tar.gz \
   -C .work/prow-job-analysis/{build_id}/must-gather/
 
 # 3. Decompress any nested archives (collectors sometimes gzip logs or bundle sub-dumps)
@@ -637,129 +682,34 @@ HyperShift jobs use one of three must-gather patterns:
 
 ## Installer Artifacts
 
-Produced by the OpenShift installer during cluster creation.
+Produced by the installer in the install step (`ipi-install-install`, or
+`ipi-install-install-stableinitial` in upgrade jobs). How to read them is in
+[install/general.md](install/general.md) (§ Installer Logs, § Log Bundle, § Reading the
+Installer Log Effectively); this section only maps paths.
 
-### Installer Logs
+| Path under `{target}/{install-step}/artifacts/` | Contents |
+|------------------------------------------------|----------|
+| `.openshift_install-*.log` | Installer log — read backwards from the final error (exclude `ipi-deprovision-*` copies, which are teardown) |
+| `install-status.txt` | Installer exit code only; `junit_install.xml` maps it to a failure stage |
+| `expanded-log-bundle/log-bundle-*/` | The log bundle, exploded: `bootstrap/journals/` (bootkube, kubelet, crio), `control-plane/<ip>/`, `clusterapi/` (etcd and kube-apiserver logs), `serial/`, `failed-units.txt`. The sibling `log-bundle-*.tar.gz` is a ~76-byte censored placeholder |
+| `clusterapi_output-*/` | Cluster API objects the installer created (below) |
 
-```bash
-# Find installer logs and state file (exclude deprovision — those are from teardown)
-gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
-  | grep -E "\.openshift_install(_state\.json|.*\.log)$" | grep -v "deprovision"
-```
+### `clusterapi_output-*/` — Cluster API Manifests
 
-**Location**: Varies by job configuration. Commonly found at:
-```text
-artifacts/{target}/{install-step}/artifacts/.openshift_install.log
-artifacts/{target}/{install-step}/artifacts/.openshift_install_state.json
-```
-
-**Log format**: Structured text with timestamp, level, and message:
-```text
-time="2026-01-15T10:23:45Z" level=info msg="Consuming Install Config from target directory"
-time="2026-01-15T10:45:12Z" level=error msg="bootstrap failed to complete"
-time="2026-01-15T10:45:12Z" level=fatal msg="failed waiting for bootstrapping to complete"
-```
-
-**Key patterns** (always work backwards from the end):
-- `level=error` or `level=fatal` — Error messages (focus on **last** ones, not first)
-- `"Still waiting for"` — Components not yet ready at timeout
-- `"Cluster operators X, Y, Z are not available"` — Final operator status
-- `"context deadline exceeded"` — Installation timeout
-- `"terraform"` — Terraform errors (older versions)
-- `"clusterapi"` or `"machine-api"` — Cluster API errors (newer versions)
-
-**Critical analysis principle**: OpenShift installations exhibit **eventual consistency**.
-Components report errors while waiting for dependencies — early errors are expected and
-usually resolve. Always analyze backwards from the final timeout, not forwards from the start.
-
-### `install-status.txt`
-
-Alongside the installer log at `artifacts/{target}/{install-step}/artifacts/install-status.txt` —
-the installer's exit code (a single number). `junit_install.xml` translates this into a
-human-readable failure mode — prefer it.
-
-### Installer Log Bundle (`log-bundle-*.tar.gz`)
-
-```bash
-# Find log bundles (metal bundles are gzipped; some cloud bundles are uncompressed .tar)
-gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
-  | grep -E "log-bundle.*\.tar(\.gz)?$"
-```
-
-A tar archive (NOT `.tar.gz`) of detailed node-level diagnostics. Prefer non-deprovision
-bundles.
-
-**Log bundle structure**:
-```text
-log-bundle-{timestamp}/
-├── bootstrap/
-│   ├── journals/
-│   │   ├── bootkube.log               # Bootstrap control plane init
-│   │   ├── kubelet.log                # Bootstrap kubelet
-│   │   ├── crio.log                   # Container runtime logs
-│   │   ├── ironic.log                 # Ironic logs (metal jobs only)
-│   │   ├── metal3-baremetal-operator.log  # Metal3 BMO (metal jobs only)
-│   │   └── journal.log.gz            # Complete system journal
-│   └── network/
-│       ├── ip-addr.txt                # IP addresses
-│       ├── ip-route.txt               # Routing table
-│       └── hostname.txt               # Hostname
-├── control-plane/
-│   └── {node-ip}/
-│       └── containers/
-│           ├── metal3-ironic-*.log    # Worker provisioning Ironic logs (metal)
-│           └── metal3-baremetal-operator-*.log
-├── serial/                            # Serial console logs
-│   ├── {cluster}-bootstrap-serial.log
-│   └── {cluster}-master-N-serial.log
-├── clusterapi/
-│   ├── *.yaml                         # Cluster API resources
-│   ├── etcd.log                       # etcd logs
-│   └── kube-apiserver.log             # API server logs
-├── failed-units.txt                   # Failed systemd units
-└── gather.log                         # Log bundle collection log
-```
-
-**Analysis by failure mode**:
-- **Bootstrap failures**: Check `bootstrap/journals/bootkube.log`, `clusterapi/etcd.log`,
-  `clusterapi/kube-apiserver.log`, `serial/*-bootstrap-serial.log`
-- **Infrastructure failures**: Focus on installer log — cloud API errors, quota, rate limiting
-- **Cluster creation**: Check must-gather operator logs
-- **Operator stability**: Check must-gather operator conditions and logs
-
-### `metadata.json` — Cluster Metadata
-
-Cluster name, ID, infrastructure platform, and region. In the install step artifacts
-directory.
+The Cluster API objects (`Cluster`, `<Platform>Cluster`, `<Platform>Machine`, `Machine`)
+the installer created, as YAML, in the install step's artifacts. Their `status` shows which
+machine failed to provision. The installer's `metadata.json` is **not** uploaded.
 
 ---
 
 ## Serial Console Logs
 
-Raw console output of VMs or bare metal nodes, as if watching a physical console.
-
-### Location
-
-In log bundles:
-```text
-log-bundle-{timestamp}/serial/{cluster}-bootstrap-serial.log
-log-bundle-{timestamp}/serial/{cluster}-master-N-serial.log
-```
-
-For metal jobs (libvirt console logs):
-```text
-artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar
-```
-Extract to find `{cluster}-bootstrap_console.log`, `{cluster}-master-{N}_console.log`.
-
-### What They Reveal
-
-- **Kernel panics**: `panic`, `kernel`, `oops`
-- **Ignition failures**: `ignition`, `config fetch failed`, `Ignition failed`
-- **Hardware/disk issues**: `mount`, `disk`, `filesystem`, `I/O error`
-- **Network configuration**: `dhcp`, `network unreachable`, `DNS`, `timeout`
-- **Boot sequence**: Kernel messages, initramfs, CoreOS startup
-- **Service failures**: systemd errors, unit failures
+Raw VM console output — the only record of kernel panics, Ignition failures, and boot hangs on
+nodes that never joined. Cloud jobs: `log-bundle-*/serial/{cluster}-{role}-serial.log` (Azure:
+`*.serialconsole.log`, plus `*.screenshot.bmp`). Metal jobs: `{cluster}-*_console.log` inside
+`baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz`. Search for `panic`, `Oops`,
+`Ignition failed`, `config fetch failed`, `I/O error`, and systemd unit failures; see
+[install/general.md](install/general.md) and [install/metal.md](install/metal.md).
 
 ---
 
@@ -804,7 +754,7 @@ directories.
 ### Libvirt Console Logs
 
 ```text
-artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar
+artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz
 ```
 
 Extract to get VM/node console logs showing the complete boot sequence.
@@ -830,7 +780,7 @@ output. Useful for hypervisor-level issues.
 ### Squid Proxy Logs
 
 ```text
-artifacts/{target}/baremetalds-devscripts-gather/artifacts/squid-logs-*.tar
+artifacts/{target}/baremetalds-devscripts-gather/artifacts/squid-logs-*.tar.gz
 ```
 
 The squid proxy runs on the hypervisor. Logs show **inbound** CI access to the cluster
@@ -839,79 +789,25 @@ connectivity to the cluster in IPv6/disconnected environments.
 
 ---
 
-## Cluster Event Artifacts
+## Where Cluster State Lives
 
-### Kubernetes Events (`oc_cmds/events`)
+The same state is captured several ways; pick by whether you need the end state, full YAML,
+or changes over time.
 
-Cluster-wide Kubernetes events captured at gather time — warnings, errors, and informational
-events across all namespaces.
+| Topic | End-of-run snapshot | Full YAML | Over time (timeline `source`) |
+|-------|---------------------|-----------|-------------------------------|
+| ClusterOperators | `gather-extra/artifacts/oc_cmds/clusteroperators` | `inspect/cluster-scoped-resources/config.openshift.io/clusteroperators/`, must-gather | `ClusterOperator` |
+| Nodes | `oc_cmds/nodes` (`oc get nodes -o wide`) | `nodes.json`, `inspect/cluster-scoped-resources/core/nodes/` | `NodeMonitor` |
+| Machines | `oc_cmds/machines`, `oc_cmds/machinesets` | `machines.json`, `machinesets.json` | `MachineMonitor` |
+| Events | `oc_cmds/events` | `events.json` | `e2e-events_*.json` |
+| etcd | — | `pods/openshift-etcd/`, log bundle `clusterapi/etcd.log` | `EtcdLog`, `EtcdDiskCommitDuration`, `EtcdDiskWalFsyncDuration` |
+| Alerts | `alerts_*.json` | — | `Alert` — see [alerts.md](alerts.md) |
+| CPU / cloud disk metrics | `metrics/job_metrics.json` | `metrics/prometheus.tar.gz` | `CPUMonitor` (>95% node CPU), `CloudMetrics` (Azure disk IOPS, queue depth, latency) |
 
-### etcd Events and Logs
-
-Available in multiple locations:
-- **Timeline files**: `EtcdLog`, `EtcdDiskCommitDuration`, `EtcdDiskWalFsyncDuration` sources
-- **Pod logs**: `gather-extra/artifacts/pods/openshift-etcd/`
-- **Log bundle**: `clusterapi/etcd.log`
-
-Key etcd indicators:
-- `"apply request took too long"` — write pressure
-- `"slow fdatasync"` — disk I/O bottleneck
-- `"waiting for ReadIndex response took too long"` — read latency
-- Leader election events — cluster instability
-- Commit duration above 25ms or WAL fsync above 10ms thresholds
-
----
-
-## Monitoring and Metrics Artifacts
-
-### CloudMetrics (in Timeline Files)
-
-Azure disk metrics under `source: "CloudMetrics"`:
-- Disk IOPS (read/write)
-- Queue depth
-- Bandwidth
-- Latency
-
-### CPUMonitor (in Timeline Files)
-
-Node CPU utilization above 95%, under `source: "CPUMonitor"`.
-
-### Prometheus Alerts (in Timeline Files)
-
-Firing alerts under `source: "Alert"`. Common critical alerts:
-- `ExtremelyHighIndividualControlPlaneCPU`
-- `etcdHighCommitDurations`
-- `etcdHighNumberOfFailedGRPCRequests`
-
-### Monitoring Stack Logs
-
-Monitoring pod logs (if available):
-```text
-gather-extra/artifacts/pods/openshift-monitoring/
-```
-
----
-
-## Cluster State Artifacts
-
-### Operator Status
-
-Cluster operator status is available in several places:
-- `gather-extra/artifacts/oc_cmds/co` — `oc get clusteroperators` output
-- Must-gather `cluster-scoped-resources/config.openshift.io/clusteroperators/` — Full YAML
-- Timeline files `source: "ClusterOperator"` — Status transitions over time
-
-### Node Status
-
-- `gather-extra/artifacts/oc_cmds/nodes` — `oc get nodes -o yaml`
-- Timeline files `source: "NodeMonitor"` — Node condition changes
-- Must-gather `cluster-scoped-resources/core/nodes/` — Full node YAML
-
-### Machine Info
-
-- `gather-extra/artifacts/oc_cmds/machines` — Machine objects
-- `gather-extra/artifacts/oc_cmds/machinesets` — MachineSet status
-- Timeline files `source: "MachineMonitor"` — Machine phase changes
+etcd log signals: `apply request took too long` (write pressure), `slow fdatasync` (disk),
+`waiting for ReadIndex response took too long` (read latency), frequent leader elections.
+Commit duration above 25ms or WAL fsync above 10ms is unhealthy — see
+[resource-exhaustion.md](resource-exhaustion.md).
 
 ---
 
@@ -951,42 +847,12 @@ gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{ta
 
 ## Upgrade Job Artifacts
 
-Upgrade jobs produce artifacts under **multiple workflow step directories**, one per phase.
-Key differences from non-upgrade jobs:
-
-### Multiple Timeline Files
-
-Upgrade jobs typically produce two timeline files (one per phase):
-```bash
-gcloud storage ls "gs://test-platform-results-public/logs/{job_name}/{build_id}/artifacts/**/e2e-timelines_spyglass_*.json"
-```
-
-The first file (sorted by filename) is the **upgrade phase**; the second is the
-**conformance/e2e test phase**.
-
-### Upgrade-Specific Cluster State
-
-```bash
-# Cluster version (shows upgrade progress)
-gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/clusterversion" \
-  local/clusterversion --no-user-output-enabled
-
-# Cluster operators (shows operator status post-upgrade)
-gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/co" \
-  local/co --no-user-output-enabled
-```
-
-### Upgrade Source Information
-
-Extract upgrade source from `prowjob.json`:
-```bash
-# Upgrade source tag
-jq -r '.metadata.annotations["release.openshift.io/from-tag"] // empty' prowjob.json
-
-# Release images
-jq -r '.spec.pod_spec.containers[0].env[] | select(.name == "RELEASE_IMAGE_INITIAL") | .value' prowjob.json
-jq -r '.spec.pod_spec.containers[0].env[] | select(.name == "RELEASE_IMAGE_LATEST") | .value' prowjob.json
-```
+Upgrade jobs run several test steps, so expect more than one `e2e-timelines_spyglass_*.json`
+and `test-failures-summary_*.json`: the first by filename is the upgrade phase, the next the
+post-upgrade conformance phase. The install step is `ipi-install-install-stableinitial`. The
+upgrade source is `release.openshift.io/from-tag` / `RELEASE_IMAGE_INITIAL` in `prowjob.json`
+(see `fetch-prowjob-json`). Everything else — phases, ClusterVersion history, MCO drain — is in
+[upgrade.md](upgrade.md#upgrade-specific-artifact-patterns).
 
 ---
 
@@ -1007,7 +873,7 @@ gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{ta
 gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/junit*.xml"
 gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/e2e-timelines_spyglass_*.json"
 gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/must-gather*"
-gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/*.tar"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/*.tar*"
 
 # Recursive listing (pipe to grep for filtering)
 gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
@@ -1017,7 +883,8 @@ gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/
 ### Using the Artifact Search Script
 
 This skill bundles a Python script (`prow_job_artifact_search.py`) for structured artifact access
-with JSON output. Default fetch limit is 512KB; use `--max-bytes` for larger files.
+with JSON output. Default fetch limit is 512KB; use `--max-bytes` for larger files and
+`--tail` to read the end of a file instead (build logs put the failure summary last).
 
 ```bash
 # List directory contents
@@ -1028,6 +895,9 @@ python3 plugins/ci/skills/prow-job-analysis/prow_job_artifact_search.py <url> se
 
 # Fetch a specific file (default 512KB limit)
 python3 plugins/ci/skills/prow-job-analysis/prow_job_artifact_search.py <url> fetch <filepath> [--max-bytes N]
+
+# Fetch the last 64KB of a build log
+python3 plugins/ci/skills/prow-job-analysis/prow_job_artifact_search.py <url> fetch build-log.txt --tail --max-bytes 65536
 ```
 
 ### Common Search Patterns
@@ -1063,15 +933,15 @@ python3 .../prow_job_artifact_search.py <url> search "**/nodes" artifacts
 | Test results (which tests failed) | `artifacts/**/junit*.xml` |
 | Test console output | `artifacts/{target}/openshift-e2e-test/build-log.txt` |
 | Disruption data | `artifacts/**/e2e-timelines_spyglass_*.json` |
-| Cluster operator status | `gather-extra/artifacts/oc_cmds/co` |
+| Cluster operator status | `gather-extra/artifacts/oc_cmds/clusteroperators` |
 | Pod status and logs | `gather-extra/artifacts/pods/{namespace}/` |
 | API audit logs | `gather-extra/artifacts/audit_logs/` |
-| Node journal logs | `gather-extra/artifacts/nodes/<node>/journal` (gzip, no extension — use zcat) or `journal_logs/` |
+| Node journal logs | `gather-extra/artifacts/nodes/<node>/journal` (gzip, no extension — use zcat) |
 | Cluster events | `gather-extra/artifacts/oc_cmds/events` |
-| Must-gather (full cluster state) | `gather-must-gather/artifacts/must-gather.tar` |
+| Must-gather (full cluster state) | `gather-must-gather/artifacts/must-gather.tar.gz` |
 | Installer log | `{install-step}/artifacts/.openshift_install.log` |
-| Installer log bundle | `{install-step}/artifacts/log-bundle-*.tar` |
-| Serial console (VM boot) | `log-bundle-*/serial/` or `libvirt-logs.tar` |
+| Installer log bundle | `{install-step}/artifacts/expanded-log-bundle/log-bundle-*/` |
+| Serial console (VM boot) | `log-bundle-*/serial/` or `libvirt-logs.tar.gz` |
 | Step dependency graph | `artifacts/ci-operator-step-graph.json` |
 | Symptom labels | `artifacts/job_labels/*.json` |
 | Pod lifecycle (job pod) | `podinfo.json` |

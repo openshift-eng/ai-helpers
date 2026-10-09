@@ -74,8 +74,8 @@ Paths are relative to `artifacts/{target}/` (cluster under test). Full form:
 | Node conditions/capacity | `gather-extra/artifacts/oc_cmds/nodes` | `MemoryPressure`/`DiskPressure`/`PIDPressure`, allocatable |
 | Cluster events | `gather-extra/artifacts/oc_cmds/events` | `Evicted`, `SystemOOM`, `FailedScheduling`, `ProvisioningFailed` |
 | Pod snapshot | `gather-extra/artifacts/oc_cmds/pods` | `RESTARTS`, `Pending`, `Evicted`, `OOMKilled` status |
-| PV/PVC | `gather-extra/artifacts/oc_cmds/pv` | Bound vs available volumes |
-| Node journals | `gather-extra/artifacts/journal_logs/` | Kernel OOM (`Out of memory`), kubelet eviction |
+| PV/PVC | `gather-extra/artifacts/oc_cmds/persistentvolumes` | Bound vs available volumes |
+| Node journals | `gather-extra/artifacts/nodes/<node>/journal` (gzip — use `zgrep`) | Kernel OOM (`Out of memory`), kubelet eviction |
 | etcd pod logs | `gather-extra/artifacts/pods/openshift-etcd/` | `NOSPACE`, quota exceeded, compaction |
 | Pod YAML (container status) | must-gather `namespaces/<ns>/pods/<pod>/<pod>.yaml` | `lastState.terminated.{reason,exitCode}`, `restartCount` |
 | Host service logs | must-gather `host_service_logs/masters/{kubelet,crio}_service.log` | kubelet eviction/OOM decisions |
@@ -141,14 +141,14 @@ spot the pod first; the YAML confirms the reason.
 1. **Pod status** (most reliable): must-gather pod YAML `containerStatuses[].lastState.terminated`.
 2. **Events**: `oc_cmds/events` / must-gather events — node-level OOM shows `SystemOOM`;
    Node Problem Detector (when present) emits `OOMKilling`.
-3. **Node journal**: `journal_logs/` — grep `Out of memory`, `oom-kill:`, `Killed process`,
+3. **Node journal**: `nodes/<node>/journal` — `zgrep` `Out of memory`, `oom-kill:`, `Killed process`,
    `Memory cgroup out of memory`. The victim's `(comm)` and RSS are logged here.
 4. **Kernel/dmesg**: on nodes that never became Ready, kernel OOM appears in the install
    log bundle serial console (see [install/general.md](install/general.md)) rather than the journal.
 
 ```bash
-grep -rEi "out of memory|oom-kill|killed process|cgroup out of memory" \
-  gather-extra/artifacts/journal_logs/
+zgrep -Ei "out of memory|oom-kill|killed process|cgroup out of memory" \
+  gather-extra/artifacts/nodes/*/journal
 ```
 
 ---
@@ -305,7 +305,7 @@ Notes:
   [cloud-provider-errors.md](cloud-provider-errors.md); CSI-driver crashes are a product/infra
   bug — check the driver pods under `gather-extra/artifacts/pods/`.
 
-Look in `oc_cmds/pv`, `oc_cmds/events` (grep `ProvisioningFailed|Multi-Attach|exceed`), and
+Look in `oc_cmds/persistentvolumes`, `oc_cmds/events` (grep `ProvisioningFailed|Multi-Attach|exceed`), and
 the CSI driver/`openshift-cluster-csi-drivers` pod logs.
 
 ---

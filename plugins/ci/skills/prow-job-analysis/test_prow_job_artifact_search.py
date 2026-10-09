@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""Tests for prow_job_artifact_search.parse_prow_url."""
+"""Tests for prow_job_artifact_search URL parsing and fetch windows."""
+import io
 import unittest
+from unittest import mock
 
+import prow_job_artifact_search as pjas
 from prow_job_artifact_search import parse_prow_url
 
 
@@ -53,6 +56,59 @@ class ParseProwURLTest(unittest.TestCase):
             parse_prow_url(
                 "https://prow.ci.openshift.org/view/gs/test-platform-results-public/"
             )
+
+
+class FakeResponse:
+    def __init__(self, body, status=200, headers=None):
+        self._stream = io.BytesIO(body)
+        self.status = status
+        self.headers = headers or {}
+
+    def read(self, n=-1):
+        return self._stream.read(n)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class FetchWindowTest(unittest.TestCase):
+    BODY = b"0123456789"
+
+    def test_select_window_head_and_tail(self):
+        self.assertEqual(pjas._select_window(self.BODY, 4), b"0123")
+        self.assertEqual(pjas._select_window(self.BODY, 4, tail=True), b"6789")
+        self.assertEqual(pjas._select_window(self.BODY, 0, tail=True), b"")
+
+    def test_tail_uses_partial_content_response(self):
+        resp = FakeResponse(b"6789", status=206, headers={"Content-Range": "bytes 6-9/10"})
+        with mock.patch("urllib.request.urlopen", return_value=resp) as urlopen:
+            size, truncated, content = pjas._http_fetch("b", "o", 4, tail=True)
+        self.assertEqual(urlopen.call_args[0][0].get_header("Range"), "bytes=-4")
+        self.assertEqual((size, truncated, content), (10, True, "6789"))
+
+    def test_tail_falls_back_when_range_ignored(self):
+        resp = FakeResponse(self.BODY, status=200, headers={"Content-Length": "10"})
+        with mock.patch("urllib.request.urlopen", return_value=resp):
+            self.assertEqual(pjas._http_fetch("b", "o", 4, tail=True), (10, True, "6789"))
+
+    def test_read_tail_streams_in_chunks(self):
+        resp = FakeResponse(self.BODY)
+        self.assertEqual(pjas._read_tail(resp, 4, chunk_size=3), (b"6789", 10))
+
+    def test_tail_fallback_reads_past_read_cap(self):
+        resp = FakeResponse(self.BODY, status=200)
+        with mock.patch("urllib.request.urlopen", return_value=resp), \
+                mock.patch.object(pjas, "FETCH_READ_CAP", 5):
+            self.assertEqual(pjas._http_fetch("b", "o", 4, tail=True), (10, True, "6789"))
+
+    def test_head_fetch_unchanged(self):
+        resp = FakeResponse(self.BODY, status=200, headers={"Content-Length": "10"})
+        with mock.patch("urllib.request.urlopen", return_value=resp) as urlopen:
+            self.assertEqual(pjas._http_fetch("b", "o", 4), (10, True, "0123"))
+        self.assertIsNone(urlopen.call_args[0][0].get_header("Range"))
 
 
 if __name__ == "__main__":

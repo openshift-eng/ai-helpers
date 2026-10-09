@@ -19,7 +19,7 @@ fallback even when gcloud is present.
 Usage:
     prow_job_artifact_search.py <prow-url> list [subpath]
     prow_job_artifact_search.py <prow-url> search <pattern> [subpath]
-    prow_job_artifact_search.py <prow-url> fetch <filepath> [--max-bytes N]
+    prow_job_artifact_search.py <prow-url> fetch <filepath> [--max-bytes N] [--tail]
 
 Examples:
     # List top-level artifacts
@@ -39,6 +39,9 @@ Examples:
 
     # Fetch with size limit (default 512KB)
     prow_job_artifact_search.py <url> fetch artifacts/e2e-test/build-log.txt --max-bytes 1048576
+
+    # Fetch the last 64KB (where build logs summarize failures)
+    prow_job_artifact_search.py <url> fetch build-log.txt --tail --max-bytes 65536
 """
 
 import argparse
@@ -290,16 +293,51 @@ def _http_search_lines(bucket, prefix, pattern, subpath=None):
     return sorted(lines)
 
 
-def _http_fetch(bucket, obj_path, max_bytes):
+def _select_window(data, max_bytes, tail=False):
+    """Return the first (or, with ``tail``, the last) ``max_bytes`` of ``data``."""
+    if tail:
+        return data[-max_bytes:] if max_bytes else b""
+    return data[:max_bytes]
+
+
+def _read_tail(resp, max_bytes, chunk_size=1024 * 1024):
+    """Stream ``resp`` to the end; return (last ``max_bytes`` bytes, total bytes read)."""
+    window = b""
+    total = 0
+    while True:
+        chunk = resp.read(chunk_size)
+        if not chunk:
+            return window, total
+        total += len(chunk)
+        window = (window + chunk)[-max_bytes:] if max_bytes else b""
+
+
+def _http_fetch(bucket, obj_path, max_bytes, tail=False):
     """Download an object's content from ``bucket`` via the public download API.
 
     Returns (size_bytes, truncated, content). ``size_bytes`` is the object's
-    full size (from Content-Length when available); ``content`` holds at most
-    ``max_bytes`` decoded characters.
+    full size (from Content-Length / Content-Range when available); ``content``
+    holds at most ``max_bytes`` decoded characters — from the start of the
+    object, or from its end when ``tail`` is set.
     """
     url = f"{GCS_DOWNLOAD_ROOT}/{bucket}/{urllib.parse.quote(obj_path)}"
-    req = urllib.request.Request(url, headers=HTTP_HEADERS)
+    headers = dict(HTTP_HEADERS)
+    if tail:
+        # Suffix range: ask only for the last max_bytes. For objects stored
+        # gzip-encoded (most logs), GCS ignores the range on urllib's
+        # "Accept-Encoding: identity" request and answers 200 with the full
+        # decoded body, which the fallback below slices instead.
+        headers["Range"] = f"bytes=-{max_bytes}"
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+        if tail and resp.status == 206:
+            # Content-Range: bytes <first>-<last>/<total>
+            total = resp.headers.get("Content-Range", "").rpartition("/")[2]
+            data = resp.read(max_bytes)
+            size_bytes = int(total) if total.isdigit() else len(data)
+            truncated = size_bytes > len(data)
+            return size_bytes, truncated, data.decode("utf-8", errors="replace")
+
         content_length = resp.headers.get("Content-Length")
         size_bytes = None
         if content_length is not None:
@@ -308,19 +346,26 @@ def _http_fetch(bucket, obj_path, max_bytes):
             except ValueError:
                 size_bytes = None
 
-        if size_bytes is not None:
+        if tail:
+            # The range was ignored: stream the whole body, keeping only the
+            # last max_bytes, so the window is the real end of the object even
+            # past FETCH_READ_CAP and memory stays bounded.
+            data, streamed = _read_tail(resp, max_bytes)
+            if size_bytes is None:
+                size_bytes = streamed
+        elif size_bytes is not None:
             # Size is known up front — only pull what we need for the content.
             data = resp.read(max_bytes)
         else:
             # No Content-Length (e.g. gzip decompressive transcoding streams the
             # decoded body without a length). Read the full body — bounded by a
-            # safety cap — so size_bytes and truncation are accurate. This mirrors
-            # gcloud, which downloads the whole object before reading it.
+            # safety cap — so size_bytes and truncation are accurate. This
+            # mirrors gcloud, which downloads the whole object before reading it.
             data = resp.read(FETCH_READ_CAP + 1)
             size_bytes = len(data)
 
     truncated = size_bytes > max_bytes
-    content = data[:max_bytes].decode("utf-8", errors="replace")
+    content = _select_window(data, max_bytes, tail).decode("utf-8", errors="replace")
     return size_bytes, truncated, content
 
 
@@ -449,8 +494,8 @@ def cmd_search(bucket, prefix, pattern, subpath=None):
     }
 
 
-def cmd_fetch(bucket, prefix, filepath, max_bytes=DEFAULT_MAX_BYTES):
-    """Fetch contents of a specific file from GCS."""
+def cmd_fetch(bucket, prefix, filepath, max_bytes=DEFAULT_MAX_BYTES, tail=False):
+    """Fetch contents of a specific file from GCS (its end instead, with ``tail``)."""
     target = gcs_path(bucket, prefix, filepath)
 
     if gcloud_available():
@@ -476,8 +521,10 @@ def cmd_fetch(bucket, prefix, filepath, max_bytes=DEFAULT_MAX_BYTES):
             file_size = os.path.getsize(tmp_path)
             truncated = file_size > max_bytes
 
-            with open(tmp_path, "r", errors="replace") as f:
-                content = f.read(max_bytes)
+            with open(tmp_path, "rb") as f:
+                if tail and truncated:
+                    f.seek(-max_bytes, os.SEEK_END)
+                content = f.read(max_bytes).decode("utf-8", errors="replace")
 
             return {
                 "success": True,
@@ -485,6 +532,7 @@ def cmd_fetch(bucket, prefix, filepath, max_bytes=DEFAULT_MAX_BYTES):
                 "size_bytes": file_size,
                 "truncated": truncated,
                 "max_bytes": max_bytes,
+                "tail": tail,
                 "content": content,
             }
         finally:
@@ -492,7 +540,9 @@ def cmd_fetch(bucket, prefix, filepath, max_bytes=DEFAULT_MAX_BYTES):
                 os.unlink(tmp_path)
     else:
         try:
-            size_bytes, truncated, content = _http_fetch(bucket, object_path(prefix, filepath), max_bytes)
+            size_bytes, truncated, content = _http_fetch(
+                bucket, object_path(prefix, filepath), max_bytes, tail
+            )
         except urllib.error.HTTPError as e:
             return {
                 "success": False,
@@ -512,6 +562,7 @@ def cmd_fetch(bucket, prefix, filepath, max_bytes=DEFAULT_MAX_BYTES):
             "size_bytes": size_bytes,
             "truncated": truncated,
             "max_bytes": max_bytes,
+            "tail": tail,
             "content": content,
         }
 
@@ -567,6 +618,12 @@ def main():
         default=DEFAULT_MAX_BYTES,
         help=f"Maximum bytes to read (default: {DEFAULT_MAX_BYTES})",
     )
+    fetch_parser.add_argument(
+        "--tail",
+        action="store_true",
+        help="Return the last --max-bytes of the file instead of the first "
+        "(build logs put the failure summary at the end)",
+    )
 
     args = parser.parse_args()
 
@@ -581,7 +638,7 @@ def main():
     elif args.command == "search":
         result = cmd_search(bucket, prefix, args.pattern, args.subpath)
     elif args.command == "fetch":
-        result = cmd_fetch(bucket, prefix, args.filepath, args.max_bytes)
+        result = cmd_fetch(bucket, prefix, args.filepath, args.max_bytes, args.tail)
     else:
         print(json.dumps({"success": False, "error": f"Unknown command: {args.command}"}))
         sys.exit(1)

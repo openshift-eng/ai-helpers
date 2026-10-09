@@ -1165,9 +1165,9 @@ Quick reference for locating disruption-relevant artifacts:
 | Timeline data | `artifacts/{target}/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_*.json` | Disruption events + concurrent cluster activity |
 | Audit logs | `artifacts/{target}/gather-extra/artifacts/audit_logs/` | API request details during disruption |
 | etcd pod logs | `artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/` | etcd health and leader changes |
-| Journal logs | `artifacts/{target}/gather-extra/artifacts/journal_logs/` | Node-level OVS and systemd logs |
+| Journal logs | `artifacts/{target}/gather-extra/artifacts/nodes/<node>/journal` (gzip — use `zgrep`) | Node-level OVS and systemd logs |
 | Symptom labels | `artifacts/job_labels/*.json` | Machine-detected symptom patterns |
-| Cluster operators | `artifacts/{target}/gather-extra/artifacts/oc_cmds/co` | Operator status at gather time |
+| Cluster operators | `artifacts/{target}/gather-extra/artifacts/oc_cmds/clusteroperators` | Operator status at gather time |
 | Node status | `artifacts/{target}/gather-extra/artifacts/oc_cmds/nodes` | Node conditions at gather time |
 | Pod status | `artifacts/{target}/gather-extra/artifacts/pods/` | Pod logs organized by namespace |
 

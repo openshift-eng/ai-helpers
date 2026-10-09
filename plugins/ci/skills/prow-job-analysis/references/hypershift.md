@@ -49,8 +49,8 @@ The three patterns, and which cluster each half maps to:
 | Pattern | Detect (under `artifacts/<job-name>/`) | Management data | Hosted data |
 |---------|----------------------------------------|-----------------|-------------|
 | **Unified** | `dump-management-cluster/artifacts/artifacts.tar[.gz]` | extracted `output/` root | `output/hostedcluster-<name>/` |
-| **Dual** | `gather-must-gather/…/must-gather.tar` **and** `**/artifacts/hypershift-dump.tar` (or `**/hostedcluster.tar`) | standard must-gather | the `hostedcluster-*` dir inside the dump (may be absent) |
-| **Standard only** | `gather-must-gather/…/must-gather.tar` alone | standard must-gather | none — management only |
+| **Dual** | `gather-must-gather/…/must-gather.tar.gz` **and** `**/artifacts/hypershift-dump.tar[.gz]` (or `**/hostedcluster.tar.gz`) | standard must-gather | the `hostedcluster-*` dir inside the dump (may be absent) |
+| **Standard only** | `gather-must-gather/…/must-gather.tar.gz` alone | standard must-gather | none — management only |
 
 ### Finding the hosted cluster namespace from artifacts
 
@@ -78,15 +78,25 @@ grep -Eo 'clusters-[a-z0-9-]+' build-log.txt | sort -u
 
 ## Correlating Across Both Clusters
 
-1. **Download and extract both halves separately.** HyperShift jobs produce a management-side and a
-   hosted-side archive (e.g. `hypershift-dump.tar` / `hostedcluster.tar`, or a unified
-   `dump-management-cluster/artifacts/artifacts.tar` — see the [artifacts reference](artifacts.md)
-   for exact paths and general extraction steps):
+1. **Download and extract each half separately**, choosing the commands for the pattern
+   detected above (see the [artifacts reference](artifacts.md) for exact paths). `tar -xf`
+   auto-detects gzip, so it handles both `.tar` and `.tar.gz`:
 
    ```bash
-   mkdir -p must-gather-mgmt && tar -xf hypershift-dump.tar -C must-gather-mgmt/
-   mkdir -p must-gather-hosted && tar -xf hostedcluster.tar -C must-gather-hosted/
-   # Decompress any nested archives in either root
+   mkdir -p must-gather-mgmt must-gather-hosted
+
+   # Unified: one archive holds both halves
+   tar -xf artifacts.tar* -C must-gather-mgmt/   # mgmt = output/; hosted = output/hostedcluster-<name>/
+
+   # Dual: management from the standard must-gather; hosted from the dump
+   tar -xf must-gather.tar.gz -C must-gather-mgmt/
+   tar -xf hypershift-dump.tar* -C must-gather-hosted/   # or hostedcluster.tar.gz
+   # hosted data is the hostedcluster-* dir inside it — it may be absent
+
+   # Standard only: management must-gather alone; there is no hosted archive
+   tar -xf must-gather.tar.gz -C must-gather-mgmt/
+
+   # Decompress any nested archives in whichever roots exist
    find must-gather-mgmt must-gather-hosted -name '*.gz' -exec gunzip -f {} +
    ```
 
