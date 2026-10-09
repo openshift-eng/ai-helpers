@@ -682,97 +682,17 @@ HyperShift jobs use one of three must-gather patterns:
 
 ## Installer Artifacts
 
-Produced by the OpenShift installer during cluster creation.
+Produced by the installer in the install step (`ipi-install-install`, or
+`ipi-install-install-stableinitial` in upgrade jobs). How to read them is in
+[install/general.md](install/general.md) (§ Installer Logs, § Log Bundle, § Reading the
+Installer Log Effectively); this section only maps paths.
 
-### Installer Logs
-
-```bash
-# Find installer logs and state file (exclude deprovision — those are from teardown)
-gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
-  | grep -E "\.openshift_install(_state\.json|.*\.log)$" | grep -v "deprovision"
-```
-
-**Location**: Varies by job configuration. Commonly found at:
-```text
-artifacts/{target}/{install-step}/artifacts/.openshift_install.log
-artifacts/{target}/{install-step}/artifacts/.openshift_install_state.json
-```
-
-**Log format**: Structured text with timestamp, level, and message:
-```text
-time="2026-01-15T10:23:45Z" level=info msg="Consuming Install Config from target directory"
-time="2026-01-15T10:45:12Z" level=error msg="bootstrap failed to complete"
-time="2026-01-15T10:45:12Z" level=fatal msg="failed waiting for bootstrapping to complete"
-```
-
-**Key patterns** (always work backwards from the end):
-- `level=error` or `level=fatal` — Error messages (focus on **last** ones, not first)
-- `"Still waiting for"` — Components not yet ready at timeout
-- `"Cluster operators X, Y, Z are not available"` — Final operator status
-- `"context deadline exceeded"` — Installation timeout
-- `"terraform"` — Terraform errors (older versions)
-- `"clusterapi"` or `"machine-api"` — Cluster API errors (newer versions)
-
-**Critical analysis principle**: OpenShift installations exhibit **eventual consistency**.
-Components report errors while waiting for dependencies — early errors are expected and
-usually resolve. Always analyze backwards from the final timeout, not forwards from the start.
-
-### `install-status.txt`
-
-Alongside the installer log at `artifacts/{target}/{install-step}/artifacts/install-status.txt` —
-the installer's exit code (a single number). `junit_install.xml` translates this into a
-human-readable failure mode — prefer it.
-
-### Installer Log Bundle (`expanded-log-bundle/log-bundle-*/`)
-
-```bash
-# Find the exploded log bundle directory
-gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
-  | grep -E "expanded-log-bundle/log-bundle-[^/]+/$"
-```
-
-Detailed node-level diagnostics, uploaded exploded under
-`{install-step}/artifacts/expanded-log-bundle/log-bundle-*/`. The sibling `log-bundle-*.tar.gz`
-is a ~76-byte placeholder left by CI's secret sweep — do not download it. Prefer non-deprovision
-bundles.
-
-**Log bundle structure**:
-```text
-log-bundle-{timestamp}/
-├── bootstrap/
-│   ├── journals/
-│   │   ├── bootkube.log               # Bootstrap control plane init
-│   │   ├── kubelet.log                # Bootstrap kubelet
-│   │   ├── crio.log                   # Container runtime logs
-│   │   ├── ironic.log                 # Ironic logs (metal jobs only)
-│   │   ├── metal3-baremetal-operator.log  # Metal3 BMO (metal jobs only)
-│   │   └── journal.log.gz            # Complete system journal
-│   └── network/
-│       ├── ip-addr.txt                # IP addresses
-│       ├── ip-route.txt               # Routing table
-│       └── hostname.txt               # Hostname
-├── control-plane/
-│   └── {node-ip}/
-│       └── containers/
-│           ├── metal3-ironic-*.log    # Worker provisioning Ironic logs (metal)
-│           └── metal3-baremetal-operator-*.log
-├── serial/                            # Serial console logs (name varies by platform)
-│   ├── {cluster}-bootstrap-serial.log # GCP/AWS; Azure: {cluster}-bootstrap.{uuid}.serialconsole.log
-│   └── {cluster}-master-N-serial.log
-├── clusterapi/
-│   ├── *.yaml                         # Cluster API resources
-│   ├── etcd.log                       # etcd logs
-│   └── kube-apiserver.log             # API server logs
-├── failed-units.txt                   # Failed systemd units
-└── gather.log                         # Log bundle collection log
-```
-
-**Analysis by failure mode**:
-- **Bootstrap failures**: Check `bootstrap/journals/bootkube.log`, `clusterapi/etcd.log`,
-  `clusterapi/kube-apiserver.log`, `serial/*bootstrap*.log`
-- **Infrastructure failures**: Focus on installer log — cloud API errors, quota, rate limiting
-- **Cluster creation**: Check must-gather operator logs
-- **Operator stability**: Check must-gather operator conditions and logs
+| Path under `{target}/{install-step}/artifacts/` | Contents |
+|------------------------------------------------|----------|
+| `.openshift_install-*.log` | Installer log — read backwards from the final error (exclude `ipi-deprovision-*` copies, which are teardown) |
+| `install-status.txt` | Installer exit code only; `junit_install.xml` maps it to a failure stage |
+| `expanded-log-bundle/log-bundle-*/` | The log bundle, exploded: `bootstrap/journals/` (bootkube, kubelet, crio), `control-plane/<ip>/`, `clusterapi/` (etcd and kube-apiserver logs), `serial/`, `failed-units.txt`. The sibling `log-bundle-*.tar.gz` is a ~76-byte censored placeholder |
+| `clusterapi_output-*/` | Cluster API objects the installer created (below) |
 
 ### `clusterapi_output-*/` — Cluster API Manifests
 
@@ -784,30 +704,12 @@ machine failed to provision. The installer's `metadata.json` is **not** uploaded
 
 ## Serial Console Logs
 
-Raw console output of VMs or bare metal nodes, as if watching a physical console.
-
-### Location
-
-In log bundles:
-```text
-log-bundle-{timestamp}/serial/{cluster}-bootstrap-serial.log      # Azure: *.serialconsole.log
-log-bundle-{timestamp}/serial/{cluster}-master-N-serial.log
-```
-
-For metal jobs (libvirt console logs):
-```text
-artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz
-```
-Extract to find `{cluster}-bootstrap_console.log`, `{cluster}-master-{N}_console.log`.
-
-### What They Reveal
-
-- **Kernel panics**: `panic`, `kernel`, `oops`
-- **Ignition failures**: `ignition`, `config fetch failed`, `Ignition failed`
-- **Hardware/disk issues**: `mount`, `disk`, `filesystem`, `I/O error`
-- **Network configuration**: `dhcp`, `network unreachable`, `DNS`, `timeout`
-- **Boot sequence**: Kernel messages, initramfs, CoreOS startup
-- **Service failures**: systemd errors, unit failures
+Raw VM console output — the only record of kernel panics, Ignition failures, and boot hangs on
+nodes that never joined. Cloud jobs: `log-bundle-*/serial/{cluster}-{role}-serial.log` (Azure:
+`*.serialconsole.log`, plus `*.screenshot.bmp`). Metal jobs: `{cluster}-*_console.log` inside
+`baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz`. Search for `panic`, `Oops`,
+`Ignition failed`, `config fetch failed`, `I/O error`, and systemd unit failures; see
+[install/general.md](install/general.md) and [install/metal.md](install/metal.md).
 
 ---
 
@@ -887,79 +789,25 @@ connectivity to the cluster in IPv6/disconnected environments.
 
 ---
 
-## Cluster Event Artifacts
+## Where Cluster State Lives
 
-### Kubernetes Events (`oc_cmds/events`)
+The same state is captured several ways; pick by whether you need the end state, full YAML,
+or changes over time.
 
-Cluster-wide Kubernetes events captured at gather time — warnings, errors, and informational
-events across all namespaces.
+| Topic | End-of-run snapshot | Full YAML | Over time (timeline `source`) |
+|-------|---------------------|-----------|-------------------------------|
+| ClusterOperators | `gather-extra/artifacts/oc_cmds/clusteroperators` | `inspect/cluster-scoped-resources/config.openshift.io/clusteroperators/`, must-gather | `ClusterOperator` |
+| Nodes | `oc_cmds/nodes` (`oc get nodes -o wide`) | `nodes.json`, `inspect/cluster-scoped-resources/core/nodes/` | `NodeMonitor` |
+| Machines | `oc_cmds/machines`, `oc_cmds/machinesets` | `machines.json`, `machinesets.json` | `MachineMonitor` |
+| Events | `oc_cmds/events` | `events.json` | `e2e-events_*.json` |
+| etcd | — | `pods/openshift-etcd/`, log bundle `clusterapi/etcd.log` | `EtcdLog`, `EtcdDiskCommitDuration`, `EtcdDiskWalFsyncDuration` |
+| Alerts | `alerts_*.json` | — | `Alert` — see [alerts.md](alerts.md) |
+| CPU / cloud disk metrics | `metrics/job_metrics.json` | `metrics/prometheus.tar.gz` | `CPUMonitor` (>95% node CPU), `CloudMetrics` (Azure disk IOPS, queue depth, latency) |
 
-### etcd Events and Logs
-
-Available in multiple locations:
-- **Timeline files**: `EtcdLog`, `EtcdDiskCommitDuration`, `EtcdDiskWalFsyncDuration` sources
-- **Pod logs**: `gather-extra/artifacts/pods/openshift-etcd/`
-- **Log bundle**: `clusterapi/etcd.log`
-
-Key etcd indicators:
-- `"apply request took too long"` — write pressure
-- `"slow fdatasync"` — disk I/O bottleneck
-- `"waiting for ReadIndex response took too long"` — read latency
-- Leader election events — cluster instability
-- Commit duration above 25ms or WAL fsync above 10ms thresholds
-
----
-
-## Monitoring and Metrics Artifacts
-
-### CloudMetrics (in Timeline Files)
-
-Azure disk metrics under `source: "CloudMetrics"`:
-- Disk IOPS (read/write)
-- Queue depth
-- Bandwidth
-- Latency
-
-### CPUMonitor (in Timeline Files)
-
-Node CPU utilization above 95%, under `source: "CPUMonitor"`.
-
-### Prometheus Alerts (in Timeline Files)
-
-Firing alerts under `source: "Alert"`. Common critical alerts:
-- `ExtremelyHighIndividualControlPlaneCPU`
-- `etcdHighCommitDurations`
-- `etcdHighNumberOfFailedGRPCRequests`
-
-### Monitoring Stack Logs
-
-Monitoring pod logs (if available):
-```text
-gather-extra/artifacts/pods/openshift-monitoring/
-```
-
----
-
-## Cluster State Artifacts
-
-### Operator Status
-
-Cluster operator status is available in several places:
-- `gather-extra/artifacts/oc_cmds/clusteroperators` — `oc get clusteroperators` output
-- Must-gather `cluster-scoped-resources/config.openshift.io/clusteroperators/` — Full YAML
-- Timeline files `source: "ClusterOperator"` — Status transitions over time
-
-### Node Status
-
-- `gather-extra/artifacts/oc_cmds/nodes` — `oc get nodes -o yaml`
-- Timeline files `source: "NodeMonitor"` — Node condition changes
-- Must-gather `cluster-scoped-resources/core/nodes/` — Full node YAML
-
-### Machine Info
-
-- `gather-extra/artifacts/oc_cmds/machines` — Machine objects
-- `gather-extra/artifacts/oc_cmds/machinesets` — MachineSet status
-- Timeline files `source: "MachineMonitor"` — Machine phase changes
+etcd log signals: `apply request took too long` (write pressure), `slow fdatasync` (disk),
+`waiting for ReadIndex response took too long` (read latency), frequent leader elections.
+Commit duration above 25ms or WAL fsync above 10ms is unhealthy — see
+[resource-exhaustion.md](resource-exhaustion.md).
 
 ---
 
@@ -999,42 +847,12 @@ gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{ta
 
 ## Upgrade Job Artifacts
 
-Upgrade jobs produce artifacts under **multiple workflow step directories**, one per phase.
-Key differences from non-upgrade jobs:
-
-### Multiple Timeline Files
-
-Upgrade jobs typically produce two timeline files (one per phase):
-```bash
-gcloud storage ls "gs://test-platform-results-public/logs/{job_name}/{build_id}/artifacts/**/e2e-timelines_spyglass_*.json"
-```
-
-The first file (sorted by filename) is the **upgrade phase**; the second is the
-**conformance/e2e test phase**.
-
-### Upgrade-Specific Cluster State
-
-```bash
-# Cluster version (shows upgrade progress)
-gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/clusterversion" \
-  local/clusterversion --no-user-output-enabled
-
-# Cluster operators (shows operator status post-upgrade)
-gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/clusteroperators" \
-  local/co --no-user-output-enabled
-```
-
-### Upgrade Source Information
-
-Extract upgrade source from `prowjob.json`:
-```bash
-# Upgrade source tag
-jq -r '.metadata.annotations["release.openshift.io/from-tag"] // empty' prowjob.json
-
-# Release images
-jq -r '.spec.pod_spec.containers[0].env[] | select(.name == "RELEASE_IMAGE_INITIAL") | .value' prowjob.json
-jq -r '.spec.pod_spec.containers[0].env[] | select(.name == "RELEASE_IMAGE_LATEST") | .value' prowjob.json
-```
+Upgrade jobs run several test steps, so expect more than one `e2e-timelines_spyglass_*.json`
+and `test-failures-summary_*.json`: the first by filename is the upgrade phase, the next the
+post-upgrade conformance phase. The install step is `ipi-install-install-stableinitial`. The
+upgrade source is `release.openshift.io/from-tag` / `RELEASE_IMAGE_INITIAL` in `prowjob.json`
+(see `fetch-prowjob-json`). Everything else — phases, ClusterVersion history, MCO drain — is in
+[upgrade.md](upgrade.md#upgrade-specific-artifact-patterns).
 
 ---
 
