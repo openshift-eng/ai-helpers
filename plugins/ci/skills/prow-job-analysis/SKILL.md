@@ -204,6 +204,32 @@ clearing — do not claim the OS layer was ruled out.
 
 Job-name routing (Step 4) picks which reference to read. Failure classification (`install` | `test` | `upgrade` | `infra`) follows the root cause, not the job name.
 
+## Report
+
+End every analysis with a report in this shape. If the caller supplies its own return format
+(for example payload-analysis's `ANALYSIS_RESULT` block), use the caller's format and carry
+these facts into its fields.
+
+```text
+Job:            <job name> / <build_id> — <Prow URL>
+Cluster:        <release/payload>, <platform>, <network>, <topology> (from ClusterData when present)
+Classification: install | test | upgrade | infra   (from the root cause, not the job name)
+Install stage:  configuration | infrastructure | cluster bootstrap | cluster creation |
+                cluster operator stability | other   (install failures only)
+Failed step:    <ci-operator step> — reason <ci-operator reason>
+Failed tests:   <blocking failures>; flakes (fail+pass) listed separately
+Root cause:     <one line naming the originating error, not the symptom>
+Evidence:       <verbatim log excerpts, each with its artifact path>
+Components:     <affected operators/components; owning team or Jira component if known>
+Symptoms:       <job_labels matched, or "none">
+OS layer:       implicated | ruled out by journal check | skipped (no trigger)
+References:     <reference files consulted>
+Confidence:     high | medium | low — <what would raise it>
+Next steps:     <revert, bug, retest, or deeper investigation, with targets>
+```
+
+Write "unknown" rather than guessing, and say which artifact was missing or censored.
+
 ## Common Artifact Paths
 
 These are the most frequently needed artifacts. See [artifacts reference](references/artifacts.md) for the complete directory structure.
