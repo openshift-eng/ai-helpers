@@ -1065,7 +1065,8 @@ gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/
 ### Using the Artifact Search Script
 
 This skill bundles a Python script (`prow_job_artifact_search.py`) for structured artifact access
-with JSON output. Default fetch limit is 512KB; use `--max-bytes` for larger files.
+with JSON output. Default fetch limit is 512KB; use `--max-bytes` for larger files and
+`--tail` to read the end of a file instead (build logs put the failure summary last).
 
 ```bash
 # List directory contents
@@ -1076,6 +1077,9 @@ python3 plugins/ci/skills/prow-job-analysis/prow_job_artifact_search.py <url> se
 
 # Fetch a specific file (default 512KB limit)
 python3 plugins/ci/skills/prow-job-analysis/prow_job_artifact_search.py <url> fetch <filepath> [--max-bytes N]
+
+# Fetch the last 64KB of a build log
+python3 plugins/ci/skills/prow-job-analysis/prow_job_artifact_search.py <url> fetch build-log.txt --tail --max-bytes 65536
 ```
 
 ### Common Search Patterns

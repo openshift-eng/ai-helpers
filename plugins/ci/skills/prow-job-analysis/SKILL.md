@@ -28,7 +28,7 @@ The user will provide:
 - **gcloud CLI** (recommended, not required): `which gcloud` — fastest access to the
   public bucket (no auth required). Without it, every artifact operation works over
   plain HTTPS: [prow_job_artifact_search.py](prow_job_artifact_search.py)
-  (stdlib-only `list`/`search`/`fetch`) or `curl` against
+  (stdlib-only `list`/`search`/`fetch`; `fetch --tail` reads a log's end) or `curl` against
   `https://storage.googleapis.com/test-platform-results-public/...`.
 
 ## Investigation Workflow
