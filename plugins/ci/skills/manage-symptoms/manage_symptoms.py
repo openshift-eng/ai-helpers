@@ -38,9 +38,16 @@ def validate_symptom(payload):
         errs.append("file_pattern is required for matcher_type %r" % mt)
     if mt in ("string", "regex", "cel") and not payload.get("match_string"):
         errs.append("match_string is required for matcher_type %r" % mt)
-    if not payload.get("label_ids"):
+    label_ids = payload.get("label_ids")
+    if not label_ids:
         errs.append("at least one label ID is required (a symptom must always "
                     "apply a label; create the label first with the manage-labels skill)")
+    else:
+        # Check for infrafailure label (case-insensitive)
+        for label_id in label_ids:
+            if label_id.lower() == "infrafailure":
+                errs.append("the 'InfraFailure' label must not be used for symptoms - "
+                            "choose a more specific label that describes the actual failure type")
     return errs
 
 
