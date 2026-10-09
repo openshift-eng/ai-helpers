@@ -402,13 +402,14 @@ log-bundle-*/control-plane/{node-ip}/containers/metal3-baremetal-operator-*.log
 ### How to Find and Read Ironic Logs
 
 ```bash
-# Download and extract log bundle — matches the exploded dir and the legacy tarball
-# (CI gunzips everything, so tarballs are .tar, never .tar.gz; recent jobs upload the
-# bundle exploded as a log-bundle-*/ directory — download it with gcloud storage cp -r)
-gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
+# Find the log bundle. Prefer an exploded expanded-log-bundle/log-bundle-*/ directory
+# (copy it with cp -r, no extraction). A log-bundle-*.tar.gz of ~76 bytes is a censored
+# placeholder (common on dev-scripts metal jobs) — the bundle is then unavailable.
+gcloud storage ls -l -r "gs://test-platform-results-public/{bucket-path}/artifacts/" 2>&1 \
   | grep "log-bundle"
-gcloud storage cp {log-bundle-path} ./log-bundle.tar --no-user-output-enabled
-tar -xf ./log-bundle.tar
+gcloud storage cp -r "{expanded-log-bundle-dir}" ./ --no-user-output-enabled
+# or, for a real (non-placeholder) tarball:
+gcloud storage cp {log-bundle-path} ./ --no-user-output-enabled && tar -xzf ./log-bundle-*.tar.gz
 
 # Find bootstrap Ironic logs (master provisioning)
 find . -path "*/bootstrap/journals/ironic.log"
