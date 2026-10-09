@@ -50,7 +50,39 @@ Use the `fetch-prowjob-json` skill to get job metadata. Extract:
 - **Job state** from `.status.state`
 - **Refs** (org, repo, PR number) from `.spec.refs`
 
-### Step 3: Classify Job Type from Name
+### Step 3: Read the Pre-Digested Failure Summaries
+
+openshift-tests and the gather steps already summarize most of what you need. Read these
+small (KB-sized) files **before** downloading logs, journals, or must-gather — they usually
+name the failed step, the failed tests, the cluster shape, and known failure signatures.
+Each may be absent; absence is itself a signal (noted below).
+
+```bash
+# 1. ci-operator verdict: which step failed and why (tail only — the log can exceed 500 KB)
+curl -s -r -20000 "https://storage.googleapis.com/{bucket}/{bucket-path}/build-log.txt" \
+  | grep -aE "Reporting job state|could not run steps|step .* failed"
+
+# 2. Locate the per-job summaries (one per test step that ran openshift-tests)
+gcloud storage ls "gs://{bucket}/{bucket-path}/artifacts/**/test-failures-summary_*.json"
+gcloud storage ls "gs://{bucket}/{bucket-path}/artifacts/job_labels/*.json"
+gcloud storage ls "gs://{bucket}/{bucket-path}/artifacts/{target}/gather-extra/artifacts/junit/"
+```
+
+| Artifact | What it answers | Notes |
+|----------|-----------------|-------|
+| `build-log.txt` (tail) | Failed step and ci-operator `reason` (e.g. `...:executing_multi_stage_test`) | A setup reason (`importing_release`, `acquiring_lease`, `pod_pending`, …) means the test never got a fair run — see [flaky-test-identification.md](references/flaky-test-identification.md#a-ci-operator-failure-reason-means-the-test-never-got-a-fair-run) |
+| `{target}/*/artifacts/junit/test-failures-summary_*.json` | `.Tests[].Test.Name` — the failed tests; `.ClusterData` — release, platform, network, topology, region/zone, `ClusterVersionHistory` | Names only, no error text (get that from `junit_e2e_*.xml` or the step `build-log.txt`). `test-failures-summary_monitor_*.json` covers monitor tests. More than one `ClusterVersionHistory` entry means an upgrade ran. **Absent** → openshift-tests never ran: treat as install/infra |
+| `artifacts/job_labels/*.json` | Sippy symptoms already matched on this run (e.g. `OVSExcessivePollIntervals200`, `QuayCDNImageConfigEOF`) | Skip `label-summary.html`. Context, not cause — see [flaky-test-identification.md](references/flaky-test-identification.md#symptom-labels-correlation-not-cause). `ci:diagnose-job-run-symptoms` explains each label |
+| `gather-extra/artifacts/junit/junit_install_status.xml` | One testcase per ClusterOperator; a failure means it was unavailable, degraded, or progressing **at gather time** | Despite the name it is not install-specific; useful for every job that created a cluster |
+| `gather-extra/artifacts/junit/junit_symptoms.xml` | Gather-time grep of pods and node journals for panics, segfaults, quota errors | A failure here is an OS-layer trigger (Step 6) |
+| `{target}/*/artifacts/junit/alerts_*.json` | Every alert that fired, with namespace, level, and duration | Read when an alert test (`... shouldn't report any alerts in firing state ...`) failed |
+
+Optionally, `ci:fetch-job-run-summary {build_id}` returns the failed tests **with** error
+messages, grouped by SIG. It works only after Sippy imports the run (typically a few hours
+after it finishes), and its output can run to megabytes — write it to a file under
+`.work/prow-job-analysis/{build_id}/` and read the per-test headers rather than printing it.
+
+### Step 4: Classify Job Type from Name
 
 Parse the job name to determine the environment and expected failure modes:
 
@@ -67,7 +99,7 @@ Parse the job name to determine the environment and expected failure modes:
 | `techpreview` | Tech preview | Feature gates enabled, features may be unstable |
 | `rhcos9`, `rhcos10`, `rhcos9_10`, `rt` | RHCOS variant / RT kernel | OS variant pinned or heterogeneous; OS-level differences (kernel/systemd/SELinux) — see [operating system changes reference](references/operating-system-changes.md) |
 
-### Step 4: Download Key Artifacts
+### Step 5: Download Key Artifacts
 
 ```bash
 mkdir -p .work/prow-job-analysis/{build_id}/logs
@@ -80,15 +112,15 @@ gcloud storage cp gs://{bucket}/{bucket-path}/build-log.txt \
 gcloud storage ls "gs://{bucket}/{bucket-path}/artifacts/**/junit*.xml" 2>/dev/null
 
 # Node journals (always, when the job created a cluster) — required input for the
-# Step 5 OS-layer check. Gzip-compressed WITHOUT a .gz extension: zcat/zgrep only.
+# Step 6 OS-layer check. Gzip-compressed WITHOUT a .gz extension: zcat/zgrep only.
 gcloud storage cp -r \
   "gs://{bucket}/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes" \
   .work/prow-job-analysis/{build_id}/ --no-user-output-enabled 2>/dev/null || true
 ```
 
-### Step 5: Classify Failure and Route to Reference
+### Step 6: Classify Failure and Route to Reference
 
-Examine the build log and JUnit results to classify the failure, then consult the
+Use the Step 3 summaries, the build log, and JUnit results to classify the failure, then consult the
 appropriate reference file for detailed analysis procedures.
 
 #### OS-layer evidence check (mandatory for every job, before routing)
@@ -99,7 +131,7 @@ policy across the whole cluster at once, so the real cause surfaces as a symptom
 other domain. Before selecting a row from the routing table, complete BOTH steps:
 
 **1. Compare runtime versions across boots in the node journals** (downloaded in
-Step 4; gzip-compressed **without** a `.gz` extension — plain `grep` silently matches
+Step 5; gzip-compressed **without** a `.gz` extension — plain `grep` silently matches
 nothing, use `zcat`/`zgrep`):
 
 ```bash
@@ -147,7 +179,7 @@ Never clear the OS layer from end-of-run snapshots alone.
 | Lease/quota, ci-operator, Prow infra | [CI Infrastructure](references/ci-infrastructure-changes.md) | Distinguish "product broke" from "CI config changed"; ci-operator, step registry, leases |
 | Need a specific artifact file | [Artifacts](references/artifacts.md) | Artifact directory structure, paths, and gcloud fetch commands |
 
-Job-name routing (Step 3) picks which reference to read. Failure classification (`install` | `test` | `upgrade` | `infra`) follows the root cause, not the job name.
+Job-name routing (Step 4) picks which reference to read. Failure classification (`install` | `test` | `upgrade` | `infra`) follows the root cause, not the job name.
 
 ## Common Artifact Paths
 
@@ -182,8 +214,8 @@ or `prow-artifact-archive` when the URL names it).
 
 ## Tips
 
-- **Start with build-log.txt** — it shows the ci-operator orchestration and which steps failed
-- **JUnit XML is the source of truth** for test pass/fail status
+- **Start with the Step 3 summaries** — the build-log tail, `test-failures-summary_*.json`, and `job_labels/` answer most first questions for a few KB
+- **JUnit XML is the source of truth** for test pass/fail status and error text
 - **Job name encodes environment** — always parse it before diving into logs
 - **Check `prowjob.json`** for timing, payload tag, and whether the job timed out
 - **Upgrade jobs install first** — an "upgrade" job failing at install is an install failure, not an upgrade failure
