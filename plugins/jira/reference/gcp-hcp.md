@@ -52,6 +52,8 @@ Components are **optional** — only specify if work clearly fits. Do not reques
 
 Source: [jira-story-template.md](https://github.com/openshift-online/gcp-hcp/blob/main/docs/jira-story-template.md)
 
+**Refinement**: Stories can be refined via the weekly Backlog Refinement meeting or through offline refinement in Slack (#team-gcp-hcp-eng using the Request Ticket Review workflow, requiring 24 hours + 2 +1s). Both paths require meeting the Definition of Ready.
+
 #### User Story
 
 **As a** [platform user/developer/operations team/end user]
@@ -195,6 +197,10 @@ Source: [definition-of-done.md](https://github.com/openshift-online/gcp-hcp/blob
 1. Findings documented
 2. Decision documented in architecture docs
 3. Resulting backlog items created
+
+#### Bug Refinement
+
+**Bug refinement is optional and at the author's discretion.** Straightforward bugs can proceed directly to To Do after meeting the Definition of Ready. Bring complex bugs to the weekly Backlog Refinement meeting if they need team input on root cause, approach, or scope.
 
 #### Bug DoD
 
