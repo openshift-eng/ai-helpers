@@ -5,7 +5,7 @@ from manage_symptoms import (validate_symptom, build_update_payload,
 def test_valid_string_symptom():
     assert validate_symptom({"summary": "AWS auth failure", "matcher_type": "string",
                              "file_pattern": "build-log.txt", "match_string": "AuthFailure",
-                             "label_ids": ["InfraFailure"]}) == []
+                             "label_ids": ["AWSAuthFailure"]}) == []
 
 def test_missing_summary():
     errs = validate_symptom({"matcher_type": "string", "file_pattern": "f", "match_string": "x"})
@@ -22,7 +22,7 @@ def test_non_cel_requires_file_pattern():
 def test_cel_requires_match_string_but_not_file_pattern():
     assert validate_symptom({"summary": "s", "matcher_type": "cel",
                              "match_string": "'A' in labels",
-                             "label_ids": ["InfraFailure"]}) == []
+                             "label_ids": ["TestLabel"]}) == []
     errs = validate_symptom({"summary": "s", "matcher_type": "cel"})
     assert any("match_string" in e for e in errs)
 
@@ -32,7 +32,7 @@ def test_string_and_regex_require_match_string():
 
 def test_none_matcher_needs_no_match_string():
     assert validate_symptom({"summary": "s", "matcher_type": "none", "file_pattern": "f",
-                             "label_ids": ["InfraFailure"]}) == []
+                             "label_ids": ["TestLabel"]}) == []
 
 def test_summary_too_long():
     errs = validate_symptom({"summary": "a" * 201, "matcher_type": "none", "file_pattern": "f"})
@@ -46,9 +46,22 @@ def test_label_ids_required():
     assert any("label" in e for e in errs)
 
 
+def test_infrafailure_label_rejected():
+    # Test case-insensitive rejection
+    for label_id in ["InfraFailure", "infrafailure", "INFRAFAILURE"]:
+        errs = validate_symptom({"summary": "test", "matcher_type": "none", "file_pattern": "f",
+                                 "label_ids": [label_id]})
+        assert any("InfraFailure" in e and "must not be used" in e for e in errs)
+
+    # Test rejection in a list with other labels
+    errs = validate_symptom({"summary": "test", "matcher_type": "none", "file_pattern": "f",
+                             "label_ids": ["TestLabel", "InfraFailure", "AnotherLabel"]})
+    assert any("InfraFailure" in e and "must not be used" in e for e in errs)
+
+
 EXISTING = {"id": "AWSAuthFailure", "summary": "AWS could not validate credentials",
             "matcher_type": "string", "file_pattern": "build-log.txt",
-            "match_string": "api error AuthFailure", "label_ids": ["InfraFailure"]}
+            "match_string": "api error AuthFailure", "label_ids": ["AWSAuthFailure"]}
 
 
 def test_update_overrides_match_string():
@@ -69,7 +82,7 @@ def test_update_empty_string_clears_match_string():
 
 
 def test_update_label_ids_preserved_and_overridden():
-    assert build_update_payload(EXISTING)["label_ids"] == ["InfraFailure"]
+    assert build_update_payload(EXISTING)["label_ids"] == ["AWSAuthFailure"]
     out = build_update_payload(EXISTING, label_ids=["ClusterDNSFlake"])
     assert out["label_ids"] == ["ClusterDNSFlake"]
 
@@ -88,15 +101,15 @@ def test_check_labels_exist_handles_bad_api_response(monkeypatch):
     import manage_symptoms
     for bad in (None, {"error": "x"}, "oops", [1, 2], ["str"]):
         monkeypatch.setattr(manage_symptoms, "get_json", lambda url, _b=bad: _b)
-        errs = check_labels_exist(["InfraFailure"])
+        errs = check_labels_exist(["AWSAuthFailure"])
         assert errs and "could not verify label IDs" in errs[0]
 
 
 def test_check_labels_exist_valid_response(monkeypatch):
     import manage_symptoms
     monkeypatch.setattr(manage_symptoms, "get_json",
-                        lambda url: [{"id": "InfraFailure"}])
-    assert check_labels_exist(["InfraFailure"]) == []
+                        lambda url: [{"id": "AWSAuthFailure"}])
+    assert check_labels_exist(["AWSAuthFailure"]) == []
     assert check_labels_exist(["Nope"])
 
 
