@@ -13,6 +13,12 @@ job failures.
 - **Prow UI URL**: `https://prow.ci.openshift.org/view/gs/test-platform-results-public/{bucket-path}`
 - **gcsweb URL**: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/{bucket-path}`
 
+**Censored placeholders.** CI's secret sweep replaces some files with a ~76-byte text file
+reading "This file contained potentially sensitive information and has been removed." while
+keeping the original name — seen on `log-bundle-*.tar.gz`, `extension_test_result_*.json`,
+and `resource-*.zip`. Check the size (`gcloud storage ls -l`) before downloading or parsing
+an archive; a tiny file is a placeholder, not corrupt data.
+
 ### URL Formats
 
 Both formats are interchangeable:
@@ -208,6 +214,17 @@ to determine which phase a failed step belongs to and the overall execution time
 More detailed than `build-log.txt`: image resolution details, step scheduling decisions, and
 error details.
 
+### `ci-operator-metrics.json` — Step Timing Events
+
+ci-operator events per step (`source`, `reason` such as `Finished`, timestamps). Use it to
+see how long each image build and test step took when hunting for slow or timed-out steps.
+
+### `release/artifacts/release-images-latest` — Payload Contents
+
+The release ImageStream for the payload under test: its name (e.g.
+`4.20.0-0.nightly-2026-10-07-182140`) and every component image tag. Use it to answer
+"which component versions were in this run" without querying the release controller.
+
 ### `job_labels/` — Symptom Labels
 
 Machine-detected symptom labels attached by the CI system. Each JSON file describes a
@@ -276,6 +293,24 @@ artifacts/{target}/openshift-e2e-test/
     │   └── e2e-timelines_spyglass_*.json      # Disruption interval/timeline data
     └── e2e-*.json                             # Additional test metadata
 ```
+
+### Other `openshift-tests` Outputs (`openshift-e2e-test/artifacts/junit/`)
+
+Besides JUnit and timelines, openshift-tests writes small summaries worth reading before
+anything large (`{TS}` is the suite start time, e.g. `20261009-034916`):
+
+| File | Contents |
+|------|----------|
+| `test-failures-summary_{TS}.json` / `test-failures-summary_monitor_{TS}.json` | Failed test names and `ClusterData` (release, platform, network, topology, zone, version history) |
+| `cluster-data_{TS}.json` | `ClusterData` alone |
+| `alerts_{TS}.json` | Every alert that fired, with namespace, level, and duration — see [alerts.md](alerts.md) |
+| `backend-disruption_{TS}.json` | Per-backend disrupted duration and messages — see [disruption.md](disruption.md) |
+| `e2e-events_{TS}.json` | The full interval list (same schema as the timeline JSON) |
+| `e2e-timelines_{area}_{TS}.json` / `.html` | Interval subsets per area: `kube-apiserver`, `openshift-networking`, `operators`, `openshift-monitoring`, `e2e-namespaces`, `everything`, … (`spyglass` is the disruption-focused view) |
+| `openshift-tests-monitor_{TS}.txt` | Monitor-test verdicts, including "Flaky invariants" |
+| `pod-transitions.txt` | Per-workload pod reschedules with node and time spans |
+| `audit-log-summary__{TS}.json` | API request counts by status, user, and resource (`just-users-`/`just-resources-` variants) |
+| `*-autodl.json` | Data loaded into BigQuery (`ci_data_autodl`) — see the `bigquery-ci-data:autodl` skill |
 
 ### `build-log.txt` (Step-Level)
 
@@ -520,6 +555,17 @@ zgrep -E "Out of memory|Kernel panic" local/nodes/*/journal
 - Network interface events
 - kubelet log entries
 
+### Other `gather-extra` Artifacts
+
+| Path | Contents |
+|------|----------|
+| `inspect/` | `oc adm inspect` output: YAML per resource under `cluster-scoped-resources/` and `namespaces/<ns>/`, including pod logs at `namespaces/<ns>/pods/<pod>/<container>/<container>/logs/{current,previous}.log`. Already unpacked — often enough without downloading must-gather |
+| `metrics/prometheus.tar.gz` | Prometheus TSDB snapshot (hundreds of MB). Load it with PromeCIeus (`https://promecieus.dptools.openshift.org/`) to run PromQL against the run; `metrics/job_metrics.json` holds a few precomputed queries (capacity, CPU usage) |
+| `network/` | Per-`ovnkube-node` pod `iptables-save-*`, `nft-list-ruleset-*`, and `ss-*` output, plus multus logs |
+| `nodes/<node>/heap`, `nodes/<node>/lsmod` | Kubelet pprof heap profile and loaded kernel modules per node |
+| `junit/junit_install_status.xml`, `junit/junit_symptoms.xml` | Operator conditions and journal/pod panic checks at gather time (see SKILL.md Step 3) |
+| `*.json` at the top level (`pods.json`, `nodes.json`, `clusteroperators.json`, `events.json`, …) | Full `-o json` versions of most `oc_cmds/` snapshots |
+
 ---
 
 ## Must-Gather Archives
@@ -728,10 +774,11 @@ log-bundle-{timestamp}/
 - **Cluster creation**: Check must-gather operator logs
 - **Operator stability**: Check must-gather operator conditions and logs
 
-### `metadata.json` — Cluster Metadata
+### `clusterapi_output-*/` — Cluster API Manifests
 
-Cluster name, ID, infrastructure platform, and region. In the install step artifacts
-directory.
+The Cluster API objects (`Cluster`, `<Platform>Cluster`, `<Platform>Machine`, `Machine`)
+the installer created, as YAML, in the install step's artifacts. Their `status` shows which
+machine failed to provision. The installer's `metadata.json` is **not** uploaded.
 
 ---
 
