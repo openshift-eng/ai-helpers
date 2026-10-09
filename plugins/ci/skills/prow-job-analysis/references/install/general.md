@@ -208,8 +208,10 @@ The `log-bundle-*.tar.gz` next to the installer log is **not** the bundle: CI's 
 replaces it with a ~76-byte placeholder ("This file contained potentially sensitive information
 and has been removed."). The real contents are uploaded **exploded** under
 `{install-step}/artifacts/expanded-log-bundle/log-bundle-*/`; download that directory with
-`gcloud storage cp -r`. If no `expanded-log-bundle/` exists (e.g. dev-scripts metal jobs), the
-bundle was censored and is unavailable. Prefer non-deprovision bundles — they capture the failure
+`gcloud storage cp -r`. If no `expanded-log-bundle/` exists (e.g. dev-scripts metal jobs), check
+the `log-bundle-*.tar.gz` size with `gcloud storage ls -l`: a ~76-byte file is the placeholder
+and the bundle is unavailable; anything larger is a real archive — download it and extract with
+`tar -xzf`. Prefer non-deprovision bundles — they capture the failure
 state during installation.
 
 ### Log Bundle Structure
@@ -656,6 +658,10 @@ for `configuration` or early `infrastructure` failures.
 # Copy the whole exploded bundle directory — no extraction needed
 gcloud storage cp -r "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/{install-step}/artifacts/expanded-log-bundle/log-bundle-*" \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
+
+# No expanded-log-bundle/ and the tarball is larger than the ~76-byte placeholder:
+gcloud storage cp {gcs-path-to-log-bundle-tar.gz} .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
+tar -xzf .work/prow-job-analysis/{build_id}/logs/log-bundle-*.tar.gz -C .work/prow-job-analysis/{build_id}/logs/
 ```
 
 ### Analysis by Failure Mode

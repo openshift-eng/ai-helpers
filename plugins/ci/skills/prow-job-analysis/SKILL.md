@@ -71,7 +71,7 @@ gcloud storage ls "gs://{bucket}/{bucket-path}/artifacts/{target}/gather-extra/a
 | Artifact | What it answers | Notes |
 |----------|-----------------|-------|
 | `build-log.txt` (tail) | Failed step and ci-operator `reason` (e.g. `...:executing_multi_stage_test`) | A setup reason (`importing_release`, `acquiring_lease`, `pod_pending`, …) means the test never got a fair run — see [flaky-test-identification.md](references/flaky-test-identification.md#a-ci-operator-failure-reason-means-the-test-never-got-a-fair-run) |
-| `{target}/*/artifacts/junit/test-failures-summary_*.json` | `.Tests[].Test.Name` — the failed tests; `.ClusterData` — release, platform, network, topology, region/zone, `ClusterVersionHistory` | Names only, no error text (get that from `junit_e2e_*.xml` or the step `build-log.txt`). `test-failures-summary_monitor_*.json` covers monitor tests. More than one `ClusterVersionHistory` entry means an upgrade ran. **Absent** → openshift-tests never ran: treat as install/infra |
+| `{target}/*/artifacts/junit/test-failures-summary_*.json` | `.Tests[].Test.Name` — the failed tests; `.ClusterData` — release, platform, network, topology, region/zone, `ClusterVersionHistory` | Names only, no error text (get that from `junit_e2e_*.xml` or the step `build-log.txt`). `test-failures-summary_monitor_*.json` covers monitor tests. More than one `ClusterVersionHistory` entry means an upgrade ran. **Absent** → unknown, not proof that tests never ran: openshift-tests may have failed before writing it. Check the test step's `build-log.txt` and JUnit before classifying as install/infra |
 | `artifacts/job_labels/*.json` | Sippy symptoms already matched on this run (e.g. `OVSExcessivePollIntervals200`, `QuayCDNImageConfigEOF`) | Skip `label-summary.html`. Context, not cause — see [flaky-test-identification.md](references/flaky-test-identification.md#symptom-labels-correlation-not-cause). `ci:diagnose-job-run-symptoms` explains each label |
 | `gather-extra/artifacts/junit/junit_install_status.xml` | One testcase per ClusterOperator; a failure means it was unavailable, degraded, or progressing **at gather time** | Despite the name it is not install-specific; useful for every job that created a cluster |
 | `gather-extra/artifacts/junit/junit_symptoms.xml` | Gather-time grep of pods and node journals for panics, segfaults, quota errors | A failure here is an OS-layer trigger (Step 6) |
@@ -111,13 +111,10 @@ gcloud storage cp gs://{bucket}/{bucket-path}/build-log.txt \
 
 # JUnit XML (always — identifies failed tests/steps)
 gcloud storage ls "gs://{bucket}/{bucket-path}/artifacts/**/junit*.xml" 2>/dev/null
-
-# Node journals — ONLY when the Step 6 OS-layer check is triggered (often 10-30 MB).
-# Gzip-compressed WITHOUT a .gz extension: zcat/zgrep only.
-gcloud storage cp -r \
-  "gs://{bucket}/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes" \
-  .work/prow-job-analysis/{build_id}/ --no-user-output-enabled 2>/dev/null || true
 ```
+
+Node journals are **not** downloaded here; Step 6 fetches them only when the OS-layer check
+is triggered.
 
 ### Step 6: Classify Failure and Route to Reference
 
@@ -155,7 +152,14 @@ using artifacts you already have.
 5. **Unexplained failure**: routing below did not yield a root cause, and you are about to
    conclude "flake" or "unknown".
 
-**Full check** (download the journals per Step 5, then complete BOTH steps):
+**Full check** — download the node journals (often 10-30 MB), then complete BOTH steps:
+
+```bash
+gcloud storage cp -r \
+  "gs://{bucket}/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes" \
+  .work/prow-job-analysis/{build_id}/ --no-user-output-enabled 2>/dev/null || true
+```
+
 
 **1. Compare runtime versions across boots in the node journals** (gzip-compressed
 **without** a `.gz` extension — plain `grep` silently matches nothing, use `zcat`/`zgrep`):

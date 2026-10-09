@@ -300,6 +300,18 @@ def _select_window(data, max_bytes, tail=False):
     return data[:max_bytes]
 
 
+def _read_tail(resp, max_bytes, chunk_size=1024 * 1024):
+    """Stream ``resp`` to the end; return (last ``max_bytes`` bytes, total bytes read)."""
+    window = b""
+    total = 0
+    while True:
+        chunk = resp.read(chunk_size)
+        if not chunk:
+            return window, total
+        total += len(chunk)
+        window = (window + chunk)[-max_bytes:] if max_bytes else b""
+
+
 def _http_fetch(bucket, obj_path, max_bytes, tail=False):
     """Download an object's content from ``bucket`` via the public download API.
 
@@ -334,18 +346,23 @@ def _http_fetch(bucket, obj_path, max_bytes, tail=False):
             except ValueError:
                 size_bytes = None
 
-        if size_bytes is not None and not tail:
+        if tail:
+            # The range was ignored: stream the whole body, keeping only the
+            # last max_bytes, so the window is the real end of the object even
+            # past FETCH_READ_CAP and memory stays bounded.
+            data, streamed = _read_tail(resp, max_bytes)
+            if size_bytes is None:
+                size_bytes = streamed
+        elif size_bytes is not None:
             # Size is known up front — only pull what we need for the content.
             data = resp.read(max_bytes)
         else:
             # No Content-Length (e.g. gzip decompressive transcoding streams the
-            # decoded body without a length), or a tail read whose range was
-            # ignored. Read the full body — bounded by a safety cap — so
-            # size_bytes and truncation are accurate. This mirrors gcloud, which
-            # downloads the whole object before reading it.
+            # decoded body without a length). Read the full body — bounded by a
+            # safety cap — so size_bytes and truncation are accurate. This
+            # mirrors gcloud, which downloads the whole object before reading it.
             data = resp.read(FETCH_READ_CAP + 1)
-            if size_bytes is None:
-                size_bytes = len(data)
+            size_bytes = len(data)
 
     truncated = size_bytes > max_bytes
     content = _select_window(data, max_bytes, tail).decode("utf-8", errors="replace")

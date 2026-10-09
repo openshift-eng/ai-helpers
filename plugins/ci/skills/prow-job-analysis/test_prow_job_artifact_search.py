@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Tests for prow_job_artifact_search URL parsing and fetch windows."""
+import io
 import unittest
 from unittest import mock
 
@@ -59,12 +60,12 @@ class ParseProwURLTest(unittest.TestCase):
 
 class FakeResponse:
     def __init__(self, body, status=200, headers=None):
-        self._body = body
+        self._stream = io.BytesIO(body)
         self.status = status
         self.headers = headers or {}
 
     def read(self, n=-1):
-        return self._body if n is None or n < 0 else self._body[:n]
+        return self._stream.read(n)
 
     def __enter__(self):
         return self
@@ -91,6 +92,16 @@ class FetchWindowTest(unittest.TestCase):
     def test_tail_falls_back_when_range_ignored(self):
         resp = FakeResponse(self.BODY, status=200, headers={"Content-Length": "10"})
         with mock.patch("urllib.request.urlopen", return_value=resp):
+            self.assertEqual(pjas._http_fetch("b", "o", 4, tail=True), (10, True, "6789"))
+
+    def test_read_tail_streams_in_chunks(self):
+        resp = FakeResponse(self.BODY)
+        self.assertEqual(pjas._read_tail(resp, 4, chunk_size=3), (b"6789", 10))
+
+    def test_tail_fallback_reads_past_read_cap(self):
+        resp = FakeResponse(self.BODY, status=200)
+        with mock.patch("urllib.request.urlopen", return_value=resp), \
+                mock.patch.object(pjas, "FETCH_READ_CAP", 5):
             self.assertEqual(pjas._http_fetch("b", "o", 4, tail=True), (10, True, "6789"))
 
     def test_head_fetch_unchanged(self):
