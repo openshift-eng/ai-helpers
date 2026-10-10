@@ -51,6 +51,16 @@ class ArtifactTests(unittest.TestCase):
             with self.assertRaises(p.ArtifactError):
                 p.object_url(RUN, obj)
 
+    def test_public_bucket_is_preserved_for_fetches(self):
+        valid = "https://prow.ci.openshift.org/view/gs/test-platform-results-public/" + RUN
+        bucket, run = p.parse_run_location(valid)
+        self.assertEqual("test-platform-results-public", bucket)
+        self.assertEqual(RUN, run)
+        self.assertEqual(
+            "https://storage.googleapis.com/test-platform-results-public/" + RUN + "/prowjob.json",
+            p.object_url(run, "prowjob.json", bucket),
+        )
+
     def test_tide_batch_run_and_recorded_child(self):
         batch = "pr-logs/pull/batch/pull-ci-Azure-ARO-HCP-main-config-change-detection/2093003352324444160"
         url = "https://prow.ci.openshift.org/view/gs/test-platform-results/" + batch
