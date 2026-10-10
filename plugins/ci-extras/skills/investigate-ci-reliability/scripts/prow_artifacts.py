@@ -14,7 +14,10 @@ import xml.parsers.expat as expat
 from datetime import datetime, timezone
 from pathlib import Path
 
-BUCKET = "test-platform-results"
+BUCKETS = ("test-platform-results-public", "test-platform-results")
+# Direct library callers default to the public results bucket. The CLI preserves
+# the bucket parsed from its URL.
+DEFAULT_BUCKET = "test-platform-results-public"
 RUN = re.compile(r"(?:logs/[^/]+/\d{10,}|pr-logs/pull/batch/[^/]+/\d{10,}|pr-logs/pull/[^/]+/\d+/[^/]+/\d{10,})")
 HOSTS = {
     "prow.ci.openshift.org": "/view/gs/",
@@ -46,16 +49,20 @@ def relative(value, allow_empty=False):
     return value
 
 
-def parse_run_url(url, allow_artifact=False):
+def parse_run_location(url, allow_artifact=False):
     parsed = urllib.parse.urlsplit(url)
     if parsed.query or parsed.fragment or parsed.username or parsed.password:
         raise ArtifactError("Run URL must not contain credentials, query or fragment")
-    if parsed.scheme == "gs" and parsed.netloc == BUCKET:
+    if parsed.scheme == "gs" and parsed.netloc in BUCKETS:
+        bucket = parsed.netloc
         path = parsed.path.lstrip("/")
     elif parsed.scheme == "https" and parsed.netloc in HOSTS:
-        prefix = HOSTS[parsed.netloc] + BUCKET + "/"
-        if not parsed.path.startswith(prefix):
+        matches = [bucket for bucket in BUCKETS
+                   if parsed.path.startswith(HOSTS[parsed.netloc] + bucket + "/")]
+        if not matches:
             raise ArtifactError("URL is not in the public Prow results bucket")
+        bucket = matches[0]
+        prefix = HOSTS[parsed.netloc] + bucket + "/"
         path = parsed.path[len(prefix):]
     else:
         raise ArtifactError("Unsupported public Prow/GCS run URL")
@@ -64,12 +71,19 @@ def parse_run_url(url, allow_artifact=False):
     match = RUN.match(path)
     if not match or (match.end() != len(path) and not (allow_artifact and path[match.end():].startswith("/"))):
         raise ArtifactError("Expected logs/JOB/BUILD_ID, pr-logs/pull/ORG_REPO/PR/JOB/BUILD_ID, or pr-logs/pull/batch/JOB/BUILD_ID")
-    return match.group(0)
+    return bucket, match.group(0)
 
 
-def object_url(run, obj):
+def parse_run_url(url, allow_artifact=False):
+    """Return the run path for compatibility; validation accepts both allowlisted buckets."""
+    return parse_run_location(url, allow_artifact)[1]
+
+
+def object_url(run, obj, bucket=DEFAULT_BUCKET):
     relative(obj)
-    return "https://storage.googleapis.com/" + BUCKET + "/" + urllib.parse.quote(run + "/" + obj, safe="/")
+    if bucket not in BUCKETS:
+        raise ArtifactError("Unsupported Prow results bucket")
+    return "https://storage.googleapis.com/" + bucket + "/" + urllib.parse.quote(run + "/" + obj, safe="/")
 
 
 class Budget:
@@ -90,8 +104,12 @@ class Budget:
 class Client:
     """Serial requests. Budget includes metadata, listings, cache reads and retry bytes."""
     def __init__(self, run, scratch, maximum=16 * 1024 * 1024, retries=3,
-                 opener=urllib.request.urlopen, sleeper=time.sleep, refresh=False):
+                 opener=urllib.request.urlopen, sleeper=time.sleep, refresh=False,
+                 bucket=DEFAULT_BUCKET):
         self.run = run
+        if bucket not in BUCKETS:
+            raise ArtifactError("Unsupported Prow results bucket")
+        self.bucket = bucket
         self.refresh = refresh
         self.cache = Path(scratch).expanduser() / "cache" / digest(run.encode())
         self.budget = Budget(maximum)
@@ -128,7 +146,7 @@ class Client:
         key = digest(obj.encode())
         data_path = self.cache / (key + ".data")
         meta_path = self.cache / (key + ".json")
-        url = object_url(self.run, obj)
+        url = object_url(self.run, obj, self.bucket)
         if not self.refresh and data_path.exists() and meta_path.exists():
             try:
                 if meta_path.stat().st_size > 65536:
@@ -166,7 +184,7 @@ class Client:
                      "fields": "items(name,size,generation,md5Hash),nextPageToken"}
             if token:
                 query["pageToken"] = token
-            url = "https://storage.googleapis.com/storage/v1/b/" + BUCKET + "/o?" + urllib.parse.urlencode(query)
+            url = "https://storage.googleapis.com/storage/v1/b/" + self.bucket + "/o?" + urllib.parse.urlencode(query)
             raw = self.request(url)
             try:
                 result = json.loads(raw)
@@ -327,7 +345,7 @@ def recorded_children(text, parent_run, source_name, max_objects=200):
             break
         for match in re.finditer(r"(?:https://|gs://)[^\s<>\"']+", value):
             url = match.group(0).rstrip(".,);]}")
-            if BUCKET not in url and "prow.ci.openshift.org" not in url:
+            if not any(bucket in url for bucket in BUCKETS) and "prow.ci.openshift.org" not in url:
                 continue
             if reference_count >= max_objects:
                 truncated = True
@@ -336,18 +354,19 @@ def recorded_children(text, parent_run, source_name, max_objects=200):
             evidence = {"source": source_name, "source_sha256": source_sha,
                         "location": location, "offset": match.start(), "recorded_url": url}
             try:
-                run = parse_run_url(url, allow_artifact=True)
+                bucket, run = parse_run_location(url, allow_artifact=True)
             except ArtifactError as exc:
                 unresolved.append(dict(evidence, reason=str(exc)))
                 continue
             if run == parent_run:
                 continue
-            edges.setdefault(run, []).append(evidence)
+            edges.setdefault((bucket, run), []).append(evidence)
     if truncated:
         unresolved.append({"reason": "Recorded reference limit reached; extraction incomplete"})
-    return {"truncated": truncated, "child_candidates": [{"run": run, "url": "https://prow.ci.openshift.org/view/gs/" + BUCKET + "/" + run,
+    return {"truncated": truncated, "child_candidates": [{"run": run, "bucket": bucket,
+                                  "url": "https://prow.ci.openshift.org/view/gs/" + bucket + "/" + run,
                                   "relationship": "recorded_reference_requires_parent_validation", "evidence": proof}
-                                 for run, proof in sorted(edges.items())],
+                                 for (bucket, run), proof in sorted(edges.items())],
             "unresolved": unresolved + [{"reason": "References alone do not prove aggregate membership or completeness; compare the aggregate report's explicit attempt list."}],
             "missing_edges": "unknown; no child URLs or IDs synthesized"}
 
@@ -374,8 +393,9 @@ def main(argv=None):
     parser.add_argument("--input", help="bounded local recorded aggregate log/JSON for children")
     args = parser.parse_args(argv)
     try:
-        run = parse_run_url(args.run_url)
-        client = Client(run, args.scratch, args.max_bytes, args.retries, refresh=args.refresh)
+        bucket, run = parse_run_location(args.run_url)
+        client = Client(run, args.scratch, args.max_bytes, args.retries,
+                        bucket=bucket, refresh=args.refresh)
         raw_meta, provenance = client.fetch("prowjob.json")
         try:
             meta = json.loads(raw_meta)
