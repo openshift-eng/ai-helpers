@@ -175,6 +175,8 @@ def plan(workspace, history_path=None, prior_workspaces=(), revisit_path=None,
     if previous:
         gaps += previous.get("history_gaps", [])
     sources = [Path(item).expanduser().resolve() for item in prior_workspaces]
+    if previous is not None:
+        sources = [source for source in sources if source != workspace]
     # Bootstrap older runs once. Read only bounded metadata, never scan artifact trees.
     if not history_path.exists():
         siblings = sorted(workspace.parent.glob("*/manifest.json"), reverse=True)
@@ -182,7 +184,9 @@ def plan(workspace, history_path=None, prior_workspaces=(), revisit_path=None,
             gaps.append("prior-workspace discovery limited to 50; use --prior-workspace for older history")
         sources += [path.parent for path in siblings[:50]
                     if path.parent != workspace and (path.parent / "job-rankings.json").exists()]
-    sources.append(workspace)
+    # Once initialized, only record() may complete this workspace's investigations.
+    if previous is None:
+        sources.append(workspace)
     for source in dict.fromkeys(sources):
         try:
             count = import_workspace(history, source, scope(manifest))

@@ -198,6 +198,50 @@ class InvestigationQueueTests(unittest.TestCase):
             path.unlink()
             self.assertEqual("RECHECK", queue.plan(root, now=NOW)["queue"][1]["status"])
 
+    def test_active_workspace_findings_are_imported_on_bootstrap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = workspace(Path(directory) / "first", total=2)
+            finding(root, "job-1")
+            state = queue.plan(root, now=NOW)
+            self.assertEqual(["job-1"], [item["cohort_id"] for item in state["deferred"]])
+            self.assertEqual("job-2", state["queue"][0]["cohort_id"])
+
+    def test_unrecorded_findings_remain_pending_after_bootstrap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = workspace(Path(directory) / "first", total=2)
+            queue.plan(root, now=NOW)
+            path = finding(root, "job-1")
+            for options in ({}, {"new_session": True}, {"prior_workspaces": [root]}):
+                with self.subTest(options=options):
+                    state = queue.plan(root, now=NOW, **options)
+                    self.assertEqual(["job-1", "job-2"], [item["cohort_id"] for item in state["queue"]])
+                    self.assertEqual([], state["deferred"])
+                    self.assertEqual({}, queue.read_json(Path(state["history_path"]))["records"])
+            queue.begin(root, "job-1", now=NOW)
+            state = queue.record(root, path, now=NOW)
+            self.assertEqual(["job-1"], state["completed_cohorts"])
+            self.assertEqual("job-2", state["queue"][0]["cohort_id"])
+
+    def test_rejected_finding_remains_pending_after_replanning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = workspace(Path(directory) / "first", total=2)
+            queue.plan(root, now=NOW)
+            queue.begin(root, "job-1", now=NOW)
+            rankings = queue.read_json(root / "job-rankings.json")
+            rankings["current"][0]["investigation_inputs"] = {"config_revision": "changed"}
+            queue.write_json(root / "job-rankings.json", rankings)
+            path = finding(root, "job-1")
+            with self.assertRaisesRegex(queue.QueueError, "inputs changed"):
+                queue.record(root, path, now=NOW)
+            state = queue.plan(root, now=NOW)
+            self.assertEqual(["job-1", "job-2"], [item["cohort_id"] for item in state["queue"]])
+            self.assertEqual([], state["deferred"])
+            self.assertEqual([], state["completed_cohorts"])
+            self.assertEqual({}, queue.read_json(Path(state["history_path"]))["records"])
+            queue.begin(root, "job-1", now=NOW)
+            state = queue.record(root, path, now=NOW)
+            self.assertEqual(["job-1"], state["completed_cohorts"])
+
 
 if __name__ == "__main__":
     unittest.main()

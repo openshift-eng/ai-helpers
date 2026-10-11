@@ -256,6 +256,7 @@ def previous_release(current, names):
 def collect_population(client, release, architecture, stream, start, end, limit, role):
     tags = require_array(client.get(tag_url(release, architecture, stream, start, end, limit), role + "-tags"),
                          "/api/releases/tags")
+    scan_limit_hit = len(tags) >= limit
     # Exact post-filtering protects against ignored or changed upstream filter semantics.
     scoped = []
     for tag in tags:
@@ -276,7 +277,7 @@ def collect_population(client, release, architecture, stream, start, end, limit,
         payload = payload_record(tag, rows, role)
         payloads.append(payload)
         associations.extend(normalize_association(row, tag, role) for row in rows)
-    return payloads, associations, len(tags) >= limit
+    return payloads, associations, scan_limit_hit
 
 
 def build_parser():

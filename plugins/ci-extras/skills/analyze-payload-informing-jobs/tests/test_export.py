@@ -311,6 +311,7 @@ class ExportTests(unittest.TestCase):
             candidates.mkdir()
             path = candidates / "cohort.json"
             path.write_text(json.dumps(candidate))
+            write_finding(root, finding_record(disposition="RETIREMENT_CANDIDATE"))
             review = {"recommendation_digest": exporter.digest(exporter.recommendation_body(candidate)),
                       "reviewer_context_identity": "reviewer-b", "reviewed_at": "2026-10-06T01:00:00Z",
                       "evidence_checked": ["failure.txt"], "counterarguments": ["coverage gap"],
@@ -324,11 +325,30 @@ class ExportTests(unittest.TestCase):
             summary = output / "findings/cohort/README.md"
             self.assertIn("VALIDATED\\_CANDIDATE", summary.read_text())
             self.assertTrue(all(path.is_file() for path in local_links(summary)))
+            self.assertEqual([], exporter.read_json(output / "unresolved.json")["items"])
+            for verdict in ("REJECTED", "INSUFFICIENT_EVIDENCE"):
+                with self.subTest(verdict=verdict):
+                    review["verdict"] = verdict
+                    (candidates / "cohort.review.json").write_text(json.dumps(review))
+                    reviewed = Path(directory) / verdict.lower()
+                    exported = exporter.run(root, reviewed)
+                    self.assertEqual(0, exported["report_counts"]["validated_retirements"])
+                    unresolved = exporter.read_json(reviewed / "unresolved.json")["items"]
+                    self.assertEqual([verdict, verdict], [item["status"] for item in unresolved])
+                    self.assertIn(verdict.replace("_", "\\_"),
+                                  (reviewed / "findings/cohort/README.md").read_text())
             (candidates / "cohort.review.json").unlink()
             unreviewed = Path(directory) / "unreviewed"
             exported = exporter.run(root, unreviewed)
             self.assertEqual(0, exported["report_counts"]["validated_retirements"])
             self.assertIn("UNREVIEWED", (unreviewed / "findings/cohort/README.md").read_text())
+            self.assertEqual(["UNREVIEWED", "UNREVIEWED"],
+                             [item["status"] for item in exporter.read_json(unreviewed / "unresolved.json")["items"]])
+            path.unlink()
+            finding_only = Path(directory) / "finding-only"
+            exporter.run(root, finding_only)
+            self.assertEqual(["UNREVIEWED"],
+                             [item["status"] for item in exporter.read_json(finding_only / "unresolved.json")["items"]])
 
     def test_edited_candidate_invalidates_review(self):
         candidate = {"schema_version": 1, "cohort_id": "cohort"}

@@ -567,7 +567,7 @@ def run(workspace, output, repairs=None):
         elif status == "RETIREMENT_CANDIDATE" and finding["cohort_id"] in validated_ids:
             continue
         elif status == "RETIREMENT_CANDIDATE":
-            status = "UNREVIEWED_RETIREMENT_CANDIDATE"
+            status = retirements_by_cohort.get(finding["cohort_id"], {}).get("status", "UNREVIEWED")
         unresolved.append({"cohort_id": finding["cohort_id"], "status": status,
                            "record": finding})
 

@@ -81,6 +81,25 @@ class RankingTests(unittest.TestCase):
             self.assertEqual(2, len(result["current"]))
             self.assertEqual({False, True}, {item["upgrade_route"]["upgrade"] for item in result["current"]})
 
+    def test_zero_pass_cohorts_rank_by_unique_failing_runs(self):
+        payloads = [payload(index, "2026-10-0%dT00:00:00Z" % index, 10) for index in range(1, 4)]
+        repeated = [dict(association("%d-%d" % (p, run), p, run, "FAILED"),
+                         provisional_prow_job="five-reused-runs")
+                    for p in range(1, 4) for run in range(1, 6)]
+        distinct = [dict(association(run, run % 3 + 1, 100 + run, "FAILED"),
+                         provisional_prow_job="six-distinct-runs") for run in range(6)]
+        with tempfile.TemporaryDirectory() as directory:
+            root = workspace(directory, payloads, repeated + distinct, min_job_runs=5, min_job_payloads=3)
+            result, _ = ranking.run(root)
+            cohorts = result["current"]
+            self.assertTrue(all(item["sample_sufficient"] for item in cohorts))
+            self.assertEqual(["ADEQUATE_ZERO_PASS", "ADEQUATE_ZERO_PASS"],
+                             [item["ranking"]["tier"] for item in cohorts])
+            self.assertEqual([["six-distinct-runs"], ["five-reused-runs"]],
+                             [item["provisional_prow_jobs"] for item in cohorts])
+            self.assertEqual([6, 5], [item["metrics"]["distinct_runs"] for item in cohorts])
+            self.assertEqual([6, 15], [item["metrics"]["outcomes"]["failed"] for item in cohorts])
+
     def test_confirmed_shared_failure_requires_and_retains_evidence(self):
         payloads = [payload(1, "2026-10-03T00:00:00Z", 10)]
         with tempfile.TemporaryDirectory() as directory:

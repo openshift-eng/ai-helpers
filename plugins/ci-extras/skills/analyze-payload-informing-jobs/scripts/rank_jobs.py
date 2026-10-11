@@ -243,7 +243,7 @@ def cohort_record(cohort_id, rows, payload_by_id, settings):
     value = run_metric["value"]
     fail_rate = 1 - value if value is not None else -1
     streak = record["metrics"]["consecutive_failing_payloads"]
-    failures = record["metrics"]["outcomes"]["failed"]
+    failures = sum(row.get("normalized_outcome") == "FAILED" for row in unique_rows)
     if sufficient and value == 0:
         rank_key = [0, -failures, -len(terminal_payloads), cohort_id]
         tier = "ADEQUATE_ZERO_PASS"

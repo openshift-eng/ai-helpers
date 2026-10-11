@@ -111,6 +111,21 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual("UNKNOWN", association["normalized_role"])
         self.assertEqual("OTHER", association["normalized_outcome"])
 
+    def test_scan_limit_remains_visible_after_post_filtering(self):
+        valid = tag(1, "valid")
+        for excluded in (dict(tag(2, "wrong-scope"), architecture="arm64"),
+                         tag(2, "outside-window", when="2026-09-01T00:00:00Z")):
+            with self.subTest(excluded=excluded["release_tag"]), tempfile.TemporaryDirectory() as directory:
+                args = options(Path(directory) / "run")
+                args.max_payloads_scan = 2
+                client = FakeClient({"5.1": [valid, excluded]}, {"valid": rows(1, 0, 0, 1, "1")})
+                _, manifest, payloads, _ = collector.run(args, client, datetime(2026, 10, 6, tzinfo=timezone.utc))
+                self.assertEqual(["valid"], [item["tag"] for item in payloads])
+                self.assertEqual(2, client.requests)
+                self.assertTrue(manifest["limits"]["payload_scan_limit_hit"])
+                self.assertFalse(manifest["complete"])
+                self.assertIn("payload scan bound reached; population is bounded", manifest["missing_evidence"])
+
     def test_auto_previous_uses_verified_release_order(self):
         current = tag(1, "current")
         previous = tag(2, "previous", release="5.0")
