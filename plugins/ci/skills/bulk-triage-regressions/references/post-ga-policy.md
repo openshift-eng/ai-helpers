@@ -15,7 +15,7 @@ Rulebook for the weekly post-GA run. Read after SKILL.md; the deep-dive rules in
 
 `prepass.py --views V... [--now ISO] [--baseline PATH|none] [--no-oracle] [--token-env DPCR_TOKEN] [--inventory PATH] [--run-id ID] --out prepass.json`. If `prepass.json` is absent or a view's `fetch` is not `complete`, say so in the report; an empty or failed fetch is never a clean board. Fields you use per cluster (clusters are sorted HIGH → ELEVATED → LOW, then score descending):
 
-- `id`, `lineage`, `fingerprint`, `members` (regression ids, `new_since_baseline`, views, components), `shape`.
+- `id`, `lineage`, `fingerprint`, `members` (regression ids, `new_since_baseline`, views, components), `shape`. In `shape`, `days_open` counts from the regression's (re)activation in the view — Sippy resets it when a test recovers briefly and regresses again — and is the rules' input; `regression_days_open` counts from Sippy's regression-level `opened` and is the age to quote in prose. Do not recompute either.
 - `blast_radius{level,score,reasons}`.
 - `oracle{status,runs_probed,labels,label_bugs}`; `observation.symptom_probe.status ∈ ok|unauthorized|failed|skipped`. Anything but `ok` is **unknown**, never "no symptoms matched": use the SKILL.md fallback ladder.
 
