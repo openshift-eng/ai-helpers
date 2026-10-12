@@ -10,6 +10,22 @@ import urllib.error
 from typing import List, Dict, Any, Optional
 
 
+def normalize_resolved(resolved: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """
+    Return a copy of a resolved struct safe to re-send to the Sippy API.
+
+    Sending resolved.Time with a trailing 'Z' makes the server reset
+    resolution_reason to 'user'; the same instant as '+00:00' preserves it.
+    """
+    if resolved is None:
+        return None
+    normalized = dict(resolved)
+    time_value = normalized.get('Time')
+    if isinstance(time_value, str) and time_value.endswith('Z'):
+        normalized['Time'] = time_value[:-1] + '+00:00'
+    return normalized
+
+
 class TriageManager:
     """Creates or updates triage records via the Sippy API."""
 
@@ -58,7 +74,7 @@ class TriageManager:
 
         # Preserve resolved status and resolution reason from existing triage
         if self._resolved is not None:
-            payload["resolved"] = self._resolved
+            payload["resolved"] = normalize_resolved(self._resolved)
         if self._resolution_reason is not None:
             payload["resolution_reason"] = self._resolution_reason
 
