@@ -104,6 +104,18 @@ class TripwireTest(unittest.TestCase):
 
 
 class InventoryTest(unittest.TestCase):
+    def test_default_fetch_keeps_regression_level_opened_beside_view_activation(self):
+        raw = [{'id': 48389, 'release': '4.22', 'test_name': 't', 'component': 'c', 'variants': [],
+                'opened': '2026-09-05T04:09:53.827559Z', 'closed': {'Time': '0001-01-01T00:00:00Z', 'Valid': False},
+                'views': [{'view_name': '4.22-main', 'active': True, 'opened_at': '2026-10-12T04:10:07.774716Z',
+                           'closed_at': {'Time': '0001-01-01T00:00:00Z', 'Valid': False}}],
+                'job_runs': []}]
+        fetch = p._default_fetch(raw_fetch=lambda release: raw)
+        regs, status = p.fetch_inventory(['4.22-main'], fetch=fetch, now=ts('2026-10-12T12:00:00Z'))
+        self.assertEqual(regs[0]['opened'], '2026-10-12T04:10:07.774716Z')      # view activation (frozen rules)
+        self.assertEqual(regs[0]['regression_opened'], '2026-09-05T04:09:53.827559Z')
+        self.assertEqual(status[0]['open'], 1)
+
     def test_partial_fetch_is_partial_not_zero(self):
         replay = load('replay-days.json.gz')
         views = ['4.20-main', '4.22-main']
@@ -196,6 +208,36 @@ class TriagedTest(unittest.TestCase):
 
 class OracleTest(unittest.TestCase):
     MEMBERS = [reg(1, 'a', [run(str(i), start='2026-10-0%dT00:00:00Z' % i) for i in range(1, 8)])]
+
+    def test_oracle_parses_json_despite_stderr_notice(self):
+        # Real CLI shape in --format json mode: the submission notice goes to stderr, the batch JSON to stdout.
+        batch = json.dumps({"batch_id": "b1", "status": "completed", "items": [
+            {"item_key": "2109437410046644224", "state": "completed", "result": {"labels_applied": ["QuayCDNImageConfigEOF"]}},
+            {"item_key": "2109075017747664896", "state": "completed", "result": {"labels_applied": []}}]}, indent=2)
+        notice = "Submitted reevaluation (DRY RUN) batch b1; status: https://sippy-auth/x (save this URL ...)\n"
+        members = [{'id': 1, 'release': '4.22', 'test_name': 't', 'component': 'c', 'variants': [], 'opened': '2026-10-01T00:00:00Z',
+                    'closed': None, 'duty_views': ['4.22-main'],
+                    'job_runs': [{'prowjob_name': 'j', 'prowjob_run_id': '2109437410046644224', 'start_time': '2026-10-11T00:00:00Z', 'test_failures': 1},
+                                 {'prowjob_name': 'j', 'prowjob_run_id': '2109075017747664896', 'start_time': '2026-10-10T00:00:00Z', 'test_failures': 1}]}]
+        # 3-tuple runner: (code, stdout, stderr)
+        out = p.oracle(members, runner=lambda argv: (0, batch, notice), token='t', labels_fetch=lambda: [{"id": "QuayCDNImageConfigEOF", "bugs": ["TRT-3003"]}])
+        self.assertEqual(out['status'], 'ok', out)
+        self.assertEqual(out['labels'], {'2109437410046644224': ['QuayCDNImageConfigEOF']})
+        self.assertEqual(out['label_bugs'], {'QuayCDNImageConfigEOF': ['TRT-3003']})
+        # legacy 2-tuple runner with the notice glued in front of the JSON must still parse
+        out2 = p.oracle(members, runner=lambda argv: (0, notice + batch), token='t', labels_fetch=lambda: [])
+        self.assertEqual(out2['status'], 'ok', out2)
+
+    def test_oracle_failure_records_error_text(self):
+        members = [{'id': 1, 'release': '4.22', 'test_name': 't', 'component': 'c', 'variants': [], 'opened': '2026-10-01T00:00:00Z',
+                    'closed': None, 'duty_views': ['4.22-main'],
+                    'job_runs': [{'prowjob_name': 'j', 'prowjob_run_id': '1', 'start_time': '2026-10-11T00:00:00Z', 'test_failures': 1}]}]
+        out = p.oracle(members, runner=lambda argv: (1, "", "Error: batch status item 0 is missing item_key"), token='t')
+        self.assertEqual(out['status'], 'failed')
+        self.assertIn('missing item_key', out['error'])
+        out = p.oracle(members, runner=lambda argv: (0, "not json at all", ""), token='t')
+        self.assertEqual(out['status'], 'failed')
+        self.assertIn('not json', out['error'])
 
     def test_oracle_403_is_unauthorized_not_empty(self):
         o = p.oracle(self.MEMBERS, runner=lambda argv: (1, 'HTTP 403 Forbidden'), token='t')

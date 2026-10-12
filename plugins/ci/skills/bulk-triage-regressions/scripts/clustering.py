@@ -112,6 +112,7 @@ def shape(members, now):
     first = None
     last = None
     opened = None
+    reg_opened = None
     platforms = set()
     arches = set()
     for r in members:
@@ -130,6 +131,8 @@ def shape(members, now):
             arches.add(variant(r, 'Architecture'))
         o = parse_ts(r['opened'])
         opened = o if opened is None or o < opened else opened
+        ro = parse_ts(r.get('regression_opened') or r['opened'])
+        reg_opened = ro if reg_opened is None or ro < reg_opened else reg_opened
     platforms.discard(None)
     arches.discard(None)
     tf_med = sorted(run_tf)[len(run_tf) // 2] if run_tf else 0
@@ -148,7 +151,10 @@ def shape(members, now):
         'failing_runs_7d': len(recent_runs),
         'first_failure': first.isoformat() if first else None,
         'last_failure': last.isoformat() if last else None,
+        # `opened` is the view-level (re)activation date (the rules' frozen input); `regression_opened` is Sippy's
+        # regression-level opened, which a brief recovery does not reset — informational, not a rule input.
         'days_open': (now - opened).days if opened else None,
+        'regression_days_open': (now - reg_opened).days if reg_opened else None,
         'days_since_last_failure': (now - last).days if last else None,
         'growth_since_baseline': None,
         'components': sorted({r['component'] for r in members}),

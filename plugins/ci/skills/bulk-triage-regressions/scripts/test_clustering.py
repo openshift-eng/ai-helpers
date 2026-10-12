@@ -82,6 +82,18 @@ class ShapeTest(unittest.TestCase):
         self.assertIsNone(s['last_failure'])
         self.assertEqual(s['days_open'], 6)
 
+    def test_regression_days_open_is_the_regression_level_age(self):
+        # `opened` is the view-level (re)activation date list_regressions substitutes (rules use it, frozen);
+        # `regression_opened` is Sippy's regression-level opened (rehearsal 2026-10-12: 48389 re-activated
+        # 2026-10-12 but opened 2026-09-05). Both ages are exposed; only the new one is informational.
+        r = reg(1, opened='2026-10-07T04:00:00Z', runs=[run('1', start='2026-10-06T12:00:00Z')])
+        r['regression_opened'] = '2026-09-05T04:09:53.827559Z'
+        s = c.shape([r], NOW)
+        self.assertEqual(s['days_open'], 0)
+        self.assertEqual(s['regression_days_open'], 32)
+        s = c.shape([reg(1, runs=[run('1')])], NOW)  # no regression_opened → same as days_open
+        self.assertEqual(s['regression_days_open'], s['days_open'])
+
     def test_shape_keys_and_recency(self):
         up = 'periodic-ci-x-nightly-4.22-upgrade-from-stable-4.21-e2e-aws'
         s = c.shape([reg(1, 'install should succeed', runs=[run('1', up, '2026-10-05T12:00:00Z'),

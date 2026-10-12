@@ -43,7 +43,8 @@ def slim(raw, view):
     return {
         'id': raw['id'], 'release': raw['release'], 'duty_views': [view], 'test_name': raw['test_name'],
         'component': raw['component'], 'capability': raw.get('capability'), 'variants': raw.get('variants') or [],
-        'opened': raw['opened'], 'closed': raw.get('closed'), 'last_failure': raw.get('last_failure'),
+        'opened': raw['opened'], 'regression_opened': raw.get('regression_opened') or raw['opened'],
+        'closed': raw.get('closed'), 'last_failure': raw.get('last_failure'),
         'max_failures': raw.get('max_failures'),
         'triages': [t['id'] if isinstance(t, dict) else t for t in (raw.get('triages') or [])],
         'job_runs': [{'prowjob_name': j['prowjob_name'], 'prowjob_run_id': j['prowjob_run_id'],
@@ -52,16 +53,21 @@ def slim(raw, view):
     }
 
 
-def _default_fetch():
+def _default_fetch(raw_fetch=None):
     spec = importlib.util.spec_from_file_location('list_regressions', LIST_REGRESSIONS)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    raw_fetch = raw_fetch or mod.fetch_regressions
     cache = {}
 
     def fetch(view):
         release = mod.extract_release_from_view(view)
         if release not in cache:
-            cache[release] = mod.fetch_regressions(release)
+            cache[release] = raw_fetch(release)
+            # filter_by_view overwrites `opened` in place with the view's (re)activation date; keep the
+            # regression-level date first so the shape can report the real age too.
+            for r in cache[release]:
+                r.setdefault('regression_opened', r.get('opened'))
         return mod.filter_by_view(cache[release], view)
     return fetch
 
@@ -129,6 +135,27 @@ def once(fn):
     return wrapper
 
 
+def _last_json_object(text):
+    """Return the last top-level JSON object decodable from text (tolerates leading/trailing noise)."""
+    dec = json.JSONDecoder()
+    text = text or ''
+    last = None
+    i = 0
+    while i < len(text):
+        j = text.find('{', i)
+        if j < 0:
+            break
+        try:
+            obj, end = dec.raw_decode(text, j)
+        except ValueError:
+            i = j + 1
+            continue
+        if isinstance(obj, dict):
+            last = obj
+        i = end  # skip the whole object so nested dicts are not mistaken for top-level ones
+    return last
+
+
 def oracle(cluster, runner=None, token=None, labels_fetch=None):
     """Probe up to 5 newest representative runs with a dry-run symptom reevaluation."""
     out = {'status': 'skipped', 'runs_probed': 0, 'labels': {}, 'label_bugs': {}}
@@ -145,22 +172,37 @@ def oracle(cluster, runner=None, token=None, labels_fetch=None):
     if runner is None:
         def runner(argv):
             p = subprocess.run(argv, capture_output=True, text=True, env=dict(os.environ, SIPPY_TOKEN=token))
-            return p.returncode, p.stdout + p.stderr
+            return p.returncode, p.stdout, p.stderr
     out['runs_probed'] = len(ids)
-    code, text = runner(argv)
+    result = runner(argv)
+    # Runners may return (code, text) or (code, stdout, stderr); in --format json mode the CLI prints its
+    # submission notice to stderr and the batch JSON to stdout, so never parse the two glued together.
+    if len(result) == 3:
+        code, stdout, stderr = result
+    else:
+        code, stdout = result
+        stderr = ''
+    diagnostic = (stderr or '').strip() or (stdout or '').strip()
     if code != 0:
+        text = (stdout or '') + (stderr or '')
         out['status'] = 'unauthorized' if ('401' in text or '403' in text) else 'failed'
+        out['error'] = diagnostic[:300]
+        return out
+    batch = _last_json_object(stdout)
+    if not isinstance(batch, dict) or not isinstance(batch.get('items'), list):
+        out['status'] = 'failed'
+        out['error'] = ('no batch JSON in reevaluate output: ' + (stdout or '').strip())[:300]
         return out
     try:
-        items = json.loads(text)['items']
-        for item in items:
+        for item in batch['items']:
             res = item.get('result') or {}
             found = list(res.get('labels_applied') or [])
             if found:
                 out['labels'][str(item['item_key'])] = found
-    except (ValueError, KeyError, TypeError):
+    except (KeyError, TypeError, AttributeError) as e:
         out['status'] = 'failed'
         out['labels'] = {}
+        out['error'] = ('unexpected batch item shape: %s' % e)[:300]
         return out
     out['status'] = 'ok'
     wanted = {lab for ls in out['labels'].values() for lab in ls}
