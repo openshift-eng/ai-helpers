@@ -18,3 +18,6 @@ Notes:
 - Tripwire continuity matches a previous cluster by id, then by `(release, lane_family)`, because a rolling
   window's `test_family` (and so the id) changes between runs of the same event.
 - Weekly supersedes: a baseline cluster is listed when at least half of *its* members land in the current cluster.
+- Prototype cross-check (`chaibot-design/prepass_proto.py <inventory.json> --main`, frozen inventory): 326 regressions ->
+  15 clusters, HIGH=2 / ELEVATED=4 / LOW=9. `prepass.py` on the same fixture gives 15 clusters with the same HIGH/ELEVATED/LOW
+  members asserted in `test_backtest_frozen_inventory`; no drift observed.
