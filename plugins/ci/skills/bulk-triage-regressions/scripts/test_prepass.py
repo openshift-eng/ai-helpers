@@ -140,6 +140,7 @@ class BaselineTest(unittest.TestCase):
             self.assertIsNone(c['shape']['growth_since_baseline'])
             self.assertIsNone(c['lineage']['cycles_seen'])
             self.assertIsNone(c['members']['new_since_baseline'])
+            self.assertIsNone(c['lineage']['supersedes'])
 
     def test_no_baseline_is_none_compatible(self):
         doc = p.weekly([reg(1, 'a', [run('1')])], self.NOW, None)
@@ -164,13 +165,27 @@ class BaselineTest(unittest.TestCase):
         regs = [reg(1, 'a', [run('1')]), reg(2, 'a', [run('1')])]
         cid = p.build_clusters(regs[:1], self.NOW)[0]['id']
         baseline = {'schema_version': '1.0', 'policy': {'name': 'post-ga'}, 'source_run': {'run_id': 'r0'},
-                    'clusters': [{'id': cid, 'lineage': {'cycles_seen': 2}, 'members': {'regression_ids': [1]}}]}
+                    'clusters': [{'id': cid, 'lineage': {'cycles_seen': 2, 'first_seen_run': 'r-first'}, 'members': {'regression_ids': [1]}}]}
         c = p.weekly(regs, self.NOW, baseline)['clusters'][0]
         self.assertEqual(c['id'], cid)
-        self.assertEqual(c['lineage']['first_seen_run'], 'r0')
+        self.assertEqual(c['lineage']['first_seen_run'], 'r-first')
         self.assertEqual(c['lineage']['cycles_seen'], 3)
         self.assertEqual(c['members']['new_since_baseline'], [2])
         self.assertEqual(c['shape']['growth_since_baseline'], 1)
+
+
+class TriagedTest(unittest.TestCase):
+    def test_weekly_excludes_triaged_open_regressions(self):
+        now = datetime(2026, 10, 7, 12, tzinfo=timezone.utc)
+        runs = [run('1'), run('2')]
+        a, b, c = reg(1, 'a', runs), reg(2, 'b', runs), reg(3, 'c', runs)
+        b['triages'] = [{'id': 810}]
+        c['triages'] = None
+        doc = p.weekly([a, b, c], now, None)
+        ids = [i for cl in doc['clusters'] for i in cl['members']['regression_ids']]
+        self.assertEqual(sorted(ids), [1, 3])
+        st = p.view_status('4.22-main', [a, b, c], now)
+        self.assertEqual((st['open'], st['open_untriaged']), (3, 2))
 
 
 class OracleTest(unittest.TestCase):
@@ -192,12 +207,35 @@ class OracleTest(unittest.TestCase):
             return 0, json.dumps({'items': [{'item_key': '7', 'state': 'completed',
                                              'result': {'symptoms_matched': ['S1'], 'labels_applied': ['L1']}}]})
 
-        o = p.oracle(self.MEMBERS, runner=runner, token='t')
+        o = p.oracle(self.MEMBERS, runner=runner, token='t', labels_fetch=lambda: [])
         self.assertEqual(o['status'], 'ok')
-        self.assertEqual(o['labels'], {'7': ['L1', 'S1']})
+        self.assertEqual(o['labels'], {'7': ['L1']})
         self.assertEqual(o['runs_probed'], 5)
         self.assertEqual(seen[0][-5:], ['7', '6', '5', '4', '3'])
         self.assertIn('--dry-run', seen[0])
+
+    OK = json.dumps({'items': [{'item_key': '7', 'state': 'completed', 'result': {'labels_applied': ['L1']}}]})
+
+    def test_label_bugs_from_catalogue(self):
+        calls = []
+
+        def lf():
+            calls.append(1)
+            return [{'id': 'L1', 'bugs': ['OCPBUGS-1']}, {'id': 'L2', 'bugs': ['OCPBUGS-2']}]
+
+        o = p.oracle(self.MEMBERS, runner=lambda a: (0, self.OK), token='t', labels_fetch=lf)
+        self.assertEqual(o['label_bugs'], {'L1': ['OCPBUGS-1']})
+        self.assertNotIn('label_bugs_error', o)
+        self.assertEqual(len(calls), 1)
+
+    def test_label_bugs_fetch_failure_is_reported(self):
+        def lf():
+            raise OSError('catalogue down')
+
+        o = p.oracle(self.MEMBERS, runner=lambda a: (0, self.OK), token='t', labels_fetch=lf)
+        self.assertEqual(o['status'], 'ok')
+        self.assertEqual(o['label_bugs'], {})
+        self.assertIn('catalogue down', o['label_bugs_error'])
 
     def test_oracle_other_failure_and_skipped(self):
         self.assertEqual(p.oracle(self.MEMBERS, runner=lambda a: (2, 'oops'), token='t')['status'], 'failed')

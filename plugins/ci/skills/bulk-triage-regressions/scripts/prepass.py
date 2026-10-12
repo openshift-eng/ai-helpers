@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import urllib.request
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -23,6 +24,7 @@ POLICY = 'post-ga'
 LEVEL_ORDER = {'HIGH': 0, 'ELEVATED': 1, 'LOW': 2}
 REPO_ROOT = Path(__file__).resolve().parents[5]
 LIST_REGRESSIONS = REPO_ROOT / 'plugins/teams/skills/list-regressions/list_regressions.py'
+LABELS_URL = 'https://sippy.dptools.openshift.org/api/jobs/labels'
 REEVALUATE = REPO_ROOT / 'plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py'
 
 
@@ -104,7 +106,30 @@ def _statuses_from_records(regs, now):
     return [view_status(v, [r for r in regs if v in r.get('duty_views', [])], now) for v in views]
 
 
-def oracle(cluster, runner=None, token=None):
+def fetch_labels():
+    req = urllib.request.Request(LABELS_URL, headers={'Accept': 'application/json'})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode('utf-8'))
+
+
+def once(fn):
+    """Memoize a no-arg callable, including its exception, so it runs at most once."""
+    box = []
+
+    def wrapper():
+        if not box:
+            try:
+                box.append((True, fn()))
+            except Exception as e:  # noqa: BLE001
+                box.append((False, e))
+        ok, val = box[0]
+        if ok:
+            return val
+        raise val
+    return wrapper
+
+
+def oracle(cluster, runner=None, token=None, labels_fetch=None):
     """Probe up to 5 newest representative runs with a dry-run symptom reevaluation."""
     out = {'status': 'skipped', 'runs_probed': 0, 'labels': {}, 'label_bugs': {}}
     if token is None and runner is None:
@@ -131,7 +156,6 @@ def oracle(cluster, runner=None, token=None):
         for item in items:
             res = item.get('result') or {}
             found = list(res.get('labels_applied') or [])
-            found += [s for s in res.get('symptoms_matched') or [] if s not in found]
             if found:
                 out['labels'][str(item['item_key'])] = found
     except (ValueError, KeyError, TypeError):
@@ -139,6 +163,14 @@ def oracle(cluster, runner=None, token=None):
         out['labels'] = {}
         return out
     out['status'] = 'ok'
+    wanted = {lab for ls in out['labels'].values() for lab in ls}
+    if wanted:
+        try:
+            catalogue = (labels_fetch or fetch_labels)()
+            out['label_bugs'] = {l['id']: list(l.get('bugs') or []) for l in catalogue if l.get('id') in wanted}
+        except Exception as e:  # noqa: BLE001 - surfaced, never silently empty
+            out['label_bugs'] = {}
+            out['label_bugs_error'] = str(e)
     return out
 
 
@@ -153,7 +185,7 @@ def diff_baseline(clusters, baseline, run_id='local'):
                      schema_version=baseline.get('schema_version'), compatible=ok)
     for c in clusters:
         if not ok:
-            c['lineage'].update(first_seen_run=None, cycles_seen=None)
+            c['lineage'].update(first_seen_run=None, cycles_seen=None, supersedes=None)
             c['members']['new_since_baseline'] = None
             c['shape']['growth_since_baseline'] = None
     if not ok:
@@ -170,7 +202,7 @@ def diff_baseline(clusters, baseline, run_id='local'):
         c['lineage']['supersedes'] = sorted(b for b, n in counts.items() if n * 2 >= sizes[b])
         prev = base.get(c['id'])
         if prev:
-            c['lineage']['first_seen_run'] = block['run_id']
+            c['lineage']['first_seen_run'] = (prev.get('lineage') or {}).get('first_seen_run') or block['run_id']
             c['lineage']['cycles_seen'] = ((prev.get('lineage') or {}).get('cycles_seen') or 1) + 1
         else:
             c['lineage']['first_seen_run'] = run_id
@@ -214,7 +246,7 @@ def _probe_summary(results):
 
 def weekly(regs, now, baseline, oracle=None, run_id='local', view_status=None):
     """Build the prepass.json document. `oracle` is a callable members -> oracle dict (None = skipped)."""
-    open_regs = [r for r in regs if is_open(r)]
+    open_regs = [r for r in regs if is_open(r) and not r.get('triages')]
     clusters = build_clusters(open_regs, now)
     baseline_run = diff_baseline(clusters, baseline, run_id)
     results = []
@@ -318,7 +350,8 @@ def main(argv=None):
         runner_oracle = None
         if not args.no_oracle:
             token = os.environ.get(args.token_env)
-            runner_oracle = (lambda members: oracle(members, token=token))
+            catalogue = once(fetch_labels)
+            runner_oracle = (lambda members: oracle(members, token=token, labels_fetch=catalogue))
         doc = weekly(regs, now, _load_optional(args.baseline), runner_oracle, args.run_id, status)
     with open(args.out, 'w') as f:
         json.dump(doc, f, indent=2, sort_keys=False)
