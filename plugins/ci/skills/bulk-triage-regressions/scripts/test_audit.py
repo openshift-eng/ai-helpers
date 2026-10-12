@@ -114,6 +114,34 @@ class JqlTests(unittest.TestCase):
         self.assertIsNone(r["count"])
         self.assertIn("net", r["error"])
 
+    def test_anonymous_fallback_header_is_unknown_not_zero(self):
+        # Jira Cloud answers 200 + X-Seraph-LoginReason: AUTHENTICATED_FAILED for bad basic auth and
+        # silently falls back to anonymous; that must never count as a clean audit.
+        class Resp:
+            headers = {"X-Seraph-LoginReason": "AUTHENTICATED_FAILED"}
+            def read(self): return b'{"issues": [], "isLast": true}'
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        with mock.patch.dict(os.environ, {"JIRA_USERNAME": "u", "JIRA_API_TOKEN": "t"}), \
+             mock.patch("urllib.request.urlopen", return_value=Resp()):
+            r = audit.jql_creations(*W, "bot")
+        self.assertEqual(r["status"], "unknown")
+        self.assertIsNone(r["count"])
+        self.assertIn("authentic", r["error"].lower())
+
+    def test_myself_401_is_unknown_not_zero(self):
+        import urllib.error
+        def urlopen(req, timeout=None):
+            if req.full_url.endswith("/rest/api/3/myself"):
+                raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", {}, None)
+            raise AssertionError("search must not be attempted when /myself fails")
+        with mock.patch.dict(os.environ, {"JIRA_USERNAME": "u", "JIRA_API_TOKEN": "t"}), \
+             mock.patch("urllib.request.urlopen", side_effect=urlopen):
+            r = audit.jql_creations(*W, "bot")
+        self.assertEqual(r["status"], "unknown")
+        self.assertIsNone(r["count"])
+        self.assertIn("401", r["error"])
+
     def test_missing_credentials_unknown(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             r = audit.jql_creations(*W, "bot")
