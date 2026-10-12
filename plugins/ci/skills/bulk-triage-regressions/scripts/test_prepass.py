@@ -71,6 +71,12 @@ class TripwireTest(unittest.TestCase):
         regs = [r for r in self.replay if view in r['duty_views']]
         return p.tripwire(regs, ts(now), 24, prev)
 
+    def test_tripwire_records_source_run(self):
+        regs = [r for r in self.replay if '4.22-main' in r['duty_views']]
+        doc = p.tripwire(regs, ts('2026-09-24T12:00:00Z'), 24, None, run_id='2200')
+        self.assertEqual(doc['source_run'], {'run_id': '2200'})
+        self.assertEqual(doc['policy'], {'name': 'post-ga'})
+
     def test_tripwire_0924_high_0830_elevated(self):
         doc = self.trip('2026-09-24T12:00:00Z', '4.22-main')
         self.assertEqual([t['level'] for t in doc['triggers']], ['HIGH'])

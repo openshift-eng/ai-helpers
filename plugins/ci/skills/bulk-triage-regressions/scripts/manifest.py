@@ -266,6 +266,56 @@ def merge(prepass, dispositions, actions):
     return out
 
 
+def _jql_guard(jira):
+    if not isinstance(jira, dict) or jira.get("status") != "ok" or jira.get("count") is None:
+        return "unknown"
+    if jira.get("truncated") or jira.get("count", 0) > 0:
+        return "fail"
+    return "pass"
+
+
+def _sippy_guard(diff):
+    st = diff.get("status") if isinstance(diff, dict) else None
+    return st if st in SIPPY_DIFF else "unknown"
+
+
+def finalize(doc, *, jira_creations, sippy_diff, permissions, mode_requested, mode_effective, decision,
+             source_run, previous_run, existing_only):
+    """Inject the runner-owned facts into the agent's manifest: the post-run audit (account-wide Jira
+    creations, Sippy catalogue diff, permissions observation), the receipt decision, the effective
+    policy/write mode and the authoritative source_run. The agent's own `audit.jira_writes` is kept.
+    `decision` is the (decision, origin, reason) tuple from audit.read_receipt_decision."""
+    out = copy.deepcopy(doc)
+    dec, origin, reason = (list(decision) + ["", ""])[:3]
+    jira = jira_creations if isinstance(jira_creations, dict) else {"status": "unknown", "count": None}
+    diff = sippy_diff if isinstance(sippy_diff, dict) else {"status": "unknown"}
+    perms = permissions if isinstance(permissions, dict) else {"status": "unknown"}
+    prev_audit = out.get("audit") if isinstance(out.get("audit"), dict) else {}
+    issues = jira.get("issues") if isinstance(jira.get("issues"), list) else []
+    out["audit"] = {
+        "jira_writes": prev_audit.get("jira_writes") if isinstance(prev_audit.get("jira_writes"), list) else [],
+        "account_wide_creations": {
+            "window": jira.get("window"), "count": jira.get("count"), "status": jira.get("status", "unknown"),
+            "truncated": bool(jira.get("truncated")),
+            "attribution": [{"key": i.get("key"), "created": i.get("created"), "attributed_to": "unresolved"}
+                            for i in issues if isinstance(i, dict)],
+            "note": "service account shared with the 5.0 duty job; attribution is best-effort",
+        },
+        "sippy_catalog_diff": diff,
+        "jira_permissions": {k: perms.get(k) for k in ("status", "projects", "create_issues", "edit_issues", "per_project", "error")},
+        "receipt": {"previous_run": previous_run, "honoured": True,
+                    "downgraded_to_report": dec == "report", "origin": origin or None, "reason": reason or None},
+        "guards": {"existing_only_flag": bool(existing_only), "jql_audit": _jql_guard(jira),
+                   "sippy_diff": _sippy_guard(diff), "junit_backstop": "runner"},
+    }
+    out["source_run"] = dict(source_run or {})
+    pol = out.get("policy") if isinstance(out.get("policy"), dict) else {}
+    pol.update({"name": pol.get("name") or "post-ga", "write_mode": mode_effective,
+                "write_mode_requested": mode_requested, "existing_only": bool(existing_only)})
+    out["policy"] = pol
+    return out
+
+
 def _load(path):
     with open(path) as f:
         return json.load(f)
@@ -283,10 +333,31 @@ def main(argv=None):
     mg.add_argument("--out", required=True)
     mg.add_argument("--extra", help="JSON file whose object is shallow-merged at the top level of the merged "
                                     "document (e.g. watch_list, catch_all, backport_candidates, unanalysed, audit)")
+    fz = sub.add_parser("finalize", help="inject the runner's audit, receipt decision and run metadata")
+    fz.add_argument("--manifest", required=True); fz.add_argument("--out", required=True)
+    for k in ("jira-creations", "sippy-diff", "permissions"):
+        fz.add_argument("--" + k, required=True)
+    fz.add_argument("--mode-requested", required=True); fz.add_argument("--mode-effective", required=True)
+    fz.add_argument("--decision", required=True, help="receipt-decide output: '<decision>\\t<origin>\\t<reason>'")
+    for k in ("job", "run-id", "url", "started"):
+        fz.add_argument("--" + k, required=True)
+    fz.add_argument("--previous-run")
+    fz.add_argument("--existing-only", default="true")
     args = ap.parse_args(argv)
     try:
         if args.cmd == "validate":
             doc = _load(args.path)
+        elif args.cmd == "finalize":
+            parts = args.decision.split("\t")
+            doc = finalize(_load(args.manifest), jira_creations=_load(args.jira_creations),
+                           sippy_diff=_load(args.sippy_diff), permissions=_load(args.permissions),
+                           mode_requested=args.mode_requested, mode_effective=args.mode_effective,
+                           decision=(parts + ["", ""])[:3],
+                           source_run={"job": args.job, "run_id": args.run_id, "url": args.url, "started": args.started},
+                           previous_run=args.previous_run, existing_only=args.existing_only.lower() == "true")
+            with open(args.out, "w") as f:
+                json.dump(doc, f, indent=2)
+                f.write("\n")
         else:
             doc = merge(_load(args.prepass), _load(args.dispositions), _load(args.actions))
             if args.extra:

@@ -210,40 +210,73 @@ class ReceiptTests(unittest.TestCase):
             "sippy_catalog_diff": diff or {"status": "match", "undeclared": []}}}
 
     def test_receipt_with_creation_forces_report(self):
-        d, why = audit.read_receipt_decision(self.rc(jira={"status": "ok", "count": 1, "issues": [{"key": "A-1"}]}))
-        self.assertEqual(d, "report")
+        d, origin, why = audit.read_receipt_decision(self.rc(jira={"status": "ok", "count": 1, "issues": [{"key": "A-1"}]}))
+        self.assertEqual((d, origin), ("report", "r1"))
         self.assertIn("A-1", why)
 
     def test_receipt_ack_restores_configured(self):
         rc = self.rc(jira={"status": "ok", "count": 1, "issues": []})
-        d, why = audit.read_receipt_decision(rc, ack_run_id="r1")
-        self.assertEqual(d, "configured")
+        d, origin, why = audit.read_receipt_decision(rc, ack_run_id="r1")
+        self.assertEqual((d, origin), ("configured", ""))
         self.assertIn("r1", why)
 
     def test_missing_receipt_forces_report(self):
         self.assertEqual(audit.read_receipt_decision(None),
-                         ("report", "no receipt from the latest preceding attempt"))
+                         ("report", "", "no receipt from the latest preceding attempt"))
 
     def test_malformed_receipt(self):
         self.assertEqual(audit.read_receipt_decision({"run_id": "x"})[0], "report")
-        self.assertTrue(audit.read_receipt_decision([])[1].startswith("receipt unreadable"))
+        self.assertTrue(audit.read_receipt_decision([])[2].startswith("receipt unreadable"))
+
+    def test_inherited_downgrade_forces_report_with_origin(self):
+        # Run B was forced to report by A's violation; B's own audit is clean but carries the pending downgrade.
+        rc = self.rc(run="rB")
+        rc["downgrade"] = {"pending": True, "origin": "rA", "reason": "Jira issues created during previous run: X-1 (count 1)"}
+        d, origin, why = audit.read_receipt_decision(rc)
+        self.assertEqual((d, origin), ("report", "rA"))
+        self.assertIn("inherited", why)
+        self.assertIn("rA", why)
+
+    def test_ack_of_origin_clears_inherited_downgrade(self):
+        rc = self.rc(run="rB"); rc["downgrade"] = {"pending": True, "origin": "rA", "reason": "x"}
+        self.assertEqual(audit.read_receipt_decision(rc, ack_run_id="rA")[0], "configured")
+
+    def test_ack_of_clean_carrier_run_does_not_clear_inherited_downgrade(self):
+        rc = self.rc(run="rB"); rc["downgrade"] = {"pending": True, "origin": "rA", "reason": "x"}
+        d, origin, _ = audit.read_receipt_decision(rc, ack_run_id="rB")
+        self.assertEqual((d, origin), ("report", "rA"))
+
+    def test_write_receipt_records_downgrade(self):
+        with tempfile.TemporaryDirectory() as t:
+            p = os.path.join(t, "r.json")
+            audit.write_receipt(p, run_id="rB", mode_requested="auto", mode_effective="report",
+                                audit={"jira_creations": {"status": "ok", "count": 0}, "sippy_catalog_diff": {"status": "match"}},
+                                previous_run="rA", downgrade={"pending": True, "origin": "rA", "reason": "x"})
+            with open(p) as f:
+                r = json.load(f)
+            self.assertEqual(r["downgrade"], {"pending": True, "origin": "rA", "reason": "x"})
+            audit.write_receipt(p, run_id="rC", mode_requested="auto", mode_effective="auto",
+                                audit={"jira_creations": {"status": "ok", "count": 0}, "sippy_catalog_diff": {"status": "match"}},
+                                previous_run="rB")
+            with open(p) as f:
+                self.assertIsNone(json.load(f)["downgrade"])
 
     def test_receipt_unknown_audit_forces_report(self):
-        d, why = audit.read_receipt_decision(self.rc(jira={"status": "unknown", "count": None, "error": "no creds"}))
+        d, _, why = audit.read_receipt_decision(self.rc(jira={"status": "unknown", "count": None, "error": "no creds"}))
         self.assertEqual((d, why), ("report", "audit unknown — no creds"))
 
     def test_mismatch_forces_report(self):
-        d, why = audit.read_receipt_decision(self.rc(diff={"status": "mismatch", "undeclared": [{"kind": "created"}]}))
+        d, _, why = audit.read_receipt_decision(self.rc(diff={"status": "mismatch", "undeclared": [{"kind": "created"}]}))
         self.assertEqual(d, "report")
 
     def test_receipt_truncated_jira_audit_forces_report(self):
         rc = self.rc(jira={"status": "ok", "count": 0, "truncated": True, "issues": []})
         rc["audit"]["sippy_catalog_diff"] = {"status": "match"}
-        d, why = audit.read_receipt_decision(rc)
+        d, _, why = audit.read_receipt_decision(rc)
         self.assertEqual(d, "report")
         self.assertIn("truncated", why)
         rc["audit"]["jira_creations"]["truncated"] = False
-        self.assertEqual(audit.read_receipt_decision(rc), ("configured", ""))
+        self.assertEqual(audit.read_receipt_decision(rc), ("configured", "", ""))
         rc["audit"]["jira_creations"]["truncated"] = True
         self.assertEqual(audit.read_receipt_decision(rc, ack_run_id="r1")[0], "configured")
 
@@ -252,7 +285,7 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(audit.read_receipt_decision({"run_id": "r1"}, "r1")[0], "report")
 
     def test_clean_receipt_configured(self):
-        self.assertEqual(audit.read_receipt_decision(self.rc()), ("configured", ""))
+        self.assertEqual(audit.read_receipt_decision(self.rc()), ("configured", "", ""))
 
     def test_write_receipt_shape(self):
         with tempfile.TemporaryDirectory() as t:
@@ -263,6 +296,28 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(d["schema_version"], "1.0")
         self.assertEqual(set(d["audit"]), {"jira_creations", "sippy_catalog_diff"})
         self.assertIn("written_at", d)
+
+
+class PermissionsTests(unittest.TestCase):
+    def test_permissions_records_create_flag_per_project(self):
+        def fetch(project):
+            return {"permissions": {"CREATE_ISSUES": {"havePermission": project != "TRT"},
+                                    "EDIT_ISSUES": {"havePermission": True},
+                                    "BROWSE_PROJECTS": {"havePermission": True}}}
+        r = audit.permissions(["OCPBUGS", "TRT"], fetch=fetch)
+        self.assertEqual(r["status"], "ok")
+        self.assertEqual(r["projects"], ["OCPBUGS", "TRT"])
+        self.assertEqual(r["create_issues"], True)   # any project with create → True (write-capable token)
+        self.assertEqual(r["edit_issues"], True)
+        self.assertEqual(r["per_project"]["TRT"]["CREATE_ISSUES"], False)
+
+    def test_permissions_failure_is_unknown(self):
+        def fetch(project):
+            raise OSError("boom")
+        r = audit.permissions(["OCPBUGS"], fetch=fetch)
+        self.assertEqual(r["status"], "unknown")
+        self.assertIsNone(r["create_issues"])
+        self.assertIn("boom", r["error"])
 
 
 class CliTests(unittest.TestCase):
@@ -280,9 +335,9 @@ class CliTests(unittest.TestCase):
                 "sippy_catalog_diff": {"status": "match"}}}, p)
             code, out, _ = self.run_cli(["receipt-decide", "--receipt", p])
             self.assertEqual(code, 0)
-            self.assertTrue(out.startswith("report\t"))
+            self.assertTrue(out.startswith("report\tr1\t"), out)
             code, out, _ = self.run_cli(["receipt-decide", "--receipt", p, "--ack", "r1"])
-            self.assertTrue(out.startswith("configured\t"))
+            self.assertTrue(out.startswith("configured\t\t"), out)
 
     def test_receipt_decide_missing_file(self):
         code, out, _ = self.run_cli(["receipt-decide", "--receipt", "/nonexistent/x"])
@@ -322,7 +377,7 @@ class CliTests(unittest.TestCase):
             jdump({"run_id": "r", "audit": {"jira_creations": {"status": "unknown", "error": "a\tb\nc"},
                                             "sippy_catalog_diff": {"status": "match"}}}, p)
             _, out, _ = self.run_cli(["receipt-decide", "--receipt", p])
-            self.assertEqual(out.count("\t"), 1)
+            self.assertEqual(out.count("\t"), 2)
             self.assertEqual(len(out.splitlines()), 1)
 
     def test_diff_cli_bad_json_exits_1(self):
