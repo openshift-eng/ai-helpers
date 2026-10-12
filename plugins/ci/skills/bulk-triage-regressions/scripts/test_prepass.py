@@ -310,6 +310,23 @@ class CliTest(unittest.TestCase):
             with open(out) as f:
                 self.assertEqual(json.load(f)['mode'], 'tripwire')
 
+    def test_cli_inventory_mode_marks_absent_views_unknown_not_zero(self):
+        # An inventory file cannot distinguish "clean view" from "view not collected"; a view with no records
+        # must surface as partial/unknown, never as fetch complete with open 0 (CodeRabbit on #804).
+        with tempfile.TemporaryDirectory() as d:
+            inv = os.path.join(d, 'inv.json')
+            with gzip.open(os.path.join(HERE, 'fixtures', 'frozen-2026-10-07.json.gz'), 'rt') as f, open(inv, 'w') as g:
+                g.write(f.read())
+            out = os.path.join(d, 'out.json')
+            self.assertEqual(p.main(['--views', '4.16-main', '4.22-main', '--inventory', inv, '--now', '2026-10-07T12:00:00Z',
+                                     '--no-oracle', '--baseline', 'none', '--out', out]), 0)
+            with open(out) as f:
+                views = {v['view']: v for v in json.load(f)['observation']['views']}
+            self.assertEqual(views['4.22-main']['fetch'], 'complete')
+            self.assertEqual(views['4.16-main']['fetch'], 'partial')
+            self.assertIsNone(views['4.16-main']['open'])
+            self.assertIn('absent from inventory', views['4.16-main']['error'])
+
 
 if __name__ == '__main__':
     unittest.main()
