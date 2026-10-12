@@ -244,6 +244,85 @@ class ManifestTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             m.merge(fresh_prepass(), {}, {'c-nope': []})
 
+    def test_finalize_injects_runner_audit_and_run_metadata(self):
+        ex = example()
+        jira = {"status": "ok", "count": 1, "raw_matched": 1, "truncated": False,
+                "issues": [{"key": "OCPBUGS-999", "created": "2026-10-13T06:00:00+0000"}],
+                "window": ["2026-10-13T05:00:00Z", "2026-10-13T08:00:00Z"], "error": None}
+        sippy = {"status": "match", "undeclared": [], "declared_not_observed": []}
+        perms = {"status": "ok", "projects": ["OCPBUGS"], "create_issues": True, "edit_issues": True}
+        out = m.finalize(ex, jira_creations=jira, sippy_diff=sippy, permissions=perms,
+                         mode_requested="auto", mode_effective="report",
+                         decision=("report", "2105", "inherited downgrade from 2105: x"),
+                         source_run={"job": "periodic-x", "run_id": "2200", "url": "https://prow/x/2200",
+                                     "started": "2026-10-13T05:00:12Z"},
+                         previous_run="2105", existing_only=True)
+        a = out["audit"]
+        self.assertEqual(a["account_wide_creations"]["count"], 1)
+        self.assertEqual(a["account_wide_creations"]["attribution"][0]["key"], "OCPBUGS-999")
+        self.assertEqual(a["account_wide_creations"]["attribution"][0]["attributed_to"], "unresolved")
+        self.assertEqual(a["sippy_catalog_diff"]["status"], "match")
+        self.assertEqual(a["jira_permissions"]["create_issues"], True)
+        self.assertEqual(a["receipt"], {"previous_run": "2105", "honoured": True, "downgraded_to_report": True,
+                                        "origin": "2105", "reason": "inherited downgrade from 2105: x"})
+        self.assertEqual(a["guards"]["jql_audit"], "fail")      # creations observed
+        self.assertEqual(a["guards"]["sippy_diff"], "match")
+        self.assertEqual(a["guards"]["existing_only_flag"], True)
+        self.assertEqual(out["source_run"]["job"], "periodic-x")
+        self.assertEqual(out["source_run"]["run_id"], "2200")
+        self.assertEqual(out["policy"]["write_mode"], "report")
+        self.assertEqual(out["policy"]["existing_only"], True)
+        self.assertEqual(m.validate(out), [])
+        # the agent's own jira_writes list is preserved, not replaced
+        self.assertEqual(out["audit"]["jira_writes"], ex["audit"]["jira_writes"])
+
+    def test_finalize_unknown_audits_are_unknown_guards(self):
+        ex = example()
+        out = m.finalize(ex, jira_creations={"status": "unknown", "count": None, "error": "401"},
+                         sippy_diff={"status": "unknown", "error": "snapshots missing"}, permissions={"status": "unknown"},
+                         mode_requested="report", mode_effective="report", decision=("report", "", "no receipt"),
+                         source_run={"job": "j", "run_id": "1", "url": "u", "started": "t"}, previous_run=None,
+                         existing_only=True)
+        self.assertEqual(out["audit"]["guards"]["jql_audit"], "unknown")
+        self.assertEqual(out["audit"]["guards"]["sippy_diff"], "unknown")
+        self.assertIsNone(out["audit"]["account_wide_creations"]["count"])
+        self.assertEqual(m.validate(out), [])
+
+    def test_finalize_truncated_jira_audit_is_fail(self):
+        ex = example()
+        out = m.finalize(ex, jira_creations={"status": "ok", "count": 0, "truncated": True, "issues": []},
+                         sippy_diff={"status": "match"}, permissions={"status": "ok"},
+                         mode_requested="auto", mode_effective="auto", decision=("configured", "", ""),
+                         source_run={"job": "j", "run_id": "1", "url": "u", "started": "t"}, previous_run="0",
+                         existing_only=True)
+        self.assertEqual(out["audit"]["guards"]["jql_audit"], "fail")
+
+    def test_finalize_cli(self):
+        cli = os.path.join(HERE, 'manifest.py')
+        with tempfile.TemporaryDirectory() as t:
+            def w(name, obj):
+                p = os.path.join(t, name)
+                with open(p, 'w') as f:
+                    json.dump(obj, f)
+                return p
+            man = w('m.json', example())
+            jira = w('j.json', {"status": "ok", "count": 0, "issues": [], "truncated": False})
+            sip = w('s.json', {"status": "match", "undeclared": [], "declared_not_observed": []})
+            per = w('p.json', {"status": "ok", "create_issues": True, "edit_issues": True, "projects": ["OCPBUGS"]})
+            out = os.path.join(t, 'final.json')
+            r = subprocess.run([sys.executable, cli, 'finalize', '--manifest', man, '--out', out,
+                                '--jira-creations', jira, '--sippy-diff', sip, '--permissions', per,
+                                '--mode-requested', 'report', '--mode-effective', 'report',
+                                '--decision', 'report\t\tno receipt from the latest preceding attempt',
+                                '--job', 'periodic-x', '--run-id', '2200', '--url', 'https://prow/x', '--started', '2026-10-13T05:00:12Z',
+                                '--existing-only', 'true'], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(out) as f:
+                doc = json.load(f)
+            self.assertEqual(doc["audit"]["guards"]["jql_audit"], "pass")
+            self.assertEqual(doc["audit"]["receipt"]["downgraded_to_report"], True)
+            self.assertEqual(doc["source_run"]["run_id"], "2200")
+
     def test_cli_error_paths_and_merge_then_validate(self):
         cli = os.path.join(HERE, 'manifest.py')
         ex = example()

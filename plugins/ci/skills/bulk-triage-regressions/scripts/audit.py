@@ -4,9 +4,10 @@
   audit.py snapshot --out F
   audit.py diff --before A --after B --manifest M --out F
   audit.py jql --start ISO --end ISO --reporter R --out F
+  audit.py permissions --out F [--projects P ...]
   audit.py receipt-write --out F --run-id R --mode-requested M --mode-effective E
                          --jira-creations F1 --sippy-diff F2 [--previous-run P]
-  audit.py receipt-decide --receipt F [--ack RUN]
+  audit.py receipt-decide --receipt F [--ack RUN]   -> prints "<decision>\t<origin>\t<reason>"
 """
 import argparse
 import base64
@@ -22,6 +23,9 @@ SCHEMA_VERSION = "1.0"
 SIPPY_TRIAGES_URL = "https://sippy.dptools.openshift.org/api/component_readiness/triages"
 JIRA_SEARCH_URL = "https://redhat.atlassian.net/rest/api/3/search/jql"
 JIRA_MYSELF_URL = "https://redhat.atlassian.net/rest/api/3/myself"
+JIRA_MYPERMISSIONS_URL = "https://redhat.atlassian.net/rest/api/3/mypermissions"
+DEFAULT_PERMISSION_PROJECTS = ("OCPBUGS", "TRT", "DPTP", "OCPQUAL")
+PERMISSION_KEYS = ("CREATE_ISSUES", "EDIT_ISSUES", "BROWSE_PROJECTS")
 MAX_PAGES = 10
 WIDEN = timedelta(hours=24)
 TIMEOUT = 60
@@ -167,38 +171,80 @@ def jql_creations(start, end, reporter, search=None):
     return res
 
 
-def write_receipt(path, *, run_id, mode_requested, mode_effective, audit, previous_run):
+def _default_permissions_fetch(project):
+    user, token = os.environ.get("JIRA_USERNAME"), os.environ.get("JIRA_API_TOKEN")
+    if not user or not token:
+        raise RuntimeError("JIRA_USERNAME/JIRA_API_TOKEN not set")
+    q = urllib.parse.urlencode({"projectKey": project, "permissions": ",".join(PERMISSION_KEYS)})
+    return _get_json("%s?%s" % (JIRA_MYPERMISSIONS_URL, q), {"Authorization": build_auth_header(user, token)})
+
+
+def permissions(projects=None, fetch=None):
+    """Observe (not gate) the account's permissions per project (spec §6.3: transparency only).
+    create_issues is True when ANY listed project grants it — the token is write-capable by design."""
+    projects = list(projects or DEFAULT_PERMISSION_PROJECTS)
+    res = {"status": "unknown", "time": _now(), "projects": projects, "per_project": {},
+           "create_issues": None, "edit_issues": None, "error": None}
+    try:
+        fetch = fetch or _default_permissions_fetch
+        for proj in projects:
+            perms = (fetch(proj) or {}).get("permissions") or {}
+            res["per_project"][proj] = {k: bool((perms.get(k) or {}).get("havePermission")) for k in PERMISSION_KEYS}
+        res["create_issues"] = any(v["CREATE_ISSUES"] for v in res["per_project"].values())
+        res["edit_issues"] = all(v["EDIT_ISSUES"] for v in res["per_project"].values())
+        res["status"] = "ok"
+    except Exception as e:  # noqa: BLE001 — a failed observation is unknown, never a default
+        res["error"] = "%s: %s" % (type(e).__name__, e)
+    return res
+
+
+def write_receipt(path, *, run_id, mode_requested, mode_effective, audit, previous_run, downgrade=None):
+    """Receipt consumed by the next run. `downgrade` carries a pending, unacknowledged downgrade
+    ({"pending": True, "origin": <violating run id>, "reason": ...}) so that one violation keeps
+    forcing report mode until a manager acknowledges the ORIGIN run, not merely until the next clean run."""
     receipt = {"schema_version": SCHEMA_VERSION, "run_id": run_id, "written_at": _now(),
                "mode_requested": mode_requested, "mode_effective": mode_effective,
                "previous_run": previous_run,
+               "downgrade": downgrade if (isinstance(downgrade, dict) and downgrade.get("pending")) else None,
                "audit": {"jira_creations": audit.get("jira_creations"),
                          "sippy_catalog_diff": audit.get("sippy_catalog_diff")}}
     _write_json(path, receipt)
 
 
 def read_receipt_decision(receipt, ack_run_id=None):
+    """Return (decision, origin, reason). decision is "report" or "configured"; origin is the run id
+    whose violation forces report mode ("" when none), which is what a manager must acknowledge."""
     if receipt is None:
-        return "report", "no receipt from the latest preceding attempt"
+        return "report", "", "no receipt from the latest preceding attempt"
     if not isinstance(receipt, dict) or not isinstance(receipt.get("audit"), dict):
-        return "report", "receipt unreadable: not an object with an audit section"
-    if ack_run_id is not None and ack_run_id == receipt.get("run_id"):
-        return "configured", "receipt %s acknowledged by manager" % ack_run_id
+        return "report", "", "receipt unreadable: not an object with an audit section"
+    run_id = str(receipt.get("run_id", ""))
     jira = receipt["audit"].get("jira_creations")
     diff = receipt["audit"].get("sippy_catalog_diff")
     if not isinstance(jira, dict) or not isinstance(diff, dict):
-        return "report", "receipt unreadable: audit sections missing"
+        return "report", "", "receipt unreadable: audit sections missing"
+    violation = None  # (origin, reason) — this receipt's own audit first, then an inherited downgrade
     for sec in (jira, diff):
         if sec.get("status") == "unknown":
-            return "report", "audit unknown — %s" % sec.get("error")
-    if jira.get("truncated"):
-        return "report", "Jira audit truncated at %d pages — creations may be missing" % MAX_PAGES
-    if jira.get("status") == "ok" and (jira.get("count") or 0) > 0:
+            violation = (run_id, "audit unknown — %s" % sec.get("error")); break
+    if violation is None and jira.get("truncated"):
+        violation = (run_id, "Jira audit truncated at %d pages — creations may be missing" % MAX_PAGES)
+    if violation is None and jira.get("status") == "ok" and (jira.get("count") or 0) > 0:
         keys = ", ".join(str(i.get("key")) for i in jira.get("issues") or [])
-        return "report", "Jira issues created during previous run: %s (count %s)" % (keys, jira["count"])
-    if diff.get("status") == "mismatch":
-        return "report", "Sippy catalogue mismatch: undeclared=%s declared_not_observed=%s" % (
-            json.dumps(diff.get("undeclared")), json.dumps(diff.get("declared_not_observed")))
-    return "configured", ""
+        violation = (run_id, "Jira issues created during previous run: %s (count %s)" % (keys, jira["count"]))
+    if violation is None and diff.get("status") == "mismatch":
+        violation = (run_id, "Sippy catalogue mismatch: undeclared=%s declared_not_observed=%s" % (
+            json.dumps(diff.get("undeclared")), json.dumps(diff.get("declared_not_observed"))))
+    inherited = receipt.get("downgrade")
+    if violation is None and isinstance(inherited, dict) and inherited.get("pending"):
+        origin = str(inherited.get("origin") or run_id)
+        violation = (origin, "inherited downgrade from %s: %s" % (origin, inherited.get("reason")))
+    if violation is None:
+        return "configured", "", ""
+    origin, reason = violation
+    if ack_run_id is not None and ack_run_id == origin:
+        return "configured", "", "downgrade from run %s acknowledged by manager" % origin
+    return "report", origin, reason
 
 
 def _write_json(path, obj):
@@ -232,10 +278,15 @@ def main(argv=None):
     s = sub.add_parser("jql")
     for k in ("start", "end", "reporter", "out"):
         s.add_argument("--" + k, required=True)
+    s = sub.add_parser("permissions")
+    s.add_argument("--out", required=True)
+    s.add_argument("--projects", nargs="*", default=list(DEFAULT_PERMISSION_PROJECTS))
     s = sub.add_parser("receipt-write")
     for k in ("out", "run-id", "mode-requested", "mode-effective", "jira-creations", "sippy-diff"):
         s.add_argument("--" + k, required=True)
     s.add_argument("--previous-run")
+    s.add_argument("--downgrade-origin", help="run id whose violation forces report mode (propagated)")
+    s.add_argument("--downgrade-reason", default="")
     s = sub.add_parser("receipt-decide")
     s.add_argument("--receipt", required=True); s.add_argument("--ack")
     args = p.parse_args(argv)
@@ -257,12 +308,16 @@ def main(argv=None):
                                _declared(_read_json(args.manifest)))
             _write_json(args.out, res)
             print(res["status"])
+        elif args.cmd == "permissions":
+            _write_json(args.out, permissions(args.projects))
         elif args.cmd == "receipt-write":
             write_receipt(args.out, run_id=args.run_id, mode_requested=args.mode_requested,
                           mode_effective=args.mode_effective,
                           audit={"jira_creations": _read_json(args.jira_creations),
                                  "sippy_catalog_diff": _read_json(args.sippy_diff)},
-                          previous_run=args.previous_run)
+                          previous_run=args.previous_run,
+                          downgrade=({"pending": True, "origin": args.downgrade_origin,
+                                      "reason": args.downgrade_reason} if args.downgrade_origin else None))
         elif args.cmd == "receipt-decide":
             try:
                 receipt = _read_json(args.receipt)
@@ -271,10 +326,11 @@ def main(argv=None):
             except (OSError, ValueError) as e:
                 receipt = "unreadable: %s" % e
             if isinstance(receipt, str):
-                decision, reason = "report", "receipt " + receipt
+                decision, origin, reason = "report", "", "receipt " + receipt
             else:
-                decision, reason = read_receipt_decision(receipt, args.ack)
-            print("%s\t%s" % (decision, re.sub(r"[\t\r\n]", " ", str(reason))))
+                decision, origin, reason = read_receipt_decision(receipt, args.ack)
+            clean = lambda v: re.sub(r"[\t\r\n]", " ", str(v))
+            print("%s\t%s\t%s" % (decision, clean(origin), clean(reason)))
     except (OSError, ValueError, KeyError, AttributeError) as e:
         print("audit.py %s: %s: %s" % (args.cmd, type(e).__name__, e), file=sys.stderr)
         return 1

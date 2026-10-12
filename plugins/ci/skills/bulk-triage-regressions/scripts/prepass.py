@@ -272,7 +272,7 @@ def weekly(regs, now, baseline, oracle=None, run_id='local', view_status=None):
     }
 
 
-def tripwire(regs, now, window_hours, previous_status, view_status=None):
+def tripwire(regs, now, window_hours, previous_status, view_status=None, run_id='local'):
     start = now - timedelta(hours=window_hours)
     window = [r for r in regs if start <= clustering.parse_ts(r['opened']) < now]
     clusters = build_clusters(window, now)
@@ -301,7 +301,8 @@ def tripwire(regs, now, window_hours, previous_status, view_status=None):
         del c['_members']
     status = view_status if view_status is not None else _statuses_from_records(window, now)
     return {
-        'schema_version': SCHEMA_VERSION, 'mode': 'tripwire',
+        'schema_version': SCHEMA_VERSION, 'mode': 'tripwire', 'policy': {'name': 'post-ga'},
+        'source_run': {'run_id': run_id},
         'observation': {'time': iso(now), 'views': status, 'window_hours': window_hours},
         'clusters': clusters,
         'triggers': triggers,
@@ -345,7 +346,7 @@ def main(argv=None):
         regs, status = fetch_inventory(args.views, now=now)
 
     if args.tripwire:
-        doc = tripwire(regs, now, args.window_hours, _load_optional(args.previous_status), status)
+        doc = tripwire(regs, now, args.window_hours, _load_optional(args.previous_status), status, args.run_id)
     else:
         runner_oracle = None
         if not args.no_oracle:
