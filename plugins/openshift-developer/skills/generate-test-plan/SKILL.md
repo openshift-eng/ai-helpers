@@ -690,3 +690,6 @@ When re-running on an already-generated plan:
 - Do not generate test plans for closed-unmerged PRs, vendor-only PRs, or generated-only PRs.
 - When the input is test code (no product code), use test-code-as-deliverable mode.
 - When the Jira issue has unfilled template placeholders, refuse to generate and report the gaps.
+
+## See Also
+- `openshift-developer:generate-bug-reproducer` — reproduction and fix-verification steps for a single bug, rather than broad coverage; reuses Steps 1-2 of this skill to gather sources
