@@ -101,6 +101,7 @@ Write the per-cluster JSON files, then merge and validate (`manifest.py` is in `
      "bug_search": {"candidates": [{"key": "OCPBUGS-129375", "status": "POST", "release": "5.0",
        "cites_own_runs": true, "exact_assertion": true, "sibling_precedent": {"view": "5.0-main", "triage_id": 652},
        "bar_met": true, "verdict": "link"}], "newer_release_fix": null},
+     "members_unlinked": [{"id": 49533, "reason": "different mechanism, no own-run evidence"}],
      "proposed_action": {"type": "extend_triage", "triage_id": 652, "jira": "OCPBUGS-129375",
        "regression_ids": [49531, 49532], "description": "<120 chars"},
      "escalation": {"required": true, "reason": "HIGH; auto-linked to OCPBUGS-129375, triage 652 — veto by <date>",
@@ -108,9 +109,9 @@ Write the per-cluster JSON files, then merge and validate (`manifest.py` is in `
        "representative_runs": [{"prowjob_run_id": "2043...", "url": "<prow url>", "job": "<job>"}], "sippy_links": []}}}
    ```
 
-   `escalation` is moved onto the cluster by the merge; omit it for non-`HIGH` clusters unless you set the §5 fields. A cluster you did not reach is `{"state": "UNANALYSED", "analysis": {"depth": "none", "confidence": "low", "root_cause": "<reason: budget exhausted after …>", "evidence": [], "unverified_hypotheses": []}, "escalation": {...}}` and is also listed in `extra.json` `unanalysed[]`.
+   `escalation` and `members_unlinked` are moved onto the cluster by the merge; omit it for non-`HIGH` clusters unless you set the §5 fields. A cluster you did not reach is `{"state": "UNANALYSED", "analysis": {"depth": "none", "confidence": "low", "root_cause": "<reason: budget exhausted after …>", "evidence": [], "unverified_hypotheses": []}, "escalation": {...}}` and is also listed in `extra.json` `unanalysed[]`.
 2. `actions.json`: object keyed by cluster id; each value is a list, e.g. `{"c-2e1a40": [{"type": "extend_triage", "triage_id": 652, "regression_ids": [49531, 49532], "status": "done", "precheck": {"triage_reread": true, "already_present": []}, "result_url": "<triage url>", "error": null}]}`. Status `planned|done|failed|skipped-report-mode`; only `done` counts as coverage. Clusters with no actions need no entry.
-3. `members.unlinked`: the merge copies `members` from the pre-pass file unchanged, so supply it there. Copy `prepass.json` to `prepass-annotated.json`, add `"unlinked": [{"id": <regression id>, "reason": "<why no evidence>"}]` to that cluster's `members`, and pass the copy as `--prepass`. Every member not covered by evidence must be listed when `proposed_action.type` is not `none`.
+3. `members.unlinked`: put `"members_unlinked": [{"id": <regression id>, "reason": "<why no evidence>"}]` in the cluster's `dispositions.json` entry; the merge moves it to `members.unlinked`. List every member not covered by evidence whenever `proposed_action.type` is not `none`.
 4. `extra.json`, all five keys (shallow-merged at top level):
 
    ```json
@@ -125,7 +126,7 @@ Write the per-cluster JSON files, then merge and validate (`manifest.py` is in `
    ```
 
    `watch_list` items come from `prepass.json` `watch_list_candidates` plus `revisit`. `audit` is a placeholder the runner overwrites; `validate` rejects `{}` or a missing key, so keep this exact skeleton. Use empty lists/objects (`[]`, `"admitted": []`) when there is nothing to report.
-5. `python3 scripts/manifest.py merge --prepass prepass-annotated.json --dispositions dispositions.json --actions actions.json --extra extra.json --out triage-manifest.json`
+5. `python3 scripts/manifest.py merge --prepass prepass.json --dispositions dispositions.json --actions actions.json --extra extra.json --out triage-manifest.json`
 6. `python3 scripts/manifest.py validate triage-manifest.json` (exit 0 required; errors on stderr). Fix and re-run on exit 1; never weaken the data to pass.
 
 Validator rules: every evidence item has `prowjob_run_id` and `supports_regression_ids`; `regression_ids` ⊆ supported ids; `rule_checks` all true; `escalation.required` true for every `HIGH` cluster. Every claim needs a locator the next reader can open; unavailable states are explicit (`unknown`, `partial`, `unauthorized`), never zero.
