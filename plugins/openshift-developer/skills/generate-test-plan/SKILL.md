@@ -138,3 +138,6 @@ Note skipped PRs in the output with reasoning.
 - Derive test scenarios from actual code changes, not assumptions
 - Keep test steps concrete with exact commands and expected output
 - When Jira acceptance criteria exist, map every criterion to at least one test case
+
+## See Also
+- `openshift-developer:generate-bug-reproducer` — reproduction and fix-verification steps for a single bug, rather than broad coverage; reuses Steps 1-2 of this skill to gather sources
