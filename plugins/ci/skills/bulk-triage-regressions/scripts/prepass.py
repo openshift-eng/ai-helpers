@@ -383,7 +383,9 @@ def main(argv=None):
         status = [s for s in _statuses_from_records(regs, now)]
         for v in args.views:
             if v not in {s['view'] for s in status}:
-                status.append(view_status(v, [], now))
+                # The file cannot tell a clean view from one that was never collected: unknown, not zero.
+                status.append({'view': v, 'fetch': 'partial', 'error': 'view absent from inventory file',
+                               'open': None, 'open_untriaged': None, 'opened_7d': None, 'closed_7d': None})
     else:
         regs, status = fetch_inventory(args.views, now=now)
 
