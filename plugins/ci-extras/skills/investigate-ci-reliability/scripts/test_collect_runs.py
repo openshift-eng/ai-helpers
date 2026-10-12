@@ -146,6 +146,10 @@ class CollectionTests(unittest.TestCase):
 
 
 class BlockingTests(unittest.TestCase):
+    def test_public_bucket_attempt_url_is_accepted(self):
+        url = "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/job/%s" % BIG
+        self.assertEqual((str(BIG), "job"), collector.attempt_key(url))
+
     def test_snapshot_requires_exact_attempt_and_honors_previous_attempts(self):
         first, previous, informing = row(BIG), row(BIG + 1), row(BIG + 2)
         detail = {"name": "payload", "results": {"blockingJobs": {"verify": {"url": first["url"],

@@ -2,6 +2,41 @@
 
 Extended OpenShift CI tooling, providing an MCP server for direct access to CI data APIs.
 
+## Payload informing-job analysis
+
+Use `$ci-extras:analyze-payload-informing-jobs 5.1 --architecture amd64
+--stream nightly` to rank non-blocking verification jobs across a frozen set of
+recent, relatively healthy payloads. The workflow separates current-release and
+verified previous-release history, deduplicates Prow runs, routes prioritized
+failures through `prow-job-analysis`, and exports portable repair, retirement,
+and unresolved findings.
+
+The [analyze-payload-informing-jobs skill](skills/analyze-payload-informing-jobs/SKILL.md)
+defaults to a 14-day window, at most 10 healthy payloads, a ceiling of 10 validated
+recommendations, 100 candidate cohorts, and a 120-minute workflow budget. Release, architecture, and
+stream are required; the population and evidence thresholds are configurable.
+Its Python helpers use public Sippy and Prow/GCS data. User-selected workspace
+paths are supported; the default is `~/tmp/analyze-payload-informing-jobs/<UTC timestamp>`.
+
+The report links a readable summary for every ranked cohort. Investigated jobs
+use the reliability handoff format with impact, mechanism, source status, next
+action and owner, validation, limits, review, and evidence. Pending jobs have
+short metrics-and-status summaries; current and historical rankings stay separate.
+Finding no fix in early investigations does not stop exploration. Persistent
+history advances later runs through pending cohorts; changed evidence or feasible
+follow-ups can reopen prior investigations. Reports state the stopping reason,
+remaining queue, and historical context without renewing old conclusions or reviews.
+
+Retirement output is a recommendation with an unapplied configuration change,
+cross-stream impact, coverage risk, restoration criteria, and a separate review.
+For an informing job unable to run its intended tests with no supported repair,
+a yearly retirement recommendation must also propose setting `disabled: true`
+on its payload verification entry, even if the periodic is already yearly.
+The entry and its job mapping are retained. The periodic job remains available for
+yearly and manual runs, subject to the existing retirement gates.
+The skill never edits CI configuration, changes schedules, opens issues or PRs,
+decides payloads, or triggers jobs without a separate request.
+
 ## Reliability investigations
 
 Use `/investigate-ci-reliability 5.1 --max-issues 10` to investigate **all release

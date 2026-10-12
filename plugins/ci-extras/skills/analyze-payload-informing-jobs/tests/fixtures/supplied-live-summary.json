@@ -1,0 +1,28 @@
+{
+  "captured_at": "2026-10-06T00:00:00Z",
+  "release": "5.1",
+  "architecture": "amd64",
+  "stream": "nightly",
+  "payloads": [
+    {
+      "tag": "5.1.0-0.nightly-2026-10-05-164628",
+      "id": "147823",
+      "phase": "Rejected",
+      "job_rows": 84,
+      "blocking": {"Succeeded": 6, "Failed": 10},
+      "informing": {"Succeeded": 22, "Failed": 46},
+      "sha256": "53c0b51ded119900fbb25f5e006c24688fae97304c900a87432da53f9422954f"
+    },
+    {
+      "tag": "5.1.0-0.nightly-2026-10-02-052246",
+      "id": "147634",
+      "phase": "Accepted",
+      "job_rows": 84,
+      "blocking": {"Succeeded": 16, "Failed": 0},
+      "informing": {"Succeeded": 42, "Failed": 26},
+      "sha256": "f947e7effe232bbc435b069de73cb0d7ae1de45cab4962d51b130914e88e18ab"
+    }
+  ],
+  "tags_sha256": "380d2837325a4beae66f44a12a251fb83b4668d8061cbdae891da34f24e5312b",
+  "note": "Counts and hashes pin the supplied raw planning fixtures; behavior tests construct deterministic rows with the same invariants."
+}

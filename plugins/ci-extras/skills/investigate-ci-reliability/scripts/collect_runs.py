@@ -117,7 +117,8 @@ def attempt_key(url):
     if parsed.scheme != "https" or parsed.hostname != "prow.ci.openshift.org":
         return None
     parts = parsed.path.rstrip("/").split("/")
-    if len(parts) < 7 or parts[1:4] != ["view", "gs", "test-platform-results"]:
+    if (len(parts) < 7 or parts[1:3] != ["view", "gs"]
+            or parts[3] not in ("test-platform-results", "test-platform-results-public")):
         return None
     try:
         return run_id(parts[-1]), urllib.parse.unquote(parts[-2])

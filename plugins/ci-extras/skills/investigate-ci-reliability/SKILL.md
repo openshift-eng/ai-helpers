@@ -90,6 +90,11 @@ observed cofailures from sole blockers; source defects can be demonstrated witho
 claiming every matching run would recover. A timeout, quota rejection, or hypothesis is
 not yet a demonstrated incorrect behavior with a justified fix.
 
+When a topology, platform, or common cluster configuration makes a test invalid
+across multiple jobs, prefer a shared OTE / `openshift-tests` selector or setup
+skip when supported. Apply the [test-selection scope guidance](references/proof-review.md#topology-and-platform-test-selection)
+before recommending a per-job exclusion.
+
 Perform the [independent proof-review stage](references/proof-review.md) in a separate
 reviewer context. Give the reviewer the raw evidence, candidate, and contract. Require
 counterarguments, current-fix verification, and the exact scope of the proposed repair.
