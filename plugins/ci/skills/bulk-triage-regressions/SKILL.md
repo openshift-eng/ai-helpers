@@ -36,7 +36,7 @@ JIRA writes (filing bugs, `set-release-blocker`, `add-jira-triage-link`) additio
 
 ### Phase 0: Run the pre-pass (post-ga only)
 
-With `--policy post-ga`, first run `scripts/prepass.py` with the given views. Treat the `prepass.json` clusters as the complete batch inventory: do not re-derive clusters, and do not call the list/details/related APIs for inventory. Analyse clusters in file order (HIGH first) within the time budget. A `symptom_probe.status` other than `ok` means unknown, never "no symptoms matched". Read and follow `references/post-ga-policy.md` for everything else in this mode.
+With `--policy post-ga`, first run `scripts/prepass.py` with the given views. Treat the `prepass.json` clusters as the complete batch inventory: do not re-derive clusters, and do not call the list/details/related APIs for inventory. Analyse clusters in file order (HIGH first) within the time budget. A `symptom_probe.status` other than `ok` means unknown, never "no symptoms matched". Read and follow `references/post-ga-policy.md` for everything else in this mode, and skip Phase 1's collection steps.
 
 ### Phase 1: Collect the full batch
 

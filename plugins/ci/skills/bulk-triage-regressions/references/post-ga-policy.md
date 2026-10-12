@@ -54,7 +54,7 @@ Every cell has a no-write fallback. A small persisting **cluster** with no bug i
 
 ## 5. Notification policy
 
-Set `escalation.required: true` on every `HIGH` cluster, **regardless of disposition**, including `UNEXPLAINED` and `UNANALYSED` (an `UNANALYSED` `HIGH` still escalates on shape evidence, with diagnosis "unanalysed"). If a link was written, `escalation.reason` states "auto-linked to <bug>, triage <id> — veto by <deadline>" and sets `veto_deadline`. `ELEVATED` and `UNEXPLAINED` → non-pinging escalation reply, no mention; otherwise a digest line; `LOW` → count. Set `re_notify` with `re_notify_reasons` when the cluster **grew** since baseline, its **mechanism or severity changed**, or it is **overdue** (>14 d unowned). Include up to 3 `representative_runs` (own runs) and `sippy_links`; state unknown fields as unknown.
+Set `escalation.required: true` on every `HIGH` cluster, **regardless of disposition**, including `UNEXPLAINED` and `UNANALYSED` (an `UNANALYSED` `HIGH` still escalates on shape evidence, with diagnosis "unanalysed"). If a link was written, `escalation.reason` states "auto-linked to <bug>, triage <id> — veto by <deadline>" and sets `veto_deadline`. `ELEVATED` ∧ `UNEXPLAINED` → non-pinging escalation reply, no mention; otherwise `ELEVATED` → digest line; `LOW` → count. Set `re_notify` with `re_notify_reasons` when the cluster **grew** since baseline, its **mechanism or severity changed**, or it is **overdue** (>14 d unowned). Include up to 3 `representative_runs` (own runs) and `sippy_links`; state unknown fields as unknown.
 
 ## 6. Jira write scope
 
@@ -71,8 +71,11 @@ Only on **verified existing issues**:
 
 ## 7. Write modes
 
-- `report` (default for this policy): no Sippy or Jira write of any kind. Record every intended action in `actions[]` with status `skipped-report-mode`; analysis is otherwise identical.
-- `auto`: write only when the linking gate is met; everything else is a recorded proposal.
+This job is unattended: there is no user to confirm. `--write-mode` (default in SKILL.md Arguments) overrides Phase 4's per-bucket confirmation and the `--auto-triage` semantics.
+
+- `report`: no Sippy or Jira write of any kind, regardless of confidence. Record every intended action in `actions[]` with status `skipped-report-mode`; analysis is otherwise identical.
+- `auto`: every write that meets the linking gate (§4) or the catch-all rule is authorised and performed without confirmation; everything else is a recorded proposal.
+- In both modes, writes that Phase 4 gates on confirmation for other reasons (new Sippy labels/symptoms, release blockers, `manage-labels` updates) stay report recommendations.
 
 ## 8. Budget ordering
 
@@ -84,13 +87,46 @@ Only on **verified existing issues**:
 
 ## 9. Manifest writing
 
-Write per-cluster JSON, then merge and validate (`manifest.py` is in `scripts/`):
+Write the per-cluster JSON files, then merge and validate (`manifest.py` is in `scripts/`):
 
-1. `dispositions.json`: object keyed by cluster id (ids must exist in `prepass.json`); each value is the disposition itself, not wrapped: `{state, analysis{depth,confidence,owning_component,sippy_components,triage_type,root_cause,evidence[{claim,artifact,quote,prowjob_run_id,supports_regression_ids}],unverified_hypotheses}, bug_search{candidates[{key,status,release,cites_own_runs,exact_assertion,sibling_precedent,bar_met,verdict}],newer_release_fix}, proposed_action{type,triage_id,jira,regression_ids,description}, escalation{required,reason,first_escalated_run,re_notify,re_notify_reasons,veto_deadline,representative_runs,sippy_links}}`. The merge moves `escalation` onto the cluster. Include an entry for **every** cluster, with `state: UNANALYSED` and a `reason` for those you did not reach (a missing entry produces no escalation, which fails validation for `HIGH`). States: `KNOWN-CAUSE|CANDIDATE|UNEXPLAINED|UNANALYSED`; action types `extend_triage|create_triage|catch_all|none`.
-2. `actions.json`: object keyed by cluster id, each a list of `{type,triage_id,regression_ids,status,precheck{triage_reread,already_present},result_url,error}` with status `planned|done|failed|skipped-report-mode`. Only `done` counts as coverage.
-3. `extra.json` with top-level keys `watch_list`, `catch_all{jira,triage_id,admitted}`, `backport_candidates[{cluster_id,fixed_in{key,fix_version},this_release,clone_exists}]`, `unanalysed`. Do not write `audit`; the runner fills it.
-4. `python3 scripts/manifest.py merge --prepass prepass.json --dispositions dispositions.json --actions actions.json --extra extra.json --out triage-manifest.json`
-5. `python3 scripts/manifest.py validate triage-manifest.json` (exit 0 required; errors on stderr). Fix and re-run on exit 1; never weaken the data to pass.
+1. `dispositions.json`: object keyed by cluster id (ids must exist in `prepass.json`); each value is the disposition itself, unwrapped. Include an entry for **every** cluster (a missing entry gives no escalation, which fails validation for `HIGH`). Example, `KNOWN-CAUSE`:
+
+   ```json
+   {"c-2e1a40": {"state": "KNOWN-CAUSE",
+     "analysis": {"depth": "deep-dive", "confidence": "high", "owning_component": "Machine Config Operator",
+       "sippy_components": ["Installer"], "triage_type": "product", "root_cause": "<mechanism>",
+       "evidence": [{"claim": "<assertion>", "artifact": "<gcs path>", "quote": "<exact line>",
+         "prowjob_run_id": "2043...", "supports_regression_ids": [49531, 49532]}],
+       "unverified_hypotheses": []},
+     "bug_search": {"candidates": [{"key": "OCPBUGS-129375", "status": "POST", "release": "5.0",
+       "cites_own_runs": true, "exact_assertion": true, "sibling_precedent": {"view": "5.0-main", "triage_id": 652},
+       "bar_met": true, "verdict": "link"}], "newer_release_fix": null},
+     "proposed_action": {"type": "extend_triage", "triage_id": 652, "jira": "OCPBUGS-129375",
+       "regression_ids": [49531, 49532], "description": "<120 chars"},
+     "escalation": {"required": true, "reason": "HIGH; auto-linked to OCPBUGS-129375, triage 652 — veto by <date>",
+       "re_notify": false, "re_notify_reasons": [], "veto_deadline": "<ISO>",
+       "representative_runs": [{"prowjob_run_id": "2043...", "url": "<prow url>", "job": "<job>"}], "sippy_links": []}}}
+   ```
+
+   `escalation` is moved onto the cluster by the merge; omit it for non-`HIGH` clusters unless you set the §5 fields. A cluster you did not reach is `{"state": "UNANALYSED", "analysis": {"depth": "none", "confidence": "low", "root_cause": "<reason: budget exhausted after …>", "evidence": [], "unverified_hypotheses": []}, "escalation": {...}}` and is also listed in `extra.json` `unanalysed[]`.
+2. `actions.json`: object keyed by cluster id; each value is a list, e.g. `{"c-2e1a40": [{"type": "extend_triage", "triage_id": 652, "regression_ids": [49531, 49532], "status": "done", "precheck": {"triage_reread": true, "already_present": []}, "result_url": "<triage url>", "error": null}]}`. Status `planned|done|failed|skipped-report-mode`; only `done` counts as coverage. Clusters with no actions need no entry.
+3. `members.unlinked`: the merge copies `members` from the pre-pass file unchanged, so supply it there. Copy `prepass.json` to `prepass-annotated.json`, add `"unlinked": [{"id": <regression id>, "reason": "<why no evidence>"}]` to that cluster's `members`, and pass the copy as `--prepass`. Every member not covered by evidence must be listed when `proposed_action.type` is not `none`.
+4. `extra.json`, all five keys (shallow-merged at top level):
+
+   ```json
+   {"watch_list": [{"regression_id": 51210, "view": "4.21-main", "reason": "LOW & new (<7d)", "cluster_id": "c-1b22c0", "revisit": "next cycle"}],
+    "catch_all": {"jira": "OCPQUAL-88", "triage_id": 851, "admitted": [{"regression_id": 51180,
+      "rule_checks": {"examined": true, "no_bug_meets_bar": true, "not_in_cluster": true, "pre_5_0": true},
+      "signature": "<grep-able line>", "status": "done"}]},
+    "backport_candidates": [{"cluster_id": "c-2e1a40", "fixed_in": {"key": "OCPBUGS-113706", "fix_version": "5.1.0"}, "this_release": "4.22", "clone_exists": false}],
+    "unanalysed": [{"cluster_id": "c-9c0b12", "reason": "budget exhausted after 3h12m", "blast_radius": "ELEVATED"}],
+    "audit": {"jira_writes": [], "account_wide_creations": null, "sippy_catalog_diff": null, "jira_permissions": null, "receipt": null,
+      "guards": {"existing_only_flag": null, "jql_audit": "unknown", "sippy_diff": "unknown", "junit_backstop": null}}}
+   ```
+
+   `watch_list` items come from `prepass.json` `watch_list_candidates` plus `revisit`. `audit` is a placeholder the runner overwrites; `validate` rejects `{}` or a missing key, so keep this exact skeleton. Use empty lists/objects (`[]`, `"admitted": []`) when there is nothing to report.
+5. `python3 scripts/manifest.py merge --prepass prepass-annotated.json --dispositions dispositions.json --actions actions.json --extra extra.json --out triage-manifest.json`
+6. `python3 scripts/manifest.py validate triage-manifest.json` (exit 0 required; errors on stderr). Fix and re-run on exit 1; never weaken the data to pass.
 
 Validator rules: every evidence item has `prowjob_run_id` and `supports_regression_ids`; `regression_ids` ⊆ supported ids; `rule_checks` all true; `escalation.required` true for every `HIGH` cluster. Every claim needs a locator the next reader can open; unavailable states are explicit (`unknown`, `partial`, `unauthorized`), never zero.
 
