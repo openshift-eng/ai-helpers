@@ -1,11 +1,14 @@
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import re
 import tempfile
 import unittest
 from pathlib import Path
 from urllib.parse import unquote
+from unittest import mock
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "export_report.py"
 SPEC = importlib.util.spec_from_file_location("export_report", SCRIPT)
@@ -50,6 +53,23 @@ def finding_record(**overrides):
     return finding
 
 
+def retirement_record(**overrides):
+    candidate = {"schema_version": 1, "cohort_id": "cohort", "disposition": "RETIREMENT_CANDIDATE",
+                 "population": {"terminal_runs": 5, "payloads": 3},
+                 "persistence": {"recent": True}, "localization": {"job_local": True},
+                 "investigation": {"scope": "three failures and one control", "supported_repairs": []},
+                 "configuration": {"verification_entry": "alias", "prow_job": "periodic-job",
+                   "source_revision": "abc123", "periodic_definition": "ci-operator/jobs/example.yaml",
+                   "current_schedule": {"interval": "24h"},
+                   "proposed_yearly_schedule": {"cron": "0 0 1 1 *", "timezone": "UTC"},
+                   "unapplied_change": "replace interval with cron"},
+                 "impact": {"consumers": ["5.1/amd64/nightly"], "coverage_risk": "documented"},
+                 "restoration_condition": "restore after three consecutive healthy payload runs",
+                 "investigator_context_identity": "investigator-a", "evidence": []}
+    candidate.update(overrides)
+    return candidate
+
+
 def write_finding(root, finding):
     directory = root / "findings"
     directory.mkdir(exist_ok=True)
@@ -62,6 +82,68 @@ def local_links(path):
 
 
 class ExportTests(unittest.TestCase):
+    def test_sampled_run_null_execution_exports_unknown_phase(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = setup_workspace(Path(directory) / "work")
+            finding = finding_record(sampled_runs=[{
+                "run_id": "123", "url": "https://example.invalid/run/123", "payload_id": "p1",
+                "result": "FAILURE", "execution": None}])
+            write_finding(root, finding)
+            output = Path(directory) / "reports/report"
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(0, exporter.main(["--workspace", str(root), "--output", str(output)]))
+            summary = output / "findings/cohort/README.md"
+            self.assertIn("payload p1; phase UNKNOWN", summary.read_text())
+            self.assertEqual(finding, exporter.read_json(summary.with_name("finding.json")))
+            self.assertEqual(str(output), exporter.read_json(root / "manifest.json")["last_export"])
+
+    def test_null_evidence_exports_findings_and_retirement_candidates(self):
+        for record_type in ("finding", "retirement", "both"):
+            with self.subTest(record_type=record_type), tempfile.TemporaryDirectory() as directory:
+                root = setup_workspace(Path(directory) / "work")
+                if record_type in ("finding", "both"):
+                    write_finding(root, finding_record(evidence=None))
+                if record_type in ("retirement", "both"):
+                    exporter.write_json(root / "retirement-candidates/cohort.json",
+                                        retirement_record(evidence=None))
+                output = Path(directory) / "report"
+                exporter.run(root, output)
+                self.assertIn("No retained evidence recorded.",
+                              (output / "findings/cohort/README.md").read_text())
+                self.assertTrue((output / "manifest.json").is_file())
+                self.assertTrue(all(path.is_file() for path in local_links(output / "findings/cohort/README.md")))
+
+    def test_failed_export_leaves_destination_available_for_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = setup_workspace(Path(directory) / "work")
+            manifest = (root / "manifest.json").read_bytes()
+            repairs = root / "validated-repairs"
+            repairs.mkdir()
+            output = Path(directory) / "report"
+            with self.assertRaisesRegex(exporter.ExportError, "no validated issues directory"):
+                exporter.run(root, output)
+            self.assertFalse(output.exists())
+            self.assertEqual(manifest, (root / "manifest.json").read_bytes())
+            self.assertEqual([root], list(Path(directory).iterdir()))
+            (repairs / "issues").mkdir()
+            exporter.run(root, output)
+            self.assertTrue((output / "README.md").is_file())
+            self.assertEqual(str(output), exporter.read_json(root / "manifest.json")["last_export"])
+            self.assertEqual({root, output}, set(Path(directory).iterdir()))
+
+    def test_cli_reports_attribute_error_and_cleans_failed_export(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = setup_workspace(Path(directory) / "work")
+            output = Path(directory) / "report"
+            errors = io.StringIO()
+            with mock.patch.object(exporter, "cohort_readme", side_effect=AttributeError("render failed")), \
+                    contextlib.redirect_stderr(errors), contextlib.redirect_stdout(io.StringIO()):
+                result = exporter.main(["--workspace", str(root), "--output", str(output)])
+            self.assertEqual(2, result)
+            self.assertEqual({"error": "render failed"}, json.loads(errors.getvalue()))
+            self.assertFalse(output.exists())
+            self.assertEqual([root], list(Path(directory).iterdir()))
+
     def test_prior_history_is_exported_as_scheduling_context_without_current_finding(self):
         with tempfile.TemporaryDirectory() as directory:
             old = setup_workspace(Path(directory) / "old")
@@ -295,18 +377,7 @@ class ExportTests(unittest.TestCase):
             proof = {"source_url": "https://example.invalid/run", "retrieved_at": "2026-10-06T00:00:00Z",
                      "sha256": hashlib.sha256(evidence_path.read_bytes()).hexdigest(),
                      "retained_path": "evidence/failure.txt", "location": "line:1", "role": "observed_failure"}
-            candidate = {"schema_version": 1, "cohort_id": "cohort", "disposition": "RETIREMENT_CANDIDATE",
-                         "population": {"terminal_runs": 5, "payloads": 3},
-                         "persistence": {"recent": True}, "localization": {"job_local": True},
-                         "investigation": {"scope": "three failures and one control", "supported_repairs": []},
-                         "configuration": {"verification_entry": "alias", "prow_job": "periodic-job",
-                           "source_revision": "abc123", "periodic_definition": "ci-operator/jobs/example.yaml",
-                           "current_schedule": {"interval": "24h"},
-                           "proposed_yearly_schedule": {"cron": "0 0 1 1 *", "timezone": "UTC"},
-                           "unapplied_change": "replace interval with cron"},
-                         "impact": {"consumers": ["5.1/amd64/nightly"], "coverage_risk": "documented"},
-                         "restoration_condition": "restore after three consecutive healthy payload runs",
-                         "investigator_context_identity": "investigator-a", "evidence": [proof]}
+            candidate = retirement_record(evidence=[proof])
             candidates = root / "retirement-candidates"
             candidates.mkdir()
             path = candidates / "cohort.json"

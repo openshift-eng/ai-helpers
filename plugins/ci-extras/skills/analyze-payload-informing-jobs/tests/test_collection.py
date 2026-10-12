@@ -1,10 +1,13 @@
 import importlib.util
+import io
 import json
 import tempfile
 import unittest
+import urllib.error
 import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "collect_payload_jobs.py"
 SPEC = importlib.util.spec_from_file_location("collect_payload_jobs", SCRIPT)
@@ -63,6 +66,107 @@ class FakeClient:
         self.provenance.append({"url": url, "path": label, "bytes": len(raw), "sha256": collector.sha256(raw),
                                 "retrieved_at": "2026-10-06T00:00:00Z"})
         return value
+
+
+class FakeHTTP:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.urls = []
+
+    def __call__(self, request, timeout):
+        self.urls.append(request.full_url)
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return io.BytesIO(response)
+
+
+class ClientTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.raw = Path(self.temp.name)
+        sleeper = mock.patch.object(collector.time, "sleep")
+        self.sleep = sleeper.start()
+        self.addCleanup(sleeper.stop)
+
+    def client(self, responses, **kwargs):
+        http = FakeHTTP(responses)
+        return collector.Client(self.raw, opener=http, **kwargs), http
+
+    def http_error(self, code):
+        return urllib.error.HTTPError("https://example.invalid", code, "fixture error", {}, None)
+
+    def test_retryable_http_succeeds_with_retained_provenance(self):
+        body = b'[{"id": 123}]'
+        for code in (429, 500, 502, 503, 504):
+            with self.subTest(code=code):
+                self.sleep.reset_mock()
+                client, http = self.client([self.http_error(code), body])
+                self.assertEqual([{"id": 123}], client.get("https://example.invalid", "tags"))
+                self.assertEqual(2, client.requests)
+                self.assertEqual(["https://example.invalid"] * 2, http.urls)
+                self.sleep.assert_called_once_with(1)
+                self.assertEqual(len(body), client.bytes)
+                self.assertEqual(1, len(client.provenance))
+                proof = client.provenance[0]
+                self.assertEqual("https://example.invalid", proof["url"])
+                self.assertEqual(collector.sha256(body), proof["sha256"])
+                self.assertEqual(body, Path(proof["path"]).read_bytes())
+
+    def test_nonretryable_http_error_fails_immediately(self):
+        client, http = self.client([self.http_error(404), b"[]"])
+        with self.assertRaisesRegex(collector.CollectionError, "HTTP 404"):
+            client.get("https://example.invalid", "tags")
+        self.assertEqual(1, client.requests)
+        self.assertEqual(1, len(http.urls))
+        self.sleep.assert_not_called()
+        self.assertEqual([], client.provenance)
+
+    def test_response_byte_limit_does_not_retain_partial_body(self):
+        client, http = self.client([b"123456"], max_bytes=5)
+        with self.assertRaisesRegex(collector.CollectionError, "response byte limit reached"):
+            client.get("https://example.invalid", "tags")
+        self.assertEqual(1, len(http.urls))
+        self.assertEqual([], list(self.raw.iterdir()))
+        self.assertEqual([], client.provenance)
+        self.sleep.assert_not_called()
+
+    def test_byte_limit_is_shared_across_responses(self):
+        client, http = self.client([b"[]", b"[]"], max_bytes=3)
+        self.assertEqual([], client.get("https://example.invalid/first", "first"))
+        with self.assertRaisesRegex(collector.CollectionError, "response byte limit reached"):
+            client.get("https://example.invalid/second", "second")
+        self.assertEqual(2, len(http.urls))
+        self.assertEqual(2, client.bytes)
+        self.assertEqual(1, len(client.provenance))
+        self.assertEqual(["0001-first.json"], [path.name for path in self.raw.iterdir()])
+
+    def test_request_limit_stops_retry_before_another_request(self):
+        client, http = self.client([self.http_error(503), b"[]"], max_requests=1)
+        with self.assertRaisesRegex(collector.CollectionError, "request limit reached"):
+            client.get("https://example.invalid", "tags")
+        self.assertEqual(1, client.requests)
+        self.assertEqual(1, len(http.urls))
+        self.assertEqual([], client.provenance)
+
+    def test_retry_exhaustion_uses_exponential_backoff(self):
+        client, http = self.client([self.http_error(503) for _ in range(3)], retries=2)
+        with self.assertRaisesRegex(collector.CollectionError, "HTTP 503"):
+            client.get("https://example.invalid", "tags")
+        self.assertEqual(3, client.requests)
+        self.assertEqual(3, len(http.urls))
+        self.assertEqual([mock.call(1), mock.call(2)], self.sleep.call_args_list)
+        self.assertEqual([], client.provenance)
+
+    def test_invalid_json_is_rejected_without_retry_and_retained_for_diagnosis(self):
+        client, http = self.client([b"not JSON", b"[]"])
+        with self.assertRaisesRegex(collector.CollectionError, "invalid JSON"):
+            client.get("https://example.invalid", "tags")
+        self.assertEqual(1, client.requests)
+        self.assertEqual(1, len(http.urls))
+        self.sleep.assert_not_called()
+        self.assertEqual(b"not JSON", Path(client.provenance[0]["path"]).read_bytes())
 
 
 def options(workspace, history="none", minimum="1"):

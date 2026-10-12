@@ -8,6 +8,7 @@ import json
 import re
 import shutil
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, urlsplit
@@ -360,7 +361,7 @@ def cohort_readme(manifest, cohort, population, finding=None, retirement=None, a
             lines.append("- %s: %s; payload %s; phase %s" % (
                 external_link(run_id, item.get("url") or item.get("prow_url")),
                 md(item.get("result") or item.get("normalized_outcome") or "unknown"),
-                md(item.get("payload_id", "unknown")), md(item.get("execution", {}).get("phase", "UNKNOWN"))))
+                md(item.get("payload_id", "unknown")), md((item.get("execution") or {}).get("phase", "UNKNOWN"))))
         lines += ["", "[Full finding](finding.json)", ""]
         if finding.get("previous_release_metrics"):
             lines += ["Supplementary predecessor metrics (excluded from the current denominator):", "",
@@ -407,7 +408,7 @@ def cohort_readme(manifest, cohort, population, finding=None, retirement=None, a
     if (finding or {}).get("disposition") == "PROPOSE_FIX":
         lines += ["Repair proposal is unvalidated. Proven repair handoffs use the sibling reliability export under `fixes/`.", ""]
     lines += ["## Evidence", ""]
-    evidence = (finding or {}).get("evidence", []) + candidate.get("evidence", [])
+    evidence = ((finding or {}).get("evidence") or []) + (candidate.get("evidence") or [])
     for record in evidence:
         retained = quote("../../" + record["retained_path"], safe="/-._~")
         lines += ["- [%s](%s): %s. %s. Retrieved %s. SHA256: `%s`." % (
@@ -487,8 +488,25 @@ def report_readme(manifest, rankings, findings, validated, unresolved, fixes, re
 
 def run(workspace, output, repairs=None):
     workspace, output = Path(workspace), Path(output)
-    if output.exists():
+    if output.exists() or output.is_symlink():
         raise ExportError("output already exists; choose a fresh destination")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # A sibling staging directory keeps publication on the same filesystem.
+    # Rendering/copying failures remove the staging tree and leave output fresh.
+    with tempfile.TemporaryDirectory(prefix="." + output.name + "-", dir=output.parent) as directory:
+        staged = Path(directory) / "report"
+        exported_manifest, manifest = render_report(workspace, staged, repairs)
+        if output.exists() or output.is_symlink():
+            raise ExportError("output already exists; choose a fresh destination")
+        staged.rename(output)
+    manifest["stage"] = "EXPORTED"
+    manifest["last_export"] = str(output)
+    write_json(workspace / "manifest.json", manifest)
+    return exported_manifest
+
+
+def render_report(workspace, output, repairs=None):
+    """Build a complete report in staging without changing workspace state."""
     manifest = read_json(workspace / "manifest.json")
     payloads = read_json(workspace / "payloads.json")
     rankings = read_json(workspace / "job-rankings.json")
@@ -623,10 +641,7 @@ def run(workspace, output, repairs=None):
     write_json(output / "unresolved.json", {"schema_version": 1, "items": unresolved})
     (output / "README.md").write_text(report_readme(exported_manifest, rankings, findings,
                                                        validated, unresolved, fixes, retirements_by_cohort))
-    manifest["stage"] = "EXPORTED"
-    manifest["last_export"] = str(output)
-    write_json(workspace / "manifest.json", manifest)
-    return exported_manifest
+    return exported_manifest, manifest
 
 
 def main(argv=None):
@@ -641,7 +656,7 @@ def main(argv=None):
         manifest = run(args.workspace, output, args.repairs)
         print(json.dumps({"output": output, "counts": manifest["report_counts"]}, indent=2))
         return 0
-    except (ExportError, OSError, KeyError, TypeError, ValueError) as exc:
+    except (ExportError, OSError, AttributeError, KeyError, TypeError, ValueError) as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
         return 2
 

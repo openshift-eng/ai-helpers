@@ -51,15 +51,50 @@ class ArtifactTests(unittest.TestCase):
             with self.assertRaises(p.ArtifactError):
                 p.object_url(RUN, obj)
 
-    def test_public_bucket_is_preserved_for_fetches(self):
-        valid = "https://prow.ci.openshift.org/view/gs/test-platform-results-public/" + RUN
-        bucket, run = p.parse_run_location(valid)
-        self.assertEqual("test-platform-results-public", bucket)
-        self.assertEqual(RUN, run)
+    def test_public_bucket_run_locations_and_object_url(self):
+        for prefix in ("https://prow.ci.openshift.org/view/gs/", "gs://"):
+            with self.subTest(prefix=prefix):
+                bucket, run = p.parse_run_location(prefix + "test-platform-results-public/" + RUN)
+                self.assertEqual("test-platform-results-public", bucket)
+                self.assertEqual(RUN, run)
+                self.assertEqual(
+                    "https://storage.googleapis.com/test-platform-results-public/" + RUN + "/prowjob.json",
+                    p.object_url(run, "prowjob.json", bucket),
+                )
+
+    def test_default_bucket_is_public_for_direct_library_callers(self):
+        self.assertEqual("test-platform-results-public", p.DEFAULT_BUCKET)
+        client, _ = self.client([])
+        self.assertEqual("test-platform-results-public", client.bucket)
         self.assertEqual(
             "https://storage.googleapis.com/test-platform-results-public/" + RUN + "/prowjob.json",
-            p.object_url(run, "prowjob.json", bucket),
+            p.object_url(RUN, "prowjob.json"),
         )
+
+    def test_client_fetch_and_list_preserve_both_results_buckets(self):
+        listing = json.dumps({"items": [{"name": RUN + "/artifacts/junit.xml", "size": "7"}]}).encode()
+        for bucket in ("test-platform-results-public", "test-platform-results"):
+            with self.subTest(bucket=bucket):
+                client, http = self.client([b"fixture", listing], bucket=bucket)
+                data, proof = client.fetch("prowjob.json")
+                result = client.list("artifacts/")
+                expected = "https://storage.googleapis.com/" + bucket + "/" + RUN + "/prowjob.json"
+                self.assertEqual(b"fixture", data)
+                self.assertEqual(expected, http.urls[0])
+                self.assertEqual(expected, proof["source_url"])
+                self.assertEqual("/storage/v1/b/" + bucket + "/o", urllib.parse.urlsplit(http.urls[1]).path)
+                self.assertEqual("storage.googleapis.com", urllib.parse.urlsplit(http.urls[1]).netloc)
+                self.assertEqual([RUN + "/artifacts/"],
+                                 urllib.parse.parse_qs(urllib.parse.urlsplit(http.urls[1]).query)["prefix"])
+                self.assertEqual(["artifacts/junit.xml"], [item["object"] for item in result["objects"]])
+
+    def test_unsupported_buckets_are_rejected(self):
+        for bucket in ("bad", "test-platform-results-publicity"):
+            with self.subTest(bucket=bucket):
+                with self.assertRaisesRegex(p.ArtifactError, "Unsupported Prow results bucket"):
+                    self.client([], bucket=bucket)
+                with self.assertRaisesRegex(p.ArtifactError, "Unsupported Prow results bucket"):
+                    p.object_url(RUN, "prowjob.json", bucket=bucket)
 
     def test_tide_batch_run_and_recorded_child(self):
         batch = "pr-logs/pull/batch/pull-ci-Azure-ARO-HCP-main-config-change-detection/2093003352324444160"
@@ -225,6 +260,35 @@ class ArtifactTests(unittest.TestCase):
         capped = p.recorded_children(text, RUN, "aggregate.json", max_objects=1)
         self.assertTrue(capped["truncated"])
         self.assertEqual(len(capped["child_candidates"][0]["evidence"]), 1)
+
+    def test_public_bucket_child_preserves_bucket_url_and_evidence(self):
+        run = "logs/child/2093824069861380097"
+        url = "https://prow.ci.openshift.org/view/gs/test-platform-results-public/" + run
+        text = json.dumps({"attempts": [{"url": url + "/build-log.txt"}]})
+        result = p.recorded_children(text, RUN, "aggregate.json")
+        self.assertEqual(1, len(result["child_candidates"]))
+        child = result["child_candidates"][0]
+        self.assertEqual(run, child["run"])
+        self.assertEqual("test-platform-results-public", child["bucket"])
+        self.assertEqual(url, child["url"])
+        self.assertEqual("/attempts/0/url", child["evidence"][0]["location"])
+        self.assertEqual(url + "/build-log.txt", child["evidence"][0]["recorded_url"])
+
+    def test_same_child_run_in_both_buckets_remains_distinct(self):
+        run = "logs/child/2093824069861380097"
+        urls = ["gs://" + bucket + "/" + run
+                for bucket in ("test-platform-results-public", "test-platform-results")]
+        result = p.recorded_children(json.dumps({"attempts": urls}), RUN, "aggregate.json")
+        children = result["child_candidates"]
+        self.assertEqual(2, len(children))
+        self.assertEqual({"test-platform-results-public", "test-platform-results"},
+                         {child["bucket"] for child in children})
+        for child in children:
+            self.assertEqual(run, child["run"])
+            self.assertEqual("https://prow.ci.openshift.org/view/gs/" + child["bucket"] + "/" + run,
+                             child["url"])
+            self.assertEqual(1, len(child["evidence"]))
+            self.assertEqual("gs://" + child["bucket"] + "/" + run, child["evidence"][0]["recorded_url"])
 
 
 if __name__ == "__main__":
