@@ -121,7 +121,7 @@ class ManifestTest(unittest.TestCase):
         del d['audit']['receipt']
         del d['audit']['guards']['junit_backstop']
         errs = ' '.join(m.validate(d))
-        self.assertIn('audit.receipt', errs)
+        self.assertIn('audit.receipt: missing', errs)
         self.assertIn('junit_backstop', errs)
 
     def test_merge_preserves_prepass_order_and_adds_dispositions(self):
@@ -182,6 +182,78 @@ class ManifestTest(unittest.TestCase):
                                capture_output=True, text=True)
             self.assertEqual(r.returncode, 1)  # top-level LLM keys still missing
             self.assertTrue(os.path.exists(out))
+
+    def test_validate_never_raises_on_malformed_documents(self):
+        def mut(fn):
+            d = example()
+            fn(d)
+            return d
+        docs = [
+            {}, [],
+            mut(lambda d: d['clusters'].__setitem__(0, [])),
+            mut(lambda d: d['clusters'][0].__setitem__('actions', [5])),
+            mut(lambda d: d['catch_all'].__setitem__('admitted', ['x'])),
+            mut(lambda d: d['observation'].__setitem__('symptom_probe', 'ok')),
+            mut(lambda d: d['clusters'][0].__setitem__('members', [])),
+            mut(lambda d: d['clusters'][0].__setitem__('blast_radius', 'HIGH')),
+            mut(lambda d: d['clusters'][0]['disposition']['analysis']['evidence'][0].__setitem__(
+                'supports_regression_ids', [[1]])),
+        ]
+        for doc in docs:
+            errs = m.validate(doc)
+            self.assertTrue(errs, doc)
+        self.assertIn('cluster 0: expected object, got list', m.validate(docs[2]))
+        self.assertTrue(any('c-7f3a9e: members must' in e or 'c-7f3a9e' in e for e in m.validate(docs[6])))
+
+    def test_merge_gives_actions_to_clusters_without_disposition(self):
+        pp = fresh_prepass()
+        ids = [c['id'] for c in pp['clusters']]
+        out = m.merge(pp, {}, {ids[0]: [{'type': 'none', 'status': 'planned'}]})
+        self.assertEqual(out['clusters'][0]['actions'], [{'type': 'none', 'status': 'planned'}])
+        self.assertEqual(out['clusters'][-1]['actions'] if len(ids) > 1 else [], out['clusters'][-1]['actions'])
+        self.assertNotIn('disposition', out['clusters'][0])
+        self.assertNotIn('escalation', out['clusters'][0])
+
+    def test_merge_unknown_actions_cluster_raises(self):
+        with self.assertRaises(ValueError):
+            m.merge(fresh_prepass(), {}, {'c-nope': []})
+
+    def test_cli_error_paths_and_merge_then_validate(self):
+        cli = os.path.join(HERE, 'manifest.py')
+        ex = example()
+        with tempfile.TemporaryDirectory() as t:
+            def w(name, obj):
+                p = os.path.join(t, name)
+                with open(p, 'w') as f:
+                    json.dump(obj, f)
+                return p
+            pp = fresh_prepass()
+            # one-cluster prepass built from the example so a complete document is possible
+            pre = {k: ex[k] for k in m.TOP_PREPASS}
+            pre['clusters'] = [{k: v for k, v in ex['clusters'][0].items() if k not in m.CLUSTER_LLM}]
+            cid = pre['clusters'][0]['id']
+            disp = {cid: ex['clusters'][0]['disposition']}
+            disp[cid] = dict(disp[cid], escalation=ex['clusters'][0]['escalation'])
+            acts = {cid: ex['clusters'][0]['actions']}
+            extra = {k: ex[k] for k in m.TOP_LLM}
+            out = os.path.join(t, 'm.json')
+            base = [sys.executable, cli, 'merge', '--prepass', w('p.json', pre), '--dispositions', w('d.json', disp),
+                    '--actions', w('a.json', acts), '--out', out]
+            r = subprocess.run(base + ['--extra', w('e.json', extra)], capture_output=True, text=True)
+            self.assertEqual((r.returncode, r.stderr), (0, ''))
+            bad = subprocess.run([sys.executable, cli, 'merge', '--prepass', w('p2.json', pp), '--dispositions',
+                                  w('d2.json', {'c-nope': {}}), '--actions', w('a2.json', {}), '--out', out],
+                                 capture_output=True, text=True)
+            self.assertEqual(bad.returncode, 1)
+            self.assertNotIn('Traceback', bad.stderr)
+            self.assertEqual(len(bad.stderr.strip().splitlines()), 1)
+            miss = subprocess.run([sys.executable, cli, 'merge', '--prepass', os.path.join(t, 'none.json'),
+                                   '--dispositions', w('d3.json', {}), '--actions', w('a3.json', {}), '--out', out],
+                                  capture_output=True, text=True)
+            self.assertEqual(miss.returncode, 1)
+            self.assertNotIn('Traceback', miss.stderr)
+            v = subprocess.run([sys.executable, cli, 'validate', out])
+            self.assertEqual(v.returncode, 0)
 
 
 if __name__ == '__main__':

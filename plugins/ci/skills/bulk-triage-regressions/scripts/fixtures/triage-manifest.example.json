@@ -115,7 +115,7 @@
         "score": 0.91,
         "reasons": [
           "12 distinct jobs",
-          "3 job families",
+          "3 lane families",
           "upgrade-from-stable lane on 3 platforms",
           "persisting 20d",
           "grew +3 since baseline"
