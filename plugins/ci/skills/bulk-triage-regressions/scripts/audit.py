@@ -12,14 +12,17 @@ import argparse
 import base64
 import json
 import os
+import re
 import sys
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 SCHEMA_VERSION = "1.0"
 SIPPY_TRIAGES_URL = "https://sippy.dptools.openshift.org/api/component_readiness/triages"
-JIRA_SEARCH_URL = "https://redhat.atlassian.net/rest/api/2/search"
+JIRA_SEARCH_URL = "https://redhat.atlassian.net/rest/api/3/search/jql"
+MAX_PAGES = 10
+WIDEN = timedelta(hours=24)
 TIMEOUT = 60
 
 
@@ -95,14 +98,22 @@ def diff_triages(before, after, declared):
             "status": "match" if not undeclared and not not_observed else "mismatch"}
 
 
+def _parse_ts(text):
+    t = text.strip().replace("Z", "+00:00")
+    t = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", t)
+    t = re.sub(r"\.(\d+)", lambda m: "." + m.group(1)[:6].ljust(6, "0"), t)
+    dt = datetime.fromisoformat(t)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def _jira_ts(iso):
-    dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc)
-    return dt.strftime("%Y-%m-%d %H:%M")
+    return _parse_ts(iso).strftime("%Y-%m-%d %H:%M")
 
 
 def build_jql(start, end, reporter):
+    reporter = reporter.replace("\\", "\\\\").replace('"', '\\"')
     return 'reporter = "%s" AND created >= "%s" AND created <= "%s" ORDER BY created ASC' % (
         reporter, _jira_ts(start), _jira_ts(end))
 
@@ -111,27 +122,39 @@ def build_auth_header(user, token):
     return "Basic " + base64.b64encode(("%s:%s" % (user, token)).encode("utf-8")).decode("ascii")
 
 
-def _default_search(jql):
+def _default_search(jql, page_token=None):
     user, token = os.environ.get("JIRA_USERNAME"), os.environ.get("JIRA_API_TOKEN")
     if not user or not token:
         raise RuntimeError("JIRA_USERNAME/JIRA_API_TOKEN not set")
-    url = "%s?%s" % (JIRA_SEARCH_URL, urllib.parse.urlencode(
-        {"jql": jql, "fields": "key,created,summary,reporter", "maxResults": 100}))
-    return _get_json(url, {"Authorization": build_auth_header(user, token)})
+    params = {"jql": jql, "fields": "key,created,summary,reporter", "maxResults": 100}
+    if page_token:
+        params["nextPageToken"] = page_token
+    return _get_json("%s?%s" % (JIRA_SEARCH_URL, urllib.parse.urlencode(params)),
+                     {"Authorization": build_auth_header(user, token)})
 
 
 def jql_creations(start, end, reporter, search=None):
-    res = {"status": "unknown", "count": None, "issues": [], "window": [start, end],
-           "reporter": reporter, "error": None}
+    res = {"status": "unknown", "count": None, "raw_matched": None, "truncated": False, "issues": [],
+           "window": [start, end], "reporter": reporter, "error": None}
     try:
-        resp = (search or _default_search)(build_jql(start, end, reporter))
-        issues = resp["issues"]
-        res["issues"] = [{"key": i["key"], "created": i["fields"].get("created"),
-                          "summary": i["fields"].get("summary")} for i in issues]
-        res["count"] = resp.get("total", len(issues))
-        res["status"] = "ok"
+        lo, hi = _parse_ts(start), _parse_ts(end)
+        jql = build_jql((lo - WIDEN).isoformat(), (hi + WIDEN).isoformat(), reporter)
+        search = search or _default_search
+        raw, token, done = [], None, False
+        for _ in range(MAX_PAGES):
+            resp = search(jql, token)
+            raw.extend(resp["issues"])
+            token = resp.get("nextPageToken")
+            if resp.get("isLast") or not token:
+                done = True
+                break
+        kept = [i for i in raw if lo <= _parse_ts(i["fields"]["created"]) <= hi]
+        res.update(status="ok", count=len(kept), raw_matched=len(raw), truncated=not done,
+                   issues=[{"key": i["key"], "created": i["fields"].get("created"),
+                            "summary": i["fields"].get("summary")} for i in kept])
     except Exception as e:
-        res.update(status="unknown", count=None, issues=[], error="%s: %s" % (type(e).__name__, e))
+        res.update(status="unknown", count=None, raw_matched=None, issues=[],
+                   error="%s: %s" % (type(e).__name__, e))
     return res
 
 
@@ -179,7 +202,13 @@ def _read_json(path):
 
 
 def _declared(manifest):
-    return [a for c in manifest.get("clusters", []) for a in c.get("actions", [])]
+    clusters = manifest.get("clusters") if isinstance(manifest, dict) else None
+    out = []
+    for c in clusters if isinstance(clusters, list) else []:
+        acts = c.get("actions") if isinstance(c, dict) else None
+        if isinstance(acts, list):
+            out.extend(a for a in acts if isinstance(a, dict))
+    return out
 
 
 def main(argv=None):
@@ -232,7 +261,7 @@ def main(argv=None):
                 decision, reason = "report", "receipt " + receipt
             else:
                 decision, reason = read_receipt_decision(receipt, args.ack)
-            print("%s\t%s" % (decision, reason))
+            print("%s\t%s" % (decision, re.sub(r"[\t\r\n]", " ", str(reason))))
     except (OSError, ValueError, KeyError, AttributeError) as e:
         print("audit.py %s: %s: %s" % (args.cmd, type(e).__name__, e), file=sys.stderr)
         return 1

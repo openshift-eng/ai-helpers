@@ -49,6 +49,16 @@ class DiffTests(unittest.TestCase):
         self.assertEqual(r["undeclared"], [])
         self.assertEqual(r["status"], "match")
 
+    def test_catch_all_covers_extension(self):
+        decl = [{"type": "catch_all", "triage_id": 1, "regression_ids": [2], "status": "done"}]
+        r = audit.diff_triages(snap({"1": tri([1])}), snap({"1": tri([1, 2])}), decl)
+        self.assertEqual(r["status"], "match")
+
+    def test_created_must_cover_declared_ids(self):
+        decl = [{"type": "create_triage", "jira": "OCPBUGS-9", "regression_ids": [5, 6], "status": "done"}]
+        r = audit.diff_triages(snap({}), snap({"7": tri([5], url="https://j/OCPBUGS-9")}), decl)
+        self.assertEqual(r["status"], "mismatch")
+
     def test_created_without_declaration(self):
         r = audit.diff_triages(snap({}), snap({"7": tri([5])}), [])
         self.assertEqual(r["status"], "mismatch")
@@ -88,27 +98,68 @@ class SnapshotTests(unittest.TestCase):
         self.assertIn("down", s["error"])
 
 
+def issue(key, created):
+    return {"key": key, "fields": {"created": created, "summary": "s"}}
+
+
+W = ("2026-10-12T01:00:00Z", "2026-10-12T02:00:00Z")
+
+
 class JqlTests(unittest.TestCase):
     def test_jql_failure_is_unknown_not_zero(self):
-        def bad(jql):
+        def bad(jql, tok=None):
             raise OSError("net")
-        r = audit.jql_creations("2026-10-12T01:00:00Z", "2026-10-12T02:00:00Z", "bot", search=bad)
+        r = audit.jql_creations(*W, "bot", search=bad)
         self.assertEqual(r["status"], "unknown")
         self.assertIsNone(r["count"])
         self.assertIn("net", r["error"])
 
     def test_missing_credentials_unknown(self):
         with mock.patch.dict(os.environ, {}, clear=True):
-            r = audit.jql_creations("2026-10-12T01:00:00Z", "2026-10-12T02:00:00Z", "bot")
+            r = audit.jql_creations(*W, "bot")
         self.assertEqual(r["status"], "unknown")
         self.assertIsNone(r["count"])
 
-    def test_total_is_count(self):
-        resp = {"total": 150, "issues": [{"key": "A-1", "fields": {"created": "c", "summary": "s"}}]}
-        r = audit.jql_creations("2026-10-12T01:00:00Z", "2026-10-12T02:00:00Z", "bot", search=lambda j: resp)
-        self.assertEqual(r["count"], 150)
-        self.assertEqual(r["issues"], [{"key": "A-1", "created": "c", "summary": "s"}])
-        self.assertEqual(r["window"], ["2026-10-12T01:00:00Z", "2026-10-12T02:00:00Z"])
+    def test_window_filter_and_offsets(self):
+        page = {"isLast": True, "issues": [
+            issue("IN-1", "2026-10-12T01:30:00.904+0000"),
+            issue("IN-2", "2026-10-12T03:15:00+02:00"),
+            issue("IN-3", "2026-10-12T01:45:00Z"),
+            issue("OUT-1", "2026-10-11T20:00:00.5+0000")]}
+        seen = []
+
+        def search(jql, tok=None):
+            seen.append(jql)
+            return page
+        r = audit.jql_creations(*W, "bot", search=search)
+        self.assertEqual([i["key"] for i in r["issues"]], ["IN-1", "IN-2", "IN-3"])
+        self.assertEqual((r["count"], r["raw_matched"], r["truncated"]), (3, 4, False))
+        self.assertIn('created >= "2026-10-11 01:00"', seen[0])
+        self.assertIn('created <= "2026-10-13 02:00"', seen[0])
+
+    def test_pagination_follows_token(self):
+        pages = [{"isLast": False, "nextPageToken": "t1", "issues": [issue("A-1", "2026-10-12T01:10:00Z")]},
+                 {"isLast": True, "issues": [issue("A-2", "2026-10-12T01:20:00Z")]}]
+        toks = []
+
+        def search(jql, tok=None):
+            toks.append(tok)
+            return pages[len(toks) - 1]
+        r = audit.jql_creations(*W, "bot", search=search)
+        self.assertEqual(toks, [None, "t1"])
+        self.assertEqual(r["count"], 2)
+        self.assertFalse(r["truncated"])
+
+    def test_pagination_cap_sets_truncated(self):
+        n = []
+
+        def search(jql, tok=None):
+            n.append(1)
+            return {"isLast": False, "nextPageToken": "t", "issues": [issue("A-%d" % len(n), "2026-10-12T01:10:00Z")]}
+        r = audit.jql_creations(*W, "bot", search=search)
+        self.assertEqual(len(n), 10)
+        self.assertTrue(r["truncated"])
+        self.assertEqual(r["count"], 10)
 
     def test_jql_builds_exact_string_and_auth_header(self):
         self.assertEqual(
@@ -116,6 +167,12 @@ class JqlTests(unittest.TestCase):
             'reporter = "bot" AND created >= "2026-10-12 01:05" AND created <= "2026-10-12 02:00" ORDER BY created ASC')
         h = audit.build_auth_header("u", "t")
         self.assertEqual(h, "Basic " + base64.b64encode(b"u:t").decode())
+
+    def test_jql_non_utc_offset_converts_and_reporter_escaped(self):
+        q = audit.build_jql("2026-10-12T03:00:00+02:00", "2026-10-12T04:00:00+0200", 'a"b\\c')
+        self.assertIn('reporter = "a\\"b\\\\c"', q)
+        self.assertIn('created >= "2026-10-12 01:00"', q)
+        self.assertIn('created <= "2026-10-12 02:00"', q)
 
 
 class ReceiptTests(unittest.TestCase):
@@ -150,6 +207,10 @@ class ReceiptTests(unittest.TestCase):
     def test_mismatch_forces_report(self):
         d, why = audit.read_receipt_decision(self.rc(diff={"status": "mismatch", "undeclared": [{"kind": "created"}]}))
         self.assertEqual(d, "report")
+
+    def test_ack_does_not_override_missing_or_malformed(self):
+        self.assertEqual(audit.read_receipt_decision(None, "r1")[0], "report")
+        self.assertEqual(audit.read_receipt_decision({"run_id": "r1"}, "r1")[0], "report")
 
     def test_clean_receipt_configured(self):
         self.assertEqual(audit.read_receipt_decision(self.rc()), ("configured", ""))
@@ -202,6 +263,28 @@ class CliTests(unittest.TestCase):
             o = os.path.join(t, "o")
             code, out, _ = self.run_cli(["diff", "--before", b, "--after", a, "--manifest", m, "--out", o])
             self.assertEqual((code, out.strip()), (0, "match"))
+
+    def test_diff_cli_tolerates_malformed_manifest(self):
+        with tempfile.TemporaryDirectory() as t:
+            def w(n, o):
+                p = os.path.join(t, n)
+                jdump(o, p)
+                return p
+            b = w("b", snap({}))
+            for man in ({"clusters": 5}, {"clusters": [{"actions": "x"}, 3]}, []):
+                m = w("m", man)
+                code, out, err = self.run_cli(["diff", "--before", b, "--after", b, "--manifest", m,
+                                               "--out", os.path.join(t, "o")])
+                self.assertEqual((code, out.strip()), (0, "match"))
+
+    def test_decide_output_is_single_tab_line(self):
+        with tempfile.TemporaryDirectory() as t:
+            p = os.path.join(t, "r.json")
+            jdump({"run_id": "r", "audit": {"jira_creations": {"status": "unknown", "error": "a\tb\nc"},
+                                            "sippy_catalog_diff": {"status": "match"}}}, p)
+            _, out, _ = self.run_cli(["receipt-decide", "--receipt", p])
+            self.assertEqual(out.count("\t"), 1)
+            self.assertEqual(len(out.splitlines()), 1)
 
     def test_diff_cli_bad_json_exits_1(self):
         with tempfile.TemporaryDirectory() as t:
