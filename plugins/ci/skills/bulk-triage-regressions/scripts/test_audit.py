@@ -208,6 +208,17 @@ class ReceiptTests(unittest.TestCase):
         d, why = audit.read_receipt_decision(self.rc(diff={"status": "mismatch", "undeclared": [{"kind": "created"}]}))
         self.assertEqual(d, "report")
 
+    def test_receipt_truncated_jira_audit_forces_report(self):
+        rc = self.rc(jira={"status": "ok", "count": 0, "truncated": True, "issues": []})
+        rc["audit"]["sippy_catalog_diff"] = {"status": "match"}
+        d, why = audit.read_receipt_decision(rc)
+        self.assertEqual(d, "report")
+        self.assertIn("truncated", why)
+        rc["audit"]["jira_creations"]["truncated"] = False
+        self.assertEqual(audit.read_receipt_decision(rc), ("configured", ""))
+        rc["audit"]["jira_creations"]["truncated"] = True
+        self.assertEqual(audit.read_receipt_decision(rc, ack_run_id="r1")[0], "configured")
+
     def test_ack_does_not_override_missing_or_malformed(self):
         self.assertEqual(audit.read_receipt_decision(None, "r1")[0], "report")
         self.assertEqual(audit.read_receipt_decision({"run_id": "r1"}, "r1")[0], "report")
