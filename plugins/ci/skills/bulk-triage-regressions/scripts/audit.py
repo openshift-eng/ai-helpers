@@ -181,6 +181,8 @@ def read_receipt_decision(receipt, ack_run_id=None):
     for sec in (jira, diff):
         if sec.get("status") == "unknown":
             return "report", "audit unknown — %s" % sec.get("error")
+    if jira.get("truncated"):
+        return "report", "Jira audit truncated at %d pages — creations may be missing" % MAX_PAGES
     if jira.get("status") == "ok" and (jira.get("count") or 0) > 0:
         keys = ", ".join(str(i.get("key")) for i in jira.get("issues") or [])
         return "report", "Jira issues created during previous run: %s (count %s)" % (keys, jira["count"])
@@ -238,6 +240,8 @@ def main(argv=None):
             except Exception as e:
                 res = {"status": "unknown", "count": None, "issues": [], "window": [args.start, args.end],
                        "reporter": args.reporter, "error": "%s: %s" % (type(e).__name__, e)}
+            if res.get("truncated"):
+                print("audit.py jql: warning: Jira search truncated at %d pages" % MAX_PAGES, file=sys.stderr)
             _write_json(args.out, res)
         elif args.cmd == "diff":
             res = diff_triages(_read_json(args.before), _read_json(args.after),

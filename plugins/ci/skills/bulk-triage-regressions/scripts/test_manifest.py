@@ -235,7 +235,8 @@ class ManifestTest(unittest.TestCase):
         ids = [c['id'] for c in pp['clusters']]
         out = m.merge(pp, {}, {ids[0]: [{'type': 'none', 'status': 'planned'}]})
         self.assertEqual(out['clusters'][0]['actions'], [{'type': 'none', 'status': 'planned'}])
-        self.assertEqual(out['clusters'][-1]['actions'] if len(ids) > 1 else [], out['clusters'][-1]['actions'])
+        if len(ids) > 1:
+            self.assertEqual(out['clusters'][-1]['actions'], [])
         self.assertNotIn('disposition', out['clusters'][0])
         self.assertNotIn('escalation', out['clusters'][0])
 
