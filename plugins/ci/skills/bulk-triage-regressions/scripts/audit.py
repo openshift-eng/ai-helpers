@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 SCHEMA_VERSION = "1.0"
 SIPPY_TRIAGES_URL = "https://sippy.dptools.openshift.org/api/component_readiness/triages"
 JIRA_SEARCH_URL = "https://redhat.atlassian.net/rest/api/3/search/jql"
+JIRA_MYSELF_URL = "https://redhat.atlassian.net/rest/api/3/myself"
 MAX_PAGES = 10
 WIDEN = timedelta(hours=24)
 TIMEOUT = 60
@@ -34,6 +35,11 @@ def _get_json(url, headers=None):
     h = {"Accept": "application/json"}
     h.update(headers or {})
     with urllib.request.urlopen(urllib.request.Request(url, headers=h), timeout=TIMEOUT) as r:
+        # Jira Cloud degrades bad basic auth to an anonymous 200 and flags it in this header;
+        # an anonymous search would silently under-count, so treat it as a failure.
+        reason = (getattr(r, "headers", None) or {}).get("X-Seraph-LoginReason", "")
+        if reason and reason.upper() not in ("OK", "AUTHENTICATED"):
+            raise RuntimeError("Jira authentication failed (X-Seraph-LoginReason: %s)" % reason)
         return json.loads(r.read().decode("utf-8"))
 
 
@@ -126,6 +132,9 @@ def _default_search(jql, page_token=None):
     user, token = os.environ.get("JIRA_USERNAME"), os.environ.get("JIRA_API_TOKEN")
     if not user or not token:
         raise RuntimeError("JIRA_USERNAME/JIRA_API_TOKEN not set")
+    if page_token is None:
+        # First page: prove the credentials authenticate (401 here, not an anonymous 200 later).
+        _get_json(JIRA_MYSELF_URL, {"Authorization": build_auth_header(user, token)})
     params = {"jql": jql, "fields": "key,created,summary,reporter", "maxResults": 100}
     if page_token:
         params["nextPageToken"] = page_token
