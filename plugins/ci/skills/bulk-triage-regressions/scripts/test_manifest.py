@@ -154,6 +154,31 @@ class ManifestTest(unittest.TestCase):
         out = m.merge(pp, disp, {})
         self.assertEqual(out['clusters'][0]['escalation'], esc)
 
+    def test_merge_applies_members_unlinked_from_disposition(self):
+        pp = fresh_prepass()
+        c = next(c for c in pp['clusters'] if len(c['members']['regression_ids']) >= 2)
+        ids = c['members']['regression_ids']
+        unl = [{'id': i, 'reason': 'no run evidence'} for i in ids[1:]]
+        disp = {x['id']: {'state': 'UNANALYSED'} for x in pp['clusters']}
+        disp[c['id']] = {
+            'state': 'CANDIDATE', 'members_unlinked': unl,
+            'analysis': {'evidence': [{'prowjob_run_id': '1', 'supports_regression_ids': [ids[0]]}]},
+            'proposed_action': {'type': 'extend_triage', 'regression_ids': [ids[0]]}}
+        out = m.merge(pp, disp, {})
+        oc = next(x for x in out['clusters'] if x['id'] == c['id'])
+        self.assertEqual(oc['members']['unlinked'], unl)
+        self.assertNotIn('members_unlinked', oc['disposition'])
+        out.update({'watch_list': [], 'catch_all': {'jira': 'OCPQUAL-88', 'triage_id': 851, 'admitted': []},
+                    'backport_candidates': [], 'unanalysed': [], 'audit': example()['audit']})
+        self.assertEqual(m.validate(out), [])
+
+    def test_merge_rejects_non_list_members_unlinked(self):
+        pp = fresh_prepass()
+        cid = pp['clusters'][0]['id']
+        with self.assertRaises(ValueError) as cm:
+            m.merge(pp, {cid: {'state': 'UNANALYSED', 'members_unlinked': {'id': 1}}}, {})
+        self.assertIn(cid, str(cm.exception))
+
     def test_merge_unknown_cluster_raises(self):
         with self.assertRaises(ValueError):
             m.merge(fresh_prepass(), {'c-nope': {'state': 'UNANALYSED'}}, {})

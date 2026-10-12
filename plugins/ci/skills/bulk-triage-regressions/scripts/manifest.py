@@ -250,6 +250,11 @@ def merge(prepass, dispositions, actions):
             continue
         disp = copy.deepcopy(dispositions[cid])
         esc = disp.pop("escalation", None)
+        unl = disp.pop("members_unlinked", None)
+        if unl is not None:
+            if not isinstance(unl, list):
+                raise ValueError("members_unlinked for cluster %s must be a list, got %s" % (cid, _t(unl)))
+            c["members"]["unlinked"] = unl
         c["disposition"] = disp
         if esc is None:
             level = c["blast_radius"]["level"]
