@@ -1,0 +1,332 @@
+{
+  "schema_version": "1.0",
+  "policy": {
+    "name": "post-ga",
+    "version": "2026-10-09",
+    "write_mode": "report",
+    "existing_only": true
+  },
+  "source_run": {
+    "job": "periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga",
+    "run_id": "2108...",
+    "url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/.../2108...",
+    "started": "2026-10-13T05:00:12Z"
+  },
+  "baseline_run": {
+    "run_id": "2105...",
+    "manifest_url": "gs://test-platform-results/logs/.../triage-manifest.json",
+    "schema_version": "1.0",
+    "compatible": true
+  },
+  "observation": {
+    "time": "2026-10-13T05:03:40Z",
+    "views": [
+      {
+        "view": "4.16-main",
+        "fetch": "complete",
+        "open": 0,
+        "open_untriaged": 0,
+        "opened_7d": 0,
+        "closed_7d": 0
+      },
+      {
+        "view": "4.22-main",
+        "fetch": "complete",
+        "open": 231,
+        "open_untriaged": 14,
+        "opened_7d": 34,
+        "closed_7d": 12
+      },
+      {
+        "view": "4.20-main",
+        "fetch": "partial",
+        "error": "HTTP 429 after 3 retries",
+        "open": null,
+        "open_untriaged": null
+      }
+    ],
+    "symptom_probe": {
+      "status": "ok",
+      "runs_probed": 9
+    }
+  },
+  "clusters": [
+    {
+      "id": "c-7f3a9e",
+      "lineage": {
+        "first_seen_run": "2105...",
+        "supersedes": [],
+        "cycles_seen": 2
+      },
+      "fingerprint": {
+        "test_family": "install should succeed",
+        "signature": "ovs-vsctl: command not found",
+        "labels": [
+          "NodeMissingOVSBinariesAfterOSUpdate"
+        ],
+        "lane_family": "multiarch-nightly-4.22-upgrade-from-stable-4.21"
+      },
+      "members": {
+        "regression_ids": [
+          49531,
+          49532,
+          49533
+        ],
+        "new_since_baseline": [
+          49533
+        ],
+        "views": [
+          "4.22-main"
+        ],
+        "components": [
+          "Networking / cluster-network-operator",
+          "kube-apiserver"
+        ],
+        "unlinked": [
+          {
+            "id": 49531,
+            "reason": "no run evidence retrieved"
+          },
+          {
+            "id": 49532,
+            "reason": "no run evidence retrieved"
+          }
+        ]
+      },
+      "shape": {
+        "regressions": 105,
+        "distinct_jobs": 12,
+        "platforms": [
+          "aws",
+          "azure",
+          "gcp"
+        ],
+        "upgrade_lane": true,
+        "install_wrapper": true,
+        "mass_failure_marker": false,
+        "first_failure": "2026-09-23T06:40:00Z",
+        "last_failure": "2026-10-06T21:15:00Z",
+        "days_open": 20,
+        "growth_since_baseline": 3,
+        "lane_families": 3
+      },
+      "blast_radius": {
+        "level": "HIGH",
+        "score": 0.91,
+        "reasons": [
+          "12 distinct jobs",
+          "3 job families",
+          "upgrade-from-stable lane on 3 platforms",
+          "persisting 20d",
+          "grew +3 since baseline"
+        ]
+      },
+      "disposition": {
+        "state": "KNOWN-CAUSE",
+        "analysis": {
+          "depth": "oracle",
+          "confidence": "high",
+          "owning_component": "Machine Config Operator",
+          "sippy_components": [
+            "Networking / cluster-network-operator",
+            "kube-apiserver"
+          ],
+          "triage_type": "product",
+          "root_cause": "one paragraph",
+          "evidence": [
+            {
+              "claim": "node booted base commit",
+              "artifact": "gs://.../gather-aws-console/artifacts/i-0abc.log",
+              "quote": "ostree ... 632fae5b",
+              "prowjob_run_id": "2107...",
+              "supports_regression_ids": [
+                49533
+              ]
+            }
+          ],
+          "unverified_hypotheses": []
+        },
+        "bug_search": {
+          "candidates": [
+            {
+              "key": "OCPBUGS-129375",
+              "status": "Verified",
+              "release": "4.22.z",
+              "cites_own_runs": true,
+              "exact_assertion": true,
+              "sibling_precedent": {
+                "view": "5.0-main",
+                "triage_id": 652
+              },
+              "bar_met": true,
+              "verdict": "accept"
+            }
+          ],
+          "newer_release_fix": {
+            "key": "OCPBUGS-128457",
+            "fix_version": "5.1",
+            "clone_for_this_release": "OCPBUGS-129375"
+          }
+        },
+        "proposed_action": {
+          "type": "extend_triage",
+          "triage_id": 810,
+          "jira": "OCPBUGS-129375",
+          "regression_ids": [
+            49533
+          ],
+          "description": "<120 chars"
+        }
+      },
+      "actions": [
+        {
+          "type": "extend_triage",
+          "triage_id": 810,
+          "regression_ids": [
+            49533
+          ],
+          "status": "planned",
+          "precheck": {
+            "triage_reread": "2026-10-13T06:10:00Z",
+            "already_present": []
+          },
+          "result_url": "https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/810",
+          "error": null
+        }
+      ],
+      "escalation": {
+        "required": true,
+        "reason": "blast_radius HIGH",
+        "first_escalated_run": "2105...",
+        "re_notify": true,
+        "re_notify_reasons": [
+          "grew +3"
+        ],
+        "veto_deadline": "2026-10-20T05:00:00Z",
+        "representative_runs": [
+          {
+            "prowjob_run_id": "2107...",
+            "url": "https://prow.ci.openshift.org/view/gs/...",
+            "job": "..."
+          }
+        ],
+        "sippy_links": [
+          "https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/test_details?..."
+        ]
+      }
+    }
+  ],
+  "watch_list": [
+    {
+      "regression_id": 51210,
+      "view": "4.21-main",
+      "reason": "LOW & new (<7d), 1 job, 2 regressions",
+      "cluster_id": "c-1b22c0",
+      "revisit": "next cycle"
+    }
+  ],
+  "catch_all": {
+    "jira": "OCPQUAL-88",
+    "triage_id": 851,
+    "admitted": [
+      {
+        "regression_id": 51180,
+        "rule_checks": {
+          "examined": true,
+          "no_bug_meets_bar": true,
+          "not_in_cluster": true,
+          "pre_5_0": true
+        },
+        "signature": "...",
+        "status": "done"
+      }
+    ]
+  },
+  "backport_candidates": [
+    {
+      "cluster_id": "c-2e..",
+      "fixed_in": {
+        "key": "OCPBUGS-113706",
+        "fix_version": "5.1.0"
+      },
+      "this_release": "4.22",
+      "clone_exists": false
+    }
+  ],
+  "unanalysed": [
+    {
+      "cluster_id": "c-9c..",
+      "reason": "budget exhausted after 3h12m",
+      "blast_radius": "ELEVATED"
+    }
+  ],
+  "audit": {
+    "jira_writes": [
+      {
+        "type": "triage-link",
+        "key": "OCPBUGS-129375",
+        "outcome": "done"
+      },
+      {
+        "type": "comment:backport-candidate",
+        "key": "OCPBUGS-113706",
+        "releases": [
+          "4.22"
+        ],
+        "outcome": "done"
+      }
+    ],
+    "account_wide_creations": {
+      "window": [
+        "2026-10-13T05:00:12Z",
+        "2026-10-13T08:41:00Z"
+      ],
+      "count": 0,
+      "attribution": []
+    },
+    "sippy_catalog_diff": {
+      "before": "2026-10-13T05:03:00Z",
+      "after": "2026-10-13T08:40:30Z",
+      "created": [],
+      "extended": [
+        {
+          "triage_id": 810,
+          "added": [
+            49533
+          ]
+        }
+      ],
+      "undeclared": []
+    },
+    "jira_permissions": {
+      "create_issues": true,
+      "edit_issues": true,
+      "projects": [
+        "OCPBUGS",
+        "TRT",
+        "DPTP",
+        "OCPQUAL"
+      ],
+      "note": "write-capable token by design (owner decision); policy-enforced"
+    },
+    "receipt": {
+      "previous_run": "2105...",
+      "honoured": true,
+      "downgraded_to_report": false,
+      "reason": null
+    },
+    "guards": {
+      "existing_only_flag": true,
+      "jql_audit": "pass",
+      "sippy_diff": "match",
+      "junit_backstop": "pass"
+    }
+  },
+  "usage": {
+    "model": "claude-opus-4-8",
+    "cost_usd": 17.2,
+    "duration_min": 41,
+    "turns": 88,
+    "appended_by": "ci-harness"
+  }
+}
