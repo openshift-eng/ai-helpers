@@ -173,6 +173,7 @@ class GatherConfig:
     status_summary_field: str = "customfield_10814"
     assignees: List[str] = field(default_factory=list)
     excluded_assignees: List[str] = field(default_factory=list)
+    issue_keys: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -733,6 +734,10 @@ class StatusDataGatherer:
 
     def _build_root_jql(self) -> str:
         """Build JQL to find root issues."""
+        if self.config.issue_keys:
+            key_list = ", ".join(self.config.issue_keys)
+            return f"key IN ({key_list}) ORDER BY rank ASC"
+
         parts = [
             f'project = "{self.config.project}"',
             "status != Closed",
@@ -1371,6 +1376,8 @@ Environment Variables:
     parser.add_argument("--status-field", default="customfield_10814", help="Status Summary field ID")
     parser.add_argument("--assignee", action="append", dest="assignees", help="Filter by assignee")
     parser.add_argument("--exclude-assignee", action="append", dest="excluded_assignees", help="Exclude assignee")
+    parser.add_argument("--issue", action="append", dest="issue_keys",
+                        help="Fetch specific issue keys only (bypasses project/component/label filters)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output (INFO level)")
     parser.add_argument("--debug", action="store_true", help="Enable debug output (DEBUG level)")
 
@@ -1412,6 +1419,7 @@ Environment Variables:
         status_summary_field=args.status_field,
         assignees=args.assignees or [],
         excluded_assignees=args.excluded_assignees or [],
+        issue_keys=args.issue_keys or [],
     )
 
     # Always print header to stderr (regardless of log level)
