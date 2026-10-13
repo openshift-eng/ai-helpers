@@ -236,7 +236,7 @@ Write "unknown" rather than guessing, and say which artifact was missing or cens
 
 ## Common Artifact Paths
 
-These are the most frequently needed artifacts. See [artifacts reference](references/artifacts.md) for the complete directory structure.
+These are the most frequently needed artifacts. See [artifacts reference](references/artifacts.md) for the complete directory structure. `openshift-e2e-test` is the usual test step; some workflows use another name (e.g. `baremetalds-e2e-test` on metal), so glob `{target}/*/` when a path is missing.
 
 | Path | Description |
 |------|-------------|

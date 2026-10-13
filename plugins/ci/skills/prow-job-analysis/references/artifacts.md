@@ -282,7 +282,10 @@ Each step directory typically contains:
 
 ### `openshift-e2e-test/` — E2E Test Output
 
-The primary test step for most OpenShift CI jobs.
+The primary test step for most OpenShift CI jobs. Some workflows run openshift-tests under a
+different step name with the same `artifacts/junit/` layout — e.g. `baremetalds-e2e-test` on
+metal jobs — so search with `artifacts/**/junit/...` rather than hardcoding
+`openshift-e2e-test`.
 
 ```text
 artifacts/{target}/openshift-e2e-test/

@@ -16,9 +16,13 @@ alerts → [resource-exhaustion.md](resource-exhaustion.md); network/DNS/ingress
 
 | Test name pattern | Kind | What it checks |
 |-------------------|------|----------------|
-| `[sig-instrumentation] Prometheus ... shouldn't report any alerts in firing state apart from Watchdog and AlertmanagerReceiversNotConfigured [Early]` | Conformance (usually blocking) | A one-shot `ALERTS{alertstate="firing"}` query at the **start** of the suite, minus an allow-list. Anything firing then — usually left over from install — fails it |
+| `[Jira:"Test Framework"] Prometheus ... when installed on the cluster should have no unexpected alerts in firing state [Early]` | Conformance (usually blocking) | A one-shot `ALERTS{alertstate="firing"}` query at the **start** of the suite, minus an allow-list. Anything firing then — usually left over from install — fails it. The allow-list changes between releases, so read it from the failure text rather than assuming |
 | `[<component>][invariant] alert/<Alert> should not be at or above pending` / `... at or above info` | Monitor test | Over the whole run, the alert must not reach that state for longer than the historical allowance (`maxAllowed`). Optional `in ns/<namespace>` suffix scopes it |
 | `[sig-trt][invariant] No alerts without an explicit test should be firing/pending more than historically` | Monitor test | Catch-all for alerts that have no dedicated invariant test; compares against historical data (`result=reject`) |
+
+Older releases (e.g. 4.20) name the Early test `[sig-instrumentation] Prometheus ... shouldn't
+report any alerts in firing state apart from Watchdog and AlertmanagerReceiversNotConfigured
+[Early]`, with a shorter allow-list; analyze it the same way.
 
 The bracketed prefix on invariant tests (`[bz-etcd]`, `[Networking]`, `[Routing]`,
 `[Machine Config Operator]`, …) is the **owning component** — use it for routing and for the
@@ -28,20 +32,24 @@ the alert's namespace and labels instead.
 **Check blocking vs flake first.** Invariant alert tests are frequently recorded as a
 same-name fail+pass pair in `e2e-monitor-tests__*.xml` — that is a flake and did not fail the
 job (see [flaky-test-identification.md](flaky-test-identification.md#pass--fail--skip--flake)).
-Only failures listed under `Blocking test failures:` in the e2e step `build-log.txt`, or in
+Only failures listed under `Blocking test failures:` in the test step's `build-log.txt`, or in
 `test-failures-summary_*.json`, failed the job.
+
+The test step is usually `openshift-e2e-test`, but some workflows name it differently (e.g.
+`baremetalds-e2e-test` on metal jobs); paths below use `{test-step}`. Find it with
+`gcloud storage ls "gs://{bucket}/{bucket-path}/artifacts/**/alerts_*.json"`.
 
 ---
 
 ## Step 1 — Name the alert
 
-**Early test.** The failure text starts with a very long `ALERTS{alertname!~"Watchdog|...` regex
-— that is the allow-list, not the answer. The culprit is in the JSON **after** the regex:
+**Early test.** The failure text starts with a very long `ALERTS{alertname!~"...` query — that
+is the allow-list, not the answer. The culprit is in the JSON **after** it:
 
 ```bash
-# alertname/namespace/labels of the alerts that matched. Use the e2e step's build-log.txt:
+# alertname/namespace/labels of the alerts that matched. Use the test step's build-log.txt:
 # in junit_e2e__*.xml the same JSON is entity-escaped (&#34;) and plain grep misses it.
-grep -A40 '"__name__": "ALERTS"' openshift-e2e-test/build-log.txt \
+grep -A40 '"__name__": "ALERTS"' {test-step}/build-log.txt \
   | grep -E '"(alertname|namespace|job_name|pod|severity)"' | sort | uniq -c
 ```
 
@@ -53,9 +61,10 @@ etcdGRPCRequestsSlow was at or above pending for at least 10m54s on ... (maxAllo
 Oct 09 03:54:34.791 - 568s  I namespace/openshift-etcd ... alert/etcdGRPCRequestsSlow alertstate/pending severity/critical ALERTS{...}
 ```
 
-**Whole-run view.** `openshift-e2e-test/artifacts/junit/alerts_*.json` lists every alert
-that fired during the run with `Name`, `Namespace`, `Level`, and `Duration`. Alerts expected
-for the job's configuration (e.g. `TechPreviewNoUpgrade` on techpreview jobs,
+**Whole-run view.** `{test-step}/artifacts/junit/alerts_*.json` lists every alert that fired
+during the run with `Name`, `Namespace`, `Level`, and `Duration`. Entries with `Duration: "0s"`
+and no namespace are allow-list names that did not fire — ignore them. Alerts expected for the
+job's configuration (e.g. `TechPreviewNoUpgrade` on techpreview jobs,
 `AlertmanagerReceiversNotConfigured`) are noise; focus on the ones named in the failure.
 
 ## Step 2 — Pin when it fired
@@ -91,6 +100,7 @@ The alert's labels point at the object to inspect. Common cases:
 | `KubeAPIErrorBudgetBurn`, API availability alerts | — | [disruption.md](disruption.md) |
 | `ClusterOperatorDown` / `ClusterOperatorDegraded` | `name` | `junit_install_status.xml`, `oc_cmds/clusteroperators`, then that operator's pod logs |
 | `KubePersistentVolumeErrors` | `persistentvolume`, `phase` | `oc_cmds/persistentvolumes`, `oc_cmds/events` (`ProvisioningFailed`) |
+| `NodeClockNotSynchronising` | `instance` (node), `pod` (node-exporter) | `zgrep chronyd gather-extra/artifacts/nodes/<node>/journal` — `Can't synchronise: no selectable sources (N unreachable sources)` means the node could not reach any NTP server (seen on IPv6 metal jobs using the public pool): an environment problem, not a product one |
 
 Short-lived `KubePodNotReady` pending intervals on test- or gather-created pods (for example
 `*-debug-*` pods or `openshift-must-gather-*` namespaces) are usually test churn, not a
