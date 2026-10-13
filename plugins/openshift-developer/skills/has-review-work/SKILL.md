@@ -56,7 +56,7 @@ The helper returns one JSON object with:
 
 The helper fetches all REST pages and all GraphQL review-thread pages. It ignores the agent's own comments, known CI bots, unauthorized authors, `APPROVED`/`PENDING` reviews, empty or slash-command-only bodies, resolved threads, and comments already answered by the bot. It reuses the review worker's authorization policy and reply signatures, and checks reply timing within each inline thread rather than allowing replies on other threads to suppress work.
 
-For CI, it accepts valid `gh pr checks` JSON even when that command exits nonzero. It drops `tide` and optional Prow jobs using `filter_optional_checks.py`. If optional-job metadata cannot be fetched, the failing check remains actionable. Do not use `gh pr checks --required`: GitHub branch protection omits some Tide-required jobs.
+For CI, it accepts valid `gh pr checks` JSON even when that command exits nonzero. When `gh` reports that the branch has no checks, `ci_work` is `no`. It drops `tide` and optional Prow jobs using `filter_optional_checks.py`. If optional-job metadata cannot be fetched, the failing check remains actionable. Do not use `gh pr checks --required`: GitHub branch protection omits some Tide-required jobs.
 
 CI work is `no` when nothing actionable is failing. Otherwise it is `yes` when no previous failures are supplied, the HEAD changed, or the set of failing names changed. The same HEAD and same names yield `no`. Failure names remain JSON strings throughout; never split them on whitespace.
 

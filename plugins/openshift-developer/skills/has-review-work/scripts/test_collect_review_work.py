@@ -125,6 +125,11 @@ class ApiTests(unittest.TestCase):
         run.return_value.stdout = ""
         with self.assertRaisesRegex(RuntimeError, "valid JSON"):
             run_gh(["pr", "checks"], allow_failure_json=True)
+        run.return_value.stderr = "no checks reported on the 'case-001' branch"
+        self.assertEqual(run_gh(["pr", "checks"], allow_failure_json=True), [])
+        run.return_value.stdout = "no checks reported on the 'case-001' branch\n"
+        run.return_value.stderr = ""
+        self.assertEqual(run_gh(["pr", "checks"], allow_failure_json=True), [])
 
     @patch("collect_review_work.run_gh", return_value=[[{"id": 1}], [{"id": 2}]])
     def test_rest_pages_are_flattened(self, run):
@@ -173,6 +178,15 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["ci_work"], "yes")
         self.assertEqual(snapshot["failing_checks"], [FAILURE])
         self.assertEqual(items.call_count, 3)
+
+    @patch("collect_review_work.fetch_threads", return_value={})
+    @patch("collect_review_work.paginated_items", return_value=[])
+    @patch("collect_review_work.run_gh")
+    def test_no_checks_is_ci_work_no(self, run, _items, _threads):
+        run.side_effect = [{"number": 184, "headRefOid": HEAD}, [], {"headRefOid": HEAD}]
+        snapshot = collect_snapshot("org/repo", 184, {"agent_login": "review-agent[bot]"})
+        self.assertEqual(snapshot["ci_work"], "no")
+        self.assertEqual(snapshot["failing_checks"], [])
 
     @patch("collect_review_work.fetch_threads", return_value={})
     @patch("collect_review_work.paginated_items", return_value=[])
