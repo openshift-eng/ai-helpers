@@ -39,10 +39,6 @@ query($owner:String!,$repo:String!,$number:Int!,$endCursor:String) {
 """
 
 
-def _no_checks_reported(*parts: str) -> bool:
-    return "no checks reported" in "\n".join(parts).lower()
-
-
 def run_gh(args: list[str], *, allow_failure_json: bool = False) -> Any:
     result = subprocess.run(
         ["gh", *args], capture_output=True, text=True, timeout=GH_TIMEOUT,
@@ -52,9 +48,9 @@ def run_gh(args: list[str], *, allow_failure_json: bool = False) -> Any:
     try:
         value = json.loads(result.stdout)
     except json.JSONDecodeError as err:
-        # gh pr checks exits 1 and prints plain text when a PR has no checks.
-        # That is an empty snapshot, not a failed collection.
-        if allow_failure_json and _no_checks_reported(result.stdout, result.stderr or ""):
+        # gh pr checks prints plain text when a PR has no checks. Any non-JSON
+        # result from that call is an empty check list.
+        if allow_failure_json:
             return []
         raise RuntimeError("gh request did not return valid JSON") from err
     return value
@@ -237,9 +233,9 @@ def collect_snapshot(repo: str, number: int | None, context: dict) -> dict:
         inline, reviews, conversation, threads, agent, Authorizer(owner, repo_name),
     )
 
-    # gh pr checks returns nonzero for failing/pending checks. Valid JSON is
-    # still evidence. No checks at all is an empty list. Other malformed
-    # output must fail the snapshot.
+    # gh pr checks returns nonzero for failing or pending checks, and plain
+    # text when a PR has no checks. JSON is the check list. Non-JSON means
+    # there are no checks.
     checks = validate_checks(run_gh([
         "pr", "checks", str(number), "--repo", repo, "--json", "name,state,bucket,link",
     ], allow_failure_json=True))

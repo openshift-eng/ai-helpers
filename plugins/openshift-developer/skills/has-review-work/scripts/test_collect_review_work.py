@@ -123,13 +123,13 @@ class ApiTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             run_gh(["api", "anything"])
         run.return_value.stdout = ""
-        with self.assertRaisesRegex(RuntimeError, "valid JSON"):
-            run_gh(["pr", "checks"], allow_failure_json=True)
-        run.return_value.stderr = "no checks reported on the 'case-001' branch"
         self.assertEqual(run_gh(["pr", "checks"], allow_failure_json=True), [])
         run.return_value.stdout = "no checks reported on the 'case-001' branch\n"
-        run.return_value.stderr = ""
         self.assertEqual(run_gh(["pr", "checks"], allow_failure_json=True), [])
+        run.return_value.returncode = 0
+        run.return_value.stdout = "not json"
+        with self.assertRaisesRegex(RuntimeError, "valid JSON"):
+            run_gh(["api", "anything"])
 
     @patch("collect_review_work.run_gh", return_value=[[{"id": 1}], [{"id": 2}]])
     def test_rest_pages_are_flattened(self, run):
