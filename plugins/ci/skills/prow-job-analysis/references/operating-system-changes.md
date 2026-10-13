@@ -147,13 +147,13 @@ Ignition failures usually keep a node from ever becoming Ready — check the ser
 
 | Artifact | Path | OS signal |
 |----------|------|-----------|
-| Node journals | `gather-extra/artifacts/nodes/<node>/journal` (some jobs: `gather-extra/artifacts/journal_logs/`) | kernel, NetworkManager, crio, kubelet, systemd per node |
+| Node journals | `gather-extra/artifacts/nodes/<node>/journal` | kernel, NetworkManager, crio, kubelet, systemd per node |
 | crio/kubelet host logs | must-gather `host_service_logs/masters/{crio,kubelet}_service.log` | runtime & kubelet decisions at the host level |
 | Failed units | log bundle / must-gather `failed-units.txt` | which systemd units failed (fast first look) |
-| Serial console | `log-bundle-*/serial/*-serial.log`; metal `libvirt-logs.tar` | kernel panic, boot hang, Ignition — the only place a pre-Ready node speaks |
+| Serial console | `log-bundle-*/serial/*serial*.log` (Azure: `*.serialconsole.log`); metal `libvirt-logs.tar.gz` | kernel panic, boot hang, Ignition — the only place a pre-Ready node speaks |
 | Node OS/kernel/runtime | `gather-extra/artifacts/oc_cmds/nodes` (`.status.nodeInfo`) | `OSImage`, `KernelVersion`, `ContainerRuntimeVersion` |
 | MCO / MCD logs | `gather-extra/artifacts/pods/openshift-machine-config-operator/` | which OS/config version a node is on; rollout errors |
-| MachineConfig(Pool) | `oc_cmds/machineconfigpool`, `oc_cmds/machineconfig` | rendered config, per-pool update/degraded state |
+| MachineConfig(Pool) | `oc_cmds/machineconfigpools`, `oc_cmds/machineconfigs` | rendered config, per-pool update/degraded state |
 
 **The per-node `journal` files are gzip-compressed without a `.gz` extension** — a plain
 `grep` on them matches nothing. List `gather-extra/artifacts/nodes/` for the node names,

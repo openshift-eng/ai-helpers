@@ -624,12 +624,12 @@ analysis, but their failures do not change the overall job result.
 - Operator-specific diagnostics
 
 **`gather-extra`** — Runs a series of `oc` commands to capture:
-- `oc get nodes -o yaml` → `artifacts/oc_cmds/nodes`
+- `oc get nodes -o wide` → `artifacts/oc_cmds/nodes`
 - `oc get pods --all-namespaces` → `artifacts/oc_cmds/pods`
 - `oc get events --all-namespaces` → `artifacts/oc_cmds/events`
 - Pod logs by namespace → `artifacts/pods/`
 - API server audit logs → `artifacts/audit_logs/`
-- Node journal logs → `artifacts/journal_logs/`
+- Node journal logs → `artifacts/nodes/<node>/journal` (gzip, no `.gz` extension)
 
 **`gather-audit-logs`** — Specifically collects API server audit logs for detailed
 request-level analysis.

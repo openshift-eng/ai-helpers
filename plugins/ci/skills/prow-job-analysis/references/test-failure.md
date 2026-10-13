@@ -112,7 +112,7 @@ full tree in [artifacts.md](artifacts.md)):
 
 ```bash
 # Cluster operator status and events at gather time
-gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/co" .work/prow-job-analysis/{build_id}/ --no-user-output-enabled
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/clusteroperators" .work/prow-job-analysis/{build_id}/ --no-user-output-enabled
 gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/events" .work/prow-job-analysis/{build_id}/ --no-user-output-enabled
 ```
 

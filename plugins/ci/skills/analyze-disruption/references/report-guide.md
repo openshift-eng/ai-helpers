@@ -18,8 +18,8 @@ wherever the run or a specific artifact is referenced, not in a separate table:
 - Timeline file: the gcsweb URL for the object listed by `gs://test-platform-results-public/logs/{job_name}/{build_id}/artifacts/**/e2e-timelines_spyglass_*.json`. Replace the `gs://` prefix with `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/` and keep the rest of that object path. Do not rebuild the link under `artifacts/junit/`.
 - Audit logs dir: `{gcs_base}{target}/gather-extra/artifacts/audit_logs/`
 - etcd pod logs: `{gcs_base}{target}/gather-extra/artifacts/pods/openshift-etcd/`
-- Journal logs: `{gcs_base}{target}/gather-extra/artifacts/journal_logs/`
-- Must-gather: `{gcs_base}{target}/gather-extra/artifacts/must-gather/`
+- Journal logs: `{gcs_base}{target}/gather-extra/artifacts/nodes/` (per-node `journal`, gzip without a `.gz` extension)
+- Must-gather: `{gcs_base}{target}/gather-must-gather/artifacts/` (`must-gather.tar.gz`)
 
 Where `{target}` is the ci-operator target extracted from prowjob.json (e.g., `e2e-azure-ovn-upgrade`).
 

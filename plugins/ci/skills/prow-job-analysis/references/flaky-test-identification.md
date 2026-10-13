@@ -16,7 +16,8 @@ This reference is the decision methodology — the deep-dive references own each
 
 **Use a different reference for:** a failure you have already confirmed is a real product
 regression in a plain e2e test → [test-failure.md](test-failure.md); an extension-binary
-(`*-tests-ext`) failure → [test-extension-binaries.md](test-extension-binaries.md); the
+(`*-tests-ext`) failure → [test-extension-binaries.md](test-extension-binaries.md); an alert
+test (`... alerts in firing state ...`, `[invariant] alert/...`) → [alerts.md](alerts.md); the
 mechanics of statistical verdicts across parallel runs → [aggregated.md](aggregated.md).
 
 ---
@@ -302,6 +303,8 @@ originating error).
 
 - [test-failure.md](test-failure.md) — root-cause analysis for a confirmed product regression
   in a plain e2e test: test source, cluster-state correlation, container tracing
+- [alerts.md](alerts.md) — alert tests: which alert fired, when, from which object, and
+  whether the invariant failure was a fail+pass flake
 - [ci-infrastructure-changes.md](ci-infrastructure-changes.md) — ci-operator reasons,
   lease/registry/step-registry, the infra-vs-product framework, symptom labels
 - [aggregated.md](aggregated.md) — statistical thresholds, failure Modes 1/2/3, minimum

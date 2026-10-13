@@ -36,8 +36,8 @@ balancer/ingress, and network policy. For adjacent layers see:
 | DNS pod logs | `gather-extra/artifacts/pods/openshift-dns/` | CoreDNS `dns-default-*` |
 | Ingress pod logs | `gather-extra/artifacts/pods/openshift-ingress/` | `router-default-*` |
 | Network operator | `gather-extra/artifacts/pods/openshift-network-operator/` | CNO rollout/degraded |
-| Node journals | `gather-extra/artifacts/journal_logs/` | OVS stalls, kubelet CNI, link events |
-| Operator status | `gather-extra/artifacts/oc_cmds/co` | `network`, `dns`, `ingress` degraded |
+| Node journals | `gather-extra/artifacts/nodes/<node>/journal` (gzip — use `zgrep`) | OVS stalls, kubelet CNI, link events |
+| Operator status | `gather-extra/artifacts/oc_cmds/clusteroperators` | `network`, `dns`, `ingress` degraded |
 | Timeline | `**/e2e-timelines_spyglass_*.json` | `OVSVswitchdLog`, `Disruption`, `NodeMonitor` |
 | Proxy config | must-gather `cluster-scoped-resources/config.openshift.io/proxies/cluster.yaml` | HTTP(S)_PROXY, NO_PROXY, trustedCA |
 | ICSP/IDMS | must-gather `cluster-scoped-resources/{operator,config}.openshift.io/imagecontentsourcepolicies\|imagedigestmirrorsets` | Mirror routing |
@@ -218,7 +218,7 @@ OVS is the dataplane; a stall freezes **all** traffic on that node.
 { "source": "OVSVswitchdLog", "message": { "humanMessage": "Unreasonably long 9000ms poll interval" } }
 ```
 
-Also present in node journals: grep `journal_logs/` for `Unreasonably long`.
+Also present in node journals: `zgrep` `nodes/*/journal` for `Unreasonably long`.
 
 ---
 

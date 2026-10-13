@@ -593,8 +593,8 @@ def generate_links(job_name, build_id, target=None, timeline_files=None):
         links["gcsweb_timeline_dir"] = f"{artifact_base}/openshift-e2e-test/artifacts/junit/"
         links["gcsweb_audit_logs"] = f"{artifact_base}/gather-extra/artifacts/audit_logs/"
         links["gcsweb_etcd_pods"] = f"{artifact_base}/gather-extra/artifacts/pods/openshift-etcd/"
-        links["gcsweb_journal_logs"] = f"{artifact_base}/gather-extra/artifacts/journal_logs/"
-        links["gcsweb_must_gather"] = f"{artifact_base}/gather-extra/artifacts/must-gather/"
+        links["gcsweb_journal_logs"] = f"{artifact_base}/gather-extra/artifacts/nodes/"
+        links["gcsweb_must_gather"] = f"{artifact_base}/gather-must-gather/artifacts/"
 
     # Deep links to the specific timeline files that were parsed
     if timeline_files and target:

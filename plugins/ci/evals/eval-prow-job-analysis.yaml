@@ -459,6 +459,8 @@ judges:
         regression root-cause.
       - test-extension-binaries.md — *-tests-ext extension binary failures.
       - disruption.md — API-backend disruption intervals.
+      - alerts.md — alert tests (Early firing-state check, [invariant] alert/...,
+        the sig-trt catch-all): which alert fired, when, and why.
 
       Review the skill's analysis report:
 

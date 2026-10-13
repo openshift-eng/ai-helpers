@@ -18,7 +18,7 @@ Follow this sequence for every install failure:
 2. **Download and parse `junit_install.xml`** → Determine the failure stage (§ Failure Stage Classification)
 3. **Check symptom labels** → Collect machine-detected environmental context (§ Symptom Labels)
 4. **Download installer logs** → `.openshift_install*.log`, excluding deprovision (§ Installer Logs)
-5. **Download the log bundle** → find the `log-bundle-*` directory (recent jobs store it exploded) or the `log-bundle-*.tar`, then pull its full contents (§ Log Bundle Analysis)
+5. **Download the log bundle** → find the `expanded-log-bundle/log-bundle-*/` directory (the `log-bundle-*.tar.gz` beside it is a censored placeholder), then pull its full contents (§ Log Bundle Analysis)
 6. **Analyze based on failure stage** → Route to the correct diagnostic section (§ Stage-Specific Analysis)
 7. **Check must-gather availability** → For cluster creation / operator stability failures (§ Must-Gather)
 8. **Synthesize root cause** → Combine evidence from all sources (§ Root Cause Determination)
@@ -204,10 +204,14 @@ gcloud storage ls -r "gs://test-platform-results-public/{bucket-path}/artifacts/
   | grep "log-bundle"
 ```
 
-GCS stores artifacts **decompressed** — CI gunzips everything to sweep for secrets, so bundles are
-`log-bundle-*.tar` (never `.tar.gz`). Recent jobs go further and upload the bundle **exploded** as a
-`log-bundle-*/` directory instead of a tarball; locate that directory and download its full
-contents with `gcloud storage cp -r`. Prefer non-deprovision bundles — they capture the failure
+The `log-bundle-*.tar.gz` next to the installer log is **not** the bundle: CI's secret sweep
+replaces it with a ~76-byte placeholder ("This file contained potentially sensitive information
+and has been removed."). The real contents are uploaded **exploded** under
+`{install-step}/artifacts/expanded-log-bundle/log-bundle-*/`; download that directory with
+`gcloud storage cp -r`. If no `expanded-log-bundle/` exists (e.g. dev-scripts metal jobs), check
+the `log-bundle-*.tar.gz` size with `gcloud storage ls -l`: a ~76-byte file is the placeholder
+and the bundle is unavailable; anything larger is a real archive — download it and extract with
+`tar -xzf`. Prefer non-deprovision bundles — they capture the failure
 state during installation.
 
 ### Log Bundle Structure
@@ -227,7 +231,7 @@ log-bundle-{timestamp}/
 │       ├── ip-route.txt          # Routing table
 │       └── hostname.txt          # Hostname
 ├── serial/
-│   ├── {cluster}-bootstrap-serial.log    # Bootstrap node console
+│   ├── {cluster}-bootstrap-serial.log    # Bootstrap node console (Azure: *.serialconsole.log)
 │   └── {cluster}-master-N-serial.log     # Master node consoles
 ├── clusterapi/
 │   ├── etcd.log                  # etcd cluster logs (CRITICAL)
@@ -246,11 +250,11 @@ log-bundle-{timestamp}/
 |----------|-------------|---------|
 | `prowjob.json` | `{build-id}/prowjob.json` | Job metadata (target, timing, refs, state) |
 | `build-log.txt` | `{build-id}/build-log.txt` | ci-operator orchestration log |
-| `metadata.json` | `artifacts/{target}/ipi-install-install/artifacts/metadata.json` | Cluster metadata (cluster ID, infra ID) |
-| Ignition configs | `artifacts/{target}/ipi-install-install/artifacts/*.ign` | Machine ignition configurations |
+| Installer log | `artifacts/{target}/ipi-install-install/artifacts/.openshift_install-*.log` | Every installer step (see § Installer Logs) |
+| Log bundle | `artifacts/{target}/ipi-install-install/artifacts/expanded-log-bundle/log-bundle-*/` | Bootstrap/control-plane diagnostics (see § Log Bundle) |
 | Symptom labels | `artifacts/job_labels/*.json` | Machine-detected symptom patterns |
 | `install-status.txt` | `artifacts/{target}/.../install-status.txt` | Installer exit code (prefer junit_install.xml) |
-| Must-gather | `artifacts/{target}/gather-must-gather/artifacts/must-gather.tar` | Cluster state diagnostic archive |
+| Must-gather | `artifacts/{target}/gather-must-gather/artifacts/must-gather.tar.gz` | Cluster state diagnostic archive |
 
 ---
 
@@ -401,7 +405,7 @@ build a complete timeline.
    - `clusterapi/kube-apiserver.log` — API server startup and errors
    - `clusterapi/etcd.log` — etcd cluster formation and member health
    - `bootstrap/journals/kubelet.log` — kubelet container management
-5. **Check serial console logs**: `serial/{cluster-name}-bootstrap-serial.log` — look for kernel
+5. **Check serial console logs**: `serial/*bootstrap*.log` — look for kernel
    panics, ignition failures, disk errors, network configuration issues.
 6. **Check `failed-units.txt`** — failed systemd units; strong indicator of specific service failures.
 
@@ -651,15 +655,13 @@ for `configuration` or early `infrastructure` failures.
 ### Downloading and Extracting the Log Bundle
 
 ```bash
-# Exploded form (recent jobs): copy the whole log-bundle-*/ directory — no extraction needed
-gcloud storage cp -r "{gcs-path-to-log-bundle-dir}" \
+# Copy the whole exploded bundle directory — no extraction needed
+gcloud storage cp -r "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/{install-step}/artifacts/expanded-log-bundle/log-bundle-*" \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
 
-# Legacy tarball form: download, then extract (GCS stores it decompressed as .tar)
-gcloud storage cp {gcs-path-to-log-bundle} \
-  .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
-tar -xf .work/prow-job-analysis/{build_id}/logs/log-bundle-*.tar \
-  -C .work/prow-job-analysis/{build_id}/logs/
+# No expanded-log-bundle/ and the tarball is larger than the ~76-byte placeholder:
+gcloud storage cp {gcs-path-to-log-bundle-tar.gz} .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
+tar -xzf .work/prow-job-analysis/{build_id}/logs/log-bundle-*.tar.gz -C .work/prow-job-analysis/{build_id}/logs/
 ```
 
 ### Analysis by Failure Mode
