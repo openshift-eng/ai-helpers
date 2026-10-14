@@ -20,7 +20,7 @@ Three output formats are supported:
 
 **Important**: When posting comments via `addCommentToJiraIssue` or updating descriptions via `editJiraIssue`, always include `contentFormat: "markdown"`.
 
-For Markdown output formats, render PR references as `[owner/repo#number](PR_URL)` using the repository and URL present in the evidence. Do not emit bare `#number` or shorthand `repo#number` references, and do not invent a repository or URL when the evidence lacks one.
+For Markdown output formats, render PR references as `[owner/repo#number](PR_URL)` using the repository and URL present in the evidence. Do not emit bare `#number` or shorthand `repo#number` references, or print a raw PR URL in parentheses; the URL belongs in the Markdown link target. Do not invent a repository or URL when the evidence lacks one.
 
 ## Format: markdown_comment
 
@@ -263,6 +263,8 @@ Jira wiki-style bullet syntax. The caller must select `ryg_field_markdown` as th
   using the repository and URL in the evidence (for example,
   `[openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456)`).
 - Never use a bare `#number` or shorthand `repo#number` PR reference.
+- Do not print a raw PR URL in parentheses, such as `Enhancement PR (https://...)`;
+  put the URL only in the Markdown link target.
 - Do not infer or fabricate a repository or URL. If the evidence does not identify
   the repository and URL, avoid an ambiguous PR reference.
 - Output only the field text, with no code fence, preamble, or explanation.
@@ -273,7 +275,7 @@ Jira wiki-style bullet syntax. The caller must select `ryg_field_markdown` as th
 * Color Status: Green
 * Status summary:
   * [openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456) merged adding OAuth2 token validation with comprehensive unit tests
-  * AUTH-103 is in progress: the session handling refactor is under review
+  * [openshift/enhancements#1945](https://github.com/openshift/enhancements/pull/1945) (EtcdBackup CRD for OADP integration) remains open
 * Risks:
   * Review bandwidth may delay the follow-up merge
 ```
