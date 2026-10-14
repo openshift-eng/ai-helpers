@@ -9,12 +9,13 @@ This module defines output templates for status summaries. It transforms analyze
 
 ## Overview
 
-Three output formats are supported:
+Four output formats are supported:
 
 | Format | Used By | Output Target | Syntax |
 |--------|---------|---------------|--------|
 | `markdown_comment` | `/jira:status-rollup` | Jira comment | Markdown (via `contentFormat: "markdown"`) |
-| `ryg_field` | `/jira:update-weekly-status` | Status Summary field | Bullet-point template |
+| `ryg_field` | `/jira:update-weekly-status` (default) | Status Summary field | Native ADF JSON |
+| `ryg_field_markdown` | Explicitly opted-in consumers with a verified converter | Draft only; convert to ADF before writing | Standard Markdown bullets |
 | `feature_markdown` | `/jira:generate-feature-updates` | stdout / localhost HTTP server | Markdown nested lists |
 
 **Important**: When posting comments via `addCommentToJiraIssue` or updating descriptions via `editJiraIssue`, always include `contentFormat: "markdown"`.
@@ -223,6 +224,44 @@ The examples below show the **logical content** (what the user sees in Jira). Th
   - Risks:
     - Deadline at risk if subscription not approved by Friday
     - May need to descope Azure AD integration from initial release
+
+
+## Format: ryg_field_markdown
+
+This is a **draft-only** format for consumers that explicitly select
+`ryg_field_markdown` and supply a verified Markdown-to-ADF converter before REST
+API v3 writes. It is not a valid direct value for `customfield_10814`.
+`contentFormat: "markdown"` does not convert custom field values. Keep `ryg_field`
+as the default native ADF JSON format; it is not legacy Jira wiki text.
+
+Convert the draft with the caller's supported converter, validate the resulting
+ADF against the `ryg_field` contract, and write the ADF document explicitly.
+Preserve raw ADF history where required by project conventions. If the caller
+cannot provide a supported converter, stop rather than sending draft text to
+Jira or assuming an API option performs conversion.
+
+### Template
+
+```markdown
+* Color Status: {Red|Yellow|Green}
+* Status summary:
+  * {achievement-or-progress-1}
+  * {achievement-or-progress-2}
+* Risks:
+  * {risk-1-or-"None at this time"}
+```
+
+### Formatting Rules
+
+- Use standard Markdown unordered-list markers: `* ` for top-level items and
+  `  * ` for items nested under a section.
+- Do not use Jira wiki-style `**` markers or indentation-only pseudo-lists.
+- Keep `Color Status`, `Status summary`, and `Risks` as top-level bullets.
+- Put each achievement, progress item, and risk under its corresponding section.
+- Always start with `* Color Status:` and use exactly `Red`, `Yellow`, or `Green`.
+- Include at least one status summary item and a Risks section; use
+  `  * None at this time` when there are no risks.
+- Output only the draft text, with no code fence, preamble, or explanation.
 
 ## Format: feature_markdown
 
@@ -463,6 +502,28 @@ def format_ryg_field(issue_data, config):
     }
 ```
 
+### For ryg_field_markdown format
+
+```python
+def format_ryg_field_markdown(issue_data, config):
+    output = []
+    health = issue_data.analysis.health.capitalize()  # Green, Yellow, Red
+    output.append(f"* Color Status: {health}")
+    output.append("* Status summary:")
+
+    items = [a.description for a in issue_data.analysis.achievements[:3]]
+    items.extend(p.description for p in issue_data.analysis.in_progress[:2])
+    output.extend(f"  * {item}" for item in items)
+
+    output.append("* Risks:")
+    risks = issue_data.analysis.risks[:2]
+    output.extend(f"  * {risk.description}" for risk in risks)
+    if not risks:
+        output.append("  * None at this time")
+
+    return "\n".join(output)
+```
+
 ### For feature_markdown format
 
 ```python
@@ -551,6 +612,14 @@ Before outputting, validate the formatted text:
 - [ ] Second item has text `Status summary:` with a nested `bulletList` containing at least one item
 - [ ] Third item has text `Risks:` with a nested `bulletList` (at least "None at this time")
 - [ ] No empty text nodes
+
+### ryg_field_markdown validation
+
+- [ ] Starts with `* Color Status:` and uses exactly Red, Yellow, or Green
+- [ ] `Status summary` and `Risks` are top-level `* ` bullets
+- [ ] Summary items and risks use two-space nested `  * ` bullets
+- [ ] Contains no Jira wiki-style `**` sub-bullets
+- [ ] No empty bullet points
 
 ## Escaping Special Characters
 

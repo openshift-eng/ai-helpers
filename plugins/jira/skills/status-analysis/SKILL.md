@@ -116,7 +116,7 @@ Both commands share the same engine with different configuration:
 | `root_issues` | Single issue key | Multiple (from manifest.json) | Multiple (from manifest.json) |
 | `date_range.start` | User-specified or issue creation | `today - 7 days` | `today - 7 days` |
 | `date_range.end` | User-specified or today | `today` | `today` |
-| `output_format` | `markdown_comment` | `ryg_field` | `feature_markdown` |
+| `output_format` | `markdown_comment` | `ryg_field` (default native ADF); `ryg_field_markdown` (explicit draft opt-in) | `feature_markdown` |
 | `output_target` | Comment on root issue | Status Summary field | stdout |
 | `external_links` | Via `gh` CLI | Pre-gathered in JSON | Pre-gathered in JSON |
 | `user_review` | Yes (before posting comment) | Yes (approve/modify/skip per issue) | Yes (full-section review) |
@@ -239,7 +239,7 @@ The calling command provides an AnalysisConfig. Parse and validate:
 REQUIRED parameters:
   - root_issues: Array of issue keys to analyze
   - date_range: {start, end} in YYYY-MM-DD format
-  - output_format: "markdown_comment", "ryg_field", or "feature_markdown"
+  - output_format: "markdown_comment", "ryg_field", "ryg_field_markdown", or "feature_markdown"
 
 OPTIONAL parameters:
   - external_links_enabled: boolean (default: true)
@@ -369,6 +369,25 @@ The Status Summary field (`customfield_10814`) requires an ADF JSON document —
   - Thing 2 that happened since last week
 - Risks:
   - Risk 1 (or "None at this time")
+
+**For `ryg_field_markdown` (Markdown draft; explicit opt-in)**:
+
+```markdown
+* Color Status: {Red, Yellow, Green}
+* Status summary:
+  * Thing 1 that happened since last week
+  * Thing 2 that happened since last week
+* Risks:
+  * Risk 1 (or "None at this time")
+```
+
+This is a draft format for callers that explicitly supply a verified
+Markdown-to-ADF converter before REST API v3 writes. The draft is not a valid
+direct value for `customfield_10814`; `contentFormat: "markdown"` does not convert
+custom field values. Use `ryg_field` for native ADF JSON by default. Stop if a
+requested Markdown draft has no supported conversion path. Follow the list
+rules in `formatting.md`, then validate the converted ADF and preserve
+raw ADF history as required by the loaded project conventions.
 
 **For `feature_markdown` (generate-feature-updates)**:
 
