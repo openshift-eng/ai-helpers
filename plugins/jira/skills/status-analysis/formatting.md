@@ -20,6 +20,8 @@ Three output formats are supported:
 
 **Important**: When posting comments via `addCommentToJiraIssue` or updating descriptions via `editJiraIssue`, always include `contentFormat: "markdown"`.
 
+For Markdown output formats, render PR references as `[owner/repo#number](PR_URL)` using the repository and URL present in the evidence. Do not emit bare `#number` or shorthand `repo#number` references, and do not invent a repository or URL when the evidence lacks one.
+
 ## Format: markdown_comment
 
 Used by `/jira:status-rollup` to post a comprehensive status comment to a Jira issue.
@@ -98,7 +100,7 @@ Used by `/jira:status-rollup` to post a comprehensive status comment to a Jira i
 ### This Period
 
 **Completed:**
-1. [AUTH-101](https://redhat.atlassian.net/browse/AUTH-101) - OAuth2 implementation (PR #456 merged, all review feedback addressed)
+1. [AUTH-101](https://redhat.atlassian.net/browse/AUTH-101) - OAuth2 implementation ([openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456) merged, all review feedback addressed)
 1. [AUTH-102](https://redhat.atlassian.net/browse/AUTH-102) - Token validation with comprehensive unit tests
 
 **In Progress:**
@@ -257,6 +259,12 @@ Jira wiki-style bullet syntax. The caller must select `ryg_field_markdown` as th
 - Always start with `* Color Status:` and use exactly `Red`, `Yellow`, or `Green`.
 - Include at least one status summary item and a Risks section; use
   `  * None at this time` when there are no risks.
+- Render every PR reference as a Markdown link labeled `owner/repo#number`,
+  using the repository and URL in the evidence (for example,
+  `[openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456)`).
+- Never use a bare `#number` or shorthand `repo#number` PR reference.
+- Do not infer or fabricate a repository or URL. If the evidence does not identify
+  the repository and URL, avoid an ambiguous PR reference.
 - Output only the field text, with no code fence, preamble, or explanation.
 
 ### Example
@@ -264,7 +272,7 @@ Jira wiki-style bullet syntax. The caller must select `ryg_field_markdown` as th
 ```markdown
 * Color Status: Green
 * Status summary:
-  * PR #456 merged adding OAuth2 token validation with comprehensive unit tests
+  * [openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456) merged adding OAuth2 token validation with comprehensive unit tests
   * AUTH-103 is in progress: the session handling refactor is under review
 * Risks:
   * Review bandwidth may delay the follow-up merge
@@ -298,7 +306,7 @@ Color circle mapping (from the `color` field in Status Summary):
 5. **No metrics**: No completion percentages, issue counts, or tables
 6. **Cross-references as markdown links**: Reference related issues, PRs, and people inline
 7. **Continuous list**: All entries in one unordered list, no blank lines between items
-8. **PR references**: Use `[PR #N](url)` format when referencing specific PRs
+8. **PR references**: Use `[owner/repo#N](url)` format when referencing specific PRs
 9. **First names for attribution**: Use `author_name` fields (not `author` logins) when attributing contributions. Always use first names, never GitHub handles.
 
 ### Content Guidelines
@@ -316,7 +324,7 @@ Color circle mapping (from the `color` field in Status Summary):
 **Attribution for recognition:**
 
 - Name team members who drove key accomplishments
-- Example: "Thanks to Sara's work on PR #456, the migration path is now fully tested"
+- Example: "Thanks to Sara's work on [openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456), the migration path is now fully tested"
 
 **Tone:**
 
@@ -346,7 +354,7 @@ Color circle mapping (from the `color` field in Status Summary):
 - 🟡 [OCPSTRAT-1409](https://issues.redhat.com/browse/OCPSTRAT-1409): Auto backup/restore for Hosted Clusters
     - A bug found in the implementation has highlighted a permission gap that we are going to cover with better UX.
 - 🟢 [OCPSTRAT-1558](https://issues.redhat.com/browse/OCPSTRAT-1558): Shared ingress for HCP
-    - Wei's [PR #7143](https://github.com/openshift/hypershift/pull/7143) landed this week, completing the core shared ingress controller. Integration tests are passing on AWS.
+    - Wei's [openshift/hypershift#7143](https://github.com/openshift/hypershift/pull/7143) landed this week, completing the core shared ingress controller. Integration tests are passing on AWS.
 - 🔴 [OCPSTRAT-2100](https://issues.redhat.com/browse/OCPSTRAT-2100): IPv6 support for Hosted Control Planes
     - Blocked on upstream Kubernetes networking changes expected in 1.32. Alberto has prepared the downstream patches and they are ready to go once the dependency lands.
 ```
