@@ -1,0 +1,11 @@
+expected_planning_level: planning_required
+expected_read_only: true
+notes: >
+  The Jira says to add paging "similar to job_runs" but leaves open
+  design decisions that require user input: what page size default to use,
+  whether to use cursor-based or offset pagination, how to handle the
+  frontend (does it already support paging for these endpoints?), whether
+  existing API consumers depend on the current unbounded response shape,
+  and which specific endpoints and query functions are in scope beyond
+  "tests and tests by variant." These are consequential API contract
+  decisions that should be settled before implementation.

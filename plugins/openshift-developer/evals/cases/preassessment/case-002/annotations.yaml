@@ -1,0 +1,11 @@
+expected_planning_level: needs_clarification
+expected_read_only: true
+notes: >
+  The Jira assumes substantial context not available from the repository:
+  what "agentic Jira solving" means, what the "generic workflow" is, which
+  GitHub App to install, what openshift-trt is, and what constitutes a
+  passing end-to-end test. The acceptance criteria reference infrastructure
+  and processes outside the repo (ci-operator configs, GitHub App admin,
+  fork ownership) that cannot be understood by inspecting the codebase
+  alone. The skill should recognize the missing context and return
+  needs_clarification.

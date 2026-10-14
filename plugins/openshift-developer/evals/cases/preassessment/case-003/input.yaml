@@ -1,0 +1,21 @@
+issue_key: "TRT-2575"
+repo_url: "https://github.com/openshift/sippy"
+eval_ref: "9e96f9311acb88d2b3bfdd28f9a399553d20e016"
+issue_context: |
+  Key: TRT-2575
+  Type: Story
+  Priority: Major
+  Status: Refinement
+  Labels: interactive-backlog-grooming-2026
+  Components: (none)
+  Resolution: Unresolved
+
+  Summary: Add Paging for Tests Queries
+
+  Description:
+  Similar to job_runs (pkg/api/job_runs.go) we need to add paging and limit
+  the data being queried for test reports
+  (pkg/sippyserver/server.go around the test report handlers). This should
+  include both tests and tests by variant queries.
+
+  Comments: (none)

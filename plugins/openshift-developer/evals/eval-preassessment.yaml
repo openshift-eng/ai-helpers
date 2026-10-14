@@ -1,0 +1,189 @@
+description: >
+  Evaluate the preassessment skill against real Jira issues and repositories.
+  The skill clones the target repo at a pinned commit, reads Jira context,
+  explores relevant code, and returns its planning-level decision.
+
+execution:
+  mode: case
+  arguments: "{issue_key}"
+  timeout: 300
+  max_budget_usd: 2.00
+  skill: openshift-developer:preassessment
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/openshift-developer
+  system_prompt: |
+    You are evaluating the preassessment skill against a real repository
+    with pre-gathered Jira context.
+
+    Read input.yaml to obtain repo_url, eval_ref, issue_key, and
+    issue_context. The issue_context field contains the frozen Jira state;
+    do not fetch from Jira.
+
+    First, prepare the working repository in a repo/ subdirectory so that
+    the cloned content does not interfere with harness files (input.yaml,
+    annotations.yaml, assessment.json):
+
+      REMOTE=eval-remote
+      mkdir repo && cd repo && git init && \
+        git remote add "$REMOTE" <repo_url> && \
+        git fetch --depth 1 "$REMOTE" <eval_ref> && \
+        git checkout -b eval FETCH_HEAD
+
+    Then cd into repo/ and invoke /openshift-developer:preassessment,
+    passing the issue_context as pre-gathered context. Let the skill
+    explore the repository as needed but do not let it fetch from Jira.
+
+    Write the skill's exact returned JSON object to assessment.json in the
+    workspace root (the parent of repo/), not inside repo/. Do not wrap it
+    in Markdown. Do not create or change any repository file, implement
+    code, create a plan, or trigger delivery.
+
+models:
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Skill"
+    - "Bash"
+    - "Read"
+    - "Write"
+    - "Edit"
+    - "Agent"
+    - "WebFetch"
+  deny:
+    - "mcp__*"
+
+mlflow:
+  experiment: preassessment-eval
+
+dataset:
+  path: cases/preassessment
+  schema: |
+    Each case directory contains:
+    - input.yaml: issue_key, repo_url, eval_ref, and issue_context
+      (frozen Jira state so the eval does not depend on a live Jira server)
+    - annotations.yaml: expected_planning_level, expected_read_only, and notes
+
+outputs:
+  - path: "assessment.json"
+    schema: |
+      A JSON object with exactly two fields:
+      - planning_level: implementation_ready, planning_required,
+        decomposition_required, or needs_clarification
+      - justification: nonempty user-facing string
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_contract
+    description: Require exact JSON fields, a supported level, and a nonempty justification
+    check: |
+      import json, os
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      matches = {k: v for k, v in all_f.items() if os.path.basename(k) == "assessment.json" and "repo/" not in k}
+      if not matches:
+          return (False, "No assessment.json found; missing output is never implementation_ready")
+      try:
+          data = json.loads(list(matches.values())[0])
+      except Exception as exc:
+          return (False, f"Invalid JSON; invalid output is never implementation_ready: {exc}")
+      if not isinstance(data, dict):
+          return (False, "Output must be a JSON object")
+      if set(data) != {"planning_level", "justification"}:
+          return (False, f"Expected exactly planning_level and justification, got {sorted(data)}")
+      levels = {"implementation_ready", "planning_required", "decomposition_required", "needs_clarification"}
+      if data["planning_level"] not in levels:
+          return (False, f"Unsupported planning_level: {data['planning_level']!r}")
+      if not isinstance(data["justification"], str) or not data["justification"].strip():
+          return (False, "justification must be a nonempty string")
+      return (True, f"Valid exact contract with level={data['planning_level']}")
+
+  - name: planning_level_correct
+    description: Require the decision expected by the fixture
+    check: |
+      import json, os
+      expected = outputs.get("annotations", {}).get("expected_planning_level")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      matches = {k: v for k, v in all_f.items() if os.path.basename(k) == "assessment.json" and "repo/" not in k}
+      if not matches:
+          return (False, "No assessment.json found")
+      try:
+          actual = json.loads(list(matches.values())[0]).get("planning_level")
+      except Exception as exc:
+          return (False, f"Cannot parse assessment: {exc}")
+      if actual == expected:
+          return (True, f"planning_level={actual} matches expected")
+      return (False, f"planning_level={actual}, expected={expected}")
+
+  - name: read_only_scope
+    description: Require the assessment to leave no artifact except its declared output
+    check: |
+      import os
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      harness_suffixes = ("stdout.log", "stderr.log")
+      unexpected = [
+          path for path in all_f
+          if not (os.path.basename(path) == "assessment.json" and "repo/" not in path)
+          and os.path.basename(path) not in harness_suffixes
+      ]
+      if unexpected:
+          return (False, "Unexpected artifacts: " + ", ".join(sorted(unexpected)))
+      return (True, "Only assessment.json was produced")
+
+  - name: justification_quality
+    description: Assess whether justification cites concrete code evidence from the repository
+    prompt: |
+      Evaluate the preassessment JSON against the repository context and annotations.
+
+      The skill had access to the actual repository at the pinned commit and should
+      have explored relevant code to inform its decision. Evaluate whether the
+      justification:
+      - cites specific evidence from the codebase (file paths, function signatures,
+        patterns observed) rather than only restating the Jira description
+      - correctly characterizes the scope and complexity of the work
+      - identifies the right components and boundaries
+      - reaches the correct planning level for the right reasons
+
+      Assessment output:
+      {% for path, content in outputs.files.items() if path.endswith('assessment.json') %}
+      {{ content }}
+      {% endfor %}
+
+      Expected behavior:
+      {{ annotations }}
+
+      For needs_clarification: if the issue references something that neither the
+      issue text nor the repository explains, the skill cannot cite code evidence
+      because none exists. A justification that concretely identifies what is
+      missing and why clarification is needed counts as well-grounded — do not
+      penalize it for lacking file paths or function signatures.
+
+      Score 1-5, where 1 is wrong decision or vague/unsupported rationale, 3 has
+      the correct decision with generic rationale, and 5 is precise, grounded in
+      specific observations (code evidence for code-related decisions, concrete
+      missing-reference explanations for needs_clarification), and fully explains
+      why the work is or isn't ready.
+
+thresholds:
+  valid_output_contract:
+    min_pass_rate: 1.0
+  planning_level_correct:
+    min_pass_rate: 1.0
+  read_only_scope:
+    min_pass_rate: 1.0
+  justification_quality:
+    min_mean: 4.0
