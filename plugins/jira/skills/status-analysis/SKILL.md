@@ -116,7 +116,7 @@ Both commands share the same engine with different configuration:
 | `root_issues` | Single issue key | Multiple (from manifest.json) | Multiple (from manifest.json) |
 | `date_range.start` | User-specified or issue creation | `today - 7 days` | `today - 7 days` |
 | `date_range.end` | User-specified or today | `today` | `today` |
-| `output_format` | `markdown_comment` | `ryg_field` | `feature_markdown` |
+| `output_format` | `markdown_comment` | `ryg_field` or `ryg_field_markdown` | `feature_markdown` |
 | `output_target` | Comment on root issue | Status Summary field | stdout |
 | `external_links` | Via `gh` CLI | Pre-gathered in JSON | Pre-gathered in JSON |
 | `user_review` | Yes (before posting comment) | Yes (approve/modify/skip per issue) | Yes (full-section review) |
@@ -239,7 +239,7 @@ The calling command provides an AnalysisConfig. Parse and validate:
 REQUIRED parameters:
   - root_issues: Array of issue keys to analyze
   - date_range: {start, end} in YYYY-MM-DD format
-  - output_format: "markdown_comment", "ryg_field", or "feature_markdown"
+  - output_format: "markdown_comment", "ryg_field", "ryg_field_markdown", or "feature_markdown"
 
 OPTIONAL parameters:
   - external_links_enabled: boolean (default: true)
@@ -367,6 +367,21 @@ Follow `formatting.md` to generate output based on `output_format`:
  * Risks:
      ** Risk 1 (or "None at this time")
 ```
+
+**For `ryg_field_markdown` (Jira Cloud REST API v3 clients)**:
+
+```markdown
+* Color Status: {Red, Yellow, Green}
+* Status summary:
+  * Thing 1 that happened since last week
+  * Thing 2 that happened since last week
+* Risks:
+  * Risk 1 (or "None at this time")
+```
+
+Use this output format when the caller writes the field through Jira Cloud REST
+API v3 and converts Markdown to ADF. Keep `ryg_field` for clients that require
+legacy Jira wiki-style field text. The caller must choose the matching format.
 
 **For `feature_markdown` (generate-feature-updates)**:
 

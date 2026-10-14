@@ -225,16 +225,11 @@ Using the pre-gathered data, apply the activity analysis rules from `activity-an
 
 ##### c. Generate Status Update
 
-Format using `ryg_field` template:
-
-```
-- Color Status: {Red, Yellow, Green}
-  - Status summary:
-    - Thing 1 that happened since last week
-    - Thing 2 that happened since last week
-  - Risks:
-    - Risk 1 (or "None at this time")
-```
+Choose the field format for the destination: use `ryg_field` for legacy Jira
+wiki-style clients, or `ryg_field_markdown` for Jira Cloud REST API v3 clients
+that convert Markdown to ADF. Follow the matching template in `formatting.md`.
+For `ryg_field_markdown`, use standard Markdown bullets and never use `**`
+sub-bullets.
 
 ##### d. Present to User for Review
 

@@ -14,7 +14,8 @@ Three output formats are supported:
 | Format | Used By | Output Target | Syntax |
 |--------|---------|---------------|--------|
 | `markdown_comment` | `/jira:status-rollup` | Jira comment | Markdown (via `contentFormat: "markdown"`) |
-| `ryg_field` | `/jira:update-weekly-status` | Status Summary field | Bullet-point template |
+| `ryg_field` | `/jira:update-weekly-status` | Status Summary field for legacy Jira clients | Jira wiki-style bullets |
+| `ryg_field_markdown` | Jira Cloud REST API v3 clients | Status Summary field | Markdown bullets, converted to ADF |
 | `feature_markdown` | `/jira:generate-feature-updates` | stdout / localhost HTTP server | Markdown nested lists |
 
 **Important**: When posting comments via `addCommentToJiraIssue` or updating descriptions via `editJiraIssue`, always include `contentFormat: "markdown"`.
@@ -224,6 +225,49 @@ Used by `/jira:update-weekly-status` to update the Status Summary custom field.
  * Risks:
      ** Deadline at risk if subscription not approved by Friday
      ** May need to descope Azure AD integration from initial release
+```
+
+
+## Format: ryg_field_markdown
+
+Used by clients that write the Status Summary field through Jira Cloud REST API v3
+and convert Markdown to Atlassian Document Format (ADF). This is a separate format
+from `ryg_field`; keep `ryg_field` unchanged for clients that require its legacy
+Jira wiki-style bullet syntax. The caller must select `ryg_field_markdown` as the
+`output_format` for Markdown/ADF clients.
+
+### Template
+
+```markdown
+* Color Status: {Red|Yellow|Green}
+* Status summary:
+  * {achievement-or-progress-1}
+  * {achievement-or-progress-2}
+* Risks:
+  * {risk-1-or-"None at this time"}
+```
+
+### Formatting Rules
+
+- Use standard Markdown unordered-list markers: `* ` for top-level items and
+  `  * ` for items nested under a section.
+- Do not use Jira wiki-style `**` markers or indentation-only pseudo-lists.
+- Keep `Color Status`, `Status summary`, and `Risks` as top-level bullets.
+- Put each achievement, progress item, and risk under its corresponding section.
+- Always start with `* Color Status:` and use exactly `Red`, `Yellow`, or `Green`.
+- Include at least one status summary item and a Risks section; use
+  `  * None at this time` when there are no risks.
+- Output only the field text, with no code fence, preamble, or explanation.
+
+### Example
+
+```markdown
+* Color Status: Green
+* Status summary:
+  * PR #456 merged adding OAuth2 token validation with comprehensive unit tests
+  * AUTH-103 is in progress: the session handling refactor is under review
+* Risks:
+  * Review bandwidth may delay the follow-up merge
 ```
 
 ## Format: feature_markdown
@@ -444,6 +488,28 @@ def format_ryg_field(issue_data, config):
     return "\n".join(output)
 ```
 
+### For ryg_field_markdown format
+
+```python
+def format_ryg_field_markdown(issue_data, config):
+    output = []
+    health = issue_data.analysis.health.capitalize()  # Green, Yellow, Red
+    output.append(f"* Color Status: {health}")
+    output.append("* Status summary:")
+
+    items = [a.description for a in issue_data.analysis.achievements[:3]]
+    items.extend(p.description for p in issue_data.analysis.in_progress[:2])
+    output.extend(f"  * {item}" for item in items)
+
+    output.append("* Risks:")
+    risks = issue_data.analysis.risks[:2]
+    output.extend(f"  * {risk.description}" for risk in risks)
+    if not risks:
+        output.append("  * None at this time")
+
+    return "\n".join(output)
+```
+
 ### For feature_markdown format
 
 ```python
@@ -529,6 +595,14 @@ Before outputting, validate the formatted text:
 - [ ] Status summary section present with at least one item
 - [ ] Risks section present (even if "None at this time")
 - [ ] Indentation matches expected format
+- [ ] No empty bullet points
+
+### ryg_field_markdown validation
+
+- [ ] Starts with `* Color Status:` and uses exactly Red, Yellow, or Green
+- [ ] `Status summary` and `Risks` are top-level `* ` bullets
+- [ ] Summary items and risks use two-space nested `  * ` bullets
+- [ ] Contains no Jira wiki-style `**` sub-bullets
 - [ ] No empty bullet points
 
 ## Escaping Special Characters
