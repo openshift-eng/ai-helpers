@@ -280,12 +280,23 @@ Options:
 
 - Show the proposed text in an editable format
 - Ask: "Please provide your updated status text (maintain the bullet format):"
-- Validate format (should start with `- Color Status:`)
+- Validate against the selected template in `formatting.md` (both RYG formats
+  start with `* Color Status:` and require Red, Yellow, or Green)
 - Show modified version and ask for final confirmation
 
 ##### e. Update the Issue
 
-Use `editJiraIssue` with `contentFormat: "markdown"` to set `customfield_10814` (Status Summary) to the formatted status text.
+Set `customfield_10814` (Status Summary) using the destination's supported write
+method and the loaded project conventions, matching the selected format:
+
+- `ryg_field_markdown`: Use the client's supported Markdown-to-ADF write path
+  for Jira Cloud REST API v3. Use `editJiraIssue` with `contentFormat: "markdown"`
+  only if that client supports this conversion for the Status Summary field.
+- `ryg_field`: Use the destination's supported legacy Jira wiki-style writer,
+  passing the formatted field text unchanged, without Markdown-to-ADF conversion.
+
+If no supported writer is available for the selected format, stop and report the
+unsupported destination rather than guessing API options or converting formats.
 
 Display confirmation: `✓ Updated {ISSUE-KEY}`
 
