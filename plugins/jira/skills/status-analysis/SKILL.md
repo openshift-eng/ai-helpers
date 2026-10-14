@@ -385,8 +385,8 @@ This is a draft format for callers that explicitly supply a verified
 Markdown-to-ADF converter before REST API v3 writes. The draft is not a valid
 direct value for `customfield_10814`; `contentFormat: "markdown"` does not convert
 custom field values. Use `ryg_field` for native ADF JSON by default. Stop if a
-requested Markdown draft has no supported conversion path. Follow the list
-rules in `formatting.md`, then validate the converted ADF and preserve
+requested Markdown draft has no supported conversion path. Follow the PR-link
+and list rules in `formatting.md`, then validate the converted ADF and preserve
 raw ADF history as required by the loaded project conventions.
 
 **For `feature_markdown` (generate-feature-updates)**:

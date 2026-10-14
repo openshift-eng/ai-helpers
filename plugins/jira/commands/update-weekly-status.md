@@ -294,7 +294,7 @@ Options:
   requires valid native ADF JSON with the expected list structure and color;
   never apply a text-prefix check to an ADF document. `ryg_field_markdown`
   requires a draft starting with `* Color Status:` and Red, Yellow, or Green,
-  standard nested Markdown bullets.
+  standard nested Markdown bullets, and evidence-backed qualified PR links.
 - If the user edits the rendered display text for `ryg_field`, reconstruct and
   validate the native ADF document rather than treating the display as field data.
 - Show modified version and ask for final confirmation
