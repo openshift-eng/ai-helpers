@@ -30,8 +30,8 @@ Use this skill when:
 
 ```
 <run>/artifacts/<step>/gather-extra/artifacts/metrics/
-  prometheus.tar.gz            # replica prometheus-k8s-0 TSDB
-  prometheus-k8s-1.tar.gz      # replica prometheus-k8s-1 TSDB
+  prometheus.tar.gz            # replica prometheus-k8s-0 TSDB (prometheus.tar in older runs)
+  prometheus-k8s-1.tar.gz      # replica prometheus-k8s-1 TSDB (prometheus-k8s-1.tar in older runs)
   prometheus-tsdb-status.json  # live head stats at gather time (series count, time range)
   prometheus-targets.json      # scrape targets and their health at gather time
   job_metrics.json             # a few precomputed queries
@@ -49,12 +49,15 @@ python3 "$SKILL_DIR/load_snapshot.py" "<prow-job-url>"
 
 The script:
 1. Finds the step with a `gather-extra` snapshot (pass `--step` if several steps have one).
-2. Downloads `prometheus.tar.gz` (`--replica 1` for the other replica) into `~/.cache/prow-prometheus/<build_id>/`.
+2. Downloads the replica 0 snapshot (`--replica 1` for the other replica) into `~/.cache/prow-prometheus/<build_id>/`.
 3. Extracts it safely and **repairs the WAL** with `walfix` (see below).
 4. Starts `quay.io/prometheus/prometheus` in podman on the first free port from 9090, waits until ready.
 5. Prints the URL, the data time range, and how many series loaded compared with the live server.
 
-If fewer than about 80% of the live series loaded, try the other replica.
+If fewer than about 80% of the live series loaded, try the other replica. Even at ~98%, the
+series lost to corruption can be an entire target, e.g. one etcd member. If a target you need
+shows no data (check `count by (instance) (count_over_time(<metric>[4h]))`), load the other
+replica on another port (`--replica 1 --port 9091`) and query it with `promql.py --url`.
 
 **Why the WAL repair matters.** The snapshot is copied from a running Prometheus, so the WAL
 almost always has a corrupt page. Prometheus's built-in repair handles that by **deleting
@@ -143,6 +146,8 @@ The Prometheus UI at the printed URL also works for ad hoc exploration.
 - **Node CPU near 100% while containers account for much less** usually means the rest is
   iowait or kernel reclaim. Check `node_cpu_seconds_total` by mode.
 - **A scrape gap is itself evidence**: the target was too slow to answer within the scrape timeout.
+  On a stalled node the kubelet's cAdvisor endpoint often goes quiet too, so per-pod `rate()`
+  queries for that node can return nothing during the worst minutes. Use node-exporter metrics there.
 - Compare against the other control-plane nodes in the same window, and ideally the same point
   in a good run, before concluding something is abnormal.
 

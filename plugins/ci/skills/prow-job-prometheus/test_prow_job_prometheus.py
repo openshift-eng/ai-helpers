@@ -48,6 +48,17 @@ class TestChooseStep(unittest.TestCase):
             load_snapshot.choose_step({}, None)
 
 
+class TestSnapshotFile(unittest.TestCase):
+    def test_prefers_gzip_and_falls_back_to_plain_tar(self):
+        self.assertEqual(load_snapshot.snapshot_file({"prometheus.tar.gz", "prometheus.tar"}, 0), "prometheus.tar.gz")
+        self.assertEqual(load_snapshot.snapshot_file({"prometheus.tar", "prometheus-k8s-1.tar"}, 0), "prometheus.tar")
+        self.assertEqual(load_snapshot.snapshot_file({"prometheus.tar", "prometheus-k8s-1.tar"}, 1), "prometheus-k8s-1.tar")
+
+    def test_missing_replica(self):
+        with self.assertRaises(ValueError):
+            load_snapshot.snapshot_file({"prometheus.tar.gz"}, 1)
+
+
 class TestSafeExtract(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -85,6 +96,13 @@ class TestFormat(unittest.TestCase):
         self.assertEqual(out[0].split(), ["time", "b", "a"])  # ordered by peak value
         self.assertEqual(out[1].split(), ["00:00:00", "-", "1"])
         self.assertEqual(out[2].split(), ["00:01:00", "5", "2"])
+
+    def test_short_names(self):
+        nodes = ["ip-10-0-87-100.ec2.internal", "ip-10-0-53-11.ec2.internal"]
+        self.assertEqual(promql.short_names(nodes), ["87-100", "53-11"])
+        self.assertEqual(promql.short_names(["10.0.1.1:6443", "10.0.1.2:6443"]), ["1", "2"])
+        self.assertEqual(promql.short_names(["mutating", "readOnly"]), ["mutating", "readOnly"])
+        self.assertEqual(promql.short_names(["exempt"]), ["exempt"])
 
     def test_format_instant(self):
         result = [{"metric": {"job": "etcd"}, "value": [0, "1"]}, {"metric": {"job": "apiserver"}, "value": [0, "3"]}]

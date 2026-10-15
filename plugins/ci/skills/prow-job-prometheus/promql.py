@@ -11,6 +11,7 @@ instant query and prints one line per series.
 """
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.parse
@@ -33,13 +34,29 @@ def series_name(metric, label):
     return ",".join(parts) or "value"
 
 
+def short_names(names):
+    """Drop the prefix and suffix all names share (e.g. 'ip-10-0-' and '.ec2.internal') so columns stay readable."""
+    if len(names) < 2:
+        return names
+    prefix = os.path.commonprefix(names)
+    suffix = os.path.commonprefix([n[::-1] for n in names])[::-1]
+    # Never strip a whole name, and cut at a separator so '10.0.1' and '10.0.2' keep their distinguishing part.
+    shortest = min(len(n) for n in names)
+    prefix = prefix[:max(0, min(len(prefix), shortest - 1))]
+    prefix = prefix[:max(prefix.rfind(c) for c in "-._:/,=") + 1] if prefix else ""
+    suffix = suffix[-max(0, min(len(suffix), shortest - len(prefix) - 1)):] if suffix else ""
+    suffix = suffix[min((suffix.find(c) for c in "-._:/,=" if c in suffix), default=len(suffix)):]
+    return [n[len(prefix):len(n) - len(suffix)] for n in names]
+
+
 def format_range(result, label, width=14, max_series=12):
     """Render a matrix result as a table: one row per timestamp, one column per series."""
     if not result:
         return "(no data)"
     # Keep the series with the largest peak when there are too many columns.
     result = sorted(result, key=lambda r: -max((float(v) for _, v in r["values"]), default=0))[:max_series]
-    names = [series_name(r["metric"], label) for r in result]
+    names = short_names([series_name(r["metric"], label) for r in result])
+    width = max(width, min(28, max(len(n) for n in names)))
     vals = [{int(float(t)): float(v) for t, v in r["values"]} for r in result]
     ts = sorted({t for v in vals for t in v})
     lines = ["time   " + " ".join(f"{n[-width:]:>{width}}" for n in names)]

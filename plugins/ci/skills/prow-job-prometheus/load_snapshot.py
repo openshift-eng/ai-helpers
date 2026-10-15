@@ -3,8 +3,9 @@
 
 The gather-extra step saves each in-cluster Prometheus replica's TSDB as
 artifacts/<step>/gather-extra/artifacts/metrics/prometheus.tar.gz (replica 0)
-and prometheus-k8s-1.tar.gz (replica 1). These are copied from a running
-server, so the WAL usually has a corrupt page. Prometheus's own repair then
+and prometheus-k8s-1.tar.gz (replica 1); older runs saved plain .tar files.
+These are copied from a running server, so the WAL usually has a corrupt page.
+Prometheus's own repair then
 deletes every later WAL segment and most of the run's data disappears, so this
 script rewrites the WAL with walfix before starting Prometheus.
 
@@ -36,7 +37,8 @@ PUBLIC_BUCKET = "test-platform-results-public"
 PRIVATE_BUCKET = "test-platform-results"
 LIST_API = "https://storage.googleapis.com/storage/v1/b/{bucket}/o"
 OBJECT_URL = "https://storage.googleapis.com/{bucket}/{name}"
-SNAPSHOT_FILES = {0: "prometheus.tar.gz", 1: "prometheus-k8s-1.tar.gz"}
+# Newer runs gzip the snapshots, older ones saved plain tarballs.
+SNAPSHOT_FILES = {0: ("prometheus.tar.gz", "prometheus.tar"), 1: ("prometheus-k8s-1.tar.gz", "prometheus-k8s-1.tar")}
 TSDB_STATUS_FILES = {0: "prometheus-tsdb-status.json", 1: "prometheus-k8s-1-tsdb-status.json"}
 PROMETHEUS_IMAGE = "quay.io/prometheus/prometheus:latest"
 GOLANG_IMAGE = "docker.io/library/golang:1.23"
@@ -78,15 +80,24 @@ def list_objects(prefix, delimiter="/"):
 
 
 def find_metrics_dirs(run_path):
-    """Return {step: metrics_prefix} for every step that has gather-extra Prometheus snapshots."""
+    """Return {step: (metrics_prefix, file names)} for every step that has gather-extra Prometheus snapshots."""
     steps, _ = list_objects(run_path + "/artifacts/")
     found = {}
     for step_prefix in steps:
         metrics = step_prefix + "gather-extra/artifacts/metrics/"
         _, items = list_objects(metrics)
-        if any(i["name"].endswith(SNAPSHOT_FILES[0]) for i in items):
-            found[step_prefix.rstrip("/").split("/")[-1]] = metrics
+        names = {i["name"][len(metrics):] for i in items}
+        if names & set(SNAPSHOT_FILES[0] + SNAPSHOT_FILES[1]):
+            found[step_prefix.rstrip("/").split("/")[-1]] = (metrics, names)
     return found
+
+
+def snapshot_file(names, replica):
+    """Pick the snapshot file name for a replica from the names in the metrics directory."""
+    for candidate in SNAPSHOT_FILES[replica]:
+        if candidate in names:
+            return candidate
+    raise ValueError(f"no snapshot for replica {replica}; metrics directory has: {sorted(n for n in names if 'tar' in n)}")
 
 
 def choose_step(found, step):
@@ -227,12 +238,13 @@ def main():
             print(f"note: reading from the public {PUBLIC_BUCKET} bucket")
         found = find_metrics_dirs(run_path)
         step = choose_step(found, args.step)
-        metrics = found[step]
+        metrics, names = found[step]
+        snapshot = snapshot_file(names, args.replica)
         bid = build_id(run_path)
         work = os.path.join(os.path.abspath(args.dest), bid, f"{step}-replica{args.replica}")
         os.makedirs(work, exist_ok=True)
-        tar_path = os.path.join(work, SNAPSHOT_FILES[args.replica])
-        download(metrics + SNAPSHOT_FILES[args.replica], tar_path)
+        tar_path = os.path.join(work, snapshot)
+        download(metrics + snapshot, tar_path)
         raw, data = os.path.join(work, "raw"), os.path.join(work, "data")
         if not os.path.isdir(raw):
             print(f"extracting to {raw}")
