@@ -475,8 +475,19 @@ run_tests() {
   # tests so the sanitized image namespace is authoritative.
   TEST_ENV+=(MAKEFLAGS=-B)
   "${TEST_ENV[@]}" timeout --foreground "${CVE_FIX_TEST_TIMEOUT:-1800}" bash -c "$TEST_CMD" 2>&1 | tee "$TEST_LOG" || TEST_RC=$?
+  local disk_full=false
+  grep -qiE 'no space left on device|disk quota exceeded' "$TEST_LOG" && disk_full=true
+  # A single failure can be a flaky test; a real regression fails again.
+  if [[ $TEST_RC -ne 0 && $TEST_RC -ne 124 ]] && ! $disk_full; then
+    echo "Tests failed; rerunning once to rule out a flaky test..."
+    TEST_RC=0
+    "${TEST_ENV[@]}" timeout --foreground "${CVE_FIX_TEST_TIMEOUT:-1800}" bash -c "$TEST_CMD" 2>&1 | tee "$TEST_LOG" || TEST_RC=$?
+    [[ $TEST_RC -ne 0 ]] || echo "WARNING: tests passed on the second run; a test may be flaky."
+  fi
   if [[ $TEST_RC -ne 0 ]]; then
-    if is_scan_transient "$TEST_LOG"; then
+    if $disk_full; then
+      FIX_LINES+=("NEEDS_REVIEW: tests could not run — disk full (free space or point TMPDIR elsewhere)")
+    elif is_scan_transient "$TEST_LOG"; then
       FIX_LINES+=("NEEDS_REVIEW: tests failed — Docker networking error OR API incompatibility (human investigation required)")
     else
       FIX_LINES+=("NEEDS_REVIEW: tests failed after applying fixes")

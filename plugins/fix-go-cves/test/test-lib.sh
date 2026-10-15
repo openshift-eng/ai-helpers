@@ -10163,6 +10163,31 @@ git -C "$RPT/repo" add -A && git -C "$RPT/repo" commit -qm build
 (cd "$RPT/repo" && PATH="$RPT/bin:$PATH" bash "$RPT/scripts/report.sh" >/dev/null 2>&1 </dev/null || true)
 check "report-only restores files its build changed" git -C "$RPT/repo" diff --quiet
 
+echo "tests retry once and classify full disks"
+RTX="$TMPD/run-tests"; mkdir -p "$RTX"
+python3 - "$SCRIPT_DIR/fix-all.sh" > "$RTX/run-tests.sh" <<'PY'
+import sys
+s = open(sys.argv[1]).read()
+i = s.index("run_tests() {"); j = s.index("\n}\n", i) + 3
+print(s[i:j])
+PY
+_rtx() {  # TEST_CMD — prints TESTS_FAILED, then FIX_LINES
+  ( cd "$RTX" && git init -q 2>/dev/null; git -c user.email=t@t -c user.name=t commit -q --allow-empty -m x 2>/dev/null
+    source "$SCRIPT_DIR/lib.sh"; source "$RTX/run-tests.sh"
+    FIX_LINES=(); REVIEW_COUNT=0; TESTS_FAILED=false; TEST_CMD="$1"
+    run_tests >/dev/null 2>&1; echo "$TESTS_FAILED"; printf '%s\n' "${FIX_LINES[@]+"${FIX_LINES[@]}"}" )
+}
+rm -f "$RTX/count"
+_rtx_out=$(_rtx "n=\$(cat '$RTX/count' 2>/dev/null || echo 0); echo \$((n+1)) > '$RTX/count'; [ \$n -ge 1 ]")
+check "a test that passes on retry does not fail the run" test "$(head -1 <<< "$_rtx_out")" = false
+check "a flaky test runs exactly twice" test "$(cat "$RTX/count")" -eq 2
+_rtx_out=$(_rtx false)
+check "a consistent test failure still fails the run" test "$(head -1 <<< "$_rtx_out")" = true
+rm -f "$RTX/count"
+_rtx_out=$(_rtx "echo x >> '$RTX/count'; echo 'write /tmp/x: no space left on device'; false")
+check "a full disk is reported as an environment failure" grep -q 'disk full' <<< "$_rtx_out"
+check "a full disk is not retried" test "$(wc -l < "$RTX/count")" -eq 1
+
 echo "existing-entries audits only Go ignores"
 EEF="$TMPD/ee-foreign"; mkdir -p "$EEF/rep"
 make_test_repo "$EEF/repo" ""

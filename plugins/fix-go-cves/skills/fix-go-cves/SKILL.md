@@ -102,8 +102,11 @@ and who decides:
   and the repository's use of the changed API; estimate the migration.
 - Kubernetes minor bump, or Go above the build image: name the team decision
   and what unblocks it (a newer builder, an approved bump).
-- Test failure: read the failing output and judge whether the update caused
-  it; tests that need `sudo` or a prompt need a non-interactive test command.
+- Test failure (already retried once): read the failing output and judge
+  whether the update caused it. If the default branch already fixed the
+  failing code (`git log origin/<default> -- <file>`), recommend that
+  backport. Tests that need `sudo` or a prompt need a non-interactive test
+  command.
 - Transient network, timeout, or degraded scanner: recommend a rerun.
 - Wrong build or test command: recommend `CVE_FIX_*` overrides for a rerun,
   or `.cve-fix.yaml` fields committed on the target branch
