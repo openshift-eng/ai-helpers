@@ -921,6 +921,13 @@ if ! git diff --staged --quiet 2>/dev/null; then
     BODY="Full package: $PACKAGE
 $FIXES_LINE"
   fi
+  # A required go directive change matters on release branches; say so.
+  while IFS= read -r _gm; do
+    _was=$(git show "HEAD:$_gm" 2>/dev/null | awk '$1 == "go" { print $2; exit }')
+    _now=$(git show ":$_gm" 2>/dev/null | awk '$1 == "go" { print $2; exit }')
+    [[ -n "$_was" && -n "$_now" && "$_was" != "$_now" ]] || continue
+    BODY+=$'\n'"Raises go in $_gm from $_was to $_now, as v$VERSION requires."
+  done < <(git diff --staged --name-only | grep -E '(^|/)go\.mod$')
 
   if ! git commit -s -m "$(printf '%s\n\n%s' "$SUBJECT" "$BODY")"; then
     # git commit creates .git/index.lock, which can still be present when the

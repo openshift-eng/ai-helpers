@@ -5059,6 +5059,7 @@ while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 case "$1" in
   get)
     pkg=$(echo "$2" | cut -d@ -f1); ver=$(echo "$2" | cut -d@ -f2)
+    [ "$FPX_MODE" = go-bump ] && sed -i 's/^go 1.24.0$/go 1.24.5/' "$dir/go.mod"
     if [ "$FPX_MODE" = post-v ]; then
       echo "go: $2: invalid version: go.mod has post-v7 module path \"$pkg/v7\" at revision $ver" >&2
       exit 1
@@ -5106,6 +5107,10 @@ check "workspace vendoring is left unchanged" git -C "$FPX_DIR" diff --quiet
 _fpx_run post-v $'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v1.0.0' post-v
 check "moved /vN module path is a major migration" test "$FPX_RC" -eq 4
 check "moved /vN module path is reported" grep -q '^INCOMPATIBLE_MAJOR_BUMP:' <<< "$FPX_OUT"
+_fpx_run go-bump $'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v1.0.0' go-bump
+check "a go directive change is fixed" test "$FPX_RC" -eq 0
+check "a go directive change is named in the commit" \
+  bash -c 'git -C "$1" log -1 --format=%B | grep -qx "Raises go in go.mod from 1.24.0 to 1.24.5, as v1.1.0 requires."' _ "$FPX_DIR"
 check "moved /vN module path prints no registry note" ! grep -q 'not available in Go module registry' <<< "$FPX_OUT"
 FPX_PKG=k8s.io/apimachinery FPX_VER=0.32.1 FPX_STATE='K8S_VERSION_GUARD=true' \
   _fpx_run k8s-guard $'module x\n\ngo 1.24.0\n\nrequire k8s.io/apimachinery v0.31.1'
