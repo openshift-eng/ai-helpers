@@ -31,6 +31,15 @@ All autodl tables include three columns added by the ci-data-loader:
 
 The `JobRunName` can be used to correlate autodl data with job runs in `openshift-gce-devel.ci_analysis_us.jobs` (match against `prowjob_build_id` or extract from `prowjob_url`).
 
+### Following up in a run's artifacts
+
+Autodl rows are summaries. For the raw data behind them (Prometheus snapshots, audit logs, intervals), go to the run's artifacts:
+
+- Look up `prowjob_url` and `gcs_bucket` in the `jobs` table. Do not guess the bucket name.
+- CI artifacts are in the public `test-platform-results-public` bucket and can be read anonymously over HTTPS, e.g. `https://storage.googleapis.com/test-platform-results-public/logs/<job>/<build_id>/...`. Browse directories with `https://gcs.ci.openshift.org/gcs/test-platform-results-public/logs/<job>/<build_id>/`.
+- The `test-platform-results` bucket (no `-public` suffix) is private. Don't use it, and don't change the user's gcloud account or run `gcloud auth login` to reach artifacts.
+- See the `ci:prow-job-analysis` skill's `references/artifacts.md` for the artifact layout.
+
 ## Tables
 
 ### Risk Analysis
