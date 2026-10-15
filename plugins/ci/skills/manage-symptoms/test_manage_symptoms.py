@@ -1,6 +1,7 @@
 import manage_symptoms
 from manage_symptoms import (validate_symptom, build_update_payload,
-                             parse_label_ids, check_labels_exist)
+                             parse_label_ids, check_labels_exist,
+                             has_infrafailure_label, confirm_infrafailure_usage)
 
 def test_valid_string_symptom():
     assert validate_symptom({"summary": "AWS auth failure", "matcher_type": "string",
@@ -44,19 +45,6 @@ def test_label_ids_required():
     errs = validate_symptom({"summary": "s", "matcher_type": "none", "file_pattern": "f",
                              "label_ids": []})
     assert any("label" in e for e in errs)
-
-
-def test_infrafailure_label_rejected():
-    # Test case-insensitive rejection
-    for label_id in ["InfraFailure", "infrafailure", "INFRAFAILURE"]:
-        errs = validate_symptom({"summary": "test", "matcher_type": "none", "file_pattern": "f",
-                                 "label_ids": [label_id]})
-        assert any("InfraFailure" in e and "must not be used" in e for e in errs)
-
-    # Test rejection in a list with other labels
-    errs = validate_symptom({"summary": "test", "matcher_type": "none", "file_pattern": "f",
-                             "label_ids": ["TestLabel", "InfraFailure", "AnotherLabel"]})
-    assert any("InfraFailure" in e and "must not be used" in e for e in errs)
 
 
 EXISTING = {"id": "AWSAuthFailure", "summary": "AWS could not validate credentials",
@@ -121,3 +109,40 @@ def test_resolve_token_falls_back_to_env():
 
 def test_resolve_token_none_when_unset():
     assert manage_symptoms.resolve_token(None, {}) is None
+
+
+def test_has_infrafailure_label_case_insensitive():
+    assert has_infrafailure_label(["InfraFailure"])
+    assert has_infrafailure_label(["infrafailure"])
+    assert has_infrafailure_label(["INFRAFAILURE"])
+    assert has_infrafailure_label(["TestLabel", "InfraFailure", "AnotherLabel"])
+    assert not has_infrafailure_label(["AWSAuthFailure"])
+    assert not has_infrafailure_label([])
+    assert not has_infrafailure_label(None)
+
+
+def test_confirm_infrafailure_usage_with_yes(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _: "yes")
+    assert confirm_infrafailure_usage() is True
+
+
+def test_confirm_infrafailure_usage_with_y(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+    assert confirm_infrafailure_usage() is True
+
+
+def test_confirm_infrafailure_usage_with_no(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _: "no")
+    assert confirm_infrafailure_usage() is False
+
+
+def test_confirm_infrafailure_usage_with_invalid(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _: "maybe")
+    assert confirm_infrafailure_usage() is False
+
+
+def test_confirm_infrafailure_usage_with_eof(monkeypatch):
+    def raise_eof(_):
+        raise EOFError
+    monkeypatch.setattr("builtins.input", raise_eof)
+    assert confirm_infrafailure_usage() is False
