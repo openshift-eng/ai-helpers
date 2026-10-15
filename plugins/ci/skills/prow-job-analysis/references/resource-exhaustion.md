@@ -81,6 +81,7 @@ Paths are relative to `artifacts/{target}/` (cluster under test). Full form:
 | Host service logs | must-gather `host_service_logs/masters/{kubelet,crio}_service.log` | kubelet eviction/OOM decisions |
 | CI test pod status | `podinfo.json` | build-farm container exit codes / `OOMKilled` |
 | Timeline | `**/e2e-timelines_spyglass_*.json` | `NodeMonitor`, `Alert`, `KubeletLog`, `CPUMonitor` |
+| Prometheus snapshot | `gather-extra/artifacts/metrics/prometheus.tar.gz` | Time series for node CPU/memory/page faults/disk latency, per-pod usage, etcd fsync/commit latency, apiserver in-flight requests. Load with the [prow-job-prometheus skill](../../prow-job-prometheus/SKILL.md) |
 
 If must-gather is present, the must-gather-analyzer scripts summarize node/pod/event health
 (`analyze_nodes.py --problems-only`, `analyze_pods.py --problems-only`,
