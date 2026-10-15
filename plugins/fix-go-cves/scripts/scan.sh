@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Scan for CVEs using grype.
+# Usage: scan.sh STATE_FILE [--fresh] [--no-update] [--json] [--skip-build]
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
+STATE_FILE="${1:?Usage: scan.sh STATE_FILE [--fresh] [--no-update] [--json] [--skip-build]}"
+shift
+load_state "$STATE_FILE"
+
+# Collect flags
+GRYPE_FLAGS=()
+SKIP_BUILD=false
+for arg in "$@"; do
+  case "$arg" in
+    --fresh|--no-update|--json) GRYPE_FLAGS+=("$arg") ;;
+    --skip-build) SKIP_BUILD=true ;;
+    *) die "Unknown flag: $arg" ;;
+  esac
+done
+
+# Build if configured (needed for stdlib CVE detection in compiled binaries).
+# A build failure means the scan covers source only and may miss stdlib CVEs in
+# binaries — record it out-of-band in a sentinel file (stdout is grype JSON) so
+# fix-all.sh can refuse to report the repo clean. Cleared on a successful build.
+if [[ -n "${BUILD_CMD:-}" ]] && [[ "$SKIP_BUILD" != "true" ]]; then
+  build_env_scrub
+  artifact_manifest_prepare
+  rm -f "${STATE_FILE}.build-failed" "${STATE_FILE}.network-broken" "${STATE_FILE}.coverage-unknown"
+  # Capture the build output (still streamed to stderr) so a failure can be
+  # classified. A DNS/proxy/registry error (see is_scan_transient) means the
+  # environment is offline, not that the code is broken — record a distinct
+  # sentinel so fix-all.sh can fail fast instead of producing an unverifiable
+  # fix (go get, the rebuild, and the rescan gate all need the network).
+  build_log=$(mktemp "${TMPDIR:-/tmp}/cve-fix-build.XXXXXX")
+  # Dependency changes do not reliably appear as Make prerequisites of binary
+  # targets. Force both the outer Make and any nested Dapper Make to rebuild so
+  # Grype never evaluates binaries produced from the pre-fix module graph.
+  build_rc=0
+  if [[ ${#ENV_SCRUB[@]} -gt 0 ]]; then
+    "${ENV_SCRUB[@]}" ${BUILD_REPO_NAME:+REPO="$BUILD_REPO_NAME"} MAKEFLAGS=-B timeout --foreground "${CVE_FIX_BUILD_TIMEOUT:-1800}" bash -c "$BUILD_CMD" 2>&1 | tee "$build_log" >&2 || build_rc=${PIPESTATUS[0]}
+  else
+    env ${BUILD_REPO_NAME:+REPO="$BUILD_REPO_NAME"} MAKEFLAGS=-B timeout --foreground "${CVE_FIX_BUILD_TIMEOUT:-1800}" bash -c "$BUILD_CMD" 2>&1 | tee "$build_log" >&2 || build_rc=${PIPESTATUS[0]}
+  fi
+  if [[ $build_rc -ne 0 ]]; then
+    echo "WARNING: Build failed. Scanning source only (may miss stdlib CVEs in binaries)." >&2
+    : > "${STATE_FILE}.build-failed"
+    if [[ $build_rc -eq 124 ]]; then
+      echo "WARNING: Build timed out after ${CVE_FIX_BUILD_TIMEOUT:-1800}s." >&2
+    elif [[ $build_rc -eq 137 ]]; then
+      echo "WARNING: Build was killed (exit 137)." >&2
+    elif is_scan_transient "$build_log"; then
+      : > "${STATE_FILE}.network-broken"
+    fi
+  else
+    artifact_manifest_record
+    # grype reads stdlib versions only from binaries it can parse. If any
+    # executable in the tree (new or pre-existing) is packed (opaque), the scan
+    # is blind to its stdlib CVEs — record a sentinel so fix-all.sh won't report
+    # the repo clean on coverage it couldn't actually verify.
+    detect_opaque_binaries && : > "${STATE_FILE}.coverage-unknown"
+  fi
+  rm -f "$build_log"
+else
+  # No build step configured — still detect pre-existing opaque/stale binaries in
+  # the tree. A source-only scan is blind to stdlib CVEs in any such binary, so
+  # write the coverage-unknown sentinel when any are found; clear a stale sentinel
+  # from a prior run when none are found.
+  rm -f "${STATE_FILE}.coverage-unknown"
+  detect_opaque_binaries && : > "${STATE_FILE}.coverage-unknown"
+fi
+
+# run_grype sets GRYPE_DB_DEGRADED when grype couldn't update/load its vuln DB
+# during a scan that attempted a fetch. A stale/absent DB silently under-reports
+# CVEs, so record a sentinel (stdout is grype's output) that fix-all.sh keys off
+# to refuse a "clean" verdict it can't trust. Cleared first so it never lingers.
+# run_grype also sets GRYPE_SCAN_TRANSIENT when the scanner itself failed due to
+# a transient network error (DNS, VPN) — distinct from a degraded-DB success.
+rm -f "${STATE_FILE}.scanner-degraded" "${STATE_FILE}.scan-transient"
+grype_rc=0
+scan_output_file=$(mktemp "${TMPDIR:-/tmp}/cve-grype-scan.XXXXXX")
+run_grype "${GRYPE_FLAGS[@]}" >"$scan_output_file" 2> >(cat >&2) || grype_rc=$?
+scan_output=$(cat "$scan_output_file")
+rm -f "$scan_output_file"
+if [[ " ${GRYPE_FLAGS[*]} " == *" --json "* ]]; then
+  # Validate the scanner's original document before a filter can normalize
+  # missing arrays into an empty result and accidentally manufacture a clean scan.
+  if grype_scan_json_valid <<< "$scan_output"; then
+    filtered_output=$(printf '%s\n' "$scan_output" | \
+      filter_generated_binary_duplicates "$REPO" "${STATE_FILE}.generated-artifacts" 2>/dev/null) || filtered_output="$scan_output"
+    printf '%s\n' "$filtered_output"
+  else
+    echo "ERROR: scanner produced invalid Grype JSON evidence." >&2
+    [[ $grype_rc -ne 0 ]] || grype_rc=1
+    printf '%s\n' "$scan_output"
+  fi
+else
+  printf '%s\n' "$scan_output"
+fi
+if [[ "${GRYPE_DB_DEGRADED:-0}" == "1" ]]; then
+  : > "${STATE_FILE}.scanner-degraded"
+fi
+if [[ "${GRYPE_SCAN_TRANSIENT:-0}" == "1" ]] && [[ "$grype_rc" -ne 0 ]]; then
+  : > "${STATE_FILE}.scan-transient"
+fi
+exit "$grype_rc"
