@@ -70,7 +70,12 @@ This command is useful for:
      - Net improvement (trend indicator)
 
 4. **Query Failed Job Runs** (for each matching test)
-   - Calculate timestamp for 7 days ago: `start_time = int((datetime.now() - timedelta(days=7)).timestamp() * 1000)`
+   - Calculate the UTC timestamp for 7 days ago:
+     ```python
+     from datetime import datetime, timedelta, timezone
+
+     start_time = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat().replace("+00:00", "Z")
+     ```
    - Build filter for failed runs:
      ```python
      filters = {
@@ -83,7 +88,7 @@ This command is useful for:
              {
                  "columnField": "timestamp",
                  "operatorValue": ">",
-                 "value": str(start_time)
+                 "value": start_time
              }
          ],
          "linkOperator": "and"

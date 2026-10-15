@@ -79,7 +79,7 @@ Do NOT invent other query parameters or fields — only these are verified to wo
 |---|---|---|
 | `name` | `contains` | job-name substring |
 | `variants` | `has entry` | `Key:Value`, e.g. `Platform:metal` |
-| `timestamp` | `>` / `<` | epoch **milliseconds** as a string |
+| `timestamp` | `>` / `<` | RFC 3339 UTC timestamp, e.g. `2026-10-14T12:00:00Z` |
 | `overall_result` | `equals` | `S` (success), `F` (failure), `n` (infra failure — lowercase) |
 
 An unknown `columnField` yields HTTP 400 with a "column does not exist" message; the script surfaces that message verbatim.
@@ -147,7 +147,7 @@ python3 plugins/ci/skills/fetch-prow-job-runs/fetch_prow_job_runs.py \
 ## Notes
 
 - Results are sorted newest-first (`sortField=timestamp&sort=desc`)
-- `timestamp` filter values must be epoch **milliseconds** (the script computes this for `--since-hours`)
+- `timestamp` filter values must be RFC 3339 UTC strings (the script computes this for `--since-hours`)
 - Repeatable flags AND together; there is no OR support in this script (use `--filter-json` if you need custom items)
 
 ## See Also
