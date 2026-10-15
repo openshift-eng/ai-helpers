@@ -115,6 +115,12 @@ for entry in "${ENTRIES[@]}"; do
   # But only if the entry still exists in the current .grype.yaml — a prior commit on
   # this branch may have already removed it, in which case there is nothing to do and
   # re-reporting it would cause the verification loop to cycle forever.
+  # Only auto-expiring (fix-state) entries are this tool's to prune; a
+  # permanent ignore is maintainer policy, and another Grype version or
+  # database may still report it.
+  if [[ "$IN_SCAN" == "no" && -z "$FIX_STATE" ]]; then
+    continue
+  fi
   if [[ "$IN_SCAN" == "no" ]]; then
     if grype_ignore_entry_exists .grype.yaml "$VULN" "$PKG" "$LOCATION"; then
       _scope_field=""

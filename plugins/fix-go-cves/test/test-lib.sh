@@ -4186,6 +4186,7 @@ ignore:
   # False positive, CVE is actually about the C++ project protocolbuffers/protobuf
   # https://github.com/anchore/grype/issues/558
   - vulnerability: CVE-2015-5237
+    fix-state: wont-fix
     package:
       name: google.golang.org/protobuf
 EOF
@@ -4211,6 +4212,17 @@ check "stale: CVE-2015-5237 named in output" \
   bash -c "echo '$EE_OUT' | grep -q 'CVE-2015-5237'"
 check "stale: issue count nonzero" \
   bash -c "echo '$EE_OUT' | grep -q '^NEW_ISSUES=[1-9]'"
+
+EE_PERM="$TMPD/ee-permanent"; mkdir -p "$EE_PERM/rep"
+make_test_repo "$EE_PERM/repo" ""
+printf 'module example.com/perm\ngo 1.24.0\n' > "$EE_PERM/repo/go.mod"
+printf 'ignore:\n  # False positive\n  - vulnerability: CVE-2015-5237\n    package:\n      name: google.golang.org/protobuf\n' > "$EE_PERM/repo/.grype.yaml"
+git -C "$EE_PERM/repo" add -A && git -C "$EE_PERM/repo" commit -qm perm
+git -C "$EE_PERM/repo" update-ref refs/remotes/origin/devel HEAD
+make_go_state "$EE_PERM/state.env" "$EE_PERM/repo"
+printf '{"matches":[],"ignoredMatches":[]}\n' > "$EE_PERM/rep/final-scan.json"
+check "stale: a permanent documented ignore is never pruned" \
+  grep -qx 'NEW_ISSUES=0' <<< "$(bash "$SCRIPT_DIR/../subagents/existing-entries.sh" "$EE_PERM/state.env" "$EE_PERM/rep" 2>&1 || true)"
 
 # Scenario B: CVE still in ignoredMatches (ignore still needed, not stale)
 cat > "$EE_RDIR/initial-scan.json" <<'EOF'
@@ -4336,9 +4348,11 @@ cat > "$EE_PREFIX_REPO/.grype.yaml" <<'EOF'
 ---
 ignore:
   - vulnerability: CVE-2024-1234
+    fix-state: not-fixed
     package:
       name: google.golang.org/protobuf
   - vulnerability: CVE-2024-12345
+    fix-state: not-fixed
     package:
       name: google.golang.org/protobuf
 EOF
@@ -4419,9 +4433,11 @@ cat > "$EE_DEDUP_REPO/.grype.yaml" <<'EOF'
 ---
 ignore:
   - vulnerability: CVE-2024-7777
+    fix-state: not-fixed
     package:
       name: example.com/pkg-a
   - vulnerability: CVE-2024-7777
+    fix-state: not-fixed
     package:
       name: example.com/pkg-b
 EOF
@@ -4436,6 +4452,7 @@ cat > "$EE_DEDUP_REPO/.grype.yaml" <<'EOF'
 ---
 ignore:
   - vulnerability: CVE-2024-7777
+    fix-state: not-fixed
     package:
       name: example.com/pkg-b
 EOF
@@ -10187,6 +10204,11 @@ rm -f "$RTX/count"
 _rtx_out=$(_rtx "echo x >> '$RTX/count'; echo 'write /tmp/x: no space left on device'; false")
 check "a full disk is reported as an environment failure" grep -q 'disk full' <<< "$_rtx_out"
 check "a full disk is not retried" test "$(wc -l < "$RTX/count")" -eq 1
+
+printf 'ignore:\n  # No fix available\n  - vulnerability: GO-2026-5932\n    fix-state: unknown\n    package:\n      name: golang.org/x/crypto\n' > "$IGY/migrate.yaml"
+migrate_grype_ignore_scope "$IGY/migrate.yaml" GO-2026-5932 golang.org/x/crypto /go.mod >/dev/null
+check "scope migration keeps the entry's comment" grep -q '# No fix available' "$IGY/migrate.yaml"
+check "scope migration adds the location" grep -q 'location: /go.mod' "$IGY/migrate.yaml"
 
 echo "existing-entries audits only Go ignores"
 EEF="$TMPD/ee-foreign"; mkdir -p "$EEF/rep"

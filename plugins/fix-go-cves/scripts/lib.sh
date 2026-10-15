@@ -1005,8 +1005,9 @@ migrate_grype_ignore_scope() {
     function flush() { if (vuln==want_cve && pkg==want_pkg && loc=="") { print comment; found=1 } vuln=pkg=loc=comment="" }
     /^ignore:[[:space:]]*(#.*)?$/ { in_ignore=1; next }
     /^[^[:space:]#]/ && !/^-([[:space:]]|$)/ { if (in_ignore && active) flush(); in_ignore=0; active=0 }
-    in_ignore && /^[[:space:]]*-([[:space:]]|$)/ { if (active) flush(); active=1; comment="" }
-    in_ignore && /^[[:space:]]*#/ { x=$0; sub(/^[[:space:]]*#[[:space:]]?/, "", x); comment=trim(x) }
+    # Comments above an item describe it; keep them with the migrated entry.
+    in_ignore && /^[[:space:]]*-([[:space:]]|$)/ { if (active) flush(); active=1; comment=pending; pending="" }
+    in_ignore && /^[[:space:]]*#/ { x=$0; sub(/^[[:space:]]*#[[:space:]]?/, "", x); pending=(pending == "" ? "" : pending " ") trim(x) }
     in_ignore && /vulnerability:/ { x=$0; sub(/.*vulnerability:[[:space:]]*/, "", x); vuln=trim(x) }
     in_ignore && /^[[:space:]]*name:/ { x=$0; sub(/.*name:[[:space:]]*/, "", x); pkg=trim(x) }
     in_ignore && /^[[:space:]]*location:/ { x=$0; sub(/.*location:[[:space:]]*/, "", x); loc=trim(x) }
