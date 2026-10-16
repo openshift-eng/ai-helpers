@@ -259,8 +259,9 @@ the `before_each` hook, turns it into the case repository:
 - **Stage the plugin.** Prepare unpacks the case's `plugin.tar.gz`, whose
   entries are the plugin's root, into `.staged-plugins/fix-go-cves`, where
   the runner reuses an existing copy, replaces its `SKILL.md` with the
-  working tree's, and adds the recorded log and `result.bundle`. Today's scripts carry comments written after the
-  recordings, one of which names case 004's answer. `scripts/fix-all.sh`
+  working tree's, and adds the recorded log and `result.bundle`. Today's
+  scripts carry comments written after the recordings, one of which names
+  case 004's answer. `scripts/fix-all.sh`
   keeps its real text behind the preamble, which records its arguments,
   applies the bundle to create the fix branch, prints the recorded log and
   exits with the recorded code, so an agent reading the script still finds
