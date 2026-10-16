@@ -48,56 +48,69 @@ per case, which a maintainer asked for in the review of the k8s-rebase
 plugin.
 
 **A case replays a recorded run.** No build, scan or Docker daemon runs, so
-a trial takes minutes and costs well under $1. `workspace.sh prepare`, the
-harness's `before_each` hook, turns the case workspace into the case
-repository: the harness makes each workspace a git repository and links
-ai-helpers' `CLAUDE.md` and `scripts/` into it, which would collide with the
-case repository's own files, so prepare removes those first. The workspace
-then holds:
+a trial takes minutes and costs well under $1. The harness invokes the
+skill with the case's arguments (`mode: case`, as in the repository's other
+evals) in a case workspace, which `workspace.sh prepare`, the
+`before_each` hook (with a timeout well above its 120-second default),
+turns into the case repository:
 
-- the case repository at pinned base and default-branch commits, on the
-  branch the run started from, with the harness's own paths listed in
-  `.git/info/exclude` so they are not untracked files. Prepare clones the
-  public URL in `input.yaml` into a cache outside the workspace and builds
-  the bare remotes from it; it is the only step with network access;
-- untracked files the run saw, as stubs (for subctl, an empty `bin/lichen`;
-  `go version` on it disagrees with the log, so criteria rely on the log,
-  not the file);
-- report directories the log names, where the run kept them;
-- remotes pointing at local bare repositories, and a `gh` shim that only
-  logs its arguments.
+- **Replace the harness scaffolding.** The harness makes the workspace a git
+  repository whose first commit holds `input.yaml`, and links ai-helpers'
+  `CLAUDE.md`, `scripts/` and every `.claude/` subdirectory into it, which
+  would collide with the case repository and expose ai-helpers. Prepare
+  removes that `.git` and every link. It keeps `.claude/settings.json`,
+  which the harness has already passed to the agent, but deletes its
+  `permissions.additionalDirectories`, which grants read access to the
+  directory the harness runs from.
+- **Build the repository.** Prepare clones the public URL in `input.yaml`
+  into a cache outside the workspace (warmed by `before_all`), checks out
+  the pinned base and default-branch commits on the branch the run started
+  from, and points every remote at a local bare repository. Harness paths
+  go in `.git/info/exclude`.
+- **Restore what the run saw.** Untracked files as stubs (for subctl, an
+  empty `bin/lichen`; `go version` on it disagrees with the log, so
+  criteria rely on the log, not the file), and report directories the log
+  names, where the run kept them.
+- **Stage the plugin.** Prepare writes the replay plugin to
+  `.staged-plugins/fix-go-cves`, where the runner reuses an existing copy:
+  the whole current plugin, including `README.md`, `scripts/` and
+  `subagents/`, but not `evals/`, `plans/` or `test/`, plus this case's log
+  and `result.bundle` (a git bundle of just the run's commits).
+  `scripts/fix-all.sh` keeps its real text behind a short preamble that
+  records its arguments, applies the bundle to create the fix branch,
+  prints the recorded log and exits with the recorded code, so an agent
+  reading the script still finds the gate logic it is investigating.
+  Logs, replies and report directories store every home-directory path as
+  a placeholder, which the preamble fills with workspace paths; the log's
+  own `exit=` line is dropped, since `SKILL.md` appends one.
 
-`evals/run.sh` builds the replay plugin before starting the harness, which
-requires `plugin_dirs` to exist when it loads its config: the current plugin
-without `evals/`, `plans/` or `test/`, at a fixed path ending in
-`fix-go-cves`, with `scripts/fix-all.sh` replaced. The replacement records
-its arguments, applies the case's `result.bundle` (a git bundle of just the
-run's commits) to create the fix branch, prints the recorded log and exits
-with the recorded code. Logs, replies and report directories are stored
-with every home-directory path replaced by a placeholder, which the
-replacement fills with workspace paths; the log's own `exit=` line is
-dropped, since `SKILL.md` appends one. Nothing else from the case reaches
-the agent. An `after_each` hook writes the repository state (status
-including ignored files, refs, the bare remotes and the `gh` log) to the
-case's output directory for the
-checks.
+An `after_each` hook writes the repository state (status including ignored
+files, refs, the bare remotes and the `gh` log) to a declared `outputs:`
+path in the workspace, which the harness collects for the checks. The reply
+is the text of the agent's final result event, extracted to its own output
+file before scoring (`traces.events: true`): the conversation the harness
+otherwise hands judges includes interim narration and the log itself.
 
-The harness invokes the skill with the case's arguments (`mode: case`, as in
-the repository's other evals). Its claude-code runner passes the agent only
-`runner.env` and a short list of host variables, so isolation goes in
-`runner.env`:
+**Isolation.** The claude-code runner passes the agent only `runner.env`
+and a short list of host variables, so isolation goes in `runner.env`:
 
 - `HOME` is a new empty directory per run, so no user `CLAUDE.md`, memory,
   plugins, SSH keys, or git and `gh` credentials load;
-- `PATH` puts the `gh` shim first;
-- `GIT_CONFIG_NOSYSTEM=1` and `GIT_TERMINAL_PROMPT=0`;
+- `PATH` puts a `gh` shim, which only logs its arguments, first;
+- `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0` and
+  `GIT_ALLOW_PROTOCOL=file`, so git cannot fetch a newer upstream than the
+  pinned one, and `GOPROXY=off` with `GOTOOLCHAIN=local` for Go;
+- `AGENT_EVAL_RUNS_DIR` empty, so the agent cannot find earlier trials;
 - Vertex credentials through `GOOGLE_APPLICATION_CREDENTIALS`, which the
   agent can read: the runner is still not a sandbox.
 
-The harness's runs directory (`AGENT_EVAL_RUNS_DIR`) is a fresh directory
-under `$TMPDIR`, with no `CLAUDE.md` in any parent. `permissions.deny` blocks
-`Bash(git push:*)`, `Bash(git remote:*)`, `Bash(gh:*)`, MCP tools, web tools
-and subagents, so check 1 has denials to find.
+`evals/run.sh` sets `TMPDIR` to a fresh directory with no `CLAUDE.md` above
+it, since the harness puts case workspaces there, and starts three runs with
+separate run IDs under one runs directory. `permissions.deny` blocks
+`Bash(git push:*)`, the `git remote` subcommands that change remotes (not
+`git remote -v`, which the skill uses to check `origin`), `Bash(gh:*)`, MCP
+tools, web tools and subagents, so check 1 has denials to find. A hermetic
+test checks that a prepared workspace has no path into ai-helpers.
 
 **Checks** live in `checks.py`. The deterministic ones gate at a 1.0 pass
 rate:
@@ -121,8 +134,10 @@ let one case fail every time while the rest pass, so `checks.py summarize`
 reads the three runs and requires every case to pass its deterministic
 checks in all three and its facts in at least two.
 
-`checks.py calibrate` must pass each reference reply and fail each negative
-before any agent is scored; rerun it when criteria or the judge model
+`checks.py calibrate` runs the harness's own judges (`score.py judges`) on
+synthetic runs whose final result is a stored reply, so the scoring prompt
+is the one calibrated. It must pass each reference reply and fail each
+negative before any agent is scored; rerun it when criteria or the judge model
 change. References for 004 and 006 are written by hand, since their
 recorded replies are the wrong ones, and 005's is edited. Negatives are the
 recorded wrong replies (006's also fails 001's backport criterion, as it
