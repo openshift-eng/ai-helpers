@@ -38,7 +38,8 @@ def validate_symptom(payload):
         errs.append("file_pattern is required for matcher_type %r" % mt)
     if mt in ("string", "regex", "cel") and not payload.get("match_string"):
         errs.append("match_string is required for matcher_type %r" % mt)
-    if not payload.get("label_ids"):
+    label_ids = payload.get("label_ids")
+    if not label_ids:
         errs.append("at least one label ID is required (a symptom must always "
                     "apply a label; create the label first with the manage-labels skill)")
     return errs
@@ -89,6 +90,33 @@ def check_labels_exist(label_ids):
             for lid in label_ids if lid not in known]
 
 
+def has_infrafailure_label(label_ids):
+    """Check if InfraFailure label is present (case-insensitive)."""
+    if not label_ids:
+        return False
+    return any(lid.lower() == "infrafailure" for lid in label_ids)
+
+
+def confirm_infrafailure_usage():
+    """Prompt user to confirm InfraFailure label usage."""
+    print("\n" + "=" * 70, file=sys.stderr)
+    print("WARNING: Using the 'InfraFailure' label", file=sys.stderr)
+    print("=" * 70, file=sys.stderr)
+    print("\nThe 'InfraFailure' label is a generic catch-all that can hide", file=sys.stderr)
+    print("specific problems and make them harder to track as they become", file=sys.stderr)
+    print("pervasive across the CI infrastructure.", file=sys.stderr)
+    print("\nBest practice: Use a more specific label that describes the actual", file=sys.stderr)
+    print("failure type (e.g., AWSAuthFailure, NetworkTimeout, DiskFull).", file=sys.stderr)
+    print("\n" + "=" * 70, file=sys.stderr)
+
+    try:
+        response = input("\nAre you sure you want to use InfraFailure? (yes/no): ").strip().lower()
+        return response in ("yes", "y")
+    except (EOFError, KeyboardInterrupt):
+        print("\nAborted.", file=sys.stderr)
+        return False
+
+
 def request(method, url, token, payload=None):
     headers = {"Content-Type": "application/json", "Authorization": "Bearer %s" % token}
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
@@ -128,6 +156,8 @@ def main():
                    "(required — a symptom must always apply at least one label)")
     p.add_argument("--skip-label-check", action="store_true",
                    help="Skip verifying label IDs against the labels API")
+    p.add_argument("--yes", action="store_true",
+                   help="Skip confirmation prompts (automatically confirm InfraFailure warning)")
     p.add_argument("--format", choices=["json", "summary"], default="json")
     args = p.parse_args()
 
@@ -170,6 +200,13 @@ def main():
             for e in errs:
                 print("Validation error: %s" % e, file=sys.stderr)
             return 1
+
+        # Warn and confirm if InfraFailure label is used
+        if has_infrafailure_label(payload.get("label_ids", [])):
+            if not args.yes and not confirm_infrafailure_usage():
+                print("Operation cancelled.", file=sys.stderr)
+                return 1
+
         if args.action == "create":
             out = request("POST", WRITE_URL, token, payload)
         else:

@@ -5,7 +5,7 @@ description: List, search, and inspect Sippy Symptoms and Labels — known CI fa
 
 # List Symptoms
 
-Sippy Symptoms are known-failure signatures for OpenShift CI. A symptom is a rule made of a file pattern (a glob over a CI job run's artifact files, e.g. `**/build-log.txt`) and a matcher (`string` = substring, `regex` = regular expression, `none` = file merely exists, `cel` = a compound CEL expression over other label names). When a symptom matches a job run's artifacts, Sippy applies one or more **Labels** — human-readable tags like `InfraFailure` — to that run. Labels appear in the Sippy UI and Spyglass and help everyone quickly recognize known failure modes without re-debugging them. You do not need any prior Sippy knowledge to use this skill.
+Sippy Symptoms are known-failure signatures for OpenShift CI. A symptom is a rule made of a file pattern (a glob over a CI job run's artifact files, e.g. `**/build-log.txt`) and a matcher (`string` = substring, `regex` = regular expression, `none` = file merely exists, `cel` = a compound CEL expression over other label names). When a symptom matches a job run's artifacts, Sippy applies one or more **Labels** — human-readable tags that categorize failures — to that run. Labels appear in the Sippy UI and Spyglass and help everyone quickly recognize known failure modes without re-debugging them. You do not need any prior Sippy knowledge to use this skill.
 
 This skill lists, searches, and fetches symptoms and labels using the public (read-only, no auth) Sippy API.
 
@@ -15,7 +15,7 @@ Use this skill when you need to:
 
 - Browse the catalog of known CI failure signatures (symptoms)
 - Check whether a failure pattern already has a symptom before creating a new one (avoid duplicates)
-- Look up what a label like `InfraFailure` means, including its title, explanation, and associated Jira issues
+- Look up what a label means, including its title, explanation, and associated Jira issues
 - Find which symptoms apply a given label
 - Inspect a single symptom or label by its ID
 
@@ -46,7 +46,7 @@ python3 "$script_path" --format summary
 python3 "$script_path" --search "credentials" --format summary
 
 # Find all symptoms that apply a given label
-python3 "$script_path" --label InfraFailure --format summary
+python3 "$script_path" --label AWSAuthFailure --format summary
 
 # Fetch a single symptom by ID
 python3 "$script_path" --id AWSCouldNotValidateAccessCredentials
@@ -55,7 +55,7 @@ python3 "$script_path" --id AWSCouldNotValidateAccessCredentials
 python3 "$script_path" --labels --format summary
 
 # Fetch a single label by ID
-python3 "$script_path" --labels --id InfraFailure
+python3 "$script_path" --labels --id AWSAuthFailure
 ```
 
 Flags:
@@ -86,7 +86,7 @@ GET https://sippy.dptools.openshift.org/api/jobs/labels/{id}
   "matcher_type": "string",
   "file_pattern": "build-log.txt",
   "match_string": "api error AuthFailure: AWS was not able to validate the provided access credentials",
-  "label_ids": ["InfraFailure"],
+  "label_ids": ["AWSAuthFailure"],
   "created_by": "kenzhang",
   "updated_by": "kenzhang",
   "updated_at": "2026-04-27T16:09:12.660547Z"
@@ -157,7 +157,7 @@ Symptom: AWSCouldNotValidateAccessCredentials
   Matcher:      string
   File pattern: build-log.txt
   Match string: api error AuthFailure: AWS was not able to validate the provided access credentials
-  Labels:       InfraFailure
+  Labels:       AWSAuthFailure
   Updated by:   kenzhang at 2026-04-27T16:09:12.660547Z
 
 Total: 42
@@ -172,7 +172,7 @@ python3 plugins/ci/skills/list-symptoms/list_symptoms.py --search "credentials" 
 ### Example 3: Symptoms That Apply a Label
 
 ```bash
-python3 plugins/ci/skills/list-symptoms/list_symptoms.py --label InfraFailure --format summary
+python3 plugins/ci/skills/list-symptoms/list_symptoms.py --label AWSAuthFailure --format summary
 ```
 
 ### Example 4: Fetch One Symptom by ID
