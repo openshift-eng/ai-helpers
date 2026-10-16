@@ -57,6 +57,7 @@ Repeat steps 1-3 until the PR is approved and CI is green or non-actionable fail
 - **check-gates** — Fix and revalidate until tests, lint, builds, issue requirements, production readiness, and git cleanliness all pass.
 - **create-pr** — Push a completed feature branch and create a Jira-linked pull request.
 - **generate-test-plan** — Generate a comprehensive manual testing guide from a Jira issue, GitHub PR URLs, or both.
+- **generate-bug-reproducer** — Generate reproduction and fix-verification steps for a Jira bug from its fix PRs, with optional `--apply` execution against a live cluster.
 - **address-review-pr** — Fetch and address PR review comments: categorizes by priority, makes code changes, posts replies, and pushes. Does not handle CI failures.
 - **address-ci-failures** — Triage failing CI checks; fix only failures caused by the PR's changes, report infra/pre-existing/flake issues instead of out-of-scope fixes.
 - **has-review-work** — Read-only gate: `COMMENT_WORK` (unanswered authorized review comments) and `CI_WORK` (new non-optional CI failures) for follow-up agents.
