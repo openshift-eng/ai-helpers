@@ -161,8 +161,11 @@ recording user's connectors, plugins and memory paths.
 - a prepared `.claude/settings.json` with keys beyond `permissions.allow`
   and `permissions.deny`;
 - a proxy that forwards a request with a server-side tool, `mcp_servers`,
-  `container`, a beta header off its allowlist, or a path or project other
+  `container`, a content `source` other than `base64` or `text`, a beta
+  header off its allowlist, or a path or project other
   than the configured model ones;
+- a rendered judge prompt whose reply is empty (the harness renders a
+  missing key as an empty string);
 - an `eval-fix-go-cves.yaml` whose `permissions` hold a path-based rule, or
   that sets a provider plan (the runner would write a settings overlay into
   the workspace at launch, after prepare).
@@ -213,8 +216,9 @@ have written.
 ### Calibration
 
 `checks.py calibrate` runs the harness's own judges (`score.py judges`) on
-synthetic trials whose reply file holds a stored reply, so the prompt
-calibrated is the prompt that scores. It must pass each `reply.md` and fail
+synthetic trials whose reply file holds a stored reply, laid out as
+`collect.py` lays out a real trial, so the prompt calibrated is the prompt
+that scores. It must pass each `reply.md` and fail
 each negative on the criterion it names before any agent is scored. The harness
 finds criteria by the trial directory's name, so each stored reply is its own
 run, under `cases/<case-id>/`, scored with a config holding only the criteria
@@ -312,8 +316,10 @@ the `before_each` hook, turns it into the case repository:
   caps tokens per trial (the agent could call it directly), and logs every
   request and response. It rejects, and fails the trial on, a body with a
   server-side tool (web search, web fetch, code execution), `mcp_servers`,
-  `container`, or a beta header off its allowlist, since Anthropic's
-  servers would fetch for the agent despite `--network none`.
+  `container`, a content block whose `source` is a URL or file reference
+  (anything but `base64` or `text`), or a beta header off its allowlist,
+  since Anthropic's servers would fetch for the agent despite
+  `--network none`.
 - **No host environment crosses over.** The wrapper sets the container's
   environment from a fixed list, and `run.sh` starts the harness with an
   explicit one, so stray host keys reach neither; the in-container Vertex
@@ -329,7 +335,10 @@ the `before_each` hook, turns it into the case repository:
 - **The session comes from the proxy.** The agent shares a user with Claude
   Code inside the container, so it could forge the CLI's output stream. The
   main conversation is the chain of requests in which each request's
-  messages extend the previous request's messages and logged response: the
+  messages extend the previous request's messages and logged response,
+  compared after dropping `cache_control` and other per-request annotations
+  (role, block type, text, tool-use id, name and input, and tool-result
+  content must match): the
   reply is all of the chain's assistant text after the `fix-all.sh` result
   (the replay can finish before the agent's turn ends, so the report and a
   closing message may be separate), and the tool calls and any
@@ -377,9 +386,11 @@ the `before_each` hook, turns it into the case repository:
   archive unpacked inside it, its result written to a separate fresh mount,
   and no network, writes the validated result (including the preamble's record
   of its arguments), and from the proxy log the session's reply, its tool
-  calls and denials, and its token usage, to declared `outputs:` paths outside
-  the `output/` directory where the harness drops `stdout.log`, and removes
-  the container, volumes and archive.
+  calls and denials, and its token usage, into declared `outputs:` directories
+  (`collect.py` treats a declared path as a directory, so the reply is
+  `fgc-out/reply.md` both in the trial and as the judges' key), outside the
+  `output/` directory where the harness drops `stdout.log`, and removes the
+  container, volumes and archive.
 - **State check:** builds a fresh `.git` from the copied objects, refs and
   `HEAD`, with a configuration it writes itself and no attributes; runs git
   with `-c core.fsmonitor=false -c core.hooksPath=/dev/null` and system and
@@ -387,7 +398,7 @@ the `before_each` hook, turns it into the case repository:
   without filters; compares the bare remotes and untracked and ignored
   files with prepare's baseline hashes.
 - **Judges:** defined with `prompt` or `prompt_file`, never `llm_rubric`;
-  templates name the reply only as `{{ outputs.files['<reply path>'] }}`,
+  templates name the reply only as `{{ outputs.files['fgc-out/reply.md'] }}`,
   which the harness fences as untrusted, with no filters (a string filter
   drops the fence), plus `{{ annotations }}`; never `*_content`,
   `outputs[...]`, `{{ conversation }}`, `{{ tool_trace }}` or
@@ -408,7 +419,8 @@ the `before_each` hook, turns it into the case repository:
 - The wrapper passes the runner's prompt through on stdin and its
   stream-json back unchanged, including for resumed sessions.
 - The reply and tool calls can be read back from the proxy's log of
-  streamed responses.
+  streamed responses, and one real recorded session links into a single
+  chain under the normalised comparison.
 - Rootless podman runs the container on the target hosts, and the container
   user can connect to the proxy socket under `--userns=keep-id`.
 - `before_all` fits its 900-second timeout from a cold cache.
