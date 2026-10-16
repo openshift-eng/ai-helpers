@@ -160,16 +160,23 @@ recording user's connectors, plugins and memory paths.
 - a recorded log missing what `SKILL.md` reads;
 - a prepared `.claude/settings.json` with keys beyond `permissions.allow`
   and `permissions.deny`;
-- a proxy that forwards a request declaring a server-side tool.
+- a proxy that forwards a request with a server-side tool, `mcp_servers`,
+  `container`, a beta header off its allowlist, or a path or project other
+  than the configured model ones;
+- an `eval-fix-go-cves.yaml` whose `permissions` hold a path-based rule, or
+  that sets a provider plan (the runner would write a settings overlay into
+  the workspace at launch, after prepare).
 
 **`checks.py lint`** needs the case repositories' history, from the clone
 cache or the network. Run it before committing a case; `run.sh` runs it
-first. It checks:
+first. It runs `workspace.sh prepare` for every case into a scratch run
+workspace and checks:
 
 - each bundle's commits, on top of its base, for home paths;
 - that every ref and object in a prepared workspace is reachable from the
   pinned commits or the bundle;
-- that a prepared workspace has no path outside itself.
+- that a prepared workspace has no path outside itself and its sibling
+  directory.
 
 **Publication.** The bundles and PR commands keep the recording author's
 name and fork. Three bundles (004, 005 and 006) hold commits that were never
@@ -287,8 +294,10 @@ the `before_each` hook, turns it into the case repository:
   root becomes the workspace, and every other home path the sibling
   directory. The log's own `exit=` line is dropped, since `SKILL.md`
   appends one.
-- **Write the copy list.** The workspace, the sibling directory and the bare
-  remotes.
+- **Record the baseline and the copy list.** Prepare hashes the bare
+  remotes and the untracked and ignored files into
+  `fgc/<case-id>.baseline.json`, and lists the workspace and the sibling
+  directory (which holds the bare remotes) for the wrapper.
 
 ### Isolation
 
@@ -341,7 +350,7 @@ the `before_each` hook, turns it into the case repository:
   `GOOGLE_APPLICATION_CREDENTIALS` and `HOME` to the agent); puts the
   wrapper first on `PATH`; runs `checks.py lint` first.
 - **Wrapper:** creates per-trial volumes (`podman volume create`) for the
-  workspace, sibling directory, bare remotes and `HOME`; `podman create`s
+  workspace, sibling directory and `HOME`; `podman create`s
   the container on them from a pinned image (Claude Code at the host's
   version, git, jq, Go, Python, socat and the `gh` shim that only logs its
   arguments) with `--network none`, `--read-only` except those volumes and
@@ -353,12 +362,12 @@ the `before_each` hook, turns it into the case repository:
   as workspace paths; then `exec`s `podman start --attach --interactive`, so
   the runner's pipes close when the agent stops. Answers the runner's
   `claude --version`.
-- **Proxy:** started with `setsid`, its output to its own log so it never
-  holds the runner's pipes; listens only on the per-trial socket, which
-  socat in the container turns back into a local port. Inside the container
-  Claude Code gets `CLAUDE_CODE_SKIP_VERTEX_AUTH=1` and
-  `ANTHROPIC_VERTEX_BASE_URL` pointing at that port, a pattern the runner
-  already supports for agentic-ci.
+- **Proxy:** started with `setsid`, its output to its own log,
+  `fgc/<case-id>.proxy.log`, so it never holds the runner's pipes; listens
+  only on the per-trial socket, which socat in the container turns back into a
+  local port. Inside the container Claude Code gets
+  `CLAUDE_CODE_SKIP_VERTEX_AUTH=1` and `ANTHROPIC_VERTEX_BASE_URL` pointing at
+  that port, a pattern the runner already supports for agentic-ci.
 - **`after_each`:** timeout of 600 seconds; kills the container and the proxy
   (the runner's timeout kills only the wrapper), streams the volumes out with
   `podman cp <ctr>:<path> -` into `fgc/<case-id>.out.tar`, never unpacked on
@@ -366,9 +375,11 @@ the `before_each` hook, turns it into the case repository:
   could run its configuration), runs the state check in a fresh container from
   the pinned image, with the archive and the baseline mounted read-only, the
   archive unpacked inside it, its result written to a separate fresh mount,
-  and no network, writes the validated result and the session's reply to
-  declared `outputs:` paths outside the `output/` directory where the harness
-  drops `stdout.log`, and removes the container, volumes and archive.
+  and no network, writes the validated result (including the preamble's record
+  of its arguments), and from the proxy log the session's reply, its tool
+  calls and denials, and its token usage, to declared `outputs:` paths outside
+  the `output/` directory where the harness drops `stdout.log`, and removes
+  the container, volumes and archive.
 - **State check:** builds a fresh `.git` from the copied objects, refs and
   `HEAD`, with a configuration it writes itself and no attributes; runs git
   with `-c core.fsmonitor=false -c core.hooksPath=/dev/null` and system and
