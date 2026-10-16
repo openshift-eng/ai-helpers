@@ -68,9 +68,10 @@ runs, so a trial takes minutes and costs well under $1.
   backport searches.
 - Untracked files the recorded run saw, listed in `input.yaml`, with
   timestamps from before the log starts: for subctl, a `bin/lichen` built
-  with `GOTOOLCHAIN=go1.26.8 GOEXPERIMENT=nodwarf5`, so its compiler marker
-  (`go1.26.8-X:nodwarf5`) matches the log. Prepare therefore needs Go and
-  module proxy access.
+  with `GOTOOLCHAIN=go1.26.8 GOEXPERIMENT=nodwarf5` at the lichen version
+  `input.yaml` names, so its compiler marker (`go1.26.8-X:nodwarf5`) matches
+  the log. Prepare therefore needs Go and module proxy access, with the
+  default checksum database left on.
 - Report directories the log names, restored where the run kept them, so
   the agent can read the same evidence. Criteria use only facts the agent
   can find in the workspace.
@@ -163,10 +164,18 @@ build image and who updates it.
   only the run's commits (under 12 KB each), carries the result. A case
   depends on no fork branch or PR ref; subctl's result was never pushed,
   and PR heads carry later manual commits. Logs are stored whole and
-  gzipped, with home paths replaced; trimming would need its own logic and
-  could drop evidence the agent reads. The release-0.24 sources are kept
-  under `.work/fix-go-cves-evals/source/` with a manifest and checksums
-  until the cases are committed.
+  gzipped; trimming would need its own logic and could drop evidence the
+  agent reads. The release-0.24 sources are kept under
+  `.work/fix-go-cves-evals/source/` with a manifest and checksums until the
+  cases are committed.
+- **Only listed files are committed.** A case gets exactly the files in the
+  layout below, copied by allowlist. Agent transcripts stay out: their
+  first record lists the recording user's connectors, plugins, memory
+  paths and session IDs. Home and runtime paths are replaced with
+  placeholders in every committed text file, so logs, replies and report
+  directories stay consistent. A hermetic test fails on any `*.jsonl` or
+  transcript file, or any `/home/` or `/run/user/` path, under
+  `evals/cases/`.
 - **Format drift fails loudly.** `input.yaml` records the plugin commit that
   produced the log, and a hermetic test checks that every log still has
   what `SKILL.md` reads (the summary block, the `exit=` line, the flagged
@@ -206,7 +215,13 @@ reports cost, tokens and model for each case.
   `workspace.files` lists only the three inputs above.
 - **Isolation.** `runner.env` sets `CLAUDE_CONFIG_DIR` to an empty
   directory, so user instructions and memory stay out; the harness already
-  leaves user plugins out. Its permissions also deny `git push` and `gh`.
+  leaves user plugins out. It also cuts off host credentials the agent
+  could otherwise reach through `HOME`: `GH_CONFIG_DIR` points at an empty
+  directory, and `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM=1` and
+  `GIT_TERMINAL_PROMPT=0` drop git credential helpers. Its permissions deny
+  `git push` and `gh` too, but prefix rules are easy to bypass: this runner
+  is not a sandbox, and changes that should not be trusted run under
+  Inspect.
   The harness writes its own files into the workspace (`.staged-plugins/`,
   `.claude/`, `output/` and others); `prepare` excludes them, and the state
   check ignores them.
@@ -272,7 +287,7 @@ evals/
   checks.py                       deterministic checks and judge prompt
   workspace.sh                    build the replay plugin; prepare and
                                   snapshot a case workspace
-  Dockerfile                      Inspect sandbox
+  Dockerfile                      Inspect sandbox (base pinned by digest)
   requirements.txt                pinned, hashed eval dependencies
   cases/replay/case-NNN/          input.yaml (repo, commits, files,
                                   request), annotations.yaml (criteria,
@@ -294,15 +309,22 @@ evals/
   skill's.
 - In CI, use the repository's existing Prow eval workflow,
   `openshift-claude-agent-eval`, which brings CI's Vertex credentials and
-  the `claude-ai-helpers` image. Add an optional `eval-fix-go-cves` job,
-  run on demand with `/test eval-fix-go-cves` and automatically with
-  `run_if_changed: ^plugins/fix-go-cves/(skills|scripts/review|evals)/`.
-  Run the whole config rather than `EVAL_CHANGED_ONLY`: that option diffs
-  with `.git`, which the image leaves out, so it skips every case and still
-  reports success. The workflow passes or fails on the agent's exit, not
-  the harness's thresholds, so it also needs a step that runs the harness's
-  `score.py regression` and fails on its exit code. It clones the harness
-  at `main`; local runs pin it.
+  the `claude-ai-helpers` image. Add an optional `eval-fix-go-cves` job with
+  `always_run: false`, started only with `/test eval-fix-go-cves`, after a
+  maintainer has read the PR's `evals/` and `scripts/` diff. Those files run
+  in the job beside the credentials, and after one `/ok-to-test` a
+  `run_if_changed` trigger would rerun every later push unreviewed.
+- Three changes to the shared workflow, in openshift/release:
+  - a variant that does not mount the GitHub bot token, which the eval
+    never uses;
+  - the harness pinned by commit (an `EVAL_HARNESS_REF` with a SHA
+    default) instead of cloned at `main`;
+  - a final step that runs that checkout's `score.py regression` and fails
+    on its exit code, or when `run_result.json` is missing. The workflow
+    otherwise passes or fails on the agent's exit, not on the thresholds.
+- Run the whole config, not `EVAL_CHANGED_ONLY`: that option diffs with
+  `.git`, which the image leaves out, so it skips every case and still
+  reports success.
 - Run it before changing `SKILL.md`, `scripts/review-prompt.md` or the
   default model.
 
