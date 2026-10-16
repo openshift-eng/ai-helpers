@@ -101,17 +101,20 @@ lists the recording user's connectors, plugins and memory paths. Hermetic tests
 fail on a transcript, a `/home/` or `/run/user/` path anywhere under
 `evals/cases/fix-go-cves/`, which must hold at least one case (decompressing
 `.gz` files first), a `plugin.tar.gz` holding `plans/` or any case's answer
-strings, a `plugin.tar.gz` or `plugin.json` that declares hooks, commands,
-agents or MCP servers, or a log missing what `SKILL.md` reads. Checks that need
-the case repositories' history (each bundle's commits scanned on top of its
-base, and a prepared workspace reaching nothing outside itself) run as
-`checks.py lint`, which needs the clone cache or network access: run it before
-committing a case, and `run.sh` runs it first. The bundles and PR commands keep
-the recording author's name and fork. Three bundles (004, 005, 006) hold
-commits that were never pushed, but they contain only `go.mod`, `go.sum` and
-`.grype.yaml` edits by the same author, so publishing them adds nothing
-sensitive. Until the cases are committed, the release-0.24 sources stay in
-`.work/fix-go-cves-evals/source/`.
+strings, a `plugin.tar.gz` holding anything but regular files and directories
+under `.claude-plugin/`, `skills/`, `scripts/`, `subagents/` and `README.md`
+(no links, absolute or `..` names), a manifest with keys beyond `name`,
+`version`, `description` and `author` (a plugin can also declare unsandboxed
+hooks, monitors and language servers), or a log missing what `SKILL.md` reads.
+Checks that need the case repositories' history (each bundle's commits scanned
+on top of its base, and a prepared workspace reaching nothing outside itself)
+run as `checks.py lint`, which needs the clone cache or network access: run it
+before committing a case, and `run.sh` runs it first. The bundles and PR
+commands keep the recording author's name and fork. Three bundles (004, 005,
+006) hold commits that were never pushed, but they contain only `go.mod`,
+`go.sum` and `.grype.yaml` edits by the same author, so publishing them adds
+nothing sensitive. Until the cases are committed, the release-0.24 sources stay
+in `.work/fix-go-cves-evals/source/`.
 
 **Checks** live in `checks.py`. The deterministic ones gate at a 1.0 pass
 rate:
@@ -135,13 +138,13 @@ rate:
 4. **Commits.** Commits in `annotations.yaml` appear in the reply, matched
    by a prefix of at least seven characters.
 
-The judged facts are binary criteria per case that need reasoning the log
-does not hand over, such as "the x/net, grpc and otel/sdk bumps were skipped
-because the scan was blocked, and need no team decision". A pooled threshold would
-let one case fail every trial while the rest pass, so `checks.py summarize`
-reads the three rounds and requires every case to pass its deterministic
-checks in all three and its facts in at least two. A voided trial counts as
-a failed deterministic check and is reported separately.
+The judged facts are binary criteria per case that need reasoning the log does
+not hand over, such as "the x/net, grpc and otel/sdk bumps were skipped because
+the scan was blocked, and need no team decision". A pooled threshold would let
+one case fail every trial while the rest pass, so `checks.py summarize` reads
+the three rounds and requires every case to pass its deterministic checks in
+all three and its facts in at least two. A voided trial counts as a failed
+deterministic check and is reported separately.
 
 **Calibration.** `checks.py calibrate` runs the harness's own judges (`score.py
 judges`) on synthetic trials whose final result is a stored reply, so the
@@ -199,9 +202,10 @@ for a cold clone), turns into the case repository:
 - **Restore what the recording saw.** Untracked files as stubs (for subctl,
   an empty `bin/lichen`; `go version` on it disagrees with the log, so
   criteria rely on the log, not the file), and the case's `reports/`,
-  unpacked in the trial's own space at the paths the preamble writes into
+  unpacked under the trial's `tmp/` at the paths the preamble writes into
   the log, outside the case repository.
-- **Stage the plugin.** Prepare unpacks the case's `plugin.tar.gz` into
+- **Stage the plugin.** Prepare unpacks the case's `plugin.tar.gz`, with
+  Python's `tarfile` and `filter="data"`, into
   `.staged-plugins/fix-go-cves`, where the runner reuses an existing copy.
   It is the plugin that produced the log, not today's: current scripts
   carry comments written after a recording, and one names case 004's
@@ -214,30 +218,41 @@ for a cold clone), turns into the case repository:
   and report directories store home-directory paths as two placeholders:
   the recording's repository root, which the preamble fills with the case
   workspace, and every other home path (run state, reports, the log
-  itself), which it fills with a directory in the trial's own space. The
+  itself), which it fills with a directory under the trial's `tmp/`. The
   log's own `exit=` line is dropped, since `SKILL.md` appends one.
 
-An `after_each` hook writes the repository state (status including ignored
-files, refs, the bare remotes and the `gh` log) to a declared `outputs:`
-path in the workspace, which the harness collects for the checks. The reply
-is the `result` field of the last `{"type":"result"}` object in the trial's
-`stdout.log`, extracted to its own output file by a `before_scoring` hook;
-the harness's events omit that text, a resumed session emits one result per
-segment, and the conversation it otherwise hands judges includes interim
-narration and the log itself. `checks.py calibrate` writes its synthetic
-trials in the same form.
+Everything that runs after the agent runs outside the sandbox, so it treats the
+workspace as untrusted: the agent could have planted symlinks or edited git
+configuration there. The `after_each` hook first replaces the workspace's
+`output/` and declared `outputs:` directories with fresh real directories,
+since the harness then writes `stdout.log` into `output/` with a call that
+follows links. It then records the repository state (status including ignored
+files, refs and the `gh` log) by calling git by absolute path with a fixed
+`PATH`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null` and `-c
+core.fsmonitor=false -c core.hooksPath=/dev/null -c log.showSignature=false`,
+and compares the bare remotes by hashing their files rather than running git in
+them. A workspace symlink that points outside the trial directory fails the
+state check. The reply is the `result` field of the last `{"type":"result"}`
+object in the trial's `stdout.log`, extracted to its own output file by a
+`before_scoring` hook; the harness's events omit that text, a resumed session
+emits one result per segment, and the conversation it otherwise hands judges
+includes interim narration and the log itself. `checks.py calibrate` writes its
+synthetic trials in the same form.
 
 **Isolation.** `run.sh` invokes the harness once per trial, each time in a
 fresh trial directory under a dedicated root outside `/home` and `/tmp` (for
-example `/var/tmp/fix-go-cves-evals/`), which holds the trial's `TMPDIR` (where
-the harness puts workspaces, with no `CLAUDE.md` above it), its `HOME` and its
-other files. `PATH` is a shim directory, holding a `gh` shim that only logs its
-arguments and a link to the resolved `claude` binary (which the harness
-launches by name with this `PATH`), followed by system directories only: the
-host's own `PATH` can point under `/home` (`~/.local/bin`, Homebrew), which the
-sandbox below denies. `run.sh` deletes the trial directory after collecting
-results. It starts the harness under `env -i` with an explicit variable list,
-because the runner's host allowlist also forwards `ANTHROPIC_API_KEY`,
+example `/var/tmp/fix-go-cves-evals/`). The directory holds `tmp/`, the trial's
+`TMPDIR`, where the harness puts the workspace and the skill writes its log,
+with no `CLAUDE.md` above it; and beside it `home/`, `shim/` and `remotes/`
+(the bare remotes). Only `tmp/` is a sandbox write root, so the agent cannot
+alter the shim, its `HOME` or the remotes that unsandboxed steps later read.
+`PATH` is a shim directory, holding a `gh` shim that only logs its arguments
+and a link to the resolved `claude` binary (which the harness launches by name
+with this `PATH`), followed by system directories only: the host's own `PATH`
+can point under `/home` (`~/.local/bin`, Homebrew), which the sandbox below
+denies. `run.sh` deletes the trial directory after collecting results. It
+starts the harness under `env -i` with an explicit variable list, because the
+runner's host allowlist also forwards `ANTHROPIC_API_KEY`,
 `ANTHROPIC_AUTH_TOKEN`, `CLOUDSDK_CONFIG` and similar keys into the agent's
 Bash. The claude-code runner passes the agent only `runner.env` and a short
 host allowlist that includes `HOME`, `PATH` and
