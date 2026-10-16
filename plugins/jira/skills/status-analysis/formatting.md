@@ -14,10 +14,13 @@ Three output formats are supported:
 | Format | Used By | Output Target | Syntax |
 |--------|---------|---------------|--------|
 | `markdown_comment` | `/jira:status-rollup` | Jira comment | Markdown (via `contentFormat: "markdown"`) |
-| `ryg_field` | `/jira:update-weekly-status` | Status Summary field | Bullet-point template |
+| `ryg_field` | `/jira:update-weekly-status` | Status Summary field for legacy Jira clients | Jira wiki-style bullets |
+| `ryg_field_markdown` | Jira Cloud REST API v3 clients | Status Summary field | Markdown bullets, converted to ADF |
 | `feature_markdown` | `/jira:generate-feature-updates` | stdout / localhost HTTP server | Markdown nested lists |
 
 **Important**: When posting comments via `addCommentToJiraIssue` or updating descriptions via `editJiraIssue`, always include `contentFormat: "markdown"`.
+
+For Markdown output formats, render PR references as `[owner/repo#number](PR_URL)` using the repository and URL present in the evidence. Do not emit bare `#number` or shorthand `repo#number` references, or print a raw PR URL in parentheses; the URL belongs in the Markdown link target. Do not invent a repository or URL when the evidence lacks one.
 
 ## Format: markdown_comment
 
@@ -97,7 +100,7 @@ Used by `/jira:status-rollup` to post a comprehensive status comment to a Jira i
 ### This Period
 
 **Completed:**
-1. [AUTH-101](https://redhat.atlassian.net/browse/AUTH-101) - OAuth2 implementation (PR #456 merged, all review feedback addressed)
+1. [AUTH-101](https://redhat.atlassian.net/browse/AUTH-101) - OAuth2 implementation ([openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456) merged, all review feedback addressed)
 1. [AUTH-102](https://redhat.atlassian.net/browse/AUTH-102) - Token validation with comprehensive unit tests
 
 **In Progress:**
@@ -226,6 +229,57 @@ Used by `/jira:update-weekly-status` to update the Status Summary custom field.
      ** May need to descope Azure AD integration from initial release
 ```
 
+
+## Format: ryg_field_markdown
+
+Used by clients that write the Status Summary field through Jira Cloud REST API v3
+and convert Markdown to Atlassian Document Format (ADF). This is a separate format
+from `ryg_field`; keep `ryg_field` unchanged for clients that require its legacy
+Jira wiki-style bullet syntax. The caller must select `ryg_field_markdown` as the
+`output_format` for Markdown/ADF clients.
+
+### Template
+
+```markdown
+* Color Status: {Red|Yellow|Green}
+* Status summary:
+  * {achievement-or-progress-1}
+  * {achievement-or-progress-2}
+* Risks:
+  * {risk-1-or-"None at this time"}
+```
+
+### Formatting Rules
+
+- Use standard Markdown unordered-list markers: `* ` for top-level items and
+  `  * ` for items nested under a section.
+- Do not use Jira wiki-style `**` markers or indentation-only pseudo-lists.
+- Keep `Color Status`, `Status summary`, and `Risks` as top-level bullets.
+- Put each achievement, progress item, and risk under its corresponding section.
+- Always start with `* Color Status:` and use exactly `Red`, `Yellow`, or `Green`.
+- Include at least one status summary item and a Risks section; use
+  `  * None at this time` when there are no risks.
+- Render every PR reference as a Markdown link labeled `owner/repo#number`,
+  using the repository and URL in the evidence (for example,
+  `[openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456)`).
+- Never use a bare `#number` or shorthand `repo#number` PR reference.
+- Do not print a raw PR URL in parentheses, such as `Enhancement PR (https://...)`;
+  put the URL only in the Markdown link target.
+- Do not infer or fabricate a repository or URL. If the evidence does not identify
+  the repository and URL, avoid an ambiguous PR reference.
+- Output only the field text, with no code fence, preamble, or explanation.
+
+### Example
+
+```markdown
+* Color Status: Green
+* Status summary:
+  * [openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456) merged adding OAuth2 token validation with comprehensive unit tests
+  * [openshift/enhancements#1945](https://github.com/openshift/enhancements/pull/1945) (EtcdBackup CRD for OADP integration) remains open
+* Risks:
+  * Review bandwidth may delay the follow-up merge
+```
+
 ## Format: feature_markdown
 
 Used by `/jira:generate-feature-updates` to produce concise executive-level feature summaries for weekly status documents (e.g., "Key Strategic Feature Updates" section).
@@ -254,7 +308,7 @@ Color circle mapping (from the `color` field in Status Summary):
 5. **No metrics**: No completion percentages, issue counts, or tables
 6. **Cross-references as markdown links**: Reference related issues, PRs, and people inline
 7. **Continuous list**: All entries in one unordered list, no blank lines between items
-8. **PR references**: Use `[PR #N](url)` format when referencing specific PRs
+8. **PR references**: Use `[owner/repo#N](url)` format when referencing specific PRs
 9. **First names for attribution**: Use `author_name` fields (not `author` logins) when attributing contributions. Always use first names, never GitHub handles.
 
 ### Content Guidelines
@@ -272,7 +326,7 @@ Color circle mapping (from the `color` field in Status Summary):
 **Attribution for recognition:**
 
 - Name team members who drove key accomplishments
-- Example: "Thanks to Sara's work on PR #456, the migration path is now fully tested"
+- Example: "Thanks to Sara's work on [openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456), the migration path is now fully tested"
 
 **Tone:**
 
@@ -302,7 +356,7 @@ Color circle mapping (from the `color` field in Status Summary):
 - 🟡 [OCPSTRAT-1409](https://issues.redhat.com/browse/OCPSTRAT-1409): Auto backup/restore for Hosted Clusters
     - A bug found in the implementation has highlighted a permission gap that we are going to cover with better UX.
 - 🟢 [OCPSTRAT-1558](https://issues.redhat.com/browse/OCPSTRAT-1558): Shared ingress for HCP
-    - Wei's [PR #7143](https://github.com/openshift/hypershift/pull/7143) landed this week, completing the core shared ingress controller. Integration tests are passing on AWS.
+    - Wei's [openshift/hypershift#7143](https://github.com/openshift/hypershift/pull/7143) landed this week, completing the core shared ingress controller. Integration tests are passing on AWS.
 - 🔴 [OCPSTRAT-2100](https://issues.redhat.com/browse/OCPSTRAT-2100): IPv6 support for Hosted Control Planes
     - Blocked on upstream Kubernetes networking changes expected in 1.32. Alberto has prepared the downstream patches and they are ready to go once the dependency lands.
 ```
@@ -444,6 +498,28 @@ def format_ryg_field(issue_data, config):
     return "\n".join(output)
 ```
 
+### For ryg_field_markdown format
+
+```python
+def format_ryg_field_markdown(issue_data, config):
+    output = []
+    health = issue_data.analysis.health.capitalize()  # Green, Yellow, Red
+    output.append(f"* Color Status: {health}")
+    output.append("* Status summary:")
+
+    items = [a.description for a in issue_data.analysis.achievements[:3]]
+    items.extend(p.description for p in issue_data.analysis.in_progress[:2])
+    output.extend(f"  * {item}" for item in items)
+
+    output.append("* Risks:")
+    risks = issue_data.analysis.risks[:2]
+    output.extend(f"  * {risk.description}" for risk in risks)
+    if not risks:
+        output.append("  * None at this time")
+
+    return "\n".join(output)
+```
+
 ### For feature_markdown format
 
 ```python
@@ -529,6 +605,14 @@ Before outputting, validate the formatted text:
 - [ ] Status summary section present with at least one item
 - [ ] Risks section present (even if "None at this time")
 - [ ] Indentation matches expected format
+- [ ] No empty bullet points
+
+### ryg_field_markdown validation
+
+- [ ] Starts with `* Color Status:` and uses exactly Red, Yellow, or Green
+- [ ] `Status summary` and `Risks` are top-level `* ` bullets
+- [ ] Summary items and risks use two-space nested `  * ` bullets
+- [ ] Contains no Jira wiki-style `**` sub-bullets
 - [ ] No empty bullet points
 
 ## Escaping Special Characters
