@@ -57,7 +57,7 @@ cleanup() {
     git -C "$REPO" branch -D "$FIX_BRANCH" 2>/dev/null || true
   fi
   if [[ -n "${STATE_FILE:-}" ]]; then
-    rm -f "$STATE_FILE" "${STATE_FILE}.build-failed" "${STATE_FILE}.network-broken" "${STATE_FILE}.scanner-degraded" "${STATE_FILE}.scan-transient" "${STATE_FILE}.coverage-unknown" "${STATE_FILE}.review-unresolved" "${STATE_FILE}.review-resolved" "${STATE_FILE}.generated-artifacts" "${STATE_FILE}.baseline-artifacts" "${STATE_FILE}.generated-drift" 2>/dev/null || true
+    rm -f "$STATE_FILE" "${STATE_FILE}.build-failed" "${STATE_FILE}.network-broken" "${STATE_FILE}.scanner-degraded" "${STATE_FILE}.scan-transient" "${STATE_FILE}.coverage-unknown" "${STATE_FILE}.review-unresolved" "${STATE_FILE}.review-resolved" "${STATE_FILE}.generated-artifacts" "${STATE_FILE}.built-artifacts" "${STATE_FILE}.baseline-artifacts" "${STATE_FILE}.generated-drift" 2>/dev/null || true
     rmdir "$(dirname "$STATE_FILE")/reviewer" "$(dirname "$STATE_FILE")" 2>/dev/null || true
   fi
   # Preserve subagent reports on verification failure so they can be debugged;
@@ -217,7 +217,7 @@ banner "Fixing CVEs"
 # by the independent verification and final gates. Unproven binaries retain
 # their original paths and therefore cannot invent a source-module scope.
 if ! DISPATCH_JSON=$(python3 "$SCRIPT_DIR/binary-module-locations.py" "$REPO" \
-    "${STATE_FILE}.generated-artifacts" <<< "$SCAN_JSON") ||
+    "${STATE_FILE}.built-artifacts" <<< "$SCAN_JSON") ||
     ! printf '%s\n' "$DISPATCH_JSON" | grype_scan_json_valid; then
   echo "WARNING: binary-to-module mapping failed; dispatching with raw scan locations." >&2
   DISPATCH_JSON="$SCAN_JSON"

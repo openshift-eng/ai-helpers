@@ -2361,6 +2361,10 @@ artifact_manifest_record() {
   find "$REPO" -path "$REPO/.git" -prune -o -type f -perm -u+x -print | sort > "$current"
   comm -23 "$current" "$baseline" > "$manifest"
   rm -f "$current"
+  # Binaries this run built, including in-place rebuilds of earlier outputs,
+  # are proven to come from the current tree and may be mapped to their module.
+  find "$REPO" -path "$REPO/.git" -prune -o -type f -perm -u+x -newer "$baseline" -print |
+    sort > "${STATE_FILE}.built-artifacts"
 }
 
 # Return the DETAILS: body of a subagent report, stripping the header line.
@@ -2693,6 +2697,36 @@ verify_fix_loop() {
 }
 
 # Fix function: yaml-integrity — remove only unsafe broad ignore selectors
+# Whether the unscoped ignore for VULN/PKG is redundant: it is auto-expiring
+# (has a fix-state) and the scan reports VULN/PKG only at go.mod locations that
+# scoped ignores already cover. Anything else stays for team review.
+unscoped_ignore_redundant() {
+  local file="$1" vuln="$2" pkg="$3" scan="$4" entries reported
+  entries=$(awk -v want_cve="$vuln" -v want_pkg="$pkg" '
+    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+    function flush() { if (v == want_cve && p == want_pkg) print (l == "" ? "UNSCOPED " st : "SCOPED " l); v = p = l = st = "" }
+    /^ignore:[[:space:]]*(#.*)?$/ { in_ignore = 1; next }
+    /^[^[:space:]#]/ && !/^-([[:space:]]|$)/ { if (in_ignore && active) flush(); in_ignore = 0; active = 0 }
+    in_ignore && /^[[:space:]]*-([[:space:]]|$)/ { if (active) flush(); active = 1 }
+    in_ignore && /vulnerability:/ { x = $0; sub(/.*vulnerability:[[:space:]]*/, "", x); v = trim(x) }
+    in_ignore && /fix-state:/ { x = $0; sub(/.*fix-state:[[:space:]]*/, "", x); st = trim(x) }
+    in_ignore && /^[[:space:]]*name:/ { x = $0; sub(/.*name:[[:space:]]*/, "", x); p = trim(x) }
+    in_ignore && /^[[:space:]]*location:/ { x = $0; sub(/.*location:[[:space:]]*/, "", x); l = trim(x) }
+    END { if (active) flush() }' "$file")
+  grep -qE '^UNSCOPED [^ ]' <<< "$entries" || return 1
+  reported=$(jq -r --arg v "$vuln" --arg p "$pkg" '
+    def normloc: sub("^/src/"; "/") | if startswith("/") then . else "/" + . end;
+    [((.matches // []) + (.ignoredMatches // []))[] |
+      select(.vulnerability.id == $v and .artifact.name == $p) |
+      .artifact.locations[]?.path | normloc] | unique | .[]' "$scan") || return 1
+  [[ -n "$reported" ]] || return 1
+  local loc
+  while IFS= read -r loc; do
+    [[ "$loc" == */go.mod ]] || return 1
+    grep -qxF "SCOPED $loc" <<< "$(sed -E 's#^SCOPED /?#SCOPED /#' <<< "$entries")" || return 1
+  done <<< "$reported"
+}
+
 subagent_fix_yaml_integrity() {
   local state_file="$1" report_file="$2" script_dir="$3"
   # shellcheck source=/dev/null
@@ -2706,6 +2740,22 @@ subagent_fix_yaml_integrity() {
     if ! git -C "$REPO" diff --quiet -- .grype.yaml 2>/dev/null; then
       git -C "$REPO" add .grype.yaml
       git -C "$REPO" commit -s -m "Remove unsafe broad CVE ignores"
+    fi
+    local scan_file vuln pkg
+    scan_file=$(review_scan_file "$(dirname "$report_file")" 2>/dev/null) || scan_file=""
+    if [[ -n "$scan_file" ]]; then
+      while IFS='|' read -r vuln pkg; do
+        [[ -n "$vuln" ]] || continue
+        if unscoped_ignore_redundant "$REPO/.grype.yaml" "$vuln" "$pkg" "$scan_file"; then
+          remove_grype_ignore "$REPO/.grype.yaml" "$vuln" "$pkg" ""
+        fi
+      done < <(grype_ignore_scope_conflicts "$REPO/.grype.yaml" |
+        sed -nE 's/^SCOPE_CONFLICT: ([^ ]+) \(([^)]+)\).*/\1|\2/p' | sort -u)
+      if ! git -C "$REPO" diff --quiet -- .grype.yaml 2>/dev/null; then
+        git -C "$REPO" add .grype.yaml
+        git -C "$REPO" commit -s -m "$(printf '%s\n\n%s' "Remove redundant unscoped CVE ignores" \
+          "Scoped ignores already cover every location the scan reports.")"
+      fi
     fi
   fi
 }
@@ -3045,12 +3095,12 @@ subagent_fix_scan_regression() {
   # Keep the authoritative scan/report untouched, and use a separate mapped
   # copy for module-scoped fix requirements. Unproven paths stay fail-closed.
   local _binary_locations='{}' _dispatch_scan=''
-  if [[ -f "$_current_scan" && -f "$script_dir/binary-module-locations.py" && -f "${state_file}.generated-artifacts" ]]; then
+  if [[ -f "$_current_scan" && -f "$script_dir/binary-module-locations.py" && -f "${state_file}.built-artifacts" ]]; then
     _binary_locations=$(python3 "$script_dir/binary-module-locations.py" "$REPO" \
-      "${state_file}.generated-artifacts" --location-map < "$_current_scan") || return 2
+      "${state_file}.built-artifacts" --location-map < "$_current_scan") || return 2
     _dispatch_scan=$(mktemp "${TMPDIR:-/tmp}/cve-fix-dispatch.XXXXXX")
     if ! python3 "$script_dir/binary-module-locations.py" "$REPO" \
-      "${state_file}.generated-artifacts" < "$_current_scan" > "$_dispatch_scan"; then
+      "${state_file}.built-artifacts" < "$_current_scan" > "$_dispatch_scan"; then
       rm -f "$_dispatch_scan"
       return 2
     fi

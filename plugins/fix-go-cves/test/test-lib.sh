@@ -10215,6 +10215,37 @@ migrate_grype_ignore_scope "$IGY/migrate.yaml" GO-2026-5932 golang.org/x/crypto 
 check "scope migration keeps the entry's comment" grep -q '# No fix available' "$IGY/migrate.yaml"
 check "scope migration adds the location" grep -q 'location: /go.mod' "$IGY/migrate.yaml"
 
+echo "rebuilt binaries count as built by the run"
+BLT="$TMPD/built"; mkdir -p "$BLT/repo/bin"
+printf 'old' > "$BLT/repo/bin/old-tool"; chmod +x "$BLT/repo/bin/old-tool"
+printf 'kept' > "$BLT/repo/bin/untouched"; chmod +x "$BLT/repo/bin/untouched"
+( cd "$BLT/repo"; REPO="$BLT/repo"; STATE_FILE="$BLT/state.env"
+  artifact_manifest_prepare; sleep 1
+  printf 'rebuilt' > bin/old-tool; printf 'new' > bin/new-tool; chmod +x bin/new-tool
+  artifact_manifest_record )
+check "an in-place rebuild is a built artifact" grep -qx "$BLT/repo/bin/old-tool" "$BLT/state.env.built-artifacts"
+check "a new binary is a built artifact" grep -qx "$BLT/repo/bin/new-tool" "$BLT/state.env.built-artifacts"
+check "an untouched binary is not a built artifact" ! grep -qx "$BLT/repo/bin/untouched" "$BLT/state.env.built-artifacts"
+check "an in-place rebuild is not marked for deletion" ! grep -qx "$BLT/repo/bin/old-tool" "$BLT/state.env.generated-artifacts"
+
+echo "redundant unscoped ignores"
+RDN="$TMPD/redundant"; mkdir -p "$RDN"
+printf 'ignore:\n  - vulnerability: GO-1\n    fix-state: not-fixed\n    package:\n      name: a.b/c\n      location: /coredns/go.mod\n  - vulnerability: GO-1\n    fix-state: unknown\n    package:\n      name: a.b/c\n' > "$RDN/auto.yaml"
+sed '/fix-state: unknown/d' "$RDN/auto.yaml" > "$RDN/permanent.yaml"
+_rdn_scan() { printf '{"matches":[],"ignoredMatches":[%s]}\n' "$1" > "$RDN/scan.json"; }
+_rdn_hit() { printf '{"vulnerability":{"id":"GO-1"},"artifact":{"name":"a.b/c","locations":[{"path":"%s"}]}}' "$1"; }
+_rdn_scan "$(_rdn_hit /coredns/go.mod)"
+check "an auto-expiring unscoped ignore covered by scoped ones is redundant" \
+  unscoped_ignore_redundant "$RDN/auto.yaml" GO-1 a.b/c "$RDN/scan.json"
+check "a permanent unscoped ignore is never redundant" \
+  ! unscoped_ignore_redundant "$RDN/permanent.yaml" GO-1 a.b/c "$RDN/scan.json"
+_rdn_scan "$(_rdn_hit /coredns/go.mod),$(_rdn_hit /go.mod)"
+check "an uncovered module keeps the unscoped ignore" \
+  ! unscoped_ignore_redundant "$RDN/auto.yaml" GO-1 a.b/c "$RDN/scan.json"
+_rdn_scan "$(_rdn_hit /coredns/go.mod),$(_rdn_hit /bin/tool)"
+check "a binary location keeps the unscoped ignore" \
+  ! unscoped_ignore_redundant "$RDN/auto.yaml" GO-1 a.b/c "$RDN/scan.json"
+
 echo "existing-entries audits only Go ignores"
 EEF="$TMPD/ee-foreign"; mkdir -p "$EEF/rep"
 make_test_repo "$EEF/repo" ""
