@@ -103,10 +103,11 @@ and who decides:
 - Kubernetes minor bump, or Go above the build image: name the team decision
   and what unblocks it (a newer builder, an approved bump).
 - Test failure (already retried once): read the failing output and judge
-  whether the update caused it. If the default branch already fixed the
-  failing code (`git log origin/<default> -- <file>`), recommend that
-  backport. Tests that need `sudo` or a prompt need a non-interactive test
-  command.
+  whether the update caused it. Tests that need `sudo` or a prompt need a
+  non-interactive test command.
+- Test, lint, or license-check failure: if the default branch already fixed
+  it (`git log origin/<default> -- <file>`, such as the failing code or the
+  license config), recommend that backport.
 - Transient network, timeout, or degraded scanner: recommend a rerun.
 - Wrong build or test command: recommend `CVE_FIX_*` overrides for a rerun,
   or `.cve-fix.yaml` fields committed on the target branch
