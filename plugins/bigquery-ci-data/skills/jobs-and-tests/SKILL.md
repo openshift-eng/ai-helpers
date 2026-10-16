@@ -57,7 +57,8 @@ Prow job **runs** (invocations). Each row is a single execution. Partitioned by 
 |--------|------|-------|
 | prowjob_build_id | STRING | Primary key, join key to junit |
 | prowjob_job_name | STRING | Canonical job name (join key to job_variants) |
-| prowjob_url | STRING | Link to prow job |
+| prowjob_url | STRING | Link to prow job; its `/view/gs/<bucket>/<path>` suffix is the artifact location |
+| gcs_bucket | STRING | Artifact bucket, normally the public `test-platform-results-public` (anonymous read) |
 | prowjob_state | STRING | "success", "failure", "error", "aborted" |
 | prowjob_start | DATETIME | **Partition column** |
 | prowjob_completion | DATETIME | When job finished |
