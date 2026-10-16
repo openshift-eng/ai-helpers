@@ -22,6 +22,11 @@ itself.
 
 ## Correctness
 
+- **Environment reasons in the review prompt.** `scripts/review-prompt.md`
+  makes every `UNRESOLVED` reason end in "(need team input)". When a scan
+  was blocked by the environment (subctl's leftover `bin/lichen`), the
+  review therefore sends bumps to the team that a rerun would fix. Allow a
+  rerun reason, and route it to the rerun remedy instead of team review.
 - **Accurate regression labels.** Label scan-regression ignores by cause;
   findings exposed by an ignore removal are not dependency regressions.
 - **OpenShift builder evidence.** Read the Go minor from `.ci-operator.yaml`

@@ -10,11 +10,13 @@ build order.
   hermetic checks.
 - **End to end** (real builds, tests, scans and PRs) is covered by live runs
   on Submariner release branches: manual, 20 to 90 minutes each.
-- **The skill** (`SKILL.md`) turns a finished run into the cause, evidence,
-  action and owner for each finding. Nothing measures it.
+- **The LLM layers** decide what the scripts cannot: `review.sh` settles
+  open packages, and the skill (`SKILL.md`) turns a finished run into the
+  cause, evidence, action and owner for each finding. Nothing measures
+  them.
 
 Live-run failures feed the faster layers: a script bug gets a hermetic
-regression test (as every release-0.24 bug did), and a skill-layer mistake
+regression test (as every release-0.24 bug did), and an LLM-layer mistake
 gets an eval case. No case is written speculatively.
 
 ## 1. Run the existing suite in CI
@@ -40,79 +42,120 @@ need `jq`. Adding `setup-go` to `.github/workflows/test.yml` is the last
 resort: it is repo-wide, needs admin approval, and every PR pays the
 minutes.
 
-## 2. Evaluate the skill layer
+## 2. Evaluate the LLM layers
 
-Release-0.24 showed the skill layer's value and its errors. It found a
-default-branch backport for a license failure (lighthouse) and traced stdlib
-findings to the build image. It also invented a policy boundary for
-x/crypto, and asked for "team input" on two bumps when a leftover
-`bin/lichen` was blocking the scan (subctl).
+Two LLM steps sit on top of the scripts. `review.sh` asks a model to decide
+packages the scripts left open, and its verdicts land in the run log. The
+skill then reads that log and reports cause, evidence, action and owner.
+Release-0.24 showed both at work. The skill found a default-branch backport
+for a license failure (lighthouse) and traced stdlib findings to the build
+image. `review.sh` invented a policy boundary for x/crypto and sent three
+subctl bumps to "team input" when a leftover `bin/lichen` had blocked the
+scan, and the skill relayed both instead of checking them.
+
+So two case groups share one design: `replay` cases test the skill on a
+recorded log, and `review` cases test `review.sh` on recorded inputs.
+`SKILL.md` asks the skill to investigate each flagged line, so a replay
+case may require it to reject a `review.sh` verdict that the evidence
+contradicts.
 
 ### Case: replay a recorded run
 
 A case is a recorded run, not a new one: no build, scan or Docker daemon
 runs, so a trial takes minutes and costs well under $1.
 
-`workspace.sh prepare` builds the case workspace:
+`workspace.sh prepare` builds the case workspace as the run found it:
 
-- The case repository at pinned base and default-branch commits, with the
-  run's result applied from the case's `result.bundle` and checked out as
-  the fix branch. The default branch serves backport searches.
-- Untracked files the recorded run saw, when `input.yaml` lists them: for
-  subctl, a `bin/lichen` built with `GOEXPERIMENT=nodwarf5` (so prepare
-  needs Go), whose compiler marker matches the log.
+- The case repository at pinned base and default-branch commits, checked
+  out on the branch the run started from. The default branch serves
+  backport searches.
+- Untracked files the recorded run saw, listed in `input.yaml`, with
+  timestamps from before the log starts: for subctl, a `bin/lichen` built
+  with `GOEXPERIMENT=nodwarf5` (so prepare needs Go), whose compiler marker
+  matches the log.
+- Report directories the log names, restored where the run kept them, so
+  the agent can read the same evidence. Criteria use only facts the agent
+  can find in the workspace.
 - Remotes pointing at local bare repositories, and a `gh` shim that only
-  logs its arguments. A push or PR attempt stays local and is recorded.
-- A replay plugin, outside the repository, whose `scripts/fix-all.sh`
-  prints the recorded log, records each invocation with its arguments, and
-  exits with the recorded code. `CLAUDE_PLUGIN_ROOT`, which `SKILL.md`
-  already honors, names it.
-- The current `SKILL.md`, installed where each agent finds project skills
-  (`.claude/skills/`, `.agents/skills/`). Agent directories go in
-  `.git/info/exclude`, so they do not count as edits.
+  logs its arguments.
+- The current plugin, outside the repository, with only `scripts/fix-all.sh`
+  replaced. The replacement records its arguments, applies the case's
+  `result.bundle` and checks out the fix branch as the real script would,
+  prints the recorded log and exits with the recorded code.
+  `CLAUDE_PLUGIN_ROOT`, which `SKILL.md` already honors, names the plugin.
+- An agent configuration with only this skill installed: no user plugins,
+  instructions or memory, which would change which skill is picked (a
+  Submariner `cve-fix` skill competes for the same request) and how it
+  behaves. Agent directories go in `.git/info/exclude`, so they do not
+  count as edits.
 
 The agent gets a plain request, "Fix the CVEs in release-0.24 of this
 repository", that names no command, so every agent gets the same prompt and
 the case also tests that the skill is selected. Its final message is the
 reply. `workspace.sh snapshot` then records the state for the checks.
 
+### Case: review a recorded decision
+
+A `review` case runs `review.sh` on the inputs a live run gave it (the
+report directory and state it read) and checks each `RESOLVED` or
+`UNRESOLVED` verdict against the case's expected one. The first comes from
+the preserved subctl run, where the correct verdict is that the bumps were
+skipped because the scan was blocked, not that the team must decide. That
+case fails today: `scripts/review-prompt.md` requires every `UNRESOLVED`
+reason to end in "(need team input)", even for an environment failure (see
+[Correctness](README.md#correctness)). Live runs keep their report
+directories from now on, so the group grows like the replay group.
+
 ### Checks
 
 `checks.py` holds the deterministic checks and the judge prompt. Any failed
 deterministic check scores the trial 0.
 
-1. **State.** The fix branch and HEAD are unchanged, the worktree is clean,
-   the bare remotes are unchanged and the `gh` log is empty. Hand edits are
-   caught by outcome, whatever tools the agent used.
-2. **One run.** The script ran exactly once, for the requested branch, as
+1. **Skill used.** The transcript shows this skill loaded, not another.
+2. **State.** After the run, the repository is on the fix branch at the
+   recorded result, the worktree is clean, ignored and untracked files are
+   unchanged (by hash), the bare remotes are unchanged and the `gh` log is
+   empty. The transcript has no attempted or denied push, `gh` call, stash
+   or clean: a denied command never reaches the shim.
+3. **One run.** The script ran exactly once, for the requested branch, as
    `SKILL.md` requires: no unrequested rerun, no other branch, and no
    answer given without running it.
-3. **PR command.** If the log printed one, the reply contains a command with
-   the same argv, compared with `shlex`, so quoting differences pass.
-   Otherwise the reply contains no `gh pr create`.
-4. **Facts.** Binary criteria for each case, graded by a pinned judge model,
-   for example "recommends backporting cdc3003, the `.lichen.yaml`
-   override, from devel". Binary criteria score more clearly and stably
-   than a 1-to-5 rubric.
+4. **PR command.** Commands are read from fenced code blocks, with
+   backslash-newline continuations joined before `shlex` splits them. If the
+   log printed a PR command, one block holds the same argv; otherwise no
+   block holds `gh pr create`.
+5. **Named commits.** Commits a case requires, such as cdc3003, appear in the
+   reply.
+6. **Facts.** Binary criteria for each case, graded by a pinned judge model.
+   Each needs reasoning the log does not hand over, for example "explains
+   that the x/net and grpc bumps were skipped because the scan was blocked,
+   and need no team decision". Binary criteria score more clearly and
+   stably than a 1-to-5 rubric.
 
-Unit tests in the hermetic suite cover checks 1 to 3. `checks.py calibrate`
-runs the judge on each case's stored replies: it must pass the reference
-reply and fail the recorded wrong reply, where one exists (the lighthouse
-x/crypto boundary, the subctl "team input"). Run it whenever criteria or
-the judge model change, before scoring any agent.
+Unit tests in the hermetic suite cover checks 1 to 5. `checks.py calibrate`
+validates the judge on stored replies: the reference reply, the recorded
+wrong reply where one exists, and for each criterion a copy of the
+reference with that one fact removed or changed. Each verdict must be the
+same in five judge runs. Run it whenever criteria or the judge model
+change, before scoring any agent. Reference replies follow `SKILL.md`'s
+rules, edited from the recorded replies where those disagree: a Go
+directive raise the build image supports is not a team decision, even where
+a repository's older workflow note says to revert it.
 
 ### Cases
 
 | Case | Run | Decision |
 | --- | --- | --- |
-| case-001 | lighthouse: license, stdlib | Finds backport cdc3003 |
-| case-002 | submariner: partial fix | Relays the PR, does not run it |
-| case-003 | cloud-prepare: exit 0 | Invents no review items |
-| case-004 | subctl: leftover `bin/lichen` | Recommends removal and a rerun |
-| case-005 | admiral: govet failure | Finds backport 8234df0 |
+| replay/001 | lighthouse: license | Finds backport cdc3003 |
+| replay/002 | submariner: partial | Relays the PR; names the image owner |
+| replay/003 | cloud-prepare: clean | Flagged lines need no action |
+| replay/004 | subctl: `bin/lichen` | Blames the leftover, not the bumps |
+| replay/005 | admiral: govet | Finds backport 8234df0 |
+| replay/006 | lighthouse: x/crypto | Rejects the unsupported boundary |
+| review/001 | subctl: blocked scan | Skipped bumps need no team decision |
 
 Where stdlib findings remain, a case also requires naming Go 1.26.9 in the
-build image.
+build image and who updates it.
 
 ### Data and history
 
@@ -155,8 +198,9 @@ reports cost, tokens and model for each case. It runs in prompt mode, so
 the agent gets the plain request rather than a skill invocation, with its
 `claude-code` or `codex` runner; `before_each` and `after_each` hooks call
 `workspace.sh`; judges call `checks.py` through `module:`/`function:`. It
-runs on the host, as the skill does in real use, so its permissions also
-deny `git push` and `gh`. Build it first: it answers the review and needs
+runs on the host, as the skill does in real use, with an isolated agent
+configuration directory, and its permissions also deny `git push` and
+`gh`. Build it first: it answers the review and needs
 nothing new installed.
 
 **Inspect AI with Inspect SWE** (`task.py`) runs the same cases isolated,
@@ -207,18 +251,22 @@ evals/
   workspace.sh             prepare and snapshot a case workspace
   Dockerfile               Inspect sandbox
   requirements.txt         pinned, hashed eval dependencies
-  cases/replay/case-NNN/   input.yaml (repo, commits, exit code, request),
+  cases/replay/case-NNN/   input.yaml (repo, commits, files, request),
                            annotations.yaml (criteria, PR command),
                            result.bundle, run.log.gz, reply.md,
                            wrong-reply.md (optional)
+  cases/review/case-NNN/   input.yaml, annotations.yaml (verdicts),
+                           report directory
 ```
 
 ### Running
 
-- Run three attempts per case and report, per case, whether every attempt
-  passed: a skill that is right two times in three is not dependable. With
-  five cases, a change in the mean is noise; a case that stops passing is
-  the signal.
+- Run three attempts per case and report passes out of three for each
+  case; the thresholds in `eval-fix-go-cves.yaml` are per-case counts. Three
+  attempts flag noise too: a case that passes 90% of single attempts passes
+  all three only 73% of the time. Before calling a failure a regression,
+  rerun that case about ten times with the old and the new `SKILL.md` on
+  the same model.
 - Read failing transcripts (`/eval-review` or `inspect view`) before
   changing `SKILL.md`. A failure can be the case's fault as easily as the
   skill's.
@@ -229,12 +277,13 @@ evals/
   `/test eval-fix-go-cves`, and an `-changed` variant with
   `run_if_changed: ^plugins/fix-go-cves/evals/cases/`. That workflow clones
   the harness at `main`; local runs pin it. Inspect stays local.
-- Run it before changing `SKILL.md`, the review prompts or the default
-  model.
+- Run it before changing `SKILL.md`, `scripts/review-prompt.md` or the
+  default model.
 
 ### To confirm when building
 
 - Codex discovers project skills in `.agents/skills/` in prompt mode.
+- Both harness runners accept an isolated configuration directory.
 - A full Inspect trial completes with the sandbox network off.
 - The cost of one trial, to set the per-case budget.
 
