@@ -2146,7 +2146,7 @@ unset _GDUP_JSON _GDUP_COUNT _GDUP_LIST _GDUP_LINES _GDUP2_JSON _GDUP2_COUNT _GD
 # === gate: review-agent UNRESOLVED suppresses redundant gate NEEDS_REVIEW ===
 # Scenario: gate sees GO-2026-6354 and GO-2026-6355 for x/crypto (not in .grype.yaml).
 # Review agent already filed NEEDS_REVIEW for x/crypto. Gate must NOT add a second
-# "N CVE(s) still present" entry — REVIEW_AGENT_UNRESOLVED suppresses only the
+# "N finding(s) still present" entry — REVIEW_AGENT_UNRESOLVED suppresses only the
 # duplicate gate entry; GATE_REMAINING stays at 2 so results_unconfirmed/exit code
 # correctly see outstanding CVEs (enabling PR carve-out when commits exist).
 echo "gate: review-agent UNRESOLVED suppresses duplicate gate NEEDS_REVIEW"
@@ -9769,7 +9769,7 @@ _skitt_native_run() {
     check "native stdin: remaining stdlib finding stays counted" grep -q 'Outstanding: 1' "$dir/run.log"
   elif [[ "$mode" == no-fix ]]; then
     check "native no-fix: verified ignore succeeds" test "$rc" -eq 0
-    check "native no-fix: covered binary remains ignored rather than fixed" grep -q 'Fixed: 0 pkgs / 0 CVEs' "$dir/run.log"
+    check "native no-fix: covered binary remains ignored rather than fixed" grep -q 'Fixed: 0 pkgs / 0 findings' "$dir/run.log"
     check "native no-fix: ignore stays counted" grep -q 'Ignored: 1' "$dir/run.log"
     check "native no-fix: no actionable finding remains" grep -q 'Outstanding: 0' "$dir/run.log"
     check "native no-fix: dependency version is unchanged" grep -q "example.com/groupfix v${current}$" "$repo/go.mod"

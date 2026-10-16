@@ -759,7 +759,7 @@ elif ! GATE_REMAINING=$(jq 'def normloc: sub("^/src/"; "/") | if . == "" or star
   echo "WARNING: final rescan failed or produced invalid output."
   FIX_LINES+=("NEEDS_REVIEW: final rescan failed — verify CVE status manually")
 elif [[ "$GATE_REMAINING" -gt 0 ]]; then
-  echo "WARNING: $GATE_REMAINING actionable CVE(s) still present after all fixes:"
+  echo "WARNING: $GATE_REMAINING actionable finding(s) still present after all fixes:"
   jq -r 'def normloc: sub("^/src/"; "/") | if . == "" or startswith("/") then . else "/" + . end;
     [.matches[] | select(.artifact.type == "go-module") as $m |
      (($m.artifact.locations // []) | if length == 0 then [{"path":""}] else . end)[] |
@@ -782,7 +782,7 @@ elif [[ "$GATE_REMAINING" -gt 0 ]]; then
      (($m.artifact.locations // []) | if length == 0 then [{"path":""}] else . end)[] |
      "\($m.vulnerability.id)|\($m.artifact.name)|\(.path | normloc)"] | unique | .[]' <<< "$GATE_JSON" 2>/dev/null || true)
   if [[ $((GATE_REMAINING - REVIEW_AGENT_UNRESOLVED)) -gt 0 ]]; then
-    FIX_LINES+=("NEEDS_REVIEW: $((GATE_REMAINING - REVIEW_AGENT_UNRESOLVED)) CVE(s) still present after fixes")
+    FIX_LINES+=("NEEDS_REVIEW: $((GATE_REMAINING - REVIEW_AGENT_UNRESOLVED)) finding(s) still present after fixes")
   fi
 elif [[ $(jq '.matches | length' <<< "$GATE_JSON" 2>/dev/null || echo 0) -gt 0 ]]; then
   # Schema mismatch in gate scan: go-module filter gave 0 but total matches > 0.
@@ -900,7 +900,7 @@ else
 fi
 REVIEW_N=$(printf '%s\n' "${FIX_LINES[@]+"${FIX_LINES[@]}"}" | grep -c "^NEEDS_REVIEW:" || true)
 IGNORED_COUNT=$(printf '%s\n' "${FIX_LINES[@]+"${FIX_LINES[@]}"}" | grep -c "^IGNORED:" || true)
-echo "Fixed: ${FIXED_COUNT} pkgs / ${FIXED_CVES} CVEs · Ignored: ${IGNORED_COUNT} · Needs Review: ${REVIEW_N} · Outstanding: ${OUTSTANDING} · Run time: ${SECONDS}s"
+echo "Fixed: ${FIXED_COUNT} pkgs / ${FIXED_CVES} findings · Ignored: ${IGNORED_COUNT} · Needs Review: ${REVIEW_N} · Outstanding: ${OUTSTANDING} · Run time: ${SECONDS}s"
 
 # Results are unconfirmed when a gate we couldn't complete (build/scanner failure),
 # failing tests, or failed subagent verification leaves the fix unverified. This is
@@ -982,7 +982,7 @@ elif [[ "$COMMIT_COUNT" -gt 0 ]]; then
 
     if [[ "$GATE_REMAINING" -gt 0 ]]; then
       PR_TITLE="Partial CVE fix in ${BASE_BRANCH} ($GATE_REMAINING unresolved)"
-      echo "NOTE: $GATE_REMAINING CVE/package/location tuple(s) remain — PR title reflects a partial fix."
+      echo "NOTE: $GATE_REMAINING finding(s) remain — PR title reflects a partial fix."
     else
       PR_TITLE="Fix CVE${PLURAL} in ${BASE_BRANCH}"
     fi
