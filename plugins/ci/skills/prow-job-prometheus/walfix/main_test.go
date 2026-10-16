@@ -9,7 +9,15 @@ import (
 
 func writeWAL(t *testing.T, dir string, recs []record) {
 	t.Helper()
-	w, err := newWriter(dir)
+	writeSegment(t, filepath.Join(dir, "00000000"), recs)
+}
+
+func writeSegment(t *testing.T, path string, recs []record) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	w, err := newWriter(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,5 +100,40 @@ func TestCorruptPageDropsOnlyAffectedRecords(t *testing.T) {
 	}
 	if !bytes.Equal(got[len(got)-1].data, recs[len(recs)-1].data) {
 		t.Fatal("records after the corruption were not recovered")
+	}
+}
+
+func TestKeepsCheckpointAndSegmentNumbers(t *testing.T) {
+	in, out := t.TempDir(), t.TempDir()
+	writeSegment(t, filepath.Join(in, "checkpoint.00000004", "00000000"), []record{{data: []byte("series")}})
+	writeSegment(t, filepath.Join(in, "00000005"), []record{{data: []byte("five")}})
+	writeSegment(t, filepath.Join(in, "00000006"), []record{{data: []byte("six")}})
+	writeSegment(t, filepath.Join(in, "checkpoint.00000006.tmp", "00000000"), []record{{data: []byte("partial")}})
+	st, err := repair(in, out, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Kept != 3 {
+		t.Fatalf("unexpected stats %+v", st)
+	}
+	for path, want := range map[string]string{
+		"checkpoint.00000004/00000000": "series",
+		"00000005":                     "five",
+		"00000006":                     "six",
+	} {
+		b, err := os.ReadFile(filepath.Join(out, path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []record
+		if err := readSegment(b, &stats{}, func(r record) error { got = append(got, r); return nil }); err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || string(got[0].data) != want {
+			t.Fatalf("%s: got %v, want %q", path, got, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(out, "checkpoint.00000006.tmp")); !os.IsNotExist(err) {
+		t.Fatal("unfinished checkpoint should be skipped")
 	}
 }

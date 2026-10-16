@@ -5,7 +5,8 @@
 // contain a corrupt page early in the WAL. On startup Prometheus "repairs" this by
 // deleting every segment after the corruption, which silently throws away most of the
 // run's data. walfix instead skips the corrupt fragments, resyncs at the next page and
-// writes a clean WAL that Prometheus can replay.
+// writes a clean WAL that Prometheus can replay. Each input segment, including those in
+// checkpoint directories, becomes an output segment with the same name.
 //
 // Usage: walfix <input-wal-dir> <output-wal-dir>
 package main
@@ -17,11 +18,11 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 const (
 	pageSize    = 32 * 1024
-	segmentSize = 128 * 1024 * 1024
 	hdrSize     = 7
 	recPageTerm = 0
 	recFull     = 1
@@ -42,29 +43,18 @@ type stats struct {
 	Kept, Dropped, BadFragments int
 }
 
+// writer writes records into a single WAL segment file.
 type writer struct {
-	dir      string
-	seg      int
-	f        *os.File
-	segBytes int
-	page     []byte
+	f    *os.File
+	page []byte
 }
 
-func newWriter(dir string) (*writer, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+func newWriter(path string) (*writer, error) {
+	f, err := os.Create(path)
+	if err != nil {
 		return nil, err
 	}
-	w := &writer{dir: dir}
-	return w, w.open()
-}
-
-func (w *writer) open() error {
-	f, err := os.Create(filepath.Join(w.dir, fmt.Sprintf("%08d", w.seg)))
-	if err != nil {
-		return err
-	}
-	w.f, w.segBytes, w.page = f, 0, w.page[:0]
-	return nil
+	return &writer{f: f}, nil
 }
 
 // flushPage writes the current page, zero-padded to the full page size.
@@ -77,7 +67,6 @@ func (w *writer) flushPage() error {
 	if _, err := w.f.Write(buf); err != nil {
 		return err
 	}
-	w.segBytes += pageSize
 	w.page = w.page[:0]
 	return nil
 }
@@ -90,17 +79,6 @@ func (w *writer) close() error {
 }
 
 func (w *writer) log(r record) error {
-	// Records must not span segments, so cut a new segment if this one may not fit.
-	need := len(r.data) + hdrSize*(len(r.data)/(pageSize-hdrSize)+2)
-	if w.segBytes+len(w.page)+need > segmentSize {
-		if err := w.close(); err != nil {
-			return err
-		}
-		w.seg++
-		if err := w.open(); err != nil {
-			return err
-		}
-	}
 	data := r.data
 	first := true
 	for {
@@ -195,30 +173,59 @@ func readSegment(b []byte, st *stats, emit func(record) error) error {
 	return nil
 }
 
-func repair(in, out string, progress func(segment string, st stats)) (stats, error) {
-	var st stats
+// repairSegments rewrites every numbered segment in "in" to a segment with the same name in
+// "out". Names are kept because Prometheus replays the segments after the checkpoint by index.
+func repairSegments(in, out string, st *stats, progress func(segment string, st stats)) error {
 	names, err := filepath.Glob(filepath.Join(in, "[0-9]*"))
 	if err != nil {
-		return st, err
+		return err
 	}
 	sort.Strings(names)
-	w, err := newWriter(out)
-	if err != nil {
-		return st, err
+	if err := os.MkdirAll(out, 0o755); err != nil {
+		return err
 	}
 	for _, name := range names {
 		b, err := os.ReadFile(name)
 		if err != nil {
-			return st, err
+			return err
 		}
-		if err := readSegment(b, &st, w.log); err != nil {
-			return st, err
+		w, err := newWriter(filepath.Join(out, filepath.Base(name)))
+		if err != nil {
+			return err
+		}
+		if err := readSegment(b, st, w.log); err != nil {
+			w.f.Close()
+			return err
+		}
+		if err := w.close(); err != nil {
+			return err
 		}
 		if progress != nil {
-			progress(filepath.Base(name), st)
+			rel, _ := filepath.Rel(in, name)
+			progress(filepath.Join(filepath.Base(in), rel), *st)
 		}
 	}
-	return st, w.close()
+	return nil
+}
+
+// repair rewrites the WAL segments and any checkpoints. A checkpoint holds the series records
+// for everything created before the last head truncation; without it, samples in later
+// segments that refer to those series are dropped on replay.
+func repair(in, out string, progress func(segment string, st stats)) (stats, error) {
+	var st stats
+	checkpoints, err := filepath.Glob(filepath.Join(in, "checkpoint.*"))
+	if err != nil {
+		return st, err
+	}
+	for _, cp := range checkpoints {
+		if strings.HasSuffix(cp, ".tmp") {
+			continue // an unfinished checkpoint, which Prometheus deletes on startup
+		}
+		if err := repairSegments(cp, filepath.Join(out, filepath.Base(cp)), &st, progress); err != nil {
+			return st, err
+		}
+	}
+	return st, repairSegments(in, out, &st, progress)
 }
 
 func main() {

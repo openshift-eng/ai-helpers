@@ -100,7 +100,7 @@ The Prometheus UI at the printed URL also works for ad hoc exploration.
 | APF executing by priority level | `sum by (priority_level) (apiserver_flowcontrol_current_executing_requests)` |
 | APF queued requests | `sum by (priority_level) (apiserver_flowcontrol_current_inqueue_requests) > 0` |
 | 429 rejections | `sum by (priority_level, reason) (rate(apiserver_flowcontrol_rejected_requests_total[2m])) > 0` |
-| Request latency p99 by verb | `histogram_quantile(0.99, sum by (verb, le) (rate(apiserver_request_duration_seconds_bucket{verb!~"WATCH|CONNECT"}[2m])))` |
+| Request latency p99 by verb | `histogram_quantile(0.99, sum by (verb, le) (rate(apiserver_request_duration_seconds_bucket{verb!~"WATCH\|CONNECT"}[2m])))` |
 | Apiserver unresponsive | `up{job="apiserver"}` and `scrape_duration_seconds{job="apiserver"}` (rising scrape time, then a gap) |
 | Apiserver restarts | `process_start_time_seconds{job="apiserver"}` (a step change is a restart) |
 
@@ -165,8 +165,9 @@ The Prometheus UI at the printed URL also works for ad hoc exploration.
 ## Cleanup
 
 ```bash
-podman rm -f prow-prom-<build_id>-<replica>
-rm -rf ~/.cache/prow-prometheus/<build_id>
+BUILD_ID=<build_id> REPLICA=<replica>   # substitute the real values
+podman rm -f "prow-prom-${BUILD_ID}-${REPLICA}"
+rm -rf -- "$HOME/.cache/prow-prometheus/${BUILD_ID}"
 ```
 
 ## Related skills

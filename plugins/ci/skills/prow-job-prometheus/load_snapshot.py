@@ -248,7 +248,11 @@ def main():
         raw, data = os.path.join(work, "raw"), os.path.join(work, "data")
         if not os.path.isdir(raw):
             print(f"extracting to {raw}")
-            safe_extract(tar_path, raw)
+            # Extract to a temp dir so an interrupted extraction is never reused as complete.
+            partial = raw + ".partial"
+            shutil.rmtree(partial, ignore_errors=True)
+            safe_extract(tar_path, partial)
+            os.replace(partial, raw)
         print("repairing WAL")
         prepare_data(raw, data)
         print(f"data ready: {data}")
