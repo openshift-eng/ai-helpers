@@ -225,18 +225,19 @@ on the harness's `PATH`. For each trial the wrapper:
 - builds the container's environment from a fixed list it sets itself and
   passes none of its own, since the runner forwards `HOME`,
   `GOOGLE_APPLICATION_CREDENTIALS` and similar host values to it;
-- copies in exactly the paths prepare listed in its manifest (the
-  workspace, the bare remotes and the directory beside the workspace), at
-  the same paths, since the runner passes `--plugin-dir` and `--settings`
-  as workspace paths and the log names the sibling directory;
-- `exec`s `podman run` from a pinned image (Claude Code at the host's version,
-  git, jq, Go, Python and socat, plus the `gh` shim that only logs its
-  arguments) with `--network none`, `--read-only` except the workspace, sibling
-  directory, `HOME` and `/tmp`, a non-root user mapped to the host user
-  (`--userns=keep-id`, so it can use the proxy socket), no host mounts but one
-  Unix socket, the trial's name, and a `--timeout` below the runner's, so the
-  runner's pipes close when the agent stops (it also answers the runner's
-  `claude --version`);
+- creates per-trial named volumes (`podman volume create`) for the workspace,
+  the sibling directory, the bare remotes and `HOME`, and creates the container
+  on them (`podman create`) from a pinned image (Claude Code at the host's
+  version, git, jq, Go, Python and socat, plus the `gh` shim that only logs its
+  arguments) with `--network none`, `--read-only` except those volumes and
+  `/tmp`, a non-root user mapped to the host user (`--userns=keep-id`, so it
+  can use the proxy socket), no host mounts but one Unix socket, the trial's
+  name, and a `--timeout` below the runner's;
+- copies in exactly the paths prepare listed in its manifest, at the same
+  paths, since the runner passes `--plugin-dir` and `--settings` as workspace
+  paths and the log names the sibling directory, then `exec`s `podman start
+  --attach`, so the runner's pipes close when the agent stops (it also answers
+  the runner's `claude --version`);
 - reaches Vertex through a proxy on the host, started with `setsid`, its
   output sent to its own log so it never holds the runner's pipes, which
   lives for the trial and listens only on that socket; socat in the
@@ -252,18 +253,18 @@ on the harness's `PATH`. For each trial the wrapper:
 No credential, host path, other trial, case answer or network route exists
 inside the container, and nothing the agent writes reaches the host except
 through the copy-out below. After the trial, `after_each` kills the container
-and the proxy, then copies the container's workspace, sibling directory and
-remotes out with `podman cp` into a scratch directory, as data. The state check
-runs on that tree in a fresh container from the pinned image, with the tree
-mounted read-only and no network. It never runs git against the agent's
-configuration, whose filters and diff drivers can run commands: it builds a
-fresh `.git` from the copied objects, refs and `HEAD` with a configuration it
-writes itself and no attributes, compares the worktree to HEAD by hashing files
-without filters, and hashes the bare remotes. The host validates the check's
-JSON and fails the trial if it is missing or malformed, then writes it to the
-case's declared `outputs:` path. The container and its storage are removed,
-which also stops any process the agent left running (the runner's timeout kills
-only the wrapper).
+and the proxy, then copies the volumes' contents out with `podman cp` into a
+scratch directory, as data. The state check runs on that tree in a fresh
+container from the pinned image, with the tree mounted read-only and no
+network. It never runs git against the agent's configuration, whose filters and
+diff drivers can run commands: it builds a fresh `.git` from the copied
+objects, refs and `HEAD` with a configuration it writes itself and no
+attributes, compares the worktree to HEAD by hashing files without filters, and
+hashes the bare remotes. The host validates the check's JSON and fails the
+trial if it is missing or malformed, then writes it to the case's declared
+`outputs:` path. The container and its volumes are removed, which also stops
+any process the agent left running (the runner's timeout kills only the
+wrapper).
 
 The agent shares a user with Claude Code inside the container, so it could
 write forged events into the CLI's output. The checks therefore read the
@@ -273,14 +274,19 @@ messages and logged response; the reply is the chain's final assistant message,
 and the tool calls and any denials the model was told about are the chain's
 tool turns. A request that fits neither the chain nor a known side-call shape
 (Claude Code's small-model helper calls), or arrives after the chain ends,
-fails the trial. `after_each` writes the reply to an `outputs:` file, the
-judges read only that file (`traces.events` off, so they never see the
-forgeable stream), and `checks.py calibrate` writes its stored replies to the
-same file. The cost reported per case is the proxy's sum of token usage, priced
-on the host, since the runner's figure comes from the forgeable stream and
-misses direct proxy calls; a large gap between the two fails the trial.
-`checks.py` reads case arguments only from the dataset. Prepare drops the
-harness's subagent hook from the copied settings, since subagents are denied.
+fails the trial. `after_each` writes the reply to an `outputs:` file outside
+the `output/` directory where the harness drops `stdout.log`. Judges are
+defined with `prompt` or `prompt_file`, never `llm_rubric`, and their templates
+name only that file, never `{{ conversation }}`, `{{ tool_trace }}` or `{{
+reasoning }}`: with events off the harness fills the conversation from the raw
+stream, and `llm_rubric` appends it automatically. `checks.py lint` enforces
+this, and `checks.py calibrate` writes its stored replies to the same file, so
+the prompt calibrated is the prompt that scores. The cost reported per case is
+the proxy's sum of token usage, priced on the host, since the runner's figure
+comes from the forgeable stream and misses direct proxy calls; a large gap
+between the two fails the trial. `checks.py` reads case arguments only from the
+dataset. Prepare drops the harness's subagent hook from the copied settings,
+since subagents are denied.
 
 The eval file's `permissions.deny`, which the harness writes into the
 workspace settings, blocks `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web
