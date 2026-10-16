@@ -8,8 +8,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Fixture go.mod files declare up to this version and run with GOTOOLCHAIN=local.
-MIN_GO = (1, 26)
+# Oldest Go the suite passes on with GOTOOLCHAIN=local; Go 1.22 fails the
+# packed-binary checks.
+MIN_GO = (1, 24)
 
 
 def missing_prerequisite():

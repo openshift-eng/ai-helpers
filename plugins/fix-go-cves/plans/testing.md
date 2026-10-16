@@ -19,10 +19,25 @@ gets an eval case. No case is written speculatively.
 
 ## 1. Run the existing suite in CI
 
-`make test` skips the suite on GitHub runners because they lack Go 1.26, so
-none of the 2,300 checks gate a PR today. Adding `actions/setup-go` to
-`.github/workflows/test.yml` closes the largest gap without new tests. It
-belongs in its own PR, since `.github` needs admin approval.
+`make test` already runs every plugin's `test_*.py`, this suite included.
+It would have skipped only because its wrapper demanded Go 1.26. The suite
+passes on Go 1.24 (1.22 fails four packed-binary checks), so the floor is
+now 1.24. Two gaps remain, both closable inside the plugin:
+
+- **Go on GitHub runners.** `ubuntu-24.04` caches Go 1.24 to 1.26 but puts
+  none on `PATH` until `setup-go` runs. The wrapper can use the newest
+  suitable Go under `$RUNNER_TOOL_CACHE/go/`.
+- **Cost.** The suite takes about 3 minutes, and the repository's whole Test
+  job takes under 1 minute today. In a pull request, the wrapper can skip
+  unless the PR touches `plugins/fix-go-cves/`, comparing against the base
+  commit named in `$GITHUB_EVENT_PATH`. Pushes to main always run it.
+
+If maintainers prefer scoping in CI configuration, the repository's own
+pattern is a Prow job with `run_if_changed: ^plugins/fix-go-cves/` in
+openshift/release, like the existing `eval-*-changed` jobs; its image would
+need `jq`. Adding `setup-go` to `.github/workflows/test.yml` is the last
+resort: it is repo-wide, needs admin approval, and every PR pays the
+minutes.
 
 ## 2. Evaluate the skill layer
 
@@ -173,8 +188,15 @@ evals/
 - Read failing transcripts (`/eval-review` or `inspect view`) before
   changing `SKILL.md`. A failure can be the case's fault as easily as the
   skill's.
-- Not in CI: it needs model credentials and spends money. Run it before
-  changing `SKILL.md`, the review prompts or the default model.
+- In CI, use the repository's existing Prow eval jobs, which run the shared
+  `openshift-claude-agent-eval` workflow with CI's Vertex credentials and
+  the `claude-ai-helpers` image (Claude Code and a pinned Codex). Add an
+  optional `eval-fix-go-cves` job, run on demand with
+  `/test eval-fix-go-cves`, and an `-changed` variant with
+  `run_if_changed: ^plugins/fix-go-cves/evals/cases/`. That workflow clones
+  the harness at `main`; local runs pin it. Inspect stays local.
+- Run it before changing `SKILL.md`, the review prompts or the default
+  model.
 
 ### To confirm when building
 
