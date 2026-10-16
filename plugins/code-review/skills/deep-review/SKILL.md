@@ -229,15 +229,18 @@ Launch **all enabled specialist sub-agents in a single message** so
 they run concurrently, using the Agent tool with
 `run_in_background: true`.
 
-Resolve specialist prompts from the skill directory (repository
-root relative):
-`plugins/code-review/skills/deep-review/references/specialists/{specialist}.md`.
-Do not use a bare `references/specialists/...` path — agents may
-not share the skill's working directory.
+Resolve specialist prompts relative to the directory containing this installed
+`SKILL.md`:
+`<installed-skill-directory>/references/specialists/{specialist}.md`.
+For Codex, `<installed-skill-directory>` is
+`/workspace/.agents/skills/deep-review`; for Claude, it is
+`/workspace/.claude/skills/deep-review`. Do not use a bare
+`references/specialists/...` path — agents may not share the skill's working
+directory.
 
 Each sub-agent gets:
 - The prompt: "You are a {specialist}. Read
-  `plugins/code-review/skills/deep-review/references/specialists/{specialist}.md`
+  `<installed-skill-directory>/references/specialists/{specialist}.md`
   for your review instructions."
 - The merge base ref
 - The PR number or branch name being reviewed
@@ -265,7 +268,7 @@ mode — the no-sub-agent constraint applies only to specialists.)
 
 Then for each specialist in roster order, state the specialist name
 as a heading, read
-`plugins/code-review/skills/deep-review/references/specialists/{specialist}.md`
+`<installed-skill-directory>/references/specialists/{specialist}.md`
 for review instructions, review through that lens, and produce
 findings in the same JSON format. Context from earlier specialists'
 file reads and findings carries over automatically.
