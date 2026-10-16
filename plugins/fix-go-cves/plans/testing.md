@@ -96,7 +96,7 @@ cases (the repository lint requires it), `run.sh`, `checks.py`,
 | Case | Recording | Decision |
 | --- | --- | --- |
 | 001 | lighthouse: license | Backports devel's cdc3003 |
-| 002 | submariner: partial | Relays the PR; names the image owner |
+| 002 | submariner: partial | Relays the PR; names who decides the image |
 | 003 | cloud-prepare: clean | Flagged lines need no action |
 | 004 | subctl: `bin/lichen` | No team decision for the blocked bumps |
 | 005 | admiral: govet | Backports devel's 8234df0 |
@@ -204,29 +204,48 @@ the same author, so publishing them adds nothing sensitive.
 4. **Commits.** Commits in `annotations.yaml` appear in the reply, matched
    by a prefix of at least seven characters.
 
-The judged facts are binary criteria per case that need reasoning the
-recorded log does not hand over, such as "the x/net, grpc and otel/sdk bumps
-were skipped because the scan was blocked, and need no team decision". A
-pooled threshold would let one case fail every trial while the rest pass, so
-`checks.py summarize` requires every case to pass its deterministic checks
-in all three rounds and its facts in at least two. `checks.py` reads case
-arguments only from the dataset, never from a workspace file the agent could
-have written.
+The judged facts are binary criteria per case that need reasoning the recorded
+log does not hand over, such as "the x/net, grpc and otel/sdk bumps were
+skipped because the scan was blocked, and need no team decision". 002's accepts
+"the team" or the Shipyard image maintainers, as `SKILL.md` asks for the team
+decision. Each case also lists the summary's flagged items in
+`annotations.yaml`, with one criterion that every listed item gets an action
+and an owner and that nothing recommended contradicts the annotations, so a
+reply cannot pass on its headline decision alone. Criteria judges use `samples:
+3`, which the harness majority-votes. A trial passes its facts only if every
+criterion passes. A pooled threshold would let one case fail every trial while
+the rest pass, so `checks.py summarize` requires every case to pass its
+deterministic checks in all three rounds and its facts in at least two. A case
+at exactly two of three, or failing, gets three more trials each with the old
+and the new `SKILL.md`, and the change is accepted only if the new one does no
+worse. `summarize` marks a trial ERROR, rerun and not counted, when the cause
+is the harness, the proxy's own failure or a judge error rather than the
+agent's state, reply or tool calls; a proxy rejection of a forbidden request
+stays a failure, and a case that keeps erroring is reported as such. The cases
+were also used to tune `SKILL.md` (its license wording came from 001 and 006),
+so they guard against regressions, not prove the skill generalizes; a new
+recording stays out of skill tuning until it has been scored. `checks.py` reads
+case arguments only from the dataset, never from a workspace file the agent
+could have written.
 
 ### Calibration
 
 `checks.py calibrate` runs the harness's own judges (`score.py judges`) on
 synthetic trials whose reply file holds a stored reply, laid out as
-`collect.py` lays out a real trial, so the prompt calibrated is the prompt
-that scores. It must pass each `reply.md` and fail
-each negative on the criterion it names before any agent is scored. The harness
-finds criteria by the trial directory's name, so each stored reply is its own
-run, under `cases/<case-id>/`, scored with a config holding only the criteria
-judges; `calibrate` reads the verdicts from each run's `summary.yaml` and
-ignores the exit code, which negatives always fail. Rerun it when criteria or
-the judge model change. Criteria stay neutral on whether a Go directive raise
-needs the team, because the plugin and the repositories' own workflow notes
-disagree (see [Decisions](README.md#decisions)).
+`collect.py` lays out a real trial, so the prompt calibrated is the prompt that
+scores. It must pass each `reply.md` and fail each negative on the criterion it
+names before any agent is scored. The harness finds criteria by the trial
+directory's name, so each stored reply is its own run, under
+`cases/<case-id>/`, scored with a config holding only the criteria judges;
+`calibrate` reads the verdicts from each run's `summary.yaml` and ignores the
+exit code, which negatives always fail. Every verdict must be stable across the
+three samples, and an errored verdict fails calibration. The first baseline
+round's replies are labelled by hand, the correct ones become extra positives
+(especially for 004 and 006, whose references are hand-written), and the labels
+are compared with the judges' verdicts once. Rerun it when criteria, the judge
+model or a recording change. Criteria stay neutral on whether a Go directive
+raise needs the team, because the plugin and the repositories' own workflow
+notes disagree (see [Decisions](README.md#decisions)).
 
 ### Running
 
@@ -234,9 +253,15 @@ Accept a `SKILL.md` or model change on three rounds. Read failing sessions
 before changing anything, since a case can be wrong too, and rerun a failing
 case with the old `SKILL.md` before blaming the change. A change to
 `scripts/review-prompt.md` or to `fix-all.sh` output is not exercised by
-replay: it means re-recording the cases whose logs it changes; for the
-review prompt, every case whose log has `UNRESOLVED:` lines (001, 002, 004
-and 006).
+replay: it means re-recording the cases whose logs it changes; for the review
+prompt, every case whose log has `UNRESOLVED:` lines (001, 002, 004 and 006). A
+re-recording starts from the pinned base with the same stubs, but the Grype
+database, the build image tag and the bugs a case depends on (006's false
+policy boundary) are not pinned, so a new recording replaces a case only if it
+reproduces the case's decision; otherwise the old recording stays and the plan
+records that the change is not covered by replay. After a re-recording,
+regenerate the commits, PR command, reference and negatives, and rerun
+calibration.
 
 ### Threat model
 
