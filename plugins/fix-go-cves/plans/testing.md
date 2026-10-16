@@ -22,8 +22,8 @@ eval case. No case is written speculatively.
 skipped because its wrapper demanded Go 1.26; the suite passes on Go 1.24
 (1.22 fails four packed-binary checks), and GitHub's `ubuntu-24.04` runners
 put Go 1.24 on `PATH` (the Test job uses `ubuntu-latest`, currently 24.04).
-With the floor at 1.24, the existing Test job runs it. The wrapper fails
-instead of skipping when `CI` is set, so a runner image without Go cannot
+With the floor at 1.24, the existing Test job runs it. When `CI` is set, the
+wrapper fails instead of skipping, so a runner image without Go cannot
 silently drop the suite.
 
 That adds about 3 minutes (measured locally) to a job that takes under 1
@@ -80,6 +80,8 @@ Each case directory holds:
 - `reply.md`: the reference reply;
 - `negatives/`: the recorded wrong reply, where one exists, and one-fact
   edits of the reference;
+- `reports/`: report directories the log names, where the recording kept
+  them (subctl's), with home paths stored as placeholders;
 - `plugin.tar.gz`: the plugin as it was at that commit, without `test/`
   (about 110 KB). The commits live only on the PR branch, which a rebase or
   squash would rewrite.
@@ -87,8 +89,9 @@ Each case directory holds:
 Files are copied by allowlist. Agent transcripts stay out: their first
 record lists the recording user's connectors, plugins and memory paths.
 Hermetic tests fail on a transcript, a `/home/` or `/run/user/` path
-anywhere under `evals/cases/` (decompressing `.gz` files first), or a log
-missing what `SKILL.md` reads. The bundles and PR commands keep the
+anywhere under `evals/cases/` (decompressing `.gz` files first, and
+reading each bundle's commits on top of its base), or a log missing what
+`SKILL.md` reads. The bundles and PR commands keep the
 recording author's name and fork. Three bundles (004, 005, 006) hold
 commits that were never pushed, but they contain only `go.mod`, `go.sum`
 and `.grype.yaml` edits by the same author, so publishing them adds nothing
@@ -102,8 +105,10 @@ rate:
    clean worktree, untracked and ignored files unchanged, bare remotes
    unchanged, an empty `gh` log, and no attempted or denied push, `gh`,
    stash or clean in the transcript. The harness's own files are excluded.
-   A tool input that names a path outside the trial's `TMPDIR` voids the
-   trial, since it may have reached an answer.
+   A tool input that names a protected root voids the trial, since it may
+   have reached an answer: the real home directory, the ai-helpers
+   checkout (which holds the clone cache and the case sources), the
+   harness's runs directory, or another trial's `TMPDIR`.
 2. **One run.** The script ran once, for the requested branch.
 3. **PR command.** If the log printed one, a code block in the reply holds
    the same command, compared as shell-parsed tokens with continuations
@@ -153,8 +158,9 @@ for a cold clone), turns into the case repository:
   `permissions.additionalDirectories`, which grants read access to the
   directory the harness runs from.
 - **Build the repository.** Prepare fetches only the pinned commits, with
-  no tags, from a clone cache outside the workspace (warmed by
-  `before_all`) into a fresh repository and fresh bare remotes, so no later
+  no tags, from a clone cache under ai-helpers' `.work/` (warmed by
+  `before_all`, and inside a path the sandbox denies, since it holds the
+  full history) into a fresh repository and fresh bare remotes, so no later
   history (such as the merged CVE PRs, which contain the backports cases
   001 and 005 look for) is reachable. It checks out the branch the
   recording started from and points every remote at a bare remote. A
@@ -165,8 +171,9 @@ for a cold clone), turns into the case repository:
   workspace.
 - **Restore what the recording saw.** Untracked files as stubs (for subctl,
   an empty `bin/lichen`; `go version` on it disagrees with the log, so
-  criteria rely on the log, not the file), and report directories the log
-  names, where the recording kept them.
+  criteria rely on the log, not the file), and the case's `reports/`,
+  unpacked inside the trial's `TMPDIR` at the paths the preamble writes
+  into the log.
 - **Stage the plugin.** Prepare unpacks the case's `plugin.tar.gz` into
   `.staged-plugins/fix-go-cves`, where the runner reuses an existing copy.
   It is the plugin that produced the log, not today's: current scripts
@@ -192,20 +199,20 @@ narration and the log itself. `checks.py calibrate` writes its synthetic
 trials in the same form.
 
 **Isolation.** `evals/run.sh` invokes the harness once per trial, each time
-with a fresh `TMPDIR` (where the harness puts workspaces, with no
-`CLAUDE.md` above it), a fresh `HOME`, and `PATH` starting with a `gh` shim
-that only logs its arguments; it deletes the workspace after collecting
-results. The claude-code runner passes the agent only `runner.env` and a
-short host allowlist that includes `HOME` and `PATH` but not `TMPDIR`, so
+with a fresh `TMPDIR` (where the harness puts workspaces, with no `CLAUDE.md`
+above it), a fresh `HOME` inside that `TMPDIR`, and `PATH` starting with a `gh`
+shim that only logs its arguments; it deletes the workspace after collecting
+results. The claude-code runner passes the agent only `runner.env` and a short
+host allowlist that includes `HOME` and `PATH` but not `TMPDIR`, so
 `runner.env` carries `TMPDIR: "$TMPDIR"`, which the harness resolves from
-`run.sh`'s environment. That keeps the user's `CLAUDE.md`, memory, plugins
-and credentials out of the agent's default view, but environment variables
-do not stop a command from reading an absolute path: the answers, the
-recording repositories, earlier trials and `~/.ssh` are all on the same
-host. `runner.settings` therefore enables Claude Code's sandbox, with no
-unsandboxed fallback, and denies reads of the real home directory and the
-ai-helpers checkout; check 1 voids any trial that reaches outside its
-`TMPDIR` anyway. `runner.env` also sets:
+`run.sh`'s environment. That keeps the user's `CLAUDE.md`, memory, plugins and
+credentials out of the agent's default view, but environment variables do not
+stop a command from reading an absolute path: the answers, the clone cache, the
+recording repositories, earlier trials and `~/.ssh` are all on the same host.
+`runner.settings` therefore enables Claude Code's sandbox, with no unsandboxed
+fallback, and denies reads of the real home directory and the ai-helpers
+checkout; check 1 voids any trial that names a protected root anyway.
+`runner.env` also sets:
 
 - `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0` and
   `GIT_ALLOW_PROTOCOL=file`, so git cannot fetch a newer upstream than the
@@ -220,7 +227,9 @@ tools and subagents, so check 1 has denials to find. A hermetic test checks
 that a prepared workspace has no path into ai-helpers.
 
 **To confirm when building:** that Claude Code's sandbox read rules stop
-Bash, not only the Read tool, from reading the denied paths on Linux; that
+Bash, not only the Read tool, from reading the denied paths on Linux, and
+that the sandbox leaves the trial's `TMPDIR` writable for the skill's log;
+that
 prepare fits its 900-second hook timeout from a cold cache; and the cost of
 one trial, to set the per-case budget.
 

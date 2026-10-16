@@ -28,6 +28,10 @@ def missing_prerequisite():
 def main():
     reason = missing_prerequisite()
     if reason:
+        # In CI a missing prerequisite would silently drop the suite; fail instead.
+        if os.environ.get("CI"):
+            print(f"FAIL: fix-go-cves shell suite cannot run in CI: {reason}")
+            return 1
         print(f"SKIP: fix-go-cves shell suite: {reason}")
         return 0
     suite = Path(__file__).with_name("test-lib.sh")
