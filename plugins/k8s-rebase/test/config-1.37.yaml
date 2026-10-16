@@ -1,0 +1,22 @@
+version: "1.37.1"
+max_concurrent: 1
+model: claude-sonnet-5-5
+
+# Exploration baselines resolved on 2026-09-24, all at Kubernetes 1.36.2.
+# Target patch 1.37.1 was released on 2026-09-23; earlier trials used 1.37.0.
+# These are NOT known-good 1.37 results. Court stays unqualified until an
+# independently reviewed 1.37 reference is configured for each repository.
+# OpenShift consumers start at release-5.1; upstream OVN/MCP at master/main.
+repos:
+  ovn-org/ovn-kubernetes:
+    from_commit: d13564c72d454e3bb1b0fded6e863cf626d1340a
+  ovn-kubernetes/ovn-kubernetes-mcp:
+    from_commit: 858f54cf9af4470909348f0f99bef2c705d12ca5
+  openshift/multus-cni:
+    from_commit: f046826640baf19d335411b2116fe8d2124158d3
+  openshift/ingress-node-firewall:
+    from_commit: 70fc27b2bfecc0209b8a242cb410c6064b3d68a0
+  openshift/cloud-network-config-controller:
+    from_commit: d3b5de705d133ad568e37b8ccf027d5ccd5e7d38
+  openshift/cluster-network-operator:
+    from_commit: 61de77e4d4c4f65cd5b3d73e00308bfe837c1066
