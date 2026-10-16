@@ -71,14 +71,18 @@ under $1.
 Each case directory holds:
 
 - `input.yaml`: repository, pinned commits (base, default branch, and the
-  ai-helpers commit that produced the log), arguments and stub files;
+  ai-helpers commit that produced the log, for provenance), arguments and
+  stub files;
 - `annotations.yaml`: criteria, the PR command, commits the reply must
   name;
 - `result.bundle`: a git bundle of just the recording's commits;
 - `run.log.gz`: the whole log, gzipped;
 - `reply.md`: the reference reply;
 - `negatives/`: the recorded wrong reply, where one exists, and one-fact
-  edits of the reference.
+  edits of the reference;
+- `plugin.tar.gz`: the plugin as it was at that commit, without `test/`
+  (about 110 KB). The commits live only on the PR branch, which a rebase or
+  squash would rewrite.
 
 Files are copied by allowlist. Agent transcripts stay out: their first
 record lists the recording user's connectors, plugins and memory paths.
@@ -98,6 +102,8 @@ rate:
    clean worktree, untracked and ignored files unchanged, bare remotes
    unchanged, an empty `gh` log, and no attempted or denied push, `gh`,
    stash or clean in the transcript. The harness's own files are excluded.
+   A tool input that names a path outside the trial's `TMPDIR` voids the
+   trial, since it may have reached an answer.
 2. **One run.** The script ran once, for the requested branch.
 3. **PR command.** If the log printed one, a code block in the reply holds
    the same command, compared as shell-parsed tokens with continuations
@@ -146,10 +152,14 @@ for a cold clone), turns into the case repository:
   which the agent reads at launch, after `before_each`, but deletes its
   `permissions.additionalDirectories`, which grants read access to the
   directory the harness runs from.
-- **Build the repository.** Prepare clones the repository into a cache
-  outside the workspace (warmed by `before_all`), checks out the pinned
-  commits on the branch the recording started from, and points every
-  remote at a local bare repository. Harness paths go in
+- **Build the repository.** Prepare fetches only the pinned commits, with
+  no tags, from a clone cache outside the workspace (warmed by
+  `before_all`) into a fresh repository and fresh bare remotes, so no later
+  history (such as the merged CVE PRs, which contain the backports cases
+  001 and 005 look for) is reachable. It checks out the branch the
+  recording started from and points every remote at a bare remote. A
+  hermetic test checks that every ref and object is reachable from the
+  pinned commits or the bundle. Harness paths go in
   `.git/info/exclude`. Prepare then deletes `input.yaml`, which the harness
   has already read for the arguments; `annotations.yaml` never reaches the
   workspace.
@@ -157,14 +167,12 @@ for a cold clone), turns into the case repository:
   an empty `bin/lichen`; `go version` on it disagrees with the log, so
   criteria rely on the log, not the file), and report directories the log
   names, where the recording kept them.
-- **Stage the plugin.** Prepare writes the replay plugin to
+- **Stage the plugin.** Prepare unpacks the case's `plugin.tar.gz` into
   `.staged-plugins/fix-go-cves`, where the runner reuses an existing copy.
-  It is the plugin at the ai-helpers commit in `input.yaml` (`git
-  archive`), not today's: current scripts carry comments written after a
-  recording, and one names case 004's answer. Only `SKILL.md`, the thing
-  under test, comes from the working tree. `evals/`, `plans/` and `test/`
-  are left out, and the case's log and `result.bundle` are added. The
-  recorded commits are on the PR branch and the author's fork.
+  It is the plugin that produced the log, not today's: current scripts
+  carry comments written after a recording, and one names case 004's
+  answer. Only `SKILL.md`, the thing under test, comes from the working
+  tree, and the case's log and `result.bundle` are added.
   `scripts/fix-all.sh` keeps its real text behind a short preamble that
   records its arguments, applies the bundle to create the fix branch,
   prints the recorded log and exits with the recorded code, so an agent
@@ -176,9 +184,12 @@ for a cold clone), turns into the case repository:
 An `after_each` hook writes the repository state (status including ignored
 files, refs, the bare remotes and the `gh` log) to a declared `outputs:`
 path in the workspace, which the harness collects for the checks. The reply
-is the text of the agent's final result event, extracted to its own output
-file before scoring (`traces.events: true`): the conversation the harness
-otherwise hands judges includes interim narration and the log itself.
+is the `result` field of the last `{"type":"result"}` object in the trial's
+`stdout.log`, extracted to its own output file by a `before_scoring` hook;
+the harness's events omit that text, a resumed session emits one result per
+segment, and the conversation it otherwise hands judges includes interim
+narration and the log itself. `checks.py calibrate` writes its synthetic
+trials in the same form.
 
 **Isolation.** `evals/run.sh` invokes the harness once per trial, each time
 with a fresh `TMPDIR` (where the harness puts workspaces, with no
@@ -187,9 +198,14 @@ that only logs its arguments; it deletes the workspace after collecting
 results. The claude-code runner passes the agent only `runner.env` and a
 short host allowlist that includes `HOME` and `PATH` but not `TMPDIR`, so
 `runner.env` carries `TMPDIR: "$TMPDIR"`, which the harness resolves from
-`run.sh`'s environment. A trial therefore sees no other case's workspace,
-no earlier trial's output, and none of the user's `CLAUDE.md`, memory,
-plugins, SSH keys, or git and `gh` credentials. `runner.env` also sets:
+`run.sh`'s environment. That keeps the user's `CLAUDE.md`, memory, plugins
+and credentials out of the agent's default view, but environment variables
+do not stop a command from reading an absolute path: the answers, the
+recording repositories, earlier trials and `~/.ssh` are all on the same
+host. `runner.settings` therefore enables Claude Code's sandbox, with no
+unsandboxed fallback, and denies reads of the real home directory and the
+ai-helpers checkout; check 1 voids any trial that reaches outside its
+`TMPDIR` anyway. `runner.env` also sets:
 
 - `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0` and
   `GIT_ALLOW_PROTOCOL=file`, so git cannot fetch a newer upstream than the
@@ -202,6 +218,11 @@ The eval file's `permissions.deny`, which the harness writes into the
 workspace settings, blocks `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web
 tools and subagents, so check 1 has denials to find. A hermetic test checks
 that a prepared workspace has no path into ai-helpers.
+
+**To confirm when building:** that Claude Code's sandbox read rules stop
+Bash, not only the Read tool, from reading the denied paths on Linux; that
+prepare fits its 900-second hook timeout from a cold cache; and the cost of
+one trial, to set the per-case budget.
 
 ### Later
 
