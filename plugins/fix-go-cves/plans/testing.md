@@ -207,6 +207,15 @@ for a cold clone), turns into the case repository:
   itself), which it fills with a directory beside the workspace. The log's
   own `exit=` line is dropped, since `SKILL.md` appends one.
 
+**Threat model.** Two tiers. The host, its credentials and network, other
+trials and the data later committed must stay out of reach even of a hostile
+agent, so the agent runs in a container that holds none of them. Within its own
+trial the agent could still try to game its score; cheap structural guards
+(state from checker-owned tooling, the reply and cost from the proxy's record)
+stop opportunistic gaming, and reading failing and surprising transcripts
+catches the rest. A deliberately forged pass on one trial is an accepted risk
+for a six-case regression eval of a skill we own.
+
 **Isolation: the agent runs in a throwaway container.** The harness stays on
 the host, so its `claude-code` runner still reports cost, tokens and model,
 and its judges keep the host's own credentials. The agent does not. The
@@ -220,20 +229,21 @@ on the harness's `PATH`. For each trial the wrapper:
   workspace, the bare remotes and the directory beside the workspace), at
   the same paths, since the runner passes `--plugin-dir` and `--settings`
   as workspace paths and the log names the sibling directory;
-- `exec`s `podman run` from a pinned image (Claude Code at the host's
-  version, git, jq, Go, Python and socat, plus the `gh` shim that only logs
-  its arguments) with `--network none`, `--read-only` except the workspace,
-  sibling directory, `HOME` and `/tmp`, a non-root user, no host mounts but
-  one Unix socket, the trial's name, and a `--timeout` below the runner's,
-  so the runner's pipes close when the agent stops (it also answers the
-  runner's `claude --version`);
+- `exec`s `podman run` from a pinned image (Claude Code at the host's version,
+  git, jq, Go, Python and socat, plus the `gh` shim that only logs its
+  arguments) with `--network none`, `--read-only` except the workspace, sibling
+  directory, `HOME` and `/tmp`, a non-root user mapped to the host user
+  (`--userns=keep-id`, so it can use the proxy socket), no host mounts but one
+  Unix socket, the trial's name, and a `--timeout` below the runner's, so the
+  runner's pipes close when the agent stops (it also answers the runner's
+  `claude --version`);
 - reaches Vertex through a proxy on the host, started with `setsid`, its
   output sent to its own log so it never holds the runner's pipes, which
   lives for the trial and listens only on that socket; socat in the
   container turns the socket back into a local port. The proxy adds the
   bearer token from the host's credentials, forwards only the Anthropic
-  model paths for the configured project, caps requests and bytes (the
-  agent could call it directly), and logs every request and response.
+  model paths for the configured project, caps tokens per trial (the agent
+  could call it directly), and logs every request and response.
   Inside the container, Claude Code gets `CLAUDE_CODE_SKIP_VERTEX_AUTH=1`
   and `ANTHROPIC_VERTEX_BASE_URL` pointing at that port, a pattern the
   runner already supports for agentic-ci; both stay out of the harness's
@@ -241,26 +251,36 @@ on the harness's `PATH`. For each trial the wrapper:
 
 No credential, host path, other trial, case answer or network route exists
 inside the container, and nothing the agent writes reaches the host except
-through the copy-out below. After the trial, `after_each` kills the
-container and the proxy, then copies the container's workspace, sibling
-directory and remotes out with `podman cp` into a scratch directory, as
-data. The state check runs on that tree in a fresh container from the
-pinned image, with the tree mounted read-only, no network, and git run with
-`-c core.fsmonitor=false -c core.hooksPath=/dev/null` and system and global
-configuration off; it hashes the bare remotes instead of running git in
-them. Its JSON goes to the case's declared `outputs:` path, and the
-container and its storage are removed, which also stops any process the
-agent left running (the runner's timeout kills only the wrapper).
+through the copy-out below. After the trial, `after_each` kills the container
+and the proxy, then copies the container's workspace, sibling directory and
+remotes out with `podman cp` into a scratch directory, as data. The state check
+runs on that tree in a fresh container from the pinned image, with the tree
+mounted read-only and no network. It never runs git against the agent's
+configuration, whose filters and diff drivers can run commands: it builds a
+fresh `.git` from the copied objects, refs and `HEAD` with a configuration it
+writes itself and no attributes, compares the worktree to HEAD by hashing files
+without filters, and hashes the bare remotes. The host validates the check's
+JSON and fails the trial if it is missing or malformed, then writes it to the
+case's declared `outputs:` path. The container and its storage are removed,
+which also stops any process the agent left running (the runner's timeout kills
+only the wrapper).
 
 The agent shares a user with Claude Code inside the container, so it could
-write forged events into the CLI's output. The checks therefore take the
-reply and the tool calls, including any denial the model was told about,
-from the proxy's log, which the agent cannot reach; the reply is the
-model's final assistant message. `stdout.log` serves only the harness's
-own metrics. `checks.py calibrate` writes its synthetic trials in the same
-form, and `checks.py` reads case arguments only from the dataset. Prepare
-drops the harness's subagent hook from the copied settings, since
-subagents are denied.
+write forged events into the CLI's output. The checks therefore read the
+session from the proxy's log instead. The main conversation is the chain of
+requests in which each request's messages extend the previous request's
+messages and logged response; the reply is the chain's final assistant message,
+and the tool calls and any denials the model was told about are the chain's
+tool turns. A request that fits neither the chain nor a known side-call shape
+(Claude Code's small-model helper calls), or arrives after the chain ends,
+fails the trial. `after_each` writes the reply to an `outputs:` file, the
+judges read only that file (`traces.events` off, so they never see the
+forgeable stream), and `checks.py calibrate` writes its stored replies to the
+same file. The cost reported per case is the proxy's sum of token usage, priced
+on the host, since the runner's figure comes from the forgeable stream and
+misses direct proxy calls; a large gap between the two fails the trial.
+`checks.py` reads case arguments only from the dataset. Prepare drops the
+harness's subagent hook from the copied settings, since subagents are denied.
 
 The eval file's `permissions.deny`, which the harness writes into the
 workspace settings, blocks `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web
@@ -275,9 +295,10 @@ harness nor the wrapper.
 `ANTHROPIC_VERTEX_BASE_URL` and the proxy; that the wrapper passes the runner's
 stream-json through unchanged, including for resumed sessions; that the reply
 and tool calls can be read back from the proxy's log of streamed responses;
-that rootless podman runs the container on the target hosts; that prepare fits
-its 900-second hook timeout from a cold cache; and the cost of one trial, to
-set the per-case budget.
+that rootless podman runs the container on the target hosts, and that the
+container user can connect to the proxy socket under `--userns=keep-id`; that
+prepare fits its 900-second hook timeout from a cold cache; and the cost of one
+trial, to set the per-case budget.
 
 ### Later
 
