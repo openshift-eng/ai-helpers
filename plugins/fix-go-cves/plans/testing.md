@@ -34,15 +34,16 @@ wrapper.
 ## 2. Evaluate the skill
 
 On release-0.24 the skill found a default-branch fix to backport for a license
-failure (lighthouse) and traced stdlib findings to the build image. It also
-relayed a wrong verdict from `review.sh`'s model review unchecked: "team input"
-for three subctl bumps that a leftover `bin/lichen` binary had blocked
-(`scripts/review-prompt.md` forces every open reason into "team input"; see
-[Correctness](README.md#correctness)). In an earlier lighthouse run it missed
-the backport and suggested allowing the license instead, though it correctly
-tied that run's unexplained x/crypto "policy boundary" verdict to the Go 1.26
-raise. `SKILL.md` asks the skill to investigate each flagged line, so a case
-may require it to reject or explain such a verdict.
+failure (lighthouse) and traced stdlib findings to the build image. In subctl
+it found the leftover `bin/lichen` binary that had blocked the scan and cleared
+the x/net bump for a rerun, but still sent the grpc and otel/sdk bumps to the
+team, repeating `review.sh`'s "team input" verdict for bumps the blocked scan
+had skipped (`scripts/review-prompt.md` forces every open reason into "team
+input"; see [Correctness](README.md#correctness)). In an earlier lighthouse run
+it missed the backport and suggested allowing the license instead, though it
+correctly tied that run's unexplained x/crypto "policy boundary" verdict to the
+Go 1.26 raise. `SKILL.md` asks the skill to investigate each flagged line, so a
+case may require it to reject or explain such a verdict.
 
 Terms: a **recording** is the release-0.24 `fix-all.sh` run a case is built
 from; a **trial** is one harness invocation on one case; a **round** is one
@@ -70,7 +71,7 @@ the cases (the repository lint requires it), `run.sh`, `checks.py`,
 | 001 | lighthouse: license | Backports devel's cdc3003 |
 | 002 | submariner: partial | Relays the PR; names the image owner |
 | 003 | cloud-prepare: clean | Flagged lines need no action |
-| 004 | subctl: `bin/lichen` | Blames the leftover, not the bumps |
+| 004 | subctl: `bin/lichen` | No team decision for the blocked bumps |
 | 005 | admiral: govet | Backports devel's 8234df0 |
 | 006 | lighthouse: x/crypto | Explains the boundary; backports cdc3003 |
 
@@ -120,8 +121,9 @@ rate:
    have reached an answer: an absolute path token, read after dropping
    shell defaults such as the `/tmp` in `${TMPDIR:-/tmp}`, that resolves
    under `/home`, `/tmp`, `/var/tmp` or `/run/user` outside the trial's own
-   directory. A calibration fixture holding `SKILL.md`'s exact commands
-   must pass.
+   directory and is not printed verbatim in the case's log (logs name
+   build and test paths under `/tmp`). A calibration fixture holding
+   `SKILL.md`'s exact commands must pass.
 2. **One run.** The script ran once, for the requested branch.
 3. **PR command.** If the log printed one, a code block in the reply holds
    the same command, compared as shell-parsed tokens with continuations
@@ -131,8 +133,8 @@ rate:
    by a prefix of at least seven characters.
 
 The judged facts are binary criteria per case that need reasoning the log
-does not hand over, such as "the x/net and grpc bumps were skipped because
-the scan was blocked, and need no team decision". A pooled threshold would
+does not hand over, such as "the x/net, grpc and otel/sdk bumps were skipped
+because the scan was blocked, and need no team decision". A pooled threshold would
 let one case fail every trial while the rest pass, so `checks.py summarize`
 reads the three rounds and requires every case to pass its deterministic
 checks in all three and its facts in at least two. A voided trial counts as
@@ -143,21 +145,24 @@ judges`) on synthetic trials whose final result is a stored reply, so the
 scoring prompt is the one calibrated. It must pass each `reply.md` and fail
 each negative before any agent is scored; rerun it when criteria or the judge
 model change. References for 004 and 006 are written by hand, since their
-recorded replies are wrong, and 005's is edited. 006 is a separate, earlier
-lighthouse run that hit the same license failure, so it carries 001's backport
-criterion, which its recorded reply fails. Its own criterion passes a reply
-that ties the x/crypto "policy boundary" to the Go 1.26 raise or shows the scan
-clean, and fails one that relays it as needing team input; a constructed
-negative of that kind covers it. Criteria stay neutral on whether a Go
-directive raise needs the team: the plugin and the repositories' own workflow
-notes disagree (see [Decisions](README.md#decisions)).
+recorded replies are wrong, and 005's is edited to drop its claim that the Go
+1.26 raise is the team's call, since criteria stay neutral on that. 006 is a
+separate, earlier lighthouse run that hit the same license failure, so it
+carries 001's backport criterion, which its recorded reply fails. Its own
+criterion passes a reply that ties the x/crypto "policy boundary" to the Go
+1.26 raise or shows the scan clean, and fails one that relays it as needing
+team input; a constructed negative of that kind covers it. Criteria stay
+neutral on whether a Go directive raise needs the team: the plugin and the
+repositories' own workflow notes disagree (see
+[Decisions](README.md#decisions)).
 
-**Running.** Three rounds to accept a `SKILL.md` or model change. A change
-to `scripts/review-prompt.md` or to `fix-all.sh` output is not exercised by
-replay: it means re-recording the cases whose logs it changes (004 and 006
-for the review prompt). Read failing transcripts before changing anything,
-since a case can be wrong too, and rerun a failing case with the old
-`SKILL.md` before blaming the change.
+**Running.** Three rounds to accept a `SKILL.md` or model change. A change to
+`scripts/review-prompt.md` or to `fix-all.sh` output is not exercised by
+replay: it means re-recording the cases whose logs it changes; for the review
+prompt, every case whose log has `UNRESOLVED:` lines (001, 002, 004 and 006).
+Read failing transcripts before changing anything, since a case can be wrong
+too, and rerun a failing case with the old `SKILL.md` before blaming the
+change.
 
 **Workspace.** The harness invokes the skill with the case's arguments
 (`mode: case`, as in the repository's other evals) in a case workspace,
@@ -242,11 +247,14 @@ the sandbox cannot express that exception, the trial runs as a dedicated Unix
 user with a private `/tmp` instead.
 
 `runner.env` also sets `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0` and
-`GIT_ALLOW_PROTOCOL=file`, so git cannot fetch a newer upstream than the
-pinned one, `GOPROXY=off` with `GOTOOLCHAIN=local` for Go, and an empty
-`AGENT_EVAL_RUNS_DIR`, so the agent is not told where results go. Claude
-Code itself reads the Vertex key file, outside the sandbox; the file stays
-under a denied root, so the agent's commands cannot read it.
+`GIT_ALLOW_PROTOCOL=file`, `GOPROXY=off` and `GOTOOLCHAIN=local`, so git and Go
+stay offline by default, and an empty `AGENT_EVAL_RUNS_DIR`, so the agent is
+not told where results go. Claude Code itself reads the Vertex key file,
+outside the sandbox; the file stays under a denied root, so the agent's
+commands cannot read it. These variables are defaults the agent could override;
+what keeps newer upstream history, such as the merged CVE PRs, out of reach is
+the sandbox, which allows agent commands no network domains (the model's own
+traffic runs outside it).
 
 The eval file's `permissions.deny`, which the harness writes into the workspace
 settings, blocks `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web tools and
@@ -254,12 +262,12 @@ subagents, so check 1 has denials to find.
 
 **To confirm when building:** that Claude Code's sandbox read rules stop Bash,
 not only the Read tool, from reading the denied paths on Linux (a trial must
-fail to read a canary file seeded in `/tmp`); that a trial's sandboxed
-`$TMPDIR` and background-task output both resolve inside the trial directory;
-that the harness can launch `claude` and a trial can run `git`, `jq`, `python3`
-and `go version` with the restricted `PATH`; that prepare fits its 900-second
-hook timeout from a cold cache; and the cost of one trial, to set the per-case
-budget.
+fail to read a canary file seeded in `/tmp`) and that sandboxed Bash cannot
+reach github.com; that a trial's sandboxed `$TMPDIR` and background-task output
+both resolve inside the trial directory; that the harness can launch `claude`
+and a trial can run `git`, `jq`, `python3` and `go version` with the restricted
+`PATH`; that prepare fits its 900-second hook timeout from a cold cache; and
+the cost of one trial, to set the per-case budget.
 
 ### Later
 
