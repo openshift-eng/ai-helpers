@@ -79,12 +79,12 @@ The cases below cover each; two of the underlying script bugs are under
   harness's `cases/` (whose every directory it scores as a case); it holds
   run state, reports, the log's other home paths and the bare remotes.
   Prepare's baseline hashes and the copy-out archive sit beside it, in
-  `fgc/<case-id>.baseline.json` and `fgc/<case-id>.out.tar`, outside the
+  `fgc/<case-id>.baseline.json` and `fgc/<case-id>.out/`, outside the
   copy list.
 - **Copy list:** the paths prepare writes for the wrapper to copy into the
   container.
 - **Copied-out tree:** the container's volumes, copied out after the trial
-  as one tar archive and unpacked only inside the checker container.
+  as one tar archive per volume and unpacked only inside the checker container.
 
 Everything lives under `plugins/fix-go-cves/evals/`, laid out like
 `plugins/ci/evals/`: `eval-fix-go-cves.yaml`, a `README.md` that indexes the
@@ -211,19 +211,25 @@ skipped because the scan was blocked, and need no team decision". 002's accepts
 decision. Each case also lists the summary's flagged items in
 `annotations.yaml`, with one criterion that every listed item gets an action
 and an owner and that nothing recommended contradicts the annotations, so a
-reply cannot pass on its headline decision alone. Criteria judges use `samples:
-3`, which the harness majority-votes. A trial passes its facts only if every
-criterion passes. A pooled threshold would let one case fail every trial while
-the rest pass, so `checks.py summarize` requires every case to pass its
-deterministic checks in all three rounds and its facts in at least two. A case
-at exactly two of three, or failing, gets three more trials each with the old
-and the new `SKILL.md`, and the change is accepted only if the new one does no
-worse. `summarize` marks a trial ERROR, rerun and not counted, when the cause
-is the harness, the proxy's own failure or a judge error rather than the
-agent's state, reply or tool calls; a proxy rejection of a forbidden request
-stays a failure, and a case that keeps erroring is reported as such. The cases
-were also used to tune `SKILL.md` (its license wording came from 001 and 006),
-so they guard against regressions, not prove the skill generalizes; a new
+reply cannot pass on its headline decision alone. Criteria are fixed top-level
+keys in `annotations.yaml` (`criterion_1` to `criterion_N`), each with its own
+judge, run with `condition: "'criterion_k' in annotations"` (the harness
+evaluates conditions without builtins) and told to grade only its key, so every
+criterion gets its own verdict. Criteria judges use `samples: 3`, which the
+harness majority-votes. A trial passes its facts only if every criterion
+passes. A pooled threshold would let one case fail every trial while the rest
+pass, so `checks.py summarize` requires every case to pass its deterministic
+checks in all three rounds and its facts in at least two. A case at exactly two
+of three on facts gets three more trials each with the old and the new
+configuration (`SKILL.md` or model), and the change is accepted only if the new
+one does no worse; a deterministic failure always fails the case. A criterion
+whose `stability.error_count` is non-zero is a judge error, not a failed fact.
+`summarize` marks a trial ERROR, rerun and not counted, when the cause is the
+harness, the proxy's own failure or a judge error rather than the agent's
+state, reply or tool calls; a proxy rejection of a forbidden request stays a
+failure, and a case that keeps erroring is reported as such. The cases were
+also used to tune `SKILL.md` (its license wording came from 001 and 006), so
+they guard against regressions, not prove the skill generalizes; a new
 recording stays out of skill tuning until it has been scored. `checks.py` reads
 case arguments only from the dataset, never from a workspace file the agent
 could have written.
@@ -351,12 +357,12 @@ the `before_each` hook, turns it into the case repository:
   settings stay out of the harness's environment, where they would redirect
   the judges.
 - **The copied-out tree is data.** After the trial, the container's volumes
-  are copied out as one tar archive, never unpacked on the host, and checked
-  in a fresh container from the pinned image,
-  with checker-owned git: the agent's git configuration, whose filters and
-  diff drivers can run commands, is never used. The host validates the
-  result and fails the trial if it is missing or malformed. Nothing the
-  agent writes reaches the host any other way.
+  are copied out as one tar archive per volume, never unpacked on the host,
+  and checked in a fresh container from the pinned image, with checker-owned
+  git: the agent's git configuration, whose filters and diff drivers can run
+  commands, is never used. The host validates the result and fails the trial
+  if it is missing or malformed. Nothing the agent writes reaches the host any
+  other way.
 - **The session comes from the proxy.** The agent shares a user with Claude
   Code inside the container, so it could forge the CLI's output stream. The
   main conversation is the chain of requests in which each request's
@@ -404,18 +410,19 @@ the `before_each` hook, turns it into the case repository:
   that port, a pattern the runner already supports for agentic-ci.
 - **`after_each`:** timeout of 600 seconds; kills the container and the proxy
   (the runner's timeout kills only the wrapper), streams the volumes out with
-  `podman cp <ctr>:<path> -` into `fgc/<case-id>.out.tar`, never unpacked on
-  the host (host git, a shell prompt or an editor in an agent-written tree
-  could run its configuration), runs the state check in a fresh container from
-  the pinned image, with the archive and the baseline mounted read-only, the
-  archive unpacked inside it, its result written to a separate fresh mount,
-  and no network, writes the validated result (including the preamble's record
-  of its arguments), and from the proxy log the session's reply, its tool
-  calls and denials, and its token usage, into declared `outputs:` directories
-  (`collect.py` treats a declared path as a directory, so the reply is
-  `fgc-out/reply.md` both in the trial and as the judges' key), outside the
-  `output/` directory where the harness drops `stdout.log`, and removes the
-  container, volumes and archive.
+  `podman cp <ctr>:<path> -` into one archive per volume in
+  `fgc/<case-id>.out/` (concatenated tar streams stop at the first end
+  marker), never unpacked on the host (host git, a shell prompt or an editor
+  in an agent-written tree could run its configuration), runs the state check
+  in a fresh container from the pinned image, with the archive and the
+  baseline mounted read-only, the archive unpacked inside it, its result
+  written to a separate fresh mount, and no network, writes the validated
+  result (including the preamble's record of its arguments), and from the
+  proxy log the session's reply, its tool calls and denials, and its token
+  usage, into declared `outputs:` directories (`collect.py` treats a declared
+  path as a directory, so the reply is `fgc-out/reply.md` both in the trial
+  and as the judges' key), outside the `output/` directory where the harness
+  drops `stdout.log`, and removes the container, volumes and archive.
 - **State check:** builds a fresh `.git` from the copied objects, refs and
   `HEAD`, with a configuration it writes itself and no attributes; runs git
   with `-c core.fsmonitor=false -c core.hooksPath=/dev/null` and system and
