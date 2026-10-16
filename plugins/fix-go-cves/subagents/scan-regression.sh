@@ -91,25 +91,26 @@ mv "$FINAL_SCAN_TMP" "$FINAL_SCAN_FILE"
 # Extract exact (CVE-ID, artifact-name, normalized-location) tuples.
 # Keying on both fields prevents a new pkg-B carrying the same CVE-ID as a
 # fixed pkg-A from being misclassified as UNRESOLVED (same CVE, different pkg).
-INITIAL_CVES=$(jq -r 'def normloc: sub("^/src/"; "/") | if . == "" or startswith("/") then . else "/" + . end;
-  .matches[] | select(.artifact.type == "go-module") as $m |
-  (($m.artifact.locations // []) | if length == 0 then [{"path":""}] else . end)[] |
-  "\($m.vulnerability.id)|\($m.artifact.name)|\(.path | normloc)"' "$INITIAL_SCAN_FILE" 2>/dev/null | sort -u || echo "")
-
-# Extract (CVE-ID, artifact-name) tuples from final scan (go-module only)
-FINAL_CVES=$(echo "$FINAL_SCAN" | jq -r 'def normloc: sub("^/src/"; "/") | if . == "" or startswith("/") then . else "/" + . end;
-  .matches[] | select(.artifact.type == "go-module") as $m |
-  (($m.artifact.locations // []) | if length == 0 then [{"path":""}] else . end)[] |
-  "\($m.vulnerability.id)|\($m.artifact.name)|\(.path | normloc)"' 2>/dev/null | sort -u || echo "")
-
-# Find NEW CVEs: in final scan but not in initial scan
-if [[ -n "$FINAL_CVES" ]] && [[ -n "$INITIAL_CVES" ]]; then
-  NEW_CVE_LIST=$(comm -23 <(echo "$FINAL_CVES") <(echo "$INITIAL_CVES") || echo "")
-elif [[ -n "$FINAL_CVES" ]]; then
-  NEW_CVE_LIST="$FINAL_CVES"
-else
-  NEW_CVE_LIST=""
-fi
+# Each line is "tuple<TAB>key": the key masks commit hashes in locations, so a
+# binary renamed by a fix commit still matches its initial finding.
+_scan_tuples() {
+  jq -r --argjson revs "$REVS" "$REV_MASK_JQ"'
+    def normloc: sub("^/src/"; "/") | if . == "" or startswith("/") then . else "/" + . end;
+    .matches[] | select(.artifact.type == "go-module") as $m |
+    (($m.artifact.locations // []) | if length == 0 then [{"path":""}] else . end)[] |
+    "\($m.vulnerability.id)|\($m.artifact.name)|\(.path | normloc)" as $t |
+    "\($m.vulnerability.id)|\($m.artifact.name)|\(.path | normloc | canon)" as $k | "\($t)\t\($k)"' 2>/dev/null | sort -u
+}
+REVS=$(scan_location_revs)
+INITIAL_KEYS=$(_scan_tuples < "$INITIAL_SCAN_FILE" | cut -f2 | sort -u || true)
+FINAL_TUPLES=$(_scan_tuples <<< "$FINAL_SCAN" || true)
+# NEW: in the final scan but not the initial one. STILL_PRESENT: in both.
+_split_final() {
+  awk -F'\t' -v want="$1" -v keys="$INITIAL_KEYS" '
+    BEGIN { n = split(keys, k, "\n"); for (i = 1; i <= n; i++) if (k[i] != "") seen[k[i]] = 1 }
+    $0 != "" && ((($2 in seen) ? "old" : "new") == want) { print $1 }' <<< "$FINAL_TUPLES" | sort -u
+}
+NEW_CVE_LIST=$(_split_final new)
 
 while IFS= read -r cve_tuple; do
   [[ -z "$cve_tuple" ]] && continue
@@ -127,8 +128,8 @@ done <<< "$NEW_CVE_LIST"
 # .matches, and location-scoped/expired ones correctly stay — so any CVE still in
 # .matches is genuinely unresolved. (A local .grype.yaml re-parse here was blind to
 # grype's location scoping and fix-state auto-expiry, dropping real UNRESOLVED CVEs.)
-if [[ -n "$FINAL_CVES" ]] && [[ -n "$INITIAL_CVES" ]]; then
-  STILL_PRESENT=$(comm -12 <(echo "$FINAL_CVES") <(echo "$INITIAL_CVES") || echo "")
+if [[ -n "$FINAL_TUPLES" ]] && [[ -n "$INITIAL_KEYS" ]]; then
+  STILL_PRESENT=$(_split_final old)
 
   while IFS= read -r cve_tuple; do
     [[ -z "$cve_tuple" ]] && continue

@@ -104,6 +104,12 @@ if [[ "$_all_already_present" == true ]]; then
   exit 0
 fi
 
+# Entries that already exist are only rescoped or restated, not added.
+_UPDATES_EXISTING=true
+for CVE_ID in "${CVE_IDS[@]}"; do
+  grype_ignore_entry_exists .grype.yaml "$CVE_ID" "$PACKAGE" "" ||
+    grype_ignore_scoped_entry_exists .grype.yaml "$CVE_ID" "$PACKAGE" || _UPDATES_EXISTING=false
+done
 for CVE_ID in "${CVE_IDS[@]}"; do
   insert_grype_ignore .grype.yaml "$CVE_ID" "$PACKAGE" "$REASON" "$FIX_STATE" "$LOCATION"
 done
@@ -139,6 +145,14 @@ if [[ ${#SUBJECT} -gt 50 ]] && [[ -z "$FIX_STATE" ]]; then
     _ABBREV_BASE="${ABBREV%/v[0-9]*}"
     SUBJECT="Ignore ${_ABBREV_BASE##*/} CVEs ($BRANCH)"
   fi
+fi
+
+if [[ "$_UPDATES_EXISTING" == true ]]; then
+  SUBJECT="Update $ABBREV CVE ignores"
+  REASON="$REASON
+
+Updates the existing entries${LOCATION:+, scoped to $LOCATION,} to the fix-state
+Grype reports${FIX_STATE:+ ($FIX_STATE)}."
 fi
 
 git commit -s -m "$(cat <<EOF

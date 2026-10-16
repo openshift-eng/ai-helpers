@@ -1036,6 +1036,14 @@ git -C "$IGN_REPO" commit -q -m "reset"
 bash "$SCRIPT_DIR/ignore.sh" "$TMPD/ignf.env" example.com/wf "High" "Has fix" --permanent GHSA-wf-0001 >/dev/null 2>&1
 check "no flag no fix-state" ! grep -q "fix-state" "$IGN_REPO/.grype.yaml"
 
+printf -- '---\nignore:\n  # No fix available\n  - vulnerability: GO-2026-0001\n    fix-state: not-fixed\n    package:\n      name: golang.org/x/up\n' > "$IGN_REPO/.grype.yaml"
+git -C "$IGN_REPO" add .grype.yaml && git -C "$IGN_REPO" commit -q -m "existing"
+bash "$SCRIPT_DIR/ignore.sh" "$TMPD/ignf.env" golang.org/x/up "High" "No fix available" --fix-state unknown --location /go.mod GO-2026-0001 >/dev/null 2>&1
+check "rescoping an existing ignore is an update" \
+  test "$(git -C "$IGN_REPO" log -1 --format=%s)" = "Update x/up CVE ignores"
+check "an ignore update says what changed" \
+  bash -c 'git -C "$1" log -1 --format=%b | grep -q "scoped to /go.mod"' _ "$IGN_REPO"
+
 # === ignore.sh commit subject varies by --no-fix (F3 fix) ===
 echo "ignore.sh commit subject"
 SUBJ_REPO="$TMPD/subj-repo"
@@ -1614,6 +1622,29 @@ bash "$SCRIPT_DIR/../subagents/scan-regression.sh" "$SR3_DIR/state.env" "$SR3_RD
 check "scan-regression wrong-schema final exits nonzero" test "$SR3_RC" -ne 0
 check "scan-regression wrong-schema final emits SCAN_FAILED" grep -q 'SCAN_FAILED=1' "$SR3_OUT_FILE"
 check "scan-regression wrong-schema final removes stale evidence" ! test -e "$SR3_RDIR/final-scan.json"
+
+# A binary named after its build commit is renamed by every fix commit; the
+# same finding at the renamed binary is neither new nor resolved.
+SRR="$TMPD/srr"; mkdir -p "$SRR/repo" "$SRR/report" "$SRR/scripts"
+git -C "$SRR/repo" init -q; git -C "$SRR/repo" config user.email t@t; git -C "$SRR/repo" config user.name t
+touch "$SRR/repo/go.mod"; git -C "$SRR/repo" add -A; git -C "$SRR/repo" commit -qm base
+SRR_BASE=$(git -C "$SRR/repo" rev-parse --short=12 HEAD)
+git -C "$SRR/repo" commit -q --allow-empty -m fix
+SRR_HEAD=$(git -C "$SRR/repo" rev-parse --short=12 HEAD)
+_srr_scan() { printf '{"matches":[{"vulnerability":{"id":"GO-1","fix":{"versions":["1.26.9"]}},"artifact":{"type":"go-module","name":"stdlib","version":"go1.26.8","locations":[{"path":"/cmd/bin/tool-%s-linux-amd64"}]}}],"ignoredMatches":[]}\n' "$1"; }
+_srr_scan "$SRR_BASE" > "$SRR/report/initial-scan.json"
+cp "$SCRIPT_DIR/lib.sh" "$SRR/scripts/"
+printf '#!/usr/bin/env bash\ncat %q\n' "$SRR/final.json" > "$SRR/scripts/scan.sh"
+_srr_scan "$SRR_HEAD" > "$SRR/final.json"
+printf 'stdlib\n' > "$SRR/report/needs-review-pkgs"
+printf 'REPO=%q\nBRANCH=devel\nCVE_SCRIPTS=%q\nHAS_LOCAL_GRYPE=false\nCONTAINER_CMD=\n' \
+  "$SRR/repo" "$SRR/scripts" > "$SRR/state.env"
+SRR_OUT=$(bash "$SCRIPT_DIR/../subagents/scan-regression.sh" "$SRR/state.env" "$SRR/report" 2>&1) || true
+check "a binary renamed by a fix commit is not a new finding" grep -q '^NEW_CVES=0 UNRESOLVED=0' <<< "$SRR_OUT"
+check "a renamed binary's finding keeps its review" grep -q "^NEEDS_REVIEW: GO-1 .*tool-$SRR_HEAD-linux" <<< "$SRR_OUT"
+_srr_scan 0123456789ab > "$SRR/final.json"
+SRR_OUT=$(bash "$SCRIPT_DIR/../subagents/scan-regression.sh" "$SRR/state.env" "$SRR/report" 2>&1) || true
+check "a hash from outside the checkout is not masked" grep -q '^NEW_CVES=1' <<< "$SRR_OUT"
 
 # A malformed initial scan also invalidates the comparison, before a final scan
 # is attempted.

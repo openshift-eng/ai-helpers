@@ -869,19 +869,21 @@ fi
 # ignoredMatches at the same normalized module location.
 FIXED_CVES=$(count_cves_fixed "$(printf '%s\n' "${FIX_LINES[@]+"${FIX_LINES[@]}"}")")
 if ! $GATE_FAILED && jq empty <<< "$GATE_JSON" 2>/dev/null; then
-  _INITIAL_FIXABLE_TUPLES=$(jq -r '
+  # Mask commit hashes so binaries renamed by fix commits still match.
+  _REVS=$(scan_location_revs)
+  _INITIAL_FIXABLE_TUPLES=$(jq -r --argjson revs "$_REVS" "$REV_MASK_JQ"'
     def normloc: sub("^/src/"; "/") | if . == "" or startswith("/") then . else "/" + . end;
     [((.matches // []) + [(.ignoredMatches // [])[] | select((.vulnerability.fix.versions // []) | length > 0)])[] |
       select(.artifact.type == "go-module") as $m |
       (($m.artifact.locations // []) | if length == 0 then [{"path":""}] else . end)[] |
-      "\($m.vulnerability.id)|\($m.artifact.name)|\(.path | normloc)"] | unique | .[]' \
+      "\($m.vulnerability.id)|\($m.artifact.name)|\(.path | normloc | canon)"] | unique | .[]' \
     <<< "$SCAN_JSON" 2>/dev/null | sort -u)
-  _FINAL_ALL_TUPLES=$(jq -r '
+  _FINAL_ALL_TUPLES=$(jq -r --argjson revs "$_REVS" "$REV_MASK_JQ"'
     def normloc: sub("^/src/"; "/") | if . == "" or startswith("/") then . else "/" + . end;
     [((.matches // []) + (.ignoredMatches // []) + (.generatedBinaryDuplicates // []))[] |
       select(.artifact.type == "go-module") as $m |
       (($m.artifact.locations // []) | if length == 0 then [{"path":""}] else . end)[] |
-      "\($m.vulnerability.id)|\($m.artifact.name)|\(.path | normloc)"] | unique | .[]' \
+      "\($m.vulnerability.id)|\($m.artifact.name)|\(.path | normloc | canon)"] | unique | .[]' \
     <<< "$GATE_JSON" 2>/dev/null | sort -u)
   _FIXED_TUPLES=$(comm -23 \
     <(printf '%s\n' "$_INITIAL_FIXABLE_TUPLES" | sed '/^$/d') \

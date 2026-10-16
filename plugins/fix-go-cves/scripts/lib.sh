@@ -803,6 +803,18 @@ find_gomods() {
 
 # Canonical Grype/module location: `/src/tools/go.mod`, `/tools/go.mod`, and
 # `tools/go.mod` all refer to the same module.
+# Build outputs can embed the commit they were built from (subctl names its
+# binaries after git describe), so every fix commit renames them. Comparisons
+# between scans mask this checkout's commit hashes with jq's canon, given
+# --argjson revs "$(scan_location_revs)".
+# shellcheck disable=SC2034 # used by sourcing scripts
+REV_MASK_JQ='def canon: gsub("(?<h>[0-9a-f]{7,40})"; .h as $h | if ($revs | any(startswith($h))) then "<rev>" else $h end);'
+scan_location_revs() {
+  local revs
+  revs=$(git -C "${REPO:-.}" rev-list --max-count=1000 HEAD 2>/dev/null) || revs=""
+  jq -Rsc 'split("\n") | map(select(length > 0))' <<< "$revs"
+}
+
 normalize_scan_location() {
   local location="${1:-}"
   location="${location#/src/}"
