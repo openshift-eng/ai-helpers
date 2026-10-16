@@ -10246,6 +10246,16 @@ _rdn_scan "$(_rdn_hit /coredns/go.mod),$(_rdn_hit /bin/tool)"
 check "a binary location keeps the unscoped ignore" \
   ! unscoped_ignore_redundant "$RDN/auto.yaml" GO-1 a.b/c "$RDN/scan.json"
 
+echo "merging unscoped ignores into scoped ones"
+MRG="$TMPD/merge"; mkdir -p "$MRG"
+printf 'ignore:\n  # No fix available for a.b/c.\n  - vulnerability: GO-1\n    fix-state: not-fixed\n    package:\n      name: a.b/c\n      location: /coredns/go.mod\n  # Unscoped\n  - vulnerability: GO-1\n    fix-state: unknown\n    package:\n      name: a.b/c\n' > "$MRG/g.yaml"
+printf '{"matches":[],"ignoredMatches":[{"vulnerability":{"id":"GO-1","fix":{"state":""}},"artifact":{"name":"a.b/c","locations":[{"path":"/coredns/go.mod"}]}}]}\n' > "$MRG/scan.json"
+merge_unscoped_ignore "$MRG/g.yaml" GO-1 a.b/c "$MRG/scan.json" >/dev/null
+check "merge removes the unscoped ignore" test "$(grype_ignore_entry_info "$MRG/g.yaml" GO-1 a.b/c "")" = ""
+check "merge gives the scoped ignore the reported fix-state" \
+  test "$(grype_ignore_entry_info "$MRG/g.yaml" GO-1 a.b/c /coredns/go.mod)" = $'unknown\tNo fix available for a.b/c.'
+check "merge leaves one ignore" test "$(grep -c 'vulnerability: GO-1' "$MRG/g.yaml")" -eq 1
+
 echo "existing-entries audits only Go ignores"
 EEF="$TMPD/ee-foreign"; mkdir -p "$EEF/rep"
 make_test_repo "$EEF/repo" ""

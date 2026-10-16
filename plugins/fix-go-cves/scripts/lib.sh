@@ -975,24 +975,39 @@ grype_ignore_scoped_entry_exists() {
 # location; dependency-graph presence elsewhere is not a scanner finding and
 # must not block narrowing. Permanent ignores are human policy and never get
 # narrowed automatically.
+# Print "FIX_STATE<TAB>COMMENT" for the first ignore of VULN/PKG at LOCATION
+# ("" means unscoped). COMMENT joins the comment lines above the item.
+grype_ignore_entry_info() {
+  local file="$1" cve_id="$2" package="$3" location
+  location=$(normalize_scan_location "${4:-}")
+  awk -v want_cve="$cve_id" -v want_pkg="$package" -v want_loc="$location" '
+    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+    function normloc(s) { s = trim(s); sub(/^\/src\//, "/", s); if (s != "" && s !~ /^\//) s = "/" s; return s }
+    function flush() {
+      if (vuln == want_cve && pkg == want_pkg && normloc(loc) == want_loc) { print state "\t" comment; exit }
+      vuln = pkg = loc = state = comment = ""
+    }
+    /^ignore:[[:space:]]*(#.*)?$/ { in_ignore = 1; next }
+    /^[^[:space:]#]/ && !/^-([[:space:]]|$)/ { if (in_ignore && active) flush(); in_ignore = 0; active = 0 }
+    in_ignore && /^[[:space:]]*-([[:space:]]|$)/ { if (active) flush(); active = 1; comment = pending; pending = "" }
+    in_ignore && /^[[:space:]]*#/ { x = $0; sub(/^[[:space:]]*#[[:space:]]?/, "", x); pending = (pending == "" ? "" : pending " ") trim(x); next }
+    in_ignore && /vulnerability:/ { x = $0; sub(/.*vulnerability:[[:space:]]*/, "", x); vuln = trim(x) }
+    in_ignore && /fix-state:/ { x = $0; sub(/.*fix-state:[[:space:]]*/, "", x); state = trim(x) }
+    in_ignore && /^[[:space:]]*name:/ { x = $0; sub(/.*name:[[:space:]]*/, "", x); pkg = trim(x) }
+    in_ignore && /^[[:space:]]*location:/ { x = $0; sub(/.*location:[[:space:]]*/, "", x); loc = trim(x) }
+    END { if (active) flush() }
+  ' "$file"
+}
+
 migrate_grype_ignore_scope() {
   local file="$1" cve_id="$2" package="$3" requested_location="$4" requested_state="${5:-}"
   local state reason actual_location
   requested_location=$(normalize_scan_location "$requested_location")
   [[ -n "$requested_location" ]] || return 1
   grype_ignore_entry_exists "$file" "$cve_id" "$package" "" || return 1
-  state=$(awk -v want_cve="$cve_id" -v want_pkg="$package" '
-    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-    function flush() { if (vuln==want_cve && pkg==want_pkg && loc=="") { print state; found=1 } vuln=pkg=state=loc="" }
-    /^ignore:[[:space:]]*(#.*)?$/ { in_ignore=1; next }
-    /^[^[:space:]#]/ && !/^-([[:space:]]|$)/ { if (in_ignore && active) flush(); in_ignore=0; active=0 }
-    in_ignore && /^[[:space:]]*-([[:space:]]|$)/ { if (active) flush(); active=1 }
-    in_ignore && /vulnerability:/ { x=$0; sub(/.*vulnerability:[[:space:]]*/, "", x); vuln=trim(x) }
-    in_ignore && /fix-state:/ { x=$0; sub(/.*fix-state:[[:space:]]*/, "", x); state=trim(x) }
-    in_ignore && /^[[:space:]]*name:/ { x=$0; sub(/.*name:[[:space:]]*/, "", x); pkg=trim(x) }
-    in_ignore && /^[[:space:]]*location:/ { x=$0; sub(/.*location:[[:space:]]*/, "", x); loc=trim(x) }
-    END { if (active) flush() }
-  ' "$file" | head -1)
+  local info
+  info=$(grype_ignore_entry_info "$file" "$cve_id" "$package" "")
+  state="${info%%$'\t'*}"
   [[ "$state" == "not-fixed" || "$state" == "unknown" ]] || return 1
   # Preserve the requested effective Grype state when migrating. An older
   # unscoped rule may use not-fixed even though the current scan reports an
@@ -1000,19 +1015,7 @@ migrate_grype_ignore_scope() {
   # leave the newly scoped rule unapplied.
   [[ -z "$requested_state" ]] || state="$requested_state"
 
-  reason=$(awk -v want_cve="$cve_id" -v want_pkg="$package" '
-    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-    function flush() { if (vuln==want_cve && pkg==want_pkg && loc=="") { print comment; found=1 } vuln=pkg=loc=comment="" }
-    /^ignore:[[:space:]]*(#.*)?$/ { in_ignore=1; next }
-    /^[^[:space:]#]/ && !/^-([[:space:]]|$)/ { if (in_ignore && active) flush(); in_ignore=0; active=0 }
-    # Comments above an item describe it; keep them with the migrated entry.
-    in_ignore && /^[[:space:]]*-([[:space:]]|$)/ { if (active) flush(); active=1; comment=pending; pending="" }
-    in_ignore && /^[[:space:]]*#/ { x=$0; sub(/^[[:space:]]*#[[:space:]]?/, "", x); pending=(pending == "" ? "" : pending " ") trim(x) }
-    in_ignore && /vulnerability:/ { x=$0; sub(/.*vulnerability:[[:space:]]*/, "", x); vuln=trim(x) }
-    in_ignore && /^[[:space:]]*name:/ { x=$0; sub(/.*name:[[:space:]]*/, "", x); pkg=trim(x) }
-    in_ignore && /^[[:space:]]*location:/ { x=$0; sub(/.*location:[[:space:]]*/, "", x); loc=trim(x) }
-    END { if (active) flush() }
-  ' "$file" | head -1)
+  reason="${info#*$'\t'}"
   [[ -n "$reason" ]] || reason="Scoped CVE ignore"
   remove_grype_ignore "$file" "$cve_id" "$package" ""
   insert_grype_ignore "$file" "$cve_id" "$package" "$reason" "$state" "$requested_location"
@@ -2697,9 +2700,9 @@ verify_fix_loop() {
 }
 
 # Fix function: yaml-integrity — remove only unsafe broad ignore selectors
-# Whether the unscoped ignore for VULN/PKG is redundant: it is auto-expiring
-# (has a fix-state) and the scan reports VULN/PKG only at go.mod locations that
-# scoped ignores already cover. Anything else stays for team review.
+# Whether the unscoped ignore for VULN/PKG can merge into scoped ones: it is
+# auto-expiring (has a fix-state) and the scan reports VULN/PKG only at go.mod
+# locations that have scoped ignores. Anything else stays for team review.
 unscoped_ignore_redundant() {
   local file="$1" vuln="$2" pkg="$3" scan="$4" entries reported
   entries=$(awk -v want_cve="$vuln" -v want_pkg="$pkg" '
@@ -2727,6 +2730,27 @@ unscoped_ignore_redundant() {
   done <<< "$reported"
 }
 
+# Fold a redundant unscoped ignore into the scoped ones. A scoped entry whose
+# fix-state no longer matches the state Grype reports does not apply, so it is
+# rewritten with the reported state, keeping its comment.
+merge_unscoped_ignore() {
+  local file="$1" vuln="$2" pkg="$3" scan="$4" loc state info old_state comment
+  # Remove the unscoped entry first; insert_grype_ignore would migrate it.
+  remove_grype_ignore "$file" "$vuln" "$pkg" ""
+  while IFS=$'\t' read -r loc state; do
+    info=$(grype_ignore_entry_info "$file" "$vuln" "$pkg" "$loc")
+    old_state="${info%%$'\t'*}" comment="${info#*$'\t'}"
+    [[ -n "$old_state" && "$old_state" != "$state" ]] || continue
+    remove_grype_ignore "$file" "$vuln" "$pkg" "$loc" >/dev/null
+    insert_grype_ignore "$file" "$vuln" "$pkg" "${comment:-Scoped CVE ignore}" "$state" "$loc" >/dev/null || return 1
+  done < <(jq -r --arg v "$vuln" --arg p "$pkg" '
+    def normloc: sub("^/src/"; "/") | if startswith("/") then . else "/" + . end;
+    [((.matches // []) + (.ignoredMatches // []))[] |
+      select(.vulnerability.id == $v and .artifact.name == $p) |
+      ((.vulnerability.fix.state // "") | if . == "" then "unknown" else . end) as $state |
+      .artifact.locations[]?.path | normloc | "\(.)\t\($state)"] | unique | .[]' "$scan")
+}
+
 subagent_fix_yaml_integrity() {
   local state_file="$1" report_file="$2" script_dir="$3"
   # shellcheck source=/dev/null
@@ -2747,14 +2771,14 @@ subagent_fix_yaml_integrity() {
       while IFS='|' read -r vuln pkg; do
         [[ -n "$vuln" ]] || continue
         if unscoped_ignore_redundant "$REPO/.grype.yaml" "$vuln" "$pkg" "$scan_file"; then
-          remove_grype_ignore "$REPO/.grype.yaml" "$vuln" "$pkg" ""
+          merge_unscoped_ignore "$REPO/.grype.yaml" "$vuln" "$pkg" "$scan_file"
         fi
       done < <(grype_ignore_scope_conflicts "$REPO/.grype.yaml" |
         sed -nE 's/^SCOPE_CONFLICT: ([^ ]+) \(([^)]+)\).*/\1|\2/p' | sort -u)
       if ! git -C "$REPO" diff --quiet -- .grype.yaml 2>/dev/null; then
         git -C "$REPO" add .grype.yaml
-        git -C "$REPO" commit -s -m "$(printf '%s\n\n%s' "Remove redundant unscoped CVE ignores" \
-          "Scoped ignores already cover every location the scan reports.")"
+        git -C "$REPO" commit -s -m "$(printf '%s\n\n%s' "Merge unscoped CVE ignores into scoped ones" \
+          "Scoped ignores cover every location the scan reports, using its fix-state.")"
       fi
     fi
   fi
