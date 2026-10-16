@@ -7652,6 +7652,7 @@ licensecheck: cached-license-input
 	@test '$(REPO)' = cve-fix-license-fixture
 	@test "$${LICENSE_TEST_BLOCKER+x}" != x
 	@test "$${LICENSE_TEST_FAIL}" != true
+	@mkdir -p bin && printf x > bin/license-tool && chmod +x bin/license-tool
 cached-license-input:
 	@touch $@
 	@echo rebuilt >> .git/license-input-rebuilt
@@ -7692,6 +7693,7 @@ LICENSEMAKE
   check "license gate reuses an existing prerequisite" test ! -e "$PRT_REPO/.git/license-input-rebuilt"
   check "license gate still evaluates policy with cached inputs" test -f "$PRT_REPO/.git/license-ran"
   check "license gate with cached inputs permits a verified PR" test "$PRT_LICENSE_RC" -eq 0
+  check "license gate removes the tool it built" test ! -e "$PRT_REPO/bin/license-tool"
   rm "$PRT_REPO/Makefile" "$PRT_REPO/cached-license-input"
 
   # Mapping enriches scan locations for dispatch; helper failures must preserve

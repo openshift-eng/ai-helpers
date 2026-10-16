@@ -825,6 +825,15 @@ if has_real_make_target licensecheck; then
   _license_makeflags=""
   [[ ! -e licensecheck ]] || _license_makeflags=-B
   LICENSE_ENV+=("MAKEFLAGS=$_license_makeflags")
+  # The check may build its own tool (Submariner's bin/lichen, with a
+  # GOEXPERIMENT marker Grype cannot match); a leftover would block the
+  # next run's scans, so remove untracked executables it adds.
+  _untracked_executables() {
+    git ls-files -z --others | while IFS= read -r -d '' _f; do
+      if [[ -f "$_f" && -x "$_f" ]]; then printf '%s\n' "$_f"; fi
+    done | sort
+  }
+  _LICENSE_BEFORE=$(_untracked_executables)
   if ! "${LICENSE_ENV[@]}" timeout --foreground "$LICENSE_CHECK_TIMEOUT" make licensecheck; then
     POLICY_CHECK_FAILED=true
     UNSEEN_NEEDS_REVIEW=true
@@ -832,6 +841,9 @@ if has_real_make_target licensecheck; then
   else
     echo "License policy check passed."
   fi
+  while IFS= read -r _f; do
+    [[ -n "$_f" ]] && rm -f -- "$_f"
+  done < <(comm -13 <(printf '%s\n' "$_LICENSE_BEFORE") <(_untracked_executables))
 fi
 
 # ── Phase 6: Report ───────────────────────────────────────────────────────────
