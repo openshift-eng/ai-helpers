@@ -38,40 +38,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Set
 from urllib.parse import urlparse
 
-
-# NOTE: _adf_to_text is duplicated from fetch_jira_issue.py and must be kept in sync.
-def _adf_to_text(node: Any) -> str:
-    """Convert an Atlassian Document Format (ADF) node to plain text.
-
-    API v3 returns description and comment bodies as ADF dicts instead of
-    plain strings.  This recursively extracts the text content.
-    """
-    if node is None:
-        return ""
-    if isinstance(node, str):
-        return node
-    if not isinstance(node, dict):
-        return str(node)
-    parts: List[str] = []
-    node_type = node.get("type")
-    if node_type == "text":
-        text = node.get("text", "")
-        for mark in node.get("marks", []):
-            if mark.get("type") == "link":
-                href = mark.get("attrs", {}).get("href", "")
-                if href and href != text:
-                    text = f"{text} ({href})"
-        parts.append(text)
-    elif node_type in ("inlineCard", "blockCard", "embedCard"):
-        # Smart Links store URL in attrs.url
-        url = node.get("attrs", {}).get("url", "")
-        if url:
-            parts.append(url)
-    for child in node.get("content", []):
-        parts.append(_adf_to_text(child))
-    sep = "\n" if node.get("type") in ("doc", "paragraph", "heading", "bulletList",
-                                        "orderedList", "listItem", "blockquote") else ""
-    return sep.join(parts)
+from adf import adf_to_text as _adf_to_text
 
 
 # Configure logging

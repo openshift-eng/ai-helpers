@@ -21,6 +21,8 @@ import glob
 import os
 import sys
 
+from adf import adf_to_text
+
 
 def pr_author(pr: dict) -> str:
     """Extract author name from a PR's commit or review data."""
@@ -96,7 +98,8 @@ def summarize(path: str, date_start: str | None = None) -> None:
     print(f"Status: {issue['status']}")
     assignee = issue["assignee"]
     print(f"Assignee: {assignee['name']} ({assignee['email']})")
-    print(f"Current Status Summary: {issue.get('current_status_summary') or 'None'}")
+    current_status_summary = adf_to_text(issue.get("current_status_summary"))
+    print(f"Current Status Summary: {current_status_summary or 'None'}")
     print(f"Last Status Summary Update: {issue.get('last_status_summary_update') or 'None'}")
     print()
 
