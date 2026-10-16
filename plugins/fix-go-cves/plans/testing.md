@@ -43,6 +43,9 @@ runs, so a trial takes minutes and costs well under $1.
   the fix branch (the result commit itself, not a PR head that may carry
   later manual commits), and the base and default branches as they were,
   for backport searches.
+- Untracked files the recorded run saw, when `input.yaml` lists them: for
+  subctl, a `bin/lichen` built with `GOEXPERIMENT=nodwarf5`, so its
+  compiler marker matches the log.
 - Remotes pointing at local bare repositories, and a `gh` shim that only
   logs its arguments. A push or PR attempt stays local and is recorded.
 - A replay plugin whose `scripts/fix-all.sh` prints the recorded log,
