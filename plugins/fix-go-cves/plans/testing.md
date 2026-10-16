@@ -21,7 +21,10 @@ eval case. No case is written speculatively.
 `make test` runs every plugin's `test_*.py`, this suite included. It only
 skipped because its wrapper demanded Go 1.26; the suite passes on Go 1.24
 (1.22 fails four packed-binary checks), and GitHub's `ubuntu-24.04` runners
-put Go 1.24 on `PATH`. With the floor at 1.24, the existing Test job runs it.
+put Go 1.24 on `PATH` (the Test job uses `ubuntu-latest`, currently 24.04).
+With the floor at 1.24, the existing Test job runs it. The wrapper fails
+instead of skipping when `CI` is set, so a runner image without Go cannot
+silently drop the suite.
 
 That adds about 3 minutes (measured locally) to a job that takes under 1
 today, on every PR. If maintainers object, move the suite to a Prow job with
@@ -66,16 +69,23 @@ turns into the case repository:
   into a cache outside the workspace (warmed by `before_all`), checks out
   the pinned base and default-branch commits on the branch the run started
   from, and points every remote at a local bare repository. Harness paths
-  go in `.git/info/exclude`.
+  go in `.git/info/exclude`. `input.yaml` holds only the repository, those
+  commits and the arguments, and prepare deletes it once the harness has
+  read the arguments; expected answers, such as the commits a reply must
+  name, live in `annotations.yaml`, which never reaches the workspace.
 - **Restore what the run saw.** Untracked files as stubs (for subctl, an
   empty `bin/lichen`; `go version` on it disagrees with the log, so
   criteria rely on the log, not the file), and report directories the log
   names, where the run kept them.
 - **Stage the plugin.** Prepare writes the replay plugin to
-  `.staged-plugins/fix-go-cves`, where the runner reuses an existing copy:
-  the whole current plugin, including `README.md`, `scripts/` and
-  `subagents/`, but not `evals/`, `plans/` or `test/`, plus this case's log
-  and `result.bundle` (a git bundle of just the run's commits).
+  `.staged-plugins/fix-go-cves`, where the runner reuses an existing copy.
+  It is the plugin at the ai-helpers commit that produced the case's log
+  (`git archive`), not today's: current scripts carry comments written
+  after a run, and one names case 004's answer. Only `SKILL.md`, the thing
+  under test, comes from the working tree. `evals/`, `plans/` and `test/`
+  are left out, and this case's log and `result.bundle` (a git bundle of
+  just the run's commits) are added. The recorded commits are on the PR
+  branch and the author's fork.
   `scripts/fix-all.sh` keeps its real text behind a short preamble that
   records its arguments, applies the bundle to create the fix branch,
   prints the recorded log and exits with the recorded code, so an agent
@@ -91,26 +101,26 @@ is the text of the agent's final result event, extracted to its own output
 file before scoring (`traces.events: true`): the conversation the harness
 otherwise hands judges includes interim narration and the log itself.
 
-**Isolation.** The claude-code runner passes the agent only `runner.env`
-and a short list of host variables, so isolation goes in `runner.env`:
+**Isolation.** `evals/run.sh` runs the harness once per run and case, each
+time with a fresh `TMPDIR` (where the harness puts workspaces, with no
+`CLAUDE.md` above it), a fresh `HOME`, and `PATH` starting with a `gh` shim
+that only logs its arguments; it deletes the workspace after collecting
+results. A trial therefore sees no other case's workspace, no earlier
+trial's output, and none of the user's `CLAUDE.md`, memory, plugins, SSH
+keys, or git and `gh` credentials. The claude-code runner passes the agent
+only `runner.env` and a short host allowlist that includes `HOME` and
+`PATH`; `runner.env` sets the rest:
 
-- `HOME` is a new empty directory per run, so no user `CLAUDE.md`, memory,
-  plugins, SSH keys, or git and `gh` credentials load;
-- `PATH` puts a `gh` shim, which only logs its arguments, first;
 - `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0` and
   `GIT_ALLOW_PROTOCOL=file`, so git cannot fetch a newer upstream than the
   pinned one, and `GOPROXY=off` with `GOTOOLCHAIN=local` for Go;
-- `AGENT_EVAL_RUNS_DIR` empty, so the agent cannot find earlier trials;
+- `AGENT_EVAL_RUNS_DIR` empty, so the agent is not told where results go;
 - Vertex credentials through `GOOGLE_APPLICATION_CREDENTIALS`, which the
   agent can read: the runner is still not a sandbox.
 
-`evals/run.sh` sets `TMPDIR` to a fresh directory with no `CLAUDE.md` above
-it, since the harness puts case workspaces there, and starts three runs with
-separate run IDs under one runs directory. `permissions.deny` blocks
-`Bash(git push:*)`, the `git remote` subcommands that change remotes (not
-`git remote -v`, which the skill uses to check `origin`), `Bash(gh:*)`, MCP
-tools, web tools and subagents, so check 1 has denials to find. A hermetic
-test checks that a prepared workspace has no path into ai-helpers.
+`permissions.deny` blocks `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web
+tools and subagents, so check 1 has denials to find. A hermetic test checks
+that a prepared workspace has no path into ai-helpers.
 
 **Checks** live in `checks.py`. The deterministic ones gate at a 1.0 pass
 rate:
@@ -165,8 +175,10 @@ record lists the recording user's connectors, plugins and memory paths.
 Hermetic tests fail on a transcript, a `/home/` or `/run/user/` path
 anywhere under `evals/cases/` (decompressing `.gz` files first), or a log
 missing what `SKILL.md` reads. The bundles and PR commands keep the
-recording author's name and fork; both are already public on the
-release-0.24 PRs. The
+recording author's name and fork. Three bundles (004, 005, 006) hold
+commits that were never pushed, but they contain only `go.mod`, `go.sum`
+and `.grype.yaml` edits by the same author, so publishing them adds nothing
+sensitive. The
 release-0.24 sources are kept in `.work/fix-go-cves-evals/source/` until
 then.
 
