@@ -1,0 +1,5 @@
+jira_key: "OCPSTRAT-3154"
+repo_url: "https://github.com/openshift/machine-config-operator"
+# Immutable tip of main at 2026-10-13. Post-dates MCO#6238 (merged 2026-07-26),
+# so both guard implementations are present in the tree under analysis.
+repo_ref: "cafae48a047119cad00aa53f91e6e509e5a860ce"
