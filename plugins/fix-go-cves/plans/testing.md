@@ -75,8 +75,10 @@ The cases below cover each; two of the underlying script bugs are under
 - **Session:** a trial's conversation, rebuilt from the proxy's log.
 - **Preamble:** the replay code placed at the top of the staged
   `fix-all.sh`.
-- **Sibling directory:** the directory beside the workspace that holds run
-  state, reports and the log's other home paths.
+- **Sibling directory:** `<run workspace>/fgc/<case-id>/`, outside the
+  harness's `cases/` (whose every directory it scores as a case); it holds
+  run state, reports, the log's other home paths, the bare remotes and the
+  copied-out tree.
 - **Copy list:** the paths prepare writes for the wrapper to copy into the
   container.
 - **Copied-out tree:** the container's volumes, copied out after the trial,
@@ -125,8 +127,10 @@ Each case directory holds:
 - `run.log.gz`: the recorded log;
 - `reply.md`: the reference reply;
 - `negatives/`: the recorded wrong reply, where one exists, one-fact edits
-  of the reference, case-specific constructed wrong replies (006's sends the
-  flag to the team), and a wrong reply that tells the judge to pass it;
+  of the reference, case-specific constructed wrong replies (006's send the
+  flag to the team, or blame the Go raise while keeping the backport, since
+  the recorded reply also misses the backport), and a wrong reply that tells
+  the judge to pass it; each names the criterion it must fail;
 - `reports/`: report directories the log names (subctl's);
 - `plugin.tar.gz`: the plugin at the recording's commit, limited to
   `.claude-plugin/`, `skills/`, `scripts/`, `subagents/` and `README.md`
@@ -198,8 +202,12 @@ have written.
 `checks.py calibrate` runs the harness's own judges (`score.py judges`) on
 synthetic trials whose reply file holds a stored reply, so the prompt
 calibrated is the prompt that scores. It must pass each `reply.md` and fail
-each negative before any agent is scored; rerun it when criteria or the
-judge model change. Criteria stay neutral on whether a Go directive raise
+each negative on the criterion it names before any agent is scored. The harness
+finds criteria by the trial directory's name, so each stored reply is its own
+run, under `cases/<case-id>/`, scored with a config holding only the criteria
+judges; `calibrate` reads the verdicts from each run's `summary.yaml` and
+ignores the exit code, which negatives always fail. Rerun it when criteria or
+the judge model change. Criteria stay neutral on whether a Go directive raise
 needs the team, because the plugin and the repositories' own workflow notes
 disagree (see [Decisions](README.md#decisions)).
 
@@ -337,11 +345,11 @@ the `before_each` hook, turns it into the case repository:
   Claude Code gets `CLAUDE_CODE_SKIP_VERTEX_AUTH=1` and
   `ANTHROPIC_VERTEX_BASE_URL` pointing at that port, a pattern the runner
   already supports for agentic-ci.
-- **`after_each`:** kills the container and the proxy (the runner's timeout
-  kills only the wrapper), copies the volumes out with `podman cp` into a
-  scratch directory outside the case workspace (the harness later runs host
-  git there, so it keeps prepare's `.git`), runs the
-  state check on them in a fresh container from the pinned image, read-only
+- **`after_each`:** timeout of 600 seconds; kills the container and the
+  proxy (the runner's timeout kills only the wrapper), copies the volumes
+  out with `podman cp` into the sibling directory, never the case workspace
+  (the harness later runs host git there, so it keeps prepare's `.git`),
+  runs the state check on them in a fresh container from the pinned image, read-only
   and with no network, writes the validated result and the session's reply
   to declared `outputs:` paths outside the `output/` directory where the
   harness drops `stdout.log`, and removes the container and volumes.
@@ -359,7 +367,8 @@ the `before_each` hook, turns it into the case repository:
   check 1 has denials to find; no provider plan. Either path-based rules or
   a plan would make the runner write a settings overlay, one form of which
   holds the inference key, into the workspace.
-- **Prepare:** `before_each` timeout of 900 seconds, for a cold clone;
+- **Prepare:** `before_all` (which warms the clone cache) and `before_each`
+  timeouts of 900 seconds, for a cold clone, since hooks default to 120;
   unpacks with Python's `tarfile` and `filter="data"`.
 
 ### To confirm when building
@@ -372,7 +381,7 @@ the `before_each` hook, turns it into the case repository:
   streamed responses.
 - Rootless podman runs the container on the target hosts, and the container
   user can connect to the proxy socket under `--userns=keep-id`.
-- Prepare fits its 900-second timeout from a cold cache.
+- `before_all` fits its 900-second timeout from a cold cache.
 - The cost of one trial, to set the per-case budget.
 
 ### Later
