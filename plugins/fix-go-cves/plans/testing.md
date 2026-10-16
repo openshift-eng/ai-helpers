@@ -57,10 +57,12 @@ then holds:
 
 - the case repository at pinned base and default-branch commits, on the
   branch the run started from, with the harness's own paths listed in
-  `.git/info/exclude` so they are not untracked files;
-- untracked files the run saw, as stubs dated before the log starts (for
-  subctl, an empty `bin/lichen`; `go version` on it disagrees with the log,
-  so criteria rely on the log, not the file);
+  `.git/info/exclude` so they are not untracked files. Prepare clones the
+  public URL in `input.yaml` into a cache outside the workspace and builds
+  the bare remotes from it; it is the only step with network access;
+- untracked files the run saw, as stubs (for subctl, an empty `bin/lichen`;
+  `go version` on it disagrees with the log, so criteria rely on the log,
+  not the file);
 - report directories the log names, where the run kept them;
 - remotes pointing at local bare repositories, and a `gh` shim that only
   logs its arguments.
@@ -71,22 +73,31 @@ without `evals/`, `plans/` or `test/`, at a fixed path ending in
 `fix-go-cves`, with `scripts/fix-all.sh` replaced. The replacement records
 its arguments, applies the case's `result.bundle` (a git bundle of just the
 run's commits) to create the fix branch, prints the recorded log and exits
-with the recorded code. Logs and replies are stored with placeholders for
-the repository, report and log paths, which the replacement fills with
-workspace paths; the log's own `exit=` line is dropped, since `SKILL.md`
-appends one. Nothing else from the case reaches the agent. An `after_each`
-hook writes the repository state (status including ignored files, refs, the
-bare remotes and the `gh` log) to the case's output directory for the
+with the recorded code. Logs, replies and report directories are stored
+with every home-directory path replaced by a placeholder, which the
+replacement fills with workspace paths; the log's own `exit=` line is
+dropped, since `SKILL.md` appends one. Nothing else from the case reaches
+the agent. An `after_each` hook writes the repository state (status
+including ignored files, refs, the bare remotes and the `gh` log) to the
+case's output directory for the
 checks.
 
 The harness invokes the skill with the case's arguments (`mode: case`, as in
-the repository's other evals), with `CLAUDE_CONFIG_DIR` pointing at an empty
-directory and the harness's runs directory (`AGENT_EVAL_RUNS_DIR`) outside
-ai-helpers, so no user or parent `CLAUDE.md` and no memory load.
-`GH_CONFIG_DIR` is empty and `GIT_CONFIG_GLOBAL=/dev/null`,
-`GIT_CONFIG_NOSYSTEM=1` and `GIT_TERMINAL_PROMPT=0` drop host git and `gh`
-credentials. The runner is
-still not a sandbox.
+the repository's other evals). Its claude-code runner passes the agent only
+`runner.env` and a short list of host variables, so isolation goes in
+`runner.env`:
+
+- `HOME` is a new empty directory per run, so no user `CLAUDE.md`, memory,
+  plugins, SSH keys, or git and `gh` credentials load;
+- `PATH` puts the `gh` shim first;
+- `GIT_CONFIG_NOSYSTEM=1` and `GIT_TERMINAL_PROMPT=0`;
+- Vertex credentials through `GOOGLE_APPLICATION_CREDENTIALS`, which the
+  agent can read: the runner is still not a sandbox.
+
+The harness's runs directory (`AGENT_EVAL_RUNS_DIR`) is a fresh directory
+under `$TMPDIR`, with no `CLAUDE.md` in any parent. `permissions.deny` blocks
+`Bash(git push:*)`, `Bash(git remote:*)`, `Bash(gh:*)`, MCP tools, web tools
+and subagents, so check 1 has denials to find.
 
 **Checks** live in `checks.py`. The deterministic ones gate at a 1.0 pass
 rate:
@@ -136,16 +147,20 @@ Each case holds `input.yaml` (repository, commits, arguments, files),
 gzipped, `reply.md` and, where one exists, `wrong-reply.md`. Files are
 copied by allowlist: agent transcripts stay out, because their first
 record lists the recording user's connectors, plugins and memory paths.
-Hermetic tests fail on a transcript, a `/home/` or `/run/user/` path under
-`evals/cases/`, or a log missing what `SKILL.md` reads, which happens when
-`fix-all.sh` output changes and the case needs re-recording. The
+Hermetic tests fail on a transcript, a `/home/` or `/run/user/` path
+anywhere under `evals/cases/` (decompressing `.gz` files first), or a log
+missing what `SKILL.md` reads. The bundles and PR commands keep the
+recording author's name and fork; both are already public on the
+release-0.24 PRs. The
 release-0.24 sources are kept in `.work/fix-go-cves-evals/source/` until
 then.
 
-**Running.** Three runs per case before a `SKILL.md`, review-prompt or model
-change. Read failing transcripts before changing anything, since a case can
-be wrong too, and rerun a failing case with the old `SKILL.md` before
-blaming the change.
+**Running.** Three runs per case before a `SKILL.md` or model change. A
+change to `scripts/review-prompt.md` or to `fix-all.sh` output is not
+exercised by replay: it means re-recording the cases whose logs it changes
+(004 and 006 for the review prompt). Read failing transcripts before
+changing anything, since a case can be wrong too, and rerun a failing case
+with the old `SKILL.md` before blaming the change.
 
 ### Later
 
