@@ -1,0 +1,5 @@
+jira_key: "OCPBUGS-52409"
+repo_url: "https://github.com/openshift/ovn-kubernetes"
+# Immutable tip of release-4.17 at 2026-10-16. This is the branch the bug
+# targets (Jira Target Version 4.17.z) and the branch PR #2476 merged to.
+repo_ref: "12f4e7e12f583767c8e9549408e36bbf4000b1b4"

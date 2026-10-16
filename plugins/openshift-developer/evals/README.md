@@ -50,3 +50,18 @@ skill chain.
 | case-003 | OCPBUGS-119976 | Include unavailable components in KAS load-balancer status (PR #9502) |
 | case-004 | OCPBUGS-100141 | Propagate proxy configuration to AWS cloud-controller-manager (PR #9156) |
 | case-005 | OCPBUGS-85182 | Remove obsolete MutatingAdmissionPolicy runtime configuration (PR #9350) |
+
+## generate-test-plan (`cases/generate-test-plan`)
+
+Whether the generate-test-plan skill respects an existing repository test plan
+convention, assigns a CI tier and a downstream target file path to every
+scenario, reconciles against the existing test corpus, and flags missing source
+data instead of inventing content.
+
+| Case | JIRA | Description |
+|------|------|-------------|
+| case-001 | OCPSTRAT-3154 | Feature whose template is largely unfilled; requirements must come from the linked enhancement |
+| case-002 | OCPSTRAT-3444 | Target repository ships its own test plan template |
+| case-003 | OCPBUGS-52409 | Bug with a clone chain and a closed-unmerged backport |
+| case-004 | OCPSTRAT-3851 | Feature with no implementation PRs |
+| case-005 | OCPSTRAT-3154 | Source trimmed of topology, security and interoperability content, with links removed |

@@ -1,0 +1,928 @@
+name: generate-test-plan-eval
+description: >
+  Evaluate the generate-test-plan skill's output conformance, test architecture
+  assignment, and sourcing discipline. Judges grade the generated markdown test
+  plan directly: structural invariants deterministically, traceability and tier
+  cost discipline by LLM.
+skill: openshift-developer:generate-test-plan
+
+execution:
+  mode: case
+  arguments: "{jira_key}"
+  timeout: 900
+  max_budget_usd: 2.50
+  env:
+    # Resolved from the caller's shell; silently omitted if unset. Keep real
+    # secrets out of this file. Only needed for cases marked live in
+    # annotations; fixtured cases read jira-issue.json from the case directory.
+    JIRA_URL: "$JIRA_URL"
+    JIRA_USERNAME: "$JIRA_USERNAME"
+    JIRA_API_TOKEN: "$JIRA_API_TOKEN"
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/openshift-developer
+    - plugins/jira
+  system_prompt: |
+    You are running a test-plan generation task.
+
+    Read input.yaml to obtain jira_key and, if present, repo_url and repo_ref.
+    Do not read annotations.yaml at any point - it contains the expected
+    results for this case.
+
+    If input.yaml sets `jira_fixture: jira-issue.json`, use that file as the
+    authoritative Jira issue content instead of querying Jira. It is the frozen
+    response of a getJiraIssue call with view "evidence". Treat it exactly as
+    you would a live response, including its issuelinks and custom fields.
+
+    If input.yaml sets repo_url and repo_ref, prepare the working repository
+    first: git init, add repo_url as origin, fetch repo_ref, check out
+    FETCH_HEAD on a local branch. Add input.yaml, annotations.yaml and
+    jira-issue.json to .git/info/exclude so they stay out of git status.
+    Do not push and do not create a pull request.
+
+    Then invoke /openshift-developer:generate-test-plan with jira_key exactly
+    once. Let the skill choose its own output path and format; do not override
+    its filename, directory or section structure, and do not reformat its
+    output afterwards.
+
+    After the skill finishes, create an output/ directory and capture the
+    files below. This step is harness bookkeeping, not part of the skill's
+    work - do not let it alter the plan.
+
+    - output/plan-path.txt: the repo-relative path of the markdown test plan
+      the skill created, as a single line with no other text. Determine it
+      from `git status --porcelain` (untracked and modified entries) or from
+      a find over files newer than input.yaml. Do not guess, and never write
+      a path the skill did not actually use. If no plan was produced, write
+      the single word NONE.
+    - output/plan.md: a verbatim, byte-for-byte copy of that file. Copy it;
+      do not reformat, re-wrap, summarise or edit it in any way. Omit this
+      file when no plan was produced.
+    - output/coverage-path.txt: the skill may also emit a companion coverage
+      document (<feature-name>-coverage-analysis.md) holding the existing
+      coverage analysis, detailed test cases and coverage summary. Write its
+      repo-relative path here, or the single word NONE.
+    - output/coverage-analysis.md: verbatim copy of that companion document,
+      when one exists.
+
+    Report honestly. If the skill could not complete, say so rather than
+    writing a plan yourself. Do not author, extend or repair the test plan
+    outside the skill invocation.
+
+models:
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Skill"
+    - "Read"
+    - "Write"
+    - "Edit"
+    - "Glob"
+    - "Grep"
+    - "Bash"
+    - "WebFetch"
+    # Jira MCP tools, both observed server namespaces. The skill selects
+    # whichever is present (SKILL.md Step 1b); fixtured cases need none.
+    - "mcp__atlassian__getJiraIssue"
+    - "mcp__atlassian__searchJiraIssuesUsingJql"
+    - "mcp__atlassian__getAccessibleAtlassianResources"
+    - "mcp__plugin_jira_atlassian__getJiraIssue"
+    - "mcp__plugin_jira_atlassian__searchJiraIssuesUsingJql"
+  deny:
+    - "Agent"
+
+mlflow:
+  experiment: generate-test-plan-eval
+
+dataset:
+  path: plugins/openshift-developer/evals/cases/generate-test-plan
+  schema: |
+    Each case directory contains:
+    - input.yaml:
+      - 'jira_key'      - Jira issue key under test (required)
+      - 'jira_fixture'  - filename of the frozen Jira response (optional;
+                          when absent the skill queries live Jira)
+      - 'repo_url'      - target repository the plan is generated against (optional)
+      - 'repo_ref'      - immutable commit SHA for repo_url (optional)
+    - annotations.yaml:
+      - 'expected_format'        - 'ieee829' | 'repo-template' | 'generic'
+      - 'expected_template_path' - path to the repo's own template, when
+                                   expected_format is 'repo-template'
+      - 'expected_template_sections' - ordered list of required headings
+      - 'expected_gap_sections'  - sections that MUST carry a GAP marker
+                                   because the source has no data for them
+      - 'forbidden_terms'        - terms that must NOT appear as generated
+                                   scenarios; presence means fabrication
+      - 'expected_preliminary'   - boolean; zero-PR path
+      - 'min_scenarios'          - floor only, to catch empty output; never
+                                   used to reward volume
+      - 'expected_ownership_tiers' - ownership tiers that must appear
+      - 'customer_names'         - names that must be scrubbed from output
+      - 'difficulty'             - simple|medium|complex
+      - 'notes'                  - context for LLM judges
+    - jira-issue.json: frozen getJiraIssue (view "evidence") response.
+
+outputs:
+  - path: "docs/test-plans"
+    schema: |
+      The generated markdown test plan. Filename is chosen by the skill from
+      the feature name (kebab-case), not the Jira key.
+  - path: "output"
+    schema: |
+      Bounded harness-owned capture written after the skill finishes:
+        plan-path.txt       - single line: the repo-relative path the skill chose
+        plan.md             - verbatim copy of the generated test plan
+        coverage-path.txt   - path of the companion coverage-analysis document,
+                              or NONE. Since the 9 Oct rework the skill emits
+                              existing-coverage, detailed cases and the coverage
+                              summary as a separate <feature-name>-coverage-
+                              analysis.md; judges must know whether it exists.
+      Collecting the whole working directory is NOT an option: cases that clone
+      a target repository would sweep the entire checkout into outputs.files,
+      which both LLM judges iterate.
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+
+  # ── Deterministic: output location and shape ──
+
+  - name: plan_file_location
+    description: >
+      Plan is written under a conventional test-plan directory with a
+      kebab-case feature filename, not the Jira key and not flat in cwd.
+      Reads the path the skill actually used from output/plan-path.txt rather
+      than inferring it from collected keys: collection is scoped to output/
+      and docs/test-plans/, so a plan written somewhere unconventional would
+      otherwise simply vanish instead of failing this judge.
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      pp = {k: v for k, v in all_f.items() if k.endswith("plan-path.txt")}
+      if not pp:
+          return (False, "No output/plan-path.txt - cannot determine where the plan went")
+      raw = list(pp.values())[0].strip()
+      if not raw or raw.upper() == "NONE":
+          return (False, "Skill produced no test plan")
+      path = raw.splitlines()[0].strip().replace("\\", "/").lstrip("./")
+      # Conventional locations per SKILL.md 5b, plus docs/plans/ which is what
+      # kueue-operator actually uses. The superset is deliberate: 5b's list and
+      # that repo's real convention disagree, and the ambiguity is a comment to
+      # leave on the skill, not a reason to fail a correct plan.
+      CONV = ("docs/test-plans/", "test-plans/", "test/docs/plans/", "docs/plans/")
+      if not any(path.startswith(c) or f"/{c}" in path for c in CONV):
+          return (False, f"Plan written outside a conventional directory: {path}")
+      base = path.rsplit("/", 1)[-1]
+      if not base.endswith(".md"):
+          return (False, f"Plan is not a markdown file: {path}")
+      base = base[:-3]
+      ann = outputs.get("annotations", {})
+      key = str(ann.get("jira_key", "")).strip().upper()
+      if key and base.upper() == key:
+          return (False, f"{base}.md is named after the Jira key, not the feature")
+      if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", base):
+          return (False, f"{base}.md is not kebab-case")
+      return (True, f"Plan at {path}")
+
+  - name: plan_status_header
+    description: Plan carries the metadata header (Plan Status, Feature, Component).
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      head = body[:2000]
+      missing = [f for f in ("Plan Status", "Feature")
+                 if not re.search(rf"\*\*{f}:?\*\*", head)]
+      if missing:
+          return (False, f"Header missing: {', '.join(missing)}")
+      m = re.search(r"\*\*Plan Status:?\*\*\s*:?\s*(\w+)", head)
+      if m and m.group(1).lower() != "draft":
+          return (False, f"Generated plan must be Draft, found '{m.group(1)}'")
+      return (True, "Plan status header present and Draft")
+
+  # ── Deterministic: scenario structure ──
+
+  - name: scenario_ids_wellformed
+    description: >
+      Every scenario carries a unique TC-<CAT>-<NNN> identifier with a
+      three-digit number, and the plan is not empty.
+    check: |
+      import re, collections
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      ids = re.findall(r"\bTC-[A-Z]{2,8}-\d+\b", body)
+      if not ids:
+          return (False, "No TC-<CAT>-<NNN> scenario IDs found")
+      bad_width = sorted({i for i in ids if not re.fullmatch(r"TC-[A-Z]{2,8}-\d{3}", i)})
+      if bad_width:
+          return (False, f"IDs not three-digit: {bad_width[:5]}")
+      # An ID legitimately recurs when a scenario is cross-referenced from a
+      # summary table, so only flag an ID defined more than once in a row-start
+      # position (table cell or list item opener).
+      defined = re.findall(r"(?m)^\s*(?:[|*-]\s*)?\**(TC-[A-Z]{2,8}-\d{3})\**", body)
+      redefined = [i for i, n in collections.Counter(defined).items() if n > 1]
+      if redefined:
+          return (False, f"Duplicate scenario IDs: {sorted(redefined)[:5]}")
+      ann = outputs.get("annotations", {})
+      floor = ann.get("min_scenarios", 1)
+      uniq = len(set(ids))
+      if uniq < floor:
+          return (False, f"{uniq} scenarios, floor is {floor}")
+      return (True, f"{uniq} unique well-formed scenario IDs")
+
+  - name: ci_tier_assigned
+    description: >
+      Scenarios carry a CI tier from the approved vocabulary, and no scenario
+      is assigned to the payload tier (TRT/QSE-owned, not feature-level).
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      TIERS = ("unit", "integration", "e2e-serial", "e2e-parallel", "e2e-periodic")
+      alt = "|".join(re.escape(t) for t in TIERS)
+      # A tier must be ASSIGNED, not merely mentioned in prose. Two accepted
+      # forms: an inline label ("CI Tier: unit", "**Tier** | unit") or a table
+      # cell in a row that also carries a scenario ID. Matching bare words
+      # anywhere in the document passes any plan that happens to use the
+      # English word "unit" - that is a false pass, not a measurement.
+      labelled = re.findall(
+          rf"(?:ci[ -]?tier|\btier\b)[^\n|]{{0,16}}[:|]\s*\**({alt})\b", body, re.I)
+      rowwise = [l for l in body.splitlines()
+                 if re.search(r"\bTC-[A-Z]{2,8}-\d+\b", l)
+                 and re.search(rf"(?<![\w-])(?:{alt})(?![\w-])", l, re.I)]
+      n_tier = len(labelled) + len(rowwise)
+      if n_tier == 0:
+          return (False,
+                  "No CI tier is assigned to any scenario (a tier word appearing "
+                  "in prose does not count as an assignment)")
+      # Locate scenarios with a width-tolerant pattern: ID *shape* is the
+      # concern of scenario_ids_wellformed. Coupling the two makes a plan with
+      # malformed IDs silently pass this judge instead of failing both.
+      n_ids = len(set(re.findall(r"\bTC-[A-Z]{2,8}-\d+\b", body)))
+      for line in body.splitlines():
+          if re.search(rf"(?:ci[ -]?tier|\btier\b)[^\n|]{{0,16}}[:|]\s*\**payload\b",
+                       line, re.I) or re.search(
+                       r"\bTC-[A-Z]{2,8}-\d+\b[^\n]*\|\s*payload\s*\|", line, re.I):
+              return (False, f"Scenario assigned to forbidden payload tier: {line.strip()[:120]}")
+      if n_ids and n_tier < n_ids:
+          return (False, f"{n_ids} scenarios but only {n_tier} tier assignments")
+      found = {t for t in TIERS
+               if re.search(rf"(?<![\w-]){re.escape(t)}(?![\w-])", body, re.I)}
+      return (True, f"Tiers used: {sorted(found)}; {n_tier} assignments for {n_ids} scenarios")
+
+  - name: target_file_path_downstream
+    description: >
+      Every scenario names a Target File Path, and that path resolves to a
+      downstream repository. Scope is downstream-only since the 9 Oct rework;
+      openshift-tests-private is locked for new contributions and must never
+      be a target.
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      # Only rows that DEFINE a scenario - the ID must be the first cell.
+      # Matching any line containing a TC id sweeps in roll-up rows such as
+      # the CI placement matrix ("| unit | TC-FUNC-001 through TC-FUNC-010 |"),
+      # which legitimately carry no file path. Deferred-appendix rows are
+      # excluded too: they are backlog items with no path yet.
+      rows = [l for l in body.splitlines()
+              if re.match(r"\s*\|\s*`?(TC-[A-Z]{2,8}-\d+)`?\s*\|", l)
+              and not re.match(r"\s*\|\s*`?TC-DEFER-", l)]
+      if not rows:
+          return (False, "No scenario-defining table rows found")
+      ann = outputs.get("annotations", {})
+      PATH = re.compile(r"`[^`\n]*?(?:/|_test\.|\.go|\.py)[^`\n]*`|\bTBD\b", re.I)
+      # A preliminary plan has no implementation to point at, and SKILL.md 4a
+      # tells it to avoid inventing a path. Demanding a concrete path there
+      # would penalise the correct behaviour, so only the ban is enforced.
+      if not ann.get("expected_preliminary"):
+          missing = [l.strip()[:90] for l in rows if not PATH.search(l)]
+          if missing:
+              return (False,
+                      f"{len(missing)} scenario(s) carry no target file path: {missing[:2]}")
+      banned = [l.strip()[:90] for l in rows
+                if re.search(r"openshift-tests-private", l, re.I)]
+      if banned:
+          return (False,
+                  f"{len(banned)} scenario(s) target openshift-tests-private, which is "
+                  f"locked for new contributions: {banned[:2]}")
+      if ann.get("expected_preliminary"):
+          return (True, f"{len(rows)} preliminary scenarios; none target openshift-tests-private")
+      return (True, f"All {len(rows)} scenarios carry a downstream target file path")
+
+  - name: coverage_status_present
+    description: Scenarios carry a coverage status from the reconciliation step.
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      # Match the bracketed token by prefix, not as an exact literal. A real
+      # plan writes "[PRELIMINARY - no implementation PRs available]"; demanding
+      # a closing bracket immediately after the word fails a plan that did the
+      # right thing in words the pattern did not anticipate.
+      STATUSES = ("COVERED", "PARTIAL", "GAP", "PRELIMINARY")
+      found = {s for s in STATUSES
+               if re.search(rf"\[{s}\b", body)}
+      if not found:
+          # Accept the equivalent table-column phrasing before failing.
+          if re.search(r"\|\s*coverage\s*(status)?\s*\|", body, re.I):
+              return (True, "Coverage reported via a Coverage column")
+          return (False,
+                  f"No coverage status from {STATUSES} and no Coverage column")
+      return (True, "Coverage statuses used: "
+                    + ", ".join(f"[{s}]" for s in sorted(found)))
+
+  # ── Deterministic: sourcing discipline (reviewer thread A) ──
+
+  - name: gap_markers_present
+    description: >
+      Sections with no corresponding source data are explicitly flagged rather
+      than silently omitted or invented.
+    check: |
+      import re
+      ann = outputs.get("annotations", {})
+      expected = ann.get("expected_gap_sections") or []
+      if not expected:
+          return (True, "No gap sections expected for this case - skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      # Accept any phrasing that tells the reader the source had no data here.
+      # Wording varies run to run; the behaviour under test is "says so out
+      # loud", not a particular sentence.
+      GAP = (r"⚠️?\s*\*{0,2}GAP|not enough information|could not be populated"
+             r"|left intentionally blank|refinement gap|source unfilled"
+             r"|\babsent\b|\bnot provided\b|\bmissing\b|\bnot specified\b"
+             r"|does not (?:mention|include|describe)|update the (?:feature )?ticket")
+      missing = []
+      for section in expected:
+          hits = list(re.finditer(re.escape(section), body, re.I))
+          if not hits:
+              missing.append(f"{section} (section never mentioned)")
+              continue
+          # Two shapes to accept. Prose: the marker follows the section name.
+          # Table: the section is a row label and the marker is a later cell
+          # on the SAME line (e.g. "| Goals | absent |"). Checking only a
+          # forward character window misses the table form entirely.
+          ok = False
+          for h in hits:
+              line_start = body.rfind("\n", 0, h.start()) + 1
+              line_end = body.find("\n", h.end())
+              line = body[line_start: line_end if line_end != -1 else len(body)]
+              window = body[h.start(): h.start() + 400]
+              if re.search(GAP, line, re.I) or re.search(GAP, window, re.I):
+                  ok = True
+                  break
+          if not ok:
+              missing.append(section)
+      if missing:
+          return (False, f"No gap marker for: {missing}")
+      return (True, f"All {len(expected)} empty sections explicitly flagged")
+
+  - name: no_fabricated_scenarios
+    description: >
+      The skill does not invent scenarios for capabilities the source never
+      mentions. Forbidden terms may appear inside a gap marker (flagging their
+      absence is correct) but never as a generated test scenario.
+    check: |
+      import re
+      ann = outputs.get("annotations", {})
+      forbidden = ann.get("forbidden_terms") or []
+      if not forbidden:
+          return (True, "No forbidden terms for this case - skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      GAP = re.compile(
+          r"⚠️?\s*\*{0,2}GAP|not enough information|could not be populated"
+          r"|not applicable|left intentionally blank|does not mention",
+          re.I)
+      violations = []
+      scen = re.compile(r"\bTC-[A-Z]{2,8}-\d+\b")  # width-tolerant on purpose:
+      # requiring \d{3} here would make a plan with malformed IDs match no
+      # lines at all and pass this judge trivially.
+      if not scen.search(body):
+          return (False, "No scenarios found - cannot assess fabrication")
+      for line in body.splitlines():
+          if not scen.search(line):
+              continue  # only scenario-bearing lines can fabricate a scenario
+          if GAP.search(line):
+              continue  # the line is flagging absence, which is correct
+          for term in forbidden:
+              if re.search(rf"(?<![\w-]){re.escape(term)}(?![\w-])", line, re.I):
+                  violations.append(f"'{term}' in: {line.strip()[:100]}")
+      if violations:
+          return (False, f"{len(violations)} fabricated scenario(s): {violations[:3]}")
+      return (True, f"No scenarios fabricated for {len(forbidden)} absent topics")
+
+  - name: na_has_reason
+    description: >
+      Inapplicable sections carry a one-sentence reason, never a bare N/A.
+      A bare N/A is indistinguishable from an unanswered section.
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      bare = []
+      for line in body.splitlines():
+          s = line.strip().strip("|").strip()
+          if re.fullmatch(r"\**(N/?A|Not applicable)\.?\**", s, re.I):
+              bare.append(line.strip()[:80])
+      if bare:
+          return (False, f"{len(bare)} bare N/A without a reason: {bare[:3]}")
+      return (True, "Every N/A carries a reason")
+
+  # ── Deterministic: links, abbreviations, internal consistency ──
+
+  - name: no_placeholder_links
+    description: No placeholder or templated URLs leak into the output.
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      PLACEHOLDER = re.compile(
+          r"https?://[^\s)\]]*(example\.com|<[^>]+>|XXXX|TODO|FIXME|your-)"
+          r"|\[[^\]]*\]\(\s*#?\s*\)",
+          re.I)
+      hits = [m.group(0)[:80] for m in PLACEHOLDER.finditer(body)]
+      if hits:
+          return (False, f"{len(hits)} placeholder link(s): {hits[:3]}")
+      ann = outputs.get("annotations", {})
+      for name in ann.get("customer_names") or []:
+          if re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", body, re.I):
+              return (False, f"Unscrubbed customer name in output: {name}")
+      return (True, "All links are real; no customer names leaked")
+
+  - name: abbreviations_section
+    description: >
+      An Abbreviations key is present, and it does not list abbreviations the
+      plan never uses.
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      m = re.search(r"(?mi)^#{1,4}\s*Abbreviations\s*$", body)
+      if not m:
+          return (False, "No Abbreviations section")
+      tail = body[m.end():]
+      nxt = re.search(r"(?m)^#{1,4}\s+\S", tail)
+      table = tail[:nxt.start()] if nxt else tail
+      rest = body[:m.start()] + (tail[nxt.start():] if nxt else "")
+      entries = re.findall(r"(?m)^\|\s*([A-Za-z0-9/\- ]{1,20}?)\s*\|", table)
+      # Drop the header cell and any separator row. The character class above
+      # includes "-", so a separator written |------| captures "------";
+      # filtering only the literal "---" lets wider separators through, where
+      # they are never "used" in the body and produce a false failure.
+      entries = [e.strip() for e in entries if e.strip()]
+      entries = [e for e in entries
+                 if e.lower() != "abbreviation" and set(e) - set("-: ")]
+      if not entries:
+          return (False, "Abbreviations section has no entries")
+      unused = [e for e in entries
+                if not re.search(rf"(?<![\w-]){re.escape(e.strip())}(?![\w-])", rest)]
+      if unused:
+          return (False, f"{len(unused)} unused abbreviation(s): {unused[:5]}")
+      return (True, f"{len(entries)} abbreviations, all used")
+
+  - name: conformance_metadata_consistent
+    description: >
+      The plan's machine-readable conformance metadata agrees with the plan
+      body. Since the 9 Oct rework the block is wrapped in an HTML comment so
+      it does not render, so both that form and a fenced yaml block are
+      accepted. TC-DEFER-NNN entries live in the deferred appendix and are
+      excluded from scenario_count by design.
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      # Build the fence from chr(96) rather than writing it literally: a
+      # literal triple backtick here would terminate the enclosing markdown
+      # block in any document that quotes this judge.
+      fence = chr(96) * 3
+      blocks = re.findall(r"<!--\s*\n(.*?)-->", body, re.S)
+      blocks += re.findall(fence + r"ya?ml\s*\n(.*?)" + fence, body, re.S | re.I)
+      meta = next((b for b in blocks if "scenario_count" in b), None)
+      if meta is None:
+          return (False, "No conformance metadata block containing scenario_count "
+                         "(looked in HTML comments and yaml fences)")
+      m = re.search(r"(?m)^\s*scenario_count:\s*(\d+)\s*$", meta)
+      if not m:
+          return (False, "scenario_count is not an integer in the metadata block")
+      declared = int(m.group(1))
+      # Width-tolerant: ID shape is scenario_ids_wellformed's concern.
+      actual = len(set(re.findall(r"\bTC-[A-Z]{2,8}-\d+\b", body)))
+      deferred = len(set(re.findall(r"\bTC-DEFER-\d+\b", body)))
+      actual -= deferred
+      if declared != actual:
+          return (False,
+                  f"Metadata declares scenario_count={declared}; plan contains "
+                  f"{actual} scenario IDs (excluding {deferred} deferred)")
+      jk = re.search(r"(?m)^\s*jira_key:\s*(\S+)\s*$", meta)
+      ann = outputs.get("annotations", {})
+      want = str(ann.get("jira_key", "")).strip()
+      if jk and want and jk.group(1).strip().strip('"') != want:
+          return (False, f"Metadata jira_key={jk.group(1)}, expected {want}")
+      return (True, f"Metadata consistent: scenario_count={declared} matches body")
+
+  - name: template_conformance_respected
+    description: >
+      When the target repository ships its own test plan template, the plan
+      mirrors that template's sections rather than imposing IEEE 829.
+    check: |
+      import re
+      ann = outputs.get("annotations", {})
+      if ann.get("expected_format") != "repo-template":
+          return (True, "Case does not target a repo with its own template; skipped")
+      required = ann.get("expected_template_sections") or []
+      if not required:
+          return (False, "Case claims repo-template but lists no expected sections")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      headings = [h.strip().lower()
+                  for h in re.findall(r"(?m)^#{1,4}\s+(.+?)\s*$", body)]
+      missing = [s for s in required
+                 if not any(s.lower() in h for h in headings)]
+      if missing:
+          return (False, f"Repo template sections missing: {missing}")
+      # IEEE 829 headings unique to the standard must not be bolted on.
+      IEEE_ONLY = ("test plan identifier", "suspension criteria",
+                   "staffing and training needs", "approvals",
+                   "test items", "features not to be tested")
+      intruders = [s for s in IEEE_ONLY
+                   if any(s in h for h in headings)
+                   and not any(s in r.lower() for r in required)]
+      if intruders:
+          return (False,
+                  f"IEEE 829 sections imposed on a repo that has its own "
+                  f"template: {intruders}")
+      return (True, f"All {len(required)} repo-template sections present, no IEEE 829 imposed")
+
+  - name: preliminary_markers
+    description: >
+      Features with no implementation PRs produce a preliminary plan that says
+      so, rather than inventing file paths and coverage claims.
+    check: |
+      import re
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_preliminary"):
+          return (True, "Not a zero-PR case; skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      if not re.search(r"PRELIMINARY", body):
+          return (False, "No PRELIMINARY banner on a zero-PR feature")
+      if not re.search(r"\bTBD\b", body):
+          return (False, "No TBD target paths - plan likely invented file locations")
+      # Only scenario-defining rows can invent a *scenario's* target path.
+      # Scanning the whole document also catches Test Deliverables prose that
+      # legitimately names a repository's directory convention, which is
+      # planning, not fabrication.
+      rows = [l for l in body.splitlines()
+              if re.match(r"\s*\|\s*`?TC-[A-Z]{2,8}-\d+`?\s*\|", l)
+              and not re.match(r"\s*\|\s*`?TC-DEFER-", l)]
+      invented = [l for l in rows
+                  if re.search(r"\b(?:test|e2e)/[\w/.-]+_test\.go\b", l)
+                  and "TBD" not in l]
+      if invented:
+          return (False,
+                  f"{len(invented)} scenario(s) name a concrete test file with no "
+                  f"implementation PR: {invented[0].strip()[:100]}")
+      return (True,
+              f"Preliminary plan correctly marked; none of {len(rows)} scenarios "
+              f"invents a file path")
+
+  - name: ci_placement_matrix
+    description: >
+      The Approach section carries a CI placement matrix mapping downstream
+      repositories to pre-merge and post-merge coverage. Replaces the
+      "Execution phases" list the reviewer rejected as unactionable, since
+      downstream CI jobs run in parallel rather than in a controlled order.
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      if not re.search(r"(?mi)^#{1,4}.*CI placement matrix", body):
+          return (False, "No 'CI placement matrix' heading in the Approach section")
+      if not re.search(r"pre-?merge", body, re.I):
+          return (False, "CI placement matrix does not distinguish pre-merge coverage")
+      if not re.search(r"post-?merge|periodic", body, re.I):
+          return (False, "CI placement matrix does not distinguish post-merge/periodic coverage")
+      if re.search(r"(?mi)^#{1,4}.*execution phase", body):
+          return (False, "Plan still emits a sequential 'Execution phases' list")
+      return (True, "CI placement matrix present with pre-merge and post-merge split")
+
+  - name: no_qe_references
+    description: >
+      The plan uses "engineering"/"engineers", never "QE". Per the 9 Oct
+      review there is no separate QE team: development and testing are both
+      owned by engineering, and approvals name a Feature Owner or Lead with an
+      optional Test Lead, never a "QE Lead".
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
+      if not md:
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      hits = []
+      for line in body.splitlines():
+          # Allow QE inside a quoted job or team name the source itself uses
+          # (e.g. the TRT/QSE note about payload tier); flag it as a role.
+          if re.search(r"(?<![\w-])QE(?![\w-])", line) and not re.search(r"TRT\s*/\s*QSE", line):
+              hits.append(line.strip()[:90])
+      if hits:
+          return (False, f"{len(hits)} line(s) still reference QE as a role: {hits[:3]}")
+      if re.search(r"QE\s+Lead", body, re.I):
+          return (False, "Approvals still name a 'QE Lead'")
+      return (True, "No QE references; plan uses engineering terminology")
+
+  - name: traceability_quality
+    feedback_type: int
+    score_range: [1, 5]
+    description: >
+      Does every scenario trace to a real requirement, acceptance criterion or
+      code change in the source, rather than to the model's general knowledge?
+    prompt: |
+      You are auditing a generated OpenShift test plan for sourcing discipline.
+
+      The governing rule the skill must follow is: every section must be
+      traceable to data in the Jira issue, linked PRs, or the codebase. Where
+      data is missing, the plan must say so explicitly rather than inventing
+      content.
+
+      The generated plan:
+
+      {% for path, content in outputs.files.items()
+         if path.replace('\\', '/').endswith('output/plan.md') %}
+      --- {{ path }} ---
+      {{ content }}
+      {% endfor %}
+
+      Expected behaviour and case context:
+
+      {{ annotations }}
+
+      Judge ONLY traceability. Do not reward length, polish, or the number of
+      scenarios. A short plan where every scenario cites its source is better
+      than a long one where most do not.
+
+      Score 1: Most scenarios cite no source. The plan reads as generic
+               OpenShift testing knowledge applied to a feature name.
+      Score 2: Some scenarios cite sources, but several are clearly invented -
+               topologies, security requirements or feature gates that appear
+               nowhere in the source.
+      Score 3: Most scenarios trace to a requirement or PR. A few are
+               unsupported but none are actively misleading.
+      Score 4: Every scenario traces to a named requirement, acceptance
+               criterion, or specific code change. Missing source data is
+               explicitly flagged rather than filled.
+      Score 5: As 4, and the traceability is specific - citing section names,
+               PR numbers, or file paths rather than gesturing at "the Jira
+               issue". Gaps are flagged with enough detail that a reader knows
+               exactly what to add to the ticket.
+
+  - name: tier_cost_discipline
+    feedback_type: int
+    score_range: [1, 5]
+    description: >
+      Does each scenario sit at the cheapest CI tier that could actually prove
+      it, with a stated justification?
+    prompt: |
+      You are a senior OpenShift engineer reviewing CI tier placement in a
+      generated test plan. e2e cluster time is the most expensive resource the
+      organisation spends on testing; unit tests are nearly free.
+
+      The rule the skill must follow: default to the cheapest tier that can
+      validate the scenario. Tiers, cheapest first: unit, integration,
+      e2e-serial, e2e-parallel, e2e-periodic. The payload tier is owned by
+      TRT/QSE and must never be assigned at feature level.
+
+      The generated plan:
+
+      {% for path, content in outputs.files.items()
+         if path.replace('\\', '/').endswith('output/plan.md') %}
+      --- {{ path }} ---
+      {{ content }}
+      {% endfor %}
+
+      Case context:
+
+      {{ annotations }}
+
+      For each scenario, ask: could this be proven without a cluster? Pure
+      decision logic, config parsing, validation rules and error-message
+      content are unit-testable. Only assertions that genuinely require a
+      running cluster - reboots, node state, operator reconciliation observed
+      end to end - justify e2e.
+
+      Score 1: No tiers assigned, or everything is e2e.
+      Score 2: Tiers assigned but placement is arbitrary; clear unit-testable
+               logic sits at e2e, and no justification is given.
+      Score 3: Tier placement is broadly sensible; justifications are present
+               but generic.
+      Score 4: Placement is defensible scenario by scenario, with a specific
+               cost justification naming why the cheaper tier is insufficient.
+      Score 5: As 4, and the plan actively pushes work down the cost curve -
+               splitting a scenario so the logic is unit-tested and only the
+               integration surface is e2e.
+
+thresholds:
+  # Hard gates: these encode explicit reviewer requirements or contract terms
+  # whose violation is never acceptable.
+  plan_file_location:
+    min_pass_rate: 1.0
+  scenario_ids_wellformed:
+    min_pass_rate: 1.0
+  ci_tier_assigned:
+    min_pass_rate: 1.0
+  no_placeholder_links:
+    min_pass_rate: 1.0
+  conformance_metadata_consistent:
+    min_pass_rate: 1.0
+  template_conformance_respected:
+    min_pass_rate: 1.0
+  no_fabricated_scenarios:
+    min_pass_rate: 1.0
+  # openshift-tests-private is locked for new contributions, so directing a
+  # scenario there is never acceptable, not merely undesirable.
+  target_file_path_downstream:
+    min_pass_rate: 1.0
+  # Softer: real requirements, but phrasing varies enough run to run that a
+  # single miss should not fail the suite. Revisit after the first ten runs.
+  plan_status_header:
+    min_pass_rate: 0.9
+  coverage_status_present:
+    min_pass_rate: 0.9
+  gap_markers_present:
+    min_pass_rate: 0.9
+  na_has_reason:
+    min_pass_rate: 0.9
+  preliminary_markers:
+    min_pass_rate: 1.0
+  ci_placement_matrix:
+    min_pass_rate: 0.9
+  # Starts soft: "QE" is pervasive in the surrounding organisation and a
+  # single leak in prose is a nit, not a regression. Raise to 1.0 once the
+  # first ten runs show the skill holds the line.
+  no_qe_references:
+    min_pass_rate: 0.8
+  abbreviations_section:
+    min_pass_rate: 0.8
+  traceability_quality:
+    min_mean: 3.5
+  tier_cost_discipline:
+    min_mean: 3.5

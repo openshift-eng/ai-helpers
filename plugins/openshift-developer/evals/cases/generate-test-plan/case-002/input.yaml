@@ -1,0 +1,5 @@
+jira_key: "OCPSTRAT-3444"
+repo_url: "https://github.com/openshift/kueue-operator"
+# Pinned to the commit where docs/plans/templates/feature-test-plan-template.md
+# is known to exist; verified reachable 2026-10-13.
+repo_ref: "cea4b1c105c8a849038f8d1e099563d467159256"
