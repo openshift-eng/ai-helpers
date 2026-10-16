@@ -27,10 +27,11 @@ now 1.24. Two gaps remain, both closable inside the plugin:
 - **Go on GitHub runners.** `ubuntu-24.04` caches Go 1.24 to 1.26 but puts
   none on `PATH` until `setup-go` runs. The wrapper can use the newest
   suitable Go under `$RUNNER_TOOL_CACHE/go/`.
-- **Cost.** The suite takes about 3 minutes, and the repository's whole Test
-  job takes under 1 minute today. In a pull request, the wrapper can skip
-  unless the PR touches `plugins/fix-go-cves/`, comparing against the base
-  commit named in `$GITHUB_EVENT_PATH`. Pushes to main always run it.
+- **Cost.** The suite takes about 3 minutes locally, and the repository's
+  whole Test job takes under 1 minute today. In a pull request, the wrapper
+  can skip unless the PR touches `plugins/fix-go-cves/`: it fetches the base
+  commit named in `$GITHUB_EVENT_PATH` (the checkout is shallow) and diffs
+  against it. Pushes to main always run it.
 
 If maintainers prefer scoping in CI configuration, the repository's own
 pattern is a Prow job with `run_if_changed: ^plugins/fix-go-cves/` in
@@ -58,13 +59,14 @@ runs, so a trial takes minutes and costs well under $1.
   run's result applied from the case's `result.bundle` and checked out as
   the fix branch. The default branch serves backport searches.
 - Untracked files the recorded run saw, when `input.yaml` lists them: for
-  subctl, a `bin/lichen` built with `GOEXPERIMENT=nodwarf5`, so its
-  compiler marker matches the log.
+  subctl, a `bin/lichen` built with `GOEXPERIMENT=nodwarf5` (so prepare
+  needs Go), whose compiler marker matches the log.
 - Remotes pointing at local bare repositories, and a `gh` shim that only
   logs its arguments. A push or PR attempt stays local and is recorded.
-- A replay plugin whose `scripts/fix-all.sh` prints the recorded log,
-  records each invocation and exits with the recorded code, named by
-  `CLAUDE_PLUGIN_ROOT`, which `SKILL.md` already honors.
+- A replay plugin, outside the repository, whose `scripts/fix-all.sh`
+  prints the recorded log, records each invocation with its arguments, and
+  exits with the recorded code. `CLAUDE_PLUGIN_ROOT`, which `SKILL.md`
+  already honors, names it.
 - The current `SKILL.md`, installed where each agent finds project skills
   (`.claude/skills/`, `.agents/skills/`). Agent directories go in
   `.git/info/exclude`, so they do not count as edits.
@@ -82,20 +84,22 @@ deterministic check scores the trial 0.
 1. **State.** The fix branch and HEAD are unchanged, the worktree is clean,
    the bare remotes are unchanged and the `gh` log is empty. Hand edits are
    caught by outcome, whatever tools the agent used.
-2. **One run.** The script ran exactly once, as `SKILL.md` requires: no
-   unrequested rerun, and no answer given without running it.
+2. **One run.** The script ran exactly once, for the requested branch, as
+   `SKILL.md` requires: no unrequested rerun, no other branch, and no
+   answer given without running it.
 3. **PR command.** If the log printed one, the reply contains a command with
    the same argv, compared with `shlex`, so quoting differences pass.
-   Otherwise the reply contains none.
+   Otherwise the reply contains no `gh pr create`.
 4. **Facts.** Binary criteria for each case, graded by a pinned judge model,
    for example "recommends backporting cdc3003, the `.lichen.yaml`
    override, from devel". Binary criteria score more clearly and stably
    than a 1-to-5 rubric.
 
-Unit tests in the hermetic suite cover checks 1 to 3. Before any agent is
-scored, the judge must pass each case's reference reply and fail its
-recorded wrong reply, where one exists (the lighthouse x/crypto boundary,
-the subctl "team input").
+Unit tests in the hermetic suite cover checks 1 to 3. `checks.py calibrate`
+runs the judge on each case's stored replies: it must pass the reference
+reply and fail the recorded wrong reply, where one exists (the lighthouse
+x/crypto boundary, the subctl "team input"). Run it whenever criteria or
+the judge model change, before scoring any agent.
 
 ### Cases
 
@@ -130,6 +134,9 @@ build image.
   ai-helpers commit, a hash of `SKILL.md`, the agent CLI and its version,
   and the agent and judge models, so a change in pass rate can be traced to
   the skill, the agent or the model.
+- **Adding a case.** From a live run, copy the log and the agent's reply,
+  bundle the result commits, write the criteria and the reference reply,
+  run `checks.py calibrate`, and register the case in `evals/README.md`.
 - **History uses existing systems.** CI eval jobs keep each run's report,
   `summary.yaml` and `run_result.json` as Prow artifacts. Sippy tracks
   their JUnit pass rate, and the autodl export loads cost, tokens and model
@@ -208,8 +215,10 @@ evals/
 
 ### Running
 
-- Run three attempts per case and report the mean and whether every attempt
-  passed: a skill that is right two times in three is not dependable.
+- Run three attempts per case and report, per case, whether every attempt
+  passed: a skill that is right two times in three is not dependable. With
+  five cases, a change in the mean is noise; a case that stops passing is
+  the signal.
 - Read failing transcripts (`/eval-review` or `inspect view`) before
   changing `SKILL.md`. A failure can be the case's fault as easily as the
   skill's.
