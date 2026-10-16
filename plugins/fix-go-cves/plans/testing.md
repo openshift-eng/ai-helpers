@@ -174,7 +174,8 @@ the same author, so publishing them adds nothing sensitive.
    result, a clean worktree, untracked and ignored files unchanged, bare
    remotes unchanged, an empty `gh` log, no `subagents/` or `input.yaml`
    planted, and no attempted or denied push, `gh`, stash or clean in the
-   session. The harness's own files are excluded.
+   session. The harness's own files, the paths prepare excludes, are left
+   out.
 2. **One run.** The script ran once, for the requested branch.
 3. **PR command.** If the recorded log printed one, a code block in the
    reply holds the same command, compared as shell-parsed tokens with
@@ -242,8 +243,10 @@ the `before_each` hook, turns it into the case repository:
   `before_all`) into a fresh repository and fresh bare remotes, so no later
   history is reachable (the merged CVE PRs contain the backports cases 001
   and 005 look for). It checks out the branch the recording started from and
-  points every remote at a bare remote. `annotations.yaml` never reaches the
-  workspace.
+  points every remote at a bare remote. It lists the harness's paths
+  (`.claude/`, `.staged-plugins/`, `.hook-outputs.*`) in `.git/info/exclude`,
+  since `SKILL.md` stops and asks when the checkout has untracked files.
+  `annotations.yaml` never reaches the workspace.
 - **Restore what the recording saw.** Untracked files as stubs (for subctl, an
   empty `bin/lichen`; `go version` on it disagrees with the recorded log, so
   criteria rely on the log, not the file), and the case's `reports/` in the
@@ -314,11 +317,12 @@ the `before_each` hook, turns it into the case repository:
   version, git, jq, Go, Python, socat and the `gh` shim that only logs its
   arguments) with `--network none`, `--read-only` except those volumes and
   `/tmp`, `--userns=keep-id` (so the user can reach the socket), one Unix
-  socket mount, the trial's name and a `--timeout` below the runner's;
-  copies in the copy list at the same paths, since the runner passes
-  `--plugin-dir` and `--settings` as workspace paths; then `exec`s
-  `podman start --attach`, so the runner's pipes close when the agent
-  stops. Answers the runner's `claude --version`.
+  socket mount, `--interactive` (the runner writes the prompt to stdin), the
+  trial's name and a `--timeout` below the runner's; copies in the copy list
+  at the same paths, since the runner passes `--plugin-dir` and `--settings`
+  as workspace paths; then `exec`s `podman start --attach --interactive`, so
+  the runner's pipes close when the agent stops. Answers the runner's
+  `claude --version`.
 - **Proxy:** started with `setsid`, its output to its own log so it never
   holds the runner's pipes; listens only on the per-trial socket, which
   socat in the container turns back into a local port. Inside the container
@@ -351,8 +355,8 @@ the `before_each` hook, turns it into the case repository:
 
 - Claude Code in Vertex mode works through `ANTHROPIC_VERTEX_BASE_URL` and
   the proxy.
-- The wrapper passes the runner's stream-json through unchanged, including
-  for resumed sessions.
+- The wrapper passes the runner's prompt through on stdin and its
+  stream-json back unchanged, including for resumed sessions.
 - The reply and tool calls can be read back from the proxy's log of
   streamed responses.
 - Rootless podman runs the container on the target hosts, and the container
