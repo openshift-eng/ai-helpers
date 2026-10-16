@@ -22,25 +22,22 @@ gets an eval case. No case is written speculatively.
 ## 1. Run the existing suite in CI
 
 `make test` already runs every plugin's `test_*.py`, this suite included.
-It would have skipped only because its wrapper demanded Go 1.26. The suite
-passes on Go 1.24 (1.22 fails four packed-binary checks), so the floor is
-now 1.24. Two gaps remain, both closable inside the plugin:
+It skipped only because its wrapper demanded Go 1.26. The suite passes on
+Go 1.24 (1.22 fails four packed-binary checks), so the floor is now 1.24,
+and GitHub's `ubuntu-24.04` runners already put Go 1.24 on `PATH`. The
+suite therefore runs in the existing Test job with no workflow change.
 
-- **Go on GitHub runners.** `ubuntu-24.04` caches Go 1.24 to 1.26 but puts
-  none on `PATH` until `setup-go` runs. The wrapper can use the newest
-  suitable Go under `$RUNNER_TOOL_CACHE/go/`.
-- **Cost.** The suite takes about 3 minutes locally, and the repository's
-  whole Test job takes under 1 minute today. In a pull request, the wrapper
-  can skip unless the PR touches `plugins/fix-go-cves/`: it fetches the base
-  commit named in `$GITHUB_EVENT_PATH` (the checkout is shallow) and diffs
-  against it. Pushes to main always run it.
+That has a cost: the suite takes about 3 minutes locally, and the whole
+Test job takes under 1 minute today. So the wrapper must skip in a pull
+request that does not touch `plugins/fix-go-cves/`, and that skip has to
+land in the same PR as the lower floor. It fetches the base commit named in
+`$GITHUB_EVENT_PATH` (the checkout is shallow) and diffs against it; pushes
+to main always run the suite.
 
 If maintainers prefer scoping in CI configuration, the repository's own
 pattern is a Prow job with `run_if_changed: ^plugins/fix-go-cves/` in
-openshift/release, like the existing `eval-*-changed` jobs; its image would
-need `jq`. Adding `setup-go` to `.github/workflows/test.yml` is the last
-resort: it is repo-wide, needs admin approval, and every PR pays the
-minutes.
+openshift/release. Adding `setup-go` to `.github/workflows/test.yml` is not
+needed.
 
 ## 2. Evaluate the LLM layers
 
@@ -71,18 +68,20 @@ runs, so a trial takes minutes and costs well under $1.
   backport searches.
 - Untracked files the recorded run saw, listed in `input.yaml`, with
   timestamps from before the log starts: for subctl, a `bin/lichen` built
-  with `GOEXPERIMENT=nodwarf5` (so prepare needs Go), whose compiler marker
-  matches the log.
+  with `GOTOOLCHAIN=go1.26.8 GOEXPERIMENT=nodwarf5`, so its compiler marker
+  (`go1.26.8-X:nodwarf5`) matches the log. Prepare therefore needs Go and
+  module proxy access.
 - Report directories the log names, restored where the run kept them, so
   the agent can read the same evidence. Criteria use only facts the agent
   can find in the workspace.
 - Remotes pointing at local bare repositories, and a `gh` shim that only
   logs its arguments.
-- The current plugin, outside the repository, with only `scripts/fix-all.sh`
-  replaced. The replacement records its arguments, applies the case's
-  `result.bundle` and checks out the fix branch as the real script would,
-  prints the recorded log and exits with the recorded code.
-  `CLAUDE_PLUGIN_ROOT`, which `SKILL.md` already honors, names the plugin.
+- A replay plugin: the current plugin with only `scripts/fix-all.sh`
+  replaced, and without `evals/`, `plans/` or `test/`. The replacement
+  records its arguments, applies the case's `result.bundle` and checks out
+  the fix branch as the real script would, prints the recorded log and
+  exits with the recorded code. Each runner below says how the agent finds
+  it.
 - An agent configuration with only this skill installed: no user plugins,
   instructions or memory, which would change which skill is picked (a
   Submariner `cve-fix` skill competes for the same request) and how it
@@ -181,31 +180,48 @@ build image and who updates it.
   bundle the result commits, write the criteria and the reference reply,
   run `checks.py calibrate`, and register the case in `evals/README.md`.
 - **History uses existing systems.** CI eval jobs keep each run's report,
-  `summary.yaml` and `run_result.json` as Prow artifacts. Sippy tracks
-  their JUnit pass rate, and the autodl export loads cost, tokens and model
-  into BigQuery. Local runs keep harness results or Inspect logs under
-  `.work/`. The pass-rate thresholds in `eval-fix-go-cves.yaml` are the
-  regression line; change them deliberately, saying why in the commit.
+  `summary.yaml` and `run_result.json` as Prow artifacts, with per-case
+  results in `summary.yaml`; the JUnit file holds one result per config. The
+  autodl export loads cost, tokens and model into BigQuery. Local runs keep
+  harness results or Inspect logs under `.work/`. The thresholds in
+  `eval-fix-go-cves.yaml` are the regression line; change them
+  deliberately, saying why in the commit.
 
 ### Runners
 
 Both runners share the cases, `workspace.sh` and `checks.py`, so they score
-a trial the same way.
+a trial the same way. Neither exposes the answers: the replay plugin
+leaves out `evals/`, `plans/` and `test/`, and only `input.yaml`,
+`run.log.gz` and `result.bundle` reach a workspace.
 
 **agent-eval-harness** (`eval-fix-go-cves.yaml`) is the marketplace
 convention, which a maintainer asked for in the k8s-rebase review, and
-reports cost, tokens and model for each case. It runs in prompt mode, so
-the agent gets the plain request rather than a skill invocation, with its
-`claude-code` or `codex` runner; `before_each` and `after_each` hooks call
-`workspace.sh`; judges call `checks.py` through `module:`/`function:`. It
-runs on the host, as the skill does in real use, with an isolated agent
-configuration directory, and its permissions also deny `git push` and
-`gh`. Build it first: it answers the review and needs
-nothing new installed.
+reports cost, tokens and model for each case.
 
-**Inspect AI with Inspect SWE** (`task.py`) runs the same cases isolated,
-for comparing agents and for changes that should not touch the host.
-[Inspect AI](https://inspect.aisi.org.uk/) is maintained by the UK AI
+- **Prompt mode**, so the agent gets the plain request rather than a skill
+  invocation, on the `claude-code` runner.
+- **Hooks.** `before_all` builds the replay plugin outside the repository,
+  and `plugin_dirs` loads it, so `CLAUDE_PLUGIN_ROOT` names it.
+  `before_each` (with `timeout: 900`) and `after_each` call `workspace.sh`.
+  `workspace.files` lists only the three inputs above.
+- **Isolation.** `runner.env` sets `CLAUDE_CONFIG_DIR` to an empty
+  directory, so user instructions and memory stay out; the harness already
+  leaves user plugins out. Its permissions also deny `git push` and `gh`.
+  The harness writes its own files into the workspace (`.staged-plugins/`,
+  `.claude/`, `output/` and others); `prepare` excludes them, and the state
+  check ignores them.
+- **Judges** call `checks.py` through `module:`/`function:`. Each judge has
+  `min_pass_rate: 1.0`, so any failing case fails the run.
+- **Review cases** use a second definition, `eval-fix-go-cves-review.yaml`,
+  with the `cli` runner, because `review.sh` is a script that calls the
+  agent itself. It always gets the recorded scan, so Grype never runs, and
+  writes `metrics.json` for cost.
+- Build this runner first: it answers the review and needs nothing new
+  installed. Codex runs locally only, because CI has no OpenAI credentials.
+
+**Inspect AI with Inspect SWE** (`task.py`) runs the same replay cases
+isolated, for comparing agents and for changes that should not touch the
+host. [Inspect AI](https://inspect.aisi.org.uk/) is maintained by the UK AI
 Security Institute. [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/),
 from the same core team, runs Claude Code, Codex CLI, Gemini CLI, OpenCode
 and Google's Antigravity SDK agent in a container:
@@ -216,16 +232,21 @@ and Google's Antigravity SDK agent in a container:
   Codex can run on a Vertex Claude model.
 - The sandbox has no network (`network_mode: none`), and the agent binary is
   copied in from the host.
-- `workspace.sh prepare` runs at image build time, as a non-root user, which
-  Claude Code needs for unattended permissions. The skill is passed with
-  Inspect SWE's `skills` option rather than baked in, so a cached image
-  never tests a stale `SKILL.md`.
-- Epochs with an `at_least` reducer, `inspect score` to re-score saved logs
-  after a judge change, and `inspect view` for transcripts are built in.
+- The image holds only the repository state `workspace.sh prepare` builds.
+  Each sample copies in the replay plugin at start and sets
+  `CLAUDE_PLUGIN_ROOT` through the agent's `env` option; skills installed
+  with the `skills` option land under the working directory, where
+  `SKILL.md`'s fallback path would not find the scripts. A cached image so
+  never tests a stale plugin.
+- Three epochs with an `at_least` reducer give the per-case all-attempts
+  result directly. `inspect score` re-scores saved logs after a judge
+  change, and `inspect view` shows transcripts.
 
-Both packages publish with PyPI Trusted Publishing and send no telemetry.
-They are pre-1.0 and release often, so `evals/requirements.txt` pins them,
-the harness and the agent CLIs with hashes. Keep them out of
+Inspect AI and Inspect SWE publish with PyPI Trusted Publishing and send no
+telemetry; they are pre-1.0 and release often, so `evals/requirements.txt`
+pins them with hashes. Pin the harness by git commit: the PyPI package
+named `agent-eval-harness` is an unrelated project. Pin agent CLI versions
+with Inspect SWE's `version` option. Keep all of it out of
 `requirements-dev.txt` so `make test` stays light.
 
 Considered and rejected:
@@ -244,46 +265,51 @@ each registered in the README:
 
 ```text
 evals/
-  README.md                case index
-  eval-fix-go-cves.yaml    agent-eval-harness definition
-  task.py                  Inspect task
-  checks.py                deterministic checks and judge prompt
-  workspace.sh             prepare and snapshot a case workspace
-  Dockerfile               Inspect sandbox
-  requirements.txt         pinned, hashed eval dependencies
-  cases/replay/case-NNN/   input.yaml (repo, commits, files, request),
-                           annotations.yaml (criteria, PR command),
-                           result.bundle, run.log.gz, reply.md,
-                           wrong-reply.md (optional)
-  cases/review/case-NNN/   input.yaml, annotations.yaml (verdicts),
-                           report directory
+  README.md                       case index
+  eval-fix-go-cves.yaml           agent-eval-harness, replay cases
+  eval-fix-go-cves-review.yaml    agent-eval-harness, review cases
+  task.py                         Inspect task, replay cases
+  checks.py                       deterministic checks and judge prompt
+  workspace.sh                    build the replay plugin; prepare and
+                                  snapshot a case workspace
+  Dockerfile                      Inspect sandbox
+  requirements.txt                pinned, hashed eval dependencies
+  cases/replay/case-NNN/          input.yaml (repo, commits, files,
+                                  request), annotations.yaml (criteria,
+                                  PR command), result.bundle,
+                                  run.log.gz, reply.md, wrong-reply.md
+  cases/review/case-NNN/          input.yaml, annotations.yaml
+                                  (verdicts), report directory
 ```
 
 ### Running
 
-- Run three attempts per case and report passes out of three for each
-  case; the thresholds in `eval-fix-go-cves.yaml` are per-case counts. Three
-  attempts flag noise too: a case that passes 90% of single attempts passes
-  all three only 73% of the time. Before calling a failure a regression,
-  rerun that case about ten times with the old and the new `SKILL.md` on
-  the same model.
+- Run three attempts per case and report passes out of three for each case:
+  three harness run IDs, or three Inspect epochs. Three attempts flag noise
+  too: a case that passes 90% of single attempts passes all three only 73%
+  of the time. Before calling a failure a regression, rerun that case about
+  ten times with the old and the new `SKILL.md` on the same model.
 - Read failing transcripts (`/eval-review` or `inspect view`) before
   changing `SKILL.md`. A failure can be the case's fault as easily as the
   skill's.
-- In CI, use the repository's existing Prow eval jobs, which run the shared
-  `openshift-claude-agent-eval` workflow with CI's Vertex credentials and
-  the `claude-ai-helpers` image (Claude Code and a pinned Codex). Add an
-  optional `eval-fix-go-cves` job, run on demand with
-  `/test eval-fix-go-cves`, and an `-changed` variant with
-  `run_if_changed: ^plugins/fix-go-cves/evals/cases/`. That workflow clones
-  the harness at `main`; local runs pin it. Inspect stays local.
+- In CI, use the repository's existing Prow eval workflow,
+  `openshift-claude-agent-eval`, which brings CI's Vertex credentials and
+  the `claude-ai-helpers` image. Add an optional `eval-fix-go-cves` job,
+  run on demand with `/test eval-fix-go-cves` and automatically with
+  `run_if_changed: ^plugins/fix-go-cves/(skills|scripts/review|evals)/`.
+  Run the whole config rather than `EVAL_CHANGED_ONLY`: that option diffs
+  with `.git`, which the image leaves out, so it skips every case and still
+  reports success. The workflow passes or fails on the agent's exit, not
+  the harness's thresholds, so it also needs a step that runs the harness's
+  `score.py regression` and fails on its exit code. It clones the harness
+  at `main`; local runs pin it.
 - Run it before changing `SKILL.md`, `scripts/review-prompt.md` or the
   default model.
 
 ### To confirm when building
 
-- Codex discovers project skills in `.agents/skills/` in prompt mode.
-- Both harness runners accept an isolated configuration directory.
+- `workspace.sh prepare` fits in the hook timeout on CI's one CPU, and the
+  image has `jq`, `git` and module proxy access.
 - A full Inspect trial completes with the sandbox network off.
 - The cost of one trial, to set the per-case budget.
 
