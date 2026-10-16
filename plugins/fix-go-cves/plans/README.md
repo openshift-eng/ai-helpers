@@ -39,8 +39,6 @@ itself.
   report ENOSPC as an environment failure rather than a fix failure.
 - **Interactive tests.** Detect a test command that prompts (for example
   `sudo`) and fail fast with the `test-command` remedy.
-- **CI.** Add `actions/setup-go` so `make test` runs the suite instead of
-  skipping it on Go older than 1.26.
 
 ## Size
 
