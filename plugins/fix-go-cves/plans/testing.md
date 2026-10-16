@@ -50,14 +50,19 @@ trial of every case, and a score uses three rounds.
 ### Phase 1
 
 Each case replays a recording with the repository's convention,
-agent-eval-harness (`eval-fix-go-cves.yaml`), run locally on the
+agent-eval-harness, run locally on the
 `claude-code` runner, which reports cost, tokens and model per case, as a
 maintainer asked for in the review of the k8s-rebase plugin. The skill
 reads the recorded log in a workspace rebuilt to match the recording, so no
 build, scan or Docker daemon runs, and a trial takes minutes and costs well
 under $1.
 
-**Cases** (`cases/fix-go-cves/case-NNN`, indexed in `evals/README.md`):
+Everything lives under `plugins/fix-go-cves/evals/`, laid out like
+`plugins/ci/evals/`: `eval-fix-go-cves.yaml`, a `README.md` that indexes
+the cases (the repository lint requires it), `run.sh`, `checks.py`,
+`workspace.sh`, and `cases/fix-go-cves/case-NNN/`.
+
+**Cases:**
 
 | Case | Recording | Decision |
 | --- | --- | --- |
@@ -82,19 +87,21 @@ Each case directory holds:
   edits of the reference;
 - `reports/`: report directories the log names, where the recording kept
   them (subctl's), with home paths stored as placeholders;
-- `plugin.tar.gz`: the plugin as it was at that commit, without `test/`
-  (about 110 KB). The commits live only on the PR branch, which a rebase or
-  squash would rewrite.
+- `plugin.tar.gz`: the plugin as it was at that commit, limited to
+  `.claude-plugin/`, `skills/`, `scripts/`, `subagents/` and `README.md`
+  (about 110 KB); `plans/` would name the answers. The commits live only on
+  the PR branch, which a rebase or squash would rewrite.
 
 Files are copied by allowlist. Agent transcripts stay out: their first
 record lists the recording user's connectors, plugins and memory paths.
 Hermetic tests fail on a transcript, a `/home/` or `/run/user/` path
-anywhere under `evals/cases/` (decompressing `.gz` files first), or a log
-missing what `SKILL.md` reads. Checks that need the case repositories'
+anywhere under `evals/fix-go-cves/cases/` (decompressing `.gz` files
+first), a `plugin.tar.gz` holding `plans/` or any case's answer strings, or
+a log missing what `SKILL.md` reads. Checks that need the case repositories'
 history (each bundle's commits scanned on top of its base, and a prepared
 workspace reaching nothing outside itself) run as `checks.py lint`, which
 needs the clone cache or network access: run it before committing a case,
-and `evals/run.sh` runs it first. The bundles and PR commands keep the
+and `run.sh` runs it first. The bundles and PR commands keep the
 recording author's name and fork. Three bundles (004, 005, 006) hold
 commits that were never pushed, but they contain only `go.mod`, `go.sum`
 and `.grype.yaml` edits by the same author, so publishing them adds nothing
@@ -109,8 +116,11 @@ rate:
    unchanged, an empty `gh` log, and no attempted or denied push, `gh`,
    stash or clean in the transcript. The harness's own files are excluded.
    A tool input that names a protected root voids the trial, since it may
-   have reached an answer: `/home`, `/tmp`, `/var/tmp` or `/run/user`
-   outside the trial's own directory.
+   have reached an answer: an absolute path token, read after dropping
+   shell defaults such as the `/tmp` in `${TMPDIR:-/tmp}`, that resolves
+   under `/home`, `/tmp`, `/var/tmp` or `/run/user` outside the trial's own
+   directory. A calibration fixture holding `SKILL.md`'s exact commands
+   must pass.
 2. **One run.** The script ran once, for the requested branch.
 3. **PR command.** If the log printed one, a code block in the reply holds
    the same command, compared as shell-parsed tokens with continuations
@@ -201,45 +211,48 @@ segment, and the conversation it otherwise hands judges includes interim
 narration and the log itself. `checks.py calibrate` writes its synthetic
 trials in the same form.
 
-**Isolation.** `evals/run.sh` invokes the harness once per trial, each time in
-a fresh trial directory under a dedicated root outside `/home` and `/tmp` (for
+**Isolation.** `run.sh` invokes the harness once per trial, each time in a
+fresh trial directory under a dedicated root outside `/home` and `/tmp` (for
 example `/var/tmp/fix-go-cves-evals/`), which holds the trial's `TMPDIR` (where
 the harness puts workspaces, with no `CLAUDE.md` above it), its `HOME` and its
-other files, with `PATH` starting with a `gh` shim that only logs its
-arguments; it deletes the trial directory after collecting results. The
-claude-code runner passes the agent only `runner.env` and a short host
-allowlist that includes `HOME` and `PATH` but not `TMPDIR`, so `runner.env`
-carries `TMPDIR: "$TMPDIR"`, which the harness resolves from `run.sh`'s
-environment. That keeps the user's `CLAUDE.md`, memory, plugins and credentials
-out of the agent's default view, but environment variables do not stop a
-command from reading an absolute path, and a developer host holds copies of the
-answers in many places: the case sources, the clone cache, the recording
+other files. `PATH` is the `gh` shim, which only logs its arguments, followed
+by system directories only: the host's own `PATH` can point under `/home`
+(`~/.local/bin`, Homebrew), which the sandbox below denies. `run.sh` deletes
+the trial directory after collecting results. The claude-code runner passes the
+agent only `runner.env` and a short host allowlist that includes `HOME`, `PATH`
+and `GOOGLE_APPLICATION_CREDENTIALS` but not `TMPDIR`, so `runner.env` carries
+`TMPDIR: "$TMPDIR"` and `CLAUDE_CODE_TMPDIR: "$TMPDIR"`, which the harness
+resolves from `run.sh`'s environment; the second keeps Claude Code's own
+temporary files, including background-task output the skill reads, inside the
+trial directory. That keeps the user's `CLAUDE.md`, memory, plugins and
+credentials out of the agent's default view, but environment variables do not
+stop a command from reading an absolute path, and a developer host holds copies
+of the answers in many places: the case sources, the clone cache, the recording
 repositories, stray clones and dumps under `/tmp`, earlier trials and `~/.ssh`.
 `runner.settings` therefore enables Claude Code's sandbox, with no unsandboxed
 fallback, denying reads of `/home`, `/tmp`, `/var/tmp` and `/run/user` except
 the trial's own directory; check 1 voids any trial that names one anyway. If
 the sandbox cannot express that exception, the trial runs as a dedicated Unix
-user with a private `/tmp` instead. `runner.env` also sets:
+user with a private `/tmp` instead.
 
-- `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0` and
-  `GIT_ALLOW_PROTOCOL=file`, so git cannot fetch a newer upstream than the
-  pinned one, and `GOPROXY=off` with `GOTOOLCHAIN=local` for Go;
-- `AGENT_EVAL_RUNS_DIR` empty, so the agent is not told where results go;
-- Vertex credentials through `GOOGLE_APPLICATION_CREDENTIALS`, which the
-  agent can read: the runner is still not a sandbox.
+`runner.env` also sets `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0` and
+`GIT_ALLOW_PROTOCOL=file`, so git cannot fetch a newer upstream than the
+pinned one, `GOPROXY=off` with `GOTOOLCHAIN=local` for Go, and an empty
+`AGENT_EVAL_RUNS_DIR`, so the agent is not told where results go. Claude
+Code itself reads the Vertex key file, outside the sandbox; the file stays
+under a denied root, so the agent's commands cannot read it.
 
-The eval file's `permissions.deny`, which the harness writes into the
-workspace settings, blocks `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web
-tools and subagents, so check 1 has denials to find.
+The eval file's `permissions.deny`, which the harness writes into the workspace
+settings, blocks `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web tools and
+subagents, so check 1 has denials to find.
 
-**To confirm when building:** that Claude Code's sandbox read rules stop
-Bash, not only the Read tool, from reading the denied paths on Linux (a
-trial must fail to read a canary file seeded in `/tmp`), and that the
-sandbox leaves the trial's directory readable and writable for the skill's
-log;
-that
-prepare fits its 900-second hook timeout from a cold cache; and the cost of
-one trial, to set the per-case budget.
+**To confirm when building:** that Claude Code's sandbox read rules stop Bash,
+not only the Read tool, from reading the denied paths on Linux (a trial must
+fail to read a canary file seeded in `/tmp`); that a trial's sandboxed
+`$TMPDIR` and background-task output both resolve inside the trial directory;
+that a trial can run `git`, `jq`, `python3` and `go version` with the
+restricted `PATH`; that prepare fits its 900-second hook timeout from a cold
+cache; and the cost of one trial, to set the per-case budget.
 
 ### Later
 
