@@ -154,9 +154,9 @@ recording user's connectors, plugins and memory paths.
 - a plugin manifest (`plugin.json`) with keys beyond `name`, `version`,
   `description` and `author`, since a plugin can declare unsandboxed hooks,
   monitors and language servers;
-- a judge defined with `llm_rubric`, or a judge template naming anything
-  but the fenced reply file and `{{ annotations }}` (see Builder
-  checklist);
+- a judge defined with `llm_rubric` or a `condition` key, a criteria judge
+  without `feedback_type: bool`, or a judge template naming anything but the
+  fenced reply file and `{{ annotations }}` (see Builder checklist);
 - a recorded log missing what `SKILL.md` reads;
 - a prepared `.claude/settings.json` with keys beyond `permissions.allow`
   and `permissions.deny`;
@@ -179,7 +179,9 @@ workspace and checks:
 - that every ref and object in a prepared workspace is reachable from the
   pinned commits or the bundle;
 - that a prepared workspace has no path outside itself and its sibling
-  directory.
+  directory;
+- that every `annotations.yaml` parses and every `criterion_*` key has a judge
+  of the same name.
 
 **Publication.** The bundles and PR commands keep the recording author's
 name and fork. Three bundles (004, 005 and 006) hold commits that were never
@@ -213,26 +215,34 @@ decision. Each case also lists the summary's flagged items in
 and an owner and that nothing recommended contradicts the annotations, so a
 reply cannot pass on its headline decision alone. Criteria are fixed top-level
 keys in `annotations.yaml` (`criterion_1` to `criterion_N`), each with its own
-judge, run with `condition: "'criterion_k' in annotations"` (the harness
-evaluates conditions without builtins) and told to grade only its key, so every
-criterion gets its own verdict. Criteria judges use `samples: 3`, which the
-harness majority-votes. A trial passes its facts only if every criterion
-passes. A pooled threshold would let one case fail every trial while the rest
-pass, so `checks.py summarize` requires every case to pass its deterministic
-checks in all three rounds and its facts in at least two. A case at exactly two
-of three on facts gets three more trials each with the old and the new
-configuration (`SKILL.md` or model), and the change is accepted only if the new
-one does no worse; a deterministic failure always fails the case. A criterion
-whose `stability.error_count` is non-zero is a judge error, not a failed fact.
-`summarize` marks a trial ERROR, rerun and not counted, when the cause is the
-harness, the proxy's own failure or a judge error rather than the agent's
-state, reply or tool calls; a proxy rejection of a forbidden request stays a
-failure, and a case that keeps erroring is reported as such. The cases were
-also used to tune `SKILL.md` (its license wording came from 001 and 006), so
-they guard against regressions, not prove the skill generalizes; a new
-recording stays out of skill tuning until it has been scored. `checks.py` reads
-case arguments only from the dataset, never from a workspace file the agent
-could have written.
+judge of the same name, run with `if: "'criterion_k' in annotations"` (the
+harness reads the condition from `if`, without builtins) and told to grade only
+its key, so every criterion gets its own verdict. Criteria judges use
+`feedback_type: bool` and `samples: 3`, which the harness majority-votes
+(without `bool` it scores 1 to 5 and takes the median). A trial passes its
+facts only if every criterion passes. A pooled threshold would let one case
+fail every trial while the rest pass, so `checks.py summarize` requires every
+case to pass its deterministic checks in all three rounds and its facts in at
+least two. A case at exactly two of three on facts gets three more trials each
+with the old and the new configuration (`SKILL.md` or model), and the change is
+accepted only if the new one does no worse; a deterministic failure always
+fails the case. A criterion whose `stability.error_count` is non-zero is a
+judge error, not a failed fact. `summarize` reads each case's expected criteria
+from the dataset and counts a missing or skipped verdict as ERROR, never a
+pass. Hook failures don't stop the harness (`after_each` always continues), so
+`after_each` writes `fgc-out/harness.json` with each stage's status, checks 1
+to 4 raise when it is missing or reports a failed stage, and `summarize` counts
+that judge error, or a `run_result.json` error from a hook, as ERROR. Each
+harness threshold pairs `min_pass_rate: 1.0` with `max_error_rate: 0`, since
+the pass rate leaves errored cases out. `summarize` marks a trial ERROR, rerun
+and not counted, when the cause is the harness, the proxy's own failure or a
+judge error rather than the agent's state, reply or tool calls; a proxy
+rejection of a forbidden request stays a failure, and a case that keeps
+erroring is reported as such. The cases were also used to tune `SKILL.md` (its
+license wording came from 001 and 006), so they guard against regressions, not
+prove the skill generalizes; a new recording stays out of skill tuning until it
+has been scored. `checks.py` reads case arguments only from the dataset, never
+from a workspace file the agent could have written.
 
 ### Calibration
 
