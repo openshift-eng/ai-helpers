@@ -101,15 +101,16 @@ lists the recording user's connectors, plugins and memory paths. Hermetic tests
 fail on a transcript, a `/home/` or `/run/user/` path anywhere under
 `evals/cases/fix-go-cves/`, which must hold at least one case (decompressing
 `.gz` files first), a `plugin.tar.gz` holding `plans/` or any case's answer
-strings, or a log missing what `SKILL.md` reads. Checks that need the case
-repositories' history (each bundle's commits scanned on top of its base, and a
-prepared workspace reaching nothing outside itself) run as `checks.py lint`,
-which needs the clone cache or network access: run it before committing a case,
-and `run.sh` runs it first. The bundles and PR commands keep the recording
-author's name and fork. Three bundles (004, 005, 006) hold commits that were
-never pushed, but they contain only `go.mod`, `go.sum` and `.grype.yaml` edits
-by the same author, so publishing them adds nothing sensitive. Until the cases
-are committed, the release-0.24 sources stay in
+strings, a `plugin.tar.gz` or `plugin.json` that declares hooks, commands,
+agents or MCP servers, or a log missing what `SKILL.md` reads. Checks that need
+the case repositories' history (each bundle's commits scanned on top of its
+base, and a prepared workspace reaching nothing outside itself) run as
+`checks.py lint`, which needs the clone cache or network access: run it before
+committing a case, and `run.sh` runs it first. The bundles and PR commands keep
+the recording author's name and fork. Three bundles (004, 005, 006) hold
+commits that were never pushed, but they contain only `go.mod`, `go.sum` and
+`.grype.yaml` edits by the same author, so publishing them adds nothing
+sensitive. Until the cases are committed, the release-0.24 sources stay in
 `.work/fix-go-cves-evals/source/`.
 
 **Checks** live in `checks.py`. The deterministic ones gate at a 1.0 pass
@@ -179,7 +180,10 @@ for a cold clone), turns into the case repository:
   removes that `.git` and every link. It keeps `.claude/settings.json`,
   which the agent reads at launch, after `before_each`, but deletes its
   `permissions.additionalDirectories`, which grants read access to the
-  directory the harness runs from.
+  directory the harness runs from, and its `hooks`, with the `hooks/`
+  scripts the harness writes into the workspace: hooks run outside the
+  sandbox, sandboxed Bash can rewrite those scripts, and the subagent hook
+  they serve has nothing to capture, since subagents are denied.
 - **Build the repository.** Prepare fetches only the pinned commits, with
   no tags, from a clone cache under ai-helpers' `.work/` (warmed by
   `before_all`, and inside a path the sandbox denies, since it holds the
@@ -232,7 +236,10 @@ arguments and a link to the resolved `claude` binary (which the harness
 launches by name with this `PATH`), followed by system directories only: the
 host's own `PATH` can point under `/home` (`~/.local/bin`, Homebrew), which the
 sandbox below denies. `run.sh` deletes the trial directory after collecting
-results. The claude-code runner passes the agent only `runner.env` and a short
+results. It starts the harness under `env -i` with an explicit variable list,
+because the runner's host allowlist also forwards `ANTHROPIC_API_KEY`,
+`ANTHROPIC_AUTH_TOKEN`, `CLOUDSDK_CONFIG` and similar keys into the agent's
+Bash. The claude-code runner passes the agent only `runner.env` and a short
 host allowlist that includes `HOME`, `PATH` and
 `GOOGLE_APPLICATION_CREDENTIALS` but not `TMPDIR`, so `runner.env` carries
 `TMPDIR: "$TMPDIR"` and `CLAUDE_CODE_TMPDIR: "$TMPDIR"`, which the harness
@@ -275,13 +282,14 @@ the cost of one trial, to set the per-case budget.
 ### Later
 
 - **CI.** An optional `eval-fix-go-cves` Prow job on the shared
-  `openshift-claude-agent-eval` workflow, started by hand with `/test` after
-  a maintainer reads the PR's `evals/` and `scripts/` diff, because that
-  code runs beside CI's credentials. Before then, the shared workflow needs
-  issues filed: it clones the harness at `main`, mounts a GitHub token
-  evals do not use, and passes on the agent's exit rather than the
-  thresholds. Its `EVAL_CHANGED_ONLY` option skips every case, since the
-  image has no `.git`.
+  `openshift-claude-agent-eval` workflow, started by hand with `/test` after a
+  maintainer reads the PR's whole `plugins/fix-go-cves/` diff (`SKILL.md`, the
+  plugin manifest and the case tarballs run there too, beside CI's credentials)
+  and checks the head commit just before posting. Before then, the shared
+  workflow needs issues filed: it clones the harness at `main`, mounts a GitHub
+  token evals do not use, and passes on the agent's exit rather than the
+  thresholds. Its `EVAL_CHANGED_ONLY` option skips every case, since the image
+  has no `.git`.
 - **Isolated and cross-agent runs.** Inspect AI with Inspect SWE runs Claude
   Code, Codex, Gemini CLI and others in a networkless container, with model
   credentials kept on the host. Vertex works. It is the runner for
