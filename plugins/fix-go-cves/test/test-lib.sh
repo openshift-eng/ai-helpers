@@ -5111,6 +5111,22 @@ _fpx_run go-bump $'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v1.0.0' 
 check "a go directive change is fixed" test "$FPX_RC" -eq 0
 check "a go directive change is named in the commit" \
   bash -c 'git -C "$1" log -1 --format=%B | grep -qx "Raises go in go.mod from 1.24.0 to 1.24.5, as v1.1.0 requires."' _ "$FPX_DIR"
+FPX_SCANS="$TMPD/fpx-scans"; mkdir -p "$FPX_SCANS"
+cat > "$FPX_SCANS/scan.sh" <<'SH'
+#!/usr/bin/env bash
+n=$(cat "$(dirname "$0")/count" 2>/dev/null || echo 0); echo $((n + 1)) > "$(dirname "$0")/count"
+hit() { printf '{"vulnerability":{"id":"%s"},"artifact":{"type":"go-module","name":"%s","locations":[{"path":"/go.mod"}]}}' "$1" "$2"; }
+if [ "$n" -eq 0 ]; then
+  printf '{"matches":[%s,%s,%s]}\n' "$(hit GHSA-fpx-0001 example.com/cve-pkg)" "$(hit GO-9 example.com/other)" "$(hit GO-10 example.com/other)"
+else
+  printf '{"matches":[]}\n'
+fi
+SH
+FPX_STATE=$(printf 'HAS_LOCAL_GRYPE=true\nCVE_SCRIPTS="%s"' "$FPX_SCANS") \
+  _fpx_run also-fixed $'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v1.0.0'
+check "a side-effect fix is fixed" test "$FPX_RC" -eq 0
+check "a side-effect fix is credited in the commit" \
+  bash -c 'git -C "$1" log -1 --format=%B | grep -qx "Also fixes, in example.com/other: GO-10, GO-9"' _ "$FPX_DIR"
 check "moved /vN module path prints no registry note" ! grep -q 'not available in Go module registry' <<< "$FPX_OUT"
 FPX_PKG=k8s.io/apimachinery FPX_VER=0.32.1 FPX_STATE='K8S_VERSION_GUARD=true' \
   _fpx_run k8s-guard $'module x\n\ngo 1.24.0\n\nrequire k8s.io/apimachinery v0.31.1'

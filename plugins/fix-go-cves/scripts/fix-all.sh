@@ -958,7 +958,8 @@ elif [[ "$COMMIT_COUNT" -gt 0 ]]; then
     # Generate PR command
     echo ""
     BASE_BRANCH="$BRANCH"
-    PLURAL=$([[ "$COMMIT_COUNT" -eq 1 ]] && echo "" || echo "s")
+    _ADVISORIES=$(printf '%s\n' "${_FIXED_TUPLES:-}" | sed '/^$/d' | cut -d'|' -f1 | sort -u | wc -l)
+    PLURAL=$([[ "$COMMIT_COUNT" -eq 1 && "$_ADVISORIES" -le 1 ]] && echo "" || echo "s")
     _UPSTREAM="${UPSTREAM_ORG:-}"
     [[ -z "$_UPSTREAM" ]] && _UPSTREAM=$(github_remote_owner "$(git remote get-url origin 2>/dev/null)")
     FORK_REMOTE=""

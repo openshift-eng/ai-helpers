@@ -878,6 +878,14 @@ if [[ -n "$_PACKAGE_SCAN_BEFORE" ]]; then
       ' "$_PACKAGE_SCAN_AFTER" || true)
     exit 2
   fi
+  # Unignored findings in other packages that this update also resolved, as
+  # "package|advisory", so the commit message credits them.
+  _ALSO_FIXED=$(jq -r --arg pkg "$PACKAGE" --argjson after "$_AFTER_FINDINGS" '
+    def normloc: sub("^/src/"; "/") | if startswith("/") then . else "/" + . end;
+    [(.matches // [])[] | select(.artifact.type == "go-module" and .artifact.name != $pkg) |
+      . as $m | .artifact.locations[]? | [$m.vulnerability.id, $m.artifact.name, (.path | normloc)] |
+      select(.[2] | endswith("go.mod")) | . as $k | select($after | any(. == $k) | not) |
+      "\(.[1])|\(.[0])"] | unique | .[]' "$_PACKAGE_SCAN_BEFORE") || _ALSO_FIXED=""
   _NEW_FINDINGS=$(jq -cn --argjson before "$_BEFORE_FINDINGS" \
     --argjson after "$_AFTER_FINDINGS" '$after - $before') || exit 2
   if [[ "$_NEW_FINDINGS" != '[]' ]]; then
@@ -921,6 +929,12 @@ if ! git diff --staged --quiet 2>/dev/null; then
     BODY="Full package: $PACKAGE
 $FIXES_LINE"
   fi
+  _also_pkg=""
+  while IFS='|' read -r _pkg _cve; do
+    [[ -n "$_pkg" ]] || continue
+    [[ "$_pkg" == "$_also_pkg" ]] && BODY+=", $_cve" || BODY+=$'\n'"Also fixes, in $_pkg: $_cve"
+    _also_pkg="$_pkg"
+  done <<< "${_ALSO_FIXED:-}"
   # A required go directive change matters on release branches; say so.
   while IFS= read -r _gm; do
     _was=$(git show "HEAD:$_gm" 2>/dev/null | awk '$1 == "go" { print $2; exit }')
