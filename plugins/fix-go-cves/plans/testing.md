@@ -49,28 +49,43 @@ plugin.
 
 **A case replays a recorded run.** No build, scan or Docker daemon runs, so
 a trial takes minutes and costs well under $1. `workspace.sh prepare`, the
-harness's `before_each` hook, builds a workspace holding:
+harness's `before_each` hook, turns the case workspace into the case
+repository: the harness makes each workspace a git repository and links
+ai-helpers' `CLAUDE.md` and `scripts/` into it, which would collide with the
+case repository's own files, so prepare removes those first. The workspace
+then holds:
 
 - the case repository at pinned base and default-branch commits, on the
-  branch the run started from;
+  branch the run started from, with the harness's own paths listed in
+  `.git/info/exclude` so they are not untracked files;
 - untracked files the run saw, as stubs dated before the log starts (for
-  subctl, an empty `bin/lichen`);
+  subctl, an empty `bin/lichen`; `go version` on it disagrees with the log,
+  so criteria rely on the log, not the file);
 - report directories the log names, where the run kept them;
 - remotes pointing at local bare repositories, and a `gh` shim that only
   logs its arguments.
 
-The plugin is loaded from a replay copy, built outside the repository by a
-`before_all` hook: the current plugin without `evals/`, `plans/` or `test/`,
-with `scripts/fix-all.sh` replaced. The replacement records its arguments,
-applies the case's `result.bundle` (a git bundle of just the run's commits)
-to create the fix branch, prints the recorded log and exits with the
-recorded code. Nothing else from the case reaches the agent.
+`evals/run.sh` builds the replay plugin before starting the harness, which
+requires `plugin_dirs` to exist when it loads its config: the current plugin
+without `evals/`, `plans/` or `test/`, at a fixed path ending in
+`fix-go-cves`, with `scripts/fix-all.sh` replaced. The replacement records
+its arguments, applies the case's `result.bundle` (a git bundle of just the
+run's commits) to create the fix branch, prints the recorded log and exits
+with the recorded code. Logs and replies are stored with placeholders for
+the repository, report and log paths, which the replacement fills with
+workspace paths; the log's own `exit=` line is dropped, since `SKILL.md`
+appends one. Nothing else from the case reaches the agent. An `after_each`
+hook writes the repository state (status including ignored files, refs, the
+bare remotes and the `gh` log) to the case's output directory for the
+checks.
 
 The harness invokes the skill with the case's arguments (`mode: case`, as in
 the repository's other evals), with `CLAUDE_CONFIG_DIR` pointing at an empty
-directory so user instructions and memory stay out. `GH_CONFIG_DIR` is empty
-and `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM=1` and
-`GIT_TERMINAL_PROMPT=0` drop host git and `gh` credentials. The runner is
+directory and the harness's runs directory (`AGENT_EVAL_RUNS_DIR`) outside
+ai-helpers, so no user or parent `CLAUDE.md` and no memory load.
+`GH_CONFIG_DIR` is empty and `GIT_CONFIG_GLOBAL=/dev/null`,
+`GIT_CONFIG_NOSYSTEM=1` and `GIT_TERMINAL_PROMPT=0` drop host git and `gh`
+credentials. The runner is
 still not a sandbox.
 
 **Checks** live in `checks.py`. The deterministic ones gate at a 1.0 pass
@@ -82,17 +97,28 @@ rate:
    stash or clean in the transcript. The harness's own files are excluded.
 2. **One run.** The script ran once, for the requested branch.
 3. **PR command.** If the log printed one, a code block in the reply holds
-   the same command; otherwise none holds `gh pr create`.
-4. **Commits.** Commits the case names appear in the reply.
+   the same command, compared as shell-parsed tokens with continuations
+   joined, since logs escape the title and replies quote it; otherwise no
+   block holds `gh pr create`.
+4. **Commits.** Commits the case names appear in the reply, matched by a
+   prefix of at least seven characters.
 
-The judged facts gate at 0.8, as in the repository's code-review eval:
-binary criteria per case that need reasoning the log does not hand over,
-such as "the x/net and grpc bumps were skipped because the scan was blocked,
-and need no team decision". `checks.py calibrate` must pass each reference
-reply and fail each recorded wrong reply before any agent is scored; rerun
-it when criteria or the judge model change. Reference replies follow
-`SKILL.md`: a Go directive raise the build image supports is not a team
-decision.
+The judged facts are binary criteria per case that need reasoning the log
+does not hand over, such as "the x/net and grpc bumps were skipped because
+the scan was blocked, and need no team decision". A pooled threshold would
+let one case fail every time while the rest pass, so `checks.py summarize`
+reads the three runs and requires every case to pass its deterministic
+checks in all three and its facts in at least two.
+
+`checks.py calibrate` must pass each reference reply and fail each negative
+before any agent is scored; rerun it when criteria or the judge model
+change. References for 004 and 006 are written by hand, since their
+recorded replies are the wrong ones, and 005's is edited. Negatives are the
+recorded wrong replies (006's also fails 001's backport criterion, as it
+suggests allowing the license instead) and one-fact edits of the
+references. Criteria stay neutral on whether a Go directive raise needs the
+team: the plugin and the repositories' own workflow notes disagree (see
+[Decisions](README.md#decisions)).
 
 **Cases** (`cases/fix-go-cves/case-NNN`, indexed in `evals/README.md`):
 

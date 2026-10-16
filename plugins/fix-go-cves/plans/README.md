@@ -20,6 +20,13 @@ itself.
   as "Regression from dependency update". Flagging keeps maintainer policy
   but leaves such repositories NOT READY until `.grype.yaml` changes.
 
+- **Plugin policy or repository notes on Go minor raises.**
+  `fix-package.sh` accepts a Go directive raise the build image supports,
+  and `SKILL.md` names a team decision only for Go above the build image.
+  Submariner release branches carry `.agents/workflows/cve-fix.md`, which
+  says to revert such a raise and consult the team for High or Critical
+  CVEs. `SKILL.md` should say which wins.
+
 ## Correctness
 
 - **Environment reasons in the review prompt.** `scripts/review-prompt.md`
