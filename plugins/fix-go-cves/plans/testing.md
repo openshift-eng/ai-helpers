@@ -40,10 +40,12 @@ the x/net bump for a rerun, but still sent the grpc and otel/sdk bumps to the
 team, repeating `review.sh`'s "team input" verdict for bumps the blocked scan
 had skipped (`scripts/review-prompt.md` forces every open reason into "team
 input"; see [Correctness](README.md#correctness)). In an earlier lighthouse run
-it missed the backport and suggested allowing the license instead, though it
-correctly tied that run's unexplained x/crypto "policy boundary" verdict to the
-Go 1.26 raise. `SKILL.md` asks the skill to investigate each flagged line, so a
-case may require it to reject or explain such a verdict.
+it missed the backport, suggesting the license be allowed instead, and blamed
+that run's x/crypto "policy boundary" flag on the Go 1.26 raise; the flag was
+spurious, a side effect of ignoring GO-2026-5932, which has no fix (see
+[Correctness](README.md#correctness)). `SKILL.md` asks the skill to investigate
+each flagged line, so a case may require it to reject or explain such a
+verdict.
 
 Terms: a **recording** is the release-0.24 `fix-all.sh` run a case is built
 from; a **trial** is one harness invocation on one case; a **round** is one
@@ -73,7 +75,7 @@ the cases (the repository lint requires it), `run.sh`, `checks.py`,
 | 003 | cloud-prepare: clean | Flagged lines need no action |
 | 004 | subctl: `bin/lichen` | No team decision for the blocked bumps |
 | 005 | admiral: govet | Backports devel's 8234df0 |
-| 006 | lighthouse: x/crypto | Explains the boundary; backports cdc3003 |
+| 006 | lighthouse: x/crypto | Flag is spurious; backports cdc3003 |
 
 Each case directory holds:
 
@@ -149,12 +151,13 @@ recorded replies are wrong, and 005's is edited to drop its claim that the Go
 1.26 raise is the team's call, since criteria stay neutral on that. 006 is a
 separate, earlier lighthouse run that hit the same license failure, so it
 carries 001's backport criterion, which its recorded reply fails. Its own
-criterion passes a reply that ties the x/crypto "policy boundary" to the Go
-1.26 raise or shows the scan clean, and fails one that relays it as needing
-team input; a constructed negative of that kind covers it. Criteria stay
-neutral on whether a Go directive raise needs the team: the plugin and the
-repositories' own workflow notes disagree (see
-[Decisions](README.md#decisions)).
+criterion passes a reply that shows the x/crypto "policy boundary" flag is
+spurious (it follows the GO-2026-5932 ignore, and the scan has no x/crypto
+finding) and that x/crypto needs no action, and fails one that sends the flag
+to the team or blames the Go raise; the recorded reply and a constructed
+team-input negative cover both. Criteria stay neutral on whether a Go directive
+raise needs the team: the plugin and the repositories' own workflow notes
+disagree (see [Decisions](README.md#decisions)).
 
 **Running.** Three rounds to accept a `SKILL.md` or model change. A change to
 `scripts/review-prompt.md` or to `fix-all.sh` output is not exercised by

@@ -29,6 +29,13 @@ itself.
 
 ## Correctness
 
+- **False policy boundary after a no-fix ignore.** When verification ignores
+  a finding that has no fix, `subagent_fix_scan_regression` still writes the
+  package to `needs-review-pkgs` (`scripts/lib.sh`, after the `ignore.sh`
+  call), and `fix-all.sh` reports it as "deterministic fix reached a policy
+  boundary (team approval needed)", blocking the PR. Lighthouse
+  release-0.24 hit this for x/crypto GO-2026-5932. Record the ignore without
+  the review marker, keeping whatever classification scan-regression needs.
 - **Environment reasons in the review prompt.** `scripts/review-prompt.md`
   makes every `UNRESOLVED` reason end in "(need team input)". When a scan
   was blocked by the environment (subctl's leftover `bin/lichen`), the
