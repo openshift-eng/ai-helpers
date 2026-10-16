@@ -54,10 +54,9 @@ runs, so a trial takes minutes and costs well under $1.
 
 `workspace.sh prepare` builds the case workspace:
 
-- The case repository at pinned commits: the run's result checked out as
-  the fix branch (the result commit itself, not a PR head that may carry
-  later manual commits), and the base and default branches as they were,
-  for backport searches.
+- The case repository at pinned base and default-branch commits, with the
+  run's result applied from the case's `result.bundle` and checked out as
+  the fix branch. The default branch serves backport searches.
 - Untracked files the recorded run saw, when `input.yaml` lists them: for
   subctl, a `bin/lichen` built with `GOEXPERIMENT=nodwarf5`, so its
   compiler marker matches the log.
@@ -109,9 +108,34 @@ the subctl "team input").
 | case-005 | admiral: govet failure | Finds backport 8234df0 |
 
 Where stdlib findings remain, a case also requires naming Go 1.26.9 in the
-build image. Logs are stored whole, gzipped (under 1 MB for all five), with
-home paths replaced; trimming would need its own logic and could drop
-evidence the agent reads.
+build image.
+
+### Data and history
+
+- **Case inputs are self-contained.** `input.yaml` pins the upstream base
+  and default-branch commits, and `result.bundle`, a thin git bundle of
+  only the run's commits (under 12 KB each), carries the result. A case
+  depends on no fork branch or PR ref; subctl's result was never pushed,
+  and PR heads carry later manual commits. Logs are stored whole and
+  gzipped, with home paths replaced; trimming would need its own logic and
+  could drop evidence the agent reads. The release-0.24 sources are kept
+  under `.work/fix-go-cves-evals/source/` with a manifest and checksums
+  until the cases are committed.
+- **Format drift fails loudly.** `input.yaml` records the plugin commit that
+  produced the log, and a hermetic test checks that every log still has
+  what `SKILL.md` reads (the summary block, the `exit=` line, the flagged
+  lines). When `fix-all.sh` output changes, the test names the cases to
+  re-record.
+- **Every trial is identified.** `workspace.sh snapshot` records the
+  ai-helpers commit, a hash of `SKILL.md`, the agent CLI and its version,
+  and the agent and judge models, so a change in pass rate can be traced to
+  the skill, the agent or the model.
+- **History uses existing systems.** CI eval jobs keep each run's report,
+  `summary.yaml` and `run_result.json` as Prow artifacts. Sippy tracks
+  their JUnit pass rate, and the autodl export loads cost, tokens and model
+  into BigQuery. Local runs keep harness results or Inspect logs under
+  `.work/`. The pass-rate thresholds in `eval-fix-go-cves.yaml` are the
+  regression line; change them deliberately, saying why in the commit.
 
 ### Runners
 
@@ -178,7 +202,8 @@ evals/
   requirements.txt         pinned, hashed eval dependencies
   cases/replay/case-NNN/   input.yaml (repo, commits, exit code, request),
                            annotations.yaml (criteria, PR command),
-                           run.log.gz, reply.md, wrong-reply.md (optional)
+                           result.bundle, run.log.gz, reply.md,
+                           wrong-reply.md (optional)
 ```
 
 ### Running
@@ -206,8 +231,9 @@ evals/
 
 ## 3. Optional: live canary
 
-Run `scripts/report.sh` weekly on one fast repository (Shipyard `devel`, on
-a runner with Docker). It needs no model and fails only on `INCOMPLETE` or
+Run `scripts/report.sh` weekly on one fast repository (Shipyard `devel`)
+on a runner with Docker; as a Prow periodic, its history would land in
+Sippy with the rest. It needs no model and fails only on `INCOMPLETE` or
 `ERROR`, never on findings. It catches drift no recorded case can: Grype
 schema or database changes, new Go releases, builder-image changes. Several
 release-0.24 failures were drift of this kind.
