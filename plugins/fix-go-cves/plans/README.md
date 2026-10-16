@@ -3,6 +3,9 @@
 Candidate follow-ups found while porting and reviewing the plugin, most
 valuable first. Each needs a decision or design before it is built.
 
+The [testing and evals plan](testing.md) covers how to measure the skill
+itself.
+
 ## Decisions
 
 - **Drop the LLM verification layer.** Every subagent verdict is already
