@@ -10,8 +10,10 @@ itself.
 
 - **Drop the LLM verification layer.** Every subagent verdict is already
   gated by deterministic companion evidence, so the model can only add
-  failures (usage limits caused false ones). Removing it saves about 550
-  script and 500 test lines; `review.sh` keeps the useful judgment.
+  failures (usage limits caused false ones). In the 15 release-0.24 runs (26
+  verification iterations) it never changed an outcome: its one independent
+  FAIL came after the gate had already blocked the run. Removing it saves
+  about 550 script and 500 test lines; `review.sh` keeps the useful judgment.
 - **Flag, don't delete, pre-existing broad ignores.** Package-only entries on
   the base branch (submariner-operator's `/tools` docker and containerd
   exemptions) are removed, and scan-regression then re-ignores the findings
