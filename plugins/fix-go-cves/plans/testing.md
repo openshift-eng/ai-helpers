@@ -33,15 +33,16 @@ wrapper.
 
 ## 2. Evaluate the skill
 
-On release-0.24 the skill found a default-branch fix to backport for a
-license failure (lighthouse) and traced stdlib findings to the build image.
-It also relayed two wrong verdicts from `review.sh`'s model review
-unchecked: an invented x/crypto policy boundary, and "team input" for three
-subctl bumps that a leftover `bin/lichen` binary had blocked.
+On release-0.24 the skill found a default-branch fix to backport for a license
+failure (lighthouse) and traced stdlib findings to the build image. It also
+relayed a wrong verdict from `review.sh`'s model review unchecked: "team input"
+for three subctl bumps that a leftover `bin/lichen` binary had blocked
 (`scripts/review-prompt.md` forces every open reason into "team input"; see
-[Correctness](README.md#correctness).) `SKILL.md` asks the skill to
-investigate each flagged line, so a case may require it to reject such a
-verdict.
+[Correctness](README.md#correctness)). In an earlier lighthouse run it missed
+the backport and suggested allowing the license instead, though it correctly
+tied that run's unexplained x/crypto "policy boundary" verdict to the Go 1.26
+raise. `SKILL.md` asks the skill to investigate each flagged line, so a case
+may require it to reject or explain such a verdict.
 
 Terms: a **recording** is the release-0.24 `fix-all.sh` run a case is built
 from; a **trial** is one harness invocation on one case; a **round** is one
@@ -71,7 +72,7 @@ the cases (the repository lint requires it), `run.sh`, `checks.py`,
 | 003 | cloud-prepare: clean | Flagged lines need no action |
 | 004 | subctl: `bin/lichen` | Blames the leftover, not the bumps |
 | 005 | admiral: govet | Backports devel's 8234df0 |
-| 006 | lighthouse: x/crypto | Rejects the unsupported boundary |
+| 006 | lighthouse: x/crypto | Explains the boundary; backports cdc3003 |
 
 Each case directory holds:
 
@@ -92,20 +93,20 @@ Each case directory holds:
   (about 110 KB); `plans/` would name the answers. The commits live only on
   the PR branch, which a rebase or squash would rewrite.
 
-Files are copied by allowlist. Agent transcripts stay out: their first
-record lists the recording user's connectors, plugins and memory paths.
-Hermetic tests fail on a transcript, a `/home/` or `/run/user/` path
-anywhere under `evals/fix-go-cves/cases/` (decompressing `.gz` files
-first), a `plugin.tar.gz` holding `plans/` or any case's answer strings, or
-a log missing what `SKILL.md` reads. Checks that need the case repositories'
-history (each bundle's commits scanned on top of its base, and a prepared
-workspace reaching nothing outside itself) run as `checks.py lint`, which
-needs the clone cache or network access: run it before committing a case,
-and `run.sh` runs it first. The bundles and PR commands keep the
-recording author's name and fork. Three bundles (004, 005, 006) hold
-commits that were never pushed, but they contain only `go.mod`, `go.sum`
-and `.grype.yaml` edits by the same author, so publishing them adds nothing
-sensitive. Until the cases are committed, the release-0.24 sources stay in
+Files are copied by allowlist. Agent transcripts stay out: their first record
+lists the recording user's connectors, plugins and memory paths. Hermetic tests
+fail on a transcript, a `/home/` or `/run/user/` path anywhere under
+`evals/cases/fix-go-cves/`, which must hold at least one case (decompressing
+`.gz` files first), a `plugin.tar.gz` holding `plans/` or any case's answer
+strings, or a log missing what `SKILL.md` reads. Checks that need the case
+repositories' history (each bundle's commits scanned on top of its base, and a
+prepared workspace reaching nothing outside itself) run as `checks.py lint`,
+which needs the clone cache or network access: run it before committing a case,
+and `run.sh` runs it first. The bundles and PR commands keep the recording
+author's name and fork. Three bundles (004, 005, 006) hold commits that were
+never pushed, but they contain only `go.mod`, `go.sum` and `.grype.yaml` edits
+by the same author, so publishing them adds nothing sensitive. Until the cases
+are committed, the release-0.24 sources stay in
 `.work/fix-go-cves-evals/source/`.
 
 **Checks** live in `checks.py`. The deterministic ones gate at a 1.0 pass
@@ -134,19 +135,22 @@ does not hand over, such as "the x/net and grpc bumps were skipped because
 the scan was blocked, and need no team decision". A pooled threshold would
 let one case fail every trial while the rest pass, so `checks.py summarize`
 reads the three rounds and requires every case to pass its deterministic
-checks in all three and its facts in at least two.
+checks in all three and its facts in at least two. A voided trial counts as
+a failed deterministic check and is reported separately.
 
 **Calibration.** `checks.py calibrate` runs the harness's own judges (`score.py
 judges`) on synthetic trials whose final result is a stored reply, so the
 scoring prompt is the one calibrated. It must pass each `reply.md` and fail
 each negative before any agent is scored; rerun it when criteria or the judge
 model change. References for 004 and 006 are written by hand, since their
-recorded replies are the wrong ones, and 005's is edited. 006 is a separate,
-earlier lighthouse run that hit the same license failure, so it also carries
-001's backport criterion, which its recorded reply fails by suggesting the
-license be allowed instead. Criteria stay neutral on whether a Go directive
-raise needs the team: the plugin and the repositories' own workflow notes
-disagree (see [Decisions](README.md#decisions)).
+recorded replies are wrong, and 005's is edited. 006 is a separate, earlier
+lighthouse run that hit the same license failure, so it carries 001's backport
+criterion, which its recorded reply fails. Its own criterion passes a reply
+that ties the x/crypto "policy boundary" to the Go 1.26 raise or shows the scan
+clean, and fails one that relays it as needing team input; a constructed
+negative of that kind covers it. Criteria stay neutral on whether a Go
+directive raise needs the team: the plugin and the repositories' own workflow
+notes disagree (see [Decisions](README.md#decisions)).
 
 **Running.** Three rounds to accept a `SKILL.md` or model change. A change
 to `scripts/review-prompt.md` or to `fix-all.sh` output is not exercised by
@@ -215,12 +219,14 @@ trials in the same form.
 fresh trial directory under a dedicated root outside `/home` and `/tmp` (for
 example `/var/tmp/fix-go-cves-evals/`), which holds the trial's `TMPDIR` (where
 the harness puts workspaces, with no `CLAUDE.md` above it), its `HOME` and its
-other files. `PATH` is the `gh` shim, which only logs its arguments, followed
-by system directories only: the host's own `PATH` can point under `/home`
-(`~/.local/bin`, Homebrew), which the sandbox below denies. `run.sh` deletes
-the trial directory after collecting results. The claude-code runner passes the
-agent only `runner.env` and a short host allowlist that includes `HOME`, `PATH`
-and `GOOGLE_APPLICATION_CREDENTIALS` but not `TMPDIR`, so `runner.env` carries
+other files. `PATH` is a shim directory, holding a `gh` shim that only logs its
+arguments and a link to the resolved `claude` binary (which the harness
+launches by name with this `PATH`), followed by system directories only: the
+host's own `PATH` can point under `/home` (`~/.local/bin`, Homebrew), which the
+sandbox below denies. `run.sh` deletes the trial directory after collecting
+results. The claude-code runner passes the agent only `runner.env` and a short
+host allowlist that includes `HOME`, `PATH` and
+`GOOGLE_APPLICATION_CREDENTIALS` but not `TMPDIR`, so `runner.env` carries
 `TMPDIR: "$TMPDIR"` and `CLAUDE_CODE_TMPDIR: "$TMPDIR"`, which the harness
 resolves from `run.sh`'s environment; the second keeps Claude Code's own
 temporary files, including background-task output the skill reads, inside the
@@ -250,9 +256,10 @@ subagents, so check 1 has denials to find.
 not only the Read tool, from reading the denied paths on Linux (a trial must
 fail to read a canary file seeded in `/tmp`); that a trial's sandboxed
 `$TMPDIR` and background-task output both resolve inside the trial directory;
-that a trial can run `git`, `jq`, `python3` and `go version` with the
-restricted `PATH`; that prepare fits its 900-second hook timeout from a cold
-cache; and the cost of one trial, to set the per-case budget.
+that the harness can launch `claude` and a trial can run `git`, `jq`, `python3`
+and `go version` with the restricted `PATH`; that prepare fits its 900-second
+hook timeout from a cold cache; and the cost of one trial, to set the per-case
+budget.
 
 ### Later
 
