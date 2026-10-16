@@ -77,12 +77,14 @@ The cases below cover each; two of the underlying script bugs are under
   `fix-all.sh`.
 - **Sibling directory:** `<run workspace>/fgc/<case-id>/`, outside the
   harness's `cases/` (whose every directory it scores as a case); it holds
-  run state, reports, the log's other home paths, the bare remotes and the
-  copied-out tree.
+  run state, reports, the log's other home paths and the bare remotes.
+  Prepare's baseline hashes and the copy-out archive sit beside it, in
+  `fgc/<case-id>.baseline.json` and `fgc/<case-id>.out.tar`, outside the
+  copy list.
 - **Copy list:** the paths prepare writes for the wrapper to copy into the
   container.
-- **Copied-out tree:** the container's volumes, copied out after the trial,
-  which the state check reads.
+- **Copied-out tree:** the container's volumes, copied out after the trial
+  as one tar archive and unpacked only inside the checker container.
 
 Everything lives under `plugins/fix-go-cves/evals/`, laid out like
 `plugins/ci/evals/`: `eval-fix-go-cves.yaml`, a `README.md` that indexes the
@@ -153,8 +155,12 @@ recording user's connectors, plugins and memory paths.
   `description` and `author`, since a plugin can declare unsandboxed hooks,
   monitors and language servers;
 - a judge defined with `llm_rubric`, or a judge template naming anything
-  but the reply file and `{{ annotations }}` (see Isolation);
-- a recorded log missing what `SKILL.md` reads.
+  but the fenced reply file and `{{ annotations }}` (see Builder
+  checklist);
+- a recorded log missing what `SKILL.md` reads;
+- a prepared `.claude/settings.json` with keys beyond `permissions.allow`
+  and `permissions.deny`;
+- a proxy that forwards a request declaring a server-side tool.
 
 **`checks.py lint`** needs the case repositories' history, from the clone
 cache or the network. Run it before committing a case; `run.sh` runs it
@@ -244,9 +250,12 @@ the `before_each` hook, turns it into the case repository:
   would collide with the case repository and expose ai-helpers. Prepare
   removes that `.git`, every link and the subagent hook's `hooks/`
   directory, and deletes `input.yaml` once the harness has read the
-  arguments. It keeps `.claude/settings.json`, which the agent reads at
-  launch, but drops the subagent hook (subagents are denied) and
-  `permissions.additionalDirectories`, which names the ai-helpers checkout.
+  arguments. It rewrites `.claude/settings.json`, which the agent reads at
+  launch, keeping only `permissions.allow` and `permissions.deny`: the
+  harness also writes the subagent hook (subagents are denied),
+  `permissions.additionalDirectories` (the ai-helpers checkout), an `env`
+  block resolved from its own environment, tracing variables, carried-over
+  hooks and the operator's `enabledPlugins`.
 - **Build the repository.** Prepare fetches only the pinned commits, with no
   tags, from a clone cache under ai-helpers' `.work/` (warmed by
   `before_all`) into a fresh repository and fresh bare remotes, so no later
@@ -292,14 +301,18 @@ the `before_each` hook, turns it into the case repository:
 - **One way out: the proxy.** A per-trial proxy on the host holds the Vertex
   token, forwards only the Anthropic model paths for the configured project,
   caps tokens per trial (the agent could call it directly), and logs every
-  request and response.
+  request and response. It rejects, and fails the trial on, a body with a
+  server-side tool (web search, web fetch, code execution), `mcp_servers`,
+  `container`, or a beta header off its allowlist, since Anthropic's
+  servers would fetch for the agent despite `--network none`.
 - **No host environment crosses over.** The wrapper sets the container's
   environment from a fixed list, and `run.sh` starts the harness with an
   explicit one, so stray host keys reach neither; the in-container Vertex
   settings stay out of the harness's environment, where they would redirect
   the judges.
 - **The copied-out tree is data.** After the trial, the container's volumes
-  are copied out and checked in a fresh container from the pinned image,
+  are copied out as one tar archive, never unpacked on the host, and checked
+  in a fresh container from the pinned image,
   with checker-owned git: the agent's git configuration, whose filters and
   diff drivers can run commands, is never used. The host validates the
   result and fails the trial if it is missing or malformed. Nothing the
@@ -333,7 +346,8 @@ the `before_each` hook, turns it into the case repository:
   version, git, jq, Go, Python, socat and the `gh` shim that only logs its
   arguments) with `--network none`, `--read-only` except those volumes and
   `/tmp`, `--userns=keep-id` (so the user can reach the socket), one Unix
-  socket mount, `--interactive` (the runner writes the prompt to stdin), the
+  socket mount, `--http-proxy=false` (podman otherwise copies its own proxy
+  variables in), `--interactive` (the runner writes the prompt to stdin), the
   trial's name and a `--timeout` below the runner's; copies in the copy list
   at the same paths, since the runner passes `--plugin-dir` and `--settings`
   as workspace paths; then `exec`s `podman start --attach --interactive`, so
@@ -345,23 +359,28 @@ the `before_each` hook, turns it into the case repository:
   Claude Code gets `CLAUDE_CODE_SKIP_VERTEX_AUTH=1` and
   `ANTHROPIC_VERTEX_BASE_URL` pointing at that port, a pattern the runner
   already supports for agentic-ci.
-- **`after_each`:** timeout of 600 seconds; kills the container and the
-  proxy (the runner's timeout kills only the wrapper), copies the volumes
-  out with `podman cp` into the sibling directory, never the case workspace
-  (the harness later runs host git there, so it keeps prepare's `.git`),
-  runs the state check on them in a fresh container from the pinned image, read-only
-  and with no network, writes the validated result and the session's reply
-  to declared `outputs:` paths outside the `output/` directory where the
-  harness drops `stdout.log`, and removes the container and volumes.
+- **`after_each`:** timeout of 600 seconds; kills the container and the proxy
+  (the runner's timeout kills only the wrapper), streams the volumes out with
+  `podman cp <ctr>:<path> -` into `fgc/<case-id>.out.tar`, never unpacked on
+  the host (host git, a shell prompt or an editor in an agent-written tree
+  could run its configuration), runs the state check in a fresh container from
+  the pinned image, with the archive and the baseline mounted read-only, the
+  archive unpacked inside it, its result written to a separate fresh mount,
+  and no network, writes the validated result and the session's reply to
+  declared `outputs:` paths outside the `output/` directory where the harness
+  drops `stdout.log`, and removes the container, volumes and archive.
 - **State check:** builds a fresh `.git` from the copied objects, refs and
   `HEAD`, with a configuration it writes itself and no attributes; runs git
   with `-c core.fsmonitor=false -c core.hooksPath=/dev/null` and system and
   global configuration off; compares the worktree to HEAD by hashing files
-  without filters; hashes the bare remotes.
+  without filters; compares the bare remotes and untracked and ignored
+  files with prepare's baseline hashes.
 - **Judges:** defined with `prompt` or `prompt_file`, never `llm_rubric`;
-  templates name only the reply file and `{{ annotations }}`, never
-  `{{ conversation }}`,
-  `{{ tool_trace }}` or `{{ reasoning }}`.
+  templates name the reply only as `{{ outputs.files['<reply path>'] }}`,
+  which the harness fences as untrusted, with no filters (a string filter
+  drops the fence), plus `{{ annotations }}`; never `*_content`,
+  `outputs[...]`, `{{ conversation }}`, `{{ tool_trace }}` or
+  `{{ reasoning }}`.
 - **Eval `permissions.deny`:** plain tool patterns blocking
   `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web tools and subagents, so
   check 1 has denials to find; no provider plan. Either path-based rules or
