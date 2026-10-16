@@ -224,18 +224,23 @@ for a cold clone), turns into the case repository:
 
 Everything that runs after the agent runs outside the sandbox, so it treats the
 workspace as untrusted: the agent could have planted symlinks or edited git
-configuration there. The `after_each` hook first replaces the workspace's
+configuration there. The `after_each` hook first stops the trial's process
+scope (see Isolation), so no agent process that outlived the session can redo
+what follows; the runner kills only the CLI. It then replaces the workspace's
 `output/` and declared `outputs:` directories with fresh real directories,
 since the harness then writes `stdout.log` into `output/` with a call that
 follows links. It checks that the workspace's `.git` is still the directory
 prepare created (by inode, recorded outside the workspace): the sandbox
 protects `.git/config` and `.git/hooks` but not the `.git` entry, so an agent
 can swap in a repository whose configuration runs commands. A swapped `.git`
-voids the trial and nothing runs git there. It removes any `subagents/`
-directory, which a legitimate trial never creates and which the harness would
-merge into the transcript, and fails the state check if one existed. It then
-records the repository state (status including ignored files, refs and the `gh`
-log) by calling git by absolute path with a fixed `PATH`,
+voids the trial and nothing runs git there. It removes any `input.yaml` the
+agent wrote after prepare deleted it, since the harness would copy it ahead of
+the dataset's copy into the judges' inputs, and fails the state check if one
+existed; `checks.py` reads case arguments only from the dataset. It removes any
+`subagents/` directory, which a legitimate trial never creates and which the
+harness would merge into the transcript, and fails the state check if one
+existed. It then records the repository state (status including ignored files,
+refs and the `gh` log) by calling git by absolute path with a fixed `PATH`,
 `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null` and `-c
 core.fsmonitor=false -c core.hooksPath=/dev/null -c log.showSignature=false`,
 and compares the bare remotes by hashing their files rather than running git in
@@ -257,10 +262,12 @@ with no `CLAUDE.md` above it; and beside it `home/`, `shim/` and `remotes/`
 (the bare remotes). Only `tmp/` is a sandbox write root, so the agent cannot
 alter the shim, its `HOME` or the remotes that unsandboxed steps later read.
 `PATH` is a shim directory, holding a `gh` shim that only logs its arguments
-and a link to the resolved `claude` binary (which the harness launches by name
-with this `PATH`), followed by system directories only: the host's own `PATH`
-can point under `/home` (`~/.local/bin`, Homebrew), which the sandbox below
-denies. `run.sh` deletes the trial directory after collecting results. It
+and a `claude` wrapper (which the harness launches by name with this `PATH`)
+that starts the resolved binary in its own transient systemd user scope named
+for the trial, so `after_each` can stop every process the session started,
+including detached ones, followed by system directories only: the host's own
+`PATH` can point under `/home` (`~/.local/bin`, Homebrew), which the sandbox
+below denies. `run.sh` deletes the trial directory after collecting results. It
 starts the harness under `env -i` with an explicit variable list, because the
 runner's host allowlist also forwards `ANTHROPIC_API_KEY`,
 `ANTHROPIC_AUTH_TOKEN`, `CLOUDSDK_CONFIG` and similar keys into the agent's
@@ -304,10 +311,11 @@ github.com; whether the sandbox lets Bash rename `.git` (the inode check covers
 it either way); that sandboxed Bash cannot rewrite `.claude/settings.json` or
 `.claude/settings.local.json`, or that the session never re-reads them; that a
 trial's sandboxed `$TMPDIR` and background-task output both resolve inside the
-trial directory; that the harness can launch `claude` and a trial can run
-`git`, `jq`, `python3` and `go version` with the restricted `PATH`; that
-prepare fits its 900-second hook timeout from a cold cache; and the cost of one
-trial, to set the per-case budget.
+trial directory; that a canary the agent starts detached (`setsid nohup`, or a
+background task) does not survive the scope stop; that the harness can launch
+`claude` and a trial can run `git`, `jq`, `python3` and `go version` with the
+restricted `PATH`; that prepare fits its 900-second hook timeout from a cold
+cache; and the cost of one trial, to set the per-case budget.
 
 ### Later
 
