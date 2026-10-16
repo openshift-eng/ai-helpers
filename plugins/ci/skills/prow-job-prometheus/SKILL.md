@@ -5,7 +5,7 @@ description: Use when you need in-cluster Prometheus metrics from a Prow CI job 
 
 # Prow Job Prometheus
 
-Every OpenShift e2e run that reaches the `gather-extra` step saves the in-cluster Prometheus
+Most OpenShift e2e prow jobs that use and reach the `gather-extra` step save the in-cluster Prometheus
 TSDB. Loading it locally lets you run PromQL against the cluster as it was during the run.
 This is the way to answer "what was the apiserver/etcd/node doing at the moment tests failed".
 
@@ -14,6 +14,9 @@ Use this skill when:
   you need the underlying metrics.
 - Debugging apiserver slowness, etcd latency, node resource exhaustion, or restarts in one run.
 - Comparing the same metrics between a bad run and a good run.
+
+These TSDB's can be quite large, so avoid bulk downloading when possible, this is for targeted
+investigations.
 
 ## Prerequisites
 
