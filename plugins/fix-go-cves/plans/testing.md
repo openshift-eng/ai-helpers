@@ -106,13 +106,13 @@ Notes on the cases:
   all three bumps; the reference reply is written by hand.
 - **005:** the recorded reply calls the Go 1.26 raise the team's call; the
   reference drops that claim (see Calibration).
-- **006:** a separate, earlier lighthouse run with the same license failure,
-  so it also carries 001's backport criterion. Its x/crypto "policy
-  boundary" flag was spurious: it followed the ignore of GO-2026-5932, which
-  has no fix, and the scan has no x/crypto finding. The criterion passes a
-  reply that says so and that x/crypto needs no action, and fails one that
-  sends the flag to the team or blames the Go raise, as the recorded reply
-  did. The reference reply is written by hand.
+- **006:** a separate, earlier lighthouse run with the same license failure, so
+  it also carries 001's backport criterion. Its x/crypto "policy boundary" flag
+  was spurious: it followed the ignore of GO-2026-5932, which has no fix, and
+  the scan has no x/crypto finding. The criterion passes a reply that says so
+  and that x/crypto needs no action, and fails one that blames the Go raise
+  (the recorded reply) or sends the flag to the team (a constructed negative).
+  The reference reply is written by hand.
 
 Each case directory holds:
 
@@ -125,7 +125,8 @@ Each case directory holds:
 - `run.log.gz`: the recorded log;
 - `reply.md`: the reference reply;
 - `negatives/`: the recorded wrong reply, where one exists, one-fact edits
-  of the reference, and a wrong reply that tells the judge to pass it;
+  of the reference, case-specific constructed wrong replies (006's sends the
+  flag to the team), and a wrong reply that tells the judge to pass it;
 - `reports/`: report directories the log names (subctl's);
 - `plugin.tar.gz`: the plugin at the recording's commit, limited to
   `.claude-plugin/`, `skills/`, `scripts/`, `subagents/` and `README.md`
@@ -243,10 +244,11 @@ the `before_each` hook, turns it into the case repository:
   and 005 look for). It checks out the branch the recording started from and
   points every remote at a bare remote. `annotations.yaml` never reaches the
   workspace.
-- **Restore what the recording saw.** Untracked files as stubs (for subctl,
-  an empty `bin/lichen`; `go version` on it disagrees with the recorded log,
-  so criteria rely on the log, not the file), and the case's `reports/` in
-  the sibling directory.
+- **Restore what the recording saw.** Untracked files as stubs (for subctl, an
+  empty `bin/lichen`; `go version` on it disagrees with the recorded log, so
+  criteria rely on the log, not the file), and the case's `reports/` in the
+  sibling directory, with the same two placeholders filled as in the log (see
+  the next item).
 - **Stage the plugin.** Prepare unpacks the case's `plugin.tar.gz` into
   `.staged-plugins/fix-go-cves`, where the runner reuses an existing copy,
   replaces its `SKILL.md` with the working tree's, and adds the recorded log
@@ -284,7 +286,8 @@ the `before_each` hook, turns it into the case repository:
   are copied out and checked in a fresh container from the pinned image,
   with checker-owned git: the agent's git configuration, whose filters and
   diff drivers can run commands, is never used. The host validates the
-  result.
+  result and fails the trial if it is missing or malformed. Nothing the
+  agent writes reaches the host any other way.
 - **The session comes from the proxy.** The agent shares a user with Claude
   Code inside the container, so it could forge the CLI's output stream. The
   main conversation is the chain of requests in which each request's
