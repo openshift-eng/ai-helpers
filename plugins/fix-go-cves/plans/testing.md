@@ -31,13 +31,27 @@ stdlib findings to the build image. It also invented a policy boundary for
 x/crypto, and asked for "team input" on two bumps when a leftover
 `bin/lichen` was blocking the scan (subctl).
 
-### Tooling: Inspect AI with Inspect SWE
+### Tooling: one case set, two runners
 
-Run cases with [Inspect AI](https://inspect.aisi.org.uk/) and
-[Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/), which runs
-real agents (Claude Code, Codex CLI, Gemini CLI, OpenCode and Google's
-Antigravity SDK agent) in a sandbox. Both come from the same core team, and
-Inspect is maintained by the UK AI Security Institute.
+The cases, the workspace setup (`prepare.sh`) and the deterministic checks
+(`checks.py`) are shared. Each runner is a thin definition over them, so the
+two always score a trial the same way.
+
+**agent-eval-harness** (`eval-fix-go-cves.yaml`) follows the marketplace
+convention, which a maintainer asked for in the k8s-rebase review. It
+reports cost, tokens and model for each case. A `cli` runner calls
+`prepare.sh` and then the agent (Claude Code or Codex). Its judges call
+`checks.py` through `module:`/`function:`, plus one LLM judge for the facts.
+It runs on the host, so its permissions deny `git push` and `gh`, and every
+remote in the workspace is a local bare repository; even an allowed push
+stays local.
+
+**Inspect AI with Inspect SWE** (`task.py`) runs the same cases isolated.
+[Inspect AI](https://inspect.aisi.org.uk/) is maintained by the UK AI
+Security Institute, and [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/),
+from the same core team, runs real agents (Claude Code, Codex CLI, Gemini
+CLI, OpenCode and Google's Antigravity SDK agent) in a sandbox. Use it to
+compare agents and to try changes without host access:
 
 - **Credentials stay on the host.** The agent runs in a container and talks
   to a loopback proxy that relays its model calls to Inspect; Claude Code
@@ -63,26 +77,22 @@ Considered and rejected:
   Claude Code integration has no Vertex support, it places agent and judge
   credentials inside the sandbox, publishes without provenance, and enables
   telemetry by default.
-- **agent-eval-harness**, used by the other plugins here. It runs agents on
-  the host, with no sandbox.
 - **`claude plugin eval`.** It runs one agent, and its graders cannot inspect
   repository state.
-
-The case data is harness-neutral, so moving to another runner later
-replaces only `task.py`.
 
 ### Sample: replay a recorded run
 
 A sample is a recorded run, not a new one. It needs no build, scan or Docker
 daemon inside the sandbox, so a trial takes minutes and costs well under $1.
 
-- **Sandbox image.** Built from one Dockerfile, with the case's commits as
-  build arguments. The run's result is checked out as the fix branch, and
+- **Workspace.** `prepare.sh` builds it from the case's pinned commits:
+  in the case workspace for agent-eval-harness, and at image build time for
+  Inspect. The run's result is checked out as the fix branch, and
   the base and default branches are kept as they were, for backport
   searches. Pin the result commit itself, not the PR head, which can carry
   later manual commits. Remotes point at local bare repositories and a `gh`
-  shim only logs its arguments. The image runs as a non-root user, which
-  Claude Code requires for unattended permissions.
+  shim only logs its arguments. The Inspect image runs as a non-root user,
+  which Claude Code requires for unattended permissions.
 - **Agent.** An Inspect SWE agent with the real skill passed through its
   `skills` option. Its `env` option sets `CLAUDE_PLUGIN_ROOT`, which
   `SKILL.md` already honors, to a plugin copy whose `scripts/fix-all.sh`
@@ -140,29 +150,38 @@ evidence the agent reads.
 
 ### Layout
 
+The repository lint requires opaque `case-NNN` names in a group directory,
+each registered in the README:
+
 ```text
 evals/
-  README.md            case index (required by the repository lint)
-  requirements.txt     pinned, hashed Inspect AI and Inspect SWE
-  task.py              dataset, sandbox, solvers and scorers
-  sandbox/             Dockerfile, replayer, gh shim
-  cases/case-NNN/      case.yaml (repo, commits, exit code, criteria),
-                       run.log.gz, reply.md, wrong-reply.md (optional)
+  README.md                case index
+  eval-fix-go-cves.yaml    agent-eval-harness definition
+  task.py                  Inspect task
+  checks.py                shared deterministic checks and judge prompt
+  prepare.sh               builds a case workspace (both runners)
+  Dockerfile               Inspect sandbox; runs prepare.sh at build time
+  requirements.txt         pinned, hashed Inspect AI and Inspect SWE
+  cases/replay/case-NNN/   input.yaml (repo, commits, exit code, request),
+                           annotations.yaml (criteria, PR command),
+                           run.log.gz, reply.md, wrong-reply.md (optional)
 ```
 
-The deterministic scorers get unit tests in the hermetic suite, so
-`make test` covers the grader too.
+`checks.py` gets unit tests in the hermetic suite, so `make test` covers
+the grader too.
 
 ### Running
 
-- `make eval agent=claude_code|codex_cli|gemini_cli|antigravity model=...
-  case=NNN` runs the `oracle` and `wrong` checks, then three epochs of the
-  agent. Report the mean and `at_least_3` (every epoch passes), because a
-  skill that is right two times in three is not dependable. The agent
-  scaffold and the model are independent, so Codex can be scored on a
+- `make eval runner=harness|inspect agent=... model=... case=NNN` runs
+  three attempts. Report the mean and whether every attempt passed,
+  because a skill that is right two times in three is not dependable. The
+  harness run adds cost and tokens per case.
+- Under Inspect, the `oracle` and `wrong` checks run first. The agent
+  scaffold and the model are independent there, so Codex can be scored on a
   Vertex Claude model without an OpenAI key.
-- Read failing transcripts in `inspect view` before changing `SKILL.md`. A
-  failure can be the case's fault as easily as the skill's.
+- Read failing transcripts (the harness's `/eval-review`, or
+  `inspect view`) before changing `SKILL.md`. A failure can be the case's
+  fault as easily as the skill's.
 - Not in CI: it needs model credentials and spends money. Run it before
   changing `SKILL.md`, the review prompts or the default model.
 
