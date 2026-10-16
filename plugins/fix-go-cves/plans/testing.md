@@ -375,19 +375,20 @@ the `before_each` hook, turns it into the case repository:
   other way.
 - **The session comes from the proxy.** The agent shares a user with Claude
   Code inside the container, so it could forge the CLI's output stream. The
-  main conversation is the chain of requests in which each request's
-  messages extend the previous request's messages and logged response,
-  compared after dropping `cache_control` and other per-request annotations
-  (role, block type, text, tool-use id, name and input, and tool-result
-  content must match): the
-  reply is all of the chain's assistant text after the `fix-all.sh` result
-  (the replay can finish before the agent's turn ends, so the report and a
-  closing message may be separate), and the tool calls and any
-  denials the model was told about are its tool turns. A request that fits
+  main conversation is the chain of requests in which each request's messages
+  extend the previous request's messages and logged response, compared after
+  dropping `cache_control` and other per-request annotations (role, block
+  type, text, tool-use id, name and input, and tool-result content must
+  match): the reply is all of the chain's assistant text after the
+  `fix-all.sh` result (the replay can finish before the agent's turn ends, so
+  the report and a closing message may be separate), and the tool calls and
+  any denials the model was told about are its tool turns. A request that fits
   neither the chain nor a known side-call shape (Claude Code's small-model
   helper calls), or arrives after the chain ends, fails the trial. The cost
   reported per case is the proxy's token usage, priced on the host; a large
-  gap from the runner's own figure fails the trial.
+  gap from the runner's own figure fails the trial. `after_each` runs before
+  the runner's figure exists, so it writes only the proxy's usage, and
+  `checks.py summarize` checks the gap and reports the proxy's cost.
 - **Judges see only the reply.** They read the reply file and the case's
   criteria (`{{ annotations }}`, from the dataset) and nothing else:
   with trace events off, the harness fills `{{ conversation }}` from the raw
@@ -400,18 +401,28 @@ the `before_each` hook, turns it into the case repository:
   `GOOGLE_APPLICATION_CREDENTIALS` and `HOME` to the agent); puts the
   wrapper first on `PATH`; runs `checks.py lint` first.
 - **Wrapper:** creates per-trial volumes (`podman volume create`) for the
-  workspace, sibling directory and `HOME`; `podman create`s
-  the container on them from a pinned image (Claude Code at the host's
-  version, git, jq, Go, Python, socat and the `gh` shim that only logs its
-  arguments) with `--network none`, `--read-only` except those volumes and
-  `/tmp`, `--userns=keep-id` (so the user can reach the socket), one Unix
-  socket mount, `--http-proxy=false` (podman otherwise copies its own proxy
-  variables in), `--interactive` (the runner writes the prompt to stdin), the
-  trial's name and a `--timeout` below the runner's; copies in the copy list
-  at the same paths, since the runner passes `--plugin-dir` and `--settings`
-  as workspace paths; then `exec`s `podman start --attach --interactive`, so
-  the runner's pipes close when the agent stops. Answers the runner's
-  `claude --version`.
+  workspace, sibling directory and `HOME`; `podman create`s the container on
+  them from a pinned image (Claude Code at the host's version, git, jq, Go,
+  Python, socat and the `gh` shim that only logs its arguments) with
+  `--network none`, `--read-only` except those volumes and `/tmp`,
+  `--userns=keep-id` (so the user can reach the socket), one Unix socket
+  mount, `--http-proxy=false` (podman otherwise copies its own proxy variables
+  in), `--interactive` (the runner writes the prompt to stdin), the trial's
+  name and a `--timeout` below the runner's; copies in the copy list at the
+  same paths, since the runner passes `--plugin-dir` and `--settings` as
+  workspace paths; then `exec`s `podman start --attach --interactive`, so the
+  runner's pipes close when the agent stops. Answers the runner's `claude
+  --version`. The runner passes it only its allowlisted environment, so the
+  wrapper reads its settings (image digest, socket directory, the podman
+  runtime variables) from `runner.env` `$VAR` entries and derives the run and
+  case IDs from its working directory, as `after_each` does. Every command
+  before the final `exec` runs with `</dev/null >>"$trial_log" 2>&1`, so only
+  `podman start` touches the runner's pipes. The container, volumes and proxy
+  are named `fgc-<run-id>-<case-id>` and labelled `fgc.eval=1`; `before_all`
+  and a trap in `run.sh` remove labelled leftovers and kill recorded proxies,
+  since a timed-out `after_each` leaves them behind. The fixed environment
+  pins `ANTHROPIC_DEFAULT_HAIKU_MODEL` and `ANTHROPIC_SMALL_FAST_MODEL` to one
+  exact ID, which the proxy allowlists beside the main model.
 - **Proxy:** started with `setsid`, its output to its own log,
   `fgc/<case-id>.proxy.log`, so it never holds the runner's pipes; listens
   only on the per-trial socket, which socat in the container turns back into a
