@@ -28,7 +28,7 @@ runner:
     You are running a test-plan generation task.
 
     Read input.yaml to obtain jira_key and, if present, repo_url and repo_ref.
-    Do not read annotations.yaml at any point — it contains the expected
+    Do not read annotations.yaml at any point - it contains the expected
     results for this case.
 
     If input.yaml sets `jira_fixture: jira-issue.json`, use that file as the
@@ -49,7 +49,7 @@ runner:
 
     After the skill finishes, create an output/ directory and capture the
     files below. This step is harness bookkeeping, not part of the skill's
-    work — do not let it alter the plan.
+    work - do not let it alter the plan.
 
     - output/plan-path.txt: the repo-relative path of the markdown test plan
       the skill created, as a single line with no other text. Determine it
@@ -103,27 +103,27 @@ dataset:
   schema: |
     Each case directory contains:
     - input.yaml:
-      - 'jira_key'      — Jira issue key under test (required)
-      - 'jira_fixture'  — filename of the frozen Jira response (optional;
+      - 'jira_key'      - Jira issue key under test (required)
+      - 'jira_fixture'  - filename of the frozen Jira response (optional;
                           when absent the skill queries live Jira)
-      - 'repo_url'      — target repository the plan is generated against (optional)
-      - 'repo_ref'      — immutable commit SHA for repo_url (optional)
+      - 'repo_url'      - target repository the plan is generated against (optional)
+      - 'repo_ref'      - immutable commit SHA for repo_url (optional)
     - annotations.yaml:
-      - 'expected_format'        — 'ieee829' | 'repo-template' | 'generic'
-      - 'expected_template_path' — path to the repo's own template, when
+      - 'expected_format'        - 'ieee829' | 'repo-template' | 'generic'
+      - 'expected_template_path' - path to the repo's own template, when
                                    expected_format is 'repo-template'
-      - 'expected_template_sections' — ordered list of required headings
-      - 'expected_gap_sections'  — sections that MUST carry a GAP marker
+      - 'expected_template_sections' - ordered list of required headings
+      - 'expected_gap_sections'  - sections that MUST carry a GAP marker
                                    because the source has no data for them
-      - 'forbidden_terms'        — terms that must NOT appear as generated
+      - 'forbidden_terms'        - terms that must NOT appear as generated
                                    scenarios; presence means fabrication
-      - 'expected_preliminary'   — boolean; zero-PR path
-      - 'min_scenarios'          — floor only, to catch empty output; never
+      - 'expected_preliminary'   - boolean; zero-PR path
+      - 'min_scenarios'          - floor only, to catch empty output; never
                                    used to reward volume
-      - 'expected_ownership_tiers' — ownership tiers that must appear
-      - 'customer_names'         — names that must be scrubbed from output
-      - 'difficulty'             — simple|medium|complex
-      - 'notes'                  — context for LLM judges
+      - 'expected_ownership_tiers' - ownership tiers that must appear
+      - 'customer_names'         - names that must be scrubbed from output
+      - 'difficulty'             - simple|medium|complex
+      - 'notes'                  - context for LLM judges
     - jira-issue.json: frozen getJiraIssue (view "evidence") response.
 
 outputs:
@@ -134,9 +134,9 @@ outputs:
   - path: "output"
     schema: |
       Bounded harness-owned capture written after the skill finishes:
-        plan-path.txt       — single line: the repo-relative path the skill chose
-        plan.md             — verbatim copy of the generated test plan
-        coverage-path.txt   — path of the companion coverage-analysis document,
+        plan-path.txt       - single line: the repo-relative path the skill chose
+        plan.md             - verbatim copy of the generated test plan
+        coverage-path.txt   - path of the companion coverage-analysis document,
                               or NONE. Since the 9 Oct rework the skill emits
                               existing-coverage, detailed cases and the coverage
                               summary as a separate <feature-name>-coverage-
@@ -170,7 +170,7 @@ judges:
       all_f = {**files, **modified}
       pp = {k: v for k, v in all_f.items() if k.endswith("plan-path.txt")}
       if not pp:
-          return (False, "No output/plan-path.txt — cannot determine where the plan went")
+          return (False, "No output/plan-path.txt - cannot determine where the plan went")
       raw = list(pp.values())[0].strip()
       if not raw or raw.upper() == "NONE":
           return (False, "Skill produced no test plan")
@@ -201,10 +201,15 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       head = body[:2000]
       missing = [f for f in ("Plan Status", "Feature")
                  if not re.search(rf"\*\*{f}:?\*\*", head)]
@@ -226,10 +231,15 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       ids = re.findall(r"\bTC-[A-Z]{2,8}-\d+\b", body)
       if not ids:
           return (False, "No TC-<CAT>-<NNN> scenario IDs found")
@@ -259,17 +269,22 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       TIERS = ("unit", "integration", "e2e-serial", "e2e-parallel", "e2e-periodic")
       alt = "|".join(re.escape(t) for t in TIERS)
       # A tier must be ASSIGNED, not merely mentioned in prose. Two accepted
       # forms: an inline label ("CI Tier: unit", "**Tier** | unit") or a table
       # cell in a row that also carries a scenario ID. Matching bare words
       # anywhere in the document passes any plan that happens to use the
-      # English word "unit" — that is a false pass, not a measurement.
+      # English word "unit" - that is a false pass, not a measurement.
       labelled = re.findall(
           rf"(?:ci[ -]?tier|\btier\b)[^\n|]{{0,16}}[:|]\s*\**({alt})\b", body, re.I)
       rowwise = [l for l in body.splitlines()
@@ -306,11 +321,16 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
-      # Only rows that DEFINE a scenario — the ID must be the first cell.
+          return (False, "No output/plan.md captured")
+      body = md[0]
+      # Only rows that DEFINE a scenario - the ID must be the first cell.
       # Matching any line containing a TC id sweeps in roll-up rows such as
       # the CI placement matrix ("| unit | TC-FUNC-001 through TC-FUNC-010 |"),
       # which legitimately carry no file path. Deferred-appendix rows are
@@ -347,10 +367,15 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       # Match the bracketed token by prefix, not as an exact literal. A real
       # plan writes "[PRELIMINARY - no implementation PRs available]"; demanding
       # a closing bracket immediately after the word fails a plan that did the
@@ -378,14 +403,19 @@ judges:
       ann = outputs.get("annotations", {})
       expected = ann.get("expected_gap_sections") or []
       if not expected:
-          return (True, "No gap sections expected for this case — skipped")
+          return (True, "No gap sections expected for this case - skipped")
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       # Accept any phrasing that tells the reader the source had no data here.
       # Wording varies run to run; the behaviour under test is "says so out
       # loud", not a particular sentence.
@@ -428,14 +458,19 @@ judges:
       ann = outputs.get("annotations", {})
       forbidden = ann.get("forbidden_terms") or []
       if not forbidden:
-          return (True, "No forbidden terms for this case — skipped")
+          return (True, "No forbidden terms for this case - skipped")
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       GAP = re.compile(
           r"⚠️?\s*\*{0,2}GAP|not enough information|could not be populated"
           r"|not applicable|left intentionally blank|does not mention",
@@ -445,7 +480,7 @@ judges:
       # requiring \d{3} here would make a plan with malformed IDs match no
       # lines at all and pass this judge trivially.
       if not scen.search(body):
-          return (False, "No scenarios found — cannot assess fabrication")
+          return (False, "No scenarios found - cannot assess fabrication")
       for line in body.splitlines():
           if not scen.search(line):
               continue  # only scenario-bearing lines can fabricate a scenario
@@ -467,10 +502,15 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       bare = []
       for line in body.splitlines():
           s = line.strip().strip("|").strip()
@@ -489,10 +529,15 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       PLACEHOLDER = re.compile(
           r"https?://[^\s)\]]*(example\.com|<[^>]+>|XXXX|TODO|FIXME|your-)"
           r"|\[[^\]]*\]\(\s*#?\s*\)",
@@ -515,10 +560,15 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       m = re.search(r"(?mi)^#{1,4}\s*Abbreviations\s*$", body)
       if not m:
           return (False, "No Abbreviations section")
@@ -554,10 +604,15 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       # Build the fence from chr(96) rather than writing it literally: a
       # literal triple backtick here would terminate the enclosing markdown
       # block in any document that quotes this judge.
@@ -595,17 +650,22 @@ judges:
       import re
       ann = outputs.get("annotations", {})
       if ann.get("expected_format") != "repo-template":
-          return (True, "Case does not target a repo with its own template — skipped")
+          return (True, "Case does not target a repo with its own template; skipped")
       required = ann.get("expected_template_sections") or []
       if not required:
           return (False, "Case claims repo-template but lists no expected sections")
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       headings = [h.strip().lower()
                   for h in re.findall(r"(?m)^#{1,4}\s+(.+?)\s*$", body)]
       missing = [s for s in required
@@ -633,18 +693,23 @@ judges:
       import re
       ann = outputs.get("annotations", {})
       if not ann.get("expected_preliminary"):
-          return (True, "Not a zero-PR case — skipped")
+          return (True, "Not a zero-PR case; skipped")
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       if not re.search(r"PRELIMINARY", body):
           return (False, "No PRELIMINARY banner on a zero-PR feature")
       if not re.search(r"\bTBD\b", body):
-          return (False, "No TBD target paths — plan likely invented file locations")
+          return (False, "No TBD target paths - plan likely invented file locations")
       # Only scenario-defining rows can invent a *scenario's* target path.
       # Scanning the whole document also catches Test Deliverables prose that
       # legitimately names a repository's directory convention, which is
@@ -674,10 +739,15 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       if not re.search(r"(?mi)^#{1,4}.*CI placement matrix", body):
           return (False, "No 'CI placement matrix' heading in the Approach section")
       if not re.search(r"pre-?merge", body, re.I):
@@ -699,10 +769,15 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      md = [v for k, v in all_f.items() if k.endswith(".md") and "annotations" not in k]
+      # Grade the canonical capture only. Selecting the longest collected
+      # markdown would pick output/coverage-analysis.md or a pre-existing
+      # plan in the target repo, and the judge would silently grade the
+      # wrong document. output/plan.md is written by runner.system_prompt.
+      md = [v for k, v in all_f.items()
+            if k.replace("\\", "/").endswith("output/plan.md")]
       if not md:
-          return (False, "No markdown file produced")
-      body = max(md, key=len)
+          return (False, "No output/plan.md captured")
+      body = md[0]
       hits = []
       for line in body.splitlines():
           # Allow QE inside a quoted job or team name the source itself uses
@@ -731,7 +806,8 @@ judges:
 
       The generated plan:
 
-      {% for path, content in outputs.files.items() if path.endswith('.md') %}
+      {% for path, content in outputs.files.items()
+         if path.replace('\\', '/').endswith('output/plan.md') %}
       --- {{ path }} ---
       {{ content }}
       {% endfor %}
@@ -746,7 +822,7 @@ judges:
 
       Score 1: Most scenarios cite no source. The plan reads as generic
                OpenShift testing knowledge applied to a feature name.
-      Score 2: Some scenarios cite sources, but several are clearly invented —
+      Score 2: Some scenarios cite sources, but several are clearly invented -
                topologies, security requirements or feature gates that appear
                nowhere in the source.
       Score 3: Most scenarios trace to a requirement or PR. A few are
@@ -754,7 +830,7 @@ judges:
       Score 4: Every scenario traces to a named requirement, acceptance
                criterion, or specific code change. Missing source data is
                explicitly flagged rather than filled.
-      Score 5: As 4, and the traceability is specific — citing section names,
+      Score 5: As 4, and the traceability is specific - citing section names,
                PR numbers, or file paths rather than gesturing at "the Jira
                issue". Gaps are flagged with enough detail that a reader knows
                exactly what to add to the ticket.
@@ -777,7 +853,8 @@ judges:
 
       The generated plan:
 
-      {% for path, content in outputs.files.items() if path.endswith('.md') %}
+      {% for path, content in outputs.files.items()
+         if path.replace('\\', '/').endswith('output/plan.md') %}
       --- {{ path }} ---
       {{ content }}
       {% endfor %}
@@ -789,8 +866,8 @@ judges:
       For each scenario, ask: could this be proven without a cluster? Pure
       decision logic, config parsing, validation rules and error-message
       content are unit-testable. Only assertions that genuinely require a
-      running cluster — reboots, node state, operator reconciliation observed
-      end to end — justify e2e.
+      running cluster - reboots, node state, operator reconciliation observed
+      end to end - justify e2e.
 
       Score 1: No tiers assigned, or everything is e2e.
       Score 2: Tiers assigned but placement is arbitrary; clear unit-testable
@@ -799,7 +876,7 @@ judges:
                but generic.
       Score 4: Placement is defensible scenario by scenario, with a specific
                cost justification naming why the cheaper tier is insufficient.
-      Score 5: As 4, and the plan actively pushes work down the cost curve —
+      Score 5: As 4, and the plan actively pushes work down the cost curve -
                splitting a scenario so the logic is unit-tested and only the
                integration surface is e2e.
 
