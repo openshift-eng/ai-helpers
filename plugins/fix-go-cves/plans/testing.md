@@ -89,9 +89,12 @@ Each case directory holds:
 Files are copied by allowlist. Agent transcripts stay out: their first
 record lists the recording user's connectors, plugins and memory paths.
 Hermetic tests fail on a transcript, a `/home/` or `/run/user/` path
-anywhere under `evals/cases/` (decompressing `.gz` files first, and
-reading each bundle's commits on top of its base), or a log missing what
-`SKILL.md` reads. The bundles and PR commands keep the
+anywhere under `evals/cases/` (decompressing `.gz` files first), or a log
+missing what `SKILL.md` reads. Checks that need the case repositories'
+history (each bundle's commits scanned on top of its base, and a prepared
+workspace reaching nothing outside itself) run as `checks.py lint`, which
+needs the clone cache or network access: run it before committing a case,
+and `evals/run.sh` runs it first. The bundles and PR commands keep the
 recording author's name and fork. Three bundles (004, 005, 006) hold
 commits that were never pushed, but they contain only `go.mod`, `go.sum`
 and `.grype.yaml` edits by the same author, so publishing them adds nothing
@@ -106,9 +109,8 @@ rate:
    unchanged, an empty `gh` log, and no attempted or denied push, `gh`,
    stash or clean in the transcript. The harness's own files are excluded.
    A tool input that names a protected root voids the trial, since it may
-   have reached an answer: the real home directory, the ai-helpers
-   checkout (which holds the clone cache and the case sources), the
-   harness's runs directory, or another trial's `TMPDIR`.
+   have reached an answer: `/home`, `/tmp`, `/var/tmp` or `/run/user`
+   outside the trial's own directory.
 2. **One run.** The script ran once, for the requested branch.
 3. **PR command.** If the log printed one, a code block in the reply holds
    the same command, compared as shell-parsed tokens with continuations
@@ -124,18 +126,17 @@ let one case fail every trial while the rest pass, so `checks.py summarize`
 reads the three rounds and requires every case to pass its deterministic
 checks in all three and its facts in at least two.
 
-**Calibration.** `checks.py calibrate` runs the harness's own judges
-(`score.py judges`) on synthetic trials whose final result is a stored
-reply, so the scoring prompt is the one calibrated. It must pass each
-`reply.md` and fail each negative before any agent is scored; rerun it when
-criteria or the judge model change. References for 004 and 006 are written
-by hand, since their recorded replies are the wrong ones, and 005's is
-edited. 006 comes from an earlier recording of the same lighthouse run, so
-it also carries 001's backport criterion, which its recorded reply fails
-by suggesting the license be allowed instead. Criteria stay neutral on
-whether a Go directive raise needs the team: the plugin and the
-repositories' own workflow notes disagree (see
-[Decisions](README.md#decisions)).
+**Calibration.** `checks.py calibrate` runs the harness's own judges (`score.py
+judges`) on synthetic trials whose final result is a stored reply, so the
+scoring prompt is the one calibrated. It must pass each `reply.md` and fail
+each negative before any agent is scored; rerun it when criteria or the judge
+model change. References for 004 and 006 are written by hand, since their
+recorded replies are the wrong ones, and 005's is edited. 006 is a separate,
+earlier lighthouse run that hit the same license failure, so it also carries
+001's backport criterion, which its recorded reply fails by suggesting the
+license be allowed instead. Criteria stay neutral on whether a Go directive
+raise needs the team: the plugin and the repositories' own workflow notes
+disagree (see [Decisions](README.md#decisions)).
 
 **Running.** Three rounds to accept a `SKILL.md` or model change. A change
 to `scripts/review-prompt.md` or to `fix-all.sh` output is not exercised by
@@ -164,7 +165,7 @@ for a cold clone), turns into the case repository:
   history (such as the merged CVE PRs, which contain the backports cases
   001 and 005 look for) is reachable. It checks out the branch the
   recording started from and points every remote at a bare remote. A
-  hermetic test checks that every ref and object is reachable from the
+  `checks.py lint` checks that every ref and object is reachable from the
   pinned commits or the bundle. Harness paths go in
   `.git/info/exclude`. Prepare then deletes `input.yaml`, which the harness
   has already read for the arguments; `annotations.yaml` never reaches the
@@ -172,8 +173,8 @@ for a cold clone), turns into the case repository:
 - **Restore what the recording saw.** Untracked files as stubs (for subctl,
   an empty `bin/lichen`; `go version` on it disagrees with the log, so
   criteria rely on the log, not the file), and the case's `reports/`,
-  unpacked inside the trial's `TMPDIR` at the paths the preamble writes
-  into the log.
+  unpacked in the trial's own space at the paths the preamble writes into
+  the log, outside the case repository.
 - **Stage the plugin.** Prepare unpacks the case's `plugin.tar.gz` into
   `.staged-plugins/fix-go-cves`, where the runner reuses an existing copy.
   It is the plugin that produced the log, not today's: current scripts
@@ -184,9 +185,11 @@ for a cold clone), turns into the case repository:
   records its arguments, applies the bundle to create the fix branch,
   prints the recorded log and exits with the recorded code, so an agent
   reading the script still finds the gate logic it is investigating. Logs
-  and report directories store every home-directory path as a placeholder,
-  which the preamble fills with workspace paths; the log's own `exit=` line
-  is dropped, since `SKILL.md` appends one.
+  and report directories store home-directory paths as two placeholders:
+  the recording's repository root, which the preamble fills with the case
+  workspace, and every other home path (run state, reports, the log
+  itself), which it fills with a directory in the trial's own space. The
+  log's own `exit=` line is dropped, since `SKILL.md` appends one.
 
 An `after_each` hook writes the repository state (status including ignored
 files, refs, the bare remotes and the `gh` log) to a declared `outputs:`
@@ -198,21 +201,25 @@ segment, and the conversation it otherwise hands judges includes interim
 narration and the log itself. `checks.py calibrate` writes its synthetic
 trials in the same form.
 
-**Isolation.** `evals/run.sh` invokes the harness once per trial, each time
-with a fresh `TMPDIR` (where the harness puts workspaces, with no `CLAUDE.md`
-above it), a fresh `HOME` inside that `TMPDIR`, and `PATH` starting with a `gh`
-shim that only logs its arguments; it deletes the workspace after collecting
-results. The claude-code runner passes the agent only `runner.env` and a short
-host allowlist that includes `HOME` and `PATH` but not `TMPDIR`, so
-`runner.env` carries `TMPDIR: "$TMPDIR"`, which the harness resolves from
-`run.sh`'s environment. That keeps the user's `CLAUDE.md`, memory, plugins and
-credentials out of the agent's default view, but environment variables do not
-stop a command from reading an absolute path: the answers, the clone cache, the
-recording repositories, earlier trials and `~/.ssh` are all on the same host.
+**Isolation.** `evals/run.sh` invokes the harness once per trial, each time in
+a fresh trial directory under a dedicated root outside `/home` and `/tmp` (for
+example `/var/tmp/fix-go-cves-evals/`), which holds the trial's `TMPDIR` (where
+the harness puts workspaces, with no `CLAUDE.md` above it), its `HOME` and its
+other files, with `PATH` starting with a `gh` shim that only logs its
+arguments; it deletes the trial directory after collecting results. The
+claude-code runner passes the agent only `runner.env` and a short host
+allowlist that includes `HOME` and `PATH` but not `TMPDIR`, so `runner.env`
+carries `TMPDIR: "$TMPDIR"`, which the harness resolves from `run.sh`'s
+environment. That keeps the user's `CLAUDE.md`, memory, plugins and credentials
+out of the agent's default view, but environment variables do not stop a
+command from reading an absolute path, and a developer host holds copies of the
+answers in many places: the case sources, the clone cache, the recording
+repositories, stray clones and dumps under `/tmp`, earlier trials and `~/.ssh`.
 `runner.settings` therefore enables Claude Code's sandbox, with no unsandboxed
-fallback, and denies reads of the real home directory and the ai-helpers
-checkout; check 1 voids any trial that names a protected root anyway.
-`runner.env` also sets:
+fallback, denying reads of `/home`, `/tmp`, `/var/tmp` and `/run/user` except
+the trial's own directory; check 1 voids any trial that names one anyway. If
+the sandbox cannot express that exception, the trial runs as a dedicated Unix
+user with a private `/tmp` instead. `runner.env` also sets:
 
 - `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0` and
   `GIT_ALLOW_PROTOCOL=file`, so git cannot fetch a newer upstream than the
@@ -223,12 +230,13 @@ checkout; check 1 voids any trial that names a protected root anyway.
 
 The eval file's `permissions.deny`, which the harness writes into the
 workspace settings, blocks `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web
-tools and subagents, so check 1 has denials to find. A hermetic test checks
-that a prepared workspace has no path into ai-helpers.
+tools and subagents, so check 1 has denials to find.
 
 **To confirm when building:** that Claude Code's sandbox read rules stop
-Bash, not only the Read tool, from reading the denied paths on Linux, and
-that the sandbox leaves the trial's `TMPDIR` writable for the skill's log;
+Bash, not only the Read tool, from reading the denied paths on Linux (a
+trial must fail to read a canary file seeded in `/tmp`), and that the
+sandbox leaves the trial's directory readable and writable for the skill's
+log;
 that
 prepare fits its 900-second hook timeout from a cold cache; and the cost of
 one trial, to set the per-case budget.
