@@ -2358,9 +2358,22 @@ build_env_scrub() {
 # current binary are fixed. Only files created by this run are removed; files
 # present before the run remain part of the scan.
 # shellcheck disable=SC2153 # STATE_FILE comes from the loaded run state
+# Outputs of the previous run, kept in .git so its binaries (which may be named
+# after commits that no longer exist) are not scanned as this run's evidence.
+artifact_manifest_previous() {
+  git -C "$REPO" rev-parse --path-format=absolute --git-path fix-go-cves-artifacts 2>/dev/null
+}
 artifact_manifest_prepare() {
   local manifest="${STATE_FILE}.generated-artifacts" baseline="${STATE_FILE}.baseline-artifacts"
+  local previous artifact
   if [[ ! -f "$baseline" ]]; then
+    previous=$(artifact_manifest_previous) || previous=""
+    if [[ -n "$previous" && -f "$previous" ]]; then
+      while IFS= read -r artifact; do
+        [[ "$artifact" == "$REPO"/* && -f "$artifact" ]] || continue
+        git -C "$REPO" ls-files --error-unmatch -- "$artifact" &>/dev/null || rm -f -- "$artifact"
+      done < "$previous"
+    fi
     find "$REPO" -path "$REPO/.git" -prune -o -type f -perm -u+x -print | sort > "$baseline"
   fi
   if [[ -f "$manifest" ]]; then
@@ -2376,6 +2389,8 @@ artifact_manifest_record() {
   find "$REPO" -path "$REPO/.git" -prune -o -type f -perm -u+x -print | sort > "$current"
   comm -23 "$current" "$baseline" > "$manifest"
   rm -f "$current"
+  local previous
+  previous=$(artifact_manifest_previous) && [[ -n "$previous" ]] && cp "$manifest" "$previous" 2>/dev/null || true
   # Binaries this run built, including in-place rebuilds of earlier outputs,
   # are proven to come from the current tree and may be mapped to their module.
   find "$REPO" -path "$REPO/.git" -prune -o -type f -perm -u+x -newer "$baseline" -print |

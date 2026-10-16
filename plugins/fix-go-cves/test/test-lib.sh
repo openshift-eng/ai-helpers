@@ -10277,6 +10277,21 @@ check "a new binary is a built artifact" grep -qx "$BLT/repo/bin/new-tool" "$BLT
 check "an untouched binary is not a built artifact" ! grep -qx "$BLT/repo/bin/untouched" "$BLT/state.env.built-artifacts"
 check "an in-place rebuild is not marked for deletion" ! grep -qx "$BLT/repo/bin/old-tool" "$BLT/state.env.generated-artifacts"
 
+echo "a run removes the previous run's outputs"
+PRV="$TMPD/prev-run"; mkdir -p "$PRV/repo/bin"
+git -C "$PRV/repo" init -q; git -C "$PRV/repo" config user.email t@t; git -C "$PRV/repo" config user.name t
+printf 'tracked' > "$PRV/repo/bin/tracked"; chmod +x "$PRV/repo/bin/tracked"
+git -C "$PRV/repo" add -A; git -C "$PRV/repo" commit -qm init
+printf 'mine' > "$PRV/repo/bin/user-tool"; chmod +x "$PRV/repo/bin/user-tool"
+( cd "$PRV/repo"; REPO="$PRV/repo"; STATE_FILE="$PRV/run1.env"
+  artifact_manifest_prepare
+  printf 'old' > bin/tool-abc123; chmod +x bin/tool-abc123
+  artifact_manifest_record )
+( cd "$PRV/repo"; REPO="$PRV/repo"; STATE_FILE="$PRV/run2.env"; artifact_manifest_prepare )
+check "the previous run's output is removed" test ! -e "$PRV/repo/bin/tool-abc123"
+check "a tracked executable is kept" test -e "$PRV/repo/bin/tracked"
+check "an executable the runs did not build is kept" test -e "$PRV/repo/bin/user-tool"
+
 echo "redundant unscoped ignores"
 RDN="$TMPD/redundant"; mkdir -p "$RDN"
 printf 'ignore:\n  - vulnerability: GO-1\n    fix-state: not-fixed\n    package:\n      name: a.b/c\n      location: /coredns/go.mod\n  - vulnerability: GO-1\n    fix-state: unknown\n    package:\n      name: a.b/c\n' > "$RDN/auto.yaml"
