@@ -119,17 +119,11 @@ in `.work/fix-go-cves-evals/source/`.
 **Checks** live in `checks.py`. The deterministic ones gate at a 1.0 pass
 rate:
 
-1. **State.** After the trial: on the fix branch at the recorded result, a
-   clean worktree, untracked and ignored files unchanged, bare remotes
-   unchanged, an empty `gh` log, and no attempted or denied push, `gh`,
-   stash or clean in the transcript. The harness's own files are excluded.
-   A tool input that names a protected root voids the trial, since it may
-   have reached an answer: an absolute path token, read after dropping
-   shell defaults such as the `/tmp` in `${TMPDIR:-/tmp}`, that resolves
-   under `/home`, `/tmp`, `/var/tmp` or `/run/user` outside the trial's own
-   directory and is not printed verbatim in the case's log (logs name
-   build and test paths under `/tmp`). A calibration fixture holding
-   `SKILL.md`'s exact commands must pass.
+1. **State.** After the trial, in the container: on the fix branch at the
+   recorded result, a clean worktree, untracked and ignored files unchanged,
+   bare remotes unchanged, an empty `gh` log, no `subagents/` or
+   `input.yaml` planted, and no attempted or denied push, `gh`, stash or
+   clean in the transcript. The harness's own files are excluded.
 2. **One run.** The script ran once, for the requested branch.
 3. **PR command.** If the log printed one, a code block in the reply holds
    the same command, compared as shell-parsed tokens with continuations
@@ -143,8 +137,7 @@ not hand over, such as "the x/net, grpc and otel/sdk bumps were skipped because
 the scan was blocked, and need no team decision". A pooled threshold would let
 one case fail every trial while the rest pass, so `checks.py summarize` reads
 the three rounds and requires every case to pass its deterministic checks in
-all three and its facts in at least two. A voided trial counts as a failed
-deterministic check and is reported separately.
+all three and its facts in at least two.
 
 **Calibration.** `checks.py calibrate` runs the harness's own judges (`score.py
 judges`) on synthetic trials whose final result is a stored reply, so the
@@ -181,30 +174,22 @@ for a cold clone), turns into the case repository:
   repository whose first commit holds `input.yaml`, and links ai-helpers'
   `CLAUDE.md`, `scripts/` and every `.claude/` subdirectory into it, which
   would collide with the case repository and expose ai-helpers. Prepare
-  removes that `.git` and every link. It keeps `.claude/settings.json`,
-  which the agent reads at launch, after `before_each`, but deletes its
-  `permissions.additionalDirectories`, which grants read access to the
-  directory the harness runs from, and its `hooks`, with the `hooks/`
-  scripts the harness writes into the workspace: hooks run outside the
-  sandbox, sandboxed Bash can rewrite those scripts, and the subagent hook
-  they serve has nothing to capture, since subagents are denied.
+  removes that `.git` and every link, and deletes `input.yaml` once the
+  harness has read the arguments. It keeps `.claude/settings.json`, which
+  the agent reads at launch.
 - **Build the repository.** Prepare fetches only the pinned commits, with
   no tags, from a clone cache under ai-helpers' `.work/` (warmed by
-  `before_all`, and inside a path the sandbox denies, since it holds the
-  full history) into a fresh repository and fresh bare remotes, so no later
+  `before_all`) into a fresh repository and fresh bare remotes, so no later
   history (such as the merged CVE PRs, which contain the backports cases
   001 and 005 look for) is reachable. It checks out the branch the
-  recording started from and points every remote at a bare remote. A
+  recording started from and points every remote at a bare remote.
   `checks.py lint` checks that every ref and object is reachable from the
-  pinned commits or the bundle. Harness paths go in
-  `.git/info/exclude`. Prepare then deletes `input.yaml`, which the harness
-  has already read for the arguments; `annotations.yaml` never reaches the
+  pinned commits or the bundle. `annotations.yaml` never reaches the
   workspace.
 - **Restore what the recording saw.** Untracked files as stubs (for subctl,
   an empty `bin/lichen`; `go version` on it disagrees with the log, so
-  criteria rely on the log, not the file), and the case's `reports/`,
-  unpacked under the trial's `tmp/` at the paths the preamble writes into
-  the log, outside the case repository.
+  criteria rely on the log, not the file), and the case's `reports/`, at
+  the paths the preamble writes into the log, outside the case repository.
 - **Stage the plugin.** Prepare unpacks the case's `plugin.tar.gz`, with
   Python's `tarfile` and `filter="data"`, into
   `.staged-plugins/fix-go-cves`, where the runner reuses an existing copy.
@@ -219,103 +204,65 @@ for a cold clone), turns into the case repository:
   and report directories store home-directory paths as two placeholders:
   the recording's repository root, which the preamble fills with the case
   workspace, and every other home path (run state, reports, the log
-  itself), which it fills with a directory under the trial's `tmp/`. The
-  log's own `exit=` line is dropped, since `SKILL.md` appends one.
+  itself), which it fills with a directory beside the workspace. The log's
+  own `exit=` line is dropped, since `SKILL.md` appends one.
 
-Everything that runs after the agent runs outside the sandbox, so it treats the
-workspace as untrusted: the agent could have planted symlinks or edited git
-configuration there. The `after_each` hook first stops the trial's process
-scope (see Isolation), so no agent process that outlived the session can redo
-what follows; the runner kills only the CLI. It then replaces the workspace's
-`output/` and declared `outputs:` directories with fresh real directories,
-since the harness then writes `stdout.log` into `output/` with a call that
-follows links. It checks that the workspace's `.git` is still the directory
-prepare created (by inode, recorded outside the workspace): the sandbox
-protects `.git/config` and `.git/hooks` but not the `.git` entry, so an agent
-can swap in a repository whose configuration runs commands. A swapped `.git`
-voids the trial and nothing runs git there. It removes any `input.yaml` the
-agent wrote after prepare deleted it, since the harness would copy it ahead of
-the dataset's copy into the judges' inputs, and fails the state check if one
-existed; `checks.py` reads case arguments only from the dataset. It removes any
-`subagents/` directory, which a legitimate trial never creates and which the
-harness would merge into the transcript, and fails the state check if one
-existed. It then records the repository state (status including ignored files,
-refs and the `gh` log) by calling git by absolute path with a fixed `PATH`,
-`GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null` and `-c
-core.fsmonitor=false -c core.hooksPath=/dev/null -c log.showSignature=false`,
-and compares the bare remotes by hashing their files rather than running git in
-them. Last, it deletes the workspace's `.git`, so the harness's own unguarded
-git calls during collection find no repository. The checks read the transcript
-only from `stdout.log`. A workspace symlink that points outside the trial
-directory fails the state check. The reply is the `result` field of the last
-`{"type":"result"}` object in the trial's `stdout.log`, extracted to its own
-output file by a `before_scoring` hook; the harness's events omit that text, a
-resumed session emits one result per segment, and the conversation it otherwise
-hands judges includes interim narration and the log itself. `checks.py
-calibrate` writes its synthetic trials in the same form.
+**Isolation: the agent runs in a throwaway container.** The harness stays on
+the host, so its `claude-code` runner still reports cost, tokens and model,
+and its judges keep the host's credentials. The agent does not. The harness
+launches `claude` by name, so `run.sh` puts a `claude` wrapper first on the
+harness's `PATH`; for each trial the wrapper:
 
-**Isolation.** `run.sh` invokes the harness once per trial, each time in a
-fresh trial directory under a dedicated root outside `/home` and `/tmp` (for
-example `/var/tmp/fix-go-cves-evals/`). The directory holds `tmp/`, the trial's
-`TMPDIR`, where the harness puts the workspace and the skill writes its log,
-with no `CLAUDE.md` above it; and beside it `home/`, `shim/` and `remotes/`
-(the bare remotes). Only `tmp/` is a sandbox write root, so the agent cannot
-alter the shim, its `HOME` or the remotes that unsandboxed steps later read.
-`PATH` is a shim directory, holding a `gh` shim that only logs its arguments
-and a `claude` wrapper (which the harness launches by name with this `PATH`)
-that starts the resolved binary in its own transient systemd user scope named
-for the trial, so `after_each` can stop every process the session started,
-including detached ones, followed by system directories only: the host's own
-`PATH` can point under `/home` (`~/.local/bin`, Homebrew), which the sandbox
-below denies. `run.sh` deletes the trial directory after collecting results. It
-starts the harness under `env -i` with an explicit variable list, because the
-runner's host allowlist also forwards `ANTHROPIC_API_KEY`,
-`ANTHROPIC_AUTH_TOKEN`, `CLOUDSDK_CONFIG` and similar keys into the agent's
-Bash. The claude-code runner passes the agent only `runner.env` and a short
-host allowlist that includes `HOME`, `PATH` and
-`GOOGLE_APPLICATION_CREDENTIALS` but not `TMPDIR`, so `runner.env` carries
-`TMPDIR: "$TMPDIR"` and `CLAUDE_CODE_TMPDIR: "$TMPDIR"`, which the harness
-resolves from `run.sh`'s environment; the second keeps Claude Code's own
-temporary files, including background-task output the skill reads, inside the
-trial directory. That keeps the user's `CLAUDE.md`, memory, plugins and
-credentials out of the agent's default view, but environment variables do not
-stop a command from reading an absolute path, and a developer host holds copies
-of the answers in many places: the case sources, the clone cache, the recording
-repositories, stray clones and dumps under `/tmp`, earlier trials and `~/.ssh`.
-`runner.settings` therefore enables Claude Code's sandbox, with no unsandboxed
-fallback, denying reads of `/home`, `/tmp`, `/var/tmp` and `/run/user` except
-the trial's own directory; check 1 voids any trial that names one anyway. If
-the sandbox cannot express that exception, the trial runs as a dedicated Unix
-user with a private `/tmp` instead.
+- starts a container from a pinned image (Claude Code at the host's
+  version, git, jq, Go, Python and socat, plus the `gh` shim that only logs
+  its arguments) with `--network none`, a fresh `HOME`, no host mounts
+  except one Unix socket, and the trial's name;
+- copies in the prepared workspace and the bare remotes at the same paths,
+  since the runner passes `--plugin-dir` and `--settings` as workspace
+  paths, and runs `claude` there with the runner's arguments, stdin and
+  stdout passed through (answering the runner's `claude --version` too);
+- reaches Vertex through a proxy on the host that lives for the trial and
+  listens only on that socket, which socat in the container turns back into
+  a local port. The proxy adds the bearer token from the host's credentials,
+  forwards only the Anthropic model paths for the configured project, and
+  caps requests and bytes, since the agent could call it directly. The
+  container runs Claude Code with `CLAUDE_CODE_SKIP_VERTEX_AUTH=1` and
+  `ANTHROPIC_VERTEX_BASE_URL` pointing at that port: both are on the
+  runner's allowlist for this purpose (agentic-ci uses the same proxy
+  pattern), and cost is still reported as the runner's own.
 
-`runner.env` also sets `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0` and
-`GIT_ALLOW_PROTOCOL=file`, `GOPROXY=off` and `GOTOOLCHAIN=local`, so git and Go
-stay offline by default, and an empty `AGENT_EVAL_RUNS_DIR`, so the agent is
-not told where results go. Claude Code itself reads the Vertex key file,
-outside the sandbox; the file stays under a denied root, so the agent's
-commands cannot read it. These variables are defaults the agent could override;
-what keeps newer upstream history, such as the merged CVE PRs, out of reach is
-the sandbox, which allows agent commands no network domains (the model's own
-traffic runs outside it).
+No credential, host path, other trial, case answer or network route exists
+inside the container, and nothing the agent writes reaches the host. The
+`after_each` hook commits the container, runs the state check from that
+image (also without network or mounts), copies the resulting JSON to the
+case's declared `outputs:` path, and removes the container with
+`podman rm -f`. That also stops any process the agent left running: the
+runner's timeout kills only the wrapper. The state check runs git with
+`-c core.fsmonitor=false -c core.hooksPath=/dev/null` and system and global
+configuration off, and hashes the bare remotes instead of running git in
+them. The reply is the `result` field of the last `{"type":"result"}` object
+in the trial's `stdout.log`, extracted to its own output file by a
+`before_scoring` hook: the harness's events omit that text, a resumed session
+emits one result per segment, and the conversation it otherwise hands judges
+includes interim narration and the log itself. `checks.py calibrate` writes
+its synthetic trials in the same form, and `checks.py` reads case arguments
+only from the dataset.
 
-The eval file's `permissions.deny`, which the harness writes into the workspace
-settings, blocks `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web tools and
-subagents, so check 1 has denials to find. The entries stay plain tool patterns
-and the eval uses no provider plan: either would make the runner write a
-settings overlay into the workspace, one form of which holds the inference key.
+The eval file's `permissions.deny`, which the harness writes into the
+workspace settings, blocks `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web
+tools and subagents, so check 1 has denials to find. The entries stay plain
+tool patterns and the eval uses no provider plan: either would make the
+runner write a settings overlay into the workspace, one form of which holds
+the inference key. `run.sh` starts the harness with an explicit environment
+(`env -i`), so stray host keys such as `ANTHROPIC_API_KEY` reach neither the
+harness nor the wrapper.
 
-**To confirm when building:** that Claude Code's sandbox read rules stop Bash,
-not only the Read tool, from reading the denied paths on Linux (a trial must
-fail to read a canary file seeded in `/tmp`) that sandboxed Bash cannot reach
-github.com; whether the sandbox lets Bash rename `.git` (the inode check covers
-it either way); that sandboxed Bash cannot rewrite `.claude/settings.json` or
-`.claude/settings.local.json`, or that the session never re-reads them; that a
-trial's sandboxed `$TMPDIR` and background-task output both resolve inside the
-trial directory; that a canary the agent starts detached (`setsid nohup`, or a
-background task) does not survive the scope stop; that the harness can launch
-`claude` and a trial can run `git`, `jq`, `python3` and `go version` with the
-restricted `PATH`; that prepare fits its 900-second hook timeout from a cold
-cache; and the cost of one trial, to set the per-case budget.
+**To confirm when building:** that Claude Code in Vertex mode works through
+`ANTHROPIC_VERTEX_BASE_URL` and the proxy; that the wrapper passes the
+runner's stream-json through unchanged, including for resumed sessions; that
+rootless podman runs the container on the target hosts; that prepare fits its
+900-second hook timeout from a cold cache; and the cost of one trial, to set
+the per-case budget.
 
 ### Later
 
@@ -328,11 +275,12 @@ cache; and the cost of one trial, to set the per-case budget.
   token evals do not use, and passes on the agent's exit rather than the
   thresholds. Its `EVAL_CHANGED_ONLY` option skips every case, since the image
   has no `.git`.
-- **Isolated and cross-agent runs.** Inspect AI with Inspect SWE runs Claude
-  Code, Codex, Gemini CLI and others in a networkless container, with model
-  credentials kept on the host. Vertex works. It is the runner for
-  untrusted changes and agent comparisons. (Harbor was rejected: no Vertex
-  support for Claude Code, and credentials inside the sandbox.)
+- **Cross-agent runs.** Inspect AI with Inspect SWE runs Codex, Gemini CLI and
+  others the same way (in a networkless container, model credentials kept on
+  the host behind a proxy), for comparing agents. (Harbor was rejected: its
+  Podman backend can reach Vertex only by mounting a service-account key into
+  the container where the agent's Bash runs, its network setting is all or
+  nothing, and its judges run inside the trial container beside the answers.)
 - **`review.sh` cases**, if a review mistake appears that replay cases
   cannot catch.
 
