@@ -102,8 +102,9 @@ a trial the same way.
 
 **agent-eval-harness** (`eval-fix-go-cves.yaml`) is the marketplace
 convention, which a maintainer asked for in the k8s-rebase review, and
-reports cost, tokens and model for each case. Its `claude-code` or `codex`
-runner runs the agent; `before_each` and `after_each` hooks call
+reports cost, tokens and model for each case. It runs in prompt mode, so
+the agent gets the plain request rather than a skill invocation, with its
+`claude-code` or `codex` runner; `before_each` and `after_each` hooks call
 `workspace.sh`; judges call `checks.py` through `module:`/`function:`. It
 runs on the host, as the skill does in real use, so its permissions also
 deny `git push` and `gh`. Build it first: it answers the review and needs
@@ -171,6 +172,12 @@ evals/
   skill's.
 - Not in CI: it needs model credentials and spends money. Run it before
   changing `SKILL.md`, the review prompts or the default model.
+
+### To confirm when building
+
+- Codex discovers project skills in `.agents/skills/` in prompt mode.
+- A full Inspect trial completes with the sandbox network off.
+- The cost of one trial, to set the per-case budget.
 
 ## 3. Optional: live canary
 
