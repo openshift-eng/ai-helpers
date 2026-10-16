@@ -31,70 +31,86 @@ stdlib findings to the build image. It also invented a policy boundary for
 x/crypto, and asked for "team input" on two bumps when a leftover
 `bin/lichen` was blocking the scan (subctl).
 
-### Format: Harbor tasks
+### Tooling: Inspect AI with Inspect SWE
 
-Use the [Harbor](https://github.com/laude-institute/harbor) task format,
-the Terminal-Bench successor: a container environment, an instruction, a
-verifier and an oracle solution per task.
+Run cases with [Inspect AI](https://inspect.aisi.org.uk/) and
+[Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/), which runs
+real agent CLIs (Claude Code, Codex, Gemini CLI, Antigravity, OpenCode) in a
+sandbox.
 
-- **Any agent.** Harbor injects job-supplied skills into each agent's native
-  location and ships integrations for Claude Code, Codex, Antigravity, Gemini
-  CLI, Cursor and others, so one task set covers every agent:
-  `harbor run -p .work/evals/tasks -a codex --skill skills/fix-go-cves -k 3`.
-- **Isolation.** Each trial gets a fresh container, so the agent cannot touch
-  the host, a real fork or another trial.
-- **Verifier checks.** The `oracle` agent must score 1 and `nop` must score
-  0 before results count.
-- **Regrade.** A separate verifier grades only collected artifacts, so
-  changing a judge reruns no agents.
+- **Credentials stay on the host.** The agent runs in a container, and its
+  model calls are proxied back to Inspect, so no API key or Vertex
+  credential enters the sandbox. Any Inspect provider works, including
+  Anthropic on Vertex (`anthropic/vertex/...`). The proxy also withholds
+  provider-side tools such as web search by default.
+- **No network.** Inspect sandboxes default to `network_mode: none`, and
+  Inspect SWE copies the agent binary in from the host. The agent cannot
+  push, open a PR or fetch anything, whatever it tries.
+- **Supply chain.** Both packages are published to PyPI with Trusted
+  Publishing provenance. Pin them, and the agent CLI versions, with hashes in
+  `evals/requirements.txt`.
+- **Built-in scoring.** Epochs with an `at_least` reducer, re-scoring of
+  saved logs with `inspect score` (no agent rerun after a judge change), and
+  a transcript viewer (`inspect view`).
 
-The other plugins' evals here use agent-eval-harness, which runs on the host
-and has no oracle or regrade step. Harbor fits a skill whose correctness
-depends on repository state better.
+Considered and rejected:
 
-### Task: replay a recorded run
+- **Harbor.** The Terminal-Bench harness has the widest agent list, but it
+  has no Vertex support, places agent and judge credentials inside the
+  sandbox, publishes without provenance, and enables telemetry by default.
+- **agent-eval-harness**, used by the other plugins here. It runs agents on
+  the host, with no sandbox.
+- **`claude plugin eval`.** It runs one agent, and its graders cannot inspect
+  repository state.
 
-A task is a recorded run, not a new one. It needs no build, scan or Docker
-daemon inside the task, so a trial takes minutes and costs well under $1.
+The case data is harness-neutral, so moving to another runner later
+replaces only `task.py`.
 
-- **Environment.** The image clones the case repository at pinned commits:
-  the run's result as the checked-out fix branch, and the base and default
-  branches as they were, for backport searches. Pin the result commit itself,
-  not the PR head, which can carry later manual commits. Every remote points
-  at a local bare repository, and a `gh` shim on `PATH` only logs its
-  arguments. `CLAUDE_PLUGIN_ROOT`, which `SKILL.md` already honors, names a
-  plugin copy whose `scripts/fix-all.sh` replays the recorded log, records
-  each invocation, and exits with the recorded code. The skill under test is
-  the real one, supplied with `--skill`.
-- **Instruction.** A plain request, "Fix the CVEs in release-0.24 of this
-  repository", that names no command, so every agent gets the same prompt
-  and the case also tests that the skill is selected. One more line says to
-  save the final reply to `/logs/artifacts/reply.md`.
-- **Artifacts.** The reply, the repository, the replay invocation log and the
-  `gh` log.
+### Sample: replay a recorded run
 
-### Verifier
+A sample is a recorded run, not a new one. It needs no build, scan or Docker
+daemon inside the sandbox, so a trial takes minutes and costs well under $1.
 
-The deterministic checks gate the result: if any fails, the reward is 0.
-Facts are then scored by an LLM judge.
+- **Sandbox image.** Built from one Dockerfile, with the case's commits as
+  build arguments. The run's result is checked out as the fix branch, and
+  the base and default branches are kept as they were, for backport
+  searches. Pin the result commit itself, not the PR head, which can carry
+  later manual commits. Remotes point at local bare repositories and a `gh`
+  shim only logs its arguments. `CLAUDE_PLUGIN_ROOT`, which `SKILL.md`
+  already honors, names a plugin copy whose `scripts/fix-all.sh` replays the
+  recorded log, records each invocation, and exits with the recorded code.
+- **Agent.** An Inspect SWE agent with the real skill passed through its
+  `skills` option.
+- **Input.** A plain request, "Fix the CVEs in release-0.24 of this
+  repository", that names no command. Every agent gets the same prompt, and
+  the case also tests that the skill is selected. The agent's final message
+  is the reply; nothing extra is asked of it.
 
-1. **State.** The fix branch and HEAD are unchanged, the worktree is clean,
-   the bare remotes are unchanged and the `gh` log is empty. This catches
-   pushes, PRs and hand edits by outcome, whatever tools the agent used.
+### Scorers
+
+Scorers run on the host, after the agent. The deterministic ones gate the
+result: if any fails, the sample scores 0.
+
+1. **State.** Read in the sandbox: the fix branch and HEAD are unchanged,
+   the worktree is clean, the bare remotes are unchanged and the `gh` log is
+   empty. Hand edits are caught by outcome, whatever tools the agent used.
 2. **One run.** The script ran exactly once, as `SKILL.md` requires: no
    unrequested rerun, and no answer given without running it.
 3. **PR command.** If the log printed one, the reply contains a command with
    the same argv, compared with `shlex`, so quoting differences pass.
    Otherwise the reply contains none.
-4. **Facts.** Binary criteria for each case, graded with Harbor rewardkit's
-   judge criteria by a pinned judge model, for example "recommends
-   backporting cdc3003, the `.lichen.yaml` override, from devel". Binary
-   criteria give clearer and more stable scores than a 1-to-5 rubric.
+4. **Facts.** Binary criteria for each case, graded by a pinned judge model,
+   for example "recommends backporting cdc3003, the `.lichen.yaml`
+   override, from devel". Binary criteria give clearer and more stable
+   scores than a 1-to-5 rubric.
 
-The oracle's `solve.sh` writes the reference reply, so every criterion is
-proven satisfiable. Where a run produced a wrong reply (the lighthouse
-x/crypto boundary, the subctl "team input"), that reply is kept and must
-fail. These two runs calibrate the judge before any agent is scored.
+Two stand-in solvers check the scorers before any agent is scored:
+
+- `oracle` replies with the reference reply and must score 1, which proves
+  every criterion can be satisfied.
+- `wrong` replies with the case's recorded wrong reply, where one exists
+  (the lighthouse x/crypto boundary, the subctl "team input"), and must
+  score 0.
 
 ### Cases
 
@@ -115,30 +131,29 @@ evidence the agent reads.
 
 ### Layout
 
-Following Harbor's adapter pattern, the cases are data and one template
-renders them:
-
 ```text
 evals/
   README.md            case index (required by the repository lint)
-  template/            task.toml, Dockerfile, replayer, gh shim, verifier
+  requirements.txt     pinned, hashed Inspect AI and Inspect SWE
+  task.py              dataset, sandbox, solvers and scorers
+  sandbox/             Dockerfile, replayer, gh shim
   cases/case-NNN/      case.yaml (repo, commits, exit code, criteria),
                        run.log.gz, reply.md, wrong-reply.md (optional)
-  render.py            writes Harbor tasks to .work/evals/tasks/
 ```
 
-The verifier's deterministic part gets unit tests in the hermetic suite, so
+The deterministic scorers get unit tests in the hermetic suite, so
 `make test` covers the grader too.
 
 ### Running
 
-- `make eval agent=claude-code|codex|antigravity-cli case=NNN` renders the
-  tasks with a pinned Harbor version, verifies them with `oracle` and `nop`,
-  then runs three attempts. Report the pass rate and pass^3 (every attempt
-  passes), because a skill that is right two times in three is not
-  dependable.
-- Read the trajectories of failing trials in Harbor's viewer before changing
-  `SKILL.md`. A failure can be the case's fault as easily as the skill's.
+- `make eval agent=claude_code|codex_cli|gemini_cli model=... case=NNN` runs
+  the `oracle` and `wrong` checks, then three epochs of the agent. Report the
+  mean and `at_least_3` (every epoch passes), because a skill that is right
+  two times in three is not dependable. The agent scaffold and the model are
+  independent, so Codex can be scored on a Vertex Claude model without an
+  OpenAI key.
+- Read failing transcripts in `inspect view` before changing `SKILL.md`. A
+  failure can be the case's fault as easily as the skill's.
 - Not in CI: it needs model credentials and spends money. Run it before
   changing `SKILL.md`, the review prompts or the default model.
 
@@ -163,6 +178,5 @@ Several release-0.24 failures were drift of this kind.
   and manual live runs cover end-to-end behavior.
 - A with/without-skill ablation: the skill owns the script entry point, so a
   run without it measures nothing useful.
-- Trigger or description evals.
-- A second suite in the `claude plugin eval` layout, whose graders cannot
-  check repository state.
+- Separate trigger evals: the plain-language input already tests that the
+  skill is selected.
