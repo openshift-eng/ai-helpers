@@ -149,19 +149,20 @@ deterministic check and is reported separately.
 **Calibration.** `checks.py calibrate` runs the harness's own judges (`score.py
 judges`) on synthetic trials whose final result is a stored reply, so the
 scoring prompt is the one calibrated. It must pass each `reply.md` and fail
-each negative before any agent is scored; rerun it when criteria or the judge
-model change. References for 004 and 006 are written by hand, since their
-recorded replies are wrong, and 005's is edited to drop its claim that the Go
-1.26 raise is the team's call, since criteria stay neutral on that. 006 is a
-separate, earlier lighthouse run that hit the same license failure, so it
-carries 001's backport criterion, which its recorded reply fails. Its own
-criterion passes a reply that shows the x/crypto "policy boundary" flag is
-spurious (it follows the GO-2026-5932 ignore, and the scan has no x/crypto
-finding) and that x/crypto needs no action, and fails one that sends the flag
-to the team or blames the Go raise; the recorded reply and a constructed
-team-input negative cover both. Criteria stay neutral on whether a Go directive
-raise needs the team: the plugin and the repositories' own workflow notes
-disagree (see [Decisions](README.md#decisions)).
+each negative before any agent is scored, including, per case, a wrong reply
+that also tells the judge to pass it; rerun it when criteria or the judge model
+change. References for 004 and 006 are written by hand, since their recorded
+replies are wrong, and 005's is edited to drop its claim that the Go 1.26 raise
+is the team's call, since criteria stay neutral on that. 006 is a separate,
+earlier lighthouse run that hit the same license failure, so it carries 001's
+backport criterion, which its recorded reply fails. Its own criterion passes a
+reply that shows the x/crypto "policy boundary" flag is spurious (it follows
+the GO-2026-5932 ignore, and the scan has no x/crypto finding) and that
+x/crypto needs no action, and fails one that sends the flag to the team or
+blames the Go raise; the recorded reply and a constructed team-input negative
+cover both. Criteria stay neutral on whether a Go directive raise needs the
+team: the plugin and the repositories' own workflow notes disagree (see
+[Decisions](README.md#decisions)).
 
 **Running.** Three rounds to accept a `SKILL.md` or model change. A change to
 `scripts/review-prompt.md` or to `fix-all.sh` output is not exercised by
@@ -226,18 +227,27 @@ workspace as untrusted: the agent could have planted symlinks or edited git
 configuration there. The `after_each` hook first replaces the workspace's
 `output/` and declared `outputs:` directories with fresh real directories,
 since the harness then writes `stdout.log` into `output/` with a call that
-follows links. It then records the repository state (status including ignored
-files, refs and the `gh` log) by calling git by absolute path with a fixed
-`PATH`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null` and `-c
+follows links. It checks that the workspace's `.git` is still the directory
+prepare created (by inode, recorded outside the workspace): the sandbox
+protects `.git/config` and `.git/hooks` but not the `.git` entry, so an agent
+can swap in a repository whose configuration runs commands. A swapped `.git`
+voids the trial and nothing runs git there. It removes any `subagents/`
+directory, which a legitimate trial never creates and which the harness would
+merge into the transcript, and fails the state check if one existed. It then
+records the repository state (status including ignored files, refs and the `gh`
+log) by calling git by absolute path with a fixed `PATH`,
+`GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null` and `-c
 core.fsmonitor=false -c core.hooksPath=/dev/null -c log.showSignature=false`,
 and compares the bare remotes by hashing their files rather than running git in
-them. A workspace symlink that points outside the trial directory fails the
-state check. The reply is the `result` field of the last `{"type":"result"}`
-object in the trial's `stdout.log`, extracted to its own output file by a
-`before_scoring` hook; the harness's events omit that text, a resumed session
-emits one result per segment, and the conversation it otherwise hands judges
-includes interim narration and the log itself. `checks.py calibrate` writes its
-synthetic trials in the same form.
+them. Last, it deletes the workspace's `.git`, so the harness's own unguarded
+git calls during collection find no repository. The checks read the transcript
+only from `stdout.log`. A workspace symlink that points outside the trial
+directory fails the state check. The reply is the `result` field of the last
+`{"type":"result"}` object in the trial's `stdout.log`, extracted to its own
+output file by a `before_scoring` hook; the harness's events omit that text, a
+resumed session emits one result per segment, and the conversation it otherwise
+hands judges includes interim narration and the log itself. `checks.py
+calibrate` writes its synthetic trials in the same form.
 
 **Isolation.** `run.sh` invokes the harness once per trial, each time in a
 fresh trial directory under a dedicated root outside `/home` and `/tmp` (for
@@ -287,8 +297,9 @@ subagents, so check 1 has denials to find.
 
 **To confirm when building:** that Claude Code's sandbox read rules stop Bash,
 not only the Read tool, from reading the denied paths on Linux (a trial must
-fail to read a canary file seeded in `/tmp`) and that sandboxed Bash cannot
-reach github.com; that a trial's sandboxed `$TMPDIR` and background-task output
+fail to read a canary file seeded in `/tmp`) that sandboxed Bash cannot reach
+github.com; whether the sandbox lets Bash rename `.git` (the inode check covers
+it either way); that a trial's sandboxed `$TMPDIR` and background-task output
 both resolve inside the trial directory; that the harness can launch `claude`
 and a trial can run `git`, `jq`, `python3` and `go version` with the restricted
 `PATH`; that prepare fits its 900-second hook timeout from a cold cache; and
