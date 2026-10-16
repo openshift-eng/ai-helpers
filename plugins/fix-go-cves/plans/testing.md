@@ -35,29 +35,34 @@ x/crypto, and asked for "team input" on two bumps when a leftover
 
 Run cases with [Inspect AI](https://inspect.aisi.org.uk/) and
 [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/), which runs
-real agent CLIs (Claude Code, Codex, Gemini CLI, Antigravity, OpenCode) in a
-sandbox.
+real agents (Claude Code, Codex CLI, Gemini CLI, OpenCode and Google's
+Antigravity SDK agent) in a sandbox. Both come from the same core team, and
+Inspect is maintained by the UK AI Security Institute.
 
-- **Credentials stay on the host.** The agent runs in a container, and its
-  model calls are proxied back to Inspect, so no API key or Vertex
-  credential enters the sandbox. Any Inspect provider works, including
+- **Credentials stay on the host.** The agent runs in a container and talks
+  to a loopback proxy that relays its model calls to Inspect; Claude Code
+  gets only a placeholder token. No API key or Vertex credential enters the
+  sandbox. Any Inspect provider works, including
   Anthropic on Vertex (`anthropic/vertex/...`). The proxy also withholds
   provider-side tools such as web search by default.
 - **No network.** Inspect sandboxes default to `network_mode: none`, and
   Inspect SWE copies the agent binary in from the host. The agent cannot
   push, open a PR or fetch anything, whatever it tries.
 - **Supply chain.** Both packages are published to PyPI with Trusted
-  Publishing provenance. Pin them, and the agent CLI versions, with hashes in
-  `evals/requirements.txt`.
+  Publishing provenance and have no telemetry. Both are pre-1.0 and release
+  often, so pin them and the agent CLI versions with hashes in
+  `evals/requirements.txt`, and upgrade deliberately. Keep them out of
+  `requirements-dev.txt` so `make test` stays light.
 - **Built-in scoring.** Epochs with an `at_least` reducer, re-scoring of
   saved logs with `inspect score` (no agent rerun after a judge change), and
   a transcript viewer (`inspect view`).
 
 Considered and rejected:
 
-- **Harbor.** The Terminal-Bench harness has the widest agent list, but it
-  has no Vertex support, places agent and judge credentials inside the
-  sandbox, publishes without provenance, and enables telemetry by default.
+- **Harbor.** The Terminal-Bench harness has the widest agent list, but its
+  Claude Code integration has no Vertex support, it places agent and judge
+  credentials inside the sandbox, publishes without provenance, and enables
+  telemetry by default.
 - **agent-eval-harness**, used by the other plugins here. It runs agents on
   the host, with no sandbox.
 - **`claude plugin eval`.** It runs one agent, and its graders cannot inspect
@@ -76,11 +81,15 @@ daemon inside the sandbox, so a trial takes minutes and costs well under $1.
   the base and default branches are kept as they were, for backport
   searches. Pin the result commit itself, not the PR head, which can carry
   later manual commits. Remotes point at local bare repositories and a `gh`
-  shim only logs its arguments. `CLAUDE_PLUGIN_ROOT`, which `SKILL.md`
-  already honors, names a plugin copy whose `scripts/fix-all.sh` replays the
-  recorded log, records each invocation, and exits with the recorded code.
+  shim only logs its arguments. The image runs as a non-root user, which
+  Claude Code requires for unattended permissions.
 - **Agent.** An Inspect SWE agent with the real skill passed through its
-  `skills` option.
+  `skills` option. Its `env` option sets `CLAUDE_PLUGIN_ROOT`, which
+  `SKILL.md` already honors, to a plugin copy whose `scripts/fix-all.sh`
+  replays the recorded log, records each invocation, and exits with the
+  recorded code. Inspect SWE installs skills and agent configuration under
+  the working directory (`.claude/`, `.codex/`), so the image lists those in
+  `.git/info/exclude` to keep the state check meaningful.
 - **Input.** A plain request, "Fix the CVEs in release-0.24 of this
   repository", that names no command. Every agent gets the same prompt, and
   the case also tests that the skill is selected. The agent's final message
@@ -146,12 +155,12 @@ The deterministic scorers get unit tests in the hermetic suite, so
 
 ### Running
 
-- `make eval agent=claude_code|codex_cli|gemini_cli model=... case=NNN` runs
-  the `oracle` and `wrong` checks, then three epochs of the agent. Report the
-  mean and `at_least_3` (every epoch passes), because a skill that is right
-  two times in three is not dependable. The agent scaffold and the model are
-  independent, so Codex can be scored on a Vertex Claude model without an
-  OpenAI key.
+- `make eval agent=claude_code|codex_cli|gemini_cli|antigravity model=...
+  case=NNN` runs the `oracle` and `wrong` checks, then three epochs of the
+  agent. Report the mean and `at_least_3` (every epoch passes), because a
+  skill that is right two times in three is not dependable. The agent
+  scaffold and the model are independent, so Codex can be scored on a
+  Vertex Claude model without an OpenAI key.
 - Read failing transcripts in `inspect view` before changing `SKILL.md`. A
   failure can be the case's fault as easily as the skill's.
 - Not in CI: it needs model credentials and spends money. Run it before
