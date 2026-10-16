@@ -149,7 +149,7 @@ recording user's connectors, plugins and memory paths.
   `description` and `author`, since a plugin can declare unsandboxed hooks,
   monitors and language servers;
 - a judge defined with `llm_rubric`, or a judge template naming anything
-  but the reply file (see Isolation);
+  but the reply file and `{{ annotations }}` (see Isolation);
 - a recorded log missing what `SKILL.md` reads.
 
 **`checks.py lint`** needs the case repositories' history, from the clone
@@ -175,7 +175,7 @@ the same author, so publishing them adds nothing sensitive.
    remotes unchanged, an empty `gh` log, no `subagents/` or `input.yaml`
    planted, and no attempted or denied push, `gh`, stash or clean in the
    session. The harness's own files, the paths prepare excludes, are left
-   out.
+   out, and `hooks/` must stay absent.
 2. **One run.** The script ran once, for the requested branch.
 3. **PR command.** If the recorded log printed one, a code block in the
    reply holds the same command, compared as shell-parsed tokens with
@@ -234,16 +234,20 @@ the `before_each` hook, turns it into the case repository:
   repository whose first commit holds `input.yaml`, and links ai-helpers'
   `CLAUDE.md`, `scripts/` and every `.claude/` subdirectory into it, which
   would collide with the case repository and expose ai-helpers. Prepare
-  removes that `.git` and every link, and deletes `input.yaml` once the
-  harness has read the arguments. It keeps `.claude/settings.json`, which
-  the agent reads at launch, but drops the harness's subagent hook from it,
-  since subagents are denied.
+  removes that `.git`, every link and the subagent hook's `hooks/`
+  directory, and deletes `input.yaml` once the harness has read the
+  arguments. It keeps `.claude/settings.json`, which the agent reads at
+  launch, but drops the subagent hook (subagents are denied) and
+  `permissions.additionalDirectories`, which names the ai-helpers checkout.
 - **Build the repository.** Prepare fetches only the pinned commits, with no
   tags, from a clone cache under ai-helpers' `.work/` (warmed by
   `before_all`) into a fresh repository and fresh bare remotes, so no later
   history is reachable (the merged CVE PRs contain the backports cases 001
   and 005 look for). It checks out the branch the recording started from and
-  points every remote at a bare remote. It lists the harness's paths
+  points every remote at a bare remote whose path ends in the remote's own
+  `owner/repo.git`, since the skill checks that `origin` is upstream. It
+  creates `origin/<base>` and `origin/<default>` at their pins, which the
+  skill and the preamble's tracking branch need. It lists the harness's paths
   (`.claude/`, `.staged-plugins/`, `.hook-outputs.*`) in `.git/info/exclude`,
   since `SKILL.md` stops and asks when the checkout has untracked files.
   `annotations.yaml` never reaches the workspace.
@@ -252,10 +256,10 @@ the `before_each` hook, turns it into the case repository:
   criteria rely on the log, not the file), and the case's `reports/` in the
   sibling directory, with the same two placeholders filled as in the log (see
   the next item).
-- **Stage the plugin.** Prepare unpacks the case's `plugin.tar.gz` into
-  `.staged-plugins/fix-go-cves`, where the runner reuses an existing copy,
-  replaces its `SKILL.md` with the working tree's, and adds the recorded log
-  and `result.bundle`. Today's scripts carry comments written after the
+- **Stage the plugin.** Prepare unpacks the case's `plugin.tar.gz`, whose
+  entries are the plugin's root, into `.staged-plugins/fix-go-cves`, where
+  the runner reuses an existing copy, replaces its `SKILL.md` with the
+  working tree's, and adds the recorded log and `result.bundle`. Today's scripts carry comments written after the
   recordings, one of which names case 004's answer. `scripts/fix-all.sh`
   keeps its real text behind the preamble, which records its arguments,
   applies the bundle to create the fix branch, prints the recorded log and
@@ -295,13 +299,16 @@ the `before_each` hook, turns it into the case repository:
   Code inside the container, so it could forge the CLI's output stream. The
   main conversation is the chain of requests in which each request's
   messages extend the previous request's messages and logged response: the
-  reply is the chain's final assistant message, and the tool calls and any
+  reply is all of the chain's assistant text after the `fix-all.sh` result
+  (the replay can finish before the agent's turn ends, so the report and a
+  closing message may be separate), and the tool calls and any
   denials the model was told about are its tool turns. A request that fits
   neither the chain nor a known side-call shape (Claude Code's small-model
   helper calls), or arrives after the chain ends, fails the trial. The cost
   reported per case is the proxy's token usage, priced on the host; a large
   gap from the runner's own figure fails the trial.
-- **Judges see only the reply.** They read the reply file and nothing else:
+- **Judges see only the reply.** They read the reply file and the case's
+  criteria (`{{ annotations }}`, from the dataset) and nothing else:
   with trace events off, the harness fills `{{ conversation }}` from the raw
   stream, and `llm_rubric` judges append it automatically.
 
@@ -330,7 +337,9 @@ the `before_each` hook, turns it into the case repository:
   `ANTHROPIC_VERTEX_BASE_URL` pointing at that port, a pattern the runner
   already supports for agentic-ci.
 - **`after_each`:** kills the container and the proxy (the runner's timeout
-  kills only the wrapper), copies the volumes out with `podman cp`, runs the
+  kills only the wrapper), copies the volumes out with `podman cp` into a
+  scratch directory outside the case workspace (the harness later runs host
+  git there, so it keeps prepare's `.git`), runs the
   state check on them in a fresh container from the pinned image, read-only
   and with no network, writes the validated result and the session's reply
   to declared `outputs:` paths outside the `output/` directory where the
@@ -341,7 +350,8 @@ the `before_each` hook, turns it into the case repository:
   global configuration off; compares the worktree to HEAD by hashing files
   without filters; hashes the bare remotes.
 - **Judges:** defined with `prompt` or `prompt_file`, never `llm_rubric`;
-  templates name only the reply file, never `{{ conversation }}`,
+  templates name only the reply file and `{{ annotations }}`, never
+  `{{ conversation }}`,
   `{{ tool_trace }}` or `{{ reasoning }}`.
 - **Eval `permissions.deny`:** plain tool patterns blocking
   `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web tools and subagents, so
