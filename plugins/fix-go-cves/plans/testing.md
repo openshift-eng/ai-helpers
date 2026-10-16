@@ -293,17 +293,21 @@ traffic runs outside it).
 
 The eval file's `permissions.deny`, which the harness writes into the workspace
 settings, blocks `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web tools and
-subagents, so check 1 has denials to find.
+subagents, so check 1 has denials to find. The entries stay plain tool patterns
+and the eval uses no provider plan: either would make the runner write a
+settings overlay into the workspace, one form of which holds the inference key.
 
 **To confirm when building:** that Claude Code's sandbox read rules stop Bash,
 not only the Read tool, from reading the denied paths on Linux (a trial must
 fail to read a canary file seeded in `/tmp`) that sandboxed Bash cannot reach
 github.com; whether the sandbox lets Bash rename `.git` (the inode check covers
-it either way); that a trial's sandboxed `$TMPDIR` and background-task output
-both resolve inside the trial directory; that the harness can launch `claude`
-and a trial can run `git`, `jq`, `python3` and `go version` with the restricted
-`PATH`; that prepare fits its 900-second hook timeout from a cold cache; and
-the cost of one trial, to set the per-case budget.
+it either way); that sandboxed Bash cannot rewrite `.claude/settings.json` or
+`.claude/settings.local.json`, or that the session never re-reads them; that a
+trial's sandboxed `$TMPDIR` and background-task output both resolve inside the
+trial directory; that the harness can launch `claude` and a trial can run
+`git`, `jq`, `python3` and `go version` with the restricted `PATH`; that
+prepare fits its 900-second hook timeout from a cold cache; and the cost of one
+trial, to set the per-case budget.
 
 ### Later
 
