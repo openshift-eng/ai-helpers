@@ -57,10 +57,6 @@ backport. The cases cover each; two of the underlying script bugs are under
   opportunistic gaming and reading surprising sessions catches the rest; a
   deliberately forged pass on one trial is an accepted risk for a six-case
   regression eval of a skill we own.
-- **Per-case scoring, calibrated judges.** Deterministic checks gate every
-  trial, binary judged criteria cover the decisions, and every case must
-  pass on its own. The judges must pass each reference reply and fail each
-  negative before any agent is scored.
 
 ### Build first
 
@@ -74,7 +70,8 @@ change the isolation design:
   unchanged, including for resumed sessions;
 - rootless podman runs the container, and its user reaches the proxy
   socket under `--userns=keep-id`;
-- a cold clone fits the hook timeout;
+- a cold clone fits a 900-second `before_all` and `before_each` timeout
+  (hooks default to 120; `after_each` gets 600);
 - the cost of one trial, to set the per-case budget.
 
 ### Cases
@@ -101,8 +98,9 @@ change the isolation design:
 - References for 004 and 006 are hand-written, since their recorded replies
   are the wrong ones.
 
-Each case directory holds `input.yaml` (repository, pinned base and default
-commits, arguments, stubs), `annotations.yaml` (criteria, PR command,
+Each case directory holds `input.yaml` (repository, the base and default-branch
+commits it starts from, called pins, arguments, and stubs: untracked files
+the recording's checkout had), `annotations.yaml` (criteria, PR command,
 commits to name, flagged items), `result.bundle` (the recording's commits),
 `run.log.gz`, `reply.md` (the reference), `negatives/` (each naming the
 criterion it must fail), `reports/`, and `plugin.tar.gz` (the recorded
@@ -139,15 +137,20 @@ disagree (see [Decisions](README.md#decisions)).
 - One boolean judge per criterion (`feedback_type: bool`, `samples: 3`,
   majority vote), reading only the fenced reply and `{{ annotations }}`.
 - A trial passes its facts only if every criterion passes. A case passes
-  with its deterministic checks in three of three rounds and its facts in
+  with its deterministic checks in three of three rounds (a round is one
+  trial of every case) and its facts in
   at least two; a pooled rate would hide a case that always fails.
-- A missing, skipped or errored verdict, or a failed harness stage
-  (recorded by `after_each`), is ERROR: rerun, never counted as a pass or a
-  failure. Harness thresholds pair `min_pass_rate: 1.0` with
-  `max_error_rate: 0`, since the pass rate leaves errored trials out.
-- Accept a `SKILL.md` or model change on three rounds. Rerun a case at two
-  of three three more times, and read failing sessions before blaming the
-  change, since a case can be wrong too.
+- A missing, skipped or errored verdict, or a failed or unrecorded harness
+  stage (checks 1 to 4 raise when `after_each`'s stage record or the state
+  result is missing or malformed), is ERROR: rerun, never counted as a pass or
+  a failure. A proxy rejection of a forbidden request is a failure. Harness
+  thresholds pair `min_pass_rate: 1.0` with `max_error_rate: 0`, since the
+  pass rate leaves errored trials out.
+- Accept a `SKILL.md` or model change on three rounds. A case at exactly
+  two of three on facts gets three more trials each on the old and new
+  configuration, and the change is accepted only if the new one does no
+  worse. Read failing sessions before blaming the change, since a case can
+  be wrong too.
 - The cases helped tune `SKILL.md` (its license wording came from 001 and
   006), so they guard against regressions, not prove the skill generalizes.
 
@@ -181,14 +184,17 @@ negatives, and recalibrate.
   `input.yaml`, and rewrites `.claude/settings.json` to keep only
   `permissions` (the harness also writes host paths, env and the
   operator's plugin list there);
+- copies in nothing from the case directory but the plugin, bundle, log,
+  stubs and reports, so `annotations.yaml`, `reply.md` and `negatives/`
+  never reach the workspace;
 - lists the harness's paths in `.git/info/exclude`, since `SKILL.md` stops
   on untracked files;
 - stages the recorded plugin with today's `SKILL.md`, and a preamble in
   `fix-all.sh` that applies the bundle, prints the log with placeholders
   filled, and exits with the recorded code; the real script text stays
   below it for an agent that reads it;
-- restores stubs (subctl's empty `bin/lichen`, which contradicts the log,
-  so criteria rely on the log) and reports outside `cases/`, which the
+- restores stubs (subctl's empty `bin/lichen` contradicts the log, so
+  criteria rely on the log) and reports outside `cases/`, which the
   harness scores directory by directory.
 
 **Isolation:**
@@ -219,20 +225,13 @@ negatives, and recalibrate.
   filters, which the harness fences as untrusted, never `llm_rubric` or
   `{{ conversation }}`. A `before_scoring` hook extracts the reply (all
   assistant text after the `fix-all.sh` result) from `stdout.log`.
-- Hooks default to a 120-second timeout; `before_all` and `before_each` get
-  900 for a cold clone, `after_each` 600.
 
-**Hermetic tests** (in `make test`) fail on: no cases; a transcript or a
-`/home/` or `/run/user/` path in a case, `.gz` included; a plugin tarball
-holding `plans/`, answer strings, links or paths outside the five allowed;
-a plugin manifest with keys beyond `name`, `version`, `description` and
-`author` (a plugin can declare unsandboxed hooks); a judge using
-`llm_rubric`, `condition` instead of `if`, a non-bool criterion, or a
-template naming anything but the fenced reply and `{{ annotations }}`; an
-empty rendered reply; a recorded log missing what `SKILL.md` reads; a
-prepared `settings.json` with keys beyond `permissions`; an eval with
-path-based permissions or a provider plan; and a proxy that forwards any
-request it must reject.
+**Hermetic tests** (in `make test`) enforce every guard above that needs no
+trial: the case-content, tarball, judge-template, prepared-`settings.json`,
+eval-permission and proxy-rejection rules. They also fail on no cases, an
+empty rendered reply, a recorded log missing what `SKILL.md` reads, and a
+plugin manifest with keys beyond `name`, `version`, `description` and
+`author` (a plugin can declare unsandboxed hooks).
 
 **`checks.py lint`** (before committing a case, and first in `run.sh`)
 prepares every case and checks that bundles hold no home paths, every ref
@@ -243,8 +242,9 @@ the workspace and its run state, and every criterion has a judge.
 
 - **CI.** An optional Prow job on the shared `openshift-claude-agent-eval`
   workflow, started by hand after a maintainer reads the PR's whole plugin
-  diff, once issues are filed against that workflow (it clones the harness
-  at `main`, mounts an unused GitHub token, and ignores thresholds).
+  diff and checks the head commit just before posting, once issues are filed
+  against that workflow (it clones the harness at `main`, mounts an unused
+  GitHub token, and ignores thresholds).
 - **Cross-agent runs.** Inspect AI with Inspect SWE runs Codex, Gemini CLI
   and others in the same networkless, proxied shape. Harbor was rejected:
   its Podman backend mounts a service-account key where the agent runs.
