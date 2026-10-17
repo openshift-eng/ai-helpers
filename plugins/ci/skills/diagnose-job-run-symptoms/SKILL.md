@@ -51,7 +51,8 @@ python3 plugins/ci/skills/diagnose-job-run-symptoms/diagnose_job_run.py \
 Note: deep mode reports label IDs only — the matched file/text detail is only available in default mode (it comes from the GCS artifacts).
 Deep mode submits an asynchronous batch, polls its same-origin status link
 through `pending`, `processing`, and `running`, and reports results after the
-batch reaches `complete`. A `failed` or `cancelled` batch is an error.
+batch reaches `complete`. A `failed` or `cancelled` batch, or a run without a
+`success` result, is an error: its symptom state is unknown, not "nothing matched".
 
 ### Step 3: Nothing matched?
 
@@ -99,7 +100,7 @@ The script also cross-references `GET /api/jobs/labels` and `GET /api/jobs/sympt
 - **401/403 or HTML login page in deep mode**: Token missing/expired (the SSO proxy may return a login page instead of 401) — refresh via the `oc-auth` skill.
 - **HTML gateway error page or non-JSON body in deep mode**: Transient gateway error (likely 504) — retry later.
 - **Unknown or malformed batch status**: Rejected as an API error instead of polling indefinitely.
-- **Failed or cancelled deep batch**: Reported as an error (exit 1).
+- **Failed or cancelled deep batch, or a run without a `success` result**: Reported as an error (exit 1); the symptom state is unknown.
 - **Sippy API unreachable**: exit 1 with a clear message.
 
 **Exit Codes**:
