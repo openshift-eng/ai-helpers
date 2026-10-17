@@ -13,7 +13,8 @@ cd <repo-name>
 
 ## Worktree for Feature Work
 
-Never work directly on the default branch. Create a worktree:
+Never work directly on the default branch, and never merge into it locally:
+changes leave a worktree through a pull request. Create a worktree:
 
 ```bash
 git worktree add .worktrees/<name> -b wt/<name>
@@ -32,15 +33,21 @@ git worktree add .worktrees/pr-<number> pr-<number>
 cd .worktrees/pr-<number>
 ```
 
-If resuming work on a PR you've already fetched, check `git worktree list` first — the worktree may already exist.
+`origin` is the repo that hosts the PR. If the PR lives in the other repo
+(upstream vs. downstream fork), add it as a second remote and fetch from that
+remote instead.
+
+If resuming work on a PR you've already fetched, check `git worktree list` first; the worktree may already exist.
 
 ## Worktree for Jira Ticket Work
 
 To investigate or fix a Jira issue:
 
-1. Fetch the issue details to determine the component (see [jira.md](jira.md) for auth setup):
+1. Fetch the issue details to determine the component. Run the auth block
+   from [jira.md](jira.md) (which defines `jira_curl`) and the request in the
+   same Bash invocation:
    ```bash
-   curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" "https://redhat.atlassian.net/rest/api/3/issue/OCPNODE-1234?fields=summary,components"
+   jira_curl "https://redhat.atlassian.net/rest/api/3/issue/OCPNODE-1234?fields=summary,components"
    ```
 2. Map the component to a repo (see [shared/components.md](shared/components.md)), confirm with the user, and clone if needed.
 3. Create a worktree named after the ticket:
@@ -77,3 +84,7 @@ git worktree list
 git worktree remove .worktrees/<name>
 git branch -d wt/<name>
 ```
+
+Both commands refuse to drop uncommitted or unmerged work. Do not reach for
+`--force` or `branch -D` unless the user confirms the work can be discarded.
+For repos with submodules see [development/worktrees.md](development/worktrees.md).
