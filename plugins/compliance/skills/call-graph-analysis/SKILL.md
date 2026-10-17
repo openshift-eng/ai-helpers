@@ -21,7 +21,7 @@ Use this skill when:
 ### Required Tools
 - `callgraph`: `go install golang.org/x/tools/cmd/callgraph@latest`
 - `digraph`: `go install golang.org/x/tools/cmd/digraph@latest`
-- Go workspace with `go.mod` file
+- A resolved `GO_MODULE_DIR` with a `go.mod` file (not necessarily `REPO_DIR` — see Input Requirements below)
 
 ### Optional Tools
 - `graphviz` (for visualization): `brew install graphviz` (macOS) or `sudo apt-get install graphviz` (Linux)
@@ -30,7 +30,7 @@ Use this skill when:
 ### Input Requirements
 - CVE vulnerable function signature (e.g., `<package-path>.<function-name>`)
 - Package path from CVE analysis
-- Workspace path to analyze
+- `GO_MODULE_DIR` — the resolved Go module root from Phase 0.7 Step 4 (may be a subdirectory of `REPO_DIR` for non-root modules). Every command in this skill runs with this as the working directory.
 - Algorithm preference (optional, default: `vta`) — passed via `--algo` from parent command
 - `CVE_ID` — used to construct the output directory
 - `OUT_DIR` (optional, default: `${AI_HELPERS_WORKSPACE:-.}/.work/compliance/analyze-cve/${CVE_ID}`) — where artifacts are written; same workspace base as Phase 0.7's `REPOS_BASE`
@@ -68,6 +68,12 @@ which sfdp || echo "graphviz not found - visual graphs won't be generated (optio
 - IF both present → Continue
 
 ### Step 2: Identify Main Packages and Build Call Graph
+
+Run every command in this step from `GO_MODULE_DIR` — this may not be `REPO_DIR` for a non-root module (see [Phase 0.7 Step 4](../analyze-cve/references/implementation.md#step-4-locate-the-go-module-and-verify-go-project)):
+
+```bash
+cd "${GO_MODULE_DIR}"
+```
 
 First, discover the main packages that serve as entry points:
 
