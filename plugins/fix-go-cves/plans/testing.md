@@ -18,78 +18,64 @@ eval case. No case is written speculatively.
 
 ## 1. Run the suite in CI
 
-**Status:** done in this PR.
-
-`make test` runs every plugin's `test_*.py`, this suite included. Its wrapper
-used to skip below Go 1.26; the suite passes on Go 1.24 (1.22 fails four
-packed-binary checks), so the floor is now 1.24, and GitHub's `ubuntu-24.04`
-runners put Go 1.24 on `PATH` (the Test job uses `ubuntu-latest`, currently
-24.04). When `CI` is set, the wrapper fails instead of skipping, so a runner
-image without Go cannot silently drop the suite.
-
-That adds about 3 minutes (measured locally) to a job that takes under 1
-today, on every PR. If maintainers object, move the suite to a Prow job with
-`run_if_changed: ^plugins/fix-go-cves/` rather than add diff logic to the
-wrapper.
+**Status:** done in this PR. `make test` runs the suite on Go 1.24 or later
+(GitHub's `ubuntu-24.04` runners have it) and fails rather than skips when
+`CI` is set. It adds about 3 minutes per PR; if maintainers object, move it
+to a Prow job with `run_if_changed: ^plugins/fix-go-cves/`.
 
 ## 2. Evaluate the skill
 
-**Status:** cases recorded, in `.work/fix-go-cves-evals/source/` until they
-are committed; nothing else built.
+**Status:** six cases recorded, in `.work/fix-go-cves-evals/source/` until
+committed; nothing else built.
 
 On release-0.24 the skill found a default-branch backport for a license
 failure and traced stdlib findings to the build image, but it also relayed
-or misread two verdicts from `review.sh`, and in one run missed the backport.
-The cases below cover each; two of the underlying script bugs are under
+or misread two verdicts from `review.sh`, and in one run missed the
+backport. The cases cover each; two of the underlying script bugs are under
 [Correctness](README.md#correctness).
 
-### Design at a glance
+### Design
 
 - **Replay, not rerun.** A case replays a recorded `fix-all.sh` run in a
-  workspace rebuilt to match it: no build, scan or Docker daemon, so a trial
-  takes minutes and costs well under $1.
+  workspace rebuilt to match it: no build, scan or Docker, so a trial takes
+  minutes and costs well under $1.
 - **The repository's harness.** agent-eval-harness on its `claude-code`
-  runner, run locally, reports cost, tokens and model per case, as a
-  maintainer asked for in the review of the k8s-rebase plugin.
+  runner reports cost, tokens and model per case, as a maintainer asked for
+  in the k8s-rebase review. Files live in `plugins/fix-go-cves/evals/`,
+  laid out like `plugins/ci/evals/`.
 - **The recorded plugin, today's skill.** The agent gets the plugin as it
-  was when the log was produced; only `SKILL.md`, the thing under test,
-  comes from the working tree.
-- **A throwaway container for the agent.** The harness and judges stay on
-  the host; the agent runs in a per-trial container with no network,
-  credentials or host paths, and reaches Vertex through a per-trial proxy.
-- **The proxy's log is the record.** The reply, tool calls and cost come
-  from the proxy's log of model traffic, which the agent cannot forge.
-- **Per-case scoring.** Deterministic checks gate every trial; judged facts
-  are binary criteria; every case must pass across three rounds.
-- **A calibrated judge.** The scoring prompt must pass each reference reply
-  and fail each negative before any agent is scored.
-- **A two-tier threat model.** Hard boundaries hold against a hostile agent;
-  within its own trial, only opportunistic gaming is guarded against.
+  was when the log was recorded; only `SKILL.md`, the thing under test,
+  comes from the working tree. Today's scripts carry comments written after
+  the recordings, one naming case 004's answer.
+- **The agent in a throwaway container.** The harness and judges stay on the
+  host. The agent runs in a per-trial container with no network,
+  credentials or host paths, and reaches Vertex only through a per-trial
+  host proxy that holds the token.
+- **Two-tier threat model.** Hard boundaries (the host, its credentials and
+  network, other trials, the committed answers) hold against a hostile
+  agent. Within its own trial, checker-owned state checks stop
+  opportunistic gaming and reading surprising sessions catches the rest; a
+  deliberately forged pass on one trial is an accepted risk for a six-case
+  regression eval of a skill we own.
+- **Per-case scoring, calibrated judges.** Deterministic checks gate every
+  trial, binary judged criteria cover the decisions, and every case must
+  pass on its own. The judges must pass each reference reply and fail each
+  negative before any agent is scored.
 
-### Terms
+### Build first
 
-- **Recording:** the release-0.24 `fix-all.sh` run a case is built from.
-- **Recorded log:** that run's log, stored as `run.log.gz`.
-- **Trial:** one harness invocation on one case. **Round:** one trial of
-  every case.
-- **Session:** a trial's conversation, rebuilt from the proxy's log.
-- **Preamble:** the replay code placed at the top of the staged
-  `fix-all.sh`.
-- **Sibling directory:** `<run workspace>/fgc/<case-id>/`, outside the
-  harness's `cases/` (whose every directory it scores as a case); it holds
-  run state, reports, the log's other home paths and the bare remotes.
-  Prepare's baseline hashes and the copy-out archive sit beside it, in
-  `fgc/<case-id>.baseline.json` and `fgc/<case-id>.out/`, outside the
-  copy list.
-- **Copy list:** the paths prepare writes for the wrapper to copy into the
-  container.
-- **Copied-out tree:** the container's volumes, copied out after the trial
-  as one tar archive per volume and unpacked only inside the checker container.
+Run one case end to end before building the rest; each unknown here could
+change the isolation design:
 
-Everything lives under `plugins/fix-go-cves/evals/`, laid out like
-`plugins/ci/evals/`: `eval-fix-go-cves.yaml`, a `README.md` that indexes the
-cases (the repository lint requires it), `run.sh`, `checks.py`,
-`workspace.sh`, and `cases/fix-go-cves/case-NNN/`.
+- Claude Code in Vertex mode works through `ANTHROPIC_VERTEX_BASE_URL`
+  (with `CLAUDE_CODE_SKIP_VERTEX_AUTH=1`, as the runner supports for
+  agentic-ci) and the proxy;
+- the wrapper passes the runner's stdin prompt in and its stream-json out
+  unchanged, including for resumed sessions;
+- rootless podman runs the container, and its user reaches the proxy
+  socket under `--userns=keep-id`;
+- a cold clone fits the hook timeout;
+- the cost of one trial, to set the per-case budget.
 
 ### Cases
 
@@ -102,403 +88,168 @@ cases (the repository lint requires it), `run.sh`, `checks.py`,
 | 005 | admiral: govet | Backports devel's 8234df0 |
 | 006 | lighthouse: x/crypto | Flag is spurious; backports cdc3003 |
 
-Notes on the cases:
-
 - **004:** the recorded reply found the leftover `bin/lichen` that blocked
   the scan and cleared x/net for a rerun, but still sent grpc and otel/sdk
-  to the team, repeating `review.sh`'s "team input". The criterion covers
-  all three bumps; the reference reply is written by hand.
+  to the team, repeating `review.sh`. The criterion covers all three bumps.
 - **005:** the recorded reply calls the Go 1.26 raise the team's call; the
-  reference drops that claim (see Calibration).
-- **006:** a separate, earlier lighthouse run with the same license failure, so
-  it also carries 001's backport criterion. Its x/crypto "policy boundary" flag
-  was spurious: it followed the ignore of GO-2026-5932, which has no fix, and
-  the scan has no x/crypto finding. The criterion passes a reply that says so
-  and that x/crypto needs no action, and fails one that blames the Go raise
-  (the recorded reply) or sends the flag to the team (a constructed negative).
-  The reference reply is written by hand.
+  reference drops that claim.
+- **006:** an earlier lighthouse run with the same license failure, so it
+  also carries 001's backport criterion. Its x/crypto "policy boundary"
+  followed the ignore of GO-2026-5932, which has no fix, and the scan has no
+  x/crypto finding: the criterion passes a reply that says x/crypto needs no
+  action, and fails one that blames the Go raise or sends it to the team.
+- References for 004 and 006 are hand-written, since their recorded replies
+  are the wrong ones.
 
-Each case directory holds:
+Each case directory holds `input.yaml` (repository, pinned base and default
+commits, arguments, stubs), `annotations.yaml` (criteria, PR command,
+commits to name, flagged items), `result.bundle` (the recording's commits),
+`run.log.gz`, `reply.md` (the reference), `negatives/` (each naming the
+criterion it must fail), `reports/`, and `plugin.tar.gz` (the recorded
+plugin, limited to `.claude-plugin/`, `skills/`, `scripts/`, `subagents/`
+and `README.md`, since `plans/` names the answers). Home paths are stored as
+placeholders. Recording transcripts stay out: their first record lists the
+recording user's connectors, plugins and memory paths. The bundles keep the
+recording author's name and fork; the three never pushed (004, 005, 006)
+hold only `go.mod`, `go.sum` and `.grype.yaml` edits.
 
-- `input.yaml`: repository, pinned commits (base, default branch, and the
-  ai-helpers commit that produced the log, for provenance), arguments and
-  stub files;
-- `annotations.yaml`: criteria, the PR command, commits the reply must
-  name;
-- `result.bundle`: a git bundle of just the recording's commits;
-- `run.log.gz`: the recorded log;
-- `reply.md`: the reference reply;
-- `negatives/`: the recorded wrong reply, where one exists, one-fact edits
-  of the reference, case-specific constructed wrong replies (006's send the
-  flag to the team, or blame the Go raise while keeping the backport, since
-  the recorded reply also misses the backport), and a wrong reply that tells
-  the judge to pass it; each names the criterion it must fail;
-- `reports/`: report directories the log names (subctl's);
-- `plugin.tar.gz`: the plugin at the recording's commit, limited to
-  `.claude-plugin/`, `skills/`, `scripts/`, `subagents/` and `README.md`
-  (about 110 KB), since `plans/` would name the answers and the commits live
-  only on the PR branch, which a rebase or squash would rewrite.
+### Scoring
 
-Files are copied in by allowlist, with home paths stored as placeholders.
-Agent transcripts from the recordings stay out: their first record lists the
-recording user's connectors, plugins and memory paths.
+Deterministic checks (`checks.py`) gate every trial:
 
-**Hermetic tests** (in `make test`) fail on:
-
-- no case under `evals/cases/fix-go-cves/`;
-- a transcript, or a `/home/` or `/run/user/` path, anywhere there
-  (decompressing `.gz` files first);
-- a `plugin.tar.gz` holding `plans/`, any case's answer strings, or anything
-  but regular files and directories under the five allowed paths (no links,
-  absolute or `..` names);
-- a plugin manifest (`plugin.json`) with keys beyond `name`, `version`,
-  `description` and `author`, since a plugin can declare unsandboxed hooks,
-  monitors and language servers;
-- a judge defined with `llm_rubric` or a `condition` key, a criteria judge
-  without `feedback_type: bool`, or a judge template naming anything but the
-  fenced reply file and `{{ annotations }}` (see Builder checklist);
-- a recorded log missing what `SKILL.md` reads;
-- a prepared `.claude/settings.json` with keys beyond `permissions.allow`
-  and `permissions.deny`;
-- a proxy that forwards a request with a server-side tool, `mcp_servers`,
-  `container`, a content `source` other than `base64` or `text`, a beta
-  header off its allowlist, or a path or project other
-  than the configured model ones;
-- a rendered judge prompt whose reply is empty (the harness renders a
-  missing key as an empty string);
-- an `eval-fix-go-cves.yaml` whose `permissions` hold a path-based rule, or
-  that sets a provider plan (the runner would write a settings overlay into
-  the workspace at launch, after prepare).
-
-**`checks.py lint`** needs the case repositories' history, from the clone
-cache or the network. Run it before committing a case; `run.sh` runs it
-first. It runs `workspace.sh prepare` for every case into a scratch run
-workspace and checks:
-
-- each bundle's commits, on top of its base, for home paths;
-- that every ref and object in a prepared workspace is reachable from the
-  pinned commits or the bundle;
-- that a prepared workspace has no path outside itself and its sibling
-  directory;
-- that every `annotations.yaml` parses and every `criterion_*` key has a judge
-  of the same name.
-
-**Publication.** The bundles and PR commands keep the recording author's
-name and fork. Three bundles (004, 005 and 006) hold commits that were never
-pushed, but they contain only `go.mod`, `go.sum` and `.grype.yaml` edits by
-the same author, so publishing them adds nothing sensitive.
-
-### Checks and scoring
-
-`checks.py` holds the deterministic checks, which gate at a 1.0 pass rate:
-
-1. **State.** In the copied-out tree: on the fix branch at the recorded
-   result, a clean worktree, untracked and ignored files unchanged, bare
-   remotes unchanged, an empty `gh` log, no `subagents/` or `input.yaml`
-   planted, and no attempted or denied push, `gh`, stash or clean in the
-   session. The harness's own files, the paths prepare excludes, are left
-   out, and `hooks/` must stay absent.
+1. **State.** On the fix branch at the recorded result, a clean worktree,
+   bare-remote refs at their pins, untracked and ignored files equal to the
+   case's stubs plus the harness's excluded paths, an empty `gh` log, and
+   no attempted or denied push, `gh`, stash or clean.
 2. **One run.** The script ran once, for the requested branch.
-3. **PR command.** If the recorded log printed one, a code block in the
-   reply holds the same command, compared as shell-parsed tokens with
-   continuations joined, since logs escape the title and replies quote it;
-   otherwise no block holds `gh pr create`.
-4. **Commits.** Commits in `annotations.yaml` appear in the reply, matched
-   by a prefix of at least seven characters.
+3. **PR command.** If the log printed one, a code block in the reply holds
+   the same command, compared as shell tokens (logs escape the title,
+   replies quote it); otherwise no block holds `gh pr create`.
+4. **Commits.** The annotated commits appear in the reply, by a prefix of at
+   least seven characters.
 
-The judged facts are binary criteria per case that need reasoning the recorded
-log does not hand over, such as "the x/net, grpc and otel/sdk bumps were
-skipped because the scan was blocked, and need no team decision". 002's accepts
-"the team" or the Shipyard image maintainers, as `SKILL.md` asks for the team
-decision. Each case also lists the summary's flagged items in
-`annotations.yaml`, with one criterion that every listed item gets an action
-and an owner and that nothing recommended contradicts the annotations, so a
-reply cannot pass on its headline decision alone. Criteria are fixed top-level
-keys in `annotations.yaml` (`criterion_1` to `criterion_N`), each with its own
-judge of the same name, run with `if: "'criterion_k' in annotations"` (the
-harness reads the condition from `if`, without builtins) and told to grade only
-its key, so every criterion gets its own verdict. Criteria judges use
-`feedback_type: bool` and `samples: 3`, which the harness majority-votes
-(without `bool` it scores 1 to 5 and takes the median). A trial passes its
-facts only if every criterion passes. A pooled threshold would let one case
-fail every trial while the rest pass, so `checks.py summarize` requires every
-case to pass its deterministic checks in all three rounds and its facts in at
-least two. A case at exactly two of three on facts gets three more trials each
-with the old and the new configuration (`SKILL.md` or model), and the change is
-accepted only if the new one does no worse; a deterministic failure always
-fails the case. A criterion whose `stability.error_count` is non-zero is a
-judge error, not a failed fact. `summarize` reads each case's expected criteria
-from the dataset and counts a missing or skipped verdict as ERROR, never a
-pass. Hook failures don't stop the harness (`after_each` always continues), so
-`after_each` writes `fgc-out/harness.json` with each stage's status, checks 1
-to 4 raise when it is missing or reports a failed stage, and `summarize` counts
-that judge error, or a `run_result.json` error from a hook, as ERROR. Each
-harness threshold pairs `min_pass_rate: 1.0` with `max_error_rate: 0`, since
-the pass rate leaves errored cases out. `summarize` marks a trial ERROR, rerun
-and not counted, when the cause is the harness, the proxy's own failure or a
-judge error rather than the agent's state, reply or tool calls; a proxy
-rejection of a forbidden request stays a failure, and a case that keeps
-erroring is reported as such. The cases were also used to tune `SKILL.md` (its
-license wording came from 001 and 006), so they guard against regressions, not
-prove the skill generalizes; a new recording stays out of skill tuning until it
-has been scored. `checks.py` reads case arguments only from the dataset, never
-from a workspace file the agent could have written.
+Judged facts are binary criteria needing reasoning the log does not hand
+over, such as "the x/net, grpc and otel/sdk bumps were skipped because the
+scan was blocked, and need no team decision". One more per case requires
+every flagged item to get an action and an owner, so a reply cannot pass on
+its headline alone. Criteria stay neutral on whether a Go directive raise
+needs the team, since the plugin and the repositories' workflow notes
+disagree (see [Decisions](README.md#decisions)).
 
-### Calibration
+- One boolean judge per criterion (`feedback_type: bool`, `samples: 3`,
+  majority vote), reading only the fenced reply and `{{ annotations }}`.
+- A trial passes its facts only if every criterion passes. A case passes
+  with its deterministic checks in three of three rounds and its facts in
+  at least two; a pooled rate would hide a case that always fails.
+- A missing, skipped or errored verdict, or a failed harness stage
+  (recorded by `after_each`), is ERROR: rerun, never counted as a pass or a
+  failure. Harness thresholds pair `min_pass_rate: 1.0` with
+  `max_error_rate: 0`, since the pass rate leaves errored trials out.
+- Accept a `SKILL.md` or model change on three rounds. Rerun a case at two
+  of three three more times, and read failing sessions before blaming the
+  change, since a case can be wrong too.
+- The cases helped tune `SKILL.md` (its license wording came from 001 and
+  006), so they guard against regressions, not prove the skill generalizes.
 
-`checks.py calibrate` runs the harness's own judges (`score.py judges`) on
-synthetic trials whose reply file holds a stored reply, laid out as
-`collect.py` lays out a real trial, so the prompt calibrated is the prompt that
-scores. It must pass each `reply.md` and fail each negative on the criterion it
-names before any agent is scored. The harness finds criteria by the trial
-directory's name, so each stored reply is its own run, under
-`cases/<case-id>/`, scored with a config holding only the criteria judges;
-`calibrate` reads the verdicts from each run's `summary.yaml` and ignores the
-exit code, which negatives always fail. Every verdict must be stable across the
-three samples, and an errored verdict fails calibration. The first baseline
-round's replies are labelled by hand, the correct ones become extra positives
-(especially for 004 and 006, whose references are hand-written), and the labels
-are compared with the judges' verdicts once. Rerun it when criteria, the judge
-model or a recording change. Criteria stay neutral on whether a Go directive
-raise needs the team, because the plugin and the repositories' own workflow
-notes disagree (see [Decisions](README.md#decisions)).
+**Calibration.** `checks.py calibrate` runs the harness's own judges on
+synthetic trials holding each stored reply, laid out as real trials, so the
+prompt calibrated is the prompt that scores. Every reference must pass and
+every negative fail on its named criterion, with stable verdicts across
+samples. The negatives include one-fact edits of each reference, the
+recorded wrong replies, and a reply that tells the judge to pass it. The
+first baseline round's replies are labelled by hand and the correct ones
+added as positives. Rerun calibration when criteria, the judge model or a
+recording change.
 
-### Running
+**Re-recording.** Replay does not exercise `scripts/review-prompt.md` or
+`fix-all.sh` output; changing either means re-recording the affected cases
+(for the review prompt, those with `UNRESOLVED:` lines: 001, 002, 004,
+006). The Grype database, build image and the bugs a case depends on are
+not pinned, so a new recording replaces a case only if it reproduces the
+case's decision; then regenerate its commits, PR command, reference and
+negatives, and recalibrate.
 
-Accept a `SKILL.md` or model change on three rounds. Read failing sessions
-before changing anything, since a case can be wrong too, and rerun a failing
-case with the old `SKILL.md` before blaming the change. A change to
-`scripts/review-prompt.md` or to `fix-all.sh` output is not exercised by
-replay: it means re-recording the cases whose logs it changes; for the review
-prompt, every case whose log has `UNRESOLVED:` lines (001, 002, 004 and 006). A
-re-recording starts from the pinned base with the same stubs, but the Grype
-database, the build image tag and the bugs a case depends on (006's false
-policy boundary) are not pinned, so a new recording replaces a case only if it
-reproduces the case's decision; otherwise the old recording stays and the plan
-records that the change is not covered by replay. After a re-recording,
-regenerate the commits, PR command, reference and negatives, and rerun
-calibration.
+### Guards
 
-### Threat model
+**Workspace** (`workspace.sh prepare`, the `before_each` hook):
 
-Two tiers. The host, its credentials and network, other trials and the data
-later committed must stay out of reach even of a hostile agent, so the agent
-runs in a container that holds none of them. Within its own trial the agent
-could still try to game its score: cheap structural guards (state from
-checker-owned tooling, the reply and cost from the proxy's record) stop
-opportunistic gaming, and reading failing and surprising sessions catches
-the rest. A deliberately forged pass on one trial is an accepted risk for a
-six-case regression eval of a skill we own.
+- fetches only the pinned commits, with no tags, into a fresh repository and
+  fresh bare remotes, since later history holds the answers for 001 and
+  005; remote paths end in `owner/repo.git` and `origin/<base>` and
+  `origin/<default>` exist, since the skill checks both;
+- removes the harness's `.git`, links into ai-helpers, `hooks/` and
+  `input.yaml`, and rewrites `.claude/settings.json` to keep only
+  `permissions` (the harness also writes host paths, env and the
+  operator's plugin list there);
+- lists the harness's paths in `.git/info/exclude`, since `SKILL.md` stops
+  on untracked files;
+- stages the recorded plugin with today's `SKILL.md`, and a preamble in
+  `fix-all.sh` that applies the bundle, prints the log with placeholders
+  filled, and exits with the recorded code; the real script text stays
+  below it for an agent that reads it;
+- restores stubs (subctl's empty `bin/lichen`, which contradicts the log,
+  so criteria rely on the log) and reports outside `cases/`, which the
+  harness scores directory by directory.
 
-### Workspace
+**Isolation:**
 
-The harness invokes the skill with the case's arguments (`mode: case`, as in
-the repository's other evals) in a case workspace. `workspace.sh prepare`,
-the `before_each` hook, turns it into the case repository:
+- `run.sh` starts the harness under `env -i` and puts a `claude` wrapper
+  first on `PATH`; the wrapper builds the container's environment from a
+  fixed list, so no host key (the runner forwards `HOME`,
+  `GOOGLE_APPLICATION_CREDENTIALS`, `ANTHROPIC_API_KEY`) crosses over.
+- The container runs from a pinned image with `--network none`,
+  `--read-only` but its volumes, a non-root user, `--http-proxy=false`, and
+  no mount but the proxy socket. Only the wrapper's final `exec` touches the
+  runner's pipes.
+- The proxy forwards only the configured project's main model and one
+  pinned small model, caps tokens, logs usage, and rejects server-side
+  tools, `mcp_servers`, `container`, URL or file content sources and
+  unlisted betas, since Anthropic's servers would fetch for the agent.
+  Reported cost is the proxy's usage, priced on the host.
+- The runner's timeout kills only the wrapper, so `after_each` stops the
+  container and proxy, then runs the state check in a fresh container that
+  mounts the trial's volumes read-only and uses checker-owned git (no agent
+  configuration, hooks, fsmonitor or filters). No agent-written file is
+  unpacked on the host. Leftovers are labelled and swept by `before_all`.
+- The eval's `permissions.deny` blocks `git push`, `gh`, MCP, web tools and
+  subagents with plain patterns and no provider plan; either would make the
+  runner write a settings overlay holding the inference key into the
+  workspace.
+- Judges get the reply only through `{{ outputs.files[...] }}` with no
+  filters, which the harness fences as untrusted, never `llm_rubric` or
+  `{{ conversation }}`. A `before_scoring` hook extracts the reply (all
+  assistant text after the `fix-all.sh` result) from `stdout.log`.
+- Hooks default to a 120-second timeout; `before_all` and `before_each` get
+  900 for a cold clone, `after_each` 600.
 
-- **Replace the harness scaffolding.** The harness makes the workspace a git
-  repository whose first commit holds `input.yaml`, and links ai-helpers'
-  `CLAUDE.md`, `scripts/` and every `.claude/` subdirectory into it, which
-  would collide with the case repository and expose ai-helpers. Prepare
-  removes that `.git`, every link and the subagent hook's `hooks/`
-  directory, and deletes `input.yaml` once the harness has read the
-  arguments. It rewrites `.claude/settings.json`, which the agent reads at
-  launch, keeping only `permissions.allow` and `permissions.deny`: the
-  harness also writes the subagent hook (subagents are denied),
-  `permissions.additionalDirectories` (the ai-helpers checkout), an `env`
-  block resolved from its own environment, tracing variables, carried-over
-  hooks and the operator's `enabledPlugins`.
-- **Build the repository.** Prepare fetches only the pinned commits, with no
-  tags, from a clone cache under ai-helpers' `.work/` (warmed by
-  `before_all`) into a fresh repository and fresh bare remotes, so no later
-  history is reachable (the merged CVE PRs contain the backports cases 001
-  and 005 look for). It checks out the branch the recording started from and
-  points every remote at a bare remote whose path ends in the remote's own
-  `owner/repo.git`, since the skill checks that `origin` is upstream. It
-  creates `origin/<base>` and `origin/<default>` at their pins, which the
-  skill and the preamble's tracking branch need. It lists the harness's paths
-  (`.claude/`, `.staged-plugins/`, `.hook-outputs.*`) in `.git/info/exclude`,
-  since `SKILL.md` stops and asks when the checkout has untracked files.
-  `annotations.yaml` never reaches the workspace.
-- **Restore what the recording saw.** Untracked files as stubs (for subctl, an
-  empty `bin/lichen`; `go version` on it disagrees with the recorded log, so
-  criteria rely on the log, not the file), and the case's `reports/` in the
-  sibling directory, with the same two placeholders filled as in the log (see
-  the next item).
-- **Stage the plugin.** Prepare unpacks the case's `plugin.tar.gz`, whose
-  entries are the plugin's root, into `.staged-plugins/fix-go-cves`, where
-  the runner reuses an existing copy, replaces its `SKILL.md` with the
-  working tree's, and adds the recorded log and `result.bundle`. Today's
-  scripts carry comments written after the recordings, one of which names
-  case 004's answer. `scripts/fix-all.sh`
-  keeps its real text behind the preamble, which records its arguments,
-  applies the bundle to create the fix branch, prints the recorded log and
-  exits with the recorded code, so an agent reading the script still finds
-  the gate logic it is investigating. The recorded log stores home paths as
-  two placeholders, which the preamble fills: the recording's repository
-  root becomes the workspace, and every other home path the sibling
-  directory. The log's own `exit=` line is dropped, since `SKILL.md`
-  appends one.
-- **Record the baseline and the copy list.** Prepare hashes the bare
-  remotes and the untracked and ignored files into
-  `fgc/<case-id>.baseline.json`, and lists the workspace and the sibling
-  directory (which holds the bare remotes) for the wrapper.
+**Hermetic tests** (in `make test`) fail on: no cases; a transcript or a
+`/home/` or `/run/user/` path in a case, `.gz` included; a plugin tarball
+holding `plans/`, answer strings, links or paths outside the five allowed;
+a plugin manifest with keys beyond `name`, `version`, `description` and
+`author` (a plugin can declare unsandboxed hooks); a judge using
+`llm_rubric`, `condition` instead of `if`, a non-bool criterion, or a
+template naming anything but the fenced reply and `{{ annotations }}`; an
+empty rendered reply; a recorded log missing what `SKILL.md` reads; a
+prepared `settings.json` with keys beyond `permissions`; an eval with
+path-based permissions or a provider plan; and a proxy that forwards any
+request it must reject.
 
-### Isolation
-
-- **The agent runs in a throwaway container.** The harness launches
-  `claude` by name, so `run.sh` puts a `claude` wrapper first on its `PATH`.
-  The wrapper runs the CLI in a per-trial container with no network, no host
-  mounts but the proxy's socket, a read-only root filesystem and a non-root
-  user, holding only the paths in the copy list. No credential, host path,
-  other trial, case answer or network route exists inside it.
-- **One way out: the proxy.** A per-trial proxy on the host holds the Vertex
-  token, forwards only the Anthropic model paths for the configured project,
-  caps tokens per trial (the agent could call it directly), and logs every
-  request and response. It rejects, and fails the trial on, a body with a
-  server-side tool (web search, web fetch, code execution), `mcp_servers`,
-  `container`, a content block whose `source` is a URL or file reference
-  (anything but `base64` or `text`), or a beta header off its allowlist,
-  since Anthropic's servers would fetch for the agent despite
-  `--network none`.
-- **No host environment crosses over.** The wrapper sets the container's
-  environment from a fixed list, and `run.sh` starts the harness with an
-  explicit one, so stray host keys reach neither; the in-container Vertex
-  settings stay out of the harness's environment, where they would redirect
-  the judges.
-- **The copied-out tree is data.** After the trial, the container's volumes
-  are copied out as one tar archive per volume, never unpacked on the host,
-  and checked in a fresh container from the pinned image, with checker-owned
-  git: the agent's git configuration, whose filters and diff drivers can run
-  commands, is never used. The host validates the result and fails the trial
-  if it is missing or malformed. Nothing the agent writes reaches the host any
-  other way.
-- **The session comes from the proxy.** The agent shares a user with Claude
-  Code inside the container, so it could forge the CLI's output stream. The
-  main conversation is the chain of requests in which each request's messages
-  extend the previous request's messages and logged response, compared after
-  dropping `cache_control` and other per-request annotations (role, block
-  type, text, tool-use id, name and input, and tool-result content must
-  match): the reply is all of the chain's assistant text after the
-  `fix-all.sh` result (the replay can finish before the agent's turn ends, so
-  the report and a closing message may be separate), and the tool calls and
-  any denials the model was told about are its tool turns. A request that fits
-  neither the chain nor a known side-call shape (Claude Code's small-model
-  helper calls), or arrives after the chain ends, fails the trial. The cost
-  reported per case is the proxy's token usage, priced on the host; a large
-  gap from the runner's own figure fails the trial. `after_each` runs before
-  the runner's figure exists, so it writes only the proxy's usage, and
-  `checks.py summarize` checks the gap and reports the proxy's cost.
-- **Judges see only the reply.** They read the reply file and the case's
-  criteria (`{{ annotations }}`, from the dataset) and nothing else:
-  with trace events off, the harness fills `{{ conversation }}` from the raw
-  stream, and `llm_rubric` judges append it automatically.
-
-### Builder checklist
-
-- **`run.sh`:** starts the harness under `env -i` with an explicit variable
-  list (the runner forwards host keys such as `ANTHROPIC_API_KEY`,
-  `GOOGLE_APPLICATION_CREDENTIALS` and `HOME` to the agent); puts the
-  wrapper first on `PATH`; runs `checks.py lint` first.
-- **Wrapper:** creates per-trial volumes (`podman volume create`) for the
-  workspace, sibling directory and `HOME`; `podman create`s the container on
-  them from a pinned image (Claude Code at the host's version, git, jq, Go,
-  Python, socat and the `gh` shim that only logs its arguments) with
-  `--network none`, `--read-only` except those volumes and `/tmp`,
-  `--userns=keep-id` (so the user can reach the socket), one Unix socket
-  mount, `--http-proxy=false` (podman otherwise copies its own proxy variables
-  in), `--interactive` (the runner writes the prompt to stdin), the trial's
-  name and a `--timeout` below the runner's; copies in the copy list at the
-  same paths, since the runner passes `--plugin-dir` and `--settings` as
-  workspace paths; then `exec`s `podman start --attach --interactive`, so the
-  runner's pipes close when the agent stops. Answers the runner's `claude
-  --version`. The runner passes it only its allowlisted environment, so the
-  wrapper reads its settings (image digest, socket directory, the podman
-  runtime variables) from `runner.env` `$VAR` entries and derives the run and
-  case IDs from its working directory, as `after_each` does. Every command
-  before the final `exec` runs with `</dev/null >>"$trial_log" 2>&1`, so only
-  `podman start` touches the runner's pipes. The container, volumes and proxy
-  are named `fgc-<run-id>-<case-id>` and labelled `fgc.eval=1`; `before_all`
-  and a trap in `run.sh` remove labelled leftovers and kill recorded proxies,
-  since a timed-out `after_each` leaves them behind. The fixed environment
-  pins `ANTHROPIC_DEFAULT_HAIKU_MODEL` and `ANTHROPIC_SMALL_FAST_MODEL` to one
-  exact ID, which the proxy allowlists beside the main model.
-- **Proxy:** started with `setsid`, its output to its own log,
-  `fgc/<case-id>.proxy.log`, so it never holds the runner's pipes; listens
-  only on the per-trial socket, which socat in the container turns back into a
-  local port. Inside the container Claude Code gets
-  `CLAUDE_CODE_SKIP_VERTEX_AUTH=1` and `ANTHROPIC_VERTEX_BASE_URL` pointing at
-  that port, a pattern the runner already supports for agentic-ci.
-- **`after_each`:** timeout of 600 seconds; kills the container and the proxy
-  (the runner's timeout kills only the wrapper), streams the volumes out with
-  `podman cp <ctr>:<path> -` into one archive per volume in
-  `fgc/<case-id>.out/` (concatenated tar streams stop at the first end
-  marker), never unpacked on the host (host git, a shell prompt or an editor
-  in an agent-written tree could run its configuration), runs the state check
-  in a fresh container from the pinned image, with the archive and the
-  baseline mounted read-only, the archive unpacked inside it, its result
-  written to a separate fresh mount, and no network, writes the validated
-  result (including the preamble's record of its arguments), and from the
-  proxy log the session's reply, its tool calls and denials, and its token
-  usage, into declared `outputs:` directories (`collect.py` treats a declared
-  path as a directory, so the reply is `fgc-out/reply.md` both in the trial
-  and as the judges' key), outside the `output/` directory where the harness
-  drops `stdout.log`, and removes the container, volumes and archive.
-- **State check:** builds a fresh `.git` from the copied objects, refs and
-  `HEAD`, with a configuration it writes itself and no attributes; runs git
-  with `-c core.fsmonitor=false -c core.hooksPath=/dev/null` and system and
-  global configuration off; compares the worktree to HEAD by hashing files
-  without filters; compares the bare remotes and untracked and ignored
-  files with prepare's baseline hashes.
-- **Judges:** defined with `prompt` or `prompt_file`, never `llm_rubric`;
-  templates name the reply only as `{{ outputs.files['fgc-out/reply.md'] }}`,
-  which the harness fences as untrusted, with no filters (a string filter
-  drops the fence), plus `{{ annotations }}`; never `*_content`,
-  `outputs[...]`, `{{ conversation }}`, `{{ tool_trace }}` or
-  `{{ reasoning }}`.
-- **Eval `permissions.deny`:** plain tool patterns blocking
-  `Bash(git push:*)`, `Bash(gh:*)`, MCP tools, web tools and subagents, so
-  check 1 has denials to find; no provider plan. Either path-based rules or
-  a plan would make the runner write a settings overlay, one form of which
-  holds the inference key, into the workspace.
-- **Prepare:** `before_all` (which warms the clone cache) and `before_each`
-  timeouts of 900 seconds, for a cold clone, since hooks default to 120;
-  unpacks with Python's `tarfile` and `filter="data"`.
-
-### To confirm when building
-
-- Claude Code in Vertex mode works through `ANTHROPIC_VERTEX_BASE_URL` and
-  the proxy.
-- The wrapper passes the runner's prompt through on stdin and its
-  stream-json back unchanged, including for resumed sessions.
-- The reply and tool calls can be read back from the proxy's log of
-  streamed responses, and one real recorded session links into a single
-  chain under the normalised comparison.
-- Rootless podman runs the container on the target hosts, and the container
-  user can connect to the proxy socket under `--userns=keep-id`.
-- `before_all` fits its 900-second timeout from a cold cache.
-- The cost of one trial, to set the per-case budget.
+**`checks.py lint`** (before committing a case, and first in `run.sh`)
+prepares every case and checks that bundles hold no home paths, every ref
+and object is reachable from the pins or the bundle, nothing points outside
+the workspace and its run state, and every criterion has a judge.
 
 ### Later
 
-- **CI.** An optional `eval-fix-go-cves` Prow job on the shared
-  `openshift-claude-agent-eval` workflow, started by hand with `/test` after
-  a maintainer reads the PR's whole `plugins/fix-go-cves/` diff (`SKILL.md`,
-  the plugin manifest and the case tarballs run there too, beside CI's
-  credentials) and checks the head commit just before posting. Before then,
-  the shared workflow needs issues filed: it clones the harness at `main`,
-  mounts a GitHub token evals do not use, and passes on the agent's exit
-  rather than the thresholds. Its `EVAL_CHANGED_ONLY` option skips every
-  case, since the image has no `.git`.
+- **CI.** An optional Prow job on the shared `openshift-claude-agent-eval`
+  workflow, started by hand after a maintainer reads the PR's whole plugin
+  diff, once issues are filed against that workflow (it clones the harness
+  at `main`, mounts an unused GitHub token, and ignores thresholds).
 - **Cross-agent runs.** Inspect AI with Inspect SWE runs Codex, Gemini CLI
-  and others the same way (in a networkless container, model credentials
-  kept on the host behind a proxy), for comparing agents. Harbor was
-  rejected: its Podman backend reaches Vertex only by mounting a
-  service-account key into the container where the agent's Bash runs, its
-  network setting is all or nothing, and its judges run inside the trial
-  container beside the answers.
-- **`review.sh` cases**, if a review mistake appears that replay cases
-  cannot catch.
+  and others in the same networkless, proxied shape. Harbor was rejected:
+  its Podman backend mounts a service-account key where the agent runs.
+- **`review.sh` cases**, if a review mistake appears that replay cannot
+  catch.
 
 ## 3. Optional: live canary
 
