@@ -1,0 +1,131 @@
+name: fix-go-cves-replay
+description: Replay the recorded admiral run and evaluate the skill's diagnosis and next steps.
+
+execution:
+  mode: case
+  skill: fix-go-cves:fix-go-cves
+  arguments: "{branch}"
+  timeout: 900
+  max_budget_usd: 5.0
+  parallelism: 1
+  project_hooks: false
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/fix-go-cves
+  env:
+    GOOGLE_APPLICATION_CREDENTIALS: $GOOGLE_APPLICATION_CREDENTIALS
+    GIT_CONFIG_NOSYSTEM: "1"
+    GIT_TERMINAL_PROMPT: "0"
+    GIT_ALLOW_PROTOCOL: file
+    GOPROXY: "off"
+    GOTOOLCHAIN: local
+
+models:
+  skill: claude-opus-4-6
+
+permissions:
+  allow:
+    - Skill
+    - Read
+    - Bash
+  deny:
+    - "Bash(git push*)"
+    - "Bash(gh *)"
+    - "Bash(git stash*)"
+    - "Bash(git clean*)"
+    - "mcp__*"
+    - WebFetch
+    - WebSearch
+    - Agent
+    - Task
+
+dataset:
+  path: cases
+  schema: |
+    input.yaml records the repository, branch, pinned base and default-branch
+    commits and replay arguments. annotations.yaml contains the recorded
+    result, expected diagnosis and scoring criteria; it is not agent input.
+
+outputs:
+  - path: output
+    schema: |
+      reply.md is the final completed assistant response extracted from the
+      event log. state.json records the replay and final repository state.
+
+traces:
+  stdout: true
+  stderr: true
+  events: true
+  metrics: true
+
+hooks:
+  before_each:
+    - command: python3 "$AGENT_EVAL_PROJECT_ROOT/plugins/fix-go-cves/evals/scripts/eval.py" prepare
+      timeout: 900
+  after_each:
+    - command: python3 "$AGENT_EVAL_PROJECT_ROOT/plugins/fix-go-cves/evals/scripts/eval.py" capture
+  before_scoring:
+    - command: python3 "$AGENT_EVAL_PROJECT_ROOT/plugins/fix-go-cves/evals/scripts/eval.py" extract --run-dir "$AGENT_EVAL_RUNS_DIR/fix-go-cves:fix-go-cves/$AGENT_EVAL_RUN_ID"
+
+judges:
+  - name: replay_contract
+    description: Check replay count, final state, permitted operations, commits and PR command.
+    check: |
+      import json
+      import pathlib
+      import subprocess
+      import sys
+      helper = pathlib.Path.cwd() / "plugins/fix-go-cves/evals/scripts/eval.py"
+      result = subprocess.run(
+          [sys.executable, str(helper), "check", "--case-dir", outputs["case_dir"]],
+          capture_output=True, text=True, check=True)
+      verdict = json.loads(result.stdout)
+      if type(verdict.get("passed")) is not bool or not isinstance(verdict.get("reason"), str):
+          raise ValueError("Malformed replay-contract verdict")
+      return (verdict["passed"], verdict["reason"])
+
+  - name: backport
+    description: Identify the existing default-branch fix and recommend a usable backport.
+    feedback_type: bool
+    samples: 3
+    prompt: |
+      Evaluate only the backport criterion in the authoritative annotations.
+      Accept equivalent wording and evidence. Do not add requirements about
+      wording, formatting, or whether the Go directive raise needs approval.
+
+      Annotations:
+      {{ annotations }}
+
+      Final reply:
+      {{ outputs.files['output/reply.md'] }}
+
+  - name: action_owner
+    description: Give the flagged failure a supported action and an owner.
+    feedback_type: bool
+    samples: 3
+    prompt: |
+      Evaluate only the action_owner criterion in the authoritative annotations.
+      Accept equivalent wording and evidence. Do not require a team decision
+      about the Go directive raise, and do not penalize a supported caveat about it.
+      Every substantive requirement in this criterion must be satisfied. An
+      omitted requirement fails; do not award a pass for meeting most of them
+      or infer an unstated prerequisite. The rerun advice must unambiguously
+      establish that the repair reaches the remote target branch before rerunning;
+      a backport confined to a local or generated fix branch is insufficient.
+
+      Annotations:
+      {{ annotations }}
+
+      Final reply:
+      {{ outputs.files['output/reply.md'] }}
+
+thresholds:
+  replay_contract:
+    min_pass_rate: 1.0
+    max_error_rate: 0
+  backport:
+    max_error_rate: 0
+  action_owner:
+    max_error_rate: 0

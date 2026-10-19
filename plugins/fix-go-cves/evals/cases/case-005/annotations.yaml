@@ -1,0 +1,22 @@
+result_commit: aa5a4fceed9e8fa688ada8a545c241a9571b759c
+fix_branch: fix-0.24-cves-2026-10-15
+exit_code: 2
+required_commits:
+  - aa5a4fceed9e8fa688ada8a545c241a9571b759c
+  - 8234df00db9a5d9893f4e07d55f173349a7d7e1e
+criteria:
+  backport: >-
+    Identifies default-branch commit 8234df0 (at least seven hexadecimal
+    characters, or its full hash) as the existing fix for the non-constant
+    format string in pkg/reporter/adapter.go, and recommends backporting it.
+    The pinned release branch calls Failure with a computed string; this
+    commit uses Failure("%s", capitalizeFirst(err.Error())). Merely proposing
+    an unspecified repair or a different commit does not satisfy this criterion.
+  action_owner: >-
+    Explains that the run is blocked by the reporter test/vet failure despite
+    zero outstanding CVEs, assigns the target-branch repair and rerun to a
+    maintainer, and says the repair must reach origin/release-0.24 before
+    rerunning the skill. A fix confined to the generated CVE branch is
+    insufficient because reruns start from the target branch. Reports that
+    no PR command was printed and does not invent a push or PR command.
+    Whether the Go directive raise separately needs team approval is not scored.

@@ -1,261 +1,153 @@
 # Testing and evals
 
-How each layer of the plugin is tested, and what to build next.
+The plugin has three complementary layers:
 
-## Layers
+- **Scripts:** `test/test-lib.sh` covers mutations, rollback and gates with about
+  2,300 hermetic checks. Runtime changes need regressions here.
+- **Historical replay:** the packaged admiral recording measures today's skill
+  using a real pinned checkout, recorded scripts and output. One model trial has
+  completed successfully; it does not validate today's remediation scripts.
+- **Live evaluation:** today's skill and scripts run against a pinned real
+  repository with its detected build/test commands and real Grype. Each live
+  trial needs its own execution evidence; replay success does not establish it.
 
-- **Scripts** (`scripts/`, `subagents/*.sh`) decide versions, commits,
-  ignores and gates. `test/test-lib.sh` covers them with about 2,300
-  hermetic checks.
-- **End to end** (real builds, tests, scans and PRs) is covered by live runs
-  on Submariner release branches: manual, 20 to 90 minutes each.
-- **The skill** (`SKILL.md`) turns a finished run into the cause, evidence,
-  action and owner for each finding. Nothing measures it.
+Live failures feed the faster layers: a script bug gets a hermetic regression,
+and an interpretation mistake gets a replay case. User-requested live evaluation
+now supplements the earlier manual Submariner release-branch runs.
 
-Live-run failures feed the faster layers: a script bug gets a hermetic
-regression test, and a skill mistake gets an eval case.
+## Current implementation
 
-## 1. Run the suite in CI
+`make test` runs the shell suite, requires Go 1.24 or later, and fails rather
+than skips when `CI` is set. The workflow uses `ubuntu-latest` without explicit
+Go setup. The eval helper's unit checks are included through `evals/test_eval.py`.
 
-**Status:** done in this PR. `make test` runs the suite, requires Go 1.24 or
-later, and fails rather than skips when `CI` is set. The workflow uses
-`ubuntu-latest` without an explicit Go setup. The suite takes a few minutes;
-if maintainers object, move it to a Prow job with
-`run_if_changed: ^plugins/fix-go-cves/`.
+The [eval README](../evals/README.md) documents setup, credentials, commands,
+fixture contents and results. `evals/run.sh`, stock harness configuration and
+`evals/scripts/eval.py` implement preparation, replay, state capture, final-reply
+extraction and checks. The helper fetches pinned real history, restores the
+recorded result bundle, stages historical scripts with today's `SKILL.md`, and
+keeps judge annotations and reference answers outside the agent workspace.
 
-## 2. Evaluate the skill
+The replay dry run retained the recorded `aa5a4fc` commit using a real GitHub
+checkout. The first completed model pilot passed its deterministic contract and
+the original fact judges. Manual review found incomplete next-step advice and
+unsupported causality/risk claims. A stricter `action_owner` prompt now fails the
+same reply in all three samples; the agent was not rerun and its original scores
+remain preserved. Execution took 83 seconds, 18 turns and $0.53; judge calls were
+unpriced, so total evaluation cost is unknown. A prior authentication failure
+completed no task work and is not a behavioral trial.
 
-**Status:** six recordings in `.work/fix-go-cves-evals/source/`; case packaging
-and corrected references remain unfinished. No eval runner or checks are built.
-The rest of this section describes proposed work.
+The integration was exercised with agent-eval-harness at
+[`1a980e707909a23f8c143ce333d97f5203db34ab`](https://github.com/opendatahub-io/agent-eval-harness/tree/1a980e707909a23f8c143ce333d97f5203db34ab).
+Record the revision used by subsequent runs and recheck integration when it
+changes. The stock runner's permissions and state/trace checks do not isolate
+host files or credentials; stronger isolation belongs in the shared harness.
 
-On release-0.24 the skill found a default-branch backport for a license
-failure and traced stdlib findings to the build image, but it also relayed
-or misread two verdicts from `review.sh`, and in one run missed the
-backport. The cases cover each; two of the underlying script bugs are under
-[Correctness](README.md#correctness).
+## Finish the replay pilot
 
-### Design
+Case 005's corrected reference identifies default-branch `8234df0` and puts the
+backport on the target branch before rerunning: reruns start at `origin/<branch>`.
+One negative omits the backport; another confines it to the generated fix branch.
+Current-prompt calibration is complete: the reference passes both criteria, and
+each negative fails its corresponding criterion in three agreeing, error-free
+samples. The retained pilot also fails the stricter `action_owner` judge in
+three agreeing samples. Calibration dollar costs were unavailable.
 
-- **Replay, not rerun.** A case replays a recorded `fix-all.sh` run in a
-  workspace rebuilt to match it, avoiding the full build, scan and Docker run.
-  Measure trial time and cost in the pilot.
-- **The repository's harness.** agent-eval-harness on its `claude-code`
-  runner reports cost, tokens and model per case, as a maintainer asked for
-  in the k8s-rebase review. Files live in `plugins/fix-go-cves/evals/`,
-  laid out like `plugins/ci/evals/`.
-- **The recorded plugin, today's skill.** The agent gets the plugin as it
-  was when the log was recorded; only `SKILL.md`, the thing under test,
-  comes from the working tree. Today's scripts carry comments written after
-  the recordings, one naming case 004's answer.
-- **The stock runner.** Permissions and state checks limit or detect expected
-  mistakes; they do not isolate host files or credentials. Use trusted code
-  and inspect unexpected sessions. Strong isolation belongs in the shared
-  harness rather than a custom runner for this plugin.
+Next improve the skill's response completeness: state the actual remaining-CVE
+and PR status, make remote-target repair before rerunning unambiguous, and avoid
+unsupported causality or risk claims. Evaluate that change against the retained
+pilot and its manual findings. A factual failure is useful evidence; do not
+rerun an unchanged configuration merely to obtain a pass.
 
-### Build first
+Keep this pilot small. Add more cases after preparation, loaded script/skill
+hashes, per-case environments, one replay, retained state, reply extraction and
+judge sampling are demonstrated. These now have pilot coverage; the three-round
+acceptance baseline remains pending. Runtime fixes are independent of this pilot.
 
-Start with **005 (admiral)**: one recorded fix commit, no printed PR command,
-and no binary-stub inconsistency. The default-branch pin contains backport
-`8234df0`; correct the reference's rerun advice before using it.
+## Historical cases
 
-Build one fixture, stock harness YAML and only the preparation, extraction and
-checks it needs. Dry-run preparation and replay without models, builds or scans.
-Then run one trial and the actual judges on the corrected reference and one
-negative that misses the backport. Check loaded script hashes and skill, per-case
-environment, exactly one replay, retained result state, final-reply extraction
-and complete judge samples. Record harness revision, cost and time, including
-whether a cold clone fits 900-second setup hooks (default 120).
+Six source recordings are held locally under `.work/fix-go-cves-evals/source/`.
+Only 005 is packaged; the other rows describe candidate follow-ups.
 
-A failed factual verdict can still prove the plumbing works: inspect and retain
-that reply, rather than rerunning until it passes. Package more cases and apply
-the three-round acceptance rule only after this pilot. Runtime correctness fixes
-need their own regressions; this replay is not their prerequisite or validation.
-The integration details below were checked
-against [agent-eval-harness at `1a980e7`](https://github.com/opendatahub-io/agent-eval-harness/tree/1a980e7);
-verify them at the harness revision used for the pilot.
+| Case | Recording | Decision | Status |
+| --- | --- | --- | --- |
+| 001 | lighthouse: license | Recommends devel's cdc3003 backport | Source recording |
+| 002 | submariner: partial | Relays the PR; identifies who decides the image | Source recording |
+| 003 | cloud-prepare: clean | Recognizes that flagged lines need no action | Source recording |
+| 004 | subctl: `bin/lichen` | Avoids team escalation for the blocked bumps | Reference and binary evidence need correction |
+| 005 | admiral: govet | Recommends devel's 8234df0 backport | Packaged; one completed pilot |
+| 006 | lighthouse: x/crypto | Recognizes the spurious flag; recommends cdc3003 | Source recording; corrected reference needed |
 
-### Cases
+For 004, the criterion must cover all three blocked bumps: x/net, grpc and
+otel/sdk. Resolve the empty captured `bin/lichen` contradicting the recorded
+log before admitting it; preserve evidence sufficient for diagnosis without
+requiring a new live build.
 
-| Case | Recording | Decision |
-| --- | --- | --- |
-| 001 | lighthouse: license | Recommends devel's cdc3003 backport |
-| 002 | submariner: partial | Relays the PR; names who decides the image |
-| 003 | cloud-prepare: clean | Flagged lines need no action |
-| 004 | subctl: `bin/lichen` | No team decision for the blocked bumps |
-| 005 | admiral: govet | Recommends devel's 8234df0 backport |
-| 006 | lighthouse: x/crypto | Flag is spurious; recommends cdc3003 backport |
+For 006, the x/crypto flag followed a no-fix ignore of GO-2026-5932 and no
+x/crypto finding remained. A passing reply says no further x/crypto action is
+needed; blaming a Go raise or sending that flag to the team fails. Its license
+failure also needs 001's backport criterion. Correct 001's rerun advice as for
+005. Keep Go-raise policy scoring neutral while plugin and repository notes
+disagree ([decisions](README.md#decisions)).
 
-- **004:** the recorded reply found the leftover `bin/lichen` that blocked
-  the scan and cleared x/net for a rerun, but still sent grpc and otel/sdk
-  to the team, repeating `review.sh`. The criterion covers all three bumps.
-- **005:** the recorded reply calls the Go 1.26 raise the team's call; the
-  reference drops that claim.
-- **006:** an earlier lighthouse run with the same license failure, so it
-  also carries 001's backport criterion. Its x/crypto "policy boundary"
-  followed the ignore of GO-2026-5932, which has no fix, and the scan has no
-  x/crypto finding: the criterion passes a reply that says x/crypto needs no
-  action, and fails one that blames the Go raise or sends it to the team.
-- Write corrected references for 004 and 006. Also correct 001 and 005's
-  fix-branch cherry-pick followed by rerun: reruns start at `origin/<branch>`,
-  so the backport must reach the target branch before rerunning.
+Package only evidence needed for a case. Preserve bundle commits and historical
+script contents, sanitize home paths, and omit raw recording transcripts, which
+contain unrelated connector, plugin and memory metadata. Include the log,
+reference, negative, input and annotations; add captured reports or stubs only
+when the case needs them. Extend the existing helper only for concrete cases.
 
-Each case directory holds `input.yaml` (repository, the base and default-branch
-commits it starts from, called pins, arguments, and stubs: untracked files
-the recording's checkout had), `annotations.yaml` (criteria, PR command,
-commits to name, flagged items), `result.bundle` (the recording's commits),
-`run.log.gz`, `reply.md` (the reference), `negatives/` (each naming the
-criterion it must fail), `reports/`, and `plugin.tar.gz` (the recorded
-plugin, limited to `.claude-plugin/`, `skills/`, `scripts/`, `subagents/`
-and `README.md`, since `plans/` names the answers). Home paths are stored as
-placeholders. Recording transcripts stay out: their first record lists the
-recording user's connectors, plugins and memory paths. The bundles keep the
-recording author's name and fork; the three never pushed (004, 005, 006)
-hold only `go.mod`, `go.sum` and `.grype.yaml` edits.
+## Scoring and acceptance
 
-### Scoring
+The deterministic contract checks retained state and allowed operations;
+fact judges score diagnosis and action/owner using three samples each. Judges
+receive final replies through fenced `outputs.files` values and authoritative
+annotations. Replay extracts the final completed result rather than progress
+commentary. A missing, errored or empty final reply is an error.
 
-Deterministic checks (`checks.py`) gate every trial:
+- Require every deterministic check to pass in three of three rounds, and every
+  factual criterion to pass in at least two. A round runs every admitted case.
+  Inspect per-case results; pooled rates can hide a consistently failing case.
+- Missing, skipped or errored verdicts and incomplete samples are errors, never
+  passes or factual failures. The helper checks complete sample counts and
+  `stability.error_count`; `max_error_rate: 0` alone is insufficient.
+- A case at exactly two of three on facts gets three additional trials on both
+  the old and new configurations. Accept the change only if the new one does
+  no worse, and inspect failures before attributing them to the change.
+- Calibrate actual judge prompts on corrected references and negatives before
+  trusting scores. Add one-fact edits, recorded wrong replies and a reply that
+  asks the judge to pass it as concrete cases warrant. Repeat calibration when
+  criteria, judge models or fixtures change; automate it after the pilot works.
 
-1. **State.** On the fix branch at the recorded result, a clean worktree,
-   bare-remote refs at their pins, untracked and ignored files equal to the
-   case's stubs plus the harness's excluded paths, an empty `gh` log, and
-   no attempted or denied push, `gh`, stash or clean.
-2. **One run.** The script ran once, for the requested branch.
-3. **PR command.** If the log printed one, a code block in the reply holds
-   the same command, compared as shell tokens (logs escape the title,
-   replies quote it); otherwise no block holds `gh pr create`.
-4. **Commits.** The annotated commits appear in the reply, by a prefix of at
-   least seven characters.
+The recordings helped tune `SKILL.md`, so these are regression cases rather
+than evidence of generalization. Keep useful historical cases when runtime
+scripts or the review prompt change. Add a current-output recording when a new
+interpretation failure warrants one; revise an existing case when its expected
+behavior changes or its evidence is wrong.
 
-Judged facts are binary criteria needing reasoning the log does not hand
-over, such as "the x/net, grpc and otel/sdk bumps were skipped because the
-scan was blocked, and need no team decision". One more per case requires
-every flagged item to get an action and an owner, so a reply cannot pass on
-its headline alone. Criteria stay neutral on whether a Go directive raise
-needs the team, since the plugin and the repositories' workflow notes
-disagree (see [Decisions](README.md#decisions)).
+## Live evaluation and drift
 
-- One boolean judge per criterion (`feedback_type: bool`, `samples: 3`,
-  majority vote), reading only the fenced reply and `{{ annotations }}`.
-- A trial passes its facts only if every criterion passes. A case passes
-  with its deterministic checks in three of three rounds (a round is one
-  trial of every case) and its facts in at least two; a pooled rate would
-  hide a case that always fails.
-- A missing, skipped or errored verdict, or a failed or unrecorded harness
-  stage (checks 1 to 4 raise when the state record is missing or
-  malformed), is ERROR: rerun, never counted as a pass or a failure.
-  Inspect sample counts and `stability.error_count`: the harness can report
-  PASS from one surviving sample when the other two error, which
-  `max_error_rate: 0` alone does not catch. Require all requested samples.
-- Apply `min_pass_rate: 1.0` to deterministic checks and `max_error_rate: 0`
-  to harness errors. Harness thresholds pool cases by judge; initially inspect
-  saved results manually for the per-case, three-round fact rule above.
-- Accept a `SKILL.md` or model change on three rounds. A case at exactly
-  two of three on facts gets three more trials each on the old and new
-  configuration, and the change is accepted only if the new one does no
-  worse. Read failing sessions before blaming the change, since a case can
-  be wrong too.
-- The cases helped tune `SKILL.md` (its license wording came from 001 and
-  006), so they guard against regressions, not prove the skill generalizes.
+The [live case index](../evals/live/README.md) tracks actual end-to-end trials.
+Use `evals/run.sh --live` for this track, with its documented runtime prerequisites.
+Do not replay logs, stub scanners, or replace repository build/test commands in
+a live trial. Changing findings are expected: the Grype database and builder
+images are external state, so score the observed outcome and supporting evidence
+rather than demanding an old recording's commit or failure. Record timings,
+execution cost, available judge cost and any environment blockers separately.
 
-**Calibration.** Before trusting scores, run the actual judge prompts on
-the corrected references and negatives. Each reference must pass and each
-negative fail its named criterion, without sample errors. Include one-fact
-edits, the recorded wrong replies and a reply that asks the judge to pass it.
-Inspect the first baseline replies by hand. Automate repeated calibration only
-after the pilot works; repeat it when criteria, judge model or fixtures change.
+An optional weekly `scripts/report.sh` canary on one fast repository can later
+catch scanner/database and builder drift, after report validation and scanner
+deadlines are fixed ([operations](README.md#operations)). It should fail on
+incomplete scans rather than findings; it supplements the full live evaluation.
 
-**Historical coverage.** Replay does not exercise today's scripts or review
-prompt. Keep useful historical cases when those change; add current-output
-recordings when a new interpretation failure warrants one. Revise an old case
-only when its expected skill behavior changes or its evidence is wrong.
-The live Grype database and build images are not pinned, so a new recording
-need not reproduce an old failure. Recheck references, commits, PR command and
-judge calibration whenever a fixture changes.
+## Later
 
-### Guards
+- An optional manually started CI job, after the shared eval workflow's harness
+  pinning, credential mounts and threshold handling are addressed.
+- Per-trial container isolation with host-side model credentials, implemented
+  in the shared harness rather than independently here.
+- Direct `review.sh` eval cases if a mistake cannot be covered by replay or a
+  live trial.
 
-**Workspace** (`workspace.sh prepare`, the `before_each` hook):
-
-- fetches only the pinned commits, with no tags, into a fresh repository and
-  fresh bare remotes, since later history holds the answers for 001 and
-  005; remote paths end in `owner/repo.git` and `origin/<base>` and
-  `origin/<default>` exist, since the skill checks both;
-- removes the harness's `.git`, its links into ai-helpers and `input.yaml`,
-  which would collide with the case repository;
-- copies in nothing from the case directory but the plugin, bundle, log,
-  stubs and reports, so `annotations.yaml`, `reply.md` and `negatives/`
-  never reach the workspace;
-- lists the harness's paths in `.git/info/exclude`, since `SKILL.md` stops
-  on untracked files;
-- prepopulates `.staged-plugins/fix-go-cves`, which the stock runner reuses,
-  with the recorded plugin, today's `SKILL.md`, and a preamble in
-  `fix-all.sh` that applies the bundle, prints the log with placeholders
-  filled, and exits with the recorded code; the real script text stays
-  below it for an agent that reads it;
-- restores stubs in the replay checkout and reports outside `cases/`, which
-  the harness scores directory by directory. Resolve subctl's empty `bin/lichen`
-  contradicting its log before admitting the case; preserve enough captured
-  evidence for the diagnosis without requiring a live build.
-
-**Isolation:**
-
-- `before_each` creates a fresh `TMPDIR` and `HOME` and supplies them through
-  the harness's hook-output environment, plus a `gh` shim that logs its arguments.
-  An environment set once by `run.sh` would be shared across cases. This avoids
-  default discovery of user configuration; it does not block host-file access.
-- `runner.env` sets `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0`,
-  `GIT_ALLOW_PROTOCOL=file`, `GOPROXY=off` and `GOTOOLCHAIN=local` to disable
-  ordinary git and Go network fetches; these are not an egress sandbox.
-- The eval's `permissions.deny` blocks `git push`, `gh`, MCP, web tools and
-  subagents, so check 1 has denials to find.
-- Model credentials remain readable, and the stock runner grants project-root
-  access. Check 1 also fails detected reads of the ai-helpers checkout, where
-  the answers live; this detects leakage rather than enforcing file isolation.
-- Judges get the reply only through `{{ outputs.files[...] }}` with no
-  filters, which the harness fences as untrusted, never `llm_rubric` or
-  `{{ conversation }}`. The global `before_scoring` hook iterates case outputs
-  and parses each JSON event log for the final completed `result`, excluding
-  progress commentary. Missing or errored final results are ERROR.
-
-**Hermetic tests** (in `make test`) cover case-content, tarball and judge-template
-rules without a trial. They also fail on no cases, an empty rendered reply,
-a recorded log missing what `SKILL.md` reads,
-and a plugin manifest with keys beyond `name`, `version`, `description` and
-`author` (a plugin can declare unsandboxed hooks).
-
-**Fixture checks** (before committing a case, and first in `run.sh`) prepare
-each case, validate its refs and paths, and check that each criterion has a
-judge. Add only checks needed to establish the replay contract above.
-
-### Later
-
-- **CI.** An optional Prow job on the shared `openshift-claude-agent-eval`
-  workflow, started by hand after a maintainer reads the PR's whole plugin
-  diff and checks the head commit just before posting, once issues are filed
-  against that workflow (it clones the harness at `main`, mounts an unused
-  GitHub token, and ignores thresholds).
-- **Container isolation.** A per-trial networkless container whose model
-  credentials stay on the host behind a proxy, for CI or untrusted changes;
-  better added to agent-eval-harness than built here.
-- **`review.sh` cases**, if a review mistake appears that replay cannot
-  catch.
-
-## 3. Optional: live canary
-
-Run `scripts/report.sh` weekly on one fast repository (Shipyard `devel`) on
-a runner with Docker, after fixing report validation and scanner deadlines
-([Operations](README.md#operations)). It needs no model and should fail on
-incomplete scans, never on findings. It can catch drift no recorded case can: Grype
-schema or database changes, new Go releases, builder-image changes. Several
-release-0.24 failures were drift of this kind.
-
-## Not planned
-
-- Evals that run the full fix: they take hours and need Docker, and the
-  canary and live runs cover end-to-end behavior.
-- A with/without-skill comparison: without the skill, nothing runs the
-  scripts.
-- An eval of the LLM verification layer: the recorded runs already settle
-  it (see [Decisions](README.md#decisions)).
+A with/without-skill comparison is not planned: without the skill, nothing
+invokes the scripts. The redundant model verification layer has its own removal
+decision ([decisions](README.md#decisions)); no separate eval is planned for it.

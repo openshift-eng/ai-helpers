@@ -1,0 +1,514 @@
+#!/usr/bin/env python3
+"""Prepare one real checkout, replay a recording, and check the stock harness run."""
+
+import argparse
+import gzip
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tarfile
+import time
+
+EVAL_ROOT = Path(__file__).resolve().parents[1]
+INFRA = ('.claude', '.replay', '.staged-plugins', 'hooks', 'subagents', 'output')
+AUDITS = ('scan-regression', 'existing-entries', 'fix-availability', 'yaml-integrity')
+
+
+def run(*args, cwd=None, env=None):
+    return subprocess.run(args, cwd=cwd, env=env, text=True, capture_output=True,
+                          check=True, timeout=600).stdout.strip()
+
+
+def git(repo, *args):
+    return run('git', '-C', str(repo), *args)
+
+
+def read_json(path):
+    return json.loads(Path(path).read_text())
+
+
+def write_json(path, value):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2) + '\n')
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def plugin_hashes(plugin):
+    return {str(p.relative_to(plugin)): digest(p) for p in sorted(plugin.rglob('*'))
+            if p.is_file() and not p.is_symlink() and p.relative_to(plugin).parts[0] != 'bin'}
+
+
+def unpack_plugin(archive, destination):
+    allowed = {'.claude-plugin', 'skills', 'scripts', 'subagents', 'README.md'}
+    with tarfile.open(archive) as tar:
+        seen = set()
+        for member in tar.getmembers():
+            name = PurePosixPath(member.name)
+            if (name.is_absolute() or '..' in name.parts or not name.parts
+                    or name.parts[0] not in allowed or member.name in seen
+                    or not (member.isfile() or member.isdir())):
+                raise ValueError(f'Unsafe plugin archive entry: {member.name}')
+            seen.add(member.name)
+        tar.extractall(destination, filter='data')
+    manifest = read_json(destination / '.claude-plugin/plugin.json')
+    if set(manifest) != {'name', 'description', 'version', 'author'}:
+        raise ValueError('Recorded plugin manifest may not enable hooks or servers')
+    for audit in AUDITS:
+        if not (destination / f'subagents/{audit}.sh').is_file():
+            raise ValueError(f'Recorded plugin lacks audit: {audit}')
+
+
+def case_data(source):
+    import yaml
+
+    data = yaml.safe_load((source / 'input.yaml').read_text())
+    expected = yaml.safe_load((source / 'annotations.yaml').read_text())
+    for field in ('base_commit', 'default_commit'):
+        if not re.fullmatch('[0-9a-f]{40}', data[field]):
+            raise ValueError(f'Invalid pin: {field}')
+    live = data.get('mode') == 'live'
+    if not live and not re.fullmatch('[0-9a-f]{40}', expected['result_commit']):
+        raise ValueError('Invalid result commit')
+    if not data['repository'].startswith('https://github.com/'):
+        raise ValueError('Fixture repository must be an explicit GitHub HTTPS URL')
+    for branch in (data['base_branch'], data['default_branch'], data['original_branch'],
+                   *([] if live else [expected['fix_branch']])):
+        run('git', 'check-ref-format', '--branch', branch)
+    return data, expected
+
+
+def prepare(workspace, source):
+    """Called by before_each, before the agent sees any fixture answers."""
+    workspace, source = Path(workspace).resolve(), Path(source).resolve()
+    if (workspace / 'go.mod').exists() or (workspace / '.replay').exists():
+        raise ValueError('Refusing to overwrite an existing or already prepared checkout')
+    data, expected = case_data(source)
+    workspace.mkdir(parents=True, exist_ok=True)
+    for child in workspace.iterdir():
+        if child.is_symlink():
+            child.unlink()  # Harness links into the answer-bearing project.
+        elif child.name == '.git':
+            shutil.rmtree(child)
+        elif child.name == 'input.yaml':
+            child.unlink()  # Args were resolved before before_each.
+        elif child.name not in INFRA:
+            raise ValueError(f'Unexpected harness workspace entry: {child.name}')
+    settings = workspace / '.claude'
+    if settings.exists():
+        for child in settings.iterdir():
+            if child.is_symlink():
+                child.unlink()
+    private = workspace / '.replay'
+    private.mkdir(mode=0o700)
+    (private / 'bin').mkdir()
+    upstream = private / 'remotes/submariner-io/admiral.git'
+    upstream.parent.mkdir(parents=True)
+    run('git', 'init', '--bare', str(upstream))
+    for branch, commit in ((data['base_branch'], data['base_commit']),
+                           (data['default_branch'], data['default_commit'])):
+        # Only pinned history, no tags or later branch tips. Setup alone fetches.
+        run('git', '-c', 'protocol.https.allow=always', '-C', str(upstream),
+            'fetch', '--no-tags', data['repository'], f'{commit}:refs/heads/{branch}')
+    git(upstream, 'symbolic-ref', 'HEAD', f'refs/heads/{data["default_branch"]}')
+    fork = private / 'remotes/fork/admiral.git'
+    fork.parent.mkdir(parents=True)
+    run('git', 'clone', '--bare', '--no-local', str(upstream), str(fork))
+    git(workspace, 'init')
+    git(workspace, 'remote', 'add', 'origin', str(upstream))
+    git(workspace, 'remote', 'add', 'fork', str(fork))
+    git(workspace, 'fetch', '--no-tags', 'origin')
+    git(workspace, 'checkout', '-b', data['original_branch'],
+        f'origin/{data["default_branch"]}')
+    git(workspace, 'config', 'user.name', 'Eval')
+    git(workspace, 'config', 'user.email', 'eval@example.invalid')
+    control = workspace.parent.parent / 'control' / workspace.name
+    runtime = control / 'runtime'
+    for name in ('home', 'tmp'):
+        (runtime / name).mkdir(parents=True)
+    live = data.get('mode') == 'live'
+    if not live:
+        shutil.copy2(source / 'result.bundle', private / 'result.bundle')
+        git(workspace, 'bundle', 'verify', str(private / 'result.bundle'))
+        heads = git(workspace, 'bundle', 'list-heads', str(private / 'result.bundle')).splitlines()
+        matching = [line.split()[1] for line in heads
+                    if line.split()[0] == expected['result_commit']]
+        if len(matching) != 1:
+            raise ValueError('Bundle must advertise the one recorded result')
+        git(workspace, 'fetch', str(private / 'result.bundle'), matching[0])
+        if git(workspace, 'rev-parse', f'{expected["result_commit"]}^') != data['base_commit']:
+            raise ValueError('Pilot result must have the pinned base as its sole parent')
+    (workspace / '.git/info/exclude').write_text(
+        '\n'.join(f'/{name}/' for name in INFRA) + '\n/.hook-outputs.json\n')
+    plugin = workspace / '.staged-plugins/fix-go-cves'
+    plugin.mkdir(parents=True)
+    if live:
+        for name in ('.claude-plugin', 'skills', 'scripts', 'subagents'):
+            shutil.copytree(EVAL_ROOT.parent / name, plugin / name)
+        shutil.copy2(EVAL_ROOT.parent / 'README.md', plugin / 'README.md')
+    else:
+        unpack_plugin(source / 'plugin.tar.gz', plugin)
+    shutil.copy2(EVAL_ROOT.parent / 'skills/fix-go-cves/SKILL.md',
+                 plugin / 'skills/fix-go-cves/SKILL.md')
+    shutil.copy2(__file__, private / 'driver.py')
+    fix_all = plugin / 'scripts/fix-all.sh'
+    original = fix_all.read_text()
+    if live:
+        # The real runtime may download its own scanner into plugin/bin. Keep
+        # tools and caches outside the checkout so scans cover application artifacts.
+        shutil.copytree(plugin, runtime / 'plugin')
+    fix_all.write_text('#!/usr/bin/env bash\nexec ' + shlex.quote(sys.executable)
+                       + ' ' + shlex.quote(str(private / 'driver.py'))
+                       + ' replay "$@"\n\n# Recorded implementation follows.\n' + original)
+    fix_all.chmod(0o755)
+    if not live:
+        log = gzip.decompress((source / 'run.log.gz').read_bytes()).decode()
+        log = log.replace('{{REPO}}', str(workspace)).replace('{{HOME}}', str(runtime / 'home'))
+        (private / 'run.log').write_text(log)
+    shim = private / 'bin/gh'
+    shim.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "' + str(private / 'gh.log')
+                    + '"\nexit 97\n')
+    shim.chmod(0o755)
+    meta = dict(data)
+    meta['runtime_dir'] = str(runtime)
+    if not live:
+        meta.update(result_commit=expected['result_commit'], fix_branch=expected['fix_branch'],
+                    exit_code=expected['exit_code'])
+    write_json(private / 'meta.json', meta)
+    baseline = {'workspace': str(workspace), 'source': str(source), 'runtime_dir': str(runtime),
+                'plugin_hashes': plugin_hashes(plugin), 'meta': meta,
+                'refs': {str(p): git(p, 'show-ref') for p in (upstream, fork)}}
+    if live:
+        baseline['runtime_plugin_hashes'] = plugin_hashes(runtime / 'plugin')
+    # Outside the agent workspace: capture compares against trusted setup state.
+    write_json(control / 'baseline.json', baseline)
+    hook_env = {'HOME': str(runtime / 'home'), 'TMPDIR': str(runtime / 'tmp'),
+                'PATH': str(private / 'bin') + ':' + os.environ['PATH']}
+    write_json(workspace / '.hook-outputs.json', {'env': hook_env,
+               'data': {'workspace': str(workspace), 'case_source': str(source),
+                        'plugin_hashes': baseline['plugin_hashes']}})
+    print(f'Prepared {workspace.name}: pinned real checkout, {"live runtime" if live else "recorded replay"}')
+    return baseline
+
+
+def replay(arguments):
+    workspace = Path(__file__).resolve().parent.parent
+    meta = read_json(workspace / '.replay/meta.json')
+    calls = workspace / '.replay/invocations.jsonl'
+    previous = calls.read_text().splitlines() if calls.exists() else []
+    with calls.open('a') as stream:
+        stream.write(json.dumps({'arguments': arguments, 'time': time.time()}) + '\n')
+    if previous or not requested_arguments(arguments, meta, workspace):
+        raise ValueError('Replay must run once with the requested branch')
+    if (git(workspace, 'rev-parse', 'HEAD') != meta['default_commit']
+            or git(workspace, 'status', '--porcelain')):
+        raise ValueError('Replay checkout changed before invocation')
+    if meta.get('mode') == 'live':
+        return live_run(workspace, arguments)
+    git(workspace, 'checkout', '-b', meta['fix_branch'], meta['result_commit'])
+    print((workspace / '.replay/run.log').read_text(), end='')
+    return meta['exit_code']
+
+
+def live_run(workspace, arguments):
+    """Tee the actual runtime output; never substitute a recorded result."""
+    runtime = Path(read_json(workspace / '.replay/meta.json')['runtime_dir'])
+    script = runtime / 'plugin/scripts/fix-all.sh'
+    with (workspace / '.replay/run.log').open('w') as log:
+        with subprocess.Popen(['bash', str(script), *arguments], cwd=workspace,
+                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True, bufsize=1) as process:
+            for line in process.stdout:
+                log.write(line)
+                log.flush()
+                print(line, end='', flush=True)
+            status = process.wait()
+    write_json(workspace / '.replay/status.json', {
+        'exit_code': status, 'head': git(workspace, 'rev-parse', 'HEAD'),
+        'branch': git(workspace, 'branch', '--show-current')})
+    return status
+
+
+def requested_arguments(arguments, meta, workspace):
+    arguments = list(arguments)
+    for index, value in enumerate(arguments):
+        candidate = Path(value) if value.startswith('/') else workspace / value
+        if (value == '.' or value.startswith('/')) and candidate.resolve() == workspace:
+            del arguments[index]
+            break
+    return arguments in (meta['arguments'], [meta['base_branch']])
+
+
+def generated_artifacts(workspace):
+    """Accept only exact executable outputs recorded by the real build runtime."""
+    manifest = Path(git(workspace, 'rev-parse', '--path-format=absolute', '--git-path',
+                        'fix-go-cves-artifacts'))
+    if not manifest.is_file():
+        return set()
+    artifacts = set()
+    for line in manifest.read_text().splitlines():
+        path = Path(line)
+        if (path.is_absolute() and not path.is_symlink() and path.is_file()
+                and path.resolve().is_relative_to(workspace) and os.access(path, os.X_OK)):
+            artifacts.add(str(path.relative_to(workspace)))
+    return artifacts
+
+
+def capture(workspace):
+    workspace = Path(workspace).resolve()
+    baseline = read_json(workspace.parent.parent / 'control' / workspace.name / 'baseline.json')
+    private = workspace / '.replay'
+    calls = private / 'invocations.jsonl'
+    artifacts = generated_artifacts(workspace) if baseline['meta'].get('mode') == 'live' else set()
+    state = {'head': git(workspace, 'rev-parse', 'HEAD'),
+             'branch': git(workspace, 'branch', '--show-current'),
+             'dirty': git(workspace, 'status', '--porcelain', '--untracked-files=all'),
+             'unexpected_ignored': [name for name in git(workspace, 'ls-files', '--others',
+                 '--ignored', '--exclude-standard').splitlines()
+                 if PurePosixPath(name).parts[0] not in INFRA and name not in artifacts],
+             'invocations': [json.loads(line) for line in calls.read_text().splitlines()]
+                            if calls.exists() else [],
+             'gh_calls': (private / 'gh.log').read_text() if (private / 'gh.log').exists() else '',
+             'plugin_unchanged': plugin_hashes(workspace / '.staged-plugins/fix-go-cves')
+                                 == baseline['plugin_hashes'],
+             'refs_unchanged': all(git(Path(path), 'show-ref') == refs
+                                   for path, refs in baseline['refs'].items()),
+             'expected': baseline['meta'], 'workspace': str(workspace)}
+    if state['expected'].get('mode') == 'live':
+        state['generated_artifacts'] = sorted(artifacts)
+        status = private / 'status.json'
+        completion = read_json(status) if status.exists() else {}
+        state['runtime_exit'] = completion.get('exit_code')
+        state['runtime_head'] = completion.get('head')
+        state['runtime_branch'] = completion.get('branch')
+        state['runtime_plugin_unchanged'] = plugin_hashes(Path(baseline['runtime_dir']) / 'plugin') == baseline['runtime_plugin_hashes']
+        original = state['branch'] == state['expected']['original_branch'] and state['head'] == state['expected']['default_commit']
+        state['changed_files'] = [] if original else git(workspace, 'diff', '--name-only',
+                                                       state['expected']['base_commit'], 'HEAD').splitlines()
+        log = (private / 'run.log').read_text() if (private / 'run.log').exists() else ''
+        (workspace / 'output').mkdir(exist_ok=True)
+        shutil.copy2(private / 'run.log', workspace / 'output/run.log') if log else None
+        # Keep diagnostic context while dropping repetitive scanner progress.
+        lines = log.splitlines()
+        selected = set()
+        pattern = r'^(--- |Fix branch:|Fixed:|FIXED:|IGNORED:|NEEDS_REVIEW:|ERROR:|TIMEOUT:|WARNING:|NOT READY|POLICY|Clean:|No CVEs|PR command|[0-9a-f]{7,40} )|\.go:[0-9]+:|FAIL|failed|timed out|not detected'
+        for index, line in enumerate(lines):
+            if re.search(pattern, line):
+                selected.update(range(max(0, index - 2), min(len(lines), index + 4)))
+        evidence = (f'Runtime exit: {state["runtime_exit"]}\n'
+                    f'Runtime HEAD: {state["runtime_head"]}\n'
+                    f'Runtime branch: {state["runtime_branch"]}\n'
+                    f'Captured HEAD: {state["head"]}\n'
+                    f'Captured branch: {state["branch"]}\n\n'
+                    + '\n'.join(lines[index] for index in sorted(selected)))
+        (workspace / 'output/evidence.txt').write_text(evidence + '\n')
+        state['runtime_summary'] = '--- Summary:' in log or 'No CVEs found.' in log
+    write_json(workspace / 'output/state.json', state)
+
+
+def events(path):
+    result = []
+    for line in path.read_text().splitlines():
+        if line.strip():
+            value = json.loads(line)
+            if isinstance(value, dict):
+                result.append(value)
+    return result
+
+
+def final_reply(stream):
+    results = [event for event in stream if event.get('type') == 'result']
+    if not results or results[-1].get('is_error') or not results[-1].get('result', '').strip():
+        raise ValueError('Missing or errored final completed response')
+    return results[-1]['result']
+
+
+def trace_violations(stream, workspace):
+    # Only case-owned runtime files are readable outside the checkout. The
+    # trusted baseline and neighboring cases remain outside this allowance.
+    runtime = workspace.parent.parent / 'control' / workspace.name / 'runtime'
+    allowed = (workspace.resolve(), runtime.resolve())
+    violations = []
+    for event in stream:
+        for item in event.get('message', {}).get('content', []):
+            if not isinstance(item, dict) or item.get('type') != 'tool_use':
+                continue
+            name, value = item.get('name', ''), item.get('input', {})
+            command = value.get('command', '')
+            if name in ('Agent', 'Task', 'WebFetch', 'WebSearch') or name.startswith('mcp__'):
+                violations.append(f'Out-of-scope tool: {name}')
+            lexer = shlex.shlex(command, posix=True, punctuation_chars=';&|()')
+            lexer.whitespace_split = True
+            try:
+                tokens = list(lexer)
+            except ValueError:
+                tokens = []
+            forbidden = 'gh' in tokens
+            for index, token in enumerate(tokens):
+                if token != 'git':
+                    continue
+                index += 1
+                while index < len(tokens) and tokens[index].startswith('-'):
+                    index += 2 if tokens[index] in ('-C', '-c', '--git-dir', '--work-tree') else 1
+                if index < len(tokens) and tokens[index] in ('push', 'stash', 'clean'):
+                    forbidden = True
+            if forbidden:
+                violations.append('Attempted publication or destructive git operation')
+            path = value.get('file_path', value.get('path', ''))
+            if name == 'Read' and path:
+                candidate = Path(path)
+                if not candidate.is_absolute():
+                    candidate = workspace / candidate
+                if not any(candidate.resolve().is_relative_to(root) for root in allowed):
+                    violations.append('Read outside the case workspace')
+            # Detect ordinary direct reads of the answer-bearing checkout and
+            # trusted eval controls, even when another argument is permitted.
+            for prefix, reason in (
+                    (str(EVAL_ROOT.parents[2]), 'Command accesses the source checkout'),
+                    (str(runtime.parent.parent), 'Command accesses protected eval control files')):
+                for path in re.findall(re.escape(prefix) + r'''[^\s'";|<>]*''', command):
+                    if not any(Path(path).resolve().is_relative_to(root) for root in allowed):
+                        violations.append(reason)
+    return violations
+
+
+def extract(run_dir):
+    cases = sorted((Path(run_dir) / 'cases').glob('case-*'))
+    if not cases:
+        raise ValueError('No completed case outputs')
+    for case in cases:
+        stream = events(case / 'stdout.log')
+        output = case / 'output'
+        state = read_json(output / 'state.json')
+        result = read_json(case / 'run_result.json')
+        if result.get('error') or result.get('exit_code') != 0:
+            raise ValueError(f'{case.name}: agent did not complete successfully')
+        state['trace_violations'] = trace_violations(stream, Path(state['workspace']))
+        state['permission_denials'] = result.get('permission_denials', [])
+        write_json(output / 'state.json', state)
+        (output / 'reply.md').write_text(final_reply(stream) + '\n')
+
+
+def check(case_dir, live=False):
+    import yaml
+
+    case = Path(case_dir)
+    state = read_json(case / 'output/state.json')
+    reply = (case / 'output/reply.md').read_text()
+    expected = state['expected']
+    blocks = '\n'.join(re.findall(r'(?ms)^```[^\n]*\n(.*?)^```', reply))
+    conditions = {
+        'clean checkout': not state['dirty'] and not state['unexpected_ignored'],
+        'one requested invocation': len(state['invocations']) == 1 and
+            requested_arguments(state['invocations'][0]['arguments'], expected,
+                                Path(state.get('workspace', '/unused-workspace'))),
+        'remotes and plugin unchanged': state['refs_unchanged'] and state['plugin_unchanged'],
+        'no forbidden operations': not state['gh_calls'] and not state['trace_violations']
+                                   and not state['permission_denials'],
+        'no invented publication command': not re.search(r'\bgh\s+pr\s+create\b|\bgit\s+push\b', blocks),
+    }
+    if live:
+        conditions['actual runtime completed'] = state['runtime_exit'] in (0, 2) and state['runtime_summary']
+        conditions['runtime result retained'] = state['head'] == state['runtime_head'] and state['branch'] == state['runtime_branch']
+        conditions['runtime plugin unchanged'] = state['runtime_plugin_unchanged']
+        conditions['dependency-only changes'] = all(re.search(
+            r'(^|/)(go\.(mod|sum)|\.grype\.yaml)$|^go\.work(\.sum)?$|(^|/)vendor/', name)
+            for name in state['changed_files'])
+    else:
+        conditions['recorded result/branch'] = state['head'] == expected['result_commit'] and state['branch'] == expected['fix_branch']
+    annotation_root = EVAL_ROOT / 'live' if live else EVAL_ROOT
+    annotation = yaml.safe_load((annotation_root / 'cases' / case.name / 'annotations.yaml').read_text())
+    hashes = re.findall(r'\b[0-9a-f]{7,40}\b', reply)
+    for commit in annotation.get('required_commits', []):
+        conditions[f'commit {commit[:7]} reported'] = any(commit.startswith(value) for value in hashes)
+    failures = [name for name, ok in conditions.items() if not ok]
+    return {'passed': not failures, 'reason': '; '.join(failures) if failures else 'Replay contract satisfied'}
+
+
+def verify(run_dir, live=False):
+    import yaml
+
+    summary_path = Path(run_dir) / 'summary.yaml'
+    summary = yaml.safe_load(summary_path.read_text())
+    per_case = summary.get('per_case', {})
+    if not per_case:
+        raise ValueError('No per-case judge results')
+    for case, judges in per_case.items():
+        names = ('live_contract', 'outcome', 'action_owner') if live else ('replay_contract', 'backport', 'action_owner')
+        for name in names:
+            result = judges[name]
+            if type(result.get('value')) is not bool or result.get('error'):
+                raise ValueError(f'{case}/{name}: missing or errored verdict')
+            if name not in ('replay_contract', 'live_contract'):
+                stability = result.get('stability', {})
+                values = stability.get('values', [])
+                if (stability.get('samples') != 3 or stability.get('error_count') != 0
+                        or len(values) != 3 or any(type(value) is not bool for value in values)):
+                    raise ValueError(f'{case}/{name}: incomplete judge samples')
+    print('All requested judge results and samples completed')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('command', choices=('prepare', 'replay', 'capture', 'extract', 'check', 'verify', 'dry-run'))
+    parser.add_argument('--workspace', type=Path)
+    parser.add_argument('--case-source', type=Path, default=EVAL_ROOT / 'cases/case-005')
+    parser.add_argument('--case-dir', type=Path)
+    parser.add_argument('--run-dir', type=Path)
+    parser.add_argument('--prepare-only', action='store_true')
+    parser.add_argument('--live', action='store_true')
+    args, extra = parser.parse_known_args()
+    if args.command == 'replay':
+        return replay(extra)
+    if extra:
+        parser.error(f'Unexpected arguments: {extra}')
+    if args.command == 'prepare':
+        prepare(os.environ['CASE_WORKSPACE'], os.environ['CASE_SOURCE_DIR'])
+    elif args.command == 'capture':
+        capture(os.environ['CASE_WORKSPACE'])
+    elif args.command == 'extract':
+        extract(args.run_dir)
+    elif args.command == 'check':
+        print(json.dumps(check(args.case_dir, args.live)))
+    elif args.command == 'verify':
+        verify(args.run_dir, args.live)
+    else:
+        if not args.prepare_only and case_data(args.case_source)[0].get('mode') == 'live':
+            raise ValueError('A model-free dry-run may replay recordings only; use --prepare-only for live cases')
+        workspace = args.workspace.resolve()
+        case = workspace / 'cases' / args.case_source.name
+        prepare(case, args.case_source)
+        if not args.prepare_only:
+            hook_env = read_json(case / '.hook-outputs.json')['env']
+            (case / '.hook-outputs.json').unlink()
+            command = ['bash', str(case / '.staged-plugins/fix-go-cves/scripts/fix-all.sh'), '0.24']
+            result = subprocess.run(command, cwd=case, env={**os.environ, **hook_env},
+                                    capture_output=True, text=True)
+            expected = read_json(case / '.replay/meta.json')['exit_code']
+            if result.returncode != expected:
+                raise ValueError(f'Replay exited {result.returncode}, expected {expected}: {result.stderr}')
+            capture(case)
+            state = read_json(case / 'output/state.json')
+            if (state['head'] != state['expected']['result_commit'] or state['dirty']
+                    or state['unexpected_ignored'] or len(state['invocations']) != 1
+                    or not state['plugin_unchanged'] or not state['refs_unchanged']):
+                raise ValueError('Model-free replay did not preserve the expected repository state')
+            print(f'Model-free replay retained {git(case, "rev-parse", "--short", "HEAD")} (exit {expected})')
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
+        print(f'ERROR: {exc}', file=sys.stderr)
+        sys.exit(1)
