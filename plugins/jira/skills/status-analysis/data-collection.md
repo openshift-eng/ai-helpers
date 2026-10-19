@@ -115,7 +115,20 @@ For each issue in `manifest.issues`, read its detailed data:
       "email": "user@example.com",
       "name": "User Name"
     },
-    "current_status_summary": "* Color Status: Green\n * Status summary:\n     ** Work in progress\n * Risks:\n     ** None",
+    "current_status_summary": {
+      "type": "doc",
+      "version": 1,
+      "content": [{
+        "type": "bulletList",
+        "content": [{
+          "type": "listItem",
+          "content": [{
+            "type": "paragraph",
+            "content": [{"type": "text", "text": "Color Status: Green"}]
+          }]
+        }]
+      }]
+    },
     "last_status_summary_update": "2026-01-28T10:30:00Z"
   },
   "descendants": {
@@ -215,7 +228,7 @@ For each issue in `manifest.issues`, read its detailed data:
 | `issue.summary` | Issue title for display |
 | `issue.status` | Current status |
 | `issue.assignee` | For attribution and display |
-| `issue.current_status_summary` | Existing status text (may need update) |
+| `issue.current_status_summary` | Existing raw ADF document or `null`; render to text only for display, and retain its `content` nodes when prepending ARO history |
 | `issue.last_status_summary_update` | For "recently updated" warnings |
 | `descendants.total` | Total child issue count |
 | `descendants.by_status` | Status breakdown for metrics |
