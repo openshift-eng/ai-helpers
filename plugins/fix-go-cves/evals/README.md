@@ -72,7 +72,6 @@ plugins/fix-go-cves/evals/run.sh --live
 `--dry-run` fetches the real pinned history and replays the result without model
 calls, builds or scans. `--prepare-only` prepares the checkout without replaying.
 Use `--model MODEL` for the invoking agent and `EVAL_JUDGE_MODEL` for judges.
-Repeat `--case ID` to select cases from the chosen track.
 `--run-id ID` chooses a new result identifier; existing identifiers are rejected.
 Repeat `--case ID` to select cases within the chosen track; defaults remain the
 recorded case-005 and live case-001.
@@ -105,11 +104,11 @@ both criteria; the missed-backport negative fails `backport`; the fix-branch-onl
 negative fails `action_owner`. Each result has three agreeing, error-free samples.
 A focused skill update now requires explicit remaining-CVE/PR status, the
 remote-target repair before rerunning, and evidence for causality. Its first
-trial passed the contract and both current fact judges, each with three agreeing,
+trial passed the contract and both then-current fact judges, each with three agreeing,
 error-free samples: 79 seconds, 15 turns and $0.49 for agent execution. Manual
 review still found unsupported claims about unrelated causality and unchanged
-behavior. This is not complete response accuracy or the three-round acceptance
-baseline; further work remains.
+behavior. These earlier passes do not establish complete response accuracy or
+qualify the later acceptance baseline.
 
 A clean-scope live trial then exceeded the intended post-run role: the agent
 edited and committed a source repair, attempted another run, and started cleanup.
@@ -119,12 +118,12 @@ blocked result: five CVEs fixed, zero outstanding, but tests failed twice and
 the runtime exited 2. Agent execution took 456 seconds, 14 turns and $0.62;
 judge and independent runtime reviewer costs were unavailable. See
 [live results](live/README.md). This is one faithful blocked run, not proof that
-all remediation gates pass or that the acceptance baseline is complete.
+all remediation gates pass or that the replay baseline is accepted.
 
 The [live attribution experiment](live/README.md) confirmed that the Go directive
 raise alone triggers the current vet failure; the reply's tooling explanation
-was inaccurate. Historical replies lacked that baseline. The acceptance baseline must still
-measure the updated skill rather than reuse the earlier passing replies.
+was inaccurate. Historical replies lacked that baseline; later acceptance
+measurements use fresh executions rather than the earlier passing replies.
 
 The skill now explicitly limits post-run work to read-only diagnosis and
 recommendations. Current causal criteria reject a wrong explanation even when
@@ -132,8 +131,24 @@ the proposed repair and owner are correct. Both references, four isolated causal
 negatives and the replay rerun negative passed a 21-call calibration with three
 agreeing, error-free samples per criterion. Earlier failed calibration attempts
 remain preserved: one lacked dependency-diff context, and judges sometimes gave
-partial credit despite recognizing the wrong explanation. Actual updated-skill
-acceptance trials remain pending. Judge costs were unavailable.
+partial credit despite recognizing the wrong explanation. Judge costs were unavailable.
+
+The first frozen replay baseline at source `5079407` then completed and
+**failed**: the contract passed 3/3 executions, but both factual criteria
+together passed only 1/3 (required 2/3). Backport passed every execution;
+action/owner failed runs 1 and 3 on unsupported causal attribution. All judge
+samples were unanimous and error-free. The three agents took 89.5, 83.5 and
+82.9 seconds and cost $1.54124 in total; 18 judge calls were unpriced. All used
+Claude Code 2.1.304 and the same frozen inputs. Full reports and manual review
+are retained in `.work/fix-go-cves-next-slice/replay-baseline-20261019/`.
+No failed trial was replaced or retried. Manual review also found unverified
+claims about upstream validation and future PR availability.
+
+The follow-up targets actual terminal-exit observation, base-to-result dependency
+comparison and qualified recommendations. A separately committed skill revision
+requires a new three-execution cohort with the same declared rule. The first
+live case-002 attempt was also invalid; see [live results](live/README.md).
+Fresh live repair, binary and blocked-case measurements remain required.
 
 The live configuration permits a larger invoking-agent budget, but that budget
 does not cap independent reviewer CLIs launched by the remediation scripts or

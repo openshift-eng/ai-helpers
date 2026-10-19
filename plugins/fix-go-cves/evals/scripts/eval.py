@@ -639,6 +639,86 @@ def final_reply(stream):
     return results[-1]['result']
 
 
+def terminal_exit_observed(stream, status):
+    """Require a matched native log observation before the final response.
+
+    This is evidence of observation, not authentication of an exact log path.
+    """
+    if type(status) is not int:
+        return False
+    observed, before_response = False, False
+    observations = set()
+    for event in stream:
+        if event.get('type') == 'assistant':
+            before_response = observed
+            for item in event.get('message', {}).get('content', []):
+                if not isinstance(item, dict) or item.get('type') != 'tool_use':
+                    continue
+                name, value = item.get('name'), item.get('input', {})
+                eligible = name == 'Read' and Path(value.get('file_path', '')).suffix == '.log'
+                if name == 'Bash':
+                    command = value.get('command', '')
+                    try:
+                        tokens = shlex.split(command)
+                    except ValueError:
+                        tokens = []
+                    launch = any(Path(token).name in ('bash', 'sh')
+                                 and Path(tokens[index + 1]).name == 'fix-all.sh'
+                                 for index, token in enumerate(tokens[:-1]))
+                    reader = any(Path(token).name in ('tail', 'head', 'cat', 'grep', 'sed', 'awk')
+                                 for token in tokens)
+                    eligible = launch or (reader and re.search(r'\$LOG\b|\$\{LOG\}|[.]log\b', command))
+                if eligible and item.get('id'):
+                    observations.add(item.get('id'))
+        elif event.get('type') == 'user':
+            for item in event.get('message', {}).get('content', []):
+                if (not isinstance(item, dict) or item.get('type') != 'tool_result'
+                        or item.get('is_error') or item.get('tool_use_id') not in observations):
+                    continue
+                content = item.get('content', '')
+                if isinstance(content, list):
+                    content = '\n'.join(block.get('text', '') for block in content
+                                        if isinstance(block, dict) and block.get('type') == 'text')
+                if isinstance(content, str):
+                    observed = observed or any(int(code) == status for code in re.findall(
+                        r'(?m)^(?:[ \t]*[0-9]+[\t:→][ \t]*)?exit=([0-9]+)[ \t]*$', content))
+    return before_response
+
+
+def independent_runtime_commands(tokens):
+    """Catch direct extra scans/builds/tests; this is not a shell sandbox."""
+    commands, current = [], []
+    for token in [*tokens, ';']:
+        if token and all(char in ';&|()\n' for char in token):
+            if current:
+                commands.append(current)
+            current = []
+        else:
+            current.append(token)
+    for command in commands:
+        if command[0] == 'env':
+            command = command[1:]
+        while command and re.match(r'[A-Za-z_][A-Za-z0-9_]*=', command[0]):
+            command = command[1:]
+        if not command:
+            continue
+        executable = Path(command[0]).name
+        if executable in ('bash', 'sh') and len(command) > 1:
+            executable = Path(command[1]).name
+        if executable in ('scan.sh', 'report.sh'):
+            return True
+        if executable in ('grype', '$GRYPE_BIN', '${GRYPE_BIN}'):
+            if len(command) == 1 or command[1] not in ('version', 'help', '--version', '--help', '-h'):
+                return True
+        if executable == 'make' and not any(
+                option in ('-v', '--version', '-h', '--help')
+                for option in command[1:]):
+            return True
+        if executable == 'go' and len(command) > 1 and command[1] in ('build', 'test'):
+            return True
+    return False
+
+
 def trace_violations(stream, workspace):
     # Only case-owned runtime files are readable outside the checkout. The
     # trusted baseline and neighboring cases remain outside this allowance.
@@ -653,12 +733,15 @@ def trace_violations(stream, workspace):
             command = value.get('command', '')
             if name in ('Agent', 'Task', 'WebFetch', 'WebSearch') or name.startswith('mcp__'):
                 violations.append(f'Out-of-scope tool: {name}')
-            lexer = shlex.shlex(command, posix=True, punctuation_chars=';&|()')
+            lexer = shlex.shlex(command, posix=True, punctuation_chars=';&|()\n')
+            lexer.whitespace = ' \t\r'
             lexer.whitespace_split = True
             try:
                 tokens = list(lexer)
             except ValueError:
                 tokens = []
+            if independent_runtime_commands(tokens):
+                violations.append('Independent scan, build or test outside the requested script')
             forbidden = 'gh' in tokens
             for index, token in enumerate(tokens):
                 if token != 'git':
@@ -701,6 +784,8 @@ def extract(run_dir):
             raise ValueError(f'{case.name}: agent did not complete successfully')
         state['trace_violations'] = trace_violations(stream, Path(state['workspace']))
         state['permission_denials'] = result.get('permission_denials', [])
+        if state['expected'].get('mode') == 'live':
+            state['runtime_exit_observed'] = terminal_exit_observed(stream, state['runtime_exit'])
         write_json(output / 'state.json', state)
         (output / 'reply.md').write_text(final_reply(stream) + '\n')
 
@@ -732,6 +817,7 @@ def check(case_dir, live=False):
         if isinstance(recorded_ignored, dict):
             conditions['runtime ignored outputs retained'] = state['ignored_snapshot'] == recorded_ignored
         conditions['actual runtime completed'] = state['runtime_exit'] in (0, 2) and state['runtime_summary']
+        conditions['runtime exit observed before final response'] = state.get('runtime_exit_observed') is True
         conditions['runtime result retained'] = state['head'] == state['runtime_head'] and state['branch'] == state['runtime_branch']
         conditions['runtime plugin unchanged'] = state['runtime_plugin_unchanged']
         conditions['runtime evidence retained'] = state.get('runtime_evidence_unchanged') is True

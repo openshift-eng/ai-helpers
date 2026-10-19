@@ -97,6 +97,42 @@ class EvidenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     EVAL.final_reply(stream)
 
+    def test_terminal_exit_requires_native_observation_before_final_response(self):
+        def tool_use(name="Read", value=None):
+            return {"type": "assistant", "message": {"content": [{
+                "type": "tool_use", "id": "log-read", "name": name,
+                "input": value or {"file_path": "/tmp/fix-go-cves.example.log"}}]}}
+
+        def tool_result(content, identity="log-read"):
+            return {"type": "user", "message": {"role": "user", "content": [{
+                "type": "tool_result", "tool_use_id": identity, "content": content}]}}
+
+        response = {"type": "assistant", "message": {"content": [
+            {"type": "text", "text": "Completed outcome"}]}}
+        for content in ('exit=2\n', '129\texit=2\n130\t', ' 129→exit=2',
+                        [{"type": "text", "text": "exit=2"}]):
+            with self.subTest(content=content):
+                self.assertTrue(EVAL.terminal_exit_observed([tool_use(), tool_result(content), response], 2))
+        for command in ('tail -1 /tmp/fix-go-cves.example.log', 'grep exit= "$LOG"',
+                        'bash "$PLUGIN_ROOT/scripts/fix-all.sh" devel; echo "exit=$?"'):
+            self.assertTrue(EVAL.terminal_exit_observed([
+                tool_use("Bash", {"command": command}), tool_result('exit=2'), response], 2))
+        for stream in (
+                [tool_use(), tool_result('exit=0'), response],
+                [tool_use(), response, tool_result('exit=2')],
+                [{"type": "assistant", "message": {"content": [{"type": "text",
+                    "text": "<task-notification>completed\nexit=2\n</task-notification>"}]}}, response],
+                [tool_use(), tool_result('echo "exit=2"'), response],
+                [tool_result('exit=2'), response],
+                [tool_use(), tool_result('exit=2', "different-tool"), response],
+                [tool_use("Bash", {"command": "echo exit=2"}), tool_result('exit=2'), response],
+                [tool_use("Read", {"file_path": "/tmp/README.md"}), tool_result('exit=2'), response],
+                [tool_use("Read", {"file_path": "/tmp/fix-all.sh"}), tool_result('exit=2'), response],
+                [response]):
+            with self.subTest(stream=stream):
+                self.assertFalse(EVAL.terminal_exit_observed(stream, 2))
+        self.assertFalse(EVAL.terminal_exit_observed([tool_use(), tool_result('exit=2'), response], None))
+
     def case(self):
         case = self.root / "cases/case-005"
         (case / "output").mkdir(parents=True)
@@ -345,6 +381,7 @@ class EvidenceTests(unittest.TestCase):
     def test_live_contract_uses_live_annotations_and_retains_runtime_result(self):
         case, state = self.case()
         state.update(runtime_exit=2, runtime_summary=True, changed_files=["go.mod"],
+                     runtime_exit_observed=True,
                      runtime_head=state["head"], runtime_branch=state["branch"],
                      runtime_plugin_unchanged=True, runtime_evidence_unchanged=True,
                      runtime_ignored_snapshot={}, ignored_snapshot={})
@@ -355,6 +392,7 @@ class EvidenceTests(unittest.TestCase):
         with patch.object(EVAL, "EVAL_ROOT", self.root):
             self.assertIs(EVAL.check(case, live=True)["passed"], True)
             for key, value in (("runtime_exit", None), ("runtime_summary", False),
+                               ("runtime_exit_observed", False),
                                ("head", "d" * 40), ("runtime_plugin_unchanged", False),
                                ("changed_files", ["pkg/source.go"])):
                 with self.subTest(key=key):
@@ -425,6 +463,47 @@ class EvidenceTests(unittest.TestCase):
                 stream[0]["message"]["content"][0] = {
                     "type": "tool_use", "name": "Bash", "input": {"command": f"cat {path}"}}
                 self.assertEqual(not EVAL.trace_violations(stream, workspace), allowed)
+
+    def test_direct_extra_scan_and_test_commands_are_contract_violations(self):
+        workspace = self.root / "cases/case-002"
+        runtime = self.root / "control/case-002/runtime"
+        # These two command forms were retained from the premature-completion trial.
+        commands = [
+            f'GRYPE_BIN="{runtime}/plugin/scripts/../bin/grype"\n'
+            'ls -la "$GRYPE_BIN" 2>/dev/null && "$GRYPE_BIN" . '
+            '--config .grype.yaml -o table 2>&1 | tail -20',
+            'make unit 2>&1 | tail -40',
+            f'bash "{runtime}/plugin/scripts/scan.sh" state.env --json',
+            'env BUILD_UPX=false make build',
+            'make -n unit',  # GNU Make may still execute recursive or + recipes.
+            'go test ./...',
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                stream = [{"type": "assistant", "message": {"content": [{
+                    "type": "tool_use", "name": "Bash", "input": {"command": command}}]}}]
+                self.assertIn('Independent scan, build or test outside the requested script',
+                              EVAL.trace_violations(stream, workspace))
+
+    def test_runtime_launch_and_read_only_inspection_remain_allowed(self):
+        workspace = self.root / "cases/case-002"
+        commands = [
+            'CVE_FIX_AGENT=claude bash "$PLUGIN_ROOT/scripts/fix-all.sh" devel '
+            '</dev/null >"$LOG" 2>&1; echo "exit=$?" >>"$LOG"',
+            'grype version -o json',
+            '"$GRYPE_BIN" version',
+            'go version -m cmd/bin/subctl',
+            'make --version',
+            'make --help',
+            'echo "make unit; grype ."',
+            'ls -l "$PLUGIN_ROOT/scripts/scan.sh"',
+            'tail -1 "$LOG"; grep -n ERROR "$LOG"',
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                stream = [{"type": "assistant", "message": {"content": [{
+                    "type": "tool_use", "name": "Bash", "input": {"command": command}}]}}]
+                self.assertEqual(EVAL.trace_violations(stream, workspace), [])
 
     def scenario(self, expectation="repair"):
         case = self.root / "cases/case-002"

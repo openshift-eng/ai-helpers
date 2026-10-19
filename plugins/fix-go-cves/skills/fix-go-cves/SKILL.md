@@ -32,9 +32,16 @@ LOG=$(mktemp "${TMPDIR:-/tmp}/fix-go-cves.XXXXXX.log"); echo "LOG=$LOG"
 CVE_FIX_AGENT=claude bash "$PLUGIN_ROOT/scripts/fix-all.sh" ARGS </dev/null >"$LOG" 2>&1; echo "exit=$?" >>"$LOG"
 ```
 
+Before interpreting the outcome, read that actual log and confirm its terminal
+`exit=N` line. Intermediate `FIXED` output and background-task notifications do
+not establish completion. If the line is absent, wait while the process lives;
+if it stopped, report completion as unconfirmed. Do not substitute standalone
+scans, builds, tests, or another script invocation while waiting.
+
 Then read the outcome rather than the whole log:
 
 ```bash
+tail -1 "$LOG"
 grep -q '^--- Summary' "$LOG" && sed -n '/^--- Summary/,$p' "$LOG" || tail -40 "$LOG"
 grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIEW)' "$LOG"
 ```
@@ -94,7 +101,9 @@ repairs, reruns, and build, test, or cleanup commands for a new user request.
 When a Summary is present, state its `Outstanding` count, including zero.
 State whether a PR command was printed. If none, relay the log's reason:
 `No CVEs found`, the `NOT READY TO PUSH:` reasons, or `no fork remote detected`;
-never write a push or PR command yourself. A PR for remaining findings is
+never write a push or PR command yourself. An upstream commit alone does not
+establish that its tests passed. Do not promise that a proposed backport or
+rerun will pass gates or print a PR command. A PR for remaining findings is
 titled "Partial CVE fix". `IGNORED` lines need no action: no fix is
 published, and the ignore lapses once Grype records one.
 
@@ -108,6 +117,9 @@ and who decides:
   and what unblocks it (a newer builder, an approved bump).
 - Test failure (already retried once): read the failing output and identify
   the evidence linking it to the update; say when causality is unproven.
+  Compare dependencies from this run's actual base commit to its retained fix
+  commit, including the Go directive. The current fix-branch dependencies alone
+  are not baseline evidence.
   Pre-existing source does not prove a pre-existing failure; a changed Go
   directive can activate checks without changing tooling dependencies.
   Tests that need `sudo` or a prompt need a non-interactive test command.

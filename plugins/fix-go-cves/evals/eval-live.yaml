@@ -1,5 +1,5 @@
 name: fix-go-cves-live
-description: Run today's remediation scripts on a pinned real admiral checkout and evaluate the observed outcome.
+description: Run today's remediation scripts on pinned real Go checkouts and evaluate the observed outcome.
 
 execution:
   mode: case

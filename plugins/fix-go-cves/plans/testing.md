@@ -9,13 +9,17 @@ Three layers answer different questions:
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
   pinned history and recorded scripts/output. Its references and negatives are
-  calibrated. Two model trials completed, including a passing trial after a
-  focused skill correction. Replay cannot validate today's remediation engine.
+  calibrated. The first frozen three-execution baseline completed and failed:
+  contract 3/3, but both factual criteria together 1/3 rather than the required
+  2/3. Replay cannot validate today's remediation engine.
 - **Live evaluation:** today's plugin, real Grype and canonical repository
   commands ran on Admiral release-0.24. One fully scored trial passed the
   execution/reporting checks for a blocked runtime result: five CVEs fixed,
   zero outstanding, but two failed canonical test attempts and runtime exit 2.
   An earlier trial exposed unauthorized post-run repairs, a rerun and cleanup.
+  The new devel repair attempt was invalid: premature success claims and extra
+  scan/test commands, then engine exit 128 from rootless Dapper ownership drift.
+  Tests passed, but final-gate/license evidence and completed collection did not.
 
 [Eval setup and replay results](../evals/README.md) and the
 [live results](../evals/live/README.md) retain the detailed evidence and costs.
@@ -26,8 +30,8 @@ not attribute the historical run or replace a full baseline test suite.
 
 ## Next implementation slices
 
-Keep changes small enough to review independently. No new live acceptance
-campaign has been run for the candidates below.
+Keep changes small enough to review independently. The attempted Admiral repair
+has not established live acceptance; retain its behavioral and worker failures.
 
 1. **Acceptance and frozen scoring inputs are implemented.**
    Both tracks now require each factual judge's pass rate to be 1.0 as well as
@@ -39,7 +43,7 @@ campaign has been run for the candidates below.
    helper identity recorded. A stock-workspace/scoring probe confirmed that
    later working-tree annotation changes do not alter frozen scoring. Deliberate
    rescoring needs a separate frozen record and must preserve original scores.
-2. **Durable engine evidence is implemented; live verification is next.**
+2. **Durable engine evidence is implemented; live verification is incomplete.**
    Keep the actual dependency patch or Git bundle, runtime/helper hashes,
    detected build/test commands, phase outcomes and all four audit results when
    reached. Retain initial and authoritative final-gate scan JSON, scanner exit
@@ -52,7 +56,11 @@ campaign has been run for the candidates below.
    patch and observed tool/image identities. Tests cover strict scenario checks
    and inspection after the temporary checkout is removed. A real Grype probe
    confirmed a freshly built binary in the same scan's zero-findings catalog,
-   with matching file hash. The full shell suite passed 2,312 checks.
+   with matching file hash. The full shell suite passed 2,320 checks.
+   The failed live attempt needed operator retention after collection failed;
+   that is not complete helper capture. Verify focused scanner provenance and
+   completion-observation fixes against its retained trace and a fresh run;
+   distinguish the scanner that produced evidence from preflight tools.
 3. **The focused skill and judge corrections are implemented and calibrated.**
    Make the post-run diagnosis/recommendation boundary explicit: no source
    repair, second invocation or cleanup without a further user request. Require
@@ -62,41 +70,50 @@ campaign has been run for the candidates below.
    rerun negative passed 21 calls with three agreeing, error-free samples each.
    Failed earlier calibration attempts remain preserved, including an observed
    partial-credit defect corrected by an explicit must-fail criterion. Pinned
-   default-branch backport evidence is now available to live judges; the reduced runtime log alone cannot verify
-   every commit discovered during diagnosis. Do not require automatic baseline
-   testing for every remediation run or feed judges entire raw tool traces.
+   default-branch backport evidence is now available to live judges; the reduced
+   runtime log alone cannot verify every commit discovered during diagnosis.
+   Do not require automatic baseline testing for every remediation run or feed
+   judges entire raw tool traces.
+   The subsequent frozen baseline failed on causal attribution in two of three
+   executions. The focused follow-up requires observing the actual terminal
+   exit before reporting, comparing the run's base/result dependency diff, and
+   qualifying unverified upstream validation or future success. Repeat exactly
+   three fresh executions after that change is committed, preserving this cohort.
 4. **Add one genuine successful repair case: Admiral devel.**
    Use `https://github.com/submariner-io/admiral.git`, with base and default both
    pinned to `af20d0bf09dade1c6537d6d38f5175f7b8704042`, target/original branch
    `devel` and script argument `devel`. This real upstream revision already has
    the reporter repair and Go 1.26; x/net remains v0.59.0. It avoids an artificial
-   preparatory source commit or a required backport. Model-free preparation
-   using the existing helper succeeded with a clean checkout at that exact pin;
-   no remediation trial has run for this candidate. A separate canonical Dapper
-   `make unit` preflight passed on the dedicated rootless engine. The case selector now
-   delegates to the stock harness; both new cases passed preparation.
-   Establish the success oracle below before trying the candidate. Diagnose a
-   blocked result rather than relax the oracle to obtain a pass.
+   preparatory source commit or a required backport. Case-002 and its success
+   oracle are implemented. Checkout preparation and a separate unit preflight
+   passed, but the actual trial exposed rootless Dapper changing the checkout's
+   owner. The engine exited 128 after canonical unit tests and verification
+   passed; final scan and license phases were not reached. Collection failed
+   without a standard summary. Resolve ownership in the actual worker and
+   completion observation, then run a fresh trial; preparation alone did
+   not validate the worker. Do not relax the success oracle to obtain a pass.
 5. **Then add native binary coverage: Subctl devel.**
    Use `https://github.com/submariner-io/subctl.git`, base/default
    `50243ac421a985eb13a8be7797fc53595be0f34e`, branch/argument `devel`.
    The candidate has Go 1.26 and x/net v0.59.0. Verify its canonical build,
    unit-test and license commands before admission. Its native `make build`
    produces `cmd/bin/subctl-<version>-<os>-<arch>` and a symlink; use that path
-   rather than the eight-platform cross-build. Generalize the helper's currently
-   Admiral-specific bare-remote paths from the explicit repository URL only
-   when adding this case. Check that reserved eval paths do not hide native
-   outputs. Require fresh binary identity and final scan coverage as below.
+   rather than the eight-platform cross-build. Case-003, repository-derived
+   paths and stock case selection are implemented; preparation passed, but its
+   native runtime trial remains unrun. Check that reserved eval paths do not
+   hide native outputs. Require fresh binary identity and final scan coverage below.
    A stdlib finding blocked by the builder may legitimately produce exit 2;
    this case does not prove stdlib remediation unless that path actually runs.
+   After the worker and focused corrections are verified, refresh blocked
+   case-001 too: its earlier scored pass used older behavior and judge criteria.
 
 ## Runtime and behavioral acceptance
 
 The existing live contract intentionally accepts runtime exit 0 or 2 with a
 completed Summary. It checks execution, retained state and allowed operations;
 fact judges check diagnosis and action/owner. A faithful report of an engine
-bug can pass these checks. Add scenario-specific runtime assertions alongside
-that contract, using actual evidence rather than the agent's final prose.
+bug can pass these checks. Scenario-specific runtime assertions additionally
+check actual engine evidence rather than the agent's final prose.
 
 | Scenario | Required runtime evidence |
 | --- | --- |
@@ -151,7 +168,10 @@ observed violations remain evidence even when a trial is stopped.
 ## Acceptance rounds and expansion
 
 Freeze case membership, criteria and configuration before comparing skill
-changes. For the proposed replay baseline, run each admitted case in three
+changes. The first case-005 baseline at source `5079407` completed with contract
+3/3 and factual conjunction 1/3: it failed. Its reports are preserved under
+`.work/fix-go-cves-next-slice/replay-baseline-20261019/`.
+For the next separately committed skill revision, run each admitted case in three
 independent skill executions: require its deterministic contract in all three
 and all factual criteria together in at least two. Inspect each case, not only
 pooled rates. Three judge samples on one reply are not three skill executions. This
@@ -184,7 +204,7 @@ is packaged. Admit another only when it adds a concrete decision or regression.
 | 002 | Submariner partial | Preserve PR relay and the owner of the builder-image decision |
 | 003 | Cloud-prepare clean | Check that flagged lines need no action; heavier live success alternative |
 | 004 | Subctl `bin/lichen` | Correct the reference and resolve the empty binary contradicting the log |
-| 005 | Admiral govet | Improve attribution calibration and retain frozen scoring inputs |
+| 005 | Admiral govet | Packaged and calibrated; preserve the failed baseline and compare the focused skill revision |
 | 006 | Lighthouse x/crypto | Correct no-fix and license-backport advice |
 
 Case 004 must cover all three blocked bumps: x/net, grpc and otel/sdk. Case 006

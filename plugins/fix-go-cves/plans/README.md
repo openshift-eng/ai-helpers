@@ -8,13 +8,16 @@ itself.
 
 ## Next changes
 
-The live eval exposed an immediate skill issue: the agent applied a follow-up
-source repair and attempted a rerun after the script stopped. Make the post-run
-diagnosis/recommendation boundary explicit and verify retained runtime state
-in the existing live case ([evidence](../evals/live/README.md)). The
-[testing plan](testing.md#next-implementation-slices) sequences acceptance
-thresholds and durable runtime evidence before a successful Admiral repair and
-native Subctl binary coverage; those candidate runs remain unverified.
+The first three-execution replay baseline failed: contract 3/3, but both factual
+criteria together only 1/3. A new Admiral live repair attempt was invalid:
+the agent claimed completion prematurely and ran independent scan/test commands;
+the engine later exited 128 after rootless Dapper changed checkout ownership.
+Canonical unit tests passed, but the final gate and license check were not
+reached, and collection failed. Neither result establishes successful remediation.
+The [testing plan](testing.md#next-implementation-slices) prioritizes focused
+completion, base/result attribution and provenance corrections, then a fresh
+frozen replay cohort and real Admiral/Subctl trials. Preserve the failed runs;
+checkout preparation alone does not validate the worker.
 
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.
