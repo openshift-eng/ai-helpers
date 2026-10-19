@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare one real checkout, replay a recording, and check the stock harness run."""
+"""Prepare pinned checkouts and verify replay or live harness trials."""
 
 import argparse
 import gzip
@@ -203,15 +203,16 @@ def prepare(workspace, source):
 def replay(arguments):
     workspace = Path(__file__).resolve().parent.parent
     meta = read_json(workspace / '.replay/meta.json')
-    calls = workspace / '.replay/invocations.jsonl'
+    witnesses = Path(meta['runtime_dir']) if meta.get('mode') == 'live' else workspace / '.replay'
+    calls = witnesses / 'invocations.jsonl'
     previous = calls.read_text().splitlines() if calls.exists() else []
     with calls.open('a') as stream:
         stream.write(json.dumps({'arguments': arguments, 'time': time.time()}) + '\n')
     if previous or not requested_arguments(arguments, meta, workspace):
-        raise ValueError('Replay must run once with the requested branch')
+        raise ValueError('Script must run once with the requested branch')
     if (git(workspace, 'rev-parse', 'HEAD') != meta['default_commit']
             or git(workspace, 'status', '--porcelain')):
-        raise ValueError('Replay checkout changed before invocation')
+        raise ValueError('Checkout changed before invocation')
     if meta.get('mode') == 'live':
         return live_run(workspace, arguments)
     git(workspace, 'checkout', '-b', meta['fix_branch'], meta['result_commit'])
@@ -223,7 +224,7 @@ def live_run(workspace, arguments):
     """Tee the actual runtime output; never substitute a recorded result."""
     runtime = Path(read_json(workspace / '.replay/meta.json')['runtime_dir'])
     script = runtime / 'plugin/scripts/fix-all.sh'
-    with (workspace / '.replay/run.log').open('w') as log:
+    with (runtime / 'run.log').open('w') as log:
         with subprocess.Popen(['bash', str(script), *arguments], cwd=workspace,
                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True, bufsize=1) as process:
@@ -232,7 +233,7 @@ def live_run(workspace, arguments):
                 log.flush()
                 print(line, end='', flush=True)
             status = process.wait()
-    write_json(workspace / '.replay/status.json', {
+    write_json(runtime / 'status.json', {
         'exit_code': status, 'head': git(workspace, 'rev-parse', 'HEAD'),
         'branch': git(workspace, 'branch', '--show-current'),
         'ignored_snapshot': ignored_snapshot(workspace)})
@@ -269,8 +270,15 @@ def capture(workspace):
     workspace = Path(workspace).resolve()
     baseline = read_json(workspace.parent.parent / 'control' / workspace.name / 'baseline.json')
     private = workspace / '.replay'
-    calls = private / 'invocations.jsonl'
+    witnesses = Path(baseline['runtime_dir']) if baseline['meta'].get('mode') == 'live' else private
+    calls = witnesses / 'invocations.jsonl'
     ignored = ignored_snapshot(workspace)
+    refs_unchanged = True
+    for path, refs in baseline['refs'].items():
+        try:
+            refs_unchanged = git(Path(path), 'show-ref') == refs and refs_unchanged
+        except subprocess.CalledProcessError:
+            refs_unchanged = False  # Deleted/damaged remotes are a contract failure.
     state = {'head': git(workspace, 'rev-parse', 'HEAD'),
              'branch': git(workspace, 'branch', '--show-current'),
              'dirty': git(workspace, 'status', '--porcelain', '--untracked-files=all'),
@@ -280,11 +288,10 @@ def capture(workspace):
              'gh_calls': (private / 'gh.log').read_text() if (private / 'gh.log').exists() else '',
              'plugin_unchanged': plugin_hashes(workspace / '.staged-plugins/fix-go-cves')
                                  == baseline['plugin_hashes'],
-             'refs_unchanged': all(git(Path(path), 'show-ref') == refs
-                                   for path, refs in baseline['refs'].items()),
+             'refs_unchanged': refs_unchanged,
              'expected': baseline['meta'], 'workspace': str(workspace)}
     if state['expected'].get('mode') == 'live':
-        status = private / 'status.json'
+        status = witnesses / 'status.json'
         completion = read_json(status) if status.exists() else {}
         state['runtime_exit'] = completion.get('exit_code')
         state['runtime_head'] = completion.get('head')
@@ -295,9 +302,10 @@ def capture(workspace):
         original = state['branch'] == state['expected']['original_branch'] and state['head'] == state['expected']['default_commit']
         state['changed_files'] = [] if original else git(workspace, 'diff', '--name-only',
                                                        state['expected']['base_commit'], 'HEAD').splitlines()
-        log = (private / 'run.log').read_text() if (private / 'run.log').exists() else ''
+        log_path = witnesses / 'run.log'
+        log = log_path.read_text() if log_path.exists() else ''
         (workspace / 'output').mkdir(exist_ok=True)
-        shutil.copy2(private / 'run.log', workspace / 'output/run.log') if log else None
+        shutil.copy2(log_path, workspace / 'output/run.log') if log else None
         # Keep diagnostic context while dropping repetitive scanner progress.
         lines = log.splitlines()
         selected = set()
@@ -439,7 +447,7 @@ def check(case_dir, live=False):
     for commit in annotation.get('required_commits', []):
         conditions[f'commit {commit[:7]} reported'] = any(commit.startswith(value) for value in hashes)
     failures = [name for name, ok in conditions.items() if not ok]
-    return {'passed': not failures, 'reason': '; '.join(failures) if failures else 'Replay contract satisfied'}
+    return {'passed': not failures, 'reason': '; '.join(failures) if failures else 'Contract satisfied'}
 
 
 def verify(run_dir, live=False):

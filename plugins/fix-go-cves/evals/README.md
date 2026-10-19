@@ -102,8 +102,18 @@ baseline; further work remains.
 
 A clean-scope live trial then exceeded the intended post-run role: the agent
 edited and committed a source repair, attempted another run, and started cleanup.
-Its evidence is retained as a behavioral failure. A fully instrumented trial is
-in progress; see [live status](live/README.md). No scored live pass is claimed.
+Its evidence is retained as a behavioral failure. A subsequent instrumented
+trial passed the full pipeline, preserving and correctly reporting the script's
+blocked result: five CVEs fixed, zero outstanding, but tests failed twice and
+the runtime exited 2. Agent execution took 456 seconds, 14 turns and $0.62;
+judge and independent runtime reviewer costs were unavailable. See
+[live results](live/README.md). This is one faithful blocked run, not proof that
+all remediation gates pass or that the acceptance baseline is complete.
+
+The [live attribution experiment](live/README.md) confirmed that the Go directive
+raise alone triggers the current vet failure; the reply's tooling explanation
+was inaccurate. Historical replies lacked that baseline. Prioritize the explicit
+post-run boundary and evidence-grounded attribution, then the three-round baseline.
 
 The live configuration permits a larger invoking-agent budget, but that budget
 does not cap independent reviewer CLIs launched by the remediation scripts or

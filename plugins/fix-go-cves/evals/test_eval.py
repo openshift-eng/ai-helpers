@@ -263,11 +263,67 @@ class EvidenceTests(unittest.TestCase):
             status = EVAL.live_run(workspace, ["0.24"])
         self.assertEqual(status, 2)
         self.assertEqual(output.getvalue(), "actual 0.24\ndiagnostic\n")
-        self.assertEqual((workspace / ".replay/run.log").read_text(), output.getvalue())
-        self.assertEqual(EVAL.read_json(workspace / ".replay/status.json"), {
+        self.assertEqual((runtime / "run.log").read_text(), output.getvalue())
+        self.assertEqual(EVAL.read_json(runtime / "status.json"), {
             "exit_code": 2, "head": EVAL.git(workspace, "rev-parse", "HEAD"),
             "branch": EVAL.git(workspace, "branch", "--show-current"),
             "ignored_snapshot": {"unit.coverprofile": EVAL.digest(workspace / "unit.coverprofile")}})
+
+    def test_cleanup_preserves_live_witnesses_and_fails_contract_without_capture_error(self):
+        # Exercise the copied driver and a local stub, then simulate destructive
+        # checkout cleanup. This checks eval plumbing, not real remediation.
+        workspace = self.root / "cases/case-001"
+        workspace.mkdir(parents=True)
+        EVAL.git(workspace, "init")
+        EVAL.git(workspace, "-c", "user.name=Eval", "-c", "user.email=eval@example.invalid",
+                 "commit", "--allow-empty", "-m", "initial")
+        head = EVAL.git(workspace, "rev-parse", "HEAD")
+        branch = EVAL.git(workspace, "branch", "--show-current")
+        private = workspace / ".replay"
+        private.mkdir()
+        remote = private / "remote.git"
+        EVAL.run("git", "clone", "--bare", str(workspace), str(remote))
+        staged = workspace / ".staged-plugins/fix-go-cves"
+        staged.mkdir(parents=True)
+        (staged / "README.md").write_text("staged plugin\n")
+        (workspace / ".git/info/exclude").write_text("/.replay/\n/.staged-plugins/\n/output/\n")
+        runtime = self.root / "control/case-001/runtime"
+        script = runtime / "plugin/scripts/fix-all.sh"
+        script.parent.mkdir(parents=True)
+        script.write_text('echo "--- Summary: live stub ---"\nexit 2\n')
+        meta = {"mode": "live", "runtime_dir": str(runtime), "arguments": ["0.24"],
+                "base_branch": "release-0.24", "original_branch": branch,
+                "default_commit": head, "base_commit": head}
+        EVAL.write_json(private / "meta.json", meta)
+        shutil.copyfile(EVAL.__file__, private / "driver.py")
+        EVAL.write_json(runtime.parent / "baseline.json", {
+            "meta": meta, "runtime_dir": str(runtime),
+            "refs": {str(remote): EVAL.git(remote, "show-ref")},
+            "plugin_hashes": EVAL.plugin_hashes(staged),
+            "runtime_plugin_hashes": EVAL.plugin_hashes(runtime / "plugin")})
+        result = subprocess.run([sys.executable, "-I", "-S", str(private / "driver.py"),
+                                 "replay", "0.24"], cwd=workspace, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        shutil.rmtree(private)
+        shutil.rmtree(staged.parent)
+        EVAL.capture(workspace)
+        state = EVAL.read_json(workspace / "output/state.json")
+        self.assertEqual(state["runtime_exit"], 2)
+        self.assertEqual(state["runtime_head"], head)
+        self.assertEqual(len(state["invocations"]), 1)
+        self.assertIs(state["refs_unchanged"], False)
+        self.assertIs(state["plugin_unchanged"], False)
+        self.assertEqual((workspace / "output/run.log").read_text(), result.stdout)
+        state.update(trace_violations=[], permission_denials=[])
+        EVAL.write_json(workspace / "output/state.json", state)
+        (workspace / "output/reply.md").write_text("The runtime reported a partial result.\n")
+        annotation = self.root / "live/cases/case-001/annotations.yaml"
+        annotation.parent.mkdir(parents=True)
+        annotation.write_text("{}\n")
+        with patch.object(EVAL, "EVAL_ROOT", self.root):
+            verdict = EVAL.check(workspace, live=True)
+        self.assertIs(verdict["passed"], False)
+        self.assertIn("remotes and plugin unchanged", verdict["reason"])
 
     def test_live_contract_uses_live_annotations_and_retains_runtime_result(self):
         case, state = self.case()

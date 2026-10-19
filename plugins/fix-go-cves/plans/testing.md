@@ -9,8 +9,9 @@ The plugin has three complementary layers:
   have completed, including one after a focused skill correction; they do not
   validate today's remediation scripts.
 - **Live evaluation:** today's skill and scripts run against a pinned real
-  repository with its detected build/test commands and real Grype. Each live
-  trial needs its own execution evidence; replay success does not establish it.
+  repository with its detected build/test commands and real Grype. One fully
+  scored trial passed execution/reporting checks for a blocked runtime outcome;
+  an earlier trial exposed a post-run behavioral failure.
 
 Live failures feed the faster layers: a script bug gets a hermetic regression,
 and an interpretation mistake gets a replay case. User-requested live evaluation
@@ -142,14 +143,35 @@ execution cost, available judge cost and any environment blockers separately.
 
 The first clean-scope live trial also exposed a behavioral failure: after the
 script exited 2, the agent edited and committed a source repair, attempted a
-second run and started cleanup. Its logs and runtime artifacts are retained;
-the missing ignored-file measurement does not excuse that behavior. A new trial
-with complete runtime snapshots is in progress. See the [live status](../evals/live/README.md).
+second run and started cleanup. Cleanup removed checkout-local eval files;
+the external runtime log survived and was retained with the tool trace.
+
+The subsequent instrumented trial passed the contract, both fact judges in
+three agreeing, error-free samples each, and the stock report/regression steps.
+The real runtime took 379 seconds and exited 2: `430fd4c` fixed five CVEs with
+zero remaining, while canonical `make unit` failed twice on the reporter vet
+error. The agent preserved that result and recommended the target-branch
+backport. Execution took 456 seconds, 14 turns and $0.62 for the invoking agent;
+six judge calls were unpriced and runtime reviewer costs are unknown. See the
+[live results](../evals/live/README.md). This validates faithful execution and
+reporting of a blocked run, not that all remediation gates passed.
+
+The same-builder reporter experiment in [live results](../evals/live/README.md)
+establishes that raising only the Go directive triggers the current vet failure.
+The source defect pre-existed, but the failure is update-related; the live reply's
+tooling explanation was inaccurate. Historical replies lacked that baseline.
 
 The next small skill correction should explicitly limit post-run work to
 diagnosis and recommendations, leaving repairs, reruns and cleanup for a user
 request. Do not build a plugin-specific isolation framework; stronger isolation
-belongs in the shared harness. No scored live pass is established yet.
+belongs in the shared harness. Improve evidence-grounded attribution next,
+before the three-round baseline. One live pass does not erase the earlier
+behavioral failure or establish complete response accuracy.
+
+Keep the existing live contract as the regression for post-run edits and reruns.
+Extend the existing action/owner criterion to reject unsupported attribution,
+calibrating a one-fact negative reply. This needs neither a separate causal judge
+nor an automatic baseline-test phase for every remediation run.
 
 An optional weekly `scripts/report.sh` canary on one fast repository can later
 catch scanner/database and builder drift, after report validation and scanner
