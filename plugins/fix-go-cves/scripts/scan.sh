@@ -23,6 +23,19 @@ for arg in "$@"; do
   esac
 done
 
+SCAN_EVIDENCE_DIR=""
+if [[ -n "${CVE_FIX_EVIDENCE_DIR:-}" ]]; then
+  prepare_evidence_directory
+  mkdir -p "$CVE_FIX_EVIDENCE_DIR/scans"
+  SCAN_EVIDENCE_DIR=$(mktemp -d "$CVE_FIX_EVIDENCE_DIR/scans/${CVE_FIX_EVIDENCE_PHASE:-scan}.XXXXXX")
+  CVE_FIX_EVIDENCE_SCAN_DIR="$SCAN_EVIDENCE_DIR"
+  : > "$SCAN_EVIDENCE_DIR/binaries.jsonl"
+fi
+BUILD_EVIDENCE_STATUS=not_configured
+BUILD_EVIDENCE_RC=null
+[[ "$SKIP_BUILD" != true ]] || BUILD_EVIDENCE_STATUS=skipped
+[[ -z "$SCAN_EVIDENCE_DIR" ]] || record_scan_status "$SCAN_EVIDENCE_DIR/status.json" null "$BUILD_EVIDENCE_STATUS"
+
 # Build if configured (needed for stdlib CVE detection in compiled binaries).
 # A build failure means the scan covers source only and may miss stdlib CVEs in
 # binaries — record it out-of-band in a sentinel file (stdout is grype JSON) so
@@ -36,16 +49,21 @@ if [[ -n "${BUILD_CMD:-}" ]] && [[ "$SKIP_BUILD" != "true" ]]; then
   # environment is offline, not that the code is broken — record a distinct
   # sentinel so fix-all.sh can fail fast instead of producing an unverifiable
   # fix (go get, the rebuild, and the rescan gate all need the network).
-  build_log=$(mktemp "${TMPDIR:-/tmp}/cve-fix-build.XXXXXX")
+  if [[ -n "$SCAN_EVIDENCE_DIR" ]]; then build_log="$SCAN_EVIDENCE_DIR/build.log"
+  else build_log=$(mktemp "${TMPDIR:-/tmp}/cve-fix-build.XXXXXX"); fi
   # Dependency changes do not reliably appear as Make prerequisites of binary
   # targets. Force both the outer Make and any nested Dapper Make to rebuild so
   # Grype never evaluates binaries produced from the pre-fix module graph.
   build_rc=0
+  BUILD_EVIDENCE_STATUS=running
+  [[ -z "$SCAN_EVIDENCE_DIR" ]] || record_scan_status "$SCAN_EVIDENCE_DIR/status.json" null running
   if [[ ${#ENV_SCRUB[@]} -gt 0 ]]; then
     "${ENV_SCRUB[@]}" ${BUILD_REPO_NAME:+REPO="$BUILD_REPO_NAME"} MAKEFLAGS=-B timeout --foreground "${CVE_FIX_BUILD_TIMEOUT:-1800}" bash -c "$BUILD_CMD" 2>&1 | tee "$build_log" >&2 || build_rc=${PIPESTATUS[0]}
   else
     env ${BUILD_REPO_NAME:+REPO="$BUILD_REPO_NAME"} MAKEFLAGS=-B timeout --foreground "${CVE_FIX_BUILD_TIMEOUT:-1800}" bash -c "$BUILD_CMD" 2>&1 | tee "$build_log" >&2 || build_rc=${PIPESTATUS[0]}
   fi
+  BUILD_EVIDENCE_STATUS=completed
+  BUILD_EVIDENCE_RC=$build_rc
   if [[ $build_rc -ne 0 ]]; then
     echo "WARNING: Build failed. Scanning source only (may miss stdlib CVEs in binaries)." >&2
     : > "${STATE_FILE}.build-failed"
@@ -64,7 +82,7 @@ if [[ -n "${BUILD_CMD:-}" ]] && [[ "$SKIP_BUILD" != "true" ]]; then
     # the repo clean on coverage it couldn't actually verify.
     detect_opaque_binaries && : > "${STATE_FILE}.coverage-unknown"
   fi
-  rm -f "$build_log"
+  [[ -n "$SCAN_EVIDENCE_DIR" ]] || rm -f "$build_log"
 else
   # No build step configured — still detect pre-existing opaque/stale binaries in
   # the tree. A source-only scan is blind to stdlib CVEs in any such binary, so
@@ -83,7 +101,13 @@ fi
 rm -f "${STATE_FILE}.scanner-degraded" "${STATE_FILE}.scan-transient"
 grype_rc=0
 scan_output_file=$(mktemp "${TMPDIR:-/tmp}/cve-grype-scan.XXXXXX")
-run_grype "${GRYPE_FLAGS[@]}" >"$scan_output_file" 2> >(cat >&2) || grype_rc=$?
+if [[ -n "$SCAN_EVIDENCE_DIR" ]]; then
+  run_grype "${GRYPE_FLAGS[@]}" >"$scan_output_file" 2> "$SCAN_EVIDENCE_DIR/scanner.log" || grype_rc=$?
+  cat "$SCAN_EVIDENCE_DIR/scanner.log" >&2
+  cp "$scan_output_file" "$SCAN_EVIDENCE_DIR/scanner-output.txt"
+else
+  run_grype "${GRYPE_FLAGS[@]}" >"$scan_output_file" 2> >(cat >&2) || grype_rc=$?
+fi
 scan_output=$(cat "$scan_output_file")
 rm -f "$scan_output_file"
 if [[ " ${GRYPE_FLAGS[*]} " == *" --json "* ]]; then
@@ -106,5 +130,8 @@ if [[ "${GRYPE_DB_DEGRADED:-0}" == "1" ]]; then
 fi
 if [[ "${GRYPE_SCAN_TRANSIENT:-0}" == "1" ]] && [[ "$grype_rc" -ne 0 ]]; then
   : > "${STATE_FILE}.scan-transient"
+fi
+if [[ -n "$SCAN_EVIDENCE_DIR" ]]; then
+  record_scan_status "$SCAN_EVIDENCE_DIR/status.json" "$grype_rc" "$BUILD_EVIDENCE_STATUS" "$BUILD_EVIDENCE_RC"
 fi
 exit "$grype_rc"

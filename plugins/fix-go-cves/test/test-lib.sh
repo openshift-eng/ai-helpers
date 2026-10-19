@@ -10245,6 +10245,7 @@ PY
 _rtx() {  # TEST_CMD — prints TESTS_FAILED, then FIX_LINES
   ( cd "$RTX" && git init -q 2>/dev/null; git -c user.email=t@t -c user.name=t commit -q --allow-empty -m x 2>/dev/null
     source "$SCRIPT_DIR/lib.sh"; source "$RTX/run-tests.sh"
+    _EVIDENCE_TEST_RUN=0; _record_test_evidence() { return 0; }
     FIX_LINES=(); REVIEW_COUNT=0; TESTS_FAILED=false; TEST_CMD="$1"
     run_tests >/dev/null 2>&1; echo "$TESTS_FAILED"; printf '%s\n' "${FIX_LINES[@]+"${FIX_LINES[@]}"}" )
 }
@@ -10395,6 +10396,167 @@ check "go env -w experiment: user choice kept" test "$(env -u GOEXPERIMENT PATH=
   "source '$SCRIPT_DIR/lib.sh'; use_upstream_goexperiment; printf '%s' \"\${GOEXPERIMENT-unset}\"")" = unset
 check "fix-all applies the experiment policy before building" \
   grep -qx 'use_upstream_goexperiment' "$SCRIPT_DIR/fix-all.sh"
+
+# Durable evidence observes real orchestration without changing its gates. Only
+# the external scanner, package resolver and model calls are replaced here.
+echo "opt-in durable runtime evidence"
+EVI_ROOT="$TMPD/evidence-runtime"
+EVI_REPO="$EVI_ROOT/repo"
+EVI_SCRIPTS="$EVI_ROOT/scripts"
+EVI_STATE="$EVI_ROOT/state.env"
+export EVI_ROOT EVI_STATE
+make_test_repo "$EVI_REPO"
+printf 'module example.com/evidence\n\ngo 1.24.0\nrequire example.com/pkg v1.0.0\n' > "$EVI_REPO/go.mod"
+printf '.PHONY: licensecheck\nlicensecheck:\n\t@echo canonical-license\n\t@exit $${EVI_LICENSE_RESULT:-0}\n' > "$EVI_REPO/Makefile"
+printf '/bin/\n' > "$EVI_REPO/.gitignore"
+git -C "$EVI_REPO" add -A
+git -C "$EVI_REPO" commit -qsm fixture
+EVI_BASE=$(git -C "$EVI_REPO" rev-parse HEAD)
+git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
+git -C "$EVI_REPO" remote add origin https://github.com/example/evidence.git
+mkdir -p "$EVI_SCRIPTS" "$EVI_ROOT/subagents"
+cp "$SCRIPT_DIR/"{fix-all.sh,scan.sh,lib.sh,binary-module-locations.py} "$EVI_SCRIPTS/"
+cp "$SCRIPT_DIR/../subagents/"*.sh "$EVI_ROOT/subagents/"
+cat >> "$EVI_SCRIPTS/lib.sh" <<'SH'
+preflight_check() { return 0; }
+fetch_origin_branch() { return 0; }
+run_subagents() {
+  _run_companions "$2" "$1" "$3"
+  RUN_SUBAGENTS_CLAUDE_ABSENT=1
+}
+run_grype() {
+  if [[ "${CVE_FIX_EVIDENCE_PHASE:-}" == final-gate && "${EVI_DEGRADED:-false}" == true ]]; then
+    GRYPE_DB_DEGRADED=1
+  fi
+  if [[ "${EVI_EMPTY:-false}" == true ]] || grep -q '^// fixed' go.mod; then
+    printf '{"matches":[],"ignoredMatches":[]}\n'
+  else
+    printf '{"matches":[{"vulnerability":{"id":"GO-2099-0001","severity":"High","fix":{"versions":["1.1.0"],"state":"fixed"}},"artifact":{"type":"go-module","name":"example.com/pkg","version":"1.0.0","locations":[{"path":"/go.mod"}]}}],"ignoredMatches":[]}\n'
+  fi
+}
+SH
+cat > "$EVI_SCRIPTS/detect.sh" <<'SH'
+#!/usr/bin/env bash
+source "$EVI_STATE"
+git -C "$REPO" checkout -qb "$FIX_BRANCH" origin/devel
+printf '%s\n' "$EVI_STATE"
+SH
+cat > "$EVI_SCRIPTS/fix-package.sh" <<'SH'
+#!/usr/bin/env bash
+source "$1"
+printf '// fixed\n' >> "$REPO/go.mod"
+git -C "$REPO" add go.mod
+git -C "$REPO" commit -qsm 'Bump pkg'
+printf 'FIXED: example.com/pkg v1.1.0 for GO-2099-0001\n'
+SH
+printf '#!/usr/bin/env bash\nexit 0\n' > "$EVI_SCRIPTS/review.sh"
+cat > "$EVI_ROOT/test-command.sh" <<'SH'
+#!/usr/bin/env bash
+n=$(cat "$EVI_ROOT/test-count" 2>/dev/null || echo 0)
+echo $((n + 1)) > "$EVI_ROOT/test-count"
+echo "canonical-test-attempt-$((n + 1))"
+exit "${EVI_TEST_RESULT:-0}"
+SH
+chmod +x "$EVI_SCRIPTS/"*.sh
+evi_run() {
+  local name="$1" evidence="$2"
+  git -C "$EVI_REPO" checkout -q devel
+  git -C "$EVI_REPO" branch -D fix-evidence >/dev/null 2>&1 || true
+  rm -f "$EVI_ROOT/test-count"
+  printf 'REPO=%q\nBRANCH=devel\nBASE_SHA=%q\nORIGINAL_REF=devel\nFIX_BRANCH=fix-evidence\n' "$EVI_REPO" "$EVI_BASE" > "$EVI_STATE"
+  printf 'BUILD_CMD="echo canonical-build"\nBUILD_IMAGE=""\nBUILD_GO_VERSION=unknown\nTEST_CMD=%q\n' 'bash "$EVI_ROOT/test-command.sh"' >> "$EVI_STATE"
+  printf 'ENV_UNSET=""\nDIFF_IGNORE_ARGS=""\nCVE_SCRIPTS=%q\nFETCH_FAILED=false\n' "$EVI_SCRIPTS" >> "$EVI_STATE"
+  EVI_RC=0
+  CVE_FIX_EVIDENCE_DIR="$evidence" bash "$EVI_SCRIPTS/fix-all.sh" "$EVI_REPO" devel > "$EVI_ROOT/$name.log" 2>&1 || EVI_RC=$?
+}
+evi_run default ""
+check "evidence default leaves successful gate semantics unchanged" test "$EVI_RC" -eq 0
+evi_run complete "$EVI_ROOT/complete"
+check "evidence enabled leaves successful gate semantics unchanged" test "$EVI_RC" -eq 0
+check "evidence retains actual initial findings" jq -e '.matches | length == 1' "$EVI_ROOT/complete/initial-scan.json"
+check "evidence retains authoritative empty gate scan" jq -e '.matches | length == 0' "$EVI_ROOT/complete/final-gate.json"
+check "evidence run state records tested retained head and completed gates" jq -e \
+  '.exit_code == 0 and .tested_head == .head and .phases.tests == "completed" and .phases.verification == "completed" and .phases.license == "completed" and .license_exit_code == 0 and .license_command == "make licensecheck"' "$EVI_ROOT/complete/run.json"
+check "evidence retains canonical build log" grep -q canonical-build "$(find "$EVI_ROOT/complete/scans" -name build.log -print -quit)"
+check "evidence retains license log" grep -q canonical-license "$EVI_ROOT/complete/license.log"
+for _audit in scan-regression yaml-integrity existing-entries fix-availability; do
+  check "evidence retains $_audit result before cleanup" test -s "$EVI_ROOT/complete/audits/$_audit.evidence"
+done
+check "evidence retains state before normal cleanup" test -s "$EVI_ROOT/complete/state.env"
+check "evidence does not preserve scratch state in place" test ! -f "$EVI_STATE"
+EVI_TEST_RESULT=1 EVI_LICENSE_RESULT=1 evi_run blocked "$EVI_ROOT/blocked"
+check "evidence preserves test and license gate failures" test "$EVI_RC" -eq 2
+check "evidence records failure and retained tested head" jq -e '.exit_code == 2 and .test_exit_code == 1 and .license_exit_code != 0 and .tested_head == .head' "$EVI_ROOT/blocked/run.json"
+check "evidence retains first failed test attempt" grep -q canonical-test-attempt-1 "$EVI_ROOT/blocked/tests/1-1.log"
+check "evidence retains retried test attempt separately" grep -q canonical-test-attempt-2 "$EVI_ROOT/blocked/tests/1-2.log"
+EVI_DEGRADED=true evi_run degraded "$EVI_ROOT/degraded"
+check "evidence does not turn a degraded gate into clean" test "$EVI_RC" -eq 2
+check "evidence captures degraded sentinel before consumption" jq -e '.scanner_degraded == true' "$EVI_ROOT/degraded/final-gate-status.json"
+EVI_EMPTY=true evi_run clean "$EVI_ROOT/clean"
+check "evidence clean fast path retains not-reached phases" jq -e \
+  '.exit_code == 0 and .phases.initial_scan == "completed" and .phases.final_gate == "not_reached" and .phases.tests == "not_reached" and .phases.verification == "not_reached" and .license_command == ""' "$EVI_ROOT/clean/run.json"
+check "evidence clean fast path does not fabricate a final gate" test ! -f "$EVI_ROOT/clean/final-gate.json"
+evi_run rejected "$EVI_REPO/.git/evidence"
+check "evidence directory cannot contaminate the source, even under .git" test "$EVI_RC" -ne 0
+check "rejected evidence directory was not created" test ! -d "$EVI_REPO/.git/evidence"
+
+# Exercise the real catalog-output wiring, including replacement of a failed
+# local scan's partial catalog by the container fallback.
+mkdir -p "$EVI_ROOT/scanner-bin" "$EVI_ROOT/catalog"
+cat > "$EVI_ROOT/scanner-bin/grype" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$EVI_ROOT/local-args"
+if [[ "${EVI_FORCE_LOCAL_FAIL:-false}" == true ]]; then
+  echo partial > "$EVI_ROOT/catalog/catalog.cdx.json"
+  exit 1
+fi
+for arg in "$@"; do
+  [[ "$arg" != cyclonedx-json=* ]] || echo '{"components":[]}' > "${arg#cyclonedx-json=}"
+done
+echo '{"matches":[],"ignoredMatches":[]}'
+SH
+cat > "$EVI_ROOT/scanner-bin/container" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$EVI_ROOT/container-args"
+[[ ! -f "$EVI_ROOT/catalog/catalog.cdx.json" ]] || exit 1
+echo '{"components":[]}' > "$EVI_ROOT/catalog/catalog.cdx.json"
+echo '{"matches":[],"ignoredMatches":[]}'
+SH
+chmod +x "$EVI_ROOT/scanner-bin/"*
+(
+  cd "$EVI_REPO"
+  PATH="$EVI_ROOT/scanner-bin:$PATH" HAS_LOCAL_GRYPE=true CONTAINER_CMD="" CVE_FIX_GRYPE_VERSION=""
+  CVE_FIX_EVIDENCE_SCAN_DIR="$EVI_ROOT/catalog"
+  run_grype --no-update --json > "$EVI_ROOT/local-result.json"
+)
+check "local scan requests its catalog in the same invocation" grep -qxF "cyclonedx-json=$EVI_ROOT/catalog/catalog.cdx.json" "$EVI_ROOT/local-args"
+check "catalog output preserves scanner JSON stdout" jq -e '.matches == []' "$EVI_ROOT/local-result.json"
+(
+  cd "$EVI_REPO"
+  export EVI_FORCE_LOCAL_FAIL=true
+  PATH="$EVI_ROOT/scanner-bin:$PATH" HAS_LOCAL_GRYPE=true CONTAINER_CMD="$EVI_ROOT/scanner-bin/container" CVE_FIX_GRYPE_VERSION=""
+  CVE_FIX_EVIDENCE_SCAN_DIR="$EVI_ROOT/catalog"
+  run_grype --no-update --json > "$EVI_ROOT/container-result.json" 2>/dev/null
+)
+check "fallback mounts evidence outside the scanned source" grep -qxF "$EVI_ROOT/catalog:/cve-evidence" "$EVI_ROOT/container-args"
+check "fallback uses the mounted catalog destination" grep -qxF 'cyclonedx-json=/cve-evidence/catalog.cdx.json' "$EVI_ROOT/container-args"
+check "fallback replaces failed local catalog" jq -e '.components == []' "$EVI_ROOT/catalog/catalog.cdx.json"
+
+# Inventory the actual current native binary, reusing the production detector.
+mkdir -p "$EVI_REPO/bin" "$EVI_ROOT/inventory"
+printf 'package main\nfunc main() {}\n' > "$EVI_ROOT/probe.go"
+GO111MODULE=off go build -o "$EVI_REPO/bin/probe" "$EVI_ROOT/probe.go"
+printf '%s\n' "$EVI_REPO/bin/probe" > "$EVI_ROOT/inventory-state.built-artifacts"
+(
+  cd "$EVI_REPO"
+  REPO="$EVI_REPO" STATE_FILE="$EVI_ROOT/inventory-state" BUILD_GO_VERSION="" BUILD_IMAGE=""
+  CVE_FIX_EVIDENCE_SCAN_DIR="$EVI_ROOT/inventory"
+  detect_opaque_binaries || [[ $? == 1 ]]
+)
+check "binary evidence links actual file hash and native build metadata" jq -e \
+  --arg sha "$(sha256sum "$EVI_REPO/bin/probe" | cut -d' ' -f1)" \
+  '.path == "bin/probe" and .sha256 == $sha and .recorded_build_artifact == true and (.build_info | contains("go1."))' \
+  "$EVI_ROOT/inventory/binaries.jsonl"
 
 # === Summary ===
 echo ""

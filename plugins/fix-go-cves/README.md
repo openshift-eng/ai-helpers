@@ -162,6 +162,11 @@ Fetches use `origin` exactly as configured, non-interactively. Private
 repositories need a working SSH key or agent; public ones work best with an
 HTTPS fetch URL and an SSH `pushurl`.
 
+For durable diagnostics, set `CVE_FIX_EVIDENCE_DIR` to a fresh directory outside
+the repository. It retains raw scans, build/test/license logs, audit evidence
+and phase results before temporary files are removed. Unreached phases remain
+explicitly marked; the option preserves the normal remediation gates.
+
 Timeouts: `CVE_FIX_BUILD_TIMEOUT` and `CVE_FIX_TEST_TIMEOUT` (1800 s each),
 `CVE_FIX_SCAN_TIMEOUT` and `CVE_FIX_AGENT_TIMEOUT` (600 s),
 `CVE_FIX_LICENSE_TIMEOUT` (300 s), `CVE_FIX_IMAGE_TIMEOUT` (180 s). A timeout

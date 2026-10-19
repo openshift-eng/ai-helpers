@@ -136,6 +136,41 @@ grype_container_version_matches() {
   fi
 }
 
+# Optional durable evidence belongs outside the scanned checkout, including .git.
+prepare_evidence_directory() {
+  [[ -n "${CVE_FIX_EVIDENCE_DIR:-}" ]] || return 0
+  CVE_FIX_EVIDENCE_DIR=$(python3 - "$REPO" "$CVE_FIX_EVIDENCE_DIR" <<'PY'
+from pathlib import Path
+import sys
+repo, target = (Path(value).resolve() for value in sys.argv[1:])
+if target.is_relative_to(repo):
+    raise SystemExit("ERROR: CVE_FIX_EVIDENCE_DIR must be outside the scanned repository")
+print(target)
+PY
+  ) || return 1
+  (umask 077; mkdir -p "$CVE_FIX_EVIDENCE_DIR") || return 1
+  export CVE_FIX_EVIDENCE_DIR
+}
+
+record_scan_status() {
+  local destination="$1" status="$2" build_status="${3:-not_recorded}" build_rc="${4:-null}" marker value
+  local -a flags=()
+  for marker in build-failed coverage-unknown scanner-degraded scan-transient network-broken; do
+    value=false
+    [[ ! -f "${STATE_FILE}.$marker" ]] || value=true
+    flags+=(--argjson "${marker//-/_}" "$value")
+  done
+  jq -n "${flags[@]}" --argjson exit_code "$status" --arg head "$(git rev-parse HEAD 2>/dev/null || true)" \
+    --arg phase "${CVE_FIX_EVIDENCE_PHASE:-scan}" \
+    --arg build_status "$build_status" --argjson build_exit_code "$build_rc" \
+    --arg build_command "${BUILD_CMD:-}" --arg build_image "${BUILD_IMAGE:-}" \
+    --arg build_go_version "${BUILD_GO_VERSION:-unknown}" \
+    '{phase:$phase,exit_code:$exit_code,head:$head,build_status:$build_status,build_exit_code:$build_exit_code,
+      build_command:$build_command,build_image:$build_image,build_go_version:$build_go_version,
+      build_failed:$build_failed,coverage_unknown:$coverage_unknown,scanner_degraded:$scanner_degraded,
+      scan_transient:$scan_transient,network_broken:$network_broken}' > "$destination"
+}
+
 # Run grype scan via local install or container fallback
 # Usage: run_grype [--fresh] [--no-update] [--json]
 # --fresh: ensure DB is up-to-date (grype auto-updates if stale)
@@ -185,8 +220,11 @@ run_grype() {
     local -a _grype_env=(env GRYPE_ONLY_NOTFIXED=false GRYPE_IGNORE_WONTFIX=)
     [[ "$no_update" == "true" ]] && \
       _grype_env+=(GRYPE_DB_AUTO_UPDATE=false GRYPE_DB_VALIDATE_AGE=false)
+    local -a evidence_output=()
+    [[ -z "${CVE_FIX_EVIDENCE_SCAN_DIR:-}" ]] || \
+      evidence_output=(-o "cyclonedx-json=$CVE_FIX_EVIDENCE_SCAN_DIR/catalog.cdx.json")
     "${_grype_env[@]+"${_grype_env[@]}"}" grype . "${config_args[@]}" \
-      -v -o "$output_format" >"$outfile" 2>"$errfile" && grype_ok=true
+      -v -o "$output_format" "${evidence_output[@]}" >"$outfile" 2>"$errfile" && grype_ok=true
     cat "$errfile" >&2
     if [[ "$no_update" != "true" ]] && grype_db_degraded "$errfile"; then
       GRYPE_DB_DEGRADED=1
@@ -234,11 +272,18 @@ run_grype() {
     fi
     local -a container_config=()
     [[ -f .grype.yaml ]] && container_config=(--config /src/.grype.yaml)
+    local -a evidence_mount=() container_evidence=()
+    if [[ -n "${CVE_FIX_EVIDENCE_SCAN_DIR:-}" ]]; then
+      rm -f "$CVE_FIX_EVIDENCE_SCAN_DIR/catalog.cdx.json"
+      evidence_mount=(-v "$CVE_FIX_EVIDENCE_SCAN_DIR:/cve-evidence")
+      container_evidence=(-o cyclonedx-json=/cve-evidence/catalog.cdx.json)
+    fi
     : > "$outfile"
     if $CONTAINER_CMD run --rm "${env_args[@]}" \
       -v grype-db:/root/.cache/grype \
       -v "$(pwd)":/src \
-      "$scanner_image" /src "${container_config[@]}" -v -o "$output_format" >"$outfile" 2>"$errfile" &&
+      "${evidence_mount[@]}" "$scanner_image" /src "${container_config[@]}" -v -o "$output_format" \
+      "${container_evidence[@]}" >"$outfile" 2>"$errfile" &&
         grype_catalog_usable "$errfile"; then
       cat "$errfile" >&2
       if [[ "$no_update" != "true" ]] && grype_db_degraded "$errfile"; then
@@ -807,7 +852,7 @@ find_gomods() {
 # binaries after git describe), so every fix commit renames them. Comparisons
 # between scans mask this checkout's commit hashes with jq's canon, given
 # --argjson revs "$(scan_location_revs)".
-# shellcheck disable=SC2034 # used by sourcing scripts
+# shellcheck disable=SC2034,SC2016 # used by sourcing scripts; literal jq program
 REV_MASK_JQ='def canon: gsub("(?<h>[0-9a-f]{7,40})"; .h as $h | if ($revs | any(startswith($h))) then "<rev>" else $h end);'
 scan_location_revs() {
   local revs
@@ -1884,6 +1929,15 @@ detect_opaque_binaries() {
   while IFS= read -r bin_path; do
     go_m_rc=0
     go_m_out=$(go version -m "$bin_path" 2>/dev/null) || go_m_rc=$?
+    if [[ $go_m_rc -eq 0 && -n "${CVE_FIX_EVIDENCE_SCAN_DIR:-}" ]]; then
+      local bin_hash recorded=false
+      bin_hash=$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$bin_path")
+      grep -qxF "$REPO/${bin_path#./}" "${STATE_FILE}.built-artifacts" 2>/dev/null && recorded=true
+      jq -cn --arg path "${bin_path#./}" --arg sha256 "$bin_hash" --arg build_info "$go_m_out" \
+        --argjson recorded_build_artifact "$recorded" \
+        '{path:$path,sha256:$sha256,build_info:$build_info,recorded_build_artifact:$recorded_build_artifact}' \
+        >> "$CVE_FIX_EVIDENCE_SCAN_DIR/binaries.jsonl"
+    fi
     if [[ $go_m_rc -ne 0 ]] && ! LC_ALL=C grep -Iq . "$bin_path" 2>/dev/null &&
        LC_ALL=C grep -qa 'UPX!' "$bin_path" 2>/dev/null; then
       # Case 1: packed/opaque binary — grype is blind to its stdlib CVEs

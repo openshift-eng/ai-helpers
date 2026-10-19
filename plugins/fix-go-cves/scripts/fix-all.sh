@@ -25,6 +25,53 @@ source "$SCRIPT_DIR/lib.sh"
 preflight_check
 use_upstream_goexperiment
 
+_EVIDENCE_READY=false
+_EVIDENCE_INITIAL_STATUS=not_reached
+_EVIDENCE_FINAL_STATUS=not_reached
+_EVIDENCE_TEST_STATUS=not_reached
+_EVIDENCE_VERIFY_STATUS=not_reached
+_EVIDENCE_LICENSE_STATUS=not_reached
+_EVIDENCE_TEST_RUN=0
+
+_record_test_evidence() {
+  $_EVIDENCE_READY || return 0
+  local rc="${1:-null}" target="$CVE_FIX_EVIDENCE_DIR/tests/$_EVIDENCE_TEST_RUN-$_EVIDENCE_TEST_ATTEMPT"
+  mkdir -p "$CVE_FIX_EVIDENCE_DIR/tests"
+  [[ ! -f "${TEST_LOG:-}" ]] || cp "$TEST_LOG" "$target.log"
+  jq -n --arg head "${TESTED_HEAD:-}" --arg command "${TEST_CMD:-}" --argjson exit_code "$rc" \
+    '{head:$head,command:$command,exit_code:$exit_code}' > "$target.json"
+}
+
+# shellcheck disable=SC2329 # invoked by the EXIT cleanup trap
+_record_run_evidence() {
+  $_EVIDENCE_READY || return 0
+  if [[ "$_EVIDENCE_TEST_STATUS" == running ]]; then _record_test_evidence null || return 1; fi
+  [[ ! -f "${STATE_FILE:-}" ]] || cp "$STATE_FILE" "$CVE_FIX_EVIDENCE_DIR/state.env" || return 1
+  if [[ -d "${SUBAGENT_REPORT_DIR:-}" ]]; then
+    mkdir -p "$CVE_FIX_EVIDENCE_DIR/audits" || return 1
+    cp -R "$SUBAGENT_REPORT_DIR/." "$CVE_FIX_EVIDENCE_DIR/audits/" || return 1
+  fi
+  jq -n --argjson exit_code "$1" --arg repo "${REPO:-}" --arg base_branch "${BRANCH:-}" \
+    --arg base_commit "${BASE_SHA:-}" --arg head "$(git -C "$REPO" rev-parse HEAD 2>/dev/null || true)" \
+    --arg branch "$(git -C "$REPO" branch --show-current 2>/dev/null || true)" \
+    --arg build_command "${BUILD_CMD:-}" --arg test_command "${TEST_CMD:-}" \
+    --arg clean_command "${CLEAN_CMD:-}" --arg build_image "${BUILD_IMAGE:-}" \
+    --arg build_go_version "${BUILD_GO_VERSION:-unknown}" --arg tested_head "${TESTED_HEAD:-}" \
+    --arg initial_scan "$_EVIDENCE_INITIAL_STATUS" --arg final_gate "$_EVIDENCE_FINAL_STATUS" \
+    --arg tests "$_EVIDENCE_TEST_STATUS" --argjson test_exit_code "${_EVIDENCE_TEST_RC:-null}" \
+    --arg verification "$_EVIDENCE_VERIFY_STATUS" --argjson verification_exit_code "${_EVIDENCE_VERIFY_RC:-null}" \
+    --arg license "$_EVIDENCE_LICENSE_STATUS" --argjson license_exit_code "${_EVIDENCE_LICENSE_RC:-null}" \
+    '{exit_code:$exit_code,repo:$repo,base_branch:$base_branch,base_commit:$base_commit,head:$head,branch:$branch,
+      build_command:$build_command,test_command:$test_command,clean_command:$clean_command,
+      license_command:(if $license == "running" or $license == "completed" then "make licensecheck" else "" end),
+      build_image:$build_image,build_go_version:$build_go_version,tested_head:$tested_head,
+      phases:{initial_scan:$initial_scan,final_gate:$final_gate,tests:$tests,verification:$verification,license:$license},
+      test_exit_code:(if $tests == "completed" then $test_exit_code else null end),
+      verification_exit_code:(if $verification == "completed" then $verification_exit_code else null end),
+      license_exit_code:(if $license == "completed" then $license_exit_code else null end)}' \
+      > "$CVE_FIX_EVIDENCE_DIR/run.json"
+}
+
 # Clean up on exit without signaling the caller's process group. In some PTYs
 # fix-all.sh is itself the process-group leader, so `kill -- -$$` signals this
 # shell and replaces a successful/partial exit status with 1. Restrict process
@@ -56,6 +103,7 @@ cleanup() {
     fi
     git -C "$REPO" branch -D "$FIX_BRANCH" 2>/dev/null || true
   fi
+  _record_run_evidence "$exit_status" || echo "WARNING: durable runtime evidence is incomplete." >&2
   if [[ -n "${STATE_FILE:-}" ]]; then
     rm -f "$STATE_FILE" "${STATE_FILE}.build-failed" "${STATE_FILE}.network-broken" "${STATE_FILE}.scanner-degraded" "${STATE_FILE}.scan-transient" "${STATE_FILE}.coverage-unknown" "${STATE_FILE}.review-unresolved" "${STATE_FILE}.review-resolved" "${STATE_FILE}.generated-artifacts" "${STATE_FILE}.built-artifacts" "${STATE_FILE}.baseline-artifacts" "${STATE_FILE}.generated-drift" 2>/dev/null || true
     rmdir "$(dirname "$STATE_FILE")/reviewer" "$(dirname "$STATE_FILE")" 2>/dev/null || true
@@ -98,6 +146,11 @@ DETECT_OUT=$("$SCRIPT_DIR/detect.sh" "$@" --setup-branch) || die "detect.sh fail
 STATE_FILE=$(printf '%s\n' "$DETECT_OUT" | tail -1)
 load_state "$STATE_FILE"
 printf '%s\n' "$DETECT_OUT" >&2
+if [[ -n "${CVE_FIX_EVIDENCE_DIR:-}" ]]; then
+  prepare_evidence_directory || die "Cannot prepare runtime evidence directory"
+  [[ -z "$(find "$CVE_FIX_EVIDENCE_DIR" -mindepth 1 -print -quit)" ]] || die "Runtime evidence directory must be empty"
+  _EVIDENCE_READY=true
+fi
 
 echo ""
 if [[ -n "${CLEAN_CMD:-}" ]]; then
@@ -109,7 +162,13 @@ fi
 
 echo "Scanning for CVEs..."
 SCAN_RC=0
-SCAN_JSON=$(BUILD_UPX=false "$SCRIPT_DIR/scan.sh" "$STATE_FILE" --fresh --json) || SCAN_RC=$?
+_EVIDENCE_INITIAL_STATUS=running
+SCAN_JSON=$(CVE_FIX_EVIDENCE_PHASE=initial BUILD_UPX=false "$SCRIPT_DIR/scan.sh" "$STATE_FILE" --fresh --json) || SCAN_RC=$?
+_EVIDENCE_INITIAL_STATUS=completed
+if $_EVIDENCE_READY; then
+  printf '%s\n' "$SCAN_JSON" > "$CVE_FIX_EVIDENCE_DIR/initial-scan.json"
+  CVE_FIX_EVIDENCE_PHASE=initial record_scan_status "$CVE_FIX_EVIDENCE_DIR/initial-scan-status.json" "$SCAN_RC"
+fi
 
 # scan.sh records an initial-build failure in a sentinel file (its stdout is the
 # grype JSON). A failed build means the scan saw source only and may have missed
@@ -461,7 +520,10 @@ echo ""
 # orchestrator reruns this whenever HEAD moves after the first pass.
 run_tests() {
   TESTED_HEAD=$(git rev-parse HEAD)
-  [[ -n "${TEST_CMD:-}" ]] || return 0
+  if [[ -z "${TEST_CMD:-}" ]]; then _EVIDENCE_TEST_STATUS=not_configured; return 0; fi
+  _EVIDENCE_TEST_STATUS=running
+  _EVIDENCE_TEST_RUN=$((_EVIDENCE_TEST_RUN + 1))
+  _EVIDENCE_TEST_ATTEMPT=1
   echo ""
   echo "Running tests..."
   build_env_scrub
@@ -475,13 +537,16 @@ run_tests() {
   # tests so the sanitized image namespace is authoritative.
   TEST_ENV+=(MAKEFLAGS=-B)
   "${TEST_ENV[@]}" timeout --foreground "${CVE_FIX_TEST_TIMEOUT:-1800}" bash -c "$TEST_CMD" 2>&1 | tee "$TEST_LOG" || TEST_RC=$?
+  _record_test_evidence "$TEST_RC"
   local disk_full=false
   grep -qiE 'no space left on device|disk quota exceeded' "$TEST_LOG" && disk_full=true
   # A single failure can be a flaky test; a real regression fails again.
   if [[ $TEST_RC -ne 0 && $TEST_RC -ne 124 ]] && ! $disk_full; then
     echo "Tests failed; rerunning once to rule out a flaky test..."
     TEST_RC=0
+    _EVIDENCE_TEST_ATTEMPT=2
     "${TEST_ENV[@]}" timeout --foreground "${CVE_FIX_TEST_TIMEOUT:-1800}" bash -c "$TEST_CMD" 2>&1 | tee "$TEST_LOG" || TEST_RC=$?
+    _record_test_evidence "$TEST_RC"
     [[ $TEST_RC -ne 0 ]] || echo "WARNING: tests passed on the second run; a test may be flaky."
   fi
   if [[ $TEST_RC -ne 0 ]]; then
@@ -495,6 +560,8 @@ run_tests() {
     REVIEW_COUNT=$((REVIEW_COUNT + 1))
     TESTS_FAILED=true
   fi
+  _EVIDENCE_TEST_STATUS=completed
+  _EVIDENCE_TEST_RC=$TEST_RC
   rm -f "$TEST_LOG"
 }
 run_tests
@@ -558,7 +625,9 @@ unset _ignore_commits _ic _ic_diff _ic_pkg _ic_cves _ic_reason
 # treats that evidence as authoritative when the LLM gate is unavailable (absent
 # or blocked by an auth error), so a blocked LLM never silently passes a fix.
 if [[ -n "$SUBAGENT_DIR" ]]; then
+  _EVIDENCE_VERIFY_STATUS=running
   if ! verify_fix_loop "$STATE_FILE" "$SUBAGENT_DIR" "$SUBAGENT_REPORT_DIR" 3; then
+    _EVIDENCE_VERIFY_RC=1
     REVIEW_COUNT=$((REVIEW_COUNT + 1))
     VERIFY_FAILED=true
     # Keep the report dir (see cleanup trap) and bundle in the state file so a
@@ -567,10 +636,15 @@ if [[ -n "$SUBAGENT_DIR" ]]; then
     cp "$STATE_FILE" "$SUBAGENT_REPORT_DIR/state.env" 2>/dev/null || true
     echo "Reports preserved for debugging: $SUBAGENT_REPORT_DIR"
     FIX_LINES+=("NEEDS_REVIEW: subagent verification failed — reports at $SUBAGENT_REPORT_DIR")
-  elif [[ "${RUN_SUBAGENTS_VERIFIED_BY:-}" == "evidence" ]]; then
-    echo "Verified deterministically; LLM cross-check was unavailable."
+  else
+    _EVIDENCE_VERIFY_RC=0
+    if [[ "${RUN_SUBAGENTS_VERIFIED_BY:-}" == "evidence" ]]; then
+      echo "Verified deterministically; LLM cross-check was unavailable."
+    fi
   fi
+  _EVIDENCE_VERIFY_STATUS=completed
 else
+  _EVIDENCE_VERIFY_STATUS=missing
   echo "Skipping: no subagents directory found."
   rm -rf "$SUBAGENT_REPORT_DIR"
 fi
@@ -716,7 +790,13 @@ fi
 # while CVEs stand. This is the gate the exit code keys off of, not the counters.
 banner "Final Rescan Gate"
 GATE_RC=0
-GATE_JSON=$(BUILD_UPX=false "$SCRIPT_DIR/scan.sh" "$STATE_FILE" --no-update --json 2>/dev/null) || GATE_RC=$?
+_EVIDENCE_FINAL_STATUS=running
+GATE_JSON=$(CVE_FIX_EVIDENCE_PHASE=final-gate BUILD_UPX=false "$SCRIPT_DIR/scan.sh" "$STATE_FILE" --no-update --json 2>/dev/null) || GATE_RC=$?
+_EVIDENCE_FINAL_STATUS=completed
+if $_EVIDENCE_READY; then
+  printf '%s\n' "$GATE_JSON" > "$CVE_FIX_EVIDENCE_DIR/final-gate.json"
+  CVE_FIX_EVIDENCE_PHASE=final-gate record_scan_status "$CVE_FIX_EVIDENCE_DIR/final-gate-status.json" "$GATE_RC"
+fi
 # The gate rebuild can re-create .network-broken on a transient failure; the gate
 # keys off .build-failed (below) instead, so drop that orphan sentinel now (the
 # EXIT trap also cleans it) rather than let it linger into any later check.
@@ -813,6 +893,7 @@ fi
 # Run an existing repository license policy gate, when one is declared. A
 # policy failure is actionable but must never be “fixed” by inventing an
 # allowlist entry; suppress PR generation until maintainers resolve it.
+_EVIDENCE_LICENSE_STATUS=not_configured
 if has_real_make_target licensecheck; then
   echo ""
   LICENSE_CHECK_TIMEOUT="${CVE_FIX_LICENSE_TIMEOUT:-300}"
@@ -834,7 +915,16 @@ if has_real_make_target licensecheck; then
     done | sort
   }
   _LICENSE_BEFORE=$(_untracked_executables)
-  if ! "${LICENSE_ENV[@]}" timeout --foreground "$LICENSE_CHECK_TIMEOUT" make licensecheck; then
+  _EVIDENCE_LICENSE_STATUS=running
+  _EVIDENCE_LICENSE_RC=0
+  if $_EVIDENCE_READY; then
+    "${LICENSE_ENV[@]}" timeout --foreground "$LICENSE_CHECK_TIMEOUT" make licensecheck 2>&1 | \
+      tee "$CVE_FIX_EVIDENCE_DIR/license.log" || _EVIDENCE_LICENSE_RC=${PIPESTATUS[0]}
+  else
+    "${LICENSE_ENV[@]}" timeout --foreground "$LICENSE_CHECK_TIMEOUT" make licensecheck || _EVIDENCE_LICENSE_RC=$?
+  fi
+  _EVIDENCE_LICENSE_STATUS=completed
+  if [[ $_EVIDENCE_LICENSE_RC -ne 0 ]]; then
     POLICY_CHECK_FAILED=true
     UNSEEN_NEEDS_REVIEW=true
     echo "POLICY REVIEW REQUIRED: make licensecheck failed or timed out; PR generation suppressed."
