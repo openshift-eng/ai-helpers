@@ -223,15 +223,6 @@ If the refresh fails, continue anyway — the token may still be valid for short
     ```
     gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments/<comment_id>/replies -f body="<reply>"
     ```
-  - **Review bodies** (`pulls/<PR_NUMBER>/reviews`): post in the PR conversation and begin the body with the exact handled marker. This durable identity lets `has-review-work` distinguish this response from replies to unrelated feedback:
-    ```
-    gh api repos/{owner}/{repo}/issues/<PR_NUMBER>/comments -f body="<!-- ai-helpers-review-handled:<review_id> -->
-    <reply>
-
-    ---
-    *AI-assisted response*"
-    ```
-    Even when the review body only summarizes inline findings addressed elsewhere, post one concise marked response stating that; otherwise the review remains unanswered. Replace `<review_id>` with the review's REST numeric id.
   - **PR conversation comments** (`issues/<PR_NUMBER>/comments`):
     ```
     gh api repos/{owner}/{repo}/issues/<PR_NUMBER>/comments -f body="<reply>"
@@ -289,7 +280,7 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/check_replied.py <owner> <repo> <pr_number> 
 
 Where `<type>` is one of: `issue_comment`, `review`, `review_thread`, or `review_comment`
 
-For a `review` body, the duplicate check only counts a bot-authored PR conversation response containing its exact `<!-- ai-helpers-review-handled:<review_id> -->` marker. Include that marker when responding as described in Step 4a; a later response to different feedback does not handle the review.
+For a `review` body, duplicate detection is best effort: any later bot response in the PR conversation or an inline review thread counts as a reply. This may associate an unrelated later response with an older review, which is acceptable for avoiding stale review work.
 
 **Exit code 1**: Skip — already replied.
 **Exit code 2**: Check failed — do NOT post a reply.
@@ -297,7 +288,6 @@ For a `review` body, the duplicate check only counts a bot-authored PR conversat
 ## Response Rules
 
 1. **One response per feedback**: Inline review comments reply inline only. General PR comments reply as general comment only. NEVER both.
-   Review bodies use one marked general comment because GitHub does not provide a reply thread for them.
 2. **Code changes require explicit request**: Only modify code for imperative language ("change", "fix", "remove"). For questions — reply with explanation only.
 3. **Check before acting**: Questions ("Why did you...?") get explanations, not code changes.
 

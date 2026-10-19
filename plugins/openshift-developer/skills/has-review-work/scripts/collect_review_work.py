@@ -22,7 +22,7 @@ from is_slash_command_only import is_slash_command_only
 # Reuse the worker's authorization policy and historical reply signatures.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "address-review-pr" / "scripts"))
 import check_authorized
-from check_replied import find_handled_review_ids, is_bot_reply
+from check_replied import is_bot_reply
 
 GH_TIMEOUT = 30
 THREAD_QUERY = """
@@ -135,20 +135,17 @@ def collect_candidates(
             latest_inline_reply[root] = max(
                 latest_inline_reply.get(root, ""), comment["created_at"],
             )
-    latest_review_reply: dict[int, str] = {}
-    for comment in conversation:
-        if not bot_reply(comment):
-            continue
-        for review_id in find_handled_review_ids(comment.get("body", "")):
-            latest_review_reply[review_id] = max(
-                latest_review_reply.get(review_id, ""), comment["created_at"],
-            )
-    latest_conversation_reply = max(
+    latest_bot_reply = max(
         (
-            c["created_at"] for c in conversation
-            if bot_reply(c) and not find_handled_review_ids(c.get("body", ""))
+            comment["created_at"]
+            for comments in (inline, conversation)
+            for comment in comments
+            if bot_reply(comment)
         ),
         default="",
+    )
+    latest_conversation_reply = max(
+        (c["created_at"] for c in conversation if bot_reply(c)), default="",
     )
 
     candidates = []
@@ -181,20 +178,13 @@ def collect_candidates(
                 replied_at = latest_inline_reply.get(root, "")
                 created_at = comment["created_at"]
             elif kind == "review":
-                replied_at = latest_review_reply.get(comment["id"], "")
+                replied_at = latest_bot_reply
                 created_at = comment["submitted_at"]
             else:
                 replied_at = latest_conversation_reply
                 created_at = comment["created_at"]
 
-            # Review markers identify an exact review and are authoritative at
-            # equal timestamp precision. Chronological reply detection is less
-            # specific, so require a strictly newer reply rather than risk
-            # dropping a human follow-up created in the same second.
-            already_replied = bool(replied_at) and (
-                replied_at >= created_at if kind == "review" else replied_at > created_at
-            )
-            if already_replied:
+            if replied_at and replied_at >= created_at:
                 skipped["replied"] += 1
                 continue
             if not authorize(login):

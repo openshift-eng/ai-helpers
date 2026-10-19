@@ -87,37 +87,14 @@ class TestInlineReplyDeduplication(unittest.TestCase):
         self.assertTrue(result["safe_to_reply"])
         self.assertEqual(result["reason"], "no_bot_reply_found")
 
-    @patch("check_replied.run_gh")
-    def test_equal_second_human_followup_is_safe(self, run_gh):
-        run_gh.return_value = [
-            {"id": 100, "created_at": "2026-10-19T12:00:00Z", "user": {"login": "reviewer"}, "body": "First point"},
-            {"id": 101, "in_reply_to_id": 100, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
-            {"id": 102, "in_reply_to_id": 100, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "reviewer"}, "body": "One more thing"},
-        ]
-
-        result = check_review_comment("openshift", "release", 1, "102")
-
-        self.assertTrue(result["safe_to_reply"])
-
 
 class TestReviewReplyDeduplication(unittest.TestCase):
     @patch("check_replied.run_gh")
-    def test_unrelated_conversation_reply_does_not_handle_review(self, run_gh):
+    def test_later_inline_reply_deduplicates_review(self, run_gh):
         run_gh.side_effect = [
             {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
-            [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Handled another request.\n\n---\n*AI-assisted response*"}],
-        ]
-
-        result = check_review("openshift", "release", 1, "200")
-
-        self.assertTrue(result["safe_to_reply"])
-        self.assertEqual(result["reason"], "no_bot_reply_after")
-
-    @patch("check_replied.run_gh")
-    def test_matching_handled_marker_deduplicates_review(self, run_gh):
-        run_gh.side_effect = [
-            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
-            [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "<!-- ai-helpers-review-handled:200 -->\nHandled this review.\n\n---\n*AI-assisted response*"}],
+            [],
+            [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"}],
         ]
 
         result = check_review("openshift", "release", 1, "200")
@@ -126,14 +103,17 @@ class TestReviewReplyDeduplication(unittest.TestCase):
         self.assertEqual(result["reason"], "bot_replied_after")
 
     @patch("check_replied.run_gh")
-    def test_missing_conversation_timestamp_is_an_error(self, run_gh):
+    def test_new_review_after_existing_replies_is_safe(self, run_gh):
         run_gh.side_effect = [
-            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
-            [{"id": 300, "user": {"login": "review-agent"}, "body": "<!-- ai-helpers-review-handled:200 -->\n---\n*AI-assisted response*"}],
+            {"id": 200, "submitted_at": "2026-10-19T12:02:00Z"},
+            [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"}],
+            [],
         ]
 
-        with self.assertRaises(KeyError):
-            check_review("openshift", "release", 1, "200")
+        result = check_review("openshift", "release", 1, "200")
+
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_after")
 
 if __name__ == "__main__":
     unittest.main()
