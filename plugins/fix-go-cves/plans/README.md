@@ -8,16 +8,16 @@ itself.
 
 ## Next changes
 
-The first three-execution replay baseline failed: contract 3/3, but both factual
-criteria together only 1/3. A new Admiral live repair attempt was invalid:
-the agent claimed completion prematurely and ran independent scan/test commands;
-the engine later exited 128 after rootless Dapper changed checkout ownership.
-Canonical unit tests passed, but the final gate and license check were not
-reached, and collection failed. Neither result establishes successful remediation.
-The [testing plan](testing.md#next-implementation-slices) prioritizes focused
-completion, base/result attribution and provenance corrections, then a fresh
-frozen replay cohort and real Admiral/Subctl trials. Preserve the failed runs;
-checkout preparation alone does not validate the worker.
+Both frozen replay cohorts failed: the first had contract 3/3 and factual
+conjunction 1/3; the follow-up had contract 2/3 and factual conjunction 3/3 by
+majority, but omitted a retained fix hash in one reply. A real Admiral repair
+now passes all 14 runtime assertions; its agent response still fails the
+publication guard for inventing a PR command. Preserve these failures and the
+earlier invalid worker trial ([results](../evals/live/README.md)).
+Compact reporting and archive-hash fixes are implemented, awaiting the
+[next measurements](testing.md#next-implementation-slices): a fresh
+three-execution cohort, real Subctl binary coverage and a fresh blocked Admiral
+case. No new scoring criteria or eval framework is needed.
 
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.

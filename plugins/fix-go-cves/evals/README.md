@@ -145,10 +145,26 @@ No failed trial was replaced or retried. Manual review also found unverified
 claims about upstream validation and future PR availability.
 
 The follow-up targets actual terminal-exit observation, base-to-result dependency
-comparison and qualified recommendations. A separately committed skill revision
-requires a new three-execution cohort with the same declared rule. The first
-live case-002 attempt was also invalid; see [live results](live/README.md).
-Fresh live repair, binary and blocked-case measurements remain required.
+comparison and qualified recommendations. Its cohort at `9ba32eda` completed
+but **failed**: contract 2/3, factual conjunction 3/3 by majority. Run 2 omitted
+retained fix hash `aa5a4fc`; its action/owner samples were false/true/true, while
+the other factual samples were unanimous true. All three actually compared
+base/result directives. Manual review still found unverified upstream
+validation, unchanged-behavior and future-PR claims. Agent cost totaled
+$1.60466925 plus 18 unpriced judge calls. Reports remain in
+`.work/fix-go-cves-next-slice/replay-followup-20261019/`; no trial was replaced.
+
+The precise relevant analyzer feature is
+[inferred interface-method wrappers gated on file Go 1.26 or later](https://pkg.go.dev/golang.org/x/tools@v0.49.0/go/analysis/passes/printf#hdr-Inferred_printf_wrappers).
+This supports directive-triggered checking without an x/tools dependency bump;
+unchanged x/tools does not disprove it. Keep raw mixed verdicts intact.
+
+The corrected-worker case-002 runtime passed all 14 repair assertions, but the
+agent invented a publication command and failed its deterministic contract;
+see [live results](live/README.md). Compact report and archive-hash fixes are
+implemented; next run a fresh three-execution cohort with unchanged criteria, real Subctl
+binary case-003 and refreshed blocked case-001. Runtime success and complete
+skill accuracy remain separate measurements.
 
 The live configuration permits a larger invoking-agent budget, but that budget
 does not cap independent reviewer CLIs launched by the remediation scripts or

@@ -11,7 +11,9 @@ Three layers answer different questions:
   pinned history and recorded scripts/output. Its references and negatives are
   calibrated. The first frozen three-execution baseline completed and failed:
   contract 3/3, but both factual criteria together 1/3 rather than the required
-  2/3. Replay cannot validate today's remediation engine.
+  2/3. The focused follow-up also failed: contract 2/3, factual conjunction 3/3
+  by majority; one reply omitted the retained fix hash. Replay cannot validate
+  today's remediation engine.
 - **Live evaluation:** today's plugin, real Grype and canonical repository
   commands ran on Admiral release-0.24. One fully scored trial passed the
   execution/reporting checks for a blocked runtime result: five CVEs fixed,
@@ -20,6 +22,10 @@ Three layers answer different questions:
   The new devel repair attempt was invalid: premature success claims and extra
   scan/test commands, then engine exit 128 from rootless Dapper ownership drift.
   Tests passed, but final-gate/license evidence and completed collection did not.
+  A corrected-worker trial then passed all 14 actual repair assertions and
+  evidence-hash checks, but failed its behavioral contract for an invented
+  publication command. Both fact judges passed it; the deterministic guard
+  correctly rejected the response.
 
 [Eval setup and replay results](../evals/README.md) and the
 [live results](../evals/live/README.md) retain the detailed evidence and costs.
@@ -30,8 +36,8 @@ not attribute the historical run or replace a full baseline test suite.
 
 ## Next implementation slices
 
-Keep changes small enough to review independently. The attempted Admiral repair
-has not established live acceptance; retain its behavioral and worker failures.
+Keep changes small enough to review independently. Admiral runtime repair is
+verified; neither the full skill behavior nor a replay cohort is accepted yet.
 
 1. **Acceptance and frozen scoring inputs are implemented.**
    Both tracks now require each factual judge's pass rate to be 1.0 as well as
@@ -43,7 +49,7 @@ has not established live acceptance; retain its behavioral and worker failures.
    helper identity recorded. A stock-workspace/scoring probe confirmed that
    later working-tree annotation changes do not alter frozen scoring. Deliberate
    rescoring needs a separate frozen record and must preserve original scores.
-2. **Durable engine evidence is implemented; live verification is incomplete.**
+2. **Durable engine evidence is verified for the Admiral repair.**
    Keep the actual dependency patch or Git bundle, runtime/helper hashes,
    detected build/test commands, phase outcomes and all four audit results when
    reached. Retain initial and authoritative final-gate scan JSON, scanner exit
@@ -57,10 +63,12 @@ has not established live acceptance; retain its behavioral and worker failures.
    and inspection after the temporary checkout is removed. A real Grype probe
    confirmed a freshly built binary in the same scan's zero-findings catalog,
    with matching file hash. The full shell suite passed 2,320 checks.
-   The failed live attempt needed operator retention after collection failed;
-   that is not complete helper capture. Verify focused scanner provenance and
-   completion-observation fixes against its retained trace and a fresh run;
-   distinguish the scanner that produced evidence from preflight tools.
+   The corrected-worker run passed all 14 runtime assertions with matching
+   archived hashes. Scanner provenance and completion-observation corrections
+   are implemented. The archive-hash fix is also implemented, awaiting fresh
+   measurements. Keep valid runtime evidence separate from failed agent behavior
+   ([results](../evals/live/README.md)); the original incomplete trial needed
+   operator retention and did not establish complete helper capture.
 3. **The focused skill and judge corrections are implemented and calibrated.**
    Make the post-run diagnosis/recommendation boundary explicit: no source
    repair, second invocation or cleanup without a further user request. Require
@@ -74,24 +82,26 @@ has not established live acceptance; retain its behavioral and worker failures.
    runtime log alone cannot verify every commit discovered during diagnosis.
    Do not require automatic baseline testing for every remediation run or feed
    judges entire raw tool traces.
-   The subsequent frozen baseline failed on causal attribution in two of three
-   executions. The focused follow-up requires observing the actual terminal
-   exit before reporting, comparing the run's base/result dependency diff, and
-   qualifying unverified upstream validation or future success. Repeat exactly
-   three fresh executions after that change is committed, preserving this cohort.
-4. **Add one genuine successful repair case: Admiral devel.**
+   The first frozen baseline failed on causal attribution in two of three runs.
+   The focused follow-up completed at `9ba32eda`: factual conjunction 3/3 by majority,
+   contract 2/3 because one reply omitted `aa5a4fc`. One action/owner vote was
+   mixed; manual upstream-validation, unchanged-behavior and future-PR overclaims
+   remain ([results](../evals/README.md)). Compact report instructions are now
+   implemented; run exactly three fresh executions with unchanged criteria.
+4. **Genuine Admiral devel runtime repair is verified.**
    Use `https://github.com/submariner-io/admiral.git`, with base and default both
    pinned to `af20d0bf09dade1c6537d6d38f5175f7b8704042`, target/original branch
    `devel` and script argument `devel`. This real upstream revision already has
    the reporter repair and Go 1.26; x/net remains v0.59.0. It avoids an artificial
-   preparatory source commit or a required backport. Case-002 and its success
-   oracle are implemented. Checkout preparation and a separate unit preflight
-   passed, but the actual trial exposed rootless Dapper changing the checkout's
-   owner. The engine exited 128 after canonical unit tests and verification
-   passed; final scan and license phases were not reached. Collection failed
-   without a standard summary. Resolve ownership in the actual worker and
-   completion observation, then run a fresh trial; preparation alone did
-   not validate the worker. Do not relax the success oracle to obtain a pass.
+   preparatory source commit or a required backport. The corrected-worker trial
+   completes with exit 0 and passes all 14
+   repair assertions, including canonical tests, four clean audits and the
+   authoritative zero-actionable-findings scan. No license gate is configured.
+   The response still invents a publication command, so overall acceptance
+   fails despite both fact judges returning three true samples. Preserve that
+   judge limitation; the existing deterministic guard catches the failure.
+   The earlier ownership/collection failure remains preserved in the
+   [live results](../evals/live/README.md); preparation alone did not validate the worker.
 5. **Then add native binary coverage: Subctl devel.**
    Use `https://github.com/submariner-io/subctl.git`, base/default
    `50243ac421a985eb13a8be7797fc53595be0f34e`, branch/argument `devel`.
@@ -171,6 +181,8 @@ Freeze case membership, criteria and configuration before comparing skill
 changes. The first case-005 baseline at source `5079407` completed with contract
 3/3 and factual conjunction 1/3: it failed. Its reports are preserved under
 `.work/fix-go-cves-next-slice/replay-baseline-20261019/`.
+The `9ba32eda` follow-up also failed (contract 2/3, factual conjunction 3/3 by
+majority), preserved in `replay-followup-20261019/` beside that directory.
 For the next separately committed skill revision, run each admitted case in three
 independent skill executions: require its deterministic contract in all three
 and all factual criteria together in at least two. Inspect each case, not only

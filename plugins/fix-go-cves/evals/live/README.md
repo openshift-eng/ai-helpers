@@ -12,9 +12,9 @@ See [setup and commands](../README.md).
 | case-003 | Subctl devel | Fresh native Linux/amd64 binary and positive scan coverage |
 
 Select one with `evals/run.sh --live --case case-002` (or repeat `--case`).
-The original case remains the default. Case-002's first runtime attempt was
-invalid; case-003 has not run. Both passed pinned checkout preparation, which
-does not establish that their complete worker/build workflow works.
+The original case remains the default. Case-002 now has a verified runtime
+repair but a failed agent contract; case-003 has not run. Checkout preparation
+alone did not validate the worker, as the first case-002 trial demonstrated.
 
 The eval retains local fixes and never publishes them. A confirmed partial
 runtime outcome can be reported correctly; missing execution evidence cannot.
@@ -86,10 +86,22 @@ the patch and Git bundle under
 `.work/fix-go-cves-next-slice/operator-live002-premature/`.
 Passing preparation or an isolated unit preflight did not validate this worker.
 
-The focused follow-up targets actual terminal-exit observation, direct extra
-scan/test checks and the scanner that actually produced each scan. Retain
-partial evidence separately when collection fails. Resolve the
-rootless Dapper ownership issue before a fresh case-002 trial. Case-003 still
-needs actual native binary/gate evidence; case-001 needs a fresh measurement
-under the updated skill, evidence capture and criteria. Keep the original
-failures and do not infer a later success from intermediate fixed counts.
+The corrected-worker trial, `cve-live-admiral-repair-followup-20261019`, completed
+the actual repair with runtime exit 0. All 14 scenario assertions passed:
+retained dependency repair, canonical tests, four clean audits and authoritative
+final scan with zero actionable findings. Archived evidence hashes matched;
+the license phase was not configured. This establishes runtime repair, not a
+license-policy check or native-binary coverage.
+
+The agent still invented a publication command, so the deterministic contract
+and overall pipeline failed. Both factual judges returned three true samples;
+the outcome judge excused the command as a suggestion despite its criterion.
+Keep that scoring limitation and the original verdicts visible. Runtime review
+is retained in
+`.work/fix-go-cves-next-slice/admiral-repair-followup-runtime-review.json`, with
+the full standard report under the trial's normal results directory.
+
+The compact fix now requires retained fix IDs and relaying only actual
+publication output; the separate archive-hash fix is also implemented.
+With the existing criteria, next run the fresh replay cohort, native Subctl case-003 and
+blocked Admiral case-001. Do not infer a later success from intermediate counts.
