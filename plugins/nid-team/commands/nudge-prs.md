@@ -22,7 +22,7 @@ Sends automated reminder comments on PRs that are assigned (Status=Assigned), hi
 Run the nudge script:
 
 ```bash
-plugins/nid-team/scripts/pr-dashboard/nudge-prs.sh [--dryrun] [--days 7] [--priority High,Urgent]
+${CLAUDE_PLUGIN_ROOT}/scripts/pr-dashboard/nudge-prs.sh [--dryrun] [--days 7] [--priority High,Urgent]
 ```
 
 ### Arguments

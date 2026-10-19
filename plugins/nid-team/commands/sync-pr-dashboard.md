@@ -27,7 +27,7 @@ Syncs the NI&D PR Review GitHub Project board (https://github.com/orgs/openshift
 
 ### Step 1: Run the sync script
 
-Run `~/.claude/commands/sync-pr-dashboard.sh` (or `plugins/nid-team/scripts/pr-dashboard/sync-dashboard.sh`).
+Run `${CLAUDE_PLUGIN_ROOT}/scripts/pr-dashboard/sync-dashboard.sh`.
 
 This handles:
 - **PR Author** — Populates blank "PR Author" fields with display names
@@ -40,7 +40,7 @@ This handles:
 After the script completes, run the helper script to get structured data on unclassified items:
 
 ```bash
-~/.claude/commands/list-unclassified-areas.sh
+${CLAUDE_PLUGIN_ROOT}/scripts/pr-dashboard/list-unclassified-areas.sh
 ```
 
 This outputs each unclassified item with its item ID, repo, PR number, title, URL, and changed files.
