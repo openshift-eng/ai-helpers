@@ -22,7 +22,7 @@ from is_slash_command_only import is_slash_command_only
 # Reuse the worker's authorization policy and historical reply signatures.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "address-review-pr" / "scripts"))
 import check_authorized
-from check_replied import is_bot_reply
+from check_replied import is_bot_reply, normalized_login
 
 GH_TIMEOUT = 30
 THREAD_QUERY = """
@@ -84,10 +84,6 @@ def fetch_threads(owner: str, repo: str, number: int) -> dict[int, dict]:
             for comment in thread["comments"]["nodes"]:
                 roots[comment["databaseId"]] = thread
     return roots
-
-
-def normalized_login(login: str) -> str:
-    return login.lower().removesuffix("[bot]")
 
 
 class Authorizer:
@@ -184,7 +180,7 @@ def collect_candidates(
                 replied_at = latest_conversation_reply
                 created_at = comment["created_at"]
 
-            if replied_at and replied_at >= created_at:
+            if replied_at and replied_at > created_at:
                 skipped["replied"] += 1
                 continue
             if not authorize(login):

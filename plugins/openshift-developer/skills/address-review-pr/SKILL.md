@@ -278,6 +278,8 @@ Before posting ANY reply, verify you haven't already responded:
 python3 ${CLAUDE_SKILL_DIR}/scripts/check_replied.py <owner> <repo> <pr_number> <comment_id> --type <type>
 ```
 
+The helper uses the authenticated `gh` login as the agent identity. If the caller has an explicit configured login, pass it with `--agent-login <login>`; GitHub App `[bot]` suffixes and case are normalized.
+
 Where `<type>` is one of: `issue_comment`, `review`, `review_thread`, or `review_comment`
 
 For a `review` body, duplicate detection is best effort: any later bot response in the PR conversation or an inline review thread counts as a reply. This may associate an unrelated later response with an older review, which is acceptable for avoiding stale review work.

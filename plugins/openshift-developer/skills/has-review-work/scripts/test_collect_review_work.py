@@ -108,6 +108,18 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(candidates, [])
         self.assertEqual(skipped["replied"], 2)
 
+    def test_equal_second_reply_does_not_suppress_review(self):
+        reviews = [
+            dict(comment(9), submitted_at="2026-10-19T14:00:00Z", state="COMMENTED"),
+        ]
+        conversation = [
+            comment(10, "Done.", login="review-agent", time="2026-10-19T14:00:00Z"),
+        ]
+
+        candidates, _ = self.collect(reviews=reviews, conversation=conversation)
+
+        self.assertEqual([(c["type"], c["id"]) for c in candidates], [("review", 9)])
+
     def test_review_after_latest_bot_reply_remains_candidate(self):
         reviews = [
             dict(comment(5572473354), submitted_at="2026-10-19T13:45:25Z", state="COMMENTED"),
@@ -123,7 +135,13 @@ class CandidateTests(unittest.TestCase):
 
     def test_legacy_signature_counts_as_reply(self):
         candidates, _ = self.collect(
-            [comment(1), comment(2, "*AI-assisted response via Claude Code*", login="other-agent", in_reply_to_id=1)],
+            [
+                comment(1),
+                comment(
+                    2, "*AI-assisted response via Claude Code*", login="other-agent",
+                    in_reply_to_id=1, time="2026-10-02T13:01:00Z",
+                ),
+            ],
             threads={1: thread(1)},
         )
         self.assertEqual(candidates, [])

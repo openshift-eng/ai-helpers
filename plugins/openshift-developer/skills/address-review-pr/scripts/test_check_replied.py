@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Tests for review reply detection and deduplication."""
 
+import contextlib
+import io
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -9,6 +12,7 @@ from check_replied import (
     check_review,
     check_review_comment,
     is_bot_reply,
+    main,
 )
 
 
@@ -25,6 +29,9 @@ class TestIsBotReply(unittest.TestCase):
 
     def test_unrelated_comment(self):
         self.assertFalse(is_bot_reply("some-user", "Looks good to me."))
+
+    def test_configured_agent_matches_unsigned_user_form(self):
+        self.assertTrue(is_bot_reply("Review-Agent", "Done.", "review-agent[bot]"))
 
 
 class TestMissingCommentsAreNotSafe(unittest.TestCase):
@@ -114,6 +121,25 @@ class TestReviewReplyDeduplication(unittest.TestCase):
 
         self.assertTrue(result["safe_to_reply"])
         self.assertEqual(result["reason"], "no_bot_reply_after")
+
+    @patch("check_replied.run_gh")
+    def test_cli_uses_authenticated_login_for_unsigned_reply(self, run_gh):
+        run_gh.side_effect = [
+            {"login": "review-agent[bot]"},
+            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+            [],
+            [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done."}],
+        ]
+
+        argv = [
+            "check_replied.py", "openshift", "release", "1", "200",
+            "--type", "review",
+        ]
+        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as exit_context:
+                main()
+
+        self.assertEqual(exit_context.exception.code, 1)
 
 if __name__ == "__main__":
     unittest.main()
