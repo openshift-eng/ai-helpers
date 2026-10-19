@@ -58,6 +58,24 @@ class CandidateTests(unittest.TestCase):
         candidates, _ = self.collect(inline, threads={1: thread(1)})
         self.assertEqual([c["id"] for c in candidates], [3])
 
+    def test_equal_second_human_followup_remains_eligible(self):
+        inline = [
+            comment(1),
+            comment(2, login="review-agent[bot]", in_reply_to_id=1, time="2026-10-02T14:00:00Z"),
+            comment(3, "This is new work", in_reply_to_id=1, time="2026-10-02T14:00:00Z"),
+        ]
+
+        candidates, _ = self.collect(inline, threads={1: thread(1)})
+
+        self.assertEqual([c["id"] for c in candidates], [3])
+
+    def test_missing_inline_timestamp_is_an_error(self):
+        inline = [comment(1)]
+        del inline[0]["created_at"]
+
+        with self.assertRaises(KeyError):
+            self.collect(inline, threads={1: thread(1)})
+
     def test_resolved_comments_are_skipped_before_authorization(self):
         authorize = Mock()
         candidates, skipped = self.collect([comment(1)], threads={1: thread(1, True)}, authorize=authorize)
@@ -94,9 +112,50 @@ class CandidateTests(unittest.TestCase):
         candidates, _ = self.collect(reviews=reviews, conversation=conversation)
         self.assertEqual([(c["type"], c["id"]) for c in candidates], [("review", 9), ("issue_comment", 3)])
 
+    def test_review_handled_marker_only_suppresses_matching_review(self):
+        reviews = [
+            dict(comment(5571697371, "First standalone review request"), submitted_at="2026-10-19T12:43:14Z", state="COMMENTED"),
+            dict(comment(5572473354, "New standalone review request"), submitted_at="2026-10-19T13:45:25Z", state="COMMENTED"),
+        ]
+        conversation = [
+            comment(
+                20,
+                "<!-- ai-helpers-review-handled:5571697371 -->\nHandled the first review.\n\n---\n*AI-assisted response*",
+                login="review-agent",
+                time="2026-10-19T15:00:00Z",
+            ),
+        ]
+
+        candidates, skipped = self.collect(reviews=reviews, conversation=conversation)
+
+        self.assertEqual([(c["type"], c["id"]) for c in candidates], [("review", 5572473354)])
+        self.assertEqual(skipped["replied"], 1)
+
+    def test_inline_reply_does_not_suppress_standalone_review_body(self):
+        reviews = [
+            dict(comment(10, "Please also update the standalone documentation"), submitted_at="2026-10-02T13:00:00Z", state="COMMENTED"),
+        ]
+        inline = [
+            comment(1),
+            comment(2, login="review-agent", in_reply_to_id=1, time="2026-10-02T14:00:00Z"),
+        ]
+
+        candidates, _ = self.collect(inline=inline, reviews=reviews, threads={1: thread(1)})
+
+        self.assertEqual([(c["type"], c["id"]) for c in candidates], [("review", 10)])
+
     def test_legacy_signature_counts_as_reply(self):
         candidates, _ = self.collect(
-            [comment(1), comment(2, "*AI-assisted response via Claude Code*", login="other-agent", in_reply_to_id=1)],
+            [
+                comment(1),
+                comment(
+                    2,
+                    "*AI-assisted response via Claude Code*",
+                    login="other-agent",
+                    in_reply_to_id=1,
+                    time="2026-10-02T13:01:00Z",
+                ),
+            ],
             threads={1: thread(1)},
         )
         self.assertEqual(candidates, [])

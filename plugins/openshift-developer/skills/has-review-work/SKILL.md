@@ -54,7 +54,7 @@ The helper returns one JSON object with:
 - `head_ref_oid`: the commit observed during collection.
 - `skipped`: counts of mechanically filtered comments for diagnostics.
 
-The helper fetches all REST pages and all GraphQL review-thread pages. It ignores the agent's own comments, known CI bots, unauthorized authors, `APPROVED`/`PENDING` reviews, empty or slash-command-only bodies, resolved threads, and comments already answered by the bot. It reuses the review worker's authorization policy and reply signatures, and checks reply timing within each inline thread rather than allowing replies on other threads to suppress work.
+The helper fetches all REST pages and all GraphQL review-thread pages. It ignores the agent's own comments, known CI bots, unauthorized authors, `APPROVED`/`PENDING` reviews, empty or slash-command-only bodies, resolved threads, and comments already answered by the bot. It reuses the review worker's authorization policy and reply signatures. Inline feedback is answered only by a newer bot reply in the same root-normalized thread. Review bodies are answered only by a bot conversation response with the exact `<!-- ai-helpers-review-handled:<review_id> -->` marker. Replies to unrelated feedback never suppress them.
 
 For CI, it accepts valid `gh pr checks` JSON even when that command exits nonzero. When that command does not return JSON, there are no checks and `ci_work` is `no`. It drops `tide` and optional Prow jobs using `filter_optional_checks.py`. If optional-job metadata cannot be fetched, the failing check remains actionable. Do not use `gh pr checks --required`: GitHub branch protection omits some Tide-required jobs.
 

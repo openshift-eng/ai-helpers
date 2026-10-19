@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Tests for provider-neutral and legacy reply signature detection."""
+"""Tests for review reply detection and deduplication."""
 
 import unittest
 from unittest.mock import patch
 
-from check_replied import check_issue_comment, check_review_comment, is_bot_reply
+from check_replied import (
+    check_issue_comment,
+    check_review,
+    check_review_comment,
+    is_bot_reply,
+)
 
 
 class TestIsBotReply(unittest.TestCase):
@@ -53,6 +58,82 @@ class TestMissingCommentsAreNotSafe(unittest.TestCase):
         self.assertFalse(result["safe_to_reply"])
         self.assertEqual(result["reason"], "comment_not_found")
 
+
+class TestInlineReplyDeduplication(unittest.TestCase):
+    @patch("check_replied.run_gh")
+    def test_reply_to_root_handles_child_target(self, run_gh):
+        run_gh.return_value = [
+            {"id": 4313941703, "created_at": "2026-10-19T12:43:32Z", "user": {"login": "reviewer"}, "body": "First point"},
+            {"id": 4313946225, "in_reply_to_id": 4313941703, "created_at": "2026-10-19T12:44:02Z", "user": {"login": "reviewer"}, "body": "And this follow-up"},
+            {"id": 4314161323, "in_reply_to_id": 4313941703, "created_at": "2026-10-19T13:06:36Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
+        ]
+
+        result = check_review_comment("openshift", "release", 1, "4313946225")
+
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "bot_already_replied")
+        self.assertEqual(result["existing_reply"]["created_at"], "2026-10-19T13:06:36Z")
+
+    @patch("check_replied.run_gh")
+    def test_human_followup_after_bot_reply_is_safe(self, run_gh):
+        run_gh.return_value = [
+            {"id": 100, "created_at": "2026-10-19T12:00:00Z", "user": {"login": "reviewer"}, "body": "First point"},
+            {"id": 101, "in_reply_to_id": 100, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
+            {"id": 102, "in_reply_to_id": 100, "created_at": "2026-10-19T12:02:00Z", "user": {"login": "reviewer"}, "body": "There is still a problem"},
+        ]
+
+        result = check_review_comment("openshift", "release", 1, "102")
+
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_found")
+
+    @patch("check_replied.run_gh")
+    def test_equal_second_human_followup_is_safe(self, run_gh):
+        run_gh.return_value = [
+            {"id": 100, "created_at": "2026-10-19T12:00:00Z", "user": {"login": "reviewer"}, "body": "First point"},
+            {"id": 101, "in_reply_to_id": 100, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
+            {"id": 102, "in_reply_to_id": 100, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "reviewer"}, "body": "One more thing"},
+        ]
+
+        result = check_review_comment("openshift", "release", 1, "102")
+
+        self.assertTrue(result["safe_to_reply"])
+
+
+class TestReviewReplyDeduplication(unittest.TestCase):
+    @patch("check_replied.run_gh")
+    def test_unrelated_conversation_reply_does_not_handle_review(self, run_gh):
+        run_gh.side_effect = [
+            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+            [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Handled another request.\n\n---\n*AI-assisted response*"}],
+        ]
+
+        result = check_review("openshift", "release", 1, "200")
+
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_after")
+
+    @patch("check_replied.run_gh")
+    def test_matching_handled_marker_deduplicates_review(self, run_gh):
+        run_gh.side_effect = [
+            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+            [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "<!-- ai-helpers-review-handled:200 -->\nHandled this review.\n\n---\n*AI-assisted response*"}],
+        ]
+
+        result = check_review("openshift", "release", 1, "200")
+
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "bot_replied_after")
+
+    @patch("check_replied.run_gh")
+    def test_missing_conversation_timestamp_is_an_error(self, run_gh):
+        run_gh.side_effect = [
+            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+            [{"id": 300, "user": {"login": "review-agent"}, "body": "<!-- ai-helpers-review-handled:200 -->\n---\n*AI-assisted response*"}],
+        ]
+
+        with self.assertRaises(KeyError):
+            check_review("openshift", "release", 1, "200")
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,7 @@ Output:
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from typing import Any
@@ -33,6 +34,10 @@ BOT_SIGNATURES = [
 REPLY_SIGNATURES = (
     "*AI-assisted response*",
     "*AI-assisted response via Claude Code*",
+)
+
+REVIEW_HANDLED_MARKER_RE = re.compile(
+    r"<!--\s*ai-helpers-review-handled:(\d+)\s*-->"
 )
 
 
@@ -59,6 +64,11 @@ def is_bot_reply(login: str, body: str) -> bool:
     if body and any(signature in body for signature in REPLY_SIGNATURES):
         return True
     return False
+
+
+def find_handled_review_ids(body: str) -> set[int]:
+    """Extract review ids from exact handled markers in a comment body."""
+    return {int(match) for match in REVIEW_HANDLED_MARKER_RE.findall(body or "")}
 
 
 def check_review_thread(owner: str, repo: str, pr_number: int, thread_id: str) -> dict:
@@ -264,17 +274,18 @@ def check_review(owner: str, repo: str, pr_number: int, review_id: str) -> dict:
         }
 
     for comment in comments or []:
-        if comment.get("created_at", "") <= submitted_at:
+        created_at = comment["created_at"]
+        if created_at < submitted_at:
             continue
         author = comment["user"]["login"] if comment.get("user") else ""
         body = comment.get("body", "")
-        if is_bot_reply(author, body):
+        if int(review_id) in find_handled_review_ids(body) and is_bot_reply(author, body):
             return {
                 "safe_to_reply": False,
                 "reason": "bot_replied_after",
                 "existing_reply": {
                     "author": author,
-                    "created_at": comment["created_at"],
+                    "created_at": created_at,
                     "body_preview": body[:200] if body else ""
                 }
             }
@@ -318,24 +329,28 @@ def check_review_comment(owner: str, repo: str, pr_number: int, comment_id: str)
             "message": f"Review comment {comment_id} not found"
         }
 
-    # Check for bot replies in the same thread (same in_reply_to_id or replies to this comment)
-    target_id = int(comment_id)
+    # GitHub points every reply at the thread root, even when the feedback being
+    # handled is a child comment. Normalize both sides to that root and only
+    # count replies newer than the specific target so later human follow-ups
+    # remain eligible.
+    target_root_id = int(target_comment.get("in_reply_to_id") or target_comment["id"])
+    target_time = target_comment["created_at"]
     for comment in comments:
-        # Check if this is a reply to the target comment
-        in_reply_to = comment.get("in_reply_to_id")
-        if in_reply_to == target_id:
-            author = comment["user"]["login"] if comment.get("user") else ""
-            body = comment.get("body", "")
-            if is_bot_reply(author, body):
-                return {
-                    "safe_to_reply": False,
-                    "reason": "bot_already_replied",
-                    "existing_reply": {
-                        "author": author,
-                        "created_at": comment["created_at"],
-                        "body_preview": body[:200] if body else ""
-                    }
+        comment_root_id = int(comment.get("in_reply_to_id") or comment["id"])
+        if comment_root_id != target_root_id or comment["created_at"] <= target_time:
+            continue
+        author = comment["user"]["login"] if comment.get("user") else ""
+        body = comment.get("body", "")
+        if is_bot_reply(author, body):
+            return {
+                "safe_to_reply": False,
+                "reason": "bot_already_replied",
+                "existing_reply": {
+                    "author": author,
+                    "created_at": comment["created_at"],
+                    "body_preview": body[:200] if body else ""
                 }
+            }
 
     return {
         "safe_to_reply": True,
