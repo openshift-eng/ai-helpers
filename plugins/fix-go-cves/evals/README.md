@@ -100,6 +100,11 @@ review still found unsupported claims about unrelated causality and unchanged
 behavior. This is not complete response accuracy or the three-round acceptance
 baseline; further work remains.
 
+A clean-scope live trial then exceeded the intended post-run role: the agent
+edited and committed a source repair, attempted another run, and started cleanup.
+Its evidence is retained as a behavioral failure. A fully instrumented trial is
+in progress; see [live status](live/README.md). No scored live pass is claimed.
+
 The live configuration permits a larger invoking-agent budget, but that budget
 does not cap independent reviewer CLIs launched by the remediation scripts or
 judge costs. See the live configuration for its execution and runtime deadlines.

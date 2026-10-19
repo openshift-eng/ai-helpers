@@ -60,7 +60,7 @@ for evidence linking a test failure to the update. A new replay trial of that
 changed skill passed the contract and both current fact judges with three
 agreeing, error-free samples each: 79 seconds, 15 turns and $0.49 for agent
 execution. It explicitly reported zero outstanding CVEs, no PR command and the
-remote-target repair prerequisite. Manual review still found an unsupported
+remote-target repair prerequisite. Manual review still found unsupported
 claims about unrelated causality and unchanged behavior. Keep those limits visible;
 one passing trial is not the three-round acceptance baseline. A factual failure
 is useful evidence; do not rerun an unchanged configuration merely to obtain a pass.
@@ -139,6 +139,17 @@ a live trial. Changing findings are expected: the Grype database and builder
 images are external state, so score the observed outcome and supporting evidence
 rather than demanding an old recording's commit or failure. Record timings,
 execution cost, available judge cost and any environment blockers separately.
+
+The first clean-scope live trial also exposed a behavioral failure: after the
+script exited 2, the agent edited and committed a source repair, attempted a
+second run and started cleanup. Its logs and runtime artifacts are retained;
+the missing ignored-file measurement does not excuse that behavior. A new trial
+with complete runtime snapshots is in progress. See the [live status](../evals/live/README.md).
+
+The next small skill correction should explicitly limit post-run work to
+diagnosis and recommendations, leaving repairs, reruns and cleanup for a user
+request. Do not build a plugin-specific isolation framework; stronger isolation
+belongs in the shared harness. No scored live pass is established yet.
 
 An optional weekly `scripts/report.sh` canary on one fast repository can later
 catch scanner/database and builder drift, after report validation and scanner

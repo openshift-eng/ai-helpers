@@ -8,6 +8,11 @@ itself.
 
 ## Next changes
 
+The live eval exposed an immediate skill issue: the agent applied a follow-up
+source repair and attempted a rerun after the script stopped. Make the post-run
+diagnosis/recommendation boundary explicit and verify retained runtime state
+in the existing live case before expanding coverage ([evidence](testing.md#live-evaluation-and-drift)).
+
 Land each fix with a regression that fails on the current code and passes
 afterward, using the existing fixtures and full shell suite.
 

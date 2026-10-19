@@ -20,9 +20,16 @@ The helper now places the runtime plugin/scanner, fresh home and temporary
 files outside the checkout. Optional host cache paths must also stay outside
 it; see [setup](../README.md#setup).
 
-The current trial uses the corrected scan scope, but began before the helper
-recorded hashes of ignored files at script completion. Its runtime evidence is
-retained; a deterministic contract failure is expected from that missing
-measurement. A subsequent trial will use the corrected measurement, preserving
-native build/coverage files while checking that the agent leaves them unchanged.
-No scored live pass is established yet.
+A clean-scope trial exposed a behavioral failure after the real script exited 2:
+the agent edited the reporter source, committed `cdba74f`, attempted a second
+remediation run, and started `make clean`. The once-only wrapper blocked the
+second run. The evaluator and its mounted container were stopped to halt the
+cleanup; raw logs and runtime artifacts were retained. This failure is not
+explained by the trial's missing ignored-file measurement.
+
+A new trial is running with complete script-completion snapshots, including
+ignored-file hashes, and the focused reporting changes in `SKILL.md`. No further
+post-run instruction has been added for this trial. No scored live pass is
+established yet. The next narrow skill improvement is to make post-run diagnosis
+and recommendation explicit, leaving repairs, reruns and cleanup for a user
+request. Stronger host isolation belongs in the shared harness.
