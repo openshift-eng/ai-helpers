@@ -48,6 +48,17 @@ def run_gh(args: list[str]) -> Any:
     return json.loads(result.stdout) if result.stdout.strip() else None
 
 
+def paginated_items(endpoint: str) -> list[dict]:
+    """Fetch and flatten all pages from a REST array endpoint."""
+    pages = run_gh(["api", endpoint, "--paginate", "--slurp"])
+    if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
+        raise ValueError("REST response must contain arrays of items")
+    items = [item for page in pages for item in page]
+    if any(not isinstance(item, dict) for item in items):
+        raise ValueError("REST response contains an invalid item")
+    return items
+
+
 def normalized_login(login: str) -> str:
     """Normalize GitHub App and user forms of the same login."""
     return login.lower().removesuffix("[bot]")
@@ -179,9 +190,9 @@ def check_issue_comment(
 ) -> dict:
     """Check if bot already replied after an issue comment."""
     try:
-        comments = run_gh([
-            "api", f"repos/{owner}/{repo}/issues/{pr_number}/comments", "--paginate"
-        ])
+        comments = paginated_items(
+            f"repos/{owner}/{repo}/issues/{pr_number}/comments"
+        )
     except RuntimeError as e:
         return {
             "safe_to_reply": False,
@@ -266,12 +277,12 @@ def check_review(
         }
 
     try:
-        conversation = run_gh([
-            "api", f"repos/{owner}/{repo}/issues/{pr_number}/comments", "--paginate"
-        ])
-        inline = run_gh([
-            "api", f"repos/{owner}/{repo}/pulls/{pr_number}/comments", "--paginate"
-        ])
+        conversation = paginated_items(
+            f"repos/{owner}/{repo}/issues/{pr_number}/comments"
+        )
+        inline = paginated_items(
+            f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
+        )
     except RuntimeError as e:
         return {
             "safe_to_reply": False,
@@ -306,9 +317,9 @@ def check_review_comment(
 ) -> dict:
     """Check if bot already replied to a review comment (inline code comment)."""
     try:
-        comments = run_gh([
-            "api", f"repos/{owner}/{repo}/pulls/{pr_number}/comments", "--paginate"
-        ])
+        comments = paginated_items(
+            f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
+        )
     except RuntimeError as e:
         return {
             "safe_to_reply": False,

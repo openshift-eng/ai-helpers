@@ -4,6 +4,7 @@
 import contextlib
 import io
 import json
+import subprocess
 import sys
 import unittest
 from unittest.mock import patch
@@ -14,6 +15,7 @@ from check_replied import (
     check_review_comment,
     is_bot_reply,
     main,
+    paginated_items,
 )
 
 
@@ -44,9 +46,9 @@ class TestMissingCommentsAreNotSafe(unittest.TestCase):
 
     @patch("check_replied.run_gh")
     def test_issue_comment_id_missing(self, run_gh):
-        run_gh.return_value = [
+        run_gh.return_value = [[
             {"id": 1, "created_at": "t", "user": {"login": "a"}, "body": "x"}
-        ]
+        ]]
         result = check_issue_comment("openshift", "release", 1, "99")
         self.assertFalse(result["safe_to_reply"])
         self.assertEqual(result["reason"], "comment_not_found")
@@ -59,21 +61,59 @@ class TestMissingCommentsAreNotSafe(unittest.TestCase):
 
     @patch("check_replied.run_gh")
     def test_review_comment_id_missing(self, run_gh):
-        run_gh.return_value = [
+        run_gh.return_value = [[
             {"id": 1, "user": {"login": "a"}, "body": "x", "in_reply_to_id": None}
-        ]
+        ]]
         result = check_review_comment("openshift", "release", 1, "99")
         self.assertFalse(result["safe_to_reply"])
         self.assertEqual(result["reason"], "comment_not_found")
+
+
+class TestPaginatedItems(unittest.TestCase):
+    @patch("check_replied.subprocess.run")
+    def test_multiple_single_and_empty_pages(self, run):
+        cases = (
+            ('[[{"id":1}],[{"id":2}]]', [{"id": 1}, {"id": 2}]),
+            ('[[{"id":1}]]', [{"id": 1}]),
+            ('[[]]', []),
+        )
+        for stdout, expected in cases:
+            with self.subTest(stdout=stdout):
+                run.return_value = subprocess.CompletedProcess([], 0, stdout, "")
+                self.assertEqual(paginated_items("endpoint"), expected)
+        self.assertIn("--paginate", run.call_args.args[0])
+        self.assertIn("--slurp", run.call_args.args[0])
+
+
+class TestIssueCommentPagination(unittest.TestCase):
+    @patch("check_replied.run_gh")
+    def test_later_conversation_page_deduplicates_comment(self, run_gh):
+        run_gh.return_value = [
+            [
+                {"id": 100, "created_at": "2026-10-19T12:00:00Z", "user": {"login": "reviewer"}, "body": "Please fix this"},
+            ],
+            [
+                {"id": 101, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
+            ],
+        ]
+
+        result = check_issue_comment("openshift", "release", 1, "100")
+
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "bot_replied_after")
 
 
 class TestInlineReplyDeduplication(unittest.TestCase):
     @patch("check_replied.run_gh")
     def test_reply_to_root_handles_child_target(self, run_gh):
         run_gh.return_value = [
-            {"id": 4313941703, "created_at": "2026-10-19T12:43:32Z", "user": {"login": "reviewer"}, "body": "First point"},
-            {"id": 4313946225, "in_reply_to_id": 4313941703, "created_at": "2026-10-19T12:44:02Z", "user": {"login": "reviewer"}, "body": "And this follow-up"},
-            {"id": 4314161323, "in_reply_to_id": 4313941703, "created_at": "2026-10-19T13:06:36Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
+            [
+                {"id": 4313941703, "created_at": "2026-10-19T12:43:32Z", "user": {"login": "reviewer"}, "body": "First point"},
+                {"id": 4313946225, "in_reply_to_id": 4313941703, "created_at": "2026-10-19T12:44:02Z", "user": {"login": "reviewer"}, "body": "And this follow-up"},
+            ],
+            [
+                {"id": 4314161323, "in_reply_to_id": 4313941703, "created_at": "2026-10-19T13:06:36Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
+            ],
         ]
 
         result = check_review_comment("openshift", "release", 1, "4313946225")
@@ -84,11 +124,11 @@ class TestInlineReplyDeduplication(unittest.TestCase):
 
     @patch("check_replied.run_gh")
     def test_human_followup_after_bot_reply_is_safe(self, run_gh):
-        run_gh.return_value = [
+        run_gh.return_value = [[
             {"id": 100, "created_at": "2026-10-19T12:00:00Z", "user": {"login": "reviewer"}, "body": "First point"},
             {"id": 101, "in_reply_to_id": 100, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
             {"id": 102, "in_reply_to_id": 100, "created_at": "2026-10-19T12:02:00Z", "user": {"login": "reviewer"}, "body": "There is still a problem"},
-        ]
+        ]]
 
         result = check_review_comment("openshift", "release", 1, "102")
 
@@ -101,8 +141,8 @@ class TestReviewReplyDeduplication(unittest.TestCase):
     def test_later_inline_reply_deduplicates_review(self, run_gh):
         run_gh.side_effect = [
             {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
-            [],
-            [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"}],
+            [[]],
+            [[], [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"}]],
         ]
 
         result = check_review("openshift", "release", 1, "200")
@@ -114,8 +154,8 @@ class TestReviewReplyDeduplication(unittest.TestCase):
     def test_new_review_after_existing_replies_is_safe(self, run_gh):
         run_gh.side_effect = [
             {"id": 200, "submitted_at": "2026-10-19T12:02:00Z"},
-            [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"}],
-            [],
+            [[{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"}]],
+            [[]],
         ]
 
         result = check_review("openshift", "release", 1, "200")
@@ -128,8 +168,8 @@ class TestReviewReplyDeduplication(unittest.TestCase):
         run_gh.side_effect = [
             {"login": "review-agent[bot]"},
             {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
-            [],
-            [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done."}],
+            [[]],
+            [[{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done."}]],
         ]
 
         argv = [
