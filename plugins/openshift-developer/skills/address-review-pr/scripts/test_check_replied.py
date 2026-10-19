@@ -3,6 +3,7 @@
 
 import contextlib
 import io
+import json
 import sys
 import unittest
 from unittest.mock import patch
@@ -140,6 +141,20 @@ class TestReviewReplyDeduplication(unittest.TestCase):
                 main()
 
         self.assertEqual(exit_context.exception.code, 1)
+
+    @patch("check_replied.run_gh", side_effect=RuntimeError("identity unavailable"))
+    def test_cli_identity_lookup_failure_is_an_error(self, _run_gh):
+        argv = [
+            "check_replied.py", "openshift", "release", "1", "200",
+            "--type", "review",
+        ]
+        stdout = io.StringIO()
+        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as exit_context:
+                main()
+
+        self.assertEqual(exit_context.exception.code, 2)
+        self.assertEqual(json.loads(stdout.getvalue())["reason"], "error_fallback")
 
 if __name__ == "__main__":
     unittest.main()
