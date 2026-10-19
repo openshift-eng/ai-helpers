@@ -14,17 +14,36 @@ import json
 import os
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
 
 def api(base, path, params):
     u = base.rstrip("/") + path + "?" + urllib.parse.urlencode(params)
-    with urllib.request.urlopen(u, timeout=300) as resp:
-        d = json.load(resp)
+    try:
+        with urllib.request.urlopen(u, timeout=300) as resp:
+            d = json.load(resp)
+    except urllib.error.HTTPError as e:
+        # Prometheus reports bad queries as 400/422 with the reason in the JSON body.
+        try:
+            d = json.load(e)
+        except ValueError:
+            raise RuntimeError(f"HTTP {e.code} {e.reason}") from None
     if d.get("status") != "success":
         raise RuntimeError(d.get("error", d))
     return d["data"]
+
+
+def data_range(base):
+    """Return (start, end) in seconds covering the on-disk blocks and the head."""
+    spans = [(b["minTime"], b["maxTime"]) for b in api(base, "/api/v1/status/tsdb/blocks", {})["blocks"]]
+    hs = api(base, "/api/v1/status/tsdb", {})["headStats"]
+    if hs["numSeries"]:
+        spans.append((hs["minTime"], hs["maxTime"]))
+    if not spans:
+        raise RuntimeError("Prometheus has no data")
+    return min(s for s, _ in spans) / 1000, max(e for _, e in spans) / 1000
 
 
 def series_name(metric, label):
@@ -90,9 +109,8 @@ def main():
             return 0
         start, end = args.start, args.end
         if not (start and end):
-            hs = api(args.url, "/api/v1/status/tsdb", {})["headStats"]
-            start = start or hs["minTime"] / 1000
-            end = end or hs["maxTime"] / 1000
+            lo, hi = data_range(args.url)
+            start, end = start or lo, end or hi
         data = api(args.url, "/api/v1/query_range", {"query": args.query, "start": start, "end": end, "step": args.step})
         print(format_range(data["result"], args.label, max_series=args.max_series))
         return 0

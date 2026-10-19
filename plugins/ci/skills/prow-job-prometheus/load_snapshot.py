@@ -182,10 +182,11 @@ def free_port(start=9090):
 
 def serve(data, name, port):
     subprocess.run(["podman", "rm", "-f", name], capture_output=True)
+    # An empty config, so Prometheus doesn't scrape itself and mix today's samples into the run's data.
     subprocess.run(["podman", "run", "-d", "--name", name, "-p", f"{port}:9090", "--user", "root",
                     "-v", f"{data}:/prometheus:Z", PROMETHEUS_IMAGE,
                     "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=100y",
-                    "--config.file=/etc/prometheus/prometheus.yml"], check=True, capture_output=True)
+                    "--config.file=/dev/null"], check=True, capture_output=True)
     base = f"http://localhost:{port}"
     deadline = time.time() + 900
     while time.time() < deadline:
@@ -199,9 +200,19 @@ def serve(data, name, port):
     raise RuntimeError(f"Prometheus did not become ready; check `podman logs {name}`")
 
 
-def head_stats(base):
-    with urllib.request.urlopen(base + "/api/v1/status/tsdb", timeout=60) as resp:
-        return json.load(resp)["data"]["headStats"]
+def get_json(url):
+    with urllib.request.urlopen(url, timeout=60) as resp:
+        return json.load(resp)["data"]
+
+
+def data_range(base, hs):
+    """Return (min, max) in ms covering the on-disk blocks, which long runs ship with, and the head."""
+    spans = [(b["minTime"], b["maxTime"]) for b in get_json(base + "/api/v1/status/tsdb/blocks")["blocks"]]
+    if hs["numSeries"]:
+        spans.append((hs["minTime"], hs["maxTime"]))
+    if not spans:
+        raise RuntimeError("Prometheus loaded no data")
+    return min(s for s, _ in spans), max(e for _, e in spans)
 
 
 def live_series(metrics_prefix, replica):
@@ -260,10 +271,11 @@ def main():
             return 0
         name = f"prow-prom-{bid}-{args.replica}"
         base = serve(data, name, args.port or free_port())
-        hs = head_stats(base)
+        hs = get_json(base + "/api/v1/status/tsdb")["headStats"]
+        lo, hi = data_range(base, hs)
         live = live_series(metrics, args.replica)
         print(f"\nPrometheus: {base}  (container {name}; stop with `podman rm -f {name}`)")
-        print(f"data range: {fmt_ms(hs['minTime'])} to {fmt_ms(hs['maxTime'])}")
+        print(f"data range: {fmt_ms(lo)} to {fmt_ms(hi)}")
         recovered = f"series loaded: {hs['numSeries']}"
         if live:
             recovered += f" of {live} in the live server ({100 * hs['numSeries'] / live:.0f}%)"
