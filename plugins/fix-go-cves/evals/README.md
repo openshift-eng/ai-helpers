@@ -159,12 +159,28 @@ The precise relevant analyzer feature is
 This supports directive-triggered checking without an x/tools dependency bump;
 unchanged x/tools does not disprove it. Keep raw mixed verdicts intact.
 
-The corrected-worker case-002 runtime passed all 14 repair assertions, but the
-agent invented a publication command and failed its deterministic contract;
-see [live results](live/README.md). Compact report and archive-hash fixes are
-implemented; next run a fresh three-execution cohort with unchanged criteria, real Subctl
-binary case-003 and refreshed blocked case-001. Runtime success and complete
-skill accuracy remain separate measurements.
+The compact-report cohort at `b8265808` also **failed**: recorded contract 2/3,
+factual conjunction 2/3, all 18 samples error-free and unanimous per verdict.
+All replies cite `aa5a4fc`, but runs 2 and 3 invent a push command. Run 3's
+list-indented fence bypasses the column-zero-only deterministic guard, and its
+fact judge also passes; manual publication compliance is 1/3. Both replies name
+the wrong original branch, and run 2 promises a passing rerun and PR command.
+Agent cost totaled $1.982726 plus 18 unpriced judge calls. Reports and the exact
+guard probe remain in `.work/fix-go-cves-next-slice/replay-report-20261019/`.
+Original scores are preserved. The guard now handles indented fences; its
+deterministic re-verification needs a separate label, not a fourth paid cohort.
+
+The corrected-worker case-002 runtime passed all 14 repair assertions, while
+its agent response failed the publication guard. Native Subctl case-003 now
+passes engine remediation and binary evidence, but its parent exits 1 without
+a completed final reply. The runner aborted before collection/reporting, so
+operator-verified runtime artifacts do not imply a scored skill pass. Plain
+30-second waits are now explicit. Failed executions now proceed through stock
+collection/reporting with nonzero status; invalid grading is skipped. No native
+retry is planned merely to seek a pass. Blocked
+case-001 will follow the committed corrections; see [live results](live/README.md). Reporting reliability remains a known blocker,
+requiring focused design around actual engine results rather than more prompt
+instructions. Runtime success and complete skill accuracy remain separate.
 
 The live configuration permits a larger invoking-agent budget, but that budget
 does not cap independent reviewer CLIs launched by the remediation scripts or

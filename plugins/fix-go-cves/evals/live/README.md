@@ -12,9 +12,12 @@ See [setup and commands](../README.md).
 | case-003 | Subctl devel | Fresh native Linux/amd64 binary and positive scan coverage |
 
 Select one with `evals/run.sh --live --case case-002` (or repeat `--case`).
-The original case remains the default. Case-002 now has a verified runtime
-repair but a failed agent contract; case-003 has not run. Checkout preparation
-alone did not validate the worker, as the first case-002 trial demonstrated.
+The original case remains the default. Cases 002 and 003 establish genuine
+runtime repair; case-003 also establishes native binary coverage. Neither is an
+accepted skill execution: case-002 invented publication, while case-003 ended
+without a completed final reply. A fresh blocked case-001 will follow the
+committed publication, waiting-cadence and failed-execution retention fixes.
+Checkout preparation alone did not validate the worker.
 
 The eval retains local fixes and never publishes them. A confirmed partial
 runtime outcome can be reported correctly; missing execution evidence cannot.
@@ -101,7 +104,26 @@ is retained in
 `.work/fix-go-cves-next-slice/admiral-repair-followup-runtime-review.json`, with
 the full standard report under the trial's normal results directory.
 
-The compact fix now requires retained fix IDs and relaying only actual
-publication output; the separate archive-hash fix is also implemented.
-With the existing criteria, next run the fresh replay cohort, native Subctl case-003 and
-blocked Admiral case-001. Do not infer a later success from intermediate counts.
+The Subctl case-003 engine completed after 2,583 seconds with exit 0, retained
+`c76960a8`, canonical tests and license passing, and all four raw audit counters
+zero. The authoritative scan had zero actionable findings and one no-fix ignore.
+The fresh native binary hash, CycloneDX location and retained file matched; all
+76 archived evidence hashes verified. The observed Grype version was v0.121.0.
+
+The parent instead ended exit 1 after 2,605 seconds, 183 turns and $10.85163125,
+without a completed final reply. Its last in-progress advice was truthful. The
+runner aborted on execution failure before collection/reporting, so there is no
+standard scored summary. Retained operator-verified engine evidence establishes
+runtime/native success, not skill completion. Preserve this failed measurement.
+Ordinary 30-second waits are now explicit. The runner now collects/reports
+failed executions, preserves failure status and skips invalid grading; its
+regression reproduces the original early exit. No paid native retry is planned
+merely to seek acceptance.
+
+The compact report and archive-hash fixes are implemented. The third replay
+cohort still fails: recorded contract 2/3 and factual conjunction 2/3, with
+manual publication compliance only 1/3 because a list-indented fence bypasses
+the guard ([results](../README.md)). Preserve that false positive; the guard
+now covers indented fences with a regression. Measure blocked case-001 on the
+committed changes. Reporting reliability needs focused design, not another
+prompt-only cohort.

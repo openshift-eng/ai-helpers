@@ -9,11 +9,10 @@ Three layers answer different questions:
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
   pinned history and recorded scripts/output. Its references and negatives are
-  calibrated. The first frozen three-execution baseline completed and failed:
-  contract 3/3, but both factual criteria together 1/3 rather than the required
-  2/3. The focused follow-up also failed: contract 2/3, factual conjunction 3/3
-  by majority; one reply omitted the retained fix hash. Replay cannot validate
-  today's remediation engine.
+  calibrated. All three frozen three-execution cohorts failed. The latest
+  recorded contract 2/3 and factual conjunction 2/3; manual publication
+  compliance was 1/3 because an indented fence bypassed the guard. Replay
+  cannot validate today's remediation engine.
 - **Live evaluation:** today's plugin, real Grype and canonical repository
   commands ran on Admiral release-0.24. One fully scored trial passed the
   execution/reporting checks for a blocked runtime result: five CVEs fixed,
@@ -25,7 +24,9 @@ Three layers answer different questions:
   A corrected-worker trial then passed all 14 actual repair assertions and
   evidence-hash checks, but failed its behavioral contract for an invented
   publication command. Both fact judges passed it; the deterministic guard
-  correctly rejected the response.
+  correctly rejected the response. Subctl then completed real native remediation
+  with engine exit 0 and verified binary/evidence identity, while its parent
+  failed without a completed reply and collection did not run.
 
 [Eval setup and replay results](../evals/README.md) and the
 [live results](../evals/live/README.md) retain the detailed evidence and costs.
@@ -65,8 +66,9 @@ verified; neither the full skill behavior nor a replay cohort is accepted yet.
    with matching file hash. The full shell suite passed 2,320 checks.
    The corrected-worker run passed all 14 runtime assertions with matching
    archived hashes. Scanner provenance and completion-observation corrections
-   are implemented. The archive-hash fix is also implemented, awaiting fresh
-   measurements. Keep valid runtime evidence separate from failed agent behavior
+   are implemented. The archive-hash fix passed the fresh native evidence check
+   and retained Admiral re-verification. Keep valid runtime evidence separate
+   from failed agent behavior
    ([results](../evals/live/README.md)); the original incomplete trial needed
    operator retention and did not establish complete helper capture.
 3. **The focused skill and judge corrections are implemented and calibrated.**
@@ -82,12 +84,19 @@ verified; neither the full skill behavior nor a replay cohort is accepted yet.
    runtime log alone cannot verify every commit discovered during diagnosis.
    Do not require automatic baseline testing for every remediation run or feed
    judges entire raw tool traces.
-   The first frozen baseline failed on causal attribution in two of three runs.
-   The focused follow-up completed at `9ba32eda`: factual conjunction 3/3 by majority,
-   contract 2/3 because one reply omitted `aa5a4fc`. One action/owner vote was
-   mixed; manual upstream-validation, unchanged-behavior and future-PR overclaims
-   remain ([results](../evals/README.md)). Compact report instructions are now
-   implemented; run exactly three fresh executions with unchanged criteria.
+   Three frozen replay cohorts now fail acceptance ([results](../evals/README.md)).
+   The compact-report revision at `b8265808` cites the retained fix in every
+   reply, but two replies invent publication commands. One is falsely accepted
+   by both the fact judge and a column-zero-only fence regex. The guard now
+   covers indented fences with a failing-before/passing-after regression.
+   Re-verify retained outputs separately, preserving original scores. Reporting
+   needs a focused
+   design around literal engine results and separate diagnosis. Expose the
+   existing `ORIGINAL_REF` in a human-readable summary, or omit unobserved
+   return advice; target branch is not original branch. Recommend maintainers
+   land the reviewed repair before a newly requested rerun without constructing
+   push recipes. This direction is unimplemented and unproven; do not add
+   another prompt-only cohort or expand criteria merely to seek acceptance.
 4. **Genuine Admiral devel runtime repair is verified.**
    Use `https://github.com/submariner-io/admiral.git`, with base and default both
    pinned to `af20d0bf09dade1c6537d6d38f5175f7b8704042`, target/original branch
@@ -102,20 +111,28 @@ verified; neither the full skill behavior nor a replay cohort is accepted yet.
    judge limitation; the existing deterministic guard catches the failure.
    The earlier ownership/collection failure remains preserved in the
    [live results](../evals/live/README.md); preparation alone did not validate the worker.
-5. **Then add native binary coverage: Subctl devel.**
+5. **Native Subctl runtime coverage is verified; skill completion failed.**
    Use `https://github.com/submariner-io/subctl.git`, base/default
    `50243ac421a985eb13a8be7797fc53595be0f34e`, branch/argument `devel`.
-   The candidate has Go 1.26 and x/net v0.59.0. Verify its canonical build,
-   unit-test and license commands before admission. Its native `make build`
+   The candidate has Go 1.26 and x/net v0.59.0. Its canonical build, unit tests
+   and license check passed in the actual runtime. Native `make build`
    produces `cmd/bin/subctl-<version>-<os>-<arch>` and a symlink; use that path
    rather than the eight-platform cross-build. Case-003, repository-derived
-   paths and stock case selection are implemented; preparation passed, but its
-   native runtime trial remains unrun. Check that reserved eval paths do not
-   hide native outputs. Require fresh binary identity and final scan coverage below.
+   paths and stock case selection are implemented. Its supervised native trial
+   completed with engine exit 0 after 2,583 seconds. Canonical tests and license
+   passed, all four raw audits had zero counters, final actionable findings were
+   zero with one no-fix ignore, and native hash/catalog/retained-file identities
+   matched. All 76 evidence hashes verified. The parent instead ended exit 1
+   after 2,605 seconds, 183 turns and $10.85163125, without a completed final
+   reply. The runner aborted before collection/reporting when execution failed.
+   Preserve runtime success and failed skill measurement separately. Ordinary
+   30-second waits between reads are now explicit. The runner collects/reports
+   failed executions, preserves nonzero status and skips invalid grading.
+   Do not retry the native case merely to seek a pass.
    A stdlib finding blocked by the builder may legitimately produce exit 2;
    this case does not prove stdlib remediation unless that path actually runs.
-   After the worker and focused corrections are verified, refresh blocked
-   case-001 too: its earlier scored pass used older behavior and judge criteria.
+   Refresh blocked case-001 on these committed corrections; its earlier scored
+   pass used older behavior and judge criteria.
 
 ## Runtime and behavioral acceptance
 
@@ -183,13 +200,17 @@ changes. The first case-005 baseline at source `5079407` completed with contract
 `.work/fix-go-cves-next-slice/replay-baseline-20261019/`.
 The `9ba32eda` follow-up also failed (contract 2/3, factual conjunction 3/3 by
 majority), preserved in `replay-followup-20261019/` beside that directory.
-For the next separately committed skill revision, run each admitted case in three
-independent skill executions: require its deterministic contract in all three
-and all factual criteria together in at least two. Inspect each case, not only
-pooled rates. Three judge samples on one reply are not three skill executions. This
-is an operational regression rule, not statistical confidence, and is not yet
-implemented as a campaign command. Preserve every trial, including failures;
-an accepted cohort does not turn a failed individual trial into a pass.
+The compact-report cohort at `b8265808` failed too: recorded contract 2/3,
+factual conjunction 2/3, but manual publication compliance 1/3. Its reports and
+guard probe remain in `replay-report-20261019/`; no failed trial was replaced.
+No fourth cohort is planned merely to seek acceptance.
+
+The unchanged operational rule requires each case's deterministic contract in
+all three independent skill executions and all factual criteria together in at
+least two. Inspect each case, not pooled rates. Three judge samples on one reply
+are not three skill executions. This is not statistical confidence or a new
+campaign command. Preserve every trial and original score; corrected guard
+re-verification needs a separate provenance record and no paid skill rerun.
 
 Do not mechanically run three expensive live trials against changing external
 state. Establish actual successful-repair and binary evidence after the relevant

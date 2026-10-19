@@ -121,18 +121,30 @@ if [[ "$mode" != run ]]; then
       --case-source "$run_dir/provenance/cases/$case_id"
   done
 else
+  # Preserve artifacts and report incomplete runs even when execution fails.
+  execute_status=0
   "$python_bin" "$harness_scripts/execute.py" \
     --config "$config" --workspace "$workspace_dir" \
-    --run-id "$run_id" --output "$run_dir" "${model_args[@]}"
+    --run-id "$run_id" --output "$run_dir" "${model_args[@]}" || execute_status=$?
+  status=$execute_status
+  collect_status=0
   "$python_bin" "$harness_scripts/collect.py" \
-    --config "$config" --workspace "$workspace_dir" --output "$run_dir"
-  "$python_bin" "$harness_scripts/score.py" judges \
-    --config "$config" --run-id "$run_id" --workspace "$workspace_dir" || status=$?
+    --config "$config" --workspace "$workspace_dir" --output "$run_dir" || collect_status=$?
+  if [[ "$status" == 0 ]]; then status=$collect_status; fi
+  if [[ "$execute_status" == 0 && "$collect_status" == 0 ]]; then
+    "$python_bin" "$harness_scripts/score.py" judges \
+      --config "$config" --run-id "$run_id" --workspace "$workspace_dir" || status=$?
+  else
+    echo "Skipping judges: execution or artifact collection failed." >&2
+  fi
   "$python_bin" "$harness_scripts/report.py" \
-    --config "$config" --run-id "$run_id"
-  "$python_bin" "$helper" verify --run-dir "$run_dir" "${verify_args[@]}"
-  "$python_bin" "$harness_scripts/score.py" regression \
-    --config "$config" --run-id "$run_id" || status=$?
+    --config "$config" --run-id "$run_id" || { rc=$?; if [[ "$status" == 0 ]]; then status=$rc; fi; }
+  "$python_bin" "$helper" verify --run-dir "$run_dir" "${verify_args[@]}" \
+    || { rc=$?; if [[ "$status" == 0 ]]; then status=$rc; fi; }
+  if [[ "$execute_status" == 0 && "$collect_status" == 0 ]]; then
+    "$python_bin" "$harness_scripts/score.py" regression \
+      --config "$config" --run-id "$run_id" || { rc=$?; if [[ "$status" == 0 ]]; then status=$rc; fi; }
+  fi
 fi
 printf 'WORKSPACE: %s\nRESULTS: %s\n' "$workspace_dir" "$run_dir"
 exit "$status"

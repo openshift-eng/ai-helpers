@@ -36,9 +36,10 @@ CVE_FIX_AGENT=claude bash "$PLUGIN_ROOT/scripts/fix-all.sh" ARGS </dev/null >"$L
 
 Before interpreting the outcome, read that actual log and confirm its terminal
 `exit=N` line. Intermediate `FIXED` output and background-task notifications do
-not establish completion. If the line is absent, wait while the process lives;
-if it stopped, report completion as unconfirmed. Do not substitute standalone
-scans, builds, tests, or another script invocation while waiting.
+not establish completion. If the line is absent and the process lives, run
+`sleep 30` before checking the log again; if it stopped, report completion as
+unconfirmed. Do not substitute standalone scans, builds, tests, or another
+script invocation while waiting.
 
 Then read the outcome rather than the whole log:
 

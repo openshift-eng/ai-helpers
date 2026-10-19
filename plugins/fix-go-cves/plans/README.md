@@ -8,16 +8,23 @@ itself.
 
 ## Next changes
 
-Both frozen replay cohorts failed: the first had contract 3/3 and factual
-conjunction 1/3; the follow-up had contract 2/3 and factual conjunction 3/3 by
-majority, but omitted a retained fix hash in one reply. A real Admiral repair
-now passes all 14 runtime assertions; its agent response still fails the
-publication guard for inventing a PR command. Preserve these failures and the
-earlier invalid worker trial ([results](../evals/live/README.md)).
-Compact reporting and archive-hash fixes are implemented, awaiting the
-[next measurements](testing.md#next-implementation-slices): a fresh
-three-execution cohort, real Subctl binary coverage and a fresh blocked Admiral
-case. No new scoring criteria or eval framework is needed.
+All three frozen replay cohorts failed. The latest compact-report cohort
+recorded contract 2/3 and factual conjunction 2/3; manual publication compliance
+was only 1/3 because an indented fence bypassed the existing guard. Retained
+commit reporting improved, but invented publication commands remain a blocker.
+The implemented guard correction has a failing-before/passing-after regression;
+preserve original scores and label deterministic re-verification separately.
+A real Admiral repair passes all 14 runtime assertions, while its agent response
+fails the publication guard ([results](../evals/live/README.md)).
+Native Subctl completed genuine remediation and binary evidence with engine
+exit 0, while its parent failed without a completed final reply. Preserve both
+measurements. Ordinary 30-second waits and failed-execution collection/reporting
+are implemented. Measure blocked Admiral on the committed corrections. Next design a
+small reporting change around literal engine results and separate diagnosis.
+Use the engine's existing original ref for return advice, or omit unobserved
+advice; recommend maintainer-reviewed repairs without constructing publication
+recipes. This direction is unimplemented and unproven. Do not add another
+prompt-only cohort merely to seek a pass, new scoring criteria or an eval framework ([testing plan](testing.md#next-implementation-slices)).
 
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.

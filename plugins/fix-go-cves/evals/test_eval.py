@@ -225,8 +225,13 @@ class EvidenceTests(unittest.TestCase):
         with patch.object(EVAL, "EVAL_ROOT", self.root):
             reply.write_text("Commits aaaaaaa and bbbbbbb. No gh pr create command was printed.")
             self.assertIs(EVAL.check(case)["passed"], True)
-            reply.write_text("Commits aaaaaaa and bbbbbbb.\n```sh\ngh pr create --title bad\n```\n")
-            self.assertIs(EVAL.check(case)["passed"], False)
+            for command_block in (
+                    "```sh\ngh pr create --title bad\n```\n",
+                    "1. Backport before rerunning:\n   ```bash\n"
+                    "   git push origin release-0.24\n   ```\n"):
+                with self.subTest(command_block=command_block):
+                    reply.write_text("Commits aaaaaaa and bbbbbbb.\n" + command_block)
+                    self.assertIs(EVAL.check(case)["passed"], False)
             reply.write_text("Commits caaaaaaa and bbbbbbb.")
             self.assertIs(EVAL.check(case)["passed"], False)
 
@@ -831,6 +836,65 @@ class EvidenceTests(unittest.TestCase):
         EVAL.git(workspace, "add", "output/source.go")
         with self.assertRaisesRegex(ValueError, "reserved eval paths"):
             EVAL.check_reserved_paths(workspace)
+
+class RunnerFailureTests(unittest.TestCase):
+    def test_failed_stages_preserve_artifacts_and_nonzero_completion(self):
+        # Inject CLI stage outcomes while executing the actual Bash runner.
+        for failed, code, expected in (
+            ('execute.py', 7, ['execute.py', 'collect.py', 'report.py', 'verify']),
+            ('collect.py', 8, ['execute.py', 'collect.py', 'report.py', 'verify']),
+            ('judges', 3, ['execute.py', 'collect.py', 'judges', 'report.py', 'verify', 'regression']),
+        ):
+            with self.subTest(stage=failed), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                harness = root / 'harness'
+                (harness / 'skills/eval-run/scripts').mkdir(parents=True)
+                (harness / 'skills/eval-run/scripts/workspace.py').touch()
+                subprocess.run(['git', 'init', '-q', str(harness)], check=True)
+                subprocess.run(['git', '-C', str(harness), '-c', 'user.name=fixture',
+                                '-c', 'user.email=fixture@example.test', 'commit', '-q',
+                                '--allow-empty', '-m', 'fixture'], check=True)
+                python = root / 'stage-python'
+                python.write_text('''#!/usr/bin/env python3
+import json, os, pathlib, shutil, sys
+root = pathlib.Path(os.environ['RUNNER_TEST_ROOT'])
+args = sys.argv[1:]
+if args[0] == '-c':
+    print(root / 'workspaces' if 'tempfile' in args[1] else 'fixture-eval')
+    sys.exit(0)
+name = pathlib.Path(args[0]).name
+stage = args[1] if name in ('eval.py', 'score.py') else name
+if stage == 'snapshot':
+    print(root / 'frozen.yaml'); sys.exit(0)
+workspace = root / 'workspaces/run'
+if stage == 'workspace.py':
+    (workspace / 'cases/case-005/output').mkdir(parents=True)
+    print('WORKSPACE: ' + str(workspace)); sys.exit(0)
+with (root / 'stages.jsonl').open('a') as stream:
+    stream.write(json.dumps(stage) + '\\n')
+if stage == 'execute.py':
+    (workspace / 'cases/case-005/output/runtime.txt').write_text('completed engine evidence')
+if stage == 'collect.py':
+    shutil.copytree(workspace / 'cases', root / 'collected')
+if stage == os.environ['RUNNER_TEST_FAIL']:
+    sys.exit(int(os.environ['RUNNER_TEST_CODE']))
+if stage == 'verify':
+    sys.exit(9)  # Missing grades must remain an error, even after reporting.
+''')
+                python.chmod(0o755)
+                env = {**os.environ, 'HARNESS': str(harness),
+                       'CVE_EVAL_PYTHON': str(python), 'AGENT_EVAL_RUNS_DIR': str(root / 'runs'),
+                       'RUNNER_TEST_ROOT': str(root), 'RUNNER_TEST_FAIL': failed,
+                       'RUNNER_TEST_CODE': str(code)}
+                result = subprocess.run(['bash', str(Path(__file__).with_name('run.sh')),
+                                         '--run-id', 'run'], env=env, text=True,
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                self.assertEqual(result.returncode, code, result.stderr)
+                self.assertEqual([json.loads(line) for line in
+                                  (root / 'stages.jsonl').read_text().splitlines()], expected)
+                self.assertEqual((root / 'collected/case-005/output/runtime.txt').read_text(),
+                                 'completed engine evidence')
+                self.assertIn('RESULTS:', result.stdout)
 
 
 if __name__ == "__main__":

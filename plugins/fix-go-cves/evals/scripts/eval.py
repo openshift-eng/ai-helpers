@@ -797,7 +797,7 @@ def check(case_dir, live=False):
     state = read_json(case / 'output/state.json')
     reply = (case / 'output/reply.md').read_text()
     expected = state['expected']
-    blocks = '\n'.join(re.findall(r'(?ms)^```[^\n]*\n(.*?)^```', reply))
+    blocks = '\n'.join(re.findall(r'(?ms)^[ \t]*```[^\n]*\n(.*?)^[ \t]*```', reply))
     conditions = {
         'clean checkout': not state['dirty'] and not state['unexpected_ignored'],
         'one requested invocation': len(state['invocations']) == 1 and
