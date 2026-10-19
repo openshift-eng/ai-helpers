@@ -11,10 +11,13 @@ itself.
 The live eval exposed an immediate skill issue: the agent applied a follow-up
 source repair and attempted a rerun after the script stopped. Make the post-run
 diagnosis/recommendation boundary explicit and verify retained runtime state
-in the existing live case before expanding coverage ([evidence](testing.md#live-evaluation-and-drift)).
+in the existing live case ([evidence](../evals/live/README.md)). The
+[testing plan](testing.md#next-implementation-slices) sequences acceptance
+thresholds and durable runtime evidence before a successful Admiral repair and
+native Subctl binary coverage; those candidate runs remain unverified.
 
-Land each fix with a regression that fails on the current code and passes
-afterward, using the existing fixtures and full shell suite.
+Land each runtime fix with a regression that fails on the current code and
+passes afterward, using the existing fixtures and full shell suite.
 
 1. **Successful no-fix ignores.** In `subagent_fix_scan_regression`, remove only
    the successful-ignore write to `needs-review-pkgs`; retain `ignored-pkgs`
