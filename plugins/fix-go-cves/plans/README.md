@@ -1,19 +1,20 @@
 # Improvement ideas
 
-Candidate follow-ups found while porting and reviewing the plugin, most
-valuable first. Each needs a decision or design before it is built.
+Unimplemented follow-ups found while porting and reviewing the plugin.
+Fix the correctness issues before expanding supported workflows.
 
 The [testing and evals plan](testing.md) covers how to measure the skill
 itself.
 
 ## Decisions
 
-- **Drop the LLM verification layer.** Every subagent verdict is already
-  gated by deterministic companion evidence, so the model can only add
-  failures (usage limits caused false ones). In the 15 release-0.24 runs (26
+- **Drop the LLM verification layer.** Deterministic companion evidence
+  already gates every verdict. In the 15 release-0.24 runs (26
   verification iterations) it never changed an outcome: its one independent
   FAIL came after the gate had already blocked the run. Removing it saves
   about 550 script and 500 test lines; `review.sh` keeps the useful judgment.
+  Preserve the deterministic audits, evidence-completeness checks, bounded
+  repair loop and independent final rescan.
 - **Flag, don't delete, pre-existing broad ignores.** Package-only entries on
   the base branch (submariner-operator's `/tools` docker and containerd
   exemptions) are removed, and scan-regression then re-ignores the findings
@@ -25,10 +26,19 @@ itself.
   and `SKILL.md` names a team decision only for Go above the build image.
   Submariner release branches carry `.agents/workflows/cve-fix.md`, which
   says to revert such a raise and consult the team for High or Critical
-  CVEs. `SKILL.md` should say which wins.
+  CVEs. Resolve how repository restrictions gate retained changes before
+  committing; a reviewer explanation after the run cannot enforce them.
 
 ## Correctness
 
+- **Published major upgrades.** `fix-package.sh` detects a major migration
+  only after a failed version lookup. A published `+incompatible` major
+  upgrade can therefore commit despite the documented policy. Check the
+  installed-to-candidate major boundary independently of lookup success.
+- **Kubernetes guard identity.** `_k8s_minor_versions` compares a repository-wide
+  set of minors. A module can advance while that set stays unchanged because
+  sibling modules retain both minors. Compare versions by module and dependency;
+  define whether the guard covers the current three core packages or all `k8s.io`.
 - **False policy boundary after a no-fix ignore.** When verification ignores
   a finding that has no fix, `subagent_fix_scan_regression` still writes the
   package to `needs-review-pkgs` (`scripts/lib.sh`, after the `ignore.sh`
@@ -36,39 +46,51 @@ itself.
   boundary (team approval needed)", blocking the PR. Lighthouse
   release-0.24 hit this for x/crypto GO-2026-5932. Record the ignore without
   the review marker, keeping whatever classification scan-regression needs.
-- **Environment reasons in the review prompt.** `scripts/review-prompt.md`
-  makes every `UNRESOLVED` reason end in "(need team input)". When a scan
-  was blocked by the environment (subctl's leftover `bin/lichen`), the
-  review therefore sends bumps to the team that a rerun would fix. Allow a
-  rerun reason, and route it to the rerun remedy instead of team review.
+- **Preserve failure reasons.** `_fix_fv_package` classifies every exit 2
+  as a policy boundary, including failed scans and builds; the review prompt
+  also makes every `UNRESOLVED` reason end in "(need team input)". Preserve
+  the actual cause through verification and reporting. Subctl's leftover
+  `bin/lichen` blocked scans; it did not establish that the bumps needed
+  approval. Distinguish a rerun remedy from a compatibility or policy decision.
 - **Accurate regression labels.** Label scan-regression ignores by cause;
   findings exposed by an ignore removal are not dependency regressions.
-- **OpenShift builder evidence.** Read the Go minor from `.ci-operator.yaml`
-  `build_root_image` or the Dockerfile builder tag when the image cannot be
-  pulled, and decide how a toolchain edit should behave for ART builds,
-  where a `toolchain` line above the builder's Go can break hermetic builds.
-- **Workspaces.** Support `go work vendor` and stdlib fixes through the
-  `go.work` toolchain instead of routing both to review.
+- **OpenShift builder evidence.** Image configuration and Dockerfile tags
+  can help diagnose an unavailable builder, but a Go minor or tag cannot
+  prove the exact patched compiler required by the existing gates. Keep
+  that version unknown without sufficient evidence. Decide how toolchain
+  edits should behave for ART builds without weakening the builder bound.
 - **YAML parsing.** Replace the awk heuristics that find ignore entries with
-  PyYAML node marks, which handle flow maps, multi-line scalars and
-  comments exactly.
+  one parser using PyYAML node marks for entry boundaries. Preserve surrounding
+  comments and untouched text explicitly; node marks do not retain comments.
+  Declare PyYAML as a prerequisite if this makes its current optional use required.
 
 ## Operations
 
+- **Scanner deadlines.** Enforce `CVE_FIX_SCAN_TIMEOUT` at the shared scanner
+  boundary, including database updates. Several callers currently leave scans
+  unbounded. Keep build deadlines separate and preserve timeout diagnostics.
+- **Report completeness.** `report.sh` accepts empty scanner output with exit 0.
+  Use the same validated JSON evidence as remediation before declaring a report
+  complete; render the human output from that evidence.
 - **Temp space.** Dapper builds use the host `/tmp`; a nearly full tmpfs
-  quota surfaced as test and build failures. Preflight the free space, and
-  report ENOSPC as an environment failure rather than a fix failure.
-- **Interactive tests.** Detect a test command that prompts (for example
-  `sudo`) and fail fast with the `test-command` remedy.
+  quota surfaced as test and build failures. Classify observed ENOSPC consistently
+  in builds and test retries; tests currently recognize it only on the first
+  attempt. The existing writable-temp probe cannot predict build-space needs.
+- **Interactive tests.** Report non-interactive authentication/prompt failures
+  with the `test-command` remedy. Avoid a general prompt detector for shell commands.
 
 ## Size
 
-- Share one jq helper for finding tuples and `normloc`, repeated about 17
-  times in `fix-all.sh` and `subagents/scan-regression.sh`.
-- Split `test/test-lib.sh` (about 10,000 lines) by script.
+- Share the repeated finding-tuple and `normloc` logic in `fix-all.sh` and
+  `subagents/scan-regression.sh` without merging their different coverage rules.
+- Split `test/test-lib.sh` (about 10,000 lines) by script only when navigation
+  warrants it; this is independent of correctness fixes.
 
-## Upstream
+## Later
 
+- **Workspaces.** Add `go work vendor` or stdlib fixes through `go.work` when
+  concrete repository needs justify them. The current review outcomes are
+  deliberate limitations, not failed repairs.
 - Port these fixes back to Shipyard's `skills/cve-fix`, or point Shipyard at
   this plugin: Dapper `GOEXPERIMENT` forwarding, generated-file drift, the
   test rerun, release-stream retry and reviewer isolation.
