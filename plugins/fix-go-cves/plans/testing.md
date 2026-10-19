@@ -55,12 +55,23 @@ backport. The cases cover each; two of the underlying script bugs are under
 
 ### Build first
 
-Run one case end to end before building the rest, to confirm that a cold
-clone fits a 900-second `before_all` and `before_each` timeout (hooks
-default to 120) and to measure one trial's cost for the per-case budget.
-Verify that the stock runner loads the staged historical scripts with today's
-skill, that per-case environments reach it, and that final-reply extraction
-and scoring work before building more infrastructure. These details were checked
+Start with **005 (admiral)**: one recorded fix commit, no printed PR command,
+and no binary-stub inconsistency. The default-branch pin contains backport
+`8234df0`; correct the reference's rerun advice before using it.
+
+Build one fixture, stock harness YAML and only the preparation, extraction and
+checks it needs. Dry-run preparation and replay without models, builds or scans.
+Then run one trial and the actual judges on the corrected reference and one
+negative that misses the backport. Check loaded script hashes and skill, per-case
+environment, exactly one replay, retained result state, final-reply extraction
+and complete judge samples. Record harness revision, cost and time, including
+whether a cold clone fits 900-second setup hooks (default 120).
+
+A failed factual verdict can still prove the plumbing works: inspect and retain
+that reply, rather than rerunning until it passes. Package more cases and apply
+the three-round acceptance rule only after this pilot. Runtime correctness fixes
+need their own regressions; this replay is not their prerequisite or validation.
+The integration details below were checked
 against [agent-eval-harness at `1a980e7`](https://github.com/opendatahub-io/agent-eval-harness/tree/1a980e7);
 verify them at the harness revision used for the pilot.
 
@@ -68,12 +79,12 @@ verify them at the harness revision used for the pilot.
 
 | Case | Recording | Decision |
 | --- | --- | --- |
-| 001 | lighthouse: license | Backports devel's cdc3003 |
+| 001 | lighthouse: license | Recommends devel's cdc3003 backport |
 | 002 | submariner: partial | Relays the PR; names who decides the image |
 | 003 | cloud-prepare: clean | Flagged lines need no action |
 | 004 | subctl: `bin/lichen` | No team decision for the blocked bumps |
-| 005 | admiral: govet | Backports devel's 8234df0 |
-| 006 | lighthouse: x/crypto | Flag is spurious; backports cdc3003 |
+| 005 | admiral: govet | Recommends devel's 8234df0 backport |
+| 006 | lighthouse: x/crypto | Flag is spurious; recommends cdc3003 backport |
 
 - **004:** the recorded reply found the leftover `bin/lichen` that blocked
   the scan and cleared x/net for a rerun, but still sent grpc and otel/sdk

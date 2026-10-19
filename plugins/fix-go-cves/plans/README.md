@@ -6,6 +6,36 @@ Fix the correctness issues before expanding supported workflows.
 The [testing and evals plan](testing.md) covers how to measure the skill
 itself.
 
+## Next changes
+
+Land each fix with a regression that fails on the current code and passes
+afterward, using the existing fixtures and full shell suite.
+
+1. **Successful no-fix ignores.** In `subagent_fix_scan_regression`, remove only
+   the successful-ignore write to `needs-review-pkgs`; retain `ignored-pkgs`
+   and every existing policy marker. Compare marker state before and after
+   the existing binary retry fixture, which may already contain another marker.
+   Fresh mixed-advisory and sibling-module cases must retain real policy
+   decisions; failed or ineffective ignores must remain actionable in the
+   production scan-regression companion. No outcome-schema change is needed.
+2. **Published major upgrades.** Guard the selected candidate against each
+   in-scope module's effective installed version, including transitive targets.
+   Test scoped updates, permitted same-major updates, and unchanged HEAD and
+   metadata on rejection. Keep absent/local-replacement handling and the
+   missing-registry exit separate; do not treat an unknown version as major zero.
+   This fixes the target-package bypass, not every incidental graph change.
+3. **Kubernetes guard identity.** Keep the existing `api`, `apimachinery` and
+   `client-go` scope. Compare by tracked module and dependency after tidy and
+   workspace sync, including siblings a scoped update changed. The unchanged-set
+   reproduction must roll back; patch updates and guard-disabled runs must work.
+
+Then fix report validation and scanner deadlines in separate changes. Harden
+audit completeness before removing model verification; retain shared helpers
+used by `review.sh` and scanner retries. Address failure reasons and inherited
+ignores separately. Keep these independent of the replay pilot:
+historical scripts cannot validate today's runtime fixes. Broader Go-minor
+policy needs a decision before changing its behavior.
+
 ## Decisions
 
 - **Drop the LLM verification layer.** Deterministic companion evidence
@@ -38,14 +68,14 @@ itself.
 - **Kubernetes guard identity.** `_k8s_minor_versions` compares a repository-wide
   set of minors. A module can advance while that set stays unchanged because
   sibling modules retain both minors. Compare versions by module and dependency;
-  define whether the guard covers the current three core packages or all `k8s.io`.
+  broader `k8s.io` coverage is a separate policy change.
 - **False policy boundary after a no-fix ignore.** When verification ignores
   a finding that has no fix, `subagent_fix_scan_regression` still writes the
   package to `needs-review-pkgs` (`scripts/lib.sh`, after the `ignore.sh`
   call), and `fix-all.sh` reports it as "deterministic fix reached a policy
   boundary (team approval needed)", blocking the PR. Lighthouse
-  release-0.24 hit this for x/crypto GO-2026-5932. Record the ignore without
-  the review marker, keeping whatever classification scan-regression needs.
+  release-0.24 hit this for x/crypto GO-2026-5932. The first change above
+  fixes this without clearing another advisory's decision.
 - **Preserve failure reasons.** `_fix_fv_package` classifies every exit 2
   as a policy boundary, including failed scans and builds; the review prompt
   also makes every `UNRESOLVED` reason end in "(need team input)". Preserve
@@ -59,6 +89,11 @@ itself.
   prove the exact patched compiler required by the existing gates. Keep
   that version unknown without sufficient evidence. Decide how toolchain
   edits should behave for ART builds without weakening the builder bound.
+- **Audit completeness.** A missing audit directory currently skips verification,
+  and the expected evidence set is inferred from scripts still present. Require
+  all four known audits and their complete, nonnegative integer counters.
+  `NEW_ISSUES=banana` and a scan counter missing `UNRESOLVED` can currently pass.
+  Missing, empty, crashed, skipped or malformed evidence must not verify a fix.
 - **YAML parsing.** Replace the awk heuristics that find ignore entries with
   one parser using PyYAML node marks for entry boundaries. Preserve surrounding
   comments and untouched text explicitly; node marks do not retain comments.
