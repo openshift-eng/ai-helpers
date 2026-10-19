@@ -1,6 +1,6 @@
 ---
 name: fix-go-cves
-description: Use when asked to fix the CVE/GHSA findings of a Go repository — scans every module with Grype, updates dependencies on a new branch, ignores only findings without a published fix, verifies with rebuild, tests and rescan, and prints a PR command. Also scans without changes when only a report is wanted. For one known CVE with a user-supplied fix version or fork, use golang:fix-cve instead.
+description: Use when asked to fix the CVE/GHSA findings of a Go repository — scans every module with Grype, updates dependencies on a new branch, ignores only findings without a published fix, verifies with rebuild, tests and rescan, and relays any printed PR command. Also scans without changes when only a report is wanted. For one known CVE with a user-supplied fix version or fork, use golang:fix-cve instead.
 argument-hint: "[repo] [branch] | all <branch>"
 user-invocable: true
 allowed-tools: Bash, Read
@@ -24,8 +24,10 @@ naming anything missing.
 Builds and tests can each take 30 minutes. Run every script in the background
 with its output in a log file, and wait for it to exit; do not let a tool
 timeout kill it (SIGKILL skips cleanup). Shell variables do not persist
-between tool calls, so reuse the printed log path literally. Replace `ARGS`
-with the request's arguments, or delete it:
+between tool calls, so reuse the printed log path literally.
+In Claude Code, set Bash `run_in_background: true` for the launch.
+In Codex, use `exec_command` with a short `yield_time_ms` and poll its returned
+session with `write_stdin`. Replace `ARGS` with the request's arguments, or delete it:
 
 ```bash
 LOG=$(mktemp "${TMPDIR:-/tmp}/fix-go-cves.XXXXXX.log"); echo "LOG=$LOG"
@@ -69,7 +71,7 @@ why); say so rather than reporting a clean result.
 - The checkout must have no uncommitted or untracked files. If it does, ask;
   never stash, commit, or clean for the user.
 - The script creates `fix-<version>-cves-<date>`, commits there, and leaves
-  the checkout on it when commits were made; tell the user how to return.
+  the checkout on it when commits were made.
 - Run each repository once per request. A rerun creates another `-vN`
   branch; suggest one with the change that would alter the result, and rerun
   only when the user asks.
@@ -98,18 +100,23 @@ repairs, reruns, and build, test, or cleanup commands for a new user request.
 | 1 | Setup or invocation error: quote the last `ERROR:` line (or the log tail) |
 | 130, 143 | Interrupted; the fix branch was removed |
 
-When a Summary is present, state its `Outstanding` count, including zero.
-State whether a PR command was printed. If none, relay the log's reason:
-`No CVEs found`, the `NOT READY TO PUSH:` reasons, or `no fork remote detected`;
-never write a push or PR command yourself. An upstream commit alone does not
-establish that its tests passed. Do not promise that a proposed backport or
-rerun will pass gates or print a PR command. A PR for remaining findings is
-titled "Partial CVE fix". `IGNORED` lines need no action: no fix is
-published, and the ignore lapses once Grype records one.
+Include in the final report:
 
-For each `NEEDS_REVIEW`, `ERROR`, or `TIMEOUT` line, investigate and report
-the cause, the evidence (log line or `file:line`), the recommended action,
-and who decides:
+- Retained branch, all retained fix commit hashes, and how to return to the
+  original branch. Label upstream/backport commits separately.
+- The Summary's `Outstanding` count when present, including zero, and actual
+  gate results; label unconfirmed results.
+- Relay a push/PR command only if the script printed it. Otherwise state the
+  log's reason and omit push/PR commands from the reply.
+- For each flagged outcome: evidence (log line or `file:line`), cause or
+  uncertainty, recommended action and owner. An upstream commit does not prove
+  its tests passed; do not promise a backport or rerun will pass gates or print
+  a PR command.
+
+`IGNORED` lines need no action: no fix is published, and the ignore lapses
+once Grype records one.
+
+Investigate flagged outcomes using these checks:
 
 - Breaking or incompatible update: read the target version's release notes
   and the repository's use of the changed API; estimate the migration.
@@ -134,5 +141,4 @@ and who decides:
   ([configuration](../../README.md#configuration)).
 
 Do not hand-edit `go.mod`, `go.sum`, vendor trees, or `.grype.yaml` to force a
-clean result, and do not delete the fix branch. Report the branch, commits,
-and printed PR command; never push or create the PR yourself.
+clean result, and do not delete the fix branch. Never push or create the PR.

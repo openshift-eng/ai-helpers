@@ -386,6 +386,8 @@ class EvidenceTests(unittest.TestCase):
                      runtime_plugin_unchanged=True, runtime_evidence_unchanged=True,
                      runtime_ignored_snapshot={}, ignored_snapshot={})
         EVAL.write_json(case / "output/runtime/run.json", {"head": state["head"], "exit_code": 2})
+        EVAL.write_json(case / "output/runtime-identity.json", {
+            "evidence_hashes": EVAL.file_hashes(case / "output/runtime")})
         self.freeze(live=True, annotation={"required_commits": ["c" * 40]}, reset=True)
         (case / "output/reply.md").write_text("Actual commit ccccccc; partial result.\n")
         EVAL.write_json(case / "output/state.json", state)
@@ -624,6 +626,65 @@ class EvidenceTests(unittest.TestCase):
         shutil.copytree(case / "output", archive / "output")
         shutil.rmtree(case)
         self.assertTrue(all(EVAL.runtime_scenario(archive, state).values()))
+
+    def test_full_live_contract_survives_checkout_removal_and_rechecks_archived_hashes(self):
+        case, state, directory, record, catalog = self.binary_scenario()
+        state["expected"].update(mode="live", arguments=["devel"], base_branch="devel")
+        state.update(head=state["runtime_head"], branch="fix-devel-cves", runtime_branch="fix-devel-cves",
+                     dirty="", unexpected_ignored=list(state["ignored_snapshot"]),
+                     runtime_ignored_snapshot=dict(state["ignored_snapshot"]),
+                     runtime_summary=True, runtime_exit_observed=True, runtime_evidence_unchanged=True,
+                     plugin_unchanged=True, runtime_plugin_unchanged=True, refs_unchanged=True,
+                     invocations=[{"arguments": ["devel"]}], gh_calls="", trace_violations=[], permission_denials=[])
+        EVAL.write_json(case / "output/state.json", state)
+        EVAL.write_json(case / "output/runtime-identity.json", {
+            "evidence_hashes": EVAL.file_hashes(case / "output/runtime")})
+        (case / "output/reply.md").write_text("The native binary and canonical gates were verified.\n")
+        self.freeze(cases=(case.name,), live=True, annotation={})
+        archive = self.root / "saved-run"
+        archived_case = archive / "cases" / case.name
+        shutil.copytree(case, archived_case)
+        shutil.copytree(self.root / "provenance", archive / "provenance")
+        shutil.rmtree(case)
+        self.assertFalse(Path(state["workspace"]).exists())
+        with patch.object(EVAL, "git", side_effect=AssertionError("must use archived evidence")):
+            self.assertTrue(EVAL.check(archived_case, live=True)["passed"])
+            evidence_root = archived_case / "output/runtime"
+            saved_root = archived_case / "output/runtime-content"
+            evidence_root.rename(saved_root)
+            evidence_root.symlink_to(saved_root, target_is_directory=True)
+            with patch.object(EVAL, "runtime_scenario", side_effect=AssertionError("must not read symlink target")):
+                verdict = EVAL.check(archived_case, live=True)
+            self.assertFalse(verdict["passed"])
+            self.assertIn("archived runtime evidence intact", verdict["reason"])
+            evidence_root.unlink()
+            saved_root.rename(evidence_root)
+            self.assertTrue(EVAL.check(archived_case, live=True)["passed"])
+            # Preserve semantics: only the new integrity check can detect this edit.
+            run = archived_case / "output/runtime/run.json"
+            original = run.read_text()
+            run.write_text(original + "\n")
+            self.assertTrue(all(EVAL.runtime_scenario(archived_case, state).values()))
+            verdict = EVAL.check(archived_case, live=True)
+            self.assertFalse(verdict["passed"])
+            self.assertIn("archived runtime evidence intact", verdict["reason"])
+            run.write_bytes(b"invalid JSON")
+            verdict = EVAL.check(archived_case, live=True)
+            self.assertFalse(verdict["passed"])
+            self.assertIn("archived runtime evidence intact", verdict["reason"])
+            run.write_text(original)
+            catalog_path = archived_case / directory.relative_to(case) / "catalog.cdx.json"
+            original_catalog = catalog_path.read_bytes()
+            catalog_path.unlink()
+            verdict = EVAL.check(archived_case, live=True)
+            self.assertFalse(verdict["passed"])
+            self.assertIn("archived runtime evidence intact", verdict["reason"])
+            catalog_path.write_bytes(original_catalog)
+            self.assertTrue(EVAL.check(archived_case, live=True)["passed"])
+            (archived_case / "output/runtime-identity.json").unlink()
+            verdict = EVAL.check(archived_case, live=True)
+            self.assertFalse(verdict["passed"])
+            self.assertIn("archived runtime evidence intact", verdict["reason"])
 
     def test_binary_clean_initial_fast_path_uses_actual_initial_catalog(self):
         case, state, directory, record, catalog = self.binary_scenario(clean_initial=True)

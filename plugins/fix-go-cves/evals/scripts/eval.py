@@ -821,7 +821,15 @@ def check(case_dir, live=False):
         conditions['runtime result retained'] = state['head'] == state['runtime_head'] and state['branch'] == state['runtime_branch']
         conditions['runtime plugin unchanged'] = state['runtime_plugin_unchanged']
         conditions['runtime evidence retained'] = state.get('runtime_evidence_unchanged') is True
-        conditions.update(runtime_scenario(case, state))
+        try:
+            hashes = read_json(case / 'output/runtime-identity.json').get('evidence_hashes')
+            archive = case / 'output/runtime'
+            conditions['archived runtime evidence intact'] = (archive.is_dir() and not archive.is_symlink()
+                and isinstance(hashes, dict) and file_hashes(archive) == hashes)
+        except (OSError, ValueError, AttributeError):
+            conditions['archived runtime evidence intact'] = False
+        if conditions['archived runtime evidence intact']:
+            conditions.update(runtime_scenario(case, state))
         conditions['dependency-only changes'] = all(re.search(
             r'(^|/)(go\.(mod|sum)|\.grype\.yaml)$|^go\.work(\.sum)?$|(^|/)vendor/', name)
             for name in state['changed_files'])
