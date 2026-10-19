@@ -47,32 +47,17 @@ backport. The cases cover each; two of the underlying script bugs are under
   was when the log was recorded; only `SKILL.md`, the thing under test,
   comes from the working tree. Today's scripts carry comments written after
   the recordings, one naming case 004's answer.
-- **The agent in a throwaway container.** The harness and judges stay on the
-  host. The agent runs in a per-trial container with no network,
-  credentials or host paths, and reaches Vertex only through a per-trial
-  host proxy that holds the token.
-- **Two-tier threat model.** Hard boundaries (the host, its credentials and
-  network, other trials, the committed answers) hold against a hostile
-  agent. Within its own trial, checker-owned state checks stop
-  opportunistic gaming and reading surprising sessions catches the rest; a
-  deliberately forged pass on one trial is an accepted risk for a six-case
-  regression eval of a skill we own.
+- **The stock runner, as every eval here.** No custom sandbox: the runner
+  is not one, so guards keep the agent from pushing, fetching or touching
+  the user's configuration, and reading surprising sessions catches the
+  rest. A per-trial container with a credential-holding proxy is in Later,
+  better built once in the harness than per plugin.
 
 ### Build first
 
-Run one case end to end before building the rest; each unknown here could
-change the isolation design:
-
-- Claude Code in Vertex mode works through `ANTHROPIC_VERTEX_BASE_URL`
-  (with `CLAUDE_CODE_SKIP_VERTEX_AUTH=1`, as the runner supports for
-  agentic-ci) and the proxy;
-- the wrapper passes the runner's stdin prompt in and its stream-json out
-  unchanged, including for resumed sessions;
-- rootless podman runs the container, and its user reaches the proxy
-  socket under `--userns=keep-id`;
-- a cold clone fits a 900-second `before_all` and `before_each` timeout
-  (hooks default to 120; `after_each` gets 600);
-- the cost of one trial, to set the per-case budget.
+Run one case end to end before building the rest, to confirm that a cold
+clone fits a 900-second `before_all` and `before_each` timeout (hooks
+default to 120) and to measure one trial's cost for the per-case budget.
 
 ### Cases
 
@@ -141,9 +126,9 @@ disagree (see [Decisions](README.md#decisions)).
   trial of every case) and its facts in
   at least two; a pooled rate would hide a case that always fails.
 - A missing, skipped or errored verdict, or a failed or unrecorded harness
-  stage (checks 1 to 4 raise when `after_each`'s stage record or the state
-  result is missing or malformed), is ERROR: rerun, never counted as a pass or
-  a failure. A proxy rejection of a forbidden request is a failure. Harness
+  stage (checks 1 to 4 raise when the state record is missing or
+  malformed), is ERROR: rerun, never counted as a pass or
+  a failure. Harness
   thresholds pair `min_pass_rate: 1.0` with `max_error_rate: 0`, since the
   pass rate leaves errored trials out.
 - Accept a `SKILL.md` or model change on three rounds. A case at exactly
@@ -180,10 +165,8 @@ negatives, and recalibrate.
   fresh bare remotes, since later history holds the answers for 001 and
   005; remote paths end in `owner/repo.git` and `origin/<base>` and
   `origin/<default>` exist, since the skill checks both;
-- removes the harness's `.git`, links into ai-helpers, `hooks/` and
-  `input.yaml`, and rewrites `.claude/settings.json` to keep only
-  `permissions` (the harness also writes host paths, env and the
-  operator's plugin list there);
+- removes the harness's `.git`, its links into ai-helpers and `input.yaml`,
+  which would collide with the case repository;
 - copies in nothing from the case directory but the plugin, bundle, log,
   stubs and reports, so `annotations.yaml`, `reply.md` and `negatives/`
   never reach the workspace;
@@ -199,38 +182,26 @@ negatives, and recalibrate.
 
 **Isolation:**
 
-- `run.sh` starts the harness under `env -i` and puts a `claude` wrapper
-  first on `PATH`; the wrapper builds the container's environment from a
-  fixed list, so no host key (the runner forwards `HOME`,
-  `GOOGLE_APPLICATION_CREDENTIALS`, `ANTHROPIC_API_KEY`) crosses over.
-- The container runs from a pinned image with `--network none`,
-  `--read-only` but its volumes, a non-root user, `--http-proxy=false`, and
-  no mount but the proxy socket. Only the wrapper's final `exec` touches the
-  runner's pipes.
-- The proxy forwards only the configured project's main model and one
-  pinned small model, caps tokens, logs usage, and rejects server-side
-  tools, `mcp_servers`, `container`, URL or file content sources and
-  unlisted betas, since Anthropic's servers would fetch for the agent.
-  Reported cost is the proxy's usage, priced on the host.
-- The runner's timeout kills only the wrapper, so `after_each` stops the
-  container and proxy, then runs the state check in a fresh container that
-  mounts the trial's volumes read-only and uses checker-owned git (no agent
-  configuration, hooks, fsmonitor or filters). No agent-written file is
-  unpacked on the host. Leftovers are labelled and swept by `before_all`.
+- `run.sh` gives each trial a fresh `TMPDIR` and `HOME` (no user
+  `CLAUDE.md`, memory, plugins, SSH keys or git and `gh` credentials) and a
+  `gh` shim that only logs its arguments.
+- `runner.env` sets `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0`,
+  `GIT_ALLOW_PROTOCOL=file`, `GOPROXY=off` and `GOTOOLCHAIN=local`, so git
+  and Go cannot reach the network.
 - The eval's `permissions.deny` blocks `git push`, `gh`, MCP, web tools and
-  subagents with plain patterns and no provider plan; either would make the
-  runner write a settings overlay holding the inference key into the
-  workspace.
+  subagents, so check 1 has denials to find.
+- The model credentials stay readable to the agent, as in the repository's
+  other evals; check 1 also fails a session whose tool calls read the
+  ai-helpers checkout, where the answers live.
 - Judges get the reply only through `{{ outputs.files[...] }}` with no
   filters, which the harness fences as untrusted, never `llm_rubric` or
   `{{ conversation }}`. A `before_scoring` hook extracts the reply (all
   assistant text after the `fix-all.sh` result) from `stdout.log`.
 
 **Hermetic tests** (in `make test`) enforce every guard above that needs no
-trial: the case-content, tarball, judge-template, prepared-`settings.json`,
-eval-permission and proxy-rejection rules. They also fail on no cases, an
-empty rendered reply, a recorded log missing what `SKILL.md` reads, and a
-plugin manifest with keys beyond `name`, `version`, `description` and
+trial: the case-content, tarball and judge-template rules. They also fail on no
+cases, an empty rendered reply, a recorded log missing what `SKILL.md` reads,
+and a plugin manifest with keys beyond `name`, `version`, `description` and
 `author` (a plugin can declare unsandboxed hooks).
 
 **`checks.py lint`** (before committing a case, and first in `run.sh`)
@@ -245,9 +216,11 @@ the workspace and its run state, and every criterion has a judge.
   diff and checks the head commit just before posting, once issues are filed
   against that workflow (it clones the harness at `main`, mounts an unused
   GitHub token, and ignores thresholds).
-- **Cross-agent runs.** Inspect AI with Inspect SWE runs Codex, Gemini CLI
-  and others in the same networkless, proxied shape. Harbor was rejected:
-  its Podman backend mounts a service-account key where the agent runs.
+- **Container isolation.** A per-trial networkless container whose model
+  credentials stay on the host behind a proxy, for CI or untrusted changes;
+  better added to agent-eval-harness than built here. Inspect AI with
+  Inspect SWE already runs Codex, Gemini CLI and others in that shape, for
+  cross-agent comparisons.
 - **`review.sh` cases**, if a review mistake appears that replay cannot
   catch.
 
