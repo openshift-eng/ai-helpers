@@ -110,7 +110,26 @@ class EvidenceTests(unittest.TestCase):
         (case / "output/reply.md").write_text("Recorded commit aaaaaaa, backport bbbbbbb.\n")
         (case / "annotations.yaml").write_text(yaml.safe_dump(
             {"required_commits": ["a" * 40, "b" * 40]}))
+        self.freeze()
         return case, state
+
+    def freeze(self, cases=("case-005",), live=False, annotation=None, reset=False):
+        source = self.root / "fixtures"
+        for case in cases:
+            (source / case).mkdir(parents=True, exist_ok=True)
+            (source / case / "input.yaml").write_text(yaml.safe_dump(
+                {"mode": "live"} if live else {}))
+            (source / case / "annotations.yaml").write_text(yaml.safe_dump(
+                {"required_commits": ["a" * 40, "b" * 40]} if annotation is None else annotation))
+        if reset:
+            shutil.rmtree(self.root / "provenance")
+        contract = "live_contract" if live else "replay_contract"
+        factual = "outcome" if live else "backport"
+        raw = {"dataset": {"path": "fixtures"}, "judges": [
+            {"name": contract, "check": "return True"},
+            *({"name": name, "prompt": "criterion", "samples": 3, "feedback_type": "bool"}
+              for name in (factual, "action_owner"))]}
+        return EVAL.freeze_run(raw, source, self.root, cases, self.root)
 
     def test_legitimate_contract_failure_is_false_not_an_error(self):
         case, state = self.case()
@@ -317,9 +336,7 @@ class EvidenceTests(unittest.TestCase):
         state.update(trace_violations=[], permission_denials=[])
         EVAL.write_json(workspace / "output/state.json", state)
         (workspace / "output/reply.md").write_text("The runtime reported a partial result.\n")
-        annotation = self.root / "live/cases/case-001/annotations.yaml"
-        annotation.parent.mkdir(parents=True)
-        annotation.write_text("{}\n")
+        self.freeze(cases=("case-001",), live=True, annotation={})
         with patch.object(EVAL, "EVAL_ROOT", self.root):
             verdict = EVAL.check(workspace, live=True)
         self.assertIs(verdict["passed"], False)
@@ -330,9 +347,7 @@ class EvidenceTests(unittest.TestCase):
         state.update(runtime_exit=2, runtime_summary=True, changed_files=["go.mod"],
                      runtime_head=state["head"], runtime_branch=state["branch"],
                      runtime_plugin_unchanged=True, runtime_ignored_snapshot={}, ignored_snapshot={})
-        annotation = self.root / "live/cases/case-005/annotations.yaml"
-        annotation.parent.mkdir(parents=True)
-        annotation.write_text(yaml.safe_dump({"required_commits": ["c" * 40]}))
+        self.freeze(live=True, annotation={"required_commits": ["c" * 40]}, reset=True)
         (case / "output/reply.md").write_text("Actual commit ccccccc; partial result.\n")
         EVAL.write_json(case / "output/state.json", state)
         with patch.object(EVAL, "EVAL_ROOT", self.root):
@@ -419,6 +434,8 @@ class EvidenceTests(unittest.TestCase):
             "backport": copy.deepcopy(sampled), "action_owner": copy.deepcopy(sampled)}}}
 
     def verify(self, summary):
+        if not (self.root / "provenance").exists():
+            self.freeze()
         (self.root / "summary.yaml").write_text(yaml.safe_dump(summary))
         return EVAL.verify(self.root)
 
@@ -452,6 +469,79 @@ class EvidenceTests(unittest.TestCase):
                     self.verify(summary)
         with self.assertRaises(ValueError):
             self.verify({"per_case": {}})
+
+    def test_selected_cases_and_configured_judges_must_match_exactly(self):
+        self.freeze(cases=("case-005", "case-006"))
+        summary = self.summary()
+        with self.assertRaisesRegex(ValueError, "selected cases"):
+            self.verify(summary)
+        summary["per_case"]["case-006"] = copy.deepcopy(summary["per_case"]["case-005"])
+        self.verify(summary)
+        summary["per_case"]["case-007"] = copy.deepcopy(summary["per_case"]["case-005"])
+        with self.assertRaisesRegex(ValueError, "selected cases"):
+            self.verify(summary)
+        del summary["per_case"]["case-007"]
+        del summary["per_case"]["case-005"]["backport"]
+        with self.assertRaisesRegex(ValueError, "configured judges"):
+            self.verify(summary)
+        summary["per_case"]["case-005"]["backport"] = copy.deepcopy(
+            summary["per_case"]["case-006"]["backport"])
+        summary["per_case"]["case-005"]["unrequested"] = {"value": True}
+        with self.assertRaisesRegex(ValueError, "configured judges"):
+            self.verify(summary)
+
+    def test_frozen_annotations_survive_working_tree_changes(self):
+        case, _ = self.case()
+        source = self.root / "fixtures/case-005"
+        (source / "annotations.yaml").write_text("required_commits: [ccccccc]\n")
+        (source / "input.yaml").write_text("mode: live\n")
+        self.assertIs(EVAL.check(case)["passed"], True)
+        frozen = self.root / "provenance/cases/case-005/annotations.yaml"
+        frozen.write_text("required_commits: [ccccccc]\n")
+        with self.assertRaisesRegex(ValueError, "Frozen input changed"):
+            EVAL.check(case)
+
+    def test_snapshot_selection_does_not_copy_neighbors_or_replace_old_inputs(self):
+        self.freeze(cases=("case-005",))
+        source = self.root / "fixtures"
+        (source / "case-006").mkdir()
+        (source / "case-006/input.yaml").write_text("{}\n")
+        (source / "case-006/annotations.yaml").write_text("{}\n")
+        _, manifest, config = EVAL.frozen_inputs(self.root)
+        self.assertEqual(manifest["selected_cases"], ["case-005"])
+        self.assertEqual(config["dataset"]["path"], "cases")
+        self.assertFalse((self.root / "provenance/cases/case-006").exists())
+        with self.assertRaises(FileExistsError):
+            EVAL.freeze_run(config, source, self.root, ["case-005"], self.root)
+        for selection in ([], ["../case-005"], ["case-005", "case-005"], ["case-007"]):
+            with self.subTest(selection=selection), self.assertRaises(ValueError):
+                EVAL.freeze_run(config, source, self.root / "new", selection, self.root)
+
+    def test_inconsistent_sample_reduction_is_an_error(self):
+        summary = self.summary()
+        summary["per_case"]["case-005"]["backport"]["value"] = False
+        with self.assertRaisesRegex(ValueError, "incomplete judge samples"):
+            self.verify(summary)
+
+    def test_repository_identity_and_reserved_paths(self):
+        self.assertEqual(EVAL.repository_identity("https://github.com/example-org/subctl.git"),
+                         ("example-org", "subctl"))
+        for url in ("https://github.com/example/../subctl.git", "https://github.com/example/..",
+                    "https://github.com/example/repo.git?token=secret", "https://other.test/example/repo"):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                EVAL.repository_identity(url)
+        workspace = self.root / "checkout"
+        workspace.mkdir()
+        EVAL.git(workspace, "init")
+        for name in ("cmd/bin/source.go", "output/source.go"):
+            path = workspace / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("package main\n")
+        EVAL.git(workspace, "add", "cmd/bin/source.go")
+        EVAL.check_reserved_paths(workspace)
+        EVAL.git(workspace, "add", "output/source.go")
+        with self.assertRaisesRegex(ValueError, "reserved eval paths"):
+            EVAL.check_reserved_paths(workspace)
 
 
 if __name__ == "__main__":

@@ -3,13 +3,14 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: evals/run.sh [--live] [--dry-run | --prepare-only] [--run-id ID] [--model MODEL]
+Usage: evals/run.sh [--live] [--case ID ...] [--dry-run | --prepare-only] [--run-id ID] [--model MODEL]
 
 Without a mode flag, run the recorded admiral case and its judges.
 --dry-run (alias --no-model) prepares and replays without any model calls.
 --prepare-only prepares the case workspace without replay or model calls.
 --live runs today's remediation scripts, real builds, tests and scanners.
 It supports --prepare-only, but cannot be combined with --dry-run.
+--case selects a case from that track; repeat it to select several cases.
 
 HARNESS selects an agent-eval-harness checkout. EVAL_JUDGE_MODEL overrides
 the judge model; CVE_EVAL_PYTHON selects the Python interpreter. Results go
@@ -25,6 +26,7 @@ mode=run
 live=false
 run_id="fix-go-cves-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 model_args=()
+case_ids=()
 while (($#)); do
   case "$1" in
     --live) live=true; shift ;;
@@ -33,9 +35,13 @@ while (($#)); do
       if [[ "$1" == --prepare-only ]]; then mode=prepare; else mode=dry-run; fi
       shift
       ;;
-    --run-id|--model)
+    --case|--run-id|--model)
       (($# >= 2)) || { echo "$1 needs a value." >&2; exit 2; }
-      if [[ "$1" == --run-id ]]; then run_id=$2; else model_args=(--model "$2"); fi
+      case "$1" in
+        --case) case_ids+=("$2") ;;
+        --run-id) run_id=$2 ;;
+        --model) model_args=(--model "$2") ;;
+      esac
       shift 2
       ;;
     -h|--help) usage; exit 0 ;;
@@ -61,15 +67,14 @@ harness_dir=$(cd "$harness_dir" && pwd -P)
 harness_scripts="$harness_dir/skills/eval-run/scripts"
 python_bin=${CVE_EVAL_PYTHON:-python3}
 config="$script_dir/eval-replay.yaml"
-case_source="$script_dir/cases/case-005"
-case_id=case-005
+default_case=case-005
 verify_args=()
 if [[ "$live" == true ]]; then
   config="$script_dir/eval-live.yaml"
-  case_source="$script_dir/live/cases/case-001"
-  case_id=case-001
+  default_case=case-001
   verify_args=(--live)
 fi
+if ((${#case_ids[@]} == 0)); then case_ids=("$default_case"); fi
 helper="$script_dir/scripts/eval.py"
 export AGENT_EVAL_RUNS_DIR=${AGENT_EVAL_RUNS_DIR:-$repo_root/.work/fix-go-cves-evals/runs}
 mkdir -p "$AGENT_EVAL_RUNS_DIR"
@@ -95,18 +100,25 @@ if [[ -e "$run_dir" || -e "$workspace_base/$run_id" ]]; then
 fi
 mkdir -p "$run_dir"
 git -C "$harness_dir" rev-parse HEAD > "$run_dir/harness-revision.txt"
-workspace_output=$("$python_bin" "$harness_scripts/workspace.py" --config "$config" --run-id "$run_id" --cases "$case_id")
+config=$("$python_bin" "$helper" snapshot --config "$config" --run-dir "$run_dir" \
+  --cases "${case_ids[@]}" "${model_args[@]}")
+workspace_output=$("$python_bin" "$harness_scripts/workspace.py" --config "$config" --run-id "$run_id" --cases "${case_ids[@]}")
 printf '%s\n' "$workspace_output"
 workspace_dir=$(printf '%s\n' "$workspace_output" | sed -n 's/^WORKSPACE: //p')
-[[ -d "$workspace_dir/cases/$case_id" ]] || {
-  echo "Harness did not prepare the expected case workspace." >&2
-  exit 1
-}
+for case_id in "${case_ids[@]}"; do
+  [[ -d "$workspace_dir/cases/$case_id" ]] || {
+    echo "Harness did not prepare the expected case workspace: $case_id" >&2
+    exit 1
+  }
+done
 
-if [[ "$mode" == prepare ]]; then
-  "$python_bin" "$helper" dry-run --prepare-only --workspace "$workspace_dir" --case-source "$case_source"
-elif [[ "$mode" == dry-run ]]; then
-  "$python_bin" "$helper" dry-run --workspace "$workspace_dir" --case-source "$case_source"
+if [[ "$mode" != run ]]; then
+  prepare_args=()
+  [[ "$mode" != prepare ]] || prepare_args=(--prepare-only)
+  for case_id in "${case_ids[@]}"; do
+    "$python_bin" "$helper" dry-run "${prepare_args[@]}" --workspace "$workspace_dir" \
+      --case-source "$run_dir/provenance/cases/$case_id"
+  done
 else
   "$python_bin" "$harness_scripts/execute.py" \
     --config "$config" --workspace "$workspace_dir" \

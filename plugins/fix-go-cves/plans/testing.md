@@ -29,18 +29,16 @@ not attribute the historical run or replace a full baseline test suite.
 Keep changes small enough to review independently. No new live acceptance
 campaign has been run for the candidates below.
 
-1. **Make acceptance reflect factual failures and retain scoring inputs.**
-   The live configuration currently gives fact judges only `max_error_rate: 0`.
-   A completed false verdict therefore need not fail the stock regression step.
-   A model-free probe confirmed that the helper and stock command both exit 0
-   for three false, error-free outcome samples; adding the stock
-   `min_pass_rate: 1.0` makes that command fail. Apply the required fact thresholds
-   to both tracks. Preserve the distinction between a measured false verdict
-   and an incomplete/error result. Check the exact selected case IDs as well as
-   required judges and sample counts; the helper currently checks only cases
-   present in the results. Snapshot the configuration, inputs and annotations
-   used by each run: current scoring reads annotations from the working tree.
-   Deliberate rescoring gets a separate record and preserves the original scores.
+1. **Acceptance and frozen scoring inputs are implemented.**
+   Both tracks now require each factual judge's pass rate to be 1.0 as well as
+   zero errors. A controlled completed-failure probe using the stock regression
+   command exits 1; the helper preserves a measured false verdict separately
+   from an incomplete/error result. It checks exact selected cases, configured
+   judges, sample completeness and majority consistency. Every stock stage uses
+   the run's copied configuration, inputs and annotations, with file hashes and
+   helper identity recorded. A stock-workspace/scoring probe confirmed that
+   later working-tree annotation changes do not alter frozen scoring. Deliberate
+   rescoring needs a separate frozen record and must preserve original scores.
 2. **Retain reviewable engine evidence outside the scanned checkout.**
    Keep the actual dependency patch or Git bundle, runtime/helper hashes,
    detected build/test commands, phase outcomes and all four audit results when

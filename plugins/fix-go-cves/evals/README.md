@@ -69,12 +69,18 @@ plugins/fix-go-cves/evals/run.sh --live
 calls, builds or scans. `--prepare-only` prepares the checkout without replaying.
 Use `--model MODEL` for the invoking agent and `EVAL_JUDGE_MODEL` for judges.
 `--run-id ID` chooses a new result identifier; existing identifiers are rejected.
+Repeat `--case ID` to select cases within the chosen track; defaults remain the
+recorded case-005 and live case-001.
 
 The runner prints workspace and result paths. Results default to
 `.work/fix-go-cves-evals/runs/fix-go-cves:fix-go-cves/<run-id>/`; override the root
 with `AGENT_EVAL_RUNS_DIR`. Inspect the extracted `output/reply.md`, captured
 `output/state.json`, event logs, metrics and judge results under each case.
 The harness also writes its standard `report.html` in the result directory.
+Each run stores frozen configuration and fixtures with hashes under `provenance/`;
+all stock stages score those copies. The runner checks exact selected cases,
+judges and complete samples, and exits nonzero for factual acceptance failures.
+Use a new frozen result record for deliberate rescoring; preserve prior scores.
 The replay contract checks one invocation, exact result commit and branch,
 clean state, unchanged staged skill/scripts and remote refs, required commit citations,
 and publication or destructive operations. Fact judges score the backport and

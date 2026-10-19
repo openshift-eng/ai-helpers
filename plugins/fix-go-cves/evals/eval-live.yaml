@@ -16,6 +16,7 @@ runner:
     - plugins/fix-go-cves
   env:
     GOOGLE_APPLICATION_CREDENTIALS: $GOOGLE_APPLICATION_CREDENTIALS
+    DOCKER_HOST: $DOCKER_HOST
     GRYPE_DB_CACHE_DIR: $GRYPE_DB_CACHE_DIR
     GOMODCACHE: $GOMODCACHE
     GIT_CONFIG_NOSYSTEM: "1"
@@ -138,6 +139,8 @@ thresholds:
     min_pass_rate: 1.0
     max_error_rate: 0
   outcome:
+    min_pass_rate: 1.0
     max_error_rate: 0
   action_owner:
+    min_pass_rate: 1.0
     max_error_rate: 0

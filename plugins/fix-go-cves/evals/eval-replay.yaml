@@ -126,6 +126,8 @@ thresholds:
     min_pass_rate: 1.0
     max_error_rate: 0
   backport:
+    min_pass_rate: 1.0
     max_error_rate: 0
   action_owner:
+    min_pass_rate: 1.0
     max_error_rate: 0

@@ -20,6 +20,101 @@ INFRA = ('.claude', '.replay', '.staged-plugins', 'hooks', 'subagents', 'output'
 AUDITS = ('scan-regression', 'existing-entries', 'fix-availability', 'yaml-integrity')
 
 
+def repository_identity(url):
+    match = re.fullmatch(r'https://github[.]com/([A-Za-z0-9][A-Za-z0-9-]*)/([A-Za-z0-9_.-]+)', url)
+    if not match or match[2].removesuffix('.git') in ('', '.', '..'):
+        raise ValueError('Fixture repository must be an explicit GitHub HTTPS repository URL')
+    return match[1], match[2].removesuffix('.git')
+
+
+def freeze_run(raw, dataset_root, run_dir, case_ids, project_root):
+    """Write a selected, self-contained dataset and the config stock stages use."""
+    import yaml
+
+    case_ids = list(case_ids)
+    if (not case_ids or len(set(case_ids)) != len(case_ids)
+            or any(not re.fullmatch(r'case-[0-9]{3}', name) for name in case_ids)):
+        raise ValueError('Select distinct case-NNN identifiers')
+    dataset_root, run_dir = Path(dataset_root).resolve(), Path(run_dir).resolve()
+    for name in case_ids:
+        source = dataset_root / name
+        if (source.is_symlink() or not source.is_dir()
+                or any(path.is_symlink() for path in source.rglob('*'))):
+            raise ValueError(f'Missing or linked fixture: {name}')
+        for filename in ('input.yaml', 'annotations.yaml'):
+            if not isinstance(yaml.safe_load((source / filename).read_text()), dict):
+                raise ValueError(f'{name}/{filename} must contain a mapping')
+    provenance = run_dir / 'provenance'
+    provenance.mkdir(parents=True)  # Never replace the inputs of an existing run.
+    for name in case_ids:
+        shutil.copytree(dataset_root / name, provenance / 'cases' / name)
+    raw['dataset']['path'] = 'cases'
+    config = provenance / 'eval.yaml'
+    config.write_text(yaml.safe_dump(raw, sort_keys=False))
+    files = {str(path.relative_to(provenance)): digest(path)
+             for path in sorted(provenance.rglob('*')) if path.is_file()}
+    write_json(provenance / 'manifest.json', {
+        'selected_cases': case_ids, 'project_root': str(Path(project_root).resolve()),
+        'helper_sha256': digest(Path(__file__)),
+        'files': files})
+    return config
+
+
+def snapshot(config_path, run_dir, case_ids, model=None):
+    # Use the harness's loader and path rules, including any config overlays.
+    from agent_eval.config import EvalConfig, load_raw, resolve_plugin_dir
+
+    config = EvalConfig.from_yaml(config_path)
+    raw, _ = load_raw(Path(config_path))
+    raw.setdefault('runner', {})['plugin_dirs'] = [
+        str(resolve_plugin_dir(config, path)) for path in config.runner.plugin_dirs]
+    # Freeze explicit nonsecret paths without copying provider credentials.
+    environment = raw['runner'].get('env', {})
+    for name in ('DOCKER_HOST', 'GRYPE_DB_CACHE_DIR', 'GOMODCACHE', 'GOOGLE_APPLICATION_CREDENTIALS'):
+        value = environment.get(name)
+        if isinstance(value, str) and value.startswith('$'):
+            environment[name] = os.environ.get(value[1:])
+    if model:
+        raw.setdefault('models', {})['skill'] = model
+    judge_model = config.models.judge or os.environ.get('EVAL_JUDGE_MODEL')
+    if judge_model:
+        raw.setdefault('models', {})['judge'] = judge_model
+    return freeze_run(raw, config.resolve_path(config.dataset.path), run_dir,
+                      case_ids, config.project_root)
+
+
+def frozen_inputs(run_dir):
+    import yaml
+
+    provenance = Path(run_dir).resolve() / 'provenance'
+    manifest = read_json(provenance / 'manifest.json')
+    cases = manifest['selected_cases']
+    if (not isinstance(cases, list) or not cases or len(set(cases)) != len(cases)
+            or any(not isinstance(name, str) or not re.fullmatch(r'case-[0-9]{3}', name)
+                   for name in cases)):
+        raise ValueError('Invalid frozen case selection')
+    files = manifest['files']
+    required = {'eval.yaml', *(f'cases/{case}/{name}' for case in cases
+                              for name in ('input.yaml', 'annotations.yaml'))}
+    if not isinstance(files, dict) or not required.issubset(files):
+        raise ValueError('Incomplete frozen inputs')
+    for name, expected in files.items():
+        path = provenance / name
+        if (path.is_symlink() or not path.resolve().is_relative_to(provenance)
+                or digest(path) != expected):
+            raise ValueError(f'Frozen input changed: {name}')
+    config = yaml.safe_load((provenance / 'eval.yaml').read_text())
+    return provenance, manifest, config
+
+
+def check_reserved_paths(workspace):
+    collisions = {PurePosixPath(name).parts[0]
+                  for name in git(workspace, 'ls-files', '-z').split('\0') if name
+                  and PurePosixPath(name).parts[0] in INFRA}
+    if collisions:
+        raise ValueError(f'Repository uses reserved eval paths: {sorted(collisions)}')
+
+
 def run(*args, cwd=None, env=None):
     return subprocess.run(args, cwd=cwd, env=env, text=True, capture_output=True,
                           check=True, timeout=600).stdout.strip()
@@ -79,8 +174,7 @@ def case_data(source):
     live = data.get('mode') == 'live'
     if not live and not re.fullmatch('[0-9a-f]{40}', expected['result_commit']):
         raise ValueError('Invalid result commit')
-    if not data['repository'].startswith('https://github.com/'):
-        raise ValueError('Fixture repository must be an explicit GitHub HTTPS URL')
+    repository_identity(data['repository'])
     for branch in (data['base_branch'], data['default_branch'], data['original_branch'],
                    *([] if live else [expected['fix_branch']])):
         run('git', 'check-ref-format', '--branch', branch)
@@ -111,7 +205,8 @@ def prepare(workspace, source):
     private = workspace / '.replay'
     private.mkdir(mode=0o700)
     (private / 'bin').mkdir()
-    upstream = private / 'remotes/submariner-io/admiral.git'
+    owner, repository = repository_identity(data['repository'])
+    upstream = private / 'remotes' / owner / f'{repository}.git'
     upstream.parent.mkdir(parents=True)
     run('git', 'init', '--bare', str(upstream))
     for branch, commit in ((data['base_branch'], data['base_commit']),
@@ -120,7 +215,7 @@ def prepare(workspace, source):
         run('git', '-c', 'protocol.https.allow=always', '-C', str(upstream),
             'fetch', '--no-tags', data['repository'], f'{commit}:refs/heads/{branch}')
     git(upstream, 'symbolic-ref', 'HEAD', f'refs/heads/{data["default_branch"]}')
-    fork = private / 'remotes/fork/admiral.git'
+    fork = private / 'remotes/fork' / f'{repository}.git'
     fork.parent.mkdir(parents=True)
     run('git', 'clone', '--bare', '--no-local', str(upstream), str(fork))
     git(workspace, 'init')
@@ -129,6 +224,7 @@ def prepare(workspace, source):
     git(workspace, 'fetch', '--no-tags', 'origin')
     git(workspace, 'checkout', '-b', data['original_branch'],
         f'origin/{data["default_branch"]}')
+    check_reserved_paths(workspace)
     git(workspace, 'config', 'user.name', 'Eval')
     git(workspace, 'config', 'user.email', 'eval@example.invalid')
     control = workspace.parent.parent / 'control' / workspace.name
@@ -441,8 +537,14 @@ def check(case_dir, live=False):
             for name in state['changed_files'])
     else:
         conditions['recorded result/branch'] = state['head'] == expected['result_commit'] and state['branch'] == expected['fix_branch']
-    annotation_root = EVAL_ROOT / 'live' if live else EVAL_ROOT
-    annotation = yaml.safe_load((annotation_root / 'cases' / case.name / 'annotations.yaml').read_text())
+    provenance, manifest, _ = frozen_inputs(case.parent.parent)
+    if case.name not in manifest['selected_cases']:
+        raise ValueError(f'Unselected case: {case.name}')
+    source = provenance / 'cases' / case.name
+    data = yaml.safe_load((source / 'input.yaml').read_text())
+    if (data.get('mode') == 'live') != live:
+        raise ValueError(f'{case.name}: wrong evaluation track')
+    annotation = yaml.safe_load((source / 'annotations.yaml').read_text())
     hashes = re.findall(r'\b[0-9a-f]{7,40}\b', reply)
     for commit in annotation.get('required_commits', []):
         conditions[f'commit {commit[:7]} reported'] = any(commit.startswith(value) for value in hashes)
@@ -453,29 +555,47 @@ def check(case_dir, live=False):
 def verify(run_dir, live=False):
     import yaml
 
-    summary_path = Path(run_dir) / 'summary.yaml'
-    summary = yaml.safe_load(summary_path.read_text())
+    _, manifest, config = frozen_inputs(run_dir)
+    summary = yaml.safe_load((Path(run_dir) / 'summary.yaml').read_text())
     per_case = summary.get('per_case', {})
-    if not per_case:
-        raise ValueError('No per-case judge results')
+    if not isinstance(per_case, dict) or set(per_case) != set(manifest['selected_cases']):
+        raise ValueError('Judge results do not match the selected cases')
+    expected = {}
+    for judge in config['judges']:
+        name = judge['name']
+        if name in expected:
+            raise ValueError(f'Duplicate configured judge: {name}')
+        stochastic = any(judge.get(key) for key in ('prompt', 'prompt_file', 'llm_rubric', 'agent'))
+        expected[name] = max(1, judge.get('samples', 1)) if stochastic else 1
+    if not expected:
+        raise ValueError('No configured judges')
     for case, judges in per_case.items():
-        names = ('live_contract', 'outcome', 'action_owner') if live else ('replay_contract', 'backport', 'action_owner')
-        for name in names:
+        if not isinstance(judges, dict) or set(judges) != set(expected):
+            raise ValueError(f'{case}: judge results do not match the configured judges')
+        for name, samples in expected.items():
             result = judges[name]
-            if type(result.get('value')) is not bool or result.get('error'):
+            if not isinstance(result, dict) or type(result.get('value')) is not bool or result.get('error'):
                 raise ValueError(f'{case}/{name}: missing or errored verdict')
-            if name not in ('replay_contract', 'live_contract'):
+            if samples > 1:
                 stability = result.get('stability', {})
+                if not isinstance(stability, dict):
+                    raise ValueError(f'{case}/{name}: malformed judge samples')
                 values = stability.get('values', [])
-                if (stability.get('samples') != 3 or stability.get('error_count') != 0
-                        or len(values) != 3 or any(type(value) is not bool for value in values)):
+                if (type(stability.get('samples')) is not int or stability['samples'] != samples
+                        or type(stability.get('error_count')) is not int or stability['error_count'] != 0
+                        or not isinstance(values, list) or len(values) != samples
+                        or any(type(value) is not bool for value in values)
+                        or result['value'] != (sum(values) * 2 > samples)):
                     raise ValueError(f'{case}/{name}: incomplete judge samples')
     print('All requested judge results and samples completed')
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('prepare', 'replay', 'capture', 'extract', 'check', 'verify', 'dry-run'))
+    parser.add_argument('command', choices=('snapshot', 'prepare', 'replay', 'capture', 'extract', 'check', 'verify', 'dry-run'))
+    parser.add_argument('--config', type=Path)
+    parser.add_argument('--cases', nargs='+')
+    parser.add_argument('--model')
     parser.add_argument('--workspace', type=Path)
     parser.add_argument('--case-source', type=Path, default=EVAL_ROOT / 'cases/case-005')
     parser.add_argument('--case-dir', type=Path)
@@ -487,7 +607,9 @@ def main():
         return replay(extra)
     if extra:
         parser.error(f'Unexpected arguments: {extra}')
-    if args.command == 'prepare':
+    if args.command == 'snapshot':
+        print(snapshot(args.config, args.run_dir, args.cases or [], args.model))
+    elif args.command == 'prepare':
         prepare(os.environ['CASE_WORKSPACE'], os.environ['CASE_SOURCE_DIR'])
     elif args.command == 'capture':
         capture(os.environ['CASE_WORKSPACE'])
@@ -506,10 +628,12 @@ def main():
         if not args.prepare_only:
             hook_env = read_json(case / '.hook-outputs.json')['env']
             (case / '.hook-outputs.json').unlink()
-            command = ['bash', str(case / '.staged-plugins/fix-go-cves/scripts/fix-all.sh'), '0.24']
+            meta = read_json(case / '.replay/meta.json')
+            command = ['bash', str(case / '.staged-plugins/fix-go-cves/scripts/fix-all.sh'),
+                       *meta['arguments']]
             result = subprocess.run(command, cwd=case, env={**os.environ, **hook_env},
                                     capture_output=True, text=True)
-            expected = read_json(case / '.replay/meta.json')['exit_code']
+            expected = meta['exit_code']
             if result.returncode != expected:
                 raise ValueError(f'Replay exited {result.returncode}, expected {expected}: {result.stderr}')
             capture(case)
