@@ -50,12 +50,16 @@ working provider credentials.
 
 For live runs, also satisfy the [runtime prerequisites](../README.md#prerequisites)
 and provide the container runtime and network access needed by the repository's
-detected commands and scanners. The live case uses local remotes and never
-publishes changes.
+detected commands and scanners. The live cases use local remotes and never
+publish changes. `DOCKER_HOST` is forwarded when set, allowing a dedicated
+build daemon; it does not isolate the invoking agent from host files or credentials.
 
 Optionally export absolute `GRYPE_DB_CACHE_DIR` and `GOMODCACHE` paths outside
 the evaluated checkout to reuse host caches. These apply to local Grype and
 host Go; container caches are separate. Unset variables retain default behavior.
+For a constrained Shipyard worker, `GOMAXPROCS=2 DAPPER_ENV=GOMAXPROCS` limits
+Go compilation/test concurrency while retaining canonical commands, race checks
+and coverage. These nonsecret settings are forwarded and frozen with the run.
 
 ## Run and inspect
 
@@ -68,6 +72,7 @@ plugins/fix-go-cves/evals/run.sh --live
 `--dry-run` fetches the real pinned history and replays the result without model
 calls, builds or scans. `--prepare-only` prepares the checkout without replaying.
 Use `--model MODEL` for the invoking agent and `EVAL_JUDGE_MODEL` for judges.
+Repeat `--case ID` to select cases from the chosen track.
 `--run-id ID` chooses a new result identifier; existing identifiers are rejected.
 Repeat `--case ID` to select cases within the chosen track; defaults remain the
 recorded case-005 and live case-001.
@@ -95,7 +100,7 @@ was not rerun, and the original scores remain as evidence of the old prompt.
 Agent execution took 83 seconds, 18 turns and $0.53. Judge calls were unpriced,
 so $0.53 is not the total evaluation cost.
 
-Calibration is complete for the current prompts: the corrected reference passes
+Calibration of the original prompts completed: the corrected reference passes
 both criteria; the missed-backport negative fails `backport`; the fix-branch-only
 negative fails `action_owner`. Each result has three agreeing, error-free samples.
 A focused skill update now requires explicit remaining-CVE/PR status, the
@@ -118,12 +123,44 @@ all remediation gates pass or that the acceptance baseline is complete.
 
 The [live attribution experiment](live/README.md) confirmed that the Go directive
 raise alone triggers the current vet failure; the reply's tooling explanation
-was inaccurate. Historical replies lacked that baseline. Prioritize the explicit
-post-run boundary and evidence-grounded attribution, then the three-round baseline.
+was inaccurate. Historical replies lacked that baseline. The acceptance baseline must still
+measure the updated skill rather than reuse the earlier passing replies.
+
+The skill now explicitly limits post-run work to read-only diagnosis and
+recommendations. Current causal criteria reject a wrong explanation even when
+the proposed repair and owner are correct. Both references, four isolated causal
+negatives and the replay rerun negative passed a 21-call calibration with three
+agreeing, error-free samples per criterion. Earlier failed calibration attempts
+remain preserved: one lacked dependency-diff context, and judges sometimes gave
+partial credit despite recognizing the wrong explanation. Actual updated-skill
+acceptance trials remain pending. Judge costs were unavailable.
 
 The live configuration permits a larger invoking-agent budget, but that budget
 does not cap independent reviewer CLIs launched by the remediation scripts or
 judge costs. See the live configuration for its execution and runtime deadlines.
+
+## Live evidence and coverage
+
+The live helper opts into an external `CVE_FIX_EVIDENCE_DIR` and archives its
+contents under each case's `output/runtime/`. This includes initial and
+independent final-gate JSON when reached, phase outcomes, canonical command logs,
+raw audit evidence and same-scan CycloneDX catalogs. The completion snapshot
+hashes the evidence, including observed scanner/Docker image identities. Image
+listings record observed identities; they do not freeze mutable builder tags.
+`output/change.patch` and `runtime-identity.json` preserve the exact retained
+change and runtime hashes. Judges receive the retained dependency diff alongside
+the reduced runtime log, so they can assess claims about dependency changes.
+
+The [live cases](live/README.md) distinguish faithful blocked-run reporting,
+genuine repair and native Linux/amd64 binary coverage. The repair assertion
+requires a fixable finding actually cleared rather than ignored, a retained
+dependency change, canonical gates and complete audits, and runtime exit 0.
+Native coverage requires the Subctl artifact's fresh build/hash, positive
+binary-catalog location and matching file hash, and unchanged retained output.
+A real clean initial fast path uses its initial catalog; it does not invent a
+final scan or claim repair coverage. A completed native remediation flow must
+also pass canonical test, verification and license gates. Findings may still
+leave that scenario partial; report runtime success separately from coverage.
 
 ## Fixture and checks
 

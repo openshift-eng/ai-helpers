@@ -1,13 +1,19 @@
 # Live remediation eval
 
-One opt-in case runs today's complete plugin against a disposable Admiral
-checkout, with the repository's detected build and tests and real Grype scans.
+Opt-in cases run today's complete plugin against pinned real repository
+checkouts, with detected build and test commands and real Grype scans.
 Branches are pinned; vulnerability data and builder images remain live.
 See [setup and commands](../README.md).
 
 | Case | Repository | Scope |
 | --- | --- | --- |
 | case-001 | Admiral release-0.24 | Actual remediation and evidence-based reporting |
+| case-002 | Admiral devel | Genuine dependency repair with all canonical gates passing |
+| case-003 | Subctl devel | Fresh native Linux/amd64 binary and positive scan coverage |
+
+Select one with `evals/run.sh --live --case case-002` (or repeat `--case`).
+The original case remains the default. New case runtime results are pending;
+pinned checkout preparation has succeeded for both.
 
 The eval retains local fixes and never publishes them. A confirmed partial
 runtime outcome can be reported correctly; missing execution evidence cannot.
@@ -57,8 +63,7 @@ This experiment attributes the current live run, not the historical recording,
 whose replies lacked baseline evidence.
 
 No additional post-run instruction was added before that successful eval. The
-earlier behavioral failure remains relevant: the next narrow skill improvement
-is to make post-run diagnosis and recommendation explicit, leaving repairs,
-reruns and cleanup for a user request. Improve evidence-grounded attribution
-before the three-round acceptance baseline. Stronger host isolation belongs in
-the shared harness.
+earlier behavioral failure remains relevant. The skill now explicitly limits
+post-run work to read-only diagnosis and recommendations. Tightened causal
+criteria passed reference/negative calibration; updated skill trials remain
+pending. Stronger host isolation belongs in the shared harness.

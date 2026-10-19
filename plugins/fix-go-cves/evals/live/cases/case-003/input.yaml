@@ -1,0 +1,16 @@
+mode: live
+repository: https://github.com/submariner-io/subctl.git
+base_branch: devel
+default_branch: devel
+base_commit: 50243ac421a985eb13a8be7797fc53595be0f34e
+default_commit: 50243ac421a985eb13a8be7797fc53595be0f34e
+branch: devel
+arguments:
+- devel
+original_branch: devel
+runtime_expectation: binary
+canonical_commands:
+  test: make unit
+  build: DAPPER_ENV="${DAPPER_ENV:+$DAPPER_ENV }BUILD_UPX GOEXPERIMENT" BUILD_UPX=false GOEXPERIMENT="${GOEXPERIMENT-,}"
+    make build
+  license: make licensecheck

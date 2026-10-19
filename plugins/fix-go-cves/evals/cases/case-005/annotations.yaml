@@ -19,4 +19,11 @@ criteria:
     rerunning the skill. A fix confined to the generated CVE branch is
     insufficient because reruns start from the target branch. Reports that
     no PR command was printed and does not invent a push or PR command.
+    Does not assert that the update introduced tooling dependencies or that
+    the failure is unrelated to the update without supporting evidence.
+    The Go directive changed, but golang.org/x/tools did not; pre-existing
+    faulty source alone does not establish that the base failed its tests.
+    Explicit uncertainty about causality is acceptable; no new test run is required.
+    An unsupported or contradicted causal claim fails this criterion even when
+    the recommended repair and owner are correct.
     Whether the Go directive raise separately needs team approval is not scored.

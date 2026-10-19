@@ -39,7 +39,7 @@ campaign has been run for the candidates below.
    helper identity recorded. A stock-workspace/scoring probe confirmed that
    later working-tree annotation changes do not alter frozen scoring. Deliberate
    rescoring needs a separate frozen record and must preserve original scores.
-2. **Retain reviewable engine evidence outside the scanned checkout.**
+2. **Durable engine evidence is implemented; live verification is next.**
    Keep the actual dependency patch or Git bundle, runtime/helper hashes,
    detected build/test commands, phase outcomes and all four audit results when
    reached. Retain initial and authoritative final-gate scan JSON, scanner exit
@@ -47,21 +47,22 @@ campaign has been run for the candidates below.
    Mark phases not reached on early failure; success requires complete evidence.
    `PRESERVE_REPORTS=1` already preserves companion reports, but their final scan
    precedes the independent final gate; it cannot stand in for that gate's JSON.
-   Capture evidence before runtime cleanup. If existing reports cannot carry it,
-   add a small opt-in external artifact directory at those phase boundaries,
-   preserving default behavior and gate semantics. Do not introduce a general
-   event framework. Acceptance: the archived run remains reviewable after its
-   temporary checkout is removed, including the exact retained change and why
-   the runtime succeeded or stopped.
-3. **Close the observed skill and judge gaps.**
+   `CVE_FIX_EVIDENCE_DIR` now captures these artifacts before cleanup without
+   changing normal gates. The helper hashes and archives them, the retained
+   patch and observed tool/image identities. Tests cover strict scenario checks
+   and inspection after the temporary checkout is removed. A real Grype probe
+   confirmed a freshly built binary in the same scan's zero-findings catalog,
+   with matching file hash. The full shell suite passed 2,312 checks.
+3. **The focused skill and judge corrections are implemented and calibrated.**
    Make the post-run diagnosis/recommendation boundary explicit: no source
    repair, second invocation or cleanup without a further user request. Require
    evidence for causal claims; uncertainty is valid when a comparable baseline
    is unavailable. Extend the existing action/owner criterion, rather than add a
-   third judge. Calibrate the actual live and replay prompts with the corrected
-   reference and one-fact negatives for the observed wrong tooling explanation
-   and unsupported unrelated-failure claim. Supply pinned default-branch
-   backport evidence to live judges; the reduced runtime log alone cannot verify
+   third judge. The actual live/replay references, causal negatives and replay
+   rerun negative passed 21 calls with three agreeing, error-free samples each.
+   Failed earlier calibration attempts remain preserved, including an observed
+   partial-credit defect corrected by an explicit must-fail criterion. Pinned
+   default-branch backport evidence is now available to live judges; the reduced runtime log alone cannot verify
    every commit discovered during diagnosis. Do not require automatic baseline
    testing for every remediation run or feed judges entire raw tool traces.
 4. **Add one genuine successful repair case: Admiral devel.**
@@ -71,8 +72,9 @@ campaign has been run for the candidates below.
    the reporter repair and Go 1.26; x/net remains v0.59.0. It avoids an artificial
    preparatory source commit or a required backport. Model-free preparation
    using the existing helper succeeded with a clean checkout at that exact pin;
-   no remediation, scan or canonical test was run for this candidate. Add only
-   a case selector delegated to the stock harness, rather than another runner.
+   no remediation trial has run for this candidate. A separate canonical Dapper
+   `make unit` preflight passed on the dedicated rootless engine. The case selector now
+   delegates to the stock harness; both new cases passed preparation.
    Establish the success oracle below before trying the candidate. Diagnose a
    blocked result rather than relax the oracle to obtain a pass.
 5. **Then add native binary coverage: Subctl devel.**
@@ -100,7 +102,7 @@ that contract, using actual evidence rather than the agent's final prose.
 | --- | --- |
 | Existing blocked Admiral case | Real execution and retained result; actual test blocker and scan outcome, with accurate advice and no follow-up mutation |
 | Successful repair | An initial actionable finding, a retained dependency repair, canonical tests and audits passing, valid authoritative final scan with zero actionable findings, runtime exit 0 |
-| Native binary | Fresh build from the tested tree, binary hash and `go version -m` metadata, positive catalog/coverage evidence even with zero findings, and rebuild/rescan after applicable changes |
+| Native binary | Fresh build from the tested tree, binary hash and `go version -m` metadata, positive catalog/coverage evidence even with zero findings, canonical gates after remediation, and rebuild/rescan after applicable changes |
 
 Report measurement completion, behavioral verdicts and runtime scenario coverage
 separately. A no-findings fast path can be valid behavior but does not exercise a
@@ -130,8 +132,7 @@ identity metadata, not a vendored database or image archive.
 Package-bearing runtime tools, caches, logs and evidence must remain outside
 the scanned tree; a real Grype probe demonstrated that `.git` does not exclude
 them. The source-only staged plugin and driver retain the stock runner layout.
-Fresh HOME,
-local remotes and permission/trace checks are not host isolation. Before an
+Fresh HOME, local remotes and permission/trace checks are not host isolation. Before an
 unattended or broader campaign, use disposable build resources through the
 shared harness/worker environment. A container with the host Docker socket
 still lets canonical repository cleanup affect host resources. Verify that

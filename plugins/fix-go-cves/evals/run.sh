@@ -112,6 +112,7 @@ for case_id in "${case_ids[@]}"; do
   }
 done
 
+status=0
 if [[ "$mode" != run ]]; then
   prepare_args=()
   [[ "$mode" != prepare ]] || prepare_args=(--prepare-only)
@@ -126,11 +127,12 @@ else
   "$python_bin" "$harness_scripts/collect.py" \
     --config "$config" --workspace "$workspace_dir" --output "$run_dir"
   "$python_bin" "$harness_scripts/score.py" judges \
-    --config "$config" --run-id "$run_id" --workspace "$workspace_dir"
+    --config "$config" --run-id "$run_id" --workspace "$workspace_dir" || status=$?
   "$python_bin" "$harness_scripts/report.py" \
     --config "$config" --run-id "$run_id"
   "$python_bin" "$helper" verify --run-dir "$run_dir" "${verify_args[@]}"
   "$python_bin" "$harness_scripts/score.py" regression \
-    --config "$config" --run-id "$run_id"
+    --config "$config" --run-id "$run_id" || status=$?
 fi
 printf 'WORKSPACE: %s\nRESULTS: %s\n' "$workspace_dir" "$run_dir"
+exit "$status"

@@ -68,9 +68,9 @@ def snapshot(config_path, run_dir, case_ids, model=None):
     raw, _ = load_raw(Path(config_path))
     raw.setdefault('runner', {})['plugin_dirs'] = [
         str(resolve_plugin_dir(config, path)) for path in config.runner.plugin_dirs]
-    # Freeze explicit nonsecret paths without copying provider credentials.
+    # Freeze explicit nonsecret settings without copying provider credentials.
     environment = raw['runner'].get('env', {})
-    for name in ('DOCKER_HOST', 'GRYPE_DB_CACHE_DIR', 'GOMODCACHE', 'GOOGLE_APPLICATION_CREDENTIALS'):
+    for name in ('DOCKER_HOST', 'GRYPE_DB_CACHE_DIR', 'GOMODCACHE', 'GOOGLE_APPLICATION_CREDENTIALS', 'GOMAXPROCS', 'DAPPER_ENV'):
         value = environment.get(name)
         if isinstance(value, str) and value.startswith('$'):
             environment[name] = os.environ.get(value[1:])
@@ -79,8 +79,13 @@ def snapshot(config_path, run_dir, case_ids, model=None):
     judge_model = config.models.judge or os.environ.get('EVAL_JUDGE_MODEL')
     if judge_model:
         raw.setdefault('models', {})['judge'] = judge_model
-    return freeze_run(raw, config.resolve_path(config.dataset.path), run_dir,
-                      case_ids, config.project_root)
+    frozen = freeze_run(raw, config.resolve_path(config.dataset.path), run_dir,
+                        case_ids, config.project_root)
+    manifest = read_json(frozen.parent / 'manifest.json')
+    manifest['source_revision'] = git(config.project_root, 'rev-parse', 'HEAD')
+    manifest['source_status'] = git(config.project_root, 'status', '--porcelain')
+    write_json(frozen.parent / 'manifest.json', manifest)
+    return frozen
 
 
 def frozen_inputs(run_dir):
@@ -93,6 +98,8 @@ def frozen_inputs(run_dir):
             or any(not isinstance(name, str) or not re.fullmatch(r'case-[0-9]{3}', name)
                    for name in cases)):
         raise ValueError('Invalid frozen case selection')
+    if manifest.get('helper_sha256') != digest(__file__):
+        raise ValueError('Scoring helper changed since inputs were frozen')
     files = manifest['files']
     required = {'eval.yaml', *(f'cases/{case}/{name}' for case in cases
                               for name in ('input.yaml', 'annotations.yaml'))}
@@ -206,7 +213,7 @@ def prepare(workspace, source):
     private.mkdir(mode=0o700)
     (private / 'bin').mkdir()
     owner, repository = repository_identity(data['repository'])
-    upstream = private / 'remotes' / owner / f'{repository}.git'
+    upstream = private / 'remotes/upstream' / owner / f'{repository}.git'
     upstream.parent.mkdir(parents=True)
     run('git', 'init', '--bare', str(upstream))
     for branch, commit in ((data['base_branch'], data['base_commit']),
@@ -316,12 +323,42 @@ def replay(arguments):
     return meta['exit_code']
 
 
+def file_hashes(directory):
+    hashes = {}
+    for path in sorted(Path(directory).rglob('*')):
+        if path.is_symlink():
+            raise ValueError(f'Linked runtime evidence: {path}')
+        if path.is_file():
+            hashes[str(path.relative_to(directory))] = digest(path)
+    return hashes
+
+
+def runtime_environment():
+    """Observe tool identities without serializing the process environment."""
+    scanner = shutil.which('grype')
+    result = {'docker_host': os.environ.get('DOCKER_HOST'),
+              'gomaxprocs': os.environ.get('GOMAXPROCS'), 'dapper_env': os.environ.get('DAPPER_ENV'),
+              'scanner_path': scanner, 'scanner_sha256': digest(scanner) if scanner else None}
+    for name, command in (
+            ('scanner_version', ['grype', 'version', '-o', 'json']),
+            ('builder_images', ['docker', 'image', 'ls', '--no-trunc', '--digests',
+                                '--format', '{{json .}}'])):
+        try:
+            process = subprocess.run(command, capture_output=True, text=True, timeout=30)
+            result[name] = {'exit_code': process.returncode, 'stdout': process.stdout}
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            result[name] = {'error': type(exc).__name__}
+    return result
+
+
 def live_run(workspace, arguments):
     """Tee the actual runtime output; never substitute a recorded result."""
     runtime = Path(read_json(workspace / '.replay/meta.json')['runtime_dir'])
     script = runtime / 'plugin/scripts/fix-all.sh'
+    before = runtime_environment()
+    environment = dict(os.environ, CVE_FIX_EVIDENCE_DIR=str(runtime / 'evidence'))
     with (runtime / 'run.log').open('w') as log:
-        with subprocess.Popen(['bash', str(script), *arguments], cwd=workspace,
+        with subprocess.Popen(['bash', str(script), *arguments], cwd=workspace, env=environment,
                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True, bufsize=1) as process:
             for line in process.stdout:
@@ -329,11 +366,174 @@ def live_run(workspace, arguments):
                 log.flush()
                 print(line, end='', flush=True)
             status = process.wait()
+    write_json(runtime / 'evidence/environment.json', {'before': before, 'after': runtime_environment()})
     write_json(runtime / 'status.json', {
         'exit_code': status, 'head': git(workspace, 'rev-parse', 'HEAD'),
         'branch': git(workspace, 'branch', '--show-current'),
+        'evidence_hashes': file_hashes(runtime / 'evidence'),
         'ignored_snapshot': ignored_snapshot(workspace)})
     return status
+
+
+def archive_live_evidence(workspace, baseline, completion):
+    runtime = Path(baseline['runtime_dir'])
+    output = workspace / 'output'
+    output.mkdir(exist_ok=True)
+    evidence = runtime / 'evidence'
+    hashes = file_hashes(evidence)
+    target = output / 'runtime'
+    if target.is_symlink() or target.is_file():
+        target.unlink()
+    elif target.exists():
+        shutil.rmtree(target)
+    if evidence.is_dir():
+        shutil.copytree(evidence, target)
+    patch = git(workspace, 'diff', '--binary', baseline['meta']['base_commit'], 'HEAD')
+    (output / 'change.patch').write_text(patch + ('\n' if patch else ''))
+    write_json(output / 'runtime-identity.json', {
+        'repository': baseline['meta']['repository'],
+        'base_commit': baseline['meta']['base_commit'],
+        'default_commit': baseline['meta']['default_commit'],
+        'runtime_plugin_hashes': baseline['runtime_plugin_hashes'],
+        'driver_sha256': digest(workspace / '.replay/driver.py')
+                          if (workspace / '.replay/driver.py').is_file() else None,
+        'evidence_hashes': completion.get('evidence_hashes'),
+        'change_sha256': digest(output / 'change.patch')})
+    return hashes == file_hashes(target) == completion.get('evidence_hashes')
+
+
+def scan_usable(status):
+    return (type(status.get('exit_code')) is int and status['exit_code'] == 0
+            and all(status.get(name) is False for name in (
+                'build_failed', 'coverage_unknown', 'scanner_degraded', 'scan_transient'))
+            and status.get('build_status') in ('not_configured', 'not_recorded', 'skipped', 'completed')
+            and (status['build_status'] != 'completed' or status.get('build_exit_code') == 0))
+
+
+def grype_document(path):
+    value = read_json(path)
+    if (not isinstance(value, dict) or not isinstance(value.get('matches'), list)
+            or not isinstance(value.get('ignoredMatches', []), list)
+            or not isinstance(value.get('source'), dict)
+            or not isinstance(value.get('descriptor'), dict)):
+        raise ValueError(f'Invalid archived Grype document: {path.name}')
+    for match in value['matches'] + value.get('ignoredMatches', []):
+        artifact, vulnerability = match.get('artifact', {}), match.get('vulnerability', {})
+        if (not isinstance(artifact.get('type'), str) or not artifact['type']
+                or (artifact['type'] == 'go-module' and
+                    (not artifact.get('name') or not vulnerability.get('id')
+                     or not isinstance(artifact.get('locations', []), list)))):
+            raise ValueError(f'Malformed archived Grype match: {path.name}')
+    return value
+
+
+def runtime_scenario(case, state):
+    """Judge engine coverage from archived evidence, independently of final prose."""
+    expected = state['expected']
+    expectation = expected.get('runtime_expectation', 'observed')
+    if expectation not in ('observed', 'repair', 'binary'):
+        raise ValueError(f'Unknown runtime expectation: {expectation}')
+    root = case / 'output/runtime'
+    if not (root / 'run.json').exists():
+        return {'runtime scenario evidence available': False}
+    result = read_json(root / 'run.json')
+    same_head = result.get('head') == state['runtime_head']
+    conditions = {'engine completion agrees with captured result': same_head and
+                  result.get('exit_code') == state['runtime_exit']}
+    for name, command in expected.get('canonical_commands', {}).items():
+        if name != 'license' or result.get('phases', {}).get('license') != 'not_reached':
+            conditions[f'canonical {name} command used'] = result.get(name + '_command') == command
+    if expectation == 'observed':
+        return conditions
+    try:
+        initial = grype_document(root / 'initial-scan.json')
+        initial_status = read_json(root / 'initial-scan-status.json')
+        phase = 'final-gate'
+        if result.get('phases', {}).get('final_gate') == 'completed':
+            final = grype_document(root / 'final-gate.json')
+            gate = read_json(root / 'final-gate-status.json')
+        elif (expectation == 'binary' and state['runtime_exit'] == 0 and not initial['matches']
+              and state['runtime_head'] == expected['base_commit']):
+            # A real clean fast path needs its initial native catalog, not an invented final gate.
+            final, gate, phase = initial, initial_status, 'initial'
+        else:
+            conditions['required scan phases reached'] = False
+            return conditions
+        conditions['authoritative scan coverage confirmed'] = scan_usable(gate)
+        if phase != 'initial':
+            phases = result.get('phases', {})
+            conditions['canonical verification gates passed on retained tree'] = (
+                phases.get('tests') == 'completed' and result.get('test_exit_code') == 0
+                and result.get('tested_head') == state['runtime_head']
+                and phases.get('verification') == 'completed' and result.get('verification_exit_code') == 0
+                and ((phases.get('license') == 'not_configured'
+                      and 'license' not in expected.get('canonical_commands', {}))
+                     or (phases.get('license') == 'completed' and result.get('license_exit_code') == 0)))
+            for name in AUDITS:
+                path = root / 'audits' / f'{name}.evidence'
+                text = path.read_text() if path.exists() else ''
+                counters = ('NEW_CVES', 'UNRESOLVED') if name == 'scan-regression' else ('NEW_ISSUES',)
+                conditions[f'{name} audit complete and clean'] = (bool(text.strip())
+                    and not re.search(r'(?m)^SKIP:|SCAN_FAILED=|BUILD_FAILED=', text)
+                    and all(re.findall(rf'\b{counter}=([^\s]+)', text) == ['0'] for counter in counters))
+            attempts = [(path, read_json(path)) for path in (root / 'tests').glob('*.json')]
+            conditions['successful canonical test evidence retained'] = any(
+                record.get('head') == state['runtime_head'] and record.get('exit_code') == 0
+                and record.get('command') == result.get('test_command')
+                and path.with_suffix('.log').is_file() for path, record in attempts)
+            if result.get('phases', {}).get('license') == 'completed':
+                conditions['canonical license evidence retained'] = (root / 'license.log').is_file()
+        if expectation == 'repair':
+            conditions['initial scan coverage confirmed'] = scan_usable(initial_status)
+            repairable = {(m['vulnerability']['id'], m['artifact']['name'])
+                          for m in initial['matches'] if m['artifact']['type'] == 'go-module'
+                          and m['vulnerability'].get('fix', {}).get('versions')}
+            remaining = {(m['vulnerability']['id'], m['artifact']['name'])
+                         for m in final['matches'] + final.get('ignoredMatches', [])
+                         + final.get('generatedBinaryDuplicates', [])
+                         if m['artifact']['type'] == 'go-module'}
+            conditions['initial fixable finding actually cleared'] = bool(repairable - remaining)
+            conditions['dependency repair retained'] = (state['runtime_head'] != expected['base_commit']
+                and any(re.search(r'(^|/)go\.(mod|sum)$|(^|/)vendor/', path) for path in state['changed_files']))
+            conditions['runtime completed successfully'] = state['runtime_exit'] == 0
+            conditions['authoritative scan has no actionable findings'] = not final['matches']
+            return conditions
+        # Require Subctl's native output, not the license tool or a source-only inventory.
+        scan_dirs = [path for path in (root / 'scans').glob(phase + '.*') if path.is_dir()]
+        conditions['one authoritative binary scan recorded'] = len(scan_dirs) == 1
+        if len(scan_dirs) != 1:
+            return conditions
+        directory = scan_dirs[0]
+        scan = read_json(directory / 'status.json')
+        records = events(directory / 'binaries.jsonl')
+        catalog = read_json(directory / 'catalog.cdx.json')
+        native = [record for record in records if re.fullmatch(
+            r'cmd/bin/subctl-.+-linux-amd64', record.get('path', '').removeprefix('./'))]
+        conditions['native build from retained tree completed'] = (same_head
+            and scan.get('head') == state['runtime_head'] and scan_usable(scan)
+            and scan.get('build_status') == 'completed' and bool(native))
+        components = catalog.get('components', [])
+        for binary in native:
+            path = binary['path'].removeprefix('./')
+            props = [component.get('properties', []) for component in components
+                     if component.get('name') == 'stdlib']
+            covered = any(
+                any(prop.get('name') == 'syft:package:foundBy'
+                    and prop.get('value') == 'go-module-binary-cataloger' for prop in properties)
+                and any(re.fullmatch(r'syft:location:[0-9]+:path', prop.get('name', ''))
+                        and prop.get('value', '').removeprefix('/src').lstrip('/') == path
+                        for prop in properties) for properties in props)
+            catalog_hash = any(component.get('type') == 'file'
+                and component.get('name') in ('/' + path, '/src/' + path, state['workspace'] + '/' + path)
+                and any(item.get('alg') == 'SHA-256' and item.get('content') == binary.get('sha256')
+                        for item in component.get('hashes', [])) for component in components)
+            conditions[f'native binary {path} positively cataloged and retained'] = (
+                binary.get('recorded_build_artifact') is True and bool(binary.get('build_info'))
+                and covered and catalog_hash
+                and state['ignored_snapshot'].get(path) == binary.get('sha256'))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        conditions['required runtime evidence valid'] = False
+    return conditions
 
 
 def requested_arguments(arguments, meta, workspace):
@@ -393,6 +593,7 @@ def capture(workspace):
         state['runtime_head'] = completion.get('head')
         state['runtime_branch'] = completion.get('branch')
         state['runtime_ignored_snapshot'] = completion.get('ignored_snapshot')
+        state['runtime_evidence_unchanged'] = archive_live_evidence(workspace, baseline, completion)
         state['ignored_snapshot'] = ignored
         state['runtime_plugin_unchanged'] = plugin_hashes(Path(baseline['runtime_dir']) / 'plugin') == baseline['runtime_plugin_hashes']
         original = state['branch'] == state['expected']['original_branch'] and state['head'] == state['expected']['default_commit']
@@ -414,7 +615,8 @@ def capture(workspace):
                     f'Runtime branch: {state["runtime_branch"]}\n'
                     f'Captured HEAD: {state["head"]}\n'
                     f'Captured branch: {state["branch"]}\n\n'
-                    + '\n'.join(lines[index] for index in sorted(selected)))
+                    + '\n'.join(lines[index] for index in sorted(selected))
+                    + '\n\nRetained dependency diff:\n' + (workspace / 'output/change.patch').read_text())
         (workspace / 'output/evidence.txt').write_text(evidence + '\n')
         state['runtime_summary'] = '--- Summary:' in log or 'No CVEs found.' in log
     write_json(workspace / 'output/state.json', state)
@@ -532,6 +734,8 @@ def check(case_dir, live=False):
         conditions['actual runtime completed'] = state['runtime_exit'] in (0, 2) and state['runtime_summary']
         conditions['runtime result retained'] = state['head'] == state['runtime_head'] and state['branch'] == state['runtime_branch']
         conditions['runtime plugin unchanged'] = state['runtime_plugin_unchanged']
+        conditions['runtime evidence retained'] = state.get('runtime_evidence_unchanged') is True
+        conditions.update(runtime_scenario(case, state))
         conditions['dependency-only changes'] = all(re.search(
             r'(^|/)(go\.(mod|sum)|\.grype\.yaml)$|^go\.work(\.sum)?$|(^|/)vendor/', name)
             for name in state['changed_files'])

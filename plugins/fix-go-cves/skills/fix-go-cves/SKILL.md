@@ -81,6 +81,9 @@ done
 
 ## Interpret the result
 
+After the script exits, investigate read-only and recommend next steps. Leave
+repairs, reruns, and build, test, or cleanup commands for a new user request.
+
 | Exit | Meaning |
 | --- | --- |
 | 0 | Every finding fixed or ignored, and all gates passed |
@@ -105,6 +108,8 @@ and who decides:
   and what unblocks it (a newer builder, an approved bump).
 - Test failure (already retried once): read the failing output and identify
   the evidence linking it to the update; say when causality is unproven.
+  Pre-existing source does not prove a pre-existing failure; a changed Go
+  directive can activate checks without changing tooling dependencies.
   Tests that need `sudo` or a prompt need a non-interactive test command.
 - Test, lint, or license-check failure: if the default branch already fixed
   it (`git log origin/<default> -- <file>`, such as the failing code or the

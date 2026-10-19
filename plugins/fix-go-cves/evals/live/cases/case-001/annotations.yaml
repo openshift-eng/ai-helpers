@@ -1,3 +1,10 @@
+default_branch_evidence:
+  repository: https://github.com/submariner-io/admiral.git
+  default_commit: af20d0bf09dade1c6537d6d38f5175f7b8704042
+  backport_commit: 8234df00db9a5d9893f4e07d55f173349a7d7e1e
+  file: pkg/reporter/adapter.go
+  before: a.Basic.Failure(capitalizeFirst(err.Error()))
+  after: a.Basic.Failure("%s", capitalizeFirst(err.Error()))
 criteria:
   outcome: >-
     Reports the actual script exit and retained branch/commits consistently with
@@ -9,7 +16,16 @@ criteria:
     Gives each reported failure or policy boundary an evidence-supported next
     action and an owner. Investigates a test/vet failure rather than simply
     relaying a generic blocker; if the evidence identifies the reporter format
-    string issue, recommends its existing default-branch backport onto the target
-    branch before rerunning. Environment failures warrant environment repairs
+    string issue, identifies the pinned backport commit (at least seven
+    hexadecimal characters) and recommends landing it on origin/release-0.24
+    before rerunning. Environment failures warrant environment repairs
     and a rerun, not an unsupported team policy decision. Do not require a failure
     or a team decision when the evidence supports a complete successful run.
+    Causal claims must follow the evidence: pre-existing faulty source does not
+    prove that a test failure is unrelated to the update, and a Go directive
+    raise does not show that tooling dependencies changed. Accept explicit
+    uncertainty when no comparable baseline establishes causality; no new test
+    run is required. The pinned default-branch evidence identifies an available
+    repair, not proof of what caused any particular live failure.
+    An unsupported or contradicted causal claim fails this criterion even when
+    the recommended repair and owner are correct.

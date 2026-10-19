@@ -5,5 +5,8 @@ default_branch: devel
 base_commit: da3ce2510149e0a48bd83a71e25700fb008fbe19
 default_commit: af20d0bf09dade1c6537d6d38f5175f7b8704042
 branch: '0.24'
-arguments: ['0.24']
+arguments:
+- '0.24'
 original_branch: devel
+canonical_commands:
+  test: make unit

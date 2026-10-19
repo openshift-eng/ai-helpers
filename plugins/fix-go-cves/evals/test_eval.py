@@ -278,13 +278,13 @@ class EvidenceTests(unittest.TestCase):
         script.write_text('echo "actual $*"\necho "diagnostic" >&2\necho runtime >unit.coverprofile\n'
                           'if read -r line; then exit 99; fi\nexit 2\n')
         output = io.StringIO()
-        with contextlib.redirect_stdout(output):
+        with contextlib.redirect_stdout(output), patch.object(EVAL, "runtime_environment", return_value={}):
             status = EVAL.live_run(workspace, ["0.24"])
         self.assertEqual(status, 2)
         self.assertEqual(output.getvalue(), "actual 0.24\ndiagnostic\n")
         self.assertEqual((runtime / "run.log").read_text(), output.getvalue())
         self.assertEqual(EVAL.read_json(runtime / "status.json"), {
-            "exit_code": 2, "head": EVAL.git(workspace, "rev-parse", "HEAD"),
+            "exit_code": 2, "evidence_hashes": EVAL.file_hashes(runtime / "evidence"), "head": EVAL.git(workspace, "rev-parse", "HEAD"),
             "branch": EVAL.git(workspace, "branch", "--show-current"),
             "ignored_snapshot": {"unit.coverprofile": EVAL.digest(workspace / "unit.coverprofile")}})
 
@@ -310,7 +310,7 @@ class EvidenceTests(unittest.TestCase):
         script = runtime / "plugin/scripts/fix-all.sh"
         script.parent.mkdir(parents=True)
         script.write_text('echo "--- Summary: live stub ---"\nexit 2\n')
-        meta = {"mode": "live", "runtime_dir": str(runtime), "arguments": ["0.24"],
+        meta = {"repository": "https://github.com/example/test.git", "mode": "live", "runtime_dir": str(runtime), "arguments": ["0.24"],
                 "base_branch": "release-0.24", "original_branch": branch,
                 "default_commit": head, "base_commit": head}
         EVAL.write_json(private / "meta.json", meta)
@@ -346,7 +346,9 @@ class EvidenceTests(unittest.TestCase):
         case, state = self.case()
         state.update(runtime_exit=2, runtime_summary=True, changed_files=["go.mod"],
                      runtime_head=state["head"], runtime_branch=state["branch"],
-                     runtime_plugin_unchanged=True, runtime_ignored_snapshot={}, ignored_snapshot={})
+                     runtime_plugin_unchanged=True, runtime_evidence_unchanged=True,
+                     runtime_ignored_snapshot={}, ignored_snapshot={})
+        EVAL.write_json(case / "output/runtime/run.json", {"head": state["head"], "exit_code": 2})
         self.freeze(live=True, annotation={"required_commits": ["c" * 40]}, reset=True)
         (case / "output/reply.md").write_text("Actual commit ccccccc; partial result.\n")
         EVAL.write_json(case / "output/state.json", state)
@@ -397,7 +399,8 @@ class EvidenceTests(unittest.TestCase):
         head = EVAL.git(workspace, "rev-parse", "HEAD")
         EVAL.write_json(self.root / "control/case-001/baseline.json", {
             "meta": {"mode": "live", "original_branch": EVAL.git(workspace, "branch", "--show-current"),
-                     "default_commit": head}, "refs": {}, "plugin_hashes": {}, "runtime_plugin_hashes": {},
+                     "default_commit": head, "base_commit": head, "repository": "https://github.com/example/test.git"},
+            "refs": {}, "plugin_hashes": {}, "runtime_plugin_hashes": {},
             "runtime_dir": str(self.root / "control/case-001/runtime")})
         EVAL.capture(workspace)
         state = EVAL.read_json(workspace / "output/state.json")
@@ -422,6 +425,152 @@ class EvidenceTests(unittest.TestCase):
                 stream[0]["message"]["content"][0] = {
                     "type": "tool_use", "name": "Bash", "input": {"command": f"cat {path}"}}
                 self.assertEqual(not EVAL.trace_violations(stream, workspace), allowed)
+
+    def scenario(self, expectation="repair"):
+        case = self.root / "cases/case-002"
+        case.mkdir(parents=True)
+        root = case / "output/runtime"
+        head, base = "b" * 40, "a" * 40
+        state = {"expected": {"runtime_expectation": expectation, "base_commit": base,
+                             "canonical_commands": {"test": "make unit"}},
+                 "runtime_head": head, "runtime_exit": 0, "changed_files": ["go.mod"],
+                 "ignored_snapshot": {}, "workspace": str(case)}
+        result = {"head": head, "exit_code": 0, "test_command": "make unit", "tested_head": head,
+                  "test_exit_code": 0, "verification_exit_code": 0,
+                  "phases": {"initial_scan": "completed", "final_gate": "completed",
+                             "tests": "completed", "verification": "completed", "license": "not_configured"}}
+        scan = {"exit_code": 0, "head": head, "build_status": "not_recorded",
+                **{flag: False for flag in ("build_failed", "coverage_unknown", "scanner_degraded", "scan_transient")}}
+        finding = {"artifact": {"type": "go-module", "name": "golang.org/x/net", "version": "v0.59.0"},
+                   "vulnerability": {"id": "CVE-example", "fix": {"versions": ["v0.60.0"]}}}
+        initial = {"matches": [finding], "source": {"type": "directory"}, "descriptor": {"version": "0.112.0"}}
+        EVAL.write_json(root / "run.json", result)
+        EVAL.write_json(root / "tests/1-1.json", {"head": head, "command": "make unit", "exit_code": 0})
+        (root / "tests/1-1.log").write_text("canonical test output\n")
+        EVAL.write_json(root / "initial-scan.json", initial)
+        EVAL.write_json(root / "final-gate.json", {**initial, "matches": []})
+        for phase in ("initial-scan", "final-gate"):
+            EVAL.write_json(root / f"{phase}-status.json", scan)
+        for audit in EVAL.AUDITS:
+            path = root / "audits" / f"{audit}.evidence"
+            path.parent.mkdir(exist_ok=True)
+            path.write_text("NEW_CVES=0 UNRESOLVED=0\n" if audit == "scan-regression" else "NEW_ISSUES=0\n")
+        return case, state, result, scan, initial
+
+    def test_repair_requires_real_finding_cleared_and_all_canonical_gates(self):
+        case, state, result, scan, initial = self.scenario()
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        root = case / "output/runtime"
+        for changed in ({**result, "test_exit_code": 1}, {**result, "tested_head": "c" * 40},
+                        {**result, "test_command": "true"}, {**result, "exit_code": 2}):
+            with self.subTest(changed=changed):
+                EVAL.write_json(root / "run.json", changed)
+                self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(root / "run.json", result)
+        for changed in ({**initial, "matches": []}, {**initial, "matches": [], "ignoredMatches": initial["matches"]}):
+            EVAL.write_json(root / "final-gate.json", changed)
+            verdict = EVAL.runtime_scenario(case, state)
+            self.assertEqual(verdict["initial fixable finding actually cleared"], not changed.get("ignoredMatches"))
+        EVAL.write_json(root / "final-gate.json", {**initial, "matches": []})
+        for contents in ("NEW_ISSUES=banana\n", "NEW_ISSUES=-1\n", "NEW_ISSUES=0\nSKIP: scanner failed\n", ""):
+            (root / "audits/fix-availability.evidence").write_text(contents)
+            self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+
+    def test_repair_rejects_invalid_or_unreached_scan_and_no_op(self):
+        case, state, result, scan, initial = self.scenario()
+        root = case / "output/runtime"
+        for document in ({}, {**initial, "ignoredMatches": None}, {**initial, "matches": [{}]}):
+            EVAL.write_json(root / "final-gate.json", document)
+            self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(root / "final-gate.json", {**initial, "matches": []})
+        EVAL.write_json(root / "initial-scan.json", {**initial, "matches": []})
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(root / "initial-scan.json", initial)
+        for flag in ("coverage_unknown", "scanner_degraded", "build_failed"):
+            EVAL.write_json(root / "final-gate-status.json", {**scan, flag: True})
+            self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        (root / "final-gate.json").unlink()
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+
+    def binary_scenario(self, clean_initial=False):
+        case, state, result, scan, initial = self.scenario("binary")
+        root = case / "output/runtime"
+        phase = "initial" if clean_initial else "final-gate"
+        state["expected"]["canonical_commands"]["license"] = "make licensecheck"
+        result["phases"]["license"] = "not_reached" if clean_initial else "completed"
+        result.update(license_command="" if clean_initial else "make licensecheck", license_exit_code=None if clean_initial else 0)
+        EVAL.write_json(root / "run.json", result)
+        (root / "license.log").write_text("canonical license output\n")
+        if clean_initial:
+            state["expected"]["base_commit"] = state["runtime_head"]
+            result["phases"]["final_gate"] = "not_reached"
+            EVAL.write_json(root / "run.json", result)
+            EVAL.write_json(root / "initial-scan.json", {**initial, "matches": []})
+            (root / "final-gate.json").unlink()
+        directory = root / "scans" / (phase + ".example")
+        binary = "cmd/bin/subctl-v0.26.0-linux-amd64"
+        identity = "d" * 64
+        state["ignored_snapshot"][binary] = identity
+        EVAL.write_json(directory / "status.json", {**scan, "build_status": "completed", "build_exit_code": 0})
+        record = {"path": binary, "sha256": identity, "build_info": "go1.26.9", "recorded_build_artifact": True}
+        (directory / "binaries.jsonl").write_text(json.dumps(record) + "\n")
+        catalog = {"components": [
+            {"name": "stdlib", "properties": [
+                {"name": "syft:package:foundBy", "value": "go-module-binary-cataloger"},
+                {"name": "syft:location:0:path", "value": "/" + binary}]},
+            {"type": "file", "name": str(case / binary), "hashes": [{"alg": "SHA-256", "content": identity}]}]}
+        EVAL.write_json(directory / "catalog.cdx.json", catalog)
+        return case, state, directory, record, catalog
+
+    def test_binary_needs_matching_native_catalog_hash_and_retained_output(self):
+        case, state, directory, record, catalog = self.binary_scenario()
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        for changed in ({**record, "path": "bin/lichen"}, {**record, "sha256": "e" * 64},
+                        {**record, "recorded_build_artifact": False}, {**record, "build_info": ""}):
+            (directory / "binaries.jsonl").write_text(json.dumps(changed) + "\n")
+            self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        (directory / "binaries.jsonl").write_text(json.dumps(record) + "\n")
+        result = EVAL.read_json(case / "output/runtime/run.json")
+        EVAL.write_json(case / "output/runtime/run.json", {**result, "test_exit_code": 1})
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(case / "output/runtime/run.json", {**result, "license_command": "true"})
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(case / "output/runtime/run.json", result)
+        for components in ([], catalog["components"][:1], catalog["components"][1:]):
+            EVAL.write_json(directory / "catalog.cdx.json", {"components": components})
+            self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(directory / "catalog.cdx.json", catalog)
+        # An archive remains sufficient after the actual source/build checkout is gone.
+        archive = self.root / "archive/case-003"
+        shutil.copytree(case / "output", archive / "output")
+        shutil.rmtree(case)
+        self.assertTrue(all(EVAL.runtime_scenario(archive, state).values()))
+
+    def test_binary_clean_initial_fast_path_uses_actual_initial_catalog(self):
+        case, state, directory, record, catalog = self.binary_scenario(clean_initial=True)
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        (directory / "catalog.cdx.json").unlink()
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+
+    def test_archiving_replaces_stale_outputs_and_detects_runtime_evidence_edits(self):
+        workspace = self.root / "checkout"
+        workspace.mkdir()
+        EVAL.git(workspace, "init")
+        EVAL.git(workspace, "-c", "user.name=Eval", "-c", "user.email=eval@example.invalid",
+                 "commit", "--allow-empty", "-m", "base")
+        runtime = self.root / "runtime"
+        EVAL.write_json(runtime / "evidence/run.json", {"exit_code": 2})
+        EVAL.write_json(workspace / "output/runtime/final-gate.json", {"matches": []})
+        baseline = {"runtime_dir": str(runtime), "runtime_plugin_hashes": {},
+                    "meta": {"repository": "https://github.com/example/test.git", "base_commit": EVAL.git(workspace, "rev-parse", "HEAD"), "default_commit": "a" * 40}}
+        completion = {"evidence_hashes": EVAL.file_hashes(runtime / "evidence")}
+        self.assertTrue(EVAL.archive_live_evidence(workspace, baseline, completion))
+        self.assertFalse((workspace / "output/runtime/final-gate.json").exists())
+        EVAL.write_json(runtime / "evidence/run.json", {"exit_code": 0})
+        self.assertFalse(EVAL.archive_live_evidence(workspace, baseline, completion))
+        (runtime / "evidence/linked").symlink_to(self.root / "outside")
+        with self.assertRaises(ValueError):
+            EVAL.file_hashes(runtime / "evidence")
 
     def summary(self):
         # Shape emitted by the stock harness's _aggregate_samples: successful
