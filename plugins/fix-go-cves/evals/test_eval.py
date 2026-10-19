@@ -246,6 +246,8 @@ class EvidenceTests(unittest.TestCase):
         workspace = self.root / "checkout"
         workspace.mkdir()
         EVAL.git(workspace, "init")
+        (workspace / ".gitignore").write_text("/unit.coverprofile\n")
+        EVAL.git(workspace, "add", ".gitignore")
         EVAL.git(workspace, "-c", "user.name=Eval", "-c", "user.email=eval@example.invalid",
                  "commit", "--allow-empty", "-m", "initial")
         (workspace / ".replay").mkdir()
@@ -254,7 +256,7 @@ class EvidenceTests(unittest.TestCase):
         EVAL.write_json(workspace / ".replay/meta.json", {"runtime_dir": str(runtime)})
         script = runtime / "plugin/scripts/fix-all.sh"
         script.parent.mkdir(parents=True)
-        script.write_text('echo "actual $*"\necho "diagnostic" >&2\n'
+        script.write_text('echo "actual $*"\necho "diagnostic" >&2\necho runtime >unit.coverprofile\n'
                           'if read -r line; then exit 99; fi\nexit 2\n')
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
@@ -264,13 +266,14 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual((workspace / ".replay/run.log").read_text(), output.getvalue())
         self.assertEqual(EVAL.read_json(workspace / ".replay/status.json"), {
             "exit_code": 2, "head": EVAL.git(workspace, "rev-parse", "HEAD"),
-            "branch": EVAL.git(workspace, "branch", "--show-current")})
+            "branch": EVAL.git(workspace, "branch", "--show-current"),
+            "ignored_snapshot": {"unit.coverprofile": EVAL.digest(workspace / "unit.coverprofile")}})
 
     def test_live_contract_uses_live_annotations_and_retains_runtime_result(self):
         case, state = self.case()
         state.update(runtime_exit=2, runtime_summary=True, changed_files=["go.mod"],
                      runtime_head=state["head"], runtime_branch=state["branch"],
-                     runtime_plugin_unchanged=True)
+                     runtime_plugin_unchanged=True, runtime_ignored_snapshot={}, ignored_snapshot={})
         annotation = self.root / "live/cases/case-005/annotations.yaml"
         annotation.parent.mkdir(parents=True)
         annotation.write_text(yaml.safe_dump({"required_commits": ["c" * 40]}))
@@ -284,8 +287,24 @@ class EvidenceTests(unittest.TestCase):
                 with self.subTest(key=key):
                     EVAL.write_json(case / "output/state.json", {**state, key: value})
                     self.assertIs(EVAL.check(case, live=True)["passed"], False)
+            native_outputs = {"unit.coverprofile": "first-hash", "Makefile.dapper": "second-hash"}
+            state.update(unexpected_ignored=list(native_outputs), ignored_snapshot=native_outputs,
+                         runtime_ignored_snapshot=native_outputs)
+            EVAL.write_json(case / "output/state.json", state)
+            self.assertIs(EVAL.check(case, live=True)["passed"], True)
+            for current in ({}, {**native_outputs, "other.out": "new"},
+                            {**native_outputs, "unit.coverprofile": "modified"}):
+                EVAL.write_json(case / "output/state.json", {**state, "ignored_snapshot": current})
+                verdict = EVAL.check(case, live=True)
+                self.assertIs(verdict["passed"], False)
+                self.assertIn("runtime ignored outputs retained", verdict["reason"])
+            state.pop("runtime_ignored_snapshot")
+            EVAL.write_json(case / "output/state.json", state)
+            verdict = EVAL.check(case, live=True)
+            self.assertIs(verdict["passed"], False)
+            self.assertIn("runtime ignored-output measurement recorded", verdict["reason"])
 
-    def test_build_artifact_allowance_is_exact_and_manifest_backed(self):
+    def test_capture_fingerprints_all_native_ignored_outputs(self):
         workspace = self.root / "cases/case-001"
         workspace.mkdir(parents=True)
         EVAL.git(workspace, "init")
@@ -302,10 +321,6 @@ class EvidenceTests(unittest.TestCase):
         outside.write_text("outside\n")
         outside.chmod(0o755)
         (workspace / "bin/link").symlink_to(outside)
-        manifest = workspace / ".git/fix-go-cves-artifacts"
-        manifest.write_text("\n".join(map(str, (workspace / "bin/app", workspace / "bin/data",
-                                                  outside, workspace / "bin/link"))) + "\nbin/other\n")
-        self.assertEqual(EVAL.generated_artifacts(workspace), {"bin/app"})
         (workspace / ".replay").mkdir()
         (workspace / ".git/info/exclude").write_text("/.replay/\n/output/\n")
         head = EVAL.git(workspace, "rev-parse", "HEAD")
@@ -315,8 +330,11 @@ class EvidenceTests(unittest.TestCase):
             "runtime_dir": str(self.root / "control/case-001/runtime")})
         EVAL.capture(workspace)
         state = EVAL.read_json(workspace / "output/state.json")
-        self.assertEqual(state["generated_artifacts"], ["bin/app"])
-        self.assertEqual(set(state["unexpected_ignored"]), {"bin/data", "bin/link", "bin/other"})
+        self.assertEqual(set(state["unexpected_ignored"]), {"bin/app", "bin/data", "bin/link", "bin/other"})
+        self.assertEqual(set(state["ignored_snapshot"]), {"bin/app", "bin/data", "bin/link", "bin/other"})
+        self.assertEqual(state["ignored_snapshot"]["bin/data"], EVAL.digest(workspace / "bin/data"))
+        self.assertEqual(state["ignored_snapshot"]["bin/link"], "symlink:" + str(outside))
+        self.assertIsNone(state["runtime_ignored_snapshot"])
 
     def test_runtime_read_allowance_excludes_baseline_and_neighbors(self):
         workspace = self.root / "cases/case-005"

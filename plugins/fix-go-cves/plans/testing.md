@@ -5,8 +5,9 @@ The plugin has three complementary layers:
 - **Scripts:** `test/test-lib.sh` covers mutations, rollback and gates with about
   2,300 hermetic checks. Runtime changes need regressions here.
 - **Historical replay:** the packaged admiral recording measures today's skill
-  using a real pinned checkout, recorded scripts and output. One model trial has
-  completed successfully; it does not validate today's remediation scripts.
+  using a real pinned checkout, recorded scripts and output. Two model trials
+  have completed, including one after a focused skill correction; they do not
+  validate today's remediation scripts.
 - **Live evaluation:** today's skill and scripts run against a pinned real
   repository with its detected build/test commands and real Grype. Each live
   trial needs its own execution evidence; replay success does not establish it.
@@ -53,11 +54,16 @@ each negative fails its corresponding criterion in three agreeing, error-free
 samples. The retained pilot also fails the stricter `action_owner` judge in
 three agreeing samples. Calibration dollar costs were unavailable.
 
-Next improve the skill's response completeness: state the actual remaining-CVE
-and PR status, make remote-target repair before rerunning unambiguous, and avoid
-unsupported causality or risk claims. Evaluate that change against the retained
-pilot and its manual findings. A factual failure is useful evidence; do not
-rerun an unchanged configuration merely to obtain a pass.
+The focused `SKILL.md` correction now requires the Summary's outstanding count
+and PR status, makes remote-target repair before rerunning explicit, and asks
+for evidence linking a test failure to the update. A new replay trial of that
+changed skill passed the contract and both current fact judges with three
+agreeing, error-free samples each: 79 seconds, 15 turns and $0.49 for agent
+execution. It explicitly reported zero outstanding CVEs, no PR command and the
+remote-target repair prerequisite. Manual review still found an unsupported
+claims about unrelated causality and unchanged behavior. Keep those limits visible;
+one passing trial is not the three-round acceptance baseline. A factual failure
+is useful evidence; do not rerun an unchanged configuration merely to obtain a pass.
 
 Keep this pilot small. Add more cases after preparation, loaded script/skill
 hashes, per-case environments, one replay, retained state, reply extraction and
@@ -75,7 +81,7 @@ Only 005 is packaged; the other rows describe candidate follow-ups.
 | 002 | submariner: partial | Relays the PR; identifies who decides the image | Source recording |
 | 003 | cloud-prepare: clean | Recognizes that flagged lines need no action | Source recording |
 | 004 | subctl: `bin/lichen` | Avoids team escalation for the blocked bumps | Reference and binary evidence need correction |
-| 005 | admiral: govet | Recommends devel's 8234df0 backport | Packaged; one completed pilot |
+| 005 | admiral: govet | Recommends devel's 8234df0 backport | Two trials; corrected skill passes current judges, with a manual caveat |
 | 006 | lighthouse: x/crypto | Recognizes the spurious flag; recommends cdc3003 | Source recording; corrected reference needed |
 
 For 004, the criterion must cover all three blocked bumps: x/net, grpc and

@@ -88,8 +88,9 @@ done
 | 1 | Setup or invocation error: quote the last `ERROR:` line (or the log tail) |
 | 130, 143 | Interrupted; the fix branch was removed |
 
-When no PR command is printed, the log says why: `No CVEs found`, the
-`NOT READY TO PUSH:` reasons, or `no fork remote detected`. Relay that reason;
+When a Summary is present, state its `Outstanding` count, including zero.
+State whether a PR command was printed. If none, relay the log's reason:
+`No CVEs found`, the `NOT READY TO PUSH:` reasons, or `no fork remote detected`;
 never write a push or PR command yourself. A PR for remaining findings is
 titled "Partial CVE fix". `IGNORED` lines need no action: no fix is
 published, and the ignore lapses once Grype records one.
@@ -102,12 +103,14 @@ and who decides:
   and the repository's use of the changed API; estimate the migration.
 - Kubernetes minor bump, or Go above the build image: name the team decision
   and what unblocks it (a newer builder, an approved bump).
-- Test failure (already retried once): read the failing output and judge
-  whether the update caused it. Tests that need `sudo` or a prompt need a
-  non-interactive test command.
+- Test failure (already retried once): read the failing output and identify
+  the evidence linking it to the update; say when causality is unproven.
+  Tests that need `sudo` or a prompt need a non-interactive test command.
 - Test, lint, or license-check failure: if the default branch already fixed
   it (`git log origin/<default> -- <file>`, such as the failing code or the
   license config), recommend that backport.
+  The repair must reach `origin/<branch>` before rerunning: the script starts
+  each fix branch there.
 - Transient network, timeout, or degraded scanner: recommend a rerun.
 - Wrong build or test command: recommend `CVE_FIX_*` overrides for a rerun,
   or `.cve-fix.yaml` fields committed on the target branch

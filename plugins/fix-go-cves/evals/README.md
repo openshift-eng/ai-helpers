@@ -53,6 +53,10 @@ and provide the container runtime and network access needed by the repository's
 detected commands and scanners. The live case uses local remotes and never
 publishes changes.
 
+Optionally export absolute `GRYPE_DB_CACHE_DIR` and `GOMODCACHE` paths outside
+the evaluated checkout to reuse host caches. These apply to local Grype and
+host Go; container caches are separate. Unset variables retain default behavior.
+
 ## Run and inspect
 
 ```bash
@@ -88,9 +92,13 @@ so $0.53 is not the total evaluation cost.
 Calibration is complete for the current prompts: the corrected reference passes
 both criteria; the missed-backport negative fails `backport`; the fix-branch-only
 negative fails `action_owner`. Each result has three agreeing, error-free samples.
-Next improve the skill's response completeness and evaluate that change against
-the retained pilot. The three-round acceptance baseline and additional cases
-remain follow-ups.
+A focused skill update now requires explicit remaining-CVE/PR status, the
+remote-target repair before rerunning, and evidence for causality. Its first
+trial passed the contract and both current fact judges, each with three agreeing,
+error-free samples: 79 seconds, 15 turns and $0.49 for agent execution. Manual
+review still found unsupported claims about unrelated causality and unchanged
+behavior. This is not complete response accuracy or the three-round acceptance
+baseline; further work remains.
 
 The live configuration permits a larger invoking-agent budget, but that budget
 does not cap independent reviewer CLIs launched by the remediation scripts or
