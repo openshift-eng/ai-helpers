@@ -10517,12 +10517,27 @@ echo '{"matches":[],"ignoredMatches":[]}'
 SH
 cat > "$EVI_ROOT/scanner-bin/container" <<'SH'
 #!/usr/bin/env bash
+if [[ "$1 $2" == 'image inspect' ]]; then
+  echo '{"image_id":"sha256:abc","repo_digests":["anchore/grype@sha256:def"]}'
+  exit 0
+fi
 printf '%s\n' "$@" > "$EVI_ROOT/container-args"
+[[ "${EVI_FORCE_CONTAINER_FAIL:-false}" != true ]] || exit 1
 [[ ! -f "$EVI_ROOT/catalog/catalog.cdx.json" ]] || exit 1
 echo '{"components":[]}' > "$EVI_ROOT/catalog/catalog.cdx.json"
 echo '{"matches":[],"ignoredMatches":[]}'
 SH
 chmod +x "$EVI_ROOT/scanner-bin/"*
+mv "$EVI_ROOT/scanner-bin/grype" "$EVI_ROOT/scanner-bin/grype-real"
+ln -s grype-real "$EVI_ROOT/scanner-bin/grype"
+(
+  cd "$EVI_REPO"
+  PATH="$EVI_ROOT/scanner-bin:$PATH" HAS_LOCAL_GRYPE=true CONTAINER_CMD="" CVE_FIX_GRYPE_VERSION=""
+  CVE_FIX_EVIDENCE_SCAN_DIR=""
+  run_grype --no-update --json > "$EVI_ROOT/default-scan.json"
+)
+check "default scanner invocation adds no catalog observer" ! grep -q cyclonedx-json "$EVI_ROOT/local-args"
+check "default scanner invocation writes no selected identity" test ! -f "$EVI_ROOT/catalog/scanner-identity.json"
 (
   cd "$EVI_REPO"
   PATH="$EVI_ROOT/scanner-bin:$PATH" HAS_LOCAL_GRYPE=true CONTAINER_CMD="" CVE_FIX_GRYPE_VERSION=""
@@ -10531,6 +10546,11 @@ chmod +x "$EVI_ROOT/scanner-bin/"*
 )
 check "local scan requests its catalog in the same invocation" grep -qxF "cyclonedx-json=$EVI_ROOT/catalog/catalog.cdx.json" "$EVI_ROOT/local-args"
 check "catalog output preserves scanner JSON stdout" jq -e '.matches == []' "$EVI_ROOT/local-result.json"
+check "accepted local identity resolves executable symlink and hashes its bytes" jq -e \
+  --arg path "$EVI_ROOT/scanner-bin/grype-real" \
+  --arg sha "$(sha256sum "$EVI_ROOT/scanner-bin/grype-real" | cut -d' ' -f1)" \
+  '.mode == "local" and .path == $path and .sha256 == $sha' "$EVI_ROOT/catalog/scanner-identity.json"
+check "selected identity capture preserves scanner output" cmp "$EVI_ROOT/default-scan.json" "$EVI_ROOT/local-result.json"
 (
   cd "$EVI_REPO"
   export EVI_FORCE_LOCAL_FAIL=true
@@ -10541,6 +10561,20 @@ check "catalog output preserves scanner JSON stdout" jq -e '.matches == []' "$EV
 check "fallback mounts evidence outside the scanned source" grep -qxF "$EVI_ROOT/catalog:/cve-evidence" "$EVI_ROOT/container-args"
 check "fallback uses the mounted catalog destination" grep -qxF 'cyclonedx-json=/cve-evidence/catalog.cdx.json' "$EVI_ROOT/container-args"
 check "fallback replaces failed local catalog" jq -e '.components == []' "$EVI_ROOT/catalog/catalog.cdx.json"
+check "accepted fallback replaces local executable identity with container image" jq -e \
+  '.mode == "container" and .image_id == "sha256:abc" and .repo_digests == ["anchore/grype@sha256:def"] and (has("path") | not)' \
+  "$EVI_ROOT/catalog/scanner-identity.json"
+check "fallback identity capture preserves scanner output" cmp "$EVI_ROOT/default-scan.json" "$EVI_ROOT/container-result.json"
+EVI_IDENTITY_RC=0
+(
+  cd "$EVI_REPO"
+  export EVI_FORCE_LOCAL_FAIL=true EVI_FORCE_CONTAINER_FAIL=true
+  PATH="$EVI_ROOT/scanner-bin:$PATH" HAS_LOCAL_GRYPE=true CONTAINER_CMD="$EVI_ROOT/scanner-bin/container" CVE_FIX_GRYPE_VERSION=""
+  CVE_FIX_EVIDENCE_SCAN_DIR="$EVI_ROOT/catalog"
+  run_grype --no-update --json >/dev/null 2>&1
+) || EVI_IDENTITY_RC=$?
+check "failed scanners still return failure" test "$EVI_IDENTITY_RC" -ne 0
+check "failed scanners cannot retain a stale selected identity" test ! -f "$EVI_ROOT/catalog/scanner-identity.json"
 
 # Inventory the actual current native binary, reusing the production detector.
 mkdir -p "$EVI_REPO/bin" "$EVI_ROOT/inventory"

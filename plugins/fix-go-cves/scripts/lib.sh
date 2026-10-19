@@ -203,6 +203,8 @@ run_grype() {
   local errfile outfile
   errfile=$(mktemp "${TMPDIR:-/tmp}/cve-grype-err.XXXXXX")
   outfile=$(mktemp "${TMPDIR:-/tmp}/cve-grype-out.XXXXXX")
+  local selected_identity=""
+  [[ -z "${CVE_FIX_EVIDENCE_SCAN_DIR:-}" ]] || rm -f "$CVE_FIX_EVIDENCE_SCAN_DIR/scanner-identity.json"
 
   # Prefer local grype (fast, uses host-cached DB); fall back to container on failure
   local use_local="$HAS_LOCAL_GRYPE"
@@ -221,8 +223,19 @@ run_grype() {
     [[ "$no_update" == "true" ]] && \
       _grype_env+=(GRYPE_DB_AUTO_UPDATE=false GRYPE_DB_VALIDATE_AGE=false)
     local -a evidence_output=()
-    [[ -z "${CVE_FIX_EVIDENCE_SCAN_DIR:-}" ]] || \
+    if [[ -n "${CVE_FIX_EVIDENCE_SCAN_DIR:-}" ]]; then
       evidence_output=(-o "cyclonedx-json=$CVE_FIX_EVIDENCE_SCAN_DIR/catalog.cdx.json")
+      selected_identity=$(python3 - <<'PY'
+import hashlib, json, pathlib, shutil
+path = pathlib.Path(shutil.which('grype')).resolve()
+sha = hashlib.sha256()
+with path.open('rb') as stream:
+    for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+        sha.update(chunk)
+print(json.dumps({'mode': 'local', 'path': str(path), 'sha256': sha.hexdigest()}))
+PY
+      ) || selected_identity='{"mode":"local","identity_error":"executable hash unavailable"}'
+    fi
     "${_grype_env[@]+"${_grype_env[@]}"}" grype . "${config_args[@]}" \
       -v -o "$output_format" "${evidence_output[@]}" >"$outfile" 2>"$errfile" && grype_ok=true
     cat "$errfile" >&2
@@ -230,6 +243,8 @@ run_grype() {
       GRYPE_DB_DEGRADED=1
     fi
     if [[ "$grype_ok" == "true" ]] && grype_catalog_usable "$errfile"; then
+      [[ -z "${CVE_FIX_EVIDENCE_SCAN_DIR:-}" ]] || \
+        printf '%s\n' "$selected_identity" > "$CVE_FIX_EVIDENCE_SCAN_DIR/scanner-identity.json"
       cat "$outfile"
       rm -f "$errfile" "$outfile"
       return 0
@@ -288,6 +303,14 @@ run_grype() {
       cat "$errfile" >&2
       if [[ "$no_update" != "true" ]] && grype_db_degraded "$errfile"; then
         GRYPE_DB_DEGRADED=1
+      fi
+      if [[ -n "${CVE_FIX_EVIDENCE_SCAN_DIR:-}" ]]; then
+        local image_identity
+        image_identity=$(timeout --foreground 10 "$CONTAINER_CMD" image inspect "$scanner_image" --format \
+          '{"image_id":{{json .Id}},"repo_digests":{{json .RepoDigests}}}' 2>/dev/null) || image_identity=''
+        [[ -n "$image_identity" ]] || image_identity='{"identity_error":"image inspection unavailable"}'
+        jq -cn --arg image "$scanner_image" --argjson identity "$image_identity" \
+          '{mode:"container",image:$image} + $identity' > "$CVE_FIX_EVIDENCE_SCAN_DIR/scanner-identity.json"
       fi
       cat "$outfile"
       rm -f "$errfile" "$outfile"
