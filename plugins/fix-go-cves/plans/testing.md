@@ -91,6 +91,22 @@ and uncertainty about future gates. Existing factual criteria still apply to
 claims anywhere in the reply. Detection by an eval does not enforce truthful
 runtime prose, and a passing engine does not establish a passing skill.
 
+The next implementation narrows the final reply to the literal script result
+and per-failure observed attempts, matching repair or investigation, owner and
+remaining verification. General causal narratives are outside that report;
+read-only source analysis still selects useful actions. This replaces the
+unrestricted explanation contract rather than adding a warning or renderer.
+Measure one bounded 005/007 comparison with unchanged cases and criteria: stop
+after a completed pair if manual review or a verdict finds a substantive defect;
+otherwise complete the existing three-execution rule. No automatic new cohort.
+
+Keep Admiral's checked-in `CLAUDE.md` and imported CVE workflow intact. That
+workflow asks for manual mutation, verification and a generated publication
+recipe. The invoked skill owns this scripted procedure; repository constraints
+still apply. `project_hooks: false` does not remove this instruction context.
+Prior failures remain actor failures, not invalidated measurements. The existing
+Go-minor policy conflict remains in [decisions](README.md#decisions).
+
 If a distinct live integration check is selected after that design review, use
 existing case 002 to ask whether the invoking agent completes a successful repair
 and reports the actual gates without inventing publication. Its engine already

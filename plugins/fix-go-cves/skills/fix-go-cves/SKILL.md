@@ -10,6 +10,8 @@ allowed-tools: Bash, Read
 
 Deterministic scripts own every mutation, rollback, and verification gate.
 Your job is to run them, report the observed results, and identify remaining work.
+Repository constraints and conventions still apply; a manual CVE checklist does
+not authorize extra repairs, verification runs or publication in this invocation.
 
 ## Locate the scripts
 
@@ -98,7 +100,7 @@ done
 | 1 | Setup or invocation error: quote the last `ERROR:` line (or the log tail) |
 | 130, 143 | Interrupted; report the observed checkout state |
 
-Build the final reply in two parts:
+The final reply contains only these two parts:
 
 1. **Script result.** State the observed exit and quote the actual Summary
    through the end of the log in a text block, preserving all retained fix
@@ -109,15 +111,21 @@ Build the final reply in two parts:
    only from evidence; skipped, unconfigured and unknown do not mean passed.
    Give return advice only from an observed original ref, which may be a
    detached commit. Do not infer it from the target branch.
-2. **Remaining work.** For each flagged outcome, give the observation and
-   evidence (log line or `file:line`), next supported action and owner.
-   Investigate read-only using logs, history and diffs; never apply or test a
-   candidate backport, even temporarily. Describe repairs in prose, separately
-   from retained fixes. Leave repairs, reruns, builds/tests and cleanup for a new
-   request. Describe the verification still needed, for example: "After the
-   maintainer lands the reviewed repair on origin/<branch>, request a rerun
-   to check the gates." That future run's outcome and PR availability remain
-   unconfirmed.
+2. **Remaining work.** Give one item per distinct failure or policy boundary:
+   - **Observed:** the diagnostic and each attempt's result, with log or
+     `file:line` evidence.
+   - **Next action and owner:** the supported action, or the investigation or
+     decision still needed. For a backport, cite the commit and matching inspected
+     change. Proposed repairs are separate from retained fixes.
+   - **Verification:** the unmet prerequisite and check still needed. A backport
+     must reach the remote target before a requested rerun; future gates and PR
+     availability remain unconfirmed.
+
+Keep this report to observed evidence and supported next actions; omit causal
+classifications and diagnostic narratives, including introductory or concluding
+explanations. Investigate read-only using logs, history and diffs; never apply or
+test a candidate backport, even temporarily. Leave repairs, reruns, builds/tests
+and cleanup for a new request.
 
 Copy a publication command only from the script's complete printed block,
 preserving it exactly. If absent, keep the stated reason and supply no
@@ -140,10 +148,9 @@ Investigate flagged outcomes using these checks:
   The repair must reach `origin/<branch>` before rerunning: the script starts
   each fix branch there. Tests that need `sudo` or a prompt need a
   non-interactive test command.
-- Leave a failure's cause unresolved unless the evidence establishes it;
-  a passing retry establishes only a changed outcome. For dependency or tooling
-  change claims, compare this run's actual base and retained fix commits,
-  including the Go directive.
+- If investigation needs a dependency or tooling comparison, use this run's
+  actual base and retained fix commits, including the Go directive. A passing
+  retry establishes only a changed outcome.
 - Transient network, timeout, or degraded scanner: recommend a rerun.
 - Wrong build or test command: recommend `CVE_FIX_*` overrides for a rerun,
   or `.cve-fix.yaml` fields committed on the target branch
