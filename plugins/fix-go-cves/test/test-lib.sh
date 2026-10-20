@@ -10029,8 +10029,9 @@ RTX="$TMPD/run-tests"; mkdir -p "$RTX"
 python3 - "$SCRIPT_DIR/fix-all.sh" > "$RTX/run-tests.sh" <<'PY'
 import sys
 s = open(sys.argv[1]).read()
-i = s.index("run_tests() {"); j = s.index("\n}\n", i) + 3
-print(s[i:j])
+for name in ("_run_test_attempt", "run_tests"):
+    i = s.index(name + "() {"); j = s.index("\n}\n", i) + 3
+    print(s[i:j])
 PY
 _rtx() {  # TEST_CMD — prints TESTS_FAILED, then FIX_LINES
   ( cd "$RTX" && git init -q 2>/dev/null; git -c user.email=t@t -c user.name=t commit -q --allow-empty -m x 2>/dev/null
@@ -10211,6 +10212,22 @@ cat >> "$EVI_SCRIPTS/lib.sh" <<'SH'
 preflight_check() { return 0; }
 fetch_origin_branch() { return 0; }
 run_grype() {
+  if [[ -n "${EVI_WORKSPACE_MODE:-}" ]]; then
+    if [[ "${CVE_FIX_EVIDENCE_PHASE:-}" == initial && -n "${EVI_WORKSPACE_SEED:-}" ]]; then
+      case "$EVI_WORKSPACE_SEED" in
+        file) printf 'preserved workspace\n' > "$EVI_WORKSPACE_KEEP" ;;
+        symlink) ln -s missing-workspace-target "$EVI_WORKSPACE_KEEP" ;;
+      esac
+    fi
+    if [[ -f "$EVI_ROOT/test-count" ]]; then
+      echo scan >> "$EVI_ROOT/workspace-scans"
+      for workspace in go.work go.work.sum; do
+        if [[ "$workspace" != "${EVI_WORKSPACE_KEEP:-}" && ( -e "$workspace" || -L "$workspace" ) ]]; then
+          echo "$workspace" >> "$EVI_ROOT/workspace-residue"
+        fi
+      done
+    fi
+  fi
   if [[ "${CVE_FIX_EVIDENCE_PHASE:-}" == final-gate && "${EVI_DEGRADED:-false}" == true ]]; then
     GRYPE_DB_DEGRADED=1
   fi
@@ -10241,6 +10258,29 @@ cat > "$EVI_ROOT/test-command.sh" <<'SH'
 n=$(cat "$EVI_ROOT/test-count" 2>/dev/null || echo 0)
 echo $((n + 1)) > "$EVI_ROOT/test-count"
 echo "canonical-test-attempt-$((n + 1))"
+if [[ -n "${EVI_WORKSPACE_MODE:-}" ]]; then
+  for workspace in go.work go.work.sum; do
+    [[ "$workspace" == "${EVI_WORKSPACE_KEEP:-}" ]] && continue
+    if [[ -e "$workspace" || -L "$workspace" ]]; then
+      echo "workspace residue before attempt: $workspace"
+      exit 9
+    fi
+  done
+  if [[ "$EVI_WORKSPACE_MODE" == cleanup-failure ]]; then
+    mkdir go.work
+  else
+    [[ "${EVI_WORKSPACE_KEEP:-}" == go.work && "$EVI_WORKSPACE_MODE" != newly-tracked ]] || printf 'generated workspace\n' > go.work
+  fi
+  [[ "${EVI_WORKSPACE_KEEP:-}" == go.work.sum ]] || printf 'generated checksum\n' > go.work.sum
+  if [[ "$EVI_WORKSPACE_MODE" == newly-tracked ]]; then
+    git add go.work
+  fi
+  if [[ "$EVI_WORKSPACE_MODE" == record-failure ]]; then
+    printf 'blocked evidence directory\n' > "$CVE_FIX_EVIDENCE_DIR/tests"
+  fi
+  if [[ "$EVI_WORKSPACE_MODE" == timeout ]]; then sleep 2; fi
+  if [[ "$EVI_WORKSPACE_MODE" == retry && "$n" == 0 ]]; then exit 7; fi
+fi
 exit "${EVI_TEST_RESULT:-0}"
 SH
 chmod +x "$EVI_SCRIPTS/"*.sh
@@ -10308,6 +10348,116 @@ check "evidence clean fast path does not fabricate a final gate" test ! -f "$EVI
 evi_run rejected "$EVI_REPO/.git/evidence"
 check "evidence directory cannot contaminate the source, even under .git" test "$EVI_RC" -ne 0
 check "rejected evidence directory was not created" test ! -d "$EVI_REPO/.git/evidence"
+
+# Canonical commands may create an implicit workspace; it must not leak into
+# a retry or subsequent scanner. Existing files belong to the caller.
+echo "test-command workspace ownership"
+EVI_WORKSPACE_BASE="$EVI_BASE"
+git -C "$EVI_REPO" remote add fork https://github.com/example-fork/evidence.git
+evi_workspace_reset() {
+  git -C "$EVI_REPO" reset -q --hard
+  git -C "$EVI_REPO" checkout -q devel
+  git -C "$EVI_REPO" reset -q --hard "$EVI_WORKSPACE_BASE"
+  rm -rf "$EVI_REPO/go.work" "$EVI_REPO/go.work.sum"
+  : > "$EVI_REPO/.git/info/exclude"
+  rm -f "$EVI_ROOT/workspace-scans" "$EVI_ROOT/workspace-residue"
+  EVI_BASE="$EVI_WORKSPACE_BASE"
+  git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
+}
+evi_workspace_reset
+EVI_WORKSPACE_MODE=retry evi_run workspace-retry "$EVI_ROOT/workspace-retry"
+check "new workspace is cleaned before retry succeeds" test "$EVI_RC" -eq 0
+check "workspace retry runs exactly twice" test "$(cat "$EVI_ROOT/test-count")" -eq 2
+check "workspace first actual child failure is retained" jq -e '.exit_code == 7' "$EVI_ROOT/workspace-retry/tests/1-1.json"
+check "workspace retry actual child success is retained" jq -e '.exit_code == 0' "$EVI_ROOT/workspace-retry/tests/1-2.json"
+check "successful workspace cleanup permits downstream scans" test -s "$EVI_ROOT/workspace-scans"
+check "downstream scans never see generated workspaces" test ! -e "$EVI_ROOT/workspace-residue"
+check "workspace cleanup leaves both generated paths absent" test ! -e "$EVI_REPO/go.work"
+check "workspace cleanup leaves generated checksum absent" test ! -e "$EVI_REPO/go.work.sum"
+check "successful workspace cleanup preserves publication eligibility" grep -q '^PR command:' "$EVI_ROOT/workspace-retry.log"
+
+evi_workspace_reset
+EVI_WORKSPACE_MODE=failed EVI_TEST_RESULT=7 evi_run workspace-failed "$EVI_ROOT/workspace-failed"
+check "failed command still cleans its workspace" test ! -e "$EVI_REPO/go.work"
+check "failed command still cleans its workspace checksum" test ! -e "$EVI_REPO/go.work.sum"
+check "failed command retry retains actual failure" jq -e '.exit_code == 7' "$EVI_ROOT/workspace-failed/tests/1-2.json"
+check "failed command generated workspace does not reach scanners" test ! -e "$EVI_ROOT/workspace-residue"
+
+evi_workspace_reset
+EVI_WORKSPACE_MODE=timeout CVE_FIX_TEST_TIMEOUT=1 evi_run workspace-timeout "$EVI_ROOT/workspace-timeout"
+check "test timeout still blocks successful completion" test "$EVI_RC" -eq 2
+check "test timeout preserves actual timeout receipt" jq -e '.exit_code == 124' "$EVI_ROOT/workspace-timeout/tests/1-1.json"
+check "test timeout records actual run status" jq -e '.test_exit_code == 124' "$EVI_ROOT/workspace-timeout/run.json"
+check "test timeout is not retried" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+check "test timeout cleans generated workspace" test ! -e "$EVI_REPO/go.work"
+check "test timeout cleans generated checksum" test ! -e "$EVI_REPO/go.work.sum"
+check "test timeout retains downstream gate scans" test -s "$EVI_ROOT/workspace-scans"
+check "test timeout workspace does not reach downstream scans" test ! -e "$EVI_ROOT/workspace-residue"
+check "test timeout suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/workspace-timeout.log"
+
+for _workspace in go.work go.work.sum; do
+  for _ownership in tracked untracked ignored symlink; do
+    evi_workspace_reset
+    _seed=file
+    if [[ "$_ownership" == tracked ]]; then
+      printf 'preserved workspace\n' > "$EVI_REPO/$_workspace"
+      git -C "$EVI_REPO" add "$_workspace"
+      git -C "$EVI_REPO" commit -qsm 'Caller workspace'
+      EVI_BASE=$(git -C "$EVI_REPO" rev-parse HEAD)
+      git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
+      _seed=""
+    elif [[ "$_ownership" == ignored ]]; then
+      printf '/%s\n' "$_workspace" > "$EVI_REPO/.git/info/exclude"
+    elif [[ "$_ownership" == symlink ]]; then
+      _seed=symlink
+    fi
+    _case="workspace-$_workspace-$_ownership"
+    EVI_WORKSPACE_MODE=preserve EVI_WORKSPACE_KEEP="$_workspace" EVI_WORKSPACE_SEED="$_seed" \
+      evi_run "$_case" "$EVI_ROOT/$_case"
+    check "$_ownership $_workspace permits successful gates" test "$EVI_RC" -eq 0
+    if [[ "$_ownership" == symlink ]]; then
+      check "caller dangling $_workspace symlink is preserved" test "$(readlink "$EVI_REPO/$_workspace")" = missing-workspace-target
+      check "caller $_workspace symlink remains dangling" test ! -e "$EVI_REPO/$_workspace"
+    else
+      check "caller $_ownership $_workspace bytes are preserved" grep -qx 'preserved workspace' "$EVI_REPO/$_workspace"
+    fi
+    _other=go.work
+    [[ "$_workspace" == go.work ]] && _other=go.work.sum
+    check "$_ownership $_workspace does not prevent cleaning new $_other" test ! -e "$EVI_REPO/$_other"
+    check "$_ownership workspace counterpart never reaches scanners" test ! -e "$EVI_ROOT/workspace-residue"
+  done
+done
+
+evi_workspace_reset
+EVI_WORKSPACE_MODE=newly-tracked EVI_WORKSPACE_KEEP=go.work evi_run workspace-tracked-during-test "$EVI_ROOT/workspace-tracked-during-test"
+check "newly tracked workspace bytes are preserved" grep -qx 'generated workspace' "$EVI_REPO/go.work"
+check "newly tracked workspace does not preserve untracked checksum" test ! -e "$EVI_REPO/go.work.sum"
+
+for _child_rc in 0 7; do
+  evi_workspace_reset
+  _case="workspace-cleanup-failure-$_child_rc"
+  EVI_WORKSPACE_MODE=cleanup-failure EVI_TEST_RESULT="$_child_rc" evi_run "$_case" "$EVI_ROOT/$_case"
+  check "workspace cleanup failure after child $_child_rc blocks pipeline" test "$EVI_RC" -ne 0
+  check "workspace cleanup failure after child $_child_rc does not retry" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+  check "workspace cleanup failure preserves actual child $_child_rc receipt" jq -e \
+    ".exit_code == $_child_rc" "$EVI_ROOT/$_case/tests/1-1.json"
+  check "workspace cleanup failure preserves actual child $_child_rc run status" jq -e \
+    ".test_exit_code == $_child_rc and .phases.tests == \"completed\" and .phases.verification == \"not_reached\"" "$EVI_ROOT/$_case/run.json"
+  check "workspace cleanup failure after child $_child_rc stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
+  check "workspace cleanup failure after child $_child_rc prevents final gate" test ! -e "$EVI_ROOT/$_case/final-gate.json"
+  check "workspace cleanup failure after child $_child_rc suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/$_case.log"
+  check "workspace cleanup failure does not recursively delete command directory" test -d "$EVI_REPO/go.work"
+done
+evi_workspace_reset
+EVI_WORKSPACE_MODE=record-failure evi_run workspace-record-failure "$EVI_ROOT/workspace-record-failure"
+check "unwritable test evidence blocks the pipeline" test "$EVI_RC" -ne 0
+check "test evidence failure still cleans generated workspace" test ! -e "$EVI_REPO/go.work"
+check "test evidence failure still cleans generated checksum" test ! -e "$EVI_REPO/go.work.sum"
+check "test evidence failure does not retry" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+check "test evidence failure stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
+check "test evidence failure suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/workspace-record-failure.log"
+evi_workspace_reset
+git -C "$EVI_REPO" remote remove fork
 
 # Exercise the real catalog-output wiring, including replacement of a failed
 # local scan's partial catalog by the container fallback.

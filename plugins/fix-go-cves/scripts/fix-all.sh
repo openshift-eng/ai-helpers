@@ -516,6 +516,34 @@ done <<< "$CVE_LINES"
 # ── Phase 4: Verify ───────────────────────────────────────────────────────────
 
 echo ""
+# Keep test-created workspaces out of retries and retained-tree verification.
+_run_test_attempt() {
+  local workspace cleanup_failed=false
+  local -a generated_workspaces=()
+  for workspace in go.work go.work.sum; do
+    if [[ ! -e "$workspace" && ! -L "$workspace" ]] &&
+       ! git ls-files --error-unmatch -- "$workspace" &>/dev/null; then
+      generated_workspaces+=("$workspace")
+    fi
+  done
+  TEST_RC=0
+  "${TEST_ENV[@]}" timeout --foreground "${CVE_FIX_TEST_TIMEOUT:-1800}" bash -c "$TEST_CMD" 2>&1 | tee "$TEST_LOG" || TEST_RC=$?
+  for workspace in "${generated_workspaces[@]+"${generated_workspaces[@]}"}"; do
+    git ls-files --error-unmatch -- "$workspace" &>/dev/null && continue
+    if ! rm -f -- "$workspace"; then
+      echo "ERROR: Cannot remove test-generated $workspace; verification stopped." >&2
+      cleanup_failed=true
+    fi
+  done
+  if $cleanup_failed; then
+    _EVIDENCE_TEST_STATUS=completed
+    _EVIDENCE_TEST_RC=$TEST_RC
+    _record_test_evidence "$TEST_RC"
+    exit 2
+  fi
+  _record_test_evidence "$TEST_RC"
+}
+
 # Test the current HEAD. Verification may commit further updates, so the
 # orchestrator reruns this whenever HEAD moves after the first pass.
 run_tests() {
@@ -528,7 +556,6 @@ run_tests() {
   echo "Running tests..."
   build_env_scrub
   TEST_LOG=$(mktemp "${TMPDIR:-/tmp}/cve-fix-test.XXXXXX")
-  TEST_RC=0
   TEST_ENV=(env)
   [[ ${#ENV_SCRUB[@]} -gt 0 ]] && TEST_ENV=("${ENV_SCRUB[@]}")
   [[ -z "${BUILD_REPO_NAME:-}" ]] || TEST_ENV+=("REPO=$BUILD_REPO_NAME")
@@ -536,17 +563,14 @@ run_tests() {
   # MAKEFLAGS as a command-line variable; reset it before nested Make/Dapper
   # tests so the sanitized image namespace is authoritative.
   TEST_ENV+=(MAKEFLAGS=-B)
-  "${TEST_ENV[@]}" timeout --foreground "${CVE_FIX_TEST_TIMEOUT:-1800}" bash -c "$TEST_CMD" 2>&1 | tee "$TEST_LOG" || TEST_RC=$?
-  _record_test_evidence "$TEST_RC"
+  _run_test_attempt
   local disk_full=false
   grep -qiE 'no space left on device|disk quota exceeded' "$TEST_LOG" && disk_full=true
   # Retry once except for timeouts or disk exhaustion.
   if [[ $TEST_RC -ne 0 && $TEST_RC -ne 124 ]] && ! $disk_full; then
     echo "Tests failed; rerunning once..."
-    TEST_RC=0
     _EVIDENCE_TEST_ATTEMPT=2
-    "${TEST_ENV[@]}" timeout --foreground "${CVE_FIX_TEST_TIMEOUT:-1800}" bash -c "$TEST_CMD" 2>&1 | tee "$TEST_LOG" || TEST_RC=$?
-    _record_test_evidence "$TEST_RC"
+    _run_test_attempt
     [[ $TEST_RC -ne 0 ]] || echo "WARNING: tests passed on the second run; a test may be flaky."
   fi
   if [[ $TEST_RC -ne 0 ]]; then

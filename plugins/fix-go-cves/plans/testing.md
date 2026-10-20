@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 2,364 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 2,444 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -40,7 +40,7 @@ not attribute the historical run or replace a full baseline test suite.
    branch or detached ref in the Summary. Recommendations focus on the next
    unmet prerequisite and verification still needed. This is a behavioral
    treatment, not enforcement or proof of general reliability.
-2. **Boundary fixtures pass.** The existing shell suite passed 2,364 checks,
+2. **Boundary fixtures pass.** The existing shell suite passed 2,444 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
    The 52 eval checks cover witnessed publication, tampering, frozen inputs,
@@ -138,6 +138,15 @@ job is separate from the inferred `make unit` command. The skill now instructs
 the agent to select relevant local checks before launch through the existing
 `CVE_FIX_TEST_CMD`, preserving explicit commands. This changes guidance, not runtime gate
 machinery or defaults; unrun CI remains unverified.
+
+Cloud-prepare's real run also exposed test-generated workspace leakage: lint
+created root `go.work` and `go.work.sum`, and the retry could no longer resolve
+the tools module's mock generator. Each test attempt now removes only those
+paths that were absent and untracked before it and remain untracked afterward.
+Cleanup precedes evidence recording; cleanup failure stops further verification
+while retaining the actual child result. Hermetic orchestration regressions cover
+retry isolation, real timeout, existing-file preservation and cleanup/evidence
+failures. This addresses workspace lifetime, not the separate lint findings.
 
 The existing live contract accepts runtime exit 0 or 2 with a completed Summary
 or clean-fast-path message. It checks execution, retained state and allowed operations;
