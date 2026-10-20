@@ -91,28 +91,34 @@ done
 
 ## Interpret the result
 
-After the script exits, investigate read-only and recommend next steps. Leave
-repairs, reruns, and build, test, or cleanup commands for a new user request.
-
 | Exit | Meaning |
 | --- | --- |
-| 0 | Every finding fixed or ignored, and all gates passed |
+| 0 | Completed; report which gates actually ran |
 | 2 | Partial fix, unconfirmed result, or PR prerequisite failure |
 | 1 | Setup or invocation error: quote the last `ERROR:` line (or the log tail) |
-| 130, 143 | Interrupted; the fix branch was removed |
+| 130, 143 | Interrupted; report the observed checkout state |
 
-Include in the final report:
+Build the final reply in two parts:
 
-- Retained branch, all retained fix commit hashes, and how to return to the
-  original branch. Label upstream/backport commits separately.
-- The Summary's `Outstanding` count when present, including zero, and actual
-  gate results; label unconfirmed results.
-- Relay a push/PR command only if the script printed it. Otherwise state the
-  log's reason and omit push/PR commands from the reply.
-- For each flagged outcome: evidence (log line or `file:line`), cause or
-  uncertainty, recommended action and owner. An upstream commit does not prove
-  its tests passed; do not promise a backport or rerun will pass gates or print
-  a PR command.
+1. **Script result.** State the observed exit and quote the actual Summary
+   through the end of the log in a text block, preserving all retained fix
+   hashes, the `Outstanding` count and publication text. Without a Summary,
+   quote the terminal clean/error message or relevant log tail; missing
+   completion evidence is unconfirmed. An empty fix branch may have been
+   removed after its Summary line: report that outcome. State gate results
+   only from evidence; skipped, unconfigured and unknown do not mean passed.
+   Give return advice only from an observed original ref, which may be a
+   detached commit. Do not infer it from the target branch.
+2. **Diagnosis.** For each flagged outcome, give evidence (log line or
+   `file:line`), cause or uncertainty, action and owner. Investigate read-only
+   using logs, history and diffs; never apply or test a candidate backport,
+   even temporarily. Describe recommended repairs in prose, separately from
+   retained fixes. Leave repairs, reruns, builds/tests and cleanup for a new
+   request. An upstream commit does not prove compatibility or passing gates.
+
+Copy a publication command only from the script's complete printed block,
+preserving it exactly. If absent, keep the stated reason and supply no
+replacement push/PR recipe.
 
 `IGNORED` lines need no action: no fix is published, and the ignore lapses
 once Grype records one.
