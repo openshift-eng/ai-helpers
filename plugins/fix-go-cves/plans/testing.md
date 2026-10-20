@@ -34,40 +34,47 @@ not attribute the historical run or replace a full baseline test suite.
 Preparation needs no paid calls. The next behavioral change remains unimplemented;
 the implemented provenance check protects measurement, not skill reliability.
 
-1. **Expose observed results using existing output.** In `scripts/fix-all.sh`,
-   print the existing `ORIGINAL_REF` beside the Summary's branch. Detection
-   already stores either the original branch or a detached commit hash; do not
-   infer it from the target branch or add a parallel report schema. Consolidate
-   `SKILL.md` reporting into faithful terminal outcomes followed by qualified,
-   read-only diagnosis. Give return advice only from observed original-ref
-   evidence. An upstream repair recommendation must not promise passing tests.
-2. **Prove the output boundaries before another model trial.** Extend the
-   existing `detect.sh --setup-branch` and orchestrator/PR fixtures in
-   `test/test-lib.sh`: original ref differs from target, detached start, missing
-   original-ref evidence, and successful/blocked results. Preserve exit codes,
-   counts, retained commits and publication prerequisites. The clean fast path
-   has no Summary; a no-commit Summary can name a fix branch subsequently
-   removed. Relay those outcomes without inventing a retained branch. Keep
-   publication/mutation guard regressions and separately frozen retained-trace
-   checks. They prove detection and plumbing, not revised agent behavior.
-3. **Freeze a deliberate behavioral experiment after implementation.** Keep
-   current cases, factual criteria and the tested harness pin. Use case-005
-   replay for interpretation; its historical scripts/log must remain unchanged,
-   so it cannot validate the new runtime summary line. Then select blocked live
-   case-001 to exercise today's output and read-only diagnosis. Use a new run ID
-   and stop editing the helper/runtime while that experiment runs. Preserve
-   every verdict; use the existing acceptance rule below. Reopen source/native
-   trials only for a relevant runtime, completion or environment change. No
-   additional paid trials are planned during this preparation.
-4. **Admit positive publication relay only with witnessed evidence.** Today's
-   publication check forbids push/PR recipes in backtick fences, including a
-   faithful relay; current cases correctly expect none.
-   Historical Submariner case 002 contains an actually printed command, while
-   live reduced evidence currently keeps only its first lines. Before admitting
-   that case, retain the complete emitted block and allow only the witnessed
-   recipe, with positive and altered/absent-command negatives. Continue rejecting
-   actual publication tool calls. Keep this separate from the no-command
-   reporting slice; do not invent GitHub remotes to force a live PR recipe.
+1. **Define a small reporting treatment against the observed failures.**
+   Consolidate `SKILL.md` around observed terminal results followed by qualified,
+   read-only diagnosis, preserving retained commit citations and action/owner
+   requirements. Omit return advice when the original ref was not observed.
+   If retaining that advice, `scripts/fix-all.sh` can print its existing
+   `ORIGINAL_REF` beside the Summary's branch; detection stores a branch or
+   detached commit hash. This line addresses return advice only. Neither it nor
+   literal relay enforces read-only work or proves behavioral improvement.
+   Keep the change within existing output and instructions.
+2. **Test the changed boundary at the cheapest useful layer.** For a runtime
+   output change, extend the existing `detect.sh --setup-branch` and
+   orchestrator/PR fixtures in `test/test-lib.sh`: original ref differs from
+   target, detached start, absent evidence, and successful/blocked outcomes.
+   Assert the reported ref agrees with the start state and that exit codes,
+   counts, retained commits and publication prerequisites stay correct. The
+   clean fast path has no Summary; a no-commit Summary can name a subsequently
+   removed branch. Skipped or unconfigured gates are not passing gates. Keep
+   existing publication/mutation regressions. Derived checks of old traces test
+   detection, not compliance by a revised skill.
+3. **Run a fresh experiment only for an unanswered behavioral question.**
+   Freeze the reviewed change, current cases/criteria and tested harness pin;
+   stop editing helper/runtime until it finishes. Use case-005 replay for
+   interpretation; its historical scripts/log cannot validate a new runtime
+   line. Inspect failures before deciding whether live case-001 adds evidence;
+   do not automatically progress to live after the same publication or mutation
+   failure. Claim blocked-path coverage only if that run actually reaches its
+   test blocker. Preserve a different truthful outcome and record missing
+   coverage rather than alter findings. Source/native reruns need a relevant
+   runtime, completion or environment question. No paid trials are needed for
+   this preparation, and adding a return-ref line alone warrants none.
+4. **Cover positive publication relay without a new fixture framework.** The
+   current check forbids push/PR recipes in backtick fences even when faithfully
+   copied; current cases expect none. When implementing positive relay, first
+   use the actual command block from historical Submariner case 002 in a focused
+   helper fixture. Preserve the complete block, including flags and escaping;
+   live reduced evidence currently truncates it, although the full log remains.
+   Compare witnessed commands as data, with copied/altered/absent-block checks;
+   keep actual publication tool calls forbidden. Admit the full historical case
+   only when its additional judgment coverage justifies packaging it. This is
+   separate from the no-command treatment; do not invent remotes, a shell parser
+   or another reporting schema.
 
 Frozen scoring uses copied inputs/configuration and exact selected cases,
 judges and complete samples. Extraction validates that provenance and its
@@ -81,8 +88,8 @@ change, rather than adding judges for the observed reporting failures.
 
 ## Runtime and behavioral acceptance
 
-The existing live contract intentionally accepts runtime exit 0 or 2 with a
-completed Summary. It checks execution, retained state and allowed operations;
+The existing live contract accepts runtime exit 0 or 2 with a completed Summary
+or clean-fast-path message. It checks execution, retained state and allowed operations;
 fact judges check diagnosis and action/owner. A faithful report of an engine
 bug can pass these checks. Scenario-specific runtime assertions additionally
 check actual engine evidence rather than the agent's final prose.
@@ -161,9 +168,10 @@ factual conjunction 2/3, but manual publication compliance 1/3. Its reports and
 guard probe remain in `replay-report-20261019/`; no failed trial was replaced.
 No fourth cohort is planned merely to seek acceptance.
 
-The unchanged operational rule requires each case's deterministic contract in
-all three independent skill executions and all factual criteria together in at
-least two. Inspect each case, not pooled rates. Three judge samples on one reply
+For a declared replay comparison, the existing rule requires its deterministic
+contract in all three independent skill executions and all factual criteria
+together in at least two. An individual failed execution still exits nonzero;
+the three-execution rule is a separate comparison, not a per-run threshold. Inspect each case, not pooled rates. Three judge samples on one reply
 are not three skill executions. This is not statistical confidence or a new
 campaign command. Preserve every trial and original score; corrected guard
 re-verification needs a separate provenance record and no paid skill rerun.

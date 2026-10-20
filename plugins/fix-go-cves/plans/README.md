@@ -8,33 +8,19 @@ itself.
 
 ## Next changes
 
-All three frozen replay cohorts failed. The latest compact-report cohort
-recorded contract 2/3 and factual conjunction 2/3; manual publication compliance
-was only 1/3 because an indented fence bypassed the existing guard. Retained
-commit reporting improved, but invented publication commands remain a blocker.
-The implemented guard correction has a failing-before/passing-after regression;
-preserve original scores and label deterministic re-verification separately.
-A real Admiral repair passes all 14 runtime assertions, while its agent response
-fails the publication guard ([results](../evals/live/README.md)).
-Native Subctl completed genuine remediation and binary evidence with engine
-exit 0, while its parent failed without a completed final reply. Preserve both
-measurements. Ordinary 30-second waits and failed-execution collection/reporting
-are implemented. The refreshed blocked Admiral run retained valid exit-2
-evidence but violated the read-only boundary with temporary cherry-pick and
-cleanup commands; the original contract missed these writes. Its action/owner
-judge failed. A separate trace-guard correction and derived recheck preserve
-the original scores. Current live trials do not establish skill acceptance.
-Next implement a small
-reporting change reusing the existing Summary/results for literal outcomes
-and separating evidence-qualified diagnosis. No parallel schema is needed.
-Use the engine's existing original ref for return advice, or omit unobserved
-advice; recommend maintainer-reviewed repairs without constructing publication
-recipes. Relay alone does not enforce read-only behavior: retain trace
-regressions and derived checks. The file-level sequence and acceptance evidence
-are in the [testing plan](testing.md#next-implementation-slices); the behavioral
-change remains unimplemented and unproven.
-Do not add another prompt-only cohort merely to seek a pass, new scoring
-criteria or an eval framework ([testing plan](testing.md#next-implementation-slices)).
+Source and native runtime repair are verified, while current skill executions
+and all three replay cohorts remain unaccepted
+([measurements](../evals/live/README.md)). Preserve original scores and label
+corrected-guard rechecks separately.
+
+The next reporting experiment should reuse existing engine results and separate
+qualified, read-only diagnosis. Omit return advice without observed original-ref
+evidence. Exposing the existing original ref can support that advice, but cannot
+prevent invented publication or post-run mutation. The
+[testing plan](testing.md#next-implementation-slices) defines the smallest change,
+its fixtures and when a fresh experiment is useful. This behavioral direction
+remains unimplemented and unproven; more instructions alone are not evidence of
+improvement.
 
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.
@@ -89,21 +75,6 @@ policy needs a decision before changing its behavior.
 
 ## Correctness
 
-- **Published major upgrades.** `fix-package.sh` detects a major migration
-  only after a failed version lookup. A published `+incompatible` major
-  upgrade can therefore commit despite the documented policy. Check the
-  installed-to-candidate major boundary independently of lookup success.
-- **Kubernetes guard identity.** `_k8s_minor_versions` compares a repository-wide
-  set of minors. A module can advance while that set stays unchanged because
-  sibling modules retain both minors. Compare versions by module and dependency;
-  broader `k8s.io` coverage is a separate policy change.
-- **False policy boundary after a no-fix ignore.** When verification ignores
-  a finding that has no fix, `subagent_fix_scan_regression` still writes the
-  package to `needs-review-pkgs` (`scripts/lib.sh`, after the `ignore.sh`
-  call), and `fix-all.sh` reports it as "deterministic fix reached a policy
-  boundary (team approval needed)", blocking the PR. Lighthouse
-  release-0.24 hit this for x/crypto GO-2026-5932. The first change above
-  fixes this without clearing another advisory's decision.
 - **Preserve failure reasons.** `_fix_fv_package` classifies every exit 2
   as a policy boundary, including failed scans and builds; the review prompt
   also makes every `UNRESOLVED` reason end in "(need team input)". Preserve
