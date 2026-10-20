@@ -102,17 +102,24 @@ question. Fresh live case-001 may not reproduce that intermittent failure.
    actual base. Revert the two-line remaining-work treatment; this bounded
    comparison does not establish a general causal treatment effect or acceptance
    of the earlier wording. See [results](../evals/README.md#multi-failure-replay).
-4. **Improve evidence retrieval without another cohort.** One trace never
-   retrieved the syncer failure. Extend the existing diagnostic grep with
-   anchored Go failure results. Actual-command probes on cases 005 and 007
-   expose the relevant failures without expected-error chatter. This checks
-   evidence exposure only; parent-agent behavior after the search change remains
-   unmeasured. Stop prompt-only cohorts and additional warnings. Any later
-   measurement needs a separately justified question about retrieving and
-   reporting every distinct failure, with literal Summary and attempt coverage
-   reviewed alongside the existing factual scores. Do not add another judge or
-   output schema merely to turn these results green. Current-engine repair,
-   native completion and general reliability remain separate questions.
+4. **Measure the concrete retrieval change.** Anchored Go failure results now
+   expose both failure classes in model-free probes. A new user-directed
+   measurement selects cases 005 and 007 in each of three stock runs, with the
+   same models, calibrated factual judges, criteria and policy. Case 005 is the
+   established single-failure control; case 007 tests both failure patterns.
+   Before freezing, close the existing deterministic contract's full-Summary
+   blind spot using the trusted log and existing code-block handling. Preserve
+   previous scores; this new contract is not a retroactive rescore.
+   Apply the existing acceptance rule separately per case. Independently review
+   every execution for actual failure retrieval, both attempt outcomes, literal
+   Summary/exit/counts/ref/hashes, evidence supporting tooling claims, qualified
+   causality throughout, owner/remote-target prerequisites and unknown future
+   gates/PR availability. Case 005 must not invent case 007's syncer failure.
+   A majority score does not erase an individual defect or establish reliability
+   on unseen runs. Keep all completed and incomplete results. If synthesis
+   remains wrong after actual evidence exposure, stop this experiment branch;
+   do not automatically append warnings, start another cohort or escalate live.
+   Current-engine repair and native completion remain separate questions.
 
 Positive publication relay is the next distinct candidate, not a prerequisite for
 this experiment. Historical Submariner case 002 needs a complete sanitized log,

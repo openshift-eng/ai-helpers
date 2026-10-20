@@ -97,7 +97,8 @@ prior outputs or scores.
 Use a new frozen result record for deliberate rescoring; preserve prior scores.
 The replay contract checks one invocation, exact result commit and branch,
 clean state, unchanged staged skill/scripts and remote refs, required commit citations,
-and publication or destructive operations. Fact judges score the backport and
+complete literal Summary relay from the trusted log, and publication or destructive
+operations. Clean runs without a Summary retain their existing outcome checks. Fact judges score the backport and
 action/owner criteria using three samples each. Missing verdicts or incomplete
 samples are errors; a completed factual failure is retained as a failure.
 
@@ -286,8 +287,12 @@ anchored Go `FAIL` and `--- FAIL:` results. An actual-command, model-free probe
 on cases 005 and 007 exposes their reporter results and case 007's first-only
 syncer result; the latter produces eight lines including `NEEDS_REVIEW`, rather
 than one. This verifies evidence exposure only. No parent-agent measurement
-covers that search change. Neither comparison establishes current-engine repair,
-native completion or general reliability.
+covers that search change yet. The next bounded measurement selects both cases
+for three executions each with unchanged factual judges. Its corrected contract
+checks complete Summary relay, closing the demonstrated truncation blind spot;
+older scores remain unchanged. See the [frozen review questions](../plans/testing.md#next-prepared-experiment).
+Neither comparison establishes current-engine repair, native completion or
+general reliability.
 
 ## Live evidence and coverage
 

@@ -158,6 +158,9 @@ class EvidenceTests(unittest.TestCase):
                 {"mode": "live"} if live else {}))
             (source / case / "annotations.yaml").write_text(yaml.safe_dump(
                 {"required_commits": ["a" * 40, "b" * 40]} if annotation is None else annotation))
+            log = source / case / 'run.log.gz'
+            if not live and not log.exists():
+                log.write_bytes(gzip.compress(b'No CVEs found.\n'))
         if reset:
             shutil.rmtree(self.root / "provenance")
         contract = "live_contract" if live else "replay_contract"
@@ -325,6 +328,61 @@ class EvidenceTests(unittest.TestCase):
     def pr_log(self):
         return (Path(__file__).parent / "fixtures/submariner-pr-summary.txt").read_text()
 
+    def test_recorded_summary_must_be_relayed_through_its_last_line(self):
+        case, state = self.case()
+        recording = Path(__file__).parent / 'cases/case-007'
+        annotation = yaml.safe_load((recording / 'annotations.yaml').read_text())
+        state['expected'].update({key: annotation[key] for key in
+                                  ('result_commit', 'fix_branch', 'exit_code')})
+        state.update(head=annotation['result_commit'], branch=annotation['fix_branch'])
+        EVAL.write_json(case / 'output/state.json', state)
+        shutil.copy2(recording / 'run.log.gz', self.root / 'fixtures/case-005/run.log.gz')
+        self.freeze(annotation=annotation, reset=True)
+        reply = case / 'output/reply.md'
+        reference = (recording / 'reply.md').read_text()
+        reply.write_text(reference)
+        self.assertTrue(EVAL.check(case)['passed'])
+        reply.write_text('1. Recorded result:\n' + '\n'.join(
+            '   ' + line for line in reference.splitlines()) + '\n')
+        self.assertTrue(EVAL.check(case)['passed'])
+        footer = 'Review the 1 commit(s) above and re-run once resolved; no PR command emitted.\n'
+        for changed in (reference.replace(footer, ''),
+                        reference.replace('Outstanding: 0', 'Outstanding: 1'),
+                        reference.replace('aaaeea3 Bump', 'ccccccc Bump'),
+                        'Commits aaaeea3 and 8234df0. No PR command emitted.'):
+            with self.subTest(reply=changed[:80]):
+                reply.write_text(changed)
+                verdict = EVAL.check(case)
+                self.assertFalse(verdict['passed'])
+                self.assertIn('literal runtime Summary', verdict['reason'])
+
+    def test_summary_relay_accepts_indentation_and_only_the_observed_exit(self):
+        log = 'Earlier output\n--- Summary: recorded ---\nOutstanding: 0\nNo PR command emitted.\n'
+        tail = log[log.index('--- Summary:'):].strip()
+        for block in (tail, '   ' + tail.replace('\n', '\n   '), tail + '\nexit=2'):
+            self.assertTrue(EVAL.summary_relay_allowed([block], log, 2))
+        for blocks in ([], [tail.rsplit('\n', 1)[0]], [tail + '\nexit=0'],
+                       [tail, tail], [tail, tail.replace('Outstanding: 0', 'Outstanding: 1')]):
+            self.assertFalse(EVAL.summary_relay_allowed(blocks, log, 2))
+        self.assertTrue(EVAL.summary_relay_allowed([], 'No CVEs found.\n', 0))
+        self.assertFalse(EVAL.summary_relay_allowed([tail], 'No CVEs found.\n', 0))
+        self.assertFalse(EVAL.summary_relay_allowed([], None, 0))
+
+    def test_replay_requires_a_frozen_log_without_publication_commands(self):
+        case, _ = self.case()
+        self.assertTrue(EVAL.check(case)['passed'])  # Legitimate no-Summary clean path.
+        manifest_path = self.root / 'provenance/manifest.json'
+        manifest = EVAL.read_json(manifest_path)
+        del manifest['files']['cases/case-005/run.log.gz']
+        EVAL.write_json(manifest_path, manifest)
+        # An unlisted file is not a frozen witness; its absence is not an exemption.
+        for remove in (False, True):
+            if remove:
+                (self.root / 'provenance/cases/case-005/run.log.gz').unlink()
+            verdict = EVAL.check(case)
+            self.assertFalse(verdict['passed'])
+            self.assertIn('literal runtime Summary', verdict['reason'])
+
     def test_publication_relay_requires_one_complete_literal_witness(self):
         log = self.pr_log()
         recipe = EVAL.printed_pr_recipe(log)
@@ -358,9 +416,9 @@ class EvidenceTests(unittest.TestCase):
         recorded = self.root / 'fixtures/case-005/run.log.gz'
         recorded.write_bytes(gzip.compress(self.pr_log().encode()))
         self.freeze(reset=True)
-        recipe = EVAL.printed_pr_recipe(self.pr_log())
+        summary = self.pr_log().split('--- Summary:', 1)[1]
         reply = case / 'output/reply.md'
-        reply.write_text('Commits aaaaaaa and bbbbbbb.\n```sh\n' + recipe + '\n```\n')
+        reply.write_text('Commits aaaaaaa and bbbbbbb.\n```text\n--- Summary:' + summary + '```\n')
         self.assertTrue(EVAL.check(case)['passed'])
         # Mutable recordings/output logs cannot replace the frozen witness.
         changed = self.pr_log().replace('git push fork ', 'git push origin ')
@@ -440,7 +498,8 @@ class EvidenceTests(unittest.TestCase):
             verdict = EVAL.check(workspace, live=True)
             self.assertIs(verdict['passed'], not changed, verdict)
             if changed:
-                self.assertEqual(verdict['reason'], 'no invented publication command')
+                self.assertIn('no invented publication command', verdict['reason'])
+                self.assertIn('literal runtime Summary', verdict['reason'])
 
     def test_replay_runs_with_fresh_home_and_without_site_packages(self):
         workspace = self.root / "checkout"
@@ -599,13 +658,34 @@ class EvidenceTests(unittest.TestCase):
                      runtime_plugin_unchanged=True, runtime_evidence_unchanged=True,
                      runtime_ignored_snapshot={}, ignored_snapshot={})
         EVAL.write_json(case / "output/runtime/run.json", {"head": state["head"], "exit_code": 2})
+        log = '--- Summary: live fixture ---\nActual commit ccccccc; partial result.\n'
+        (case / 'output/run.log').write_text(log)
         EVAL.write_json(case / "output/runtime-identity.json", {
-            "evidence_hashes": EVAL.file_hashes(case / "output/runtime")})
+            "evidence_hashes": EVAL.file_hashes(case / "output/runtime"),
+            "run_log_sha256": EVAL.digest(case / 'output/run.log')})
         self.freeze(live=True, annotation={"required_commits": ["c" * 40]}, reset=True)
-        (case / "output/reply.md").write_text("Actual commit ccccccc; partial result.\n")
+        (case / "output/reply.md").write_text('```text\n' + log + '```\n')
         EVAL.write_json(case / "output/state.json", state)
         with patch.object(EVAL, "EVAL_ROOT", self.root):
             self.assertIs(EVAL.check(case, live=True)["passed"], True)
+            log_path = case / 'output/run.log'
+            identity_path = case / 'output/runtime-identity.json'
+            identity = EVAL.read_json(identity_path)
+            log_path.write_text('No CVEs found.\n')
+            self.assertFalse(EVAL.check(case, live=True)['passed'])
+            log_path.unlink()
+            self.assertFalse(EVAL.check(case, live=True)['passed'])
+            target = self.root / 'otherwise-identical.log'
+            target.write_text(log)
+            log_path.symlink_to(target)
+            self.assertFalse(EVAL.check(case, live=True)['passed'])
+            log_path.unlink()
+            log_path.write_text(log)
+            EVAL.write_json(identity_path, {key: value for key, value in identity.items()
+                                            if key != 'run_log_sha256'})
+            self.assertFalse(EVAL.check(case, live=True)['passed'])
+            EVAL.write_json(identity_path, identity)
+            self.assertTrue(EVAL.check(case, live=True)['passed'])
             for key, value in (("runtime_exit", None), ("runtime_summary", False),
                                ("runtime_exit_observed", False),
                                ("head", "d" * 40), ("runtime_plugin_unchanged", False),
@@ -875,9 +955,12 @@ class EvidenceTests(unittest.TestCase):
                      plugin_unchanged=True, runtime_plugin_unchanged=True, refs_unchanged=True,
                      invocations=[{"arguments": ["devel"]}], gh_calls="", trace_violations=[], permission_denials=[])
         EVAL.write_json(case / "output/state.json", state)
+        log = '--- Summary: native fixture ---\nThe native binary and canonical gates were verified.\n'
+        (case / 'output/run.log').write_text(log)
         EVAL.write_json(case / "output/runtime-identity.json", {
-            "evidence_hashes": EVAL.file_hashes(case / "output/runtime")})
-        (case / "output/reply.md").write_text("The native binary and canonical gates were verified.\n")
+            "evidence_hashes": EVAL.file_hashes(case / "output/runtime"),
+            "run_log_sha256": EVAL.digest(case / 'output/run.log')})
+        (case / "output/reply.md").write_text('```text\n' + log + '```\n')
         self.freeze(cases=(case.name,), live=True, annotation={})
         archive = self.root / "saved-run"
         archived_case = archive / "cases" / case.name
