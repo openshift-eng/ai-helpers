@@ -109,8 +109,8 @@ Build the final reply in two parts:
    only from evidence; skipped, unconfigured and unknown do not mean passed.
    Give return advice only from an observed original ref, which may be a
    detached commit. Do not infer it from the target branch.
-2. **Diagnosis.** For each flagged outcome, give evidence (log line or
-   `file:line`), cause or uncertainty, next unmet prerequisite and owner.
+2. **Remaining work.** For each flagged outcome, cite the observed failure
+   (log line or `file:line`), the next unmet prerequisite and its owner.
    Investigate read-only using logs, history and diffs; never apply or test a
    candidate backport, even temporarily. Describe repairs in prose, separately
    from retained fixes. Leave repairs, reruns, builds/tests and cleanup for a new

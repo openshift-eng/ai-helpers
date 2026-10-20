@@ -233,11 +233,43 @@ that refinement. The current-engine blocked check at `a6c8e5a0` passed contract
 and outcome (3/3), but failed action/owner (3/3 false) on unsupported causality
 for a first-only syncer failure, with no judge errors. Reporter/capture integration
 and read-only behavior are verified; overall skill acceptance still fails.
-A final clarification covers each distinct failure and what a passing retry
-establishes; it is source-reviewed, unmeasured. See the
-[live record](live/README.md#current-reporting-integration-check). No native retry
-or extra cohort is required merely to replace failures. Positive command relay
-has helper-fixture coverage, not a new full historical-case/model measurement.
+A clarification covers each distinct failure and what a passing retry establishes.
+The case-007 comparison below measures that guidance; it did not resolve the
+unsupported causal synthesis. See the
+[live record](live/README.md#current-reporting-integration-check). Positive command
+relay has helper-fixture coverage, not a new full historical-case/model measurement.
+
+## Multi-failure replay
+
+Case 007 preserves the real live run's persistent reporter failure and first-only
+syncer failure. Its reviewed reference and causal negative calibrated at
+`fbda167a`: all 12 samples match expected labels without errors; judge cost is
+unknown. [Fixture provenance](cases/case-007/calibration.md) records the inputs.
+
+The comparison at `0fdccbb0` **failed**: contract 2/3 and factual conjunction 0/3.
+Backport passed all nine samples; each action/owner aggregate failed with two
+false and one true sample, without errors. All three replies read the actual
+base-to-result diff and preserve the Summary, exit, counts, original ref and
+both detailed attempt outcomes, but make unsupported pre-existing/unrelated
+syncer claims elsewhere. Run 2's introduction also conflicts with its accurate
+detailed attempt history. Its read-only `git stash list` attempt fails the
+existing strict contract; no stash mutation occurred. No publication recipe
+was invented. Agent cost was $2.113722 plus 18 unpriced judge calls. One rationale
+wrongly treats unchanged x/tools as disproving directive-gated vet; the unsupported
+syncer claims independently support the failures.
+
+Original artifacts and raw scores remain under the standard
+`cve-replay-multifailure-20261020-rN` run directories. The declared comparison,
+logs, metrics and independent audits are retained under
+`.work/fix-go-cves-multifailure-implementation/`. The factual judges measure
+backport/causal advice; manual outcome verification remains separate.
+
+One reviewed two-line treatment replaces the requested causal explanation with
+observed failure, unmet prerequisite and owner. Existing causal-evidence checks
+remain. It is unmeasured pending one frozen follow-up with identical cases,
+judges, model, criteria and policy. Do not append warnings or schedule further
+prompt-only cohorts if the same defect persists. Neither comparison establishes
+current-engine repair, native completion or general reliability.
 
 ## Live evidence and coverage
 

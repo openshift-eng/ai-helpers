@@ -18,18 +18,17 @@ caveats prompted a small prerequisite-to-verification clarification after that
 comparison; it is not retroactively tested by the earlier outputs.
 
 The current-engine blocked check verified reporter/evidence-capture integration
-and read-only behavior, but failed action/owner grading on unsupported causality
-for a first-only syncer failure. A small clarification now covers each distinct
-failure and what a passing retry establishes; it is source-reviewed, unmeasured.
-Source/native engine repair remains established by earlier trials; their failed
-invoking-agent measurements are not replaced. The
-[testing plan](testing.md#reporting-and-e2e-status) distinguishes these claims.
+and read-only behavior, but failed on unsupported syncer causality. Case 007 now
+replays both real test attempts after review, model-free preparation and successful
+reference calibration. Its comparison at `0fdccbb0` also fails: contract 2/3 and
+factual conjunction 0/3, with raw mixed samples and original failures preserved.
 
-The preserved multi-failure result is admitted as replay case 007 after review,
-model-free preparation and 12 error-free calibration samples matching their labels. It adds
-the intermittent failure missing from case 005 without another live run. The
-[prepared experiment](testing.md#next-prepared-experiment) defines the selected
-three-execution comparison; skill behavior on this case is not measured yet.
+The next reviewed treatment removes the requested cause narrative and centers
+remaining work on observations, unmet prerequisites and ownership. One follow-up
+with unchanged criteria is selected in the [testing plan](testing.md#next-prepared-experiment).
+Source/native engine evidence remains separate; their failed invoking-agent
+measurements are not replaced. No further prompt-only cohorts are planned if
+this treatment repeats the same defect.
 
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.
