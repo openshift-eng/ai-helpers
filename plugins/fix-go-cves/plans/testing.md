@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 2,545 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 2,572 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -40,7 +40,7 @@ not attribute the historical run or replace a full baseline test suite.
    branch or detached ref in the Summary. Recommendations focus on the next
    unmet prerequisite and verification still needed. This is a behavioral
    treatment, not enforcement or proof of general reliability.
-2. **Boundary fixtures pass.** The existing shell suite passed 2,545 checks,
+2. **Boundary fixtures pass.** The existing shell suite passed 2,572 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
    The 52 eval checks cover witnessed publication, tampering, frozen inputs,
@@ -74,8 +74,8 @@ caveats are retained in the [eval results](../evals/README.md#current-reporting-
 ## Next steps
 
 The bounded-report candidate at `487d0759` failed its first completed 005/007
-pair and the separately selected live successful-repair check. Revert its entire
-skill treatment, including the extra workflow-ownership sentence: unsupported
+pair and the separately selected live successful-repair check. Its entire
+skill treatment was reverted, including the extra workflow-ownership sentence: unsupported
 claims moved inside the prescribed fields, retry coverage was lost, and the live
 reply still invented publication. Keep the prior smaller workflow as the chosen
 baseline, without claiming acceptance or comparative improvement. The declared
@@ -162,7 +162,10 @@ after verification. A change during the reviewer refresh, final rebuild/scan or
 license check blocks publication through the existing policy gate, preserving
 the actual check results. The separate snapshot accepts earlier policy-only
 commits; checked index/worktree status catches changes hidden by an aggregate
-diff. This adds no automatic normalization or new evidence schema.
+diff. This adds no automatic normalization or new evidence schema. A zero-finding
+initial scan also requires unchanged tracked source and HEAD, checked before
+generated-file normalization can erase a change. Normal remediation retains its
+existing generated-file handling.
 
 The existing live contract accepts runtime exit 0 or 2 with a completed Summary
 or clean-fast-path message. It checks execution, retained state and allowed operations;

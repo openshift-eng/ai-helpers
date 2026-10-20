@@ -385,7 +385,7 @@ imports a manual CVE workflow that requests mutation, verification and generated
 publication recipes; those files remain intact. Their presence does not establish
 the cause of the agent errors or invalidate earlier trials. The separate real
 [successful-repair check](live/README.md#successful-repair-reporting-check) also
-fails publication reporting. Revert the whole skill treatment, preserving the
+fails publication reporting. The whole skill treatment was reverted, preserving the
 prior smaller baseline and all original results. Audits and declarations are in
 `.work/fix-go-cves-bounded-report/`; no new judge, renderer or reviewer loop was added.
 

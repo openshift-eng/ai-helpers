@@ -11,7 +11,7 @@ itself.
 Reporting quotes the observed terminal result, then identifies remaining work
 through read-only source and patch inspection. The smaller workflow remains
 unaccepted. The bounded-report treatment at `487d0759` failed its first replay
-pair and a real successful-repair reporting check; revert it instead of retaining
+pair and a real successful-repair reporting check. It was reverted to avoid retaining
 extra format and ownership instructions without demonstrated benefit.
 
 Keep detailed trial histories and original scores in the

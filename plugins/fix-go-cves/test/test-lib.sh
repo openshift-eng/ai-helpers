@@ -10278,6 +10278,8 @@ if [[ "${EVI_LATE_CHANGE:-}" == head ]]; then
   git commit -qsm 'Unexpected final-check commit' --allow-empty
   git rev-parse HEAD > "$EVI_ROOT/late-after-head"
   git status --porcelain --untracked-files=no > "$EVI_ROOT/late-status"
+elif [[ "${EVI_LATE_CHANGE:-}" == generated ]]; then
+  sed -i 's/v1.0.0/v1.1.0/' generated.pb.go
 else
   printf '# final-check change\n' >> Makefile
   if [[ "${EVI_LATE_CHANGE:-}" == cancel ]]; then
@@ -10341,9 +10343,9 @@ evi_run() {
   rm -f "$EVI_ROOT/test-count"
   printf 'REPO=%q\nBRANCH=devel\nBASE_SHA=%q\nORIGINAL_REF=devel\nFIX_BRANCH=fix-evidence\n' "$EVI_REPO" "$EVI_BASE" > "$EVI_STATE"
   printf 'BUILD_CMD=%q\nBUILD_IMAGE=""\nBUILD_GO_VERSION=unknown\nTEST_CMD=%q\n' \
-    'echo canonical-build; if [[ "${EVI_LATE_STAGE:-}" == final-gate && "${CVE_FIX_EVIDENCE_PHASE:-}" == final-gate ]]; then bash "$EVI_ROOT/late-command.sh"; fi' \
+    'echo canonical-build; if [[ -n "${EVI_LATE_STAGE:-}" && "$EVI_LATE_STAGE" == "${CVE_FIX_EVIDENCE_PHASE:-}" ]]; then bash "$EVI_ROOT/late-command.sh"; fi' \
     'bash "$EVI_ROOT/test-command.sh"' >> "$EVI_STATE"
-  printf 'ENV_UNSET=""\nDIFF_IGNORE_ARGS=""\nCVE_SCRIPTS=%q\nFETCH_FAILED=false\n' "$EVI_SCRIPTS" >> "$EVI_STATE"
+  printf 'ENV_UNSET=""\nDIFF_IGNORE_ARGS=%q\nCVE_SCRIPTS=%q\nFETCH_FAILED=false\n' "${EVI_INITIAL_RULES:-}" "$EVI_SCRIPTS" >> "$EVI_STATE"
   EVI_RC=0
   CVE_FIX_EVIDENCE_DIR="$evidence" bash "$EVI_SCRIPTS/fix-all.sh" "$EVI_REPO" devel > "$EVI_ROOT/$name.log" 2>&1 || EVI_RC=$?
 }
@@ -10555,6 +10557,49 @@ check "test evidence failure still cleans generated checksum" test ! -e "$EVI_RE
 check "test evidence failure does not retry" test "$(cat "$EVI_ROOT/test-count")" -eq 1
 check "test evidence failure stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
 check "test evidence failure suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/workspace-record-failure.log"
+# An empty initial scan cannot certify source changed by its own build, even
+# when generated-file normalization subsequently erases the tracked difference.
+for _initial_case in worktree head generated generated-with-cve; do
+  evi_workspace_reset
+  _change="$_initial_case"
+  _rules=""
+  _empty=true
+  if [[ "$_initial_case" == generated* ]]; then
+    _change=generated
+    printf '// protoc-gen-go v1.0.0\npackage evidence\n' > "$EVI_REPO/generated.pb.go"
+    git -C "$EVI_REPO" add generated.pb.go
+    git -C "$EVI_REPO" commit -qsm 'Generated source fixture'
+    EVI_BASE=$(git -C "$EVI_REPO" rev-parse HEAD)
+    git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
+    _rules="-I$(protoc_version_pattern)"
+  fi
+  [[ "$_initial_case" != generated-with-cve ]] || _empty=false
+  _case="initial-tree-$_initial_case"
+  EVI_LATE_STAGE=initial EVI_LATE_CHANGE="$_change" EVI_INITIAL_RULES="$_rules" EVI_EMPTY="$_empty" \
+    evi_run "$_case" "$EVI_ROOT/$_case"
+  check "$_case initial build mutation actually ran" test -f "$EVI_ROOT/late-change"
+  check "$_case retains actual successful initial scan" jq -e \
+    '.exit_code == 0 and .build_failed == false and .scanner_degraded == false' "$EVI_ROOT/$_case/initial-scan-status.json"
+  if [[ "$_empty" == true ]]; then
+    check "$_case initial scan really has no findings" jq -e \
+      '(.matches | length) == 0 and (.ignoredMatches | length) == 0' "$EVI_ROOT/$_case/initial-scan.json"
+    check "$_case changed source blocks clean fast path" test "$EVI_RC" -eq 2
+    check "$_case does not claim repository clean" ! grep -q 'No CVEs found\.' "$EVI_ROOT/$_case.log"
+    check "$_case retains failed run without inventing downstream tests" jq -e \
+      '.exit_code == 2 and .phases.initial_scan == "completed" and .phases.tests == "not_reached"' "$EVI_ROOT/$_case/run.json"
+  else
+    check "nonempty scan continues existing generated normalization" test "$EVI_RC" -eq 0
+    check "normalization control actually started with a CVE" jq -e '.matches | length == 1' "$EVI_ROOT/$_case/initial-scan.json"
+    check "normalization control still verifies and permits publication" grep -q '^PR command:' "$EVI_ROOT/$_case.log"
+  fi
+  if [[ "$_change" == generated ]]; then
+    check "$_case version-only generated mutation was restored" grep -q 'protoc-gen-go v1.0.0' "$EVI_REPO/generated.pb.go"
+  elif [[ "$_change" == head ]]; then
+    check "empty initial scan mutation really changed HEAD" test "$(cat "$EVI_ROOT/late-before-head")" != "$(cat "$EVI_ROOT/late-after-head")"
+    check "initial build commit left tracked tree clean" test ! -s "$EVI_ROOT/late-status"
+  fi
+done
+
 # Final scans and license recipes must preserve the source already verified.
 for _late_case in final-gate:worktree license:worktree license:cancel license:head before-final:worktree; do
   evi_workspace_reset

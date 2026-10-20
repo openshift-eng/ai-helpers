@@ -33,6 +33,17 @@ _EVIDENCE_VERIFY_STATUS=not_reached
 _EVIDENCE_LICENSE_STATUS=not_reached
 _EVIDENCE_TEST_RUN=0
 
+# Check that commands preserved the expected commit and tracked files.
+_tracked_tree_unchanged() {
+  local expected_head="$1" observed_head tracked_status
+  observed_head=$(git rev-parse HEAD) || return 1
+  tracked_status=$(git status --porcelain --untracked-files=no) || return 1
+  [[ "$observed_head" == "$expected_head" && -z "$tracked_status" ]] && return 0
+  printf 'Expected HEAD: %s; observed HEAD: %s\n' "$expected_head" "$observed_head" >&2
+  [[ -z "$tracked_status" ]] || printf '%s\n' "$tracked_status" >&2
+  return 1
+}
+
 _record_test_evidence() {
   $_EVIDENCE_READY || return 0
   local rc="${1:-null}" target="$CVE_FIX_EVIDENCE_DIR/tests/$_EVIDENCE_TEST_RUN-$_EVIDENCE_TEST_ATTEMPT"
@@ -145,6 +156,10 @@ _remove_error_line() {
 DETECT_OUT=$("$SCRIPT_DIR/detect.sh" "$@" --setup-branch) || die "detect.sh failed: $DETECT_OUT"
 STATE_FILE=$(printf '%s\n' "$DETECT_OUT" | tail -1)
 load_state "$STATE_FILE"
+if ! INITIAL_HEAD=$(git rev-parse HEAD); then
+  echo "NEEDS_REVIEW: retained HEAD could not be confirmed before the initial scan." >&2
+  exit 2
+fi
 printf '%s\n' "$DETECT_OUT" >&2
 if [[ -n "${CVE_FIX_EVIDENCE_DIR:-}" ]]; then
   prepare_evidence_directory || die "Cannot prepare runtime evidence directory"
@@ -164,6 +179,8 @@ echo "Scanning for CVEs..."
 SCAN_RC=0
 _EVIDENCE_INITIAL_STATUS=running
 SCAN_JSON=$(CVE_FIX_EVIDENCE_PHASE=initial BUILD_UPX=false "$SCRIPT_DIR/scan.sh" "$STATE_FILE" --fresh --json) || SCAN_RC=$?
+INITIAL_TREE_UNCHANGED=true
+_tracked_tree_unchanged "$INITIAL_HEAD" || INITIAL_TREE_UNCHANGED=false
 _EVIDENCE_INITIAL_STATUS=completed
 if $_EVIDENCE_READY; then
   printf '%s\n' "$SCAN_JSON" > "$CVE_FIX_EVIDENCE_DIR/initial-scan.json"
@@ -231,6 +248,10 @@ if [[ "$MATCH_COUNT" -eq 0 ]] && $COVERAGE_UNKNOWN; then
 fi
 
 if [[ "$MATCH_COUNT" -eq 0 && "$IGNORED_MATCH_COUNT" -eq 0 ]]; then
+  if ! $INITIAL_TREE_UNCHANGED; then
+    echo "NEEDS_REVIEW: retained HEAD and clean tracked files could not be confirmed after the initial scan; clean result unconfirmed." >&2
+    exit 2
+  fi
   if [[ "${FETCH_FAILED:-false}" == true ]]; then
     echo "NEEDS_REVIEW: base branch fetch failed; an empty scan of cached state cannot confirm the current branch is clean"
     remove_fix_branch
@@ -516,16 +537,6 @@ done <<< "$CVE_LINES"
 # ── Phase 4: Verify ───────────────────────────────────────────────────────────
 
 echo ""
-# Tests must exercise the retained commit, with no tracked changes to discard.
-_tracked_tree_unchanged() {
-  local expected_head="$1" observed_head tracked_status
-  observed_head=$(git rev-parse HEAD) || return 1
-  tracked_status=$(git status --porcelain --untracked-files=no) || return 1
-  [[ "$observed_head" == "$expected_head" && -z "$tracked_status" ]] && return 0
-  printf 'Expected HEAD: %s; observed HEAD: %s\n' "$expected_head" "$observed_head" >&2
-  [[ -z "$tracked_status" ]] || printf '%s\n' "$tracked_status" >&2
-  return 1
-}
 
 # Keep test-created workspaces out of retries and retained-tree verification.
 _run_test_attempt() {
