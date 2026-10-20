@@ -516,9 +516,25 @@ done <<< "$CVE_LINES"
 # ── Phase 4: Verify ───────────────────────────────────────────────────────────
 
 echo ""
+# Tests must exercise the retained commit, with no tracked changes to discard.
+_test_tree_unchanged() {
+  local observed_head tracked_status
+  observed_head=$(git rev-parse HEAD) || return 1
+  tracked_status=$(git status --porcelain --untracked-files=no) || return 1
+  [[ "$observed_head" == "$TESTED_HEAD" && -z "$tracked_status" ]] && return 0
+  printf 'Expected HEAD: %s; observed HEAD: %s\n' "$TESTED_HEAD" "$observed_head" >&2
+  [[ -z "$tracked_status" ]] || printf '%s\n' "$tracked_status" >&2
+  return 1
+}
+
 # Keep test-created workspaces out of retries and retained-tree verification.
 _run_test_attempt() {
-  local workspace cleanup_failed=false
+  if ! _test_tree_unchanged; then
+    echo "ERROR: Cannot verify clean tracked files and retained HEAD before tests; verification stopped." >&2
+    _EVIDENCE_TEST_STATUS=not_reached
+    exit 2
+  fi
+  local workspace attempt_unverified=false
   local -a generated_workspaces=()
   for workspace in go.work go.work.sum; do
     if [[ ! -e "$workspace" && ! -L "$workspace" ]] &&
@@ -532,10 +548,14 @@ _run_test_attempt() {
     git ls-files --error-unmatch -- "$workspace" &>/dev/null && continue
     if ! rm -f -- "$workspace"; then
       echo "ERROR: Cannot remove test-generated $workspace; verification stopped." >&2
-      cleanup_failed=true
+      attempt_unverified=true
     fi
   done
-  if $cleanup_failed; then
+  if ! _test_tree_unchanged; then
+    echo "ERROR: Cannot verify unchanged HEAD and tracked files after tests; verification stopped." >&2
+    attempt_unverified=true
+  fi
+  if $attempt_unverified; then
     _EVIDENCE_TEST_STATUS=completed
     _EVIDENCE_TEST_RC=$TEST_RC
     _record_test_evidence "$TEST_RC"

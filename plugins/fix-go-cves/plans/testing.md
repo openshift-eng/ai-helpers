@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 2,444 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 2,506 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -40,7 +40,7 @@ not attribute the historical run or replace a full baseline test suite.
    branch or detached ref in the Summary. Recommendations focus on the next
    unmet prerequisite and verification still needed. This is a behavioral
    treatment, not enforcement or proof of general reliability.
-2. **Boundary fixtures pass.** The existing shell suite passed 2,444 checks,
+2. **Boundary fixtures pass.** The existing shell suite passed 2,506 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
    The 52 eval checks cover witnessed publication, tampering, frozen inputs,
@@ -147,6 +147,15 @@ Cleanup precedes evidence recording; cleanup failure stops further verification
 while retaining the actual child result. Hermetic orchestration regressions cover
 retry isolation, real timeout, existing-file preservation and cleanup/evidence
 failures. This addresses workspace lifetime, not the separate lint findings.
+
+Tests now require clean tracked files and the same retained HEAD before and after
+each attempt. A changed index, worktree or commit stops before retry or further
+gates, retaining diagnostics and any actual child result. Existing exit cleanup
+still rolls back tracked changes; this adds no automatic normalization or commit.
+Cloud-prepare's canonical branch check adds checksum-only metadata, so its
+release-context verification ran in a separate checkout of the same commit.
+Those additions alone do not invalidate the unit/lint results or prove a changed
+dependency graph. Local checks must carry their required CI environment.
 
 The existing live contract accepts runtime exit 0 or 2 with a completed Summary
 or clean-fast-path message. It checks execution, retained state and allowed operations;

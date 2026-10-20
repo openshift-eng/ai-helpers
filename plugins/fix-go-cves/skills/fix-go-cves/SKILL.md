@@ -22,7 +22,8 @@ naming anything missing.
 ## Run the scripts
 
 Before launch, inspect the target branch's verification instructions and relevant
-CI. Preserve caller-specified and repository-configured check commands. If the
+CI, including required environment variables. Preserve caller-specified and
+repository-configured check commands. If the
 inferred default omits required local source checks, use `CVE_FIX_TEST_CMD` to
 run that default plus the relevant checks, for example
 `make unit && make golangci-lint`. Do not auto-select deployment, end-to-end or

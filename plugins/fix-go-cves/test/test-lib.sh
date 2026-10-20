@@ -10029,7 +10029,7 @@ RTX="$TMPD/run-tests"; mkdir -p "$RTX"
 python3 - "$SCRIPT_DIR/fix-all.sh" > "$RTX/run-tests.sh" <<'PY'
 import sys
 s = open(sys.argv[1]).read()
-for name in ("_run_test_attempt", "run_tests"):
+for name in ("_test_tree_unchanged", "_run_test_attempt", "run_tests"):
     i = s.index(name + "() {"); j = s.index("\n}\n", i) + 3
     print(s[i:j])
 PY
@@ -10250,6 +10250,11 @@ source "$1"
 printf '// fixed\n' >> "$REPO/go.mod"
 git -C "$REPO" add go.mod
 git -C "$REPO" commit -qsm 'Bump pkg'
+if [[ -n "${EVI_PRE_TEST_DIRT:-}" ]]; then
+  printf '# pre-test change\n' >> "$REPO/Makefile"
+  if [[ "$EVI_PRE_TEST_DIRT" != worktree ]]; then git -C "$REPO" add Makefile; fi
+  if [[ "$EVI_PRE_TEST_DIRT" == cancel ]]; then git -C "$REPO" show HEAD:Makefile > "$REPO/Makefile"; fi
+fi
 printf 'FIXED: example.com/pkg v1.1.0 for GO-2099-0001\n'
 SH
 printf '#!/usr/bin/env bash\nexit 0\n' > "$EVI_SCRIPTS/review.sh"
@@ -10277,6 +10282,21 @@ if [[ -n "${EVI_WORKSPACE_MODE:-}" ]]; then
   fi
   if [[ "$EVI_WORKSPACE_MODE" == record-failure ]]; then
     printf 'blocked evidence directory\n' > "$CVE_FIX_EVIDENCE_DIR/tests"
+  fi
+  if [[ -n "${EVI_TRACKED_CHANGE:-}" ]]; then
+    if [[ "$EVI_TRACKED_CHANGE" == head ]]; then
+      git rev-parse HEAD > "$EVI_ROOT/test-before-head"
+      git commit -qsm 'Unexpected test commit' --allow-empty
+      git rev-parse HEAD > "$EVI_ROOT/test-after-head"
+      git status --porcelain --untracked-files=no > "$EVI_ROOT/test-commit-status"
+    else
+      printf '# test-command change\n' >> Makefile
+      if [[ "$EVI_TRACKED_CHANGE" == index || "$EVI_TRACKED_CHANGE" == cancel ]]; then git add Makefile; fi
+      if [[ "$EVI_TRACKED_CHANGE" == cancel ]]; then
+        git show HEAD:Makefile > Makefile
+        git diff --quiet HEAD -- Makefile && echo cancelled >> "$EVI_ROOT/cancelled-diff"
+      fi
+    fi
   fi
   if [[ "$EVI_WORKSPACE_MODE" == timeout ]]; then sleep 2; fi
   if [[ "$EVI_WORKSPACE_MODE" == retry && "$n" == 0 ]]; then exit 7; fi
@@ -10360,7 +10380,7 @@ evi_workspace_reset() {
   git -C "$EVI_REPO" reset -q --hard "$EVI_WORKSPACE_BASE"
   rm -rf "$EVI_REPO/go.work" "$EVI_REPO/go.work.sum"
   : > "$EVI_REPO/.git/info/exclude"
-  rm -f "$EVI_ROOT/workspace-scans" "$EVI_ROOT/workspace-residue"
+  rm -f "$EVI_ROOT/workspace-scans" "$EVI_ROOT/workspace-residue" "$EVI_ROOT/cancelled-diff"
   EVI_BASE="$EVI_WORKSPACE_BASE"
   git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
 }
@@ -10432,6 +10452,52 @@ evi_workspace_reset
 EVI_WORKSPACE_MODE=newly-tracked EVI_WORKSPACE_KEEP=go.work evi_run workspace-tracked-during-test "$EVI_ROOT/workspace-tracked-during-test"
 check "newly tracked workspace bytes are preserved" grep -qx 'generated workspace' "$EVI_REPO/go.work"
 check "newly tracked workspace does not preserve untracked checksum" test ! -e "$EVI_REPO/go.work.sum"
+check "newly tracked workspace blocks verification" test "$EVI_RC" -eq 2
+check "newly tracked workspace retains actual successful child receipt" jq -e '.exit_code == 0' "$EVI_ROOT/workspace-tracked-during-test/tests/1-1.json"
+check "newly tracked workspace stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
+check "newly tracked workspace suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/workspace-tracked-during-test.log"
+
+# A test result is meaningful only for the same committed tracked tree. Check
+# index and worktree separately: opposing edits can cancel in a HEAD diff.
+for _dirt in worktree index cancel; do
+  evi_workspace_reset
+  _case="pre-test-$_dirt"
+  EVI_WORKSPACE_MODE=guard EVI_PRE_TEST_DIRT="$_dirt" evi_run "$_case" "$EVI_ROOT/$_case"
+  check "pre-test $_dirt dirt blocks pipeline" test "$EVI_RC" -eq 2
+  check "pre-test $_dirt dirt prevents child execution" test ! -e "$EVI_ROOT/test-count"
+  check "pre-test $_dirt dirt does not fabricate a child receipt" test ! -e "$EVI_ROOT/$_case/tests/1-1.json"
+  check "pre-test $_dirt dirt stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
+  check "pre-test $_dirt dirt suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/$_case.log"
+done
+
+for _change in worktree index cancel timeout head; do
+  evi_workspace_reset
+  _case="post-test-$_change"
+  _child_rc=0
+  _mode=guard
+  _timeout=1800
+  [[ "$_change" != index ]] || _child_rc=7
+  if [[ "$_change" == timeout ]]; then _child_rc=124; _mode=timeout; _timeout=1; fi
+  EVI_WORKSPACE_MODE="$_mode" EVI_TRACKED_CHANGE="$_change" EVI_TEST_RESULT="$_child_rc" CVE_FIX_TEST_TIMEOUT="$_timeout" \
+    evi_run "$_case" "$EVI_ROOT/$_case"
+  check "post-test $_change mutation blocks pipeline" test "$EVI_RC" -eq 2
+  check "post-test $_change mutation is never retried" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+  check "post-test $_change mutation preserves actual child $_child_rc receipt" jq -e \
+    ".exit_code == $_child_rc" "$EVI_ROOT/$_case/tests/1-1.json"
+  check "post-test $_change mutation records completed actual child $_child_rc status" jq -e \
+    ".test_exit_code == $_child_rc and .phases.tests == \"completed\" and .phases.verification == \"not_reached\"" "$EVI_ROOT/$_case/run.json"
+  check "post-test $_change mutation still cleans new workspace" test ! -e "$EVI_REPO/go.work"
+  check "post-test $_change mutation still cleans new checksum" test ! -e "$EVI_REPO/go.work.sum"
+  check "post-test $_change mutation stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
+  check "post-test $_change mutation suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/$_case.log"
+  if [[ "$_change" == cancel ]]; then
+    check "opposing staged and worktree edits evade aggregate HEAD diff" test -s "$EVI_ROOT/cancelled-diff"
+  elif [[ "$_change" == head ]]; then
+    check "test command really moved HEAD before guard and abort cleanup" test \
+      "$(cat "$EVI_ROOT/test-before-head")" != "$(cat "$EVI_ROOT/test-after-head")"
+    check "test commit left tracked index and worktree clean" test ! -s "$EVI_ROOT/test-commit-status"
+  fi
+done
 
 for _child_rc in 0 7; do
   evi_workspace_reset
