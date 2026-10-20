@@ -148,7 +148,11 @@ new validator. These checks establish runtime acceptance behavior, not improved
 invoking-agent reporting. Verification now uses those audits directly, without
 model calls; the main AI review and shared scanner helpers remain. Visible
 poison-provider fixtures check that verification never invokes either CLI, and
-persistent findings exhaust the existing repair bound without passing.
+persistent findings exhaust the existing repair bound without passing. The
+subsequent frozen `87ca7ece` live repair passes all 14 runtime checks and all
+51 evidence hashes. Its invoking-agent action/owner samples remain mixed and
+the reply supplies replacement publication guidance; see the
+[results and judge caveat](../evals/README.md#live-evidence-and-coverage).
 
 | Scenario | Required runtime evidence |
 | --- | --- |
@@ -239,9 +243,9 @@ interpretation errors get replay cases. Existing no-fix marker, major-version
 and Kubernetes-identity fixes remain independent work in the
 [main plan](README.md#next-changes). Validate each with the shell suite and a real
 case when it exercises the changed path. Audit completeness and model-verification
-removal use the existing fixtures and eval runner. One existing successful-repair
-live case can check the changed verification path; it does not establish improved
-invoking-agent reporting.
+removal use the existing fixtures and eval runner. The existing successful-repair
+live case now verifies the changed audit path. This single run establishes neither
+invoking-agent acceptance nor native-binary or verification-time repair coverage.
 
 ## Historical follow-ups
 
