@@ -58,10 +58,10 @@ class CandidateTests(unittest.TestCase):
         candidates, _ = self.collect(inline, threads={1: thread(1)})
         self.assertEqual([c["id"] for c in candidates], [3])
 
-    def test_shared_bot_matcher_normalizes_agent_but_not_unrelated_accounts(self):
+    def test_shared_bot_matcher_keeps_other_automated_reviewers(self):
         conversation = [
             comment(1, "Done.", login="Review-Agent"),
-            comment(2, "Please change this", login="other-agent"),
+            comment(2, "Please change this", login="coderabbitai[bot]"),
         ]
 
         candidates, skipped = self.collect(

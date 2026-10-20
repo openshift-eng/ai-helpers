@@ -164,7 +164,7 @@ def check_review_thread(
             "message": f"Thread {thread_id} is resolved"
         }
 
-    # Check if a bot replied after the latest human feedback in the thread.
+    # Check if our bot replied after the latest non-agent feedback in the thread.
     # Note: If a thread has >100 comments, we may need additional pagination
     # but this is extremely rare for review threads
     comments = target_thread["comments"]["nodes"]

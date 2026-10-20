@@ -161,6 +161,24 @@ class TestInlineReplyDeduplication(unittest.TestCase):
         self.assertTrue(result["safe_to_reply"])
         self.assertEqual(result["reason"], "no_bot_reply_found")
 
+    @patch("check_replied.run_gh")
+    def test_other_automated_reviewer_followup_is_safe(self, run_gh):
+        run_gh.return_value = review_thread_payload([
+            thread_comment("C1", "2026-10-20T12:00:00Z"),
+            thread_comment("C2", "2026-10-20T13:00:00Z", "review-agent", "Done."),
+            thread_comment(
+                "C3", "2026-10-20T14:00:00Z", "coderabbitai[bot]",
+                "Please address this new finding.",
+            ),
+        ])
+
+        result = check_review_thread(
+            "openshift", "release", 1, "PRRT_1", "review-agent[bot]",
+        )
+
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_found")
+
 
 class TestReviewThreadDeduplication(unittest.TestCase):
     @patch("check_replied.run_gh")
