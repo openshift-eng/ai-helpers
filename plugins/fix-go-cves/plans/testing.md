@@ -158,15 +158,10 @@ observed violations remain evidence even when a trial is stopped.
 ## Acceptance rounds and expansion
 
 Freeze case membership, criteria and configuration before comparing skill
-changes. The first case-005 baseline at source `5079407` completed with contract
-3/3 and factual conjunction 1/3: it failed. Its reports are preserved under
-`.work/fix-go-cves-next-slice/replay-baseline-20261019/`.
-The `9ba32eda` follow-up also failed (contract 2/3, factual conjunction 3/3 by
-majority), preserved in `replay-followup-20261019/` beside that directory.
-The compact-report cohort at `b8265808` failed too: recorded contract 2/3,
-factual conjunction 2/3, but manual publication compliance 1/3. Its reports and
-guard probe remain in `replay-report-20261019/`; no failed trial was replaced.
-No fourth cohort is planned merely to seek acceptance.
+changes. All three frozen replay comparisons failed; original scores, revisions
+and retained report locations belong in the [eval results](../evals/README.md#run-and-inspect).
+Keep failed trials and separately label corrected-guard rechecks. A fresh
+comparison needs a changed behavioral question, not another attempt to get a pass.
 
 For a declared replay comparison, the existing rule requires its deterministic
 contract in all three independent skill executions and all factual criteria
