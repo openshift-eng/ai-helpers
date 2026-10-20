@@ -942,6 +942,9 @@ banner "Summary: $(basename "$REPO")/$BRANCH"
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 echo "Fix branch: $CURRENT_BRANCH"
+if [[ -n "${ORIGINAL_REF:-}" ]]; then
+  printf 'Original ref: %s\n' "$ORIGINAL_REF"
+fi
 
 # Refresh the base before printing a push/PR command. Do not silently rebase:
 # this branch may contain operator edits, and a history rewrite can hide a

@@ -7097,6 +7097,10 @@ if command -v jq >/dev/null 2>&1; then
     test -n "$MC0_OUT"
   check "fix-all.sh MATCH_COUNT=0 clean: 'No CVEs found'" \
     grep -q 'No CVEs found' <<< "$MC0_OUT"
+  check "fix-all.sh MATCH_COUNT=0 clean: no fabricated Summary" \
+    ! grep -q '^--- Summary' <<< "$MC0_OUT"
+  check "fix-all.sh MATCH_COUNT=0 clean: no fabricated original ref" \
+    ! grep -q '^Original ref:' <<< "$MC0_OUT"
   check "fix-all.sh MATCH_COUNT=0 clean: no NEEDS_REVIEW" \
     ! grep -q 'NEEDS_REVIEW' <<< "$MC0_OUT"
   check "fix-all.sh MATCH_COUNT=0 clean: 'Scanning for CVEs'" \
@@ -7232,9 +7236,13 @@ git -C "$SB_WORK" checkout -q -b devel origin/devel 2>/dev/null || git -C "$SB_W
 SB_DATE=$(date +%Y-%m-%d)
 SB_FIX_BRANCH="fix-devel-cves-${SB_DATE}"
 
-# (a) Basic branch creation: state file written with FIX_BRANCH, branch exists in repo
+# (a) The original checkout ref is independent of the requested target branch.
+git -C "$SB_WORK" checkout -qb operator-start
+SB_ORIGINAL_HEAD=$(git -C "$SB_WORK" rev-parse HEAD)
 SB_OUT=$("$SCRIPT_DIR/detect.sh" "$SB_WORK" devel --setup-branch 2>&1) || true
 SB_STATE=$(tail -1 <<< "$SB_OUT")
+check "setup-branch: original ref differs from target" test "$(state_value "$SB_STATE" ORIGINAL_REF)" = operator-start
+check "setup-branch: original branch is unchanged" test "$(git -C "$SB_WORK" rev-parse operator-start)" = "$SB_ORIGINAL_HEAD"
 check "setup-branch: FIX_BRANCH in state"    test "$(state_value "$SB_STATE" FIX_BRANCH)" = "$SB_FIX_BRANCH"
 check "setup-branch: fix branch exists"      git -C "$SB_WORK" show-ref --verify --quiet "refs/heads/${SB_FIX_BRANCH}"
 check "setup-branch: FETCH_FAILED=false"     grep -q "^FETCH_FAILED=false$" "$SB_STATE"
@@ -7242,12 +7250,14 @@ check "setup-branch: fix branch in output"   grep -q "Fix branch: ${SB_FIX_BRANC
 rm -f "$SB_STATE"
 git -C "$SB_WORK" checkout -q devel 2>/dev/null || true
 
-# (b) Suffix loop: existing branch gets -v2 suffix
+# (b) A detached start is retained as its full commit, while suffixing still works.
+git -C "$SB_WORK" checkout -q --detach "$SB_ORIGINAL_HEAD"
 SB_OUT2=$("$SCRIPT_DIR/detect.sh" "$SB_WORK" devel --setup-branch 2>&1) || true
 SB_STATE2=$(tail -1 <<< "$SB_OUT2")
 SB_V2="${SB_FIX_BRANCH}-v2"
 check "setup-branch suffix: -v2 branch created" git -C "$SB_WORK" show-ref --verify --quiet "refs/heads/${SB_V2}"
 check "setup-branch suffix: FIX_BRANCH is -v2"  test "$(state_value "$SB_STATE2" FIX_BRANCH)" = "$SB_V2"
+check "setup-branch: detached original ref is the full starting commit" test "$(state_value "$SB_STATE2" ORIGINAL_REF)" = "$SB_ORIGINAL_HEAD"
 rm -f "$SB_STATE2"
 git -C "$SB_WORK" checkout -q devel 2>/dev/null || true
 
@@ -7507,6 +7517,8 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$PRT_REPO" config user.email "t@t.com"
   git -C "$PRT_REPO" config user.name "T"
   git -C "$PRT_REPO" checkout -q -b devel origin/devel 2>/dev/null || git -C "$PRT_REPO" checkout -q devel 2>/dev/null
+  git -C "$PRT_REPO" branch operator-start
+  PRT_ORIGINAL_HEAD=$(git -C "$PRT_REPO" rev-parse operator-start)
   git -C "$PRT_REPO" remote add myfork "https://github.com/testforkuser/testrepo.git"
 
   # Copy scripts (fix-all.sh uses SCRIPT_DIR = its own directory)
@@ -7524,7 +7536,7 @@ if command -v jq >/dev/null 2>&1; then
     local test_cmd="${1:-true}"
     printf 'STATE_FILE=%q\nREPO=%q\nBRANCH="devel"\nFIX_BRANCH=""\n' \
       "$PRT_STATE" "$PRT_REPO" > "$PRT_STATE"
-    printf 'ORIGINAL_REF=""\nHAS_TOOLS_GOMOD=false\nHAS_VENDOR=false\n' >> "$PRT_STATE"
+    printf 'ORIGINAL_REF=operator-start\nHAS_TOOLS_GOMOD=false\nHAS_VENDOR=false\n' >> "$PRT_STATE"
     printf 'DIFF_IGNORE_ARGS=""\nNEEDS_BUILD_FOR_SCAN=false\n' >> "$PRT_STATE"
     printf 'CONTAINER_CMD=""\nHAS_LOCAL_GRYPE=false\nBUILD_IMAGE=""\n' >> "$PRT_STATE"
     printf 'BUILD_GO_VERSION="unknown"\nBUILD_CMD=""\nCLEAN_CMD=""\n' >> "$PRT_STATE"
@@ -7585,6 +7597,11 @@ FPEOF
   check "PR cmd A: --head uses fork user"      grep -q -- "--head testforkuser:devel" <<< "$PRT_A_OUT"
   check "PR cmd A: --base is branch"           grep -q -- "--base devel" <<< "$PRT_A_OUT"
   check "PR cmd A: single-CVE title"           grep -qF -- "--title Fix\\ CVE\\ in\\ devel" <<< "$PRT_A_OUT"
+  check "PR cmd A: Summary reports the observed original ref" grep -qx 'Original ref: operator-start' <<< "$PRT_A_OUT"
+  check "PR cmd A: target remains distinct from original ref" grep -qx 'Fix branch: devel' <<< "$PRT_A_OUT"
+  check "PR cmd A: retained commit is reported" grep -q "^$(git -C "$PRT_REPO" rev-parse --short HEAD) " <<< "$PRT_A_OUT"
+  check "PR cmd A: original branch remains unchanged" test "$(git -C "$PRT_REPO" rev-parse operator-start)" = "$PRT_ORIGINAL_HEAD"
+  check "PR cmd A: final finding count remains zero" grep -q 'Outstanding: 0' <<< "$PRT_A_OUT"
 
   # A predictable pre-planted directory must never supply verification inputs,
   # and cleanup must leave unrelated directories with the old PID pattern alone.
@@ -7770,7 +7787,9 @@ LICENSEMAKE
   git -C "$PRT_REPO" remote remove myfork 2>/dev/null || true
   git -C "$PRT_REPO" reset --hard origin/devel -q 2>/dev/null || true
   prt_write_state; prt_write_scan
+  printf 'ORIGINAL_REF=""\n' >> "$PRT_STATE"
   PRT_B_OUT=$(bash "$PRT_SCRIPTS/fix-all.sh" "$PRT_REPO" devel 2>&1) || true
+  check "PR cmd B: absent original-ref evidence is omitted" ! grep -q '^Original ref:' <<< "$PRT_B_OUT"
   check "PR cmd B: no placeholder remote shown" ! grep -q "<fork-remote>" <<< "$PRT_B_OUT"
   check "PR cmd B: NOTE about missing fork"    grep -q "no fork remote" <<< "$PRT_B_OUT"
   check "PR cmd B: no unusable gh command"    ! grep -q "gh pr create" <<< "$PRT_B_OUT"
@@ -7846,10 +7865,37 @@ LICENSEMAKE
   # --- Sub-case D: TESTS_FAILED -> suppress PR command as unconfirmed ---
   git -C "$PRT_REPO" reset --hard origin/devel -q 2>/dev/null || true
   prt_write_state "false"; prt_write_scan  # TEST_CMD="false" -> TESTS_FAILED=true
-  PRT_D_OUT=$(bash "$PRT_SCRIPTS/fix-all.sh" "$PRT_REPO" devel 2>&1) || true
+  printf 'ORIGINAL_REF=%q\n' "$PRT_ORIGINAL_HEAD" >> "$PRT_STATE"
+  PRT_D_RC=0
+  PRT_D_OUT=$(bash "$PRT_SCRIPTS/fix-all.sh" "$PRT_REPO" devel 2>&1) || PRT_D_RC=$?
+  check "PR cmd D: blocked run exits two" test "$PRT_D_RC" -eq 2
+  check "PR cmd D: detached original ref is reported literally" grep -qx "Original ref: $PRT_ORIGINAL_HEAD" <<< "$PRT_D_OUT"
+  check "PR cmd D: retained repair commit is reported" grep -q "^$(git -C "$PRT_REPO" rev-parse --short HEAD) " <<< "$PRT_D_OUT"
+  check "PR cmd D: failed tests do not change the final finding count" grep -q 'Outstanding: 0' <<< "$PRT_D_OUT"
   check "PR cmd D: gh pr create suppressed"   ! grep -q "gh pr create" <<< "$PRT_D_OUT"
   check "PR cmd D: marked NOT READY TO PUSH"   grep -q "NOT READY TO PUSH" <<< "$PRT_D_OUT"
   check "PR cmd D: tests-failed reason listed" grep -q "tests failed after applying fixes" <<< "$PRT_D_OUT"
+
+  # A completed policy-boundary run can reach Summary without any repair commit.
+  # Its displayed fix branch is then removed; reporting the original ref must
+  # not keep that empty branch or manufacture a publication recipe.
+  git -C "$PRT_REPO" checkout -qb summary-empty origin/devel
+  prt_write_state; prt_write_scan match
+  printf 'FIX_BRANCH=summary-empty\n' >> "$PRT_STATE"
+  cp "$PRT_SCRIPTS/fix-package.sh" "$PRT_DIR/fix-package.saved"
+  printf '#!/usr/bin/env bash\necho "NEEDS_REVIEW: example.com/prpkg — team decision required"\nexit 2\n' > "$PRT_SCRIPTS/fix-package.sh"
+  PRT_EMPTY_RC=0
+  PRT_EMPTY_OUT=$(bash "$PRT_SCRIPTS/fix-all.sh" "$PRT_REPO" devel 2>&1) || PRT_EMPTY_RC=$?
+  check "no-commit Summary: unresolved finding remains partial" test "$PRT_EMPTY_RC" -eq 2
+  check "no-commit Summary: original ref is reported" grep -qx 'Original ref: operator-start' <<< "$PRT_EMPTY_OUT"
+  check "no-commit Summary: removal of displayed branch is explicit" grep -qx 'No commits; removed the empty fix branch.' <<< "$PRT_EMPTY_OUT"
+  check "no-commit Summary: checkout returns to original branch" test "$(git -C "$PRT_REPO" branch --show-current)" = operator-start
+  check "no-commit Summary: original HEAD is unchanged" test "$(git -C "$PRT_REPO" rev-parse HEAD)" = "$PRT_ORIGINAL_HEAD"
+  check "no-commit Summary: empty fix branch is removed" ! git -C "$PRT_REPO" show-ref --verify --quiet refs/heads/summary-empty
+  check "no-commit Summary: no publication command" ! grep -q 'gh pr create' <<< "$PRT_EMPTY_OUT"
+  check "no-commit Summary: finding count remains authoritative" grep -q 'Outstanding: 1' <<< "$PRT_EMPTY_OUT"
+  mv "$PRT_DIR/fix-package.saved" "$PRT_SCRIPTS/fix-package.sh"
+  git -C "$PRT_REPO" checkout -q devel
 
   # --- Sub-case E: multiple commits -> plural "Fix CVEs" title ---
   git -C "$PRT_REPO" reset --hard origin/devel -q 2>/dev/null || true
