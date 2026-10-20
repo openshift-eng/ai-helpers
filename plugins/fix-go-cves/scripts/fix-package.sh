@@ -493,6 +493,34 @@ _go_get_and_check() {
   fi
 }
 
+# Record selected-target major crossings before any in-scope module changes.
+# A local/unknown version is not major zero. Preserve its existing handling,
+# and distinguish an unverifiable graph from a confirmed policy boundary.
+_TARGET_MAJOR_BREAKING=""
+_TARGET_MAJOR_UNVERIFIED=""
+_TARGET_MAJOR="${VERSION%%.*}"
+if [[ "$_TARGET_MAJOR" =~ ^[0-9]+$ && "$_TARGET_MAJOR" != 0 ]]; then
+  while IFS= read -r _target_gomod; do
+    _target_installed=$(get_installed_version "$(dirname "$_target_gomod")" "$PACKAGE" 2>/dev/null || true)
+    [[ -n "$_target_installed" ]] || continue
+    _target_installed_major="${_target_installed%%.*}"
+    version_gte "$_target_installed_major.0.0" "$_TARGET_MAJOR.0.0" && continue
+    _target_resolve_rc=0
+    resolve_module_dependency "$(dirname "$_target_gomod")" "$PACKAGE" || _target_resolve_rc=$?
+    case "$_target_resolve_rc" in
+      0)
+        if [[ ! "$RESOLVED_VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+(-[0-9A-Za-z.-]+)?([+][0-9A-Za-z.-]+)?$ ]]; then
+          _TARGET_MAJOR_UNVERIFIED="${_TARGET_MAJOR_UNVERIFIED:+$_TARGET_MAJOR_UNVERIFIED; }$_target_gomod"
+        elif ! version_gte "${RESOLVED_VERSION%%.*}.0.0" "$_TARGET_MAJOR.0.0"; then
+          _TARGET_MAJOR_BREAKING="${_TARGET_MAJOR_BREAKING:+$_TARGET_MAJOR_BREAKING; }$_target_gomod: $PACKAGE v$RESOLVED_VERSION -> v$VERSION"
+        fi
+        ;;
+      1|3) : ;; # absent or local replacement: retain existing fix/verification handling
+      *) _TARGET_MAJOR_UNVERIFIED="${_TARGET_MAJOR_UNVERIFIED:+$_TARGET_MAJOR_UNVERIFIED; }$_target_gomod" ;;
+    esac
+  done < <(_iter_gomods)
+fi
+
 # Update direct and transitive dependencies in the selected module scope. A Grype
 # location limits which go.mod may change; it does not mean the package must be a
 # textual require in that file. The effective MVS graph is authoritative.
@@ -561,6 +589,14 @@ if [[ "$MODULE_NOT_IN_PROXY" == true ]]; then
   rm -f "$_GO_GET_LOG"
   git checkout -- . 2>/dev/null || true
   exit 4
+fi
+# Preserve registry, failed updates and below-target MVS results. Unverifiable evidence is
+# not a policy exemption, even when another module has a known major crossing.
+if ! $PRIMARY_UPDATE_FAILED && ! $PRIMARY_STILL_VULNERABLE; then
+  if [[ -n "$_TARGET_MAJOR_UNVERIFIED" ]]; then
+    echo "ERROR: $PACKAGE — effective installed version could not be verified in $_TARGET_MAJOR_UNVERIFIED"
+    exit 3
+  fi
 fi
 clean_gomod
 
@@ -857,6 +893,12 @@ if [[ "$PRIMARY_UPDATE_FAILED" == "true" || "$PRIMARY_STILL_VULNERABLE" == "true
   fi
   git checkout -- . || echo "ERROR: Could not rollback changes" >&2
   exit 3
+fi
+
+# A policy rejection must not mask a failed or unverifiable primary update.
+if [[ -n "$_TARGET_MAJOR_BREAKING" ]]; then
+  echo "NEEDS_REVIEW: $PACKAGE — selected fix crosses a major version: $_TARGET_MAJOR_BREAKING"
+  exit 2
 fi
 
 # If primary fix succeeded but re-pin of indirect deps failed, that's a different issue

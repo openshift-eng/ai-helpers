@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 2,609 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 2,690 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -40,7 +40,7 @@ not attribute the historical run or replace a full baseline test suite.
    branch or detached ref in the Summary. Recommendations focus on the next
    unmet prerequisite and verification still needed. This is a behavioral
    treatment, not enforcement or proof of general reliability.
-2. **Boundary fixtures pass.** The existing shell suite passed 2,609 checks,
+2. **Boundary fixtures pass.** The existing shell suite passed 2,690 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
    The 52 eval checks cover witnessed publication, tampering, frozen inputs,

@@ -21,15 +21,9 @@ and genuine competing repository instructions. Current-engine source repair and
 parent completion are verified separately from failed publication advice. No
 further wording cohort, reviewer layer or automatic native retry is selected.
 
-Land each runtime fix with a regression that fails on the current code and
-passes afterward, using the existing fixtures and full shell suite.
-
-1. **Published major upgrades.** Guard the selected candidate against each
-   in-scope module's effective installed version, including transitive targets.
-   Test scoped updates, permitted same-major updates, and unchanged HEAD and
-   metadata on rejection. Keep absent/local-replacement handling and the
-   missing-registry exit separate; do not treat an unknown version as major zero.
-   This fixes the target-package bypass, not every incidental graph change.
+Bumps across a selected target's known major version now require review per
+in-scope module. Registry failures and unsuccessful updates keep their existing
+outcomes; local or unknown versions are not treated as major zero.
 
 Successful no-fix ignores now retain ignored credit without adding policy-review
 markers; existing decisions stay intact.

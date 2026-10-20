@@ -5178,6 +5178,52 @@ dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 [ -z "$FPX_CALLS" ] || echo "$*" >> "$FPX_CALLS"
 case "$FPX_MODE" in k8s-*) printf 'DIR=%s %s\n' "$dir" "$*" >> "$FPX_CALLS" ;; esac
+# Major modes expose the effective graph as well as textual require versions.
+case "$FPX_MODE" in
+  major-*)
+    if [ "$1" = list ]; then
+      pkg=example.com/cve-pkg
+      version=$(awk -v p="$pkg" '$1 == p {print $2; exit} $1 == "require" && $2 == p {print $3; exit}' "$dir/go.mod")
+      [ "$FPX_MODE" != major-transitive ] || [ -n "$version" ] || version=v28.5.0+incompatible
+      replace=""; local_dir=""
+      if [ "$FPX_MODE" = major-versioned ] && [ "$version" = v1.0.0 ]; then replace=v28.5.0+incompatible; fi
+      [ "$FPX_MODE" != major-local ] || local_dir=../local
+      case "$FPX_MODE" in major-mixed-local-*) [ "$dir" != tools ] || local_dir=../local ;; esac
+      case "$*" in
+        *'-json all'*)
+          case "$FPX_MODE" in
+            major-unknown|major-graph-fail) echo 'graph unavailable' >&2; exit 1 ;;
+            major-mixed-unknown) [ "$dir" != tools ] || { echo 'sibling graph unavailable' >&2; exit 1; } ;;
+          esac
+          jq -cn --arg v "$version" --arg rep "$replace" --arg dir "$local_dir" '
+            {Path:"example.com/cve-pkg",Version:$v} +
+            (if $rep != "" then {Replace:{Version:$rep,Dir:"/cache/published"}}
+             elif $dir != "" then {Replace:{Dir:$dir}} else {} end)'
+          exit 0 ;;
+        *'{{if .Replace}}{{.Replace.Dir}}'*) [ -z "$local_dir" ] || echo "$local_dir"; exit 0 ;;
+        *'{{if .Replace}}{{.Replace.Version}}{{end}}'*) [ -z "$replace" ] || echo "$replace"; exit 0 ;;
+      esac
+      [ "$FPX_MODE" != major-unknown ] || exit 0
+      if [ -n "$local_dir" ]; then
+        # A normal local replace falls back to the raw require version. Keep
+        # the separate synthetic-zero fixture when both graph getters are empty.
+        [ "$FPX_MODE" = major-local ] || [ "${4:-}" != '{{.Version}}' ] || echo "$version"
+        exit 0
+      fi
+      [ -z "$replace" ] || version="$replace"
+      printf '%s\n' "$version"; exit 0
+    fi
+    if [ "$1" = get ]; then
+      [ "$FPX_MODE" != major-get-fail ] || { echo 'controlled get failure' >&2; exit 1; }
+      [ "$FPX_MODE" != major-mvs ] || exit 0
+      if [ "$FPX_MODE" = major-transitive ] && ! grep -q '^require example.com/cve-pkg ' "$dir/go.mod"; then
+        printf 'require example.com/cve-pkg %s\n' "${2##*@}" >> "$dir/go.mod"
+      fi
+      printf 'candidate checksum\n' >> "$dir/go.sum"
+    fi
+    if [ "$1" = mod ] && [ "$2" = tidy ] && [ "$FPX_MODE" = major-tidy-fail ]; then echo 'controlled tidy failure' >&2; exit 1; fi
+    ;;
+esac
 case "$1" in
   get)
     pkg=$(echo "$2" | cut -d@ -f1); ver=$(echo "$2" | cut -d@ -f2)
@@ -5226,6 +5272,7 @@ _fpx_run() {  # name gomod-content [mode]
   [[ -z "${FPX_SETUP:-}" ]] || (cd "$d" && eval "$FPX_SETUP")
   git -C "$d" add -A && git -C "$d" commit -qm init
   [[ -z "${FPX_STATE:-}" ]] || printf '%s\n' "$FPX_STATE" >> "$d/st.env"
+  FPX_BEFORE=$(git -C "$d" rev-parse HEAD)
   local -a location=()
   [[ -z "${FPX_LOCATION:-}" ]] || location=(--location "$FPX_LOCATION")
   FPX_OUT=$(cd "$d" && FPX_MODE="${3:-}" FPX_CALLS="$d/go-calls" PATH="$d/bin:$PATH" \
@@ -5303,6 +5350,57 @@ for _k8s_control in patch disabled prefix add remove; do
     remove) check "k8s identity: removed pair preserves absence policy" ! grep -q '^ k8s.io/api v' "$FPX_DIR/tools/go.mod" ;;
   esac
 done
+# A published selected target crossing majors is a policy boundary even when
+# go get succeeds. Each case invokes the real transaction and final resolver.
+for _major_case in direct prerelease transitive zero mixed mixed-unknown mixed-local-below mixed-local-already same scoped versioned local unknown graph-fail get-fail tidy-fail mvs; do
+  _major_root=$'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v28.5.0+incompatible'
+  _major_version=29.3.1+incompatible; _major_expected=2; _major_location=""; _major_mode="major-$_major_case"; _major_setup=""
+  case "$_major_case" in
+    direct) _major_setup='printf "/go.sum\n" > .gitignore; printf "original ignored checksum\n" > go.sum' ;;
+    prerelease) _major_root=$'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v28.5.0-rc.1+incompatible' ;;
+    transitive|unknown) _major_root=$'module x\n\ngo 1.24.0\n\nrequire example.com/parent v1.0.0' ;;
+    zero) _major_root=$'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v0.0.0'; _major_version=1.0.0 ;;
+    mixed|scoped)
+      _major_root=$'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v1.0.0'
+      _major_setup='mkdir tools; printf "module x/tools\ngo 1.24.0\nrequire example.com/cve-pkg v28.5.0+incompatible\n" > tools/go.mod'
+      _major_version=28.6.0+incompatible
+      [[ "$_major_case" != scoped ]] || { _major_location=/tools/go.mod; _major_expected=0; }
+      ;;
+    mixed-unknown) _major_setup='mkdir tools; printf "module x/tools\ngo 1.24.0\nrequire example.com/cve-pkg v1.0.0\n" > tools/go.mod' ;;
+    mixed-local-below|mixed-local-already)
+      _local_required=28.5.0+incompatible
+      [[ "$_major_case" != mixed-local-already ]] || _local_required=29.3.1+incompatible
+      _major_setup="mkdir tools; printf 'module x/tools\n\ngo 1.24.0\nrequire example.com/cve-pkg v%s\nreplace example.com/cve-pkg => ../local\n' '$_local_required' > tools/go.mod"
+      _major_expected=3 ;;
+    same) _major_version=28.6.0+incompatible; _major_expected=0 ;;
+    versioned)
+      _major_root=$'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v1.0.0\nreplace example.com/cve-pkg v1.0.0 => example.com/fork v28.5.0+incompatible'
+      _major_version=28.6.0+incompatible; _major_expected=0 ;;
+    local)
+      _major_root=$'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v0.0.0\nreplace example.com/cve-pkg => ../local'; _major_expected=3 ;;
+  esac
+  case "$_major_case" in unknown|graph-fail|mixed-unknown|get-fail|tidy-fail|mvs) _major_expected=3 ;; esac
+  FPX_SETUP="$_major_setup" FPX_LOCATION="$_major_location" FPX_VER="$_major_version" \
+    _fpx_run "published-major-$_major_case" "$_major_root" "$_major_mode"
+  check "published major $_major_case: preserves outcome precedence" test "$FPX_RC" -eq "$_major_expected"
+  if [[ "$_major_expected" == 2 || "$_major_expected" == 3 ]]; then
+    check "published major $_major_case: rejected repair is not fixed" ! grep -q '^FIXED:' <<< "$FPX_OUT"
+    check "published major $_major_case: original HEAD is retained" test "$(git -C "$FPX_DIR" rev-parse HEAD)" = "$FPX_BEFORE"
+    check "published major $_major_case: tracked metadata restored" git -C "$FPX_DIR" diff --quiet "$FPX_BEFORE"
+  fi
+  if [[ "$_major_expected" == 2 ]]; then
+    check "published major $_major_case: identifies major boundary" grep -q 'selected fix crosses a major version' <<< "$FPX_OUT"
+  else
+    check "published major $_major_case: no false major diagnosis" ! grep -q 'selected fix crosses a major version' <<< "$FPX_OUT"
+  fi
+  case "$_major_case" in
+    mixed-local-*) check "published major $_major_case: local replacement is diagnosed" grep -q 'effective version unverifiable' <<< "$FPX_OUT" ;;
+    direct) check "published major: ignored checksum bytes restored" test "$(cat "$FPX_DIR/go.sum")" = 'original ignored checksum' ;;
+    transitive) check "published major: originally absent checksums stay absent" test ! -e "$FPX_DIR/go.sum" ;;
+    scoped) check "published major: out-of-scope root remains unchanged" grep -q 'example.com/cve-pkg v1.0.0' "$FPX_DIR/go.mod" ;;
+  esac
+done
+
 FPX_SETUP='printf "go 1.24.0\n\nuse .\n" > go.work && echo go.work > .gitignore' \
   _fpx_run untracked-work $'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v1.0.0'
 check "untracked go.work is never synced" ! grep -q 'work sync' "$FPX_DIR/go-calls"
@@ -7941,11 +8039,12 @@ HAS_VENDOR="false"
 DIFF_IGNORE_ARGS=""
 ILENV
 
+# Stay within the installed major so this reaches the rejecting commit hook.
 FP_IL_OUT=""
 FP_IL_RC=0
 FP_IL_OUT=$(
   cd "$FP_IL" && PATH="$FP_IL/gostub:$PATH" \
-  bash "$SCRIPT_DIR/fix-package.sh" "$FP_IL/st.env" example.com/foo 2.0.0 GHSA-il-0001 2>&1
+  bash "$SCRIPT_DIR/fix-package.sh" "$FP_IL/st.env" example.com/foo 1.1.0 GHSA-il-0001 2>&1
 ) || FP_IL_RC=$?
 
 check "index-lock recovery: exits non-zero" \
