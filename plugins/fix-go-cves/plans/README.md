@@ -42,23 +42,22 @@ passes afterward, using the existing fixtures and full shell suite.
    workspace sync, including siblings a scoped update changed. The unchanged-set
    reproduction must roll back; patch updates and guard-disabled runs must work.
 
-Then fix report validation and scanner deadlines in separate changes. Audit
-completeness now gates verification and repair dispatch; remove model verification
-in a separate change and retain shared helpers
-used by `review.sh` and scanner retries. Address failure reasons and inherited
-ignores separately. Keep these independent of the replay pilot:
+Audit completeness and removal of model verification are implemented. All four
+audits gate verification and repair dispatch; shared helpers for `review.sh` and
+scanner retries remain. Fix report validation and scanner deadlines separately.
+Address failure reasons and inherited ignores separately. Keep these independent of the replay pilot:
 historical scripts cannot validate today's runtime fixes. Broader Go-minor
 policy needs a decision before changing its behavior.
 
 ## Decisions
 
-- **Drop the LLM verification layer.** Deterministic companion evidence
-  already gates every verdict. In the 15 release-0.24 runs (26
+- **LLM verification removed.** The four deterministic audits gate every
+  verification verdict. In the 15 release-0.24 runs (26
   verification iterations) it never changed an outcome: its one independent
-  FAIL came after the gate had already blocked the run. Removing it saves
-  about 550 script and 500 test lines; `review.sh` keeps the useful judgment.
-  Preserve the deterministic audits, evidence-completeness checks, bounded
-  repair loop and independent final rescan.
+  FAIL came after the gate had already blocked the run. The redundant prompts,
+  launch/retry/report machinery and their tests are deleted; `review.sh` retains
+  AI analysis of flagged outcomes. Evidence-completeness checks, the bounded
+  repair loop and independent final rescan remain.
 - **Flag, don't delete, pre-existing broad ignores.** Package-only entries on
   the base branch (submariner-operator's `/tools` docker and containerd
   exemptions) are removed, and scan-regression then re-ignores the findings

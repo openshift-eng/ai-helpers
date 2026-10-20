@@ -66,7 +66,8 @@ upstream exists and every readiness gate passes.
   `anchore/grype` (v0.112.0 pinned by digest; `CVE_FIX_GRYPE_IMAGE` overrides).
 - Optional reviewer: the `claude` or `codex` CLI, chosen by `CVE_FIX_AGENT`
   (default `claude`; `CVE_FIX_MODEL` selects a model). Without it the
-  deterministic evidence still gates the result.
+  deterministic evidence still gates the result. Verification always uses the
+  four shell audits directly, without model calls.
 
 ## Repository registry
 

@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 2,401 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 2,364 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -40,7 +40,7 @@ not attribute the historical run or replace a full baseline test suite.
    branch or detached ref in the Summary. Recommendations focus on the next
    unmet prerequisite and verification still needed. This is a behavioral
    treatment, not enforcement or proof of general reliability.
-2. **Boundary fixtures pass.** The existing shell suite passed 2,401 checks,
+2. **Boundary fixtures pass.** The existing shell suite passed 2,364 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
    The 52 eval checks cover witnessed publication, tampering, frozen inputs,
@@ -145,8 +145,10 @@ positive counts retain the bounded repair/recheck loop. Existing shell fixtures
 cover this boundary, including missing sources, stale output, malformed counters
 and publication suppression. The preserved real Admiral audit archive passes the
 new validator. These checks establish runtime acceptance behavior, not improved
-invoking-agent reporting. Keep model-verification removal separate and retain
-the shared policy-review and scanner helpers.
+invoking-agent reporting. Verification now uses those audits directly, without
+model calls; the main AI review and shared scanner helpers remain. Visible
+poison-provider fixtures check that verification never invokes either CLI, and
+persistent findings exhaust the existing repair bound without passing.
 
 | Scenario | Required runtime evidence |
 | --- | --- |
@@ -236,8 +238,10 @@ Live failures feed the faster layers: engine bugs get hermetic regressions and
 interpretation errors get replay cases. Existing no-fix marker, major-version
 and Kubernetes-identity fixes remain independent work in the
 [main plan](README.md#next-changes). Validate each with the shell suite and a real
-case when it exercises the changed path. Harden audit completeness before
-removing model verification; that removal does not need its own eval framework.
+case when it exercises the changed path. Audit completeness and model-verification
+removal use the existing fixtures and eval runner. One existing successful-repair
+live case can check the changed verification path; it does not establish improved
+invoking-agent reporting.
 
 ## Historical follow-ups
 

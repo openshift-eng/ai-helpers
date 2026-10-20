@@ -408,6 +408,19 @@ tests, Bash syntax and error-level ShellCheck of the changed runtime scripts
 pass. A broader ShellCheck invocation including the large test file ended 137
 without diagnostics; it is not passing evidence.
 
+The redundant model verification layer is now removed. All four shell audits,
+strict completeness checks, bounded mechanical repair/recheck, the main AI review
+and independent final scan remain. Visible poison CLIs reproduce six failures
+on the previous library and pass all 69 focused checks without any verifier
+model calls. Durable orchestration passes 38/38; the full frozen-source suite
+passes 2,364/2,364 and the eval helper passes 52 tests. The smaller count reflects
+deleted tests for the deleted model machinery. One native fixture now checks
+actual clean audits and its partial result instead of an incidental model veto;
+its 13 checks pass. An earlier full run interrupted by an in-place test edit is
+preserved as incomplete. Validation logs are in
+`.work/fix-go-cves-deterministic-verification/`; these are not new live or
+invoking-agent acceptance results.
+
 The unchanged real Admiral audit archive also passes the new validator. This
 is compatibility evidence, not another live run or an invoking-agent acceptance
 claim. Original scores remain intact; no additional actor or judge calls were

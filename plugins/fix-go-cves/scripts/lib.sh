@@ -1797,8 +1797,7 @@ build_cve_fix_agent_command() {
 }
 
 # Requires bash >= 4.0 plus the core CLIs and a scanner (grype OR docker/podman);
-# the selected LLM reviewer is optional (verification degrades to deterministic
-# evidence when its CLI is unavailable).
+# the selected LLM reviewer is optional. Verification uses deterministic audits.
 preflight_check() {
   local tool missing=() container_scanner=false scanner_runtime=""
   cve_fix_agent_provider >/dev/null || return 1
@@ -2094,44 +2093,6 @@ evidence_as_report() {
     echo "DETAILS:"
     grep -vE '^(NEW_CVES|NEW_ISSUES)=' "$evidence_file" || true
   } > "$report_file"
-}
-
-# Extract the final structured report from a CLI transcript. Codex may echo the
-# prompt (including valid-looking examples) before printing its answer, and may
-# repeat the answer after usage metadata. Select the last complete, typed report
-# block so prompt examples can never become an authoritative verdict.
-extract_agent_report() {
-  local input_file="${1:?extract_agent_report INPUT_FILE OUTPUT_FILE}" output_file="$2"
-  awk '
-    /^VERDICT: (PASS|FAIL|SKIP)$/ {
-      candidate = NR
-      verdict = $0
-      next
-    }
-    candidate && NR == candidate + 1 && /^ISSUES: [0-9]+$/ {
-      issues = $0
-      next
-    }
-    candidate && NR == candidate + 2 && /^SUMMARY: .+$/ {
-      summary = $0
-      next
-    }
-    candidate && NR == candidate + 3 && /^DETAILS:$/ {
-      last = candidate
-      last_verdict = verdict
-      last_issues = issues
-      last_summary = summary
-    }
-    { lines[NR] = $0 }
-    END {
-      if (!last) exit 1
-      print last_verdict
-      print last_issues
-      print last_summary
-      print "DETAILS:"
-      for (i = last + 4; i <= NR; i++) print lines[i]
-    }
-  ' "$input_file" > "$output_file"
 }
 
 # Return 0 when a sentinel file contains either the exact package/location key
@@ -2473,20 +2434,7 @@ cve_fix_backoff_delay() {
   echo "$delay"
 }
 
-# Classify a failed subagent run as retry/skip/fail.
-# Auth errors skip immediately (deterministic). Infra errors retry until exhausted, then skip.
-# Anything else (no report, genuine failure) is fail.
-subagent_retry_decision() {
-  local rc="$1" f="$2" attempt="$3" max="$4"
-  if is_auth_error "$f"; then echo skip; return; fi
-  if [[ "$rc" -eq 124 ]] || is_infra_error "$f"; then
-    [[ $attempt -lt $max ]] && { echo retry; return; }
-    echo skip; return
-  fi
-  echo fail
-}
-
-# Phase-1 helper: run companion .sh scripts sequentially, writing evidence files.
+# Run companion audits sequentially, writing fresh evidence files.
 _run_companions() {
   local subagent_dir="$1" state_file="$2" report_dir="$3"
   local sh_file sa_name evidence scan_regression="$subagent_dir/scan-regression.sh"
@@ -2512,213 +2460,32 @@ _run_companions() {
   done
 }
 
-# Phase-2 helper: launch all _RSA_PENDING agents in parallel.
-# Reads _RSA_PENDING and _RSA_PROMPT; writes _RSA_PIDS.
-_launch_llm_agents() {
-  local report_dir="$1" attempt="$2" max_attempts="$3"
-  local sa_name
-  _RSA_PIDS=()
-  for sa_name in "${_RSA_PENDING[@]}"; do
-    if [[ $attempt -eq 1 ]]; then
-      echo "  Subagent: $sa_name..."
-    else
-      echo "  Subagent: $sa_name (retry $((attempt - 1))/$((max_attempts - 1)))..."
-    fi
-    build_cve_fix_agent_command "${_RSA_PROMPT[$sa_name]}"
-    timeout "${CVE_FIX_AGENT_TIMEOUT:-600}" \
-      "${ENV_SCRUB[@]+"${ENV_SCRUB[@]}"}" "${CVE_FIX_AGENT_CMD[@]}" \
-      </dev/null \
-      > "$report_dir/${sa_name}.agent-output" 2>&1 &
-    _RSA_PIDS+=("$!:$sa_name")
-  done
-}
-
-# Phase-3 helper: wait for _RSA_PIDS and classify each result.
-# Reads _RSA_PIDS; writes _RSA_FAILED, _RSA_SKIPPED, _RSA_UNVERIFIED, _RSA_RETRY.
-_collect_agent_results() {
-  local report_dir="$1" attempt="$2" max_attempts="$3"
-  local provider="${CVE_FIX_AGENT:-claude}"
-  _RSA_FAILED=() _RSA_SKIPPED=() _RSA_UNVERIFIED=() _RSA_RETRY=()
-  local pid_name pid sa_name rc report_file output_file verdict issues
-  for pid_name in "${_RSA_PIDS[@]}"; do
-    pid="${pid_name%%:*}" sa_name="${pid_name#*:}" rc=0
-    wait "$pid" 2>/dev/null || rc=$?
-    report_file="$report_dir/${sa_name}.report"
-    output_file="$report_dir/${sa_name}.agent-output"
-    # Provider errors can exit zero after echoing a valid-looking prompt example.
-    # Classify them before accepting any report from the transcript.
-    local _decision
-    _decision=$(subagent_retry_decision "$rc" "$output_file" "$attempt" "$max_attempts")
-    case "$_decision" in
-      skip)
-        if is_auth_error "$output_file"; then
-          echo "  SKIP: $sa_name — $provider auth error (exit $rc); not retrying"
-          print_provider_env
-        else
-          echo "  SKIP: $sa_name — $provider unavailable (infra error, exit $rc)"
-        fi
-        _RSA_SKIPPED+=("$sa_name")
-        continue
-        ;;
-      retry) _RSA_RETRY+=("$sa_name"); continue ;;
-    esac
-
-    if [[ $rc -ne 0 ]]; then
-      echo "  WARNING: $sa_name exited $rc; its report is unconfirmed"
-      _RSA_UNVERIFIED+=("$sa_name")
-      continue
-    fi
-
-    # Read-only agents return the report on stdout. Parse the final complete
-    # report rather than copying a transcript that may echo prompt examples.
-    if [[ ! -f "$report_file" ]] && \
-       extract_agent_report "$output_file" "$report_file.tmp" 2>/dev/null; then
-      mv "$report_file.tmp" "$report_file"
-    else
-      rm -f "$report_file.tmp"
-    fi
-    if [[ -f "$report_file" ]]; then
-      verdict=$(grep '^VERDICT:' "$report_file" | head -1 | awk '{print $2}')
-      issues=$(grep '^ISSUES:' "$report_file" | head -1 | awk '{print $2}')
-      echo "  $sa_name: ${verdict:-<none>} (issues: ${issues:-?})"
-      # Fail closed: only an explicit PASS clears a subagent. FAIL is a real
-      # regression; SKIP means the agent intentionally opted out (falls back to
-      # deterministic evidence); anything else (empty/garbled) is unverified.
-      case "$verdict" in
-        PASS) ;;
-        FAIL) _RSA_FAILED+=("$sa_name") ;;
-        SKIP) echo "  SKIP (agent opted out): $sa_name"
-              _RSA_SKIPPED+=("$sa_name") ;;
-        *)    _RSA_UNVERIFIED+=("$sa_name") ;;
-      esac
-    else
-      echo "  WARNING: $sa_name produced no report"
-      _RSA_FAILED+=("$sa_name")
-    fi
-  done
-}
-
-# Run verification subagents: companion scripts first, then LLM subagents in parallel.
+# Run the deterministic verification audits. The caller validates their evidence.
 # Usage: run_subagents STATE_FILE SUBAGENT_DIR REPORT_DIR
-# Returns: 0 if all pass OR all remaining were skipped/unverified, 1 if any FAIL.
-# Sets globals RUN_SUBAGENTS_SKIPPED / _SKIPPED_NAMES (infra/auth skips) and
-# RUN_SUBAGENTS_UNVERIFIED / _UNVERIFIED_NAMES (report present but verdict not
-# PASS). The caller (verify_fix_loop) treats a non-zero skip OR unverified count
-# as "not verified" so a blocked/garbled subagent never reads as a silent pass.
 run_subagents() {
   local state_file="$1" subagent_dir="$2" report_dir="$3"
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-  local -A _RSA_PROMPT         # sa_name -> expanded prompt (built once per run)
-  local -a _RSA_PENDING        # agents still to launch this attempt
-  local -a _RSA_PIDS           # "pid:name" pairs from _launch_llm_agents
-  local -a _RSA_FAILED         # agents with FAIL verdict or no report
-  local -a _RSA_SKIPPED        # agents skipped for auth/infra reasons
-  local -a _RSA_UNVERIFIED     # agents with non-PASS report verdict
-  local -a _RSA_RETRY          # agents queued for backoff retry
-
-  RUN_SUBAGENTS_SKIPPED=0 RUN_SUBAGENTS_SKIPPED_NAMES=""
-  RUN_SUBAGENTS_UNVERIFIED=0 RUN_SUBAGENTS_UNVERIFIED_NAMES=""
-  # Keep this established global name for compatibility with callers that
-  # source lib.sh. It now means that the selected agent (Claude or Codex) is
-  # absent, despite the legacy Claude-specific spelling.
-  RUN_SUBAGENTS_CLAUDE_ABSENT=0
-
-  # The public script already validated this generated state file with
-  # load_state; source it without changing the caller's working directory.
+  # The public script already validated this generated state with load_state.
+  # Source it without changing the caller's working directory.
   # shellcheck source=/dev/null
   source "$state_file"
   mkdir -p "$report_dir"
-  rm -f "$report_dir"/*.report  # Clear stale reports (crashed agent can't mask prior PASS)
-
   _run_companions "$subagent_dir" "$state_file" "$report_dir"
-
-  # When the selected agent is absent, companion evidence from Phase 1 is authoritative;
-  # verify_fix_loop falls back to evidence_verdict.
-  local provider
-  provider=$(cve_fix_agent_provider) || return 1
-  if ! command -v "$provider" &>/dev/null; then
-    echo "  WARNING: $provider CLI not available; relying on deterministic evidence."
-    RUN_SUBAGENTS_CLAUDE_ABSENT=1
-    return 0
-  fi
-
-  # Scrub provider vars (ENV_UNSET) from the subagent env so a mis-pointed shell
-  # rc can't force a Vertex/Bedrock auth failure. Built once, reused per launch.
-  build_env_scrub
-  local max_attempts="${CVE_FIX_AGENT_ATTEMPTS:-3}"
-
-  # Build each subagent's prompt once (reused across retries).
-  _RSA_PROMPT=() _RSA_PENDING=()
-  local md_file sa_name evidence_file companion_evidence prompt_template
-  for md_file in "$subagent_dir"/*.md; do
-    [[ -f "$md_file" ]] || continue
-    sa_name=$(basename "$md_file" .md)
-    _RSA_PENDING+=("$sa_name")
-    evidence_file="$report_dir/${sa_name}.evidence"
-    companion_evidence=""
-    [[ -f "$evidence_file" ]] && companion_evidence=$(cat "$evidence_file")
-    prompt_template=$(cat "$md_file")
-    _RSA_PROMPT["$sa_name"]=$(REPO="$REPO" BRANCH="$BRANCH" CVE_SCRIPTS="$script_dir" \
-      REPORT_DIR="$report_dir" SUBAGENT_NAME="$sa_name" \
-      COMPANION_EVIDENCE="$companion_evidence" \
-      render_template REPO BRANCH CVE_SCRIPTS REPORT_DIR SUBAGENT_NAME COMPANION_EVIDENCE \
-      <<< "$prompt_template")
-  done
-  [[ ${#_RSA_PENDING[@]} -eq 0 ]] && return 0
-
-  local failed=() skipped=() unverified=()
-  local attempt delay
-  for ((attempt=1; attempt<=max_attempts; attempt++)); do
-    [[ ${#_RSA_PENDING[@]} -eq 0 ]] && break
-    _launch_llm_agents "$report_dir" "$attempt" "$max_attempts"
-    _collect_agent_results "$report_dir" "$attempt" "$max_attempts"
-    failed+=(${_RSA_FAILED[@]+"${_RSA_FAILED[@]}"})
-    skipped+=(${_RSA_SKIPPED[@]+"${_RSA_SKIPPED[@]}"})
-    unverified+=(${_RSA_UNVERIFIED[@]+"${_RSA_UNVERIFIED[@]}"})
-    _RSA_PENDING=(${_RSA_RETRY[@]+"${_RSA_RETRY[@]}"})
-    if [[ ${#_RSA_PENDING[@]} -gt 0 ]]; then
-      delay=$(cve_fix_backoff_delay "$attempt")
-      echo "  ${#_RSA_PENDING[@]} subagent(s) hit a transient error; retrying in ${delay}s..."
-      sleep "$delay"
-    fi
-  done
-
-  if [[ ${#skipped[@]} -gt 0 ]]; then
-    echo "  SKIPPED (infra/auth, not verified): ${skipped[*]}"
-    RUN_SUBAGENTS_SKIPPED=${#skipped[@]}
-    # shellcheck disable=SC2034 # output variable read by verify_fix_loop
-    RUN_SUBAGENTS_SKIPPED_NAMES="${skipped[*]}"
-  fi
-  if [[ ${#unverified[@]} -gt 0 ]]; then
-    echo "  UNVERIFIED (non-PASS verdict): ${unverified[*]}"
-    RUN_SUBAGENTS_UNVERIFIED=${#unverified[@]}
-    RUN_SUBAGENTS_UNVERIFIED_NAMES="${unverified[*]}"
-  fi
-  if [[ ${#failed[@]} -gt 0 ]]; then
-    echo "  FAILED: ${failed[*]}"
-    return 1
-  fi
-  return 0
 }
 
-# Run subagents with verify-fix loop.
+# Audit, repair known issues, and recheck within a bounded number of iterations.
 # Usage: verify_fix_loop STATE_FILE SUBAGENT_DIR REPORT_DIR [MAX_ITERATIONS]
 verify_fix_loop() {
   local state_file="$1" subagent_dir="$2" report_dir="$3" max_iter="${4:-3}"
-  local script_dir
+  local script_dir i
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
   for ((i=1; i<=max_iter; i++)); do
     echo ""
     echo "Verification iteration $i/$max_iter..."
 
-    local run_rc=0
-    run_subagents "$state_file" "$subagent_dir" "$report_dir" || run_rc=$?
+    run_subagents "$state_file" "$subagent_dir" "$report_dir" || return 1
 
-    # Evidence completeness and scanner health are prerequisites. Do this before
-    # reading any LLM verdict so a PASS can never mask a crashed companion.
+    # Evidence completeness and scanner health are prerequisites for repairs.
     local evidence_rc=0
     evidence_verdict "$report_dir" "$subagent_dir" || evidence_rc=$?
     if [[ $evidence_rc -eq 2 ]]; then
@@ -2734,8 +2501,7 @@ verify_fix_loop() {
         return 1
       fi
 
-      # Dispatch every dirty companion directly from its evidence. LLM reports
-      # remain a semantic cross-check, never the trigger for known mechanical work.
+      # Dispatch only the known mechanical repairs identified by valid evidence.
       local sa_name evidence_file synthesized fix_fn
       for sa_name in "${dirty_evidence[@]}"; do
         evidence_file="$report_dir/${sa_name}.evidence"
@@ -2753,42 +2519,10 @@ verify_fix_loop() {
       continue
     fi
 
-    if [[ $run_rc -eq 0 ]]; then
-      RUN_SUBAGENTS_VERIFIED_BY=""
-      # A report that exists but isn't PASS is a real signal — fail closed
-      # (this precedes the evidence fallback per design).
-      if [[ "${RUN_SUBAGENTS_UNVERIFIED:-0}" -gt 0 ]]; then
-        echo "Verification UNVERIFIED (non-PASS verdict) — fix NOT verified: ${RUN_SUBAGENTS_UNVERIFIED_NAMES}"
-        return 1
-      fi
-      # When the LLM gave no verdict (absent, or every subagent skipped for
-      # infra/auth), the deterministic companion evidence is authoritative — it
-      # was still produced in Phase 1. Consult it rather than blindly passing.
-      if [[ "${RUN_SUBAGENTS_CLAUDE_ABSENT:-0}" -gt 0 || "${RUN_SUBAGENTS_SKIPPED:-0}" -gt 0 ]]; then
-        if evidence_verdict "$report_dir" "$subagent_dir"; then
-          echo "Verified deterministically (LLM cross-check unavailable)."
-          RUN_SUBAGENTS_VERIFIED_BY=evidence
-          return 0
-        fi
-        echo "Deterministic evidence did not confirm the fix — fix NOT verified."
-        return 1
-      fi
-      echo "All subagents passed."
-      # shellcheck disable=SC2034 # output variable used by callers/tests
-      RUN_SUBAGENTS_VERIFIED_BY=llm
-      return 0
-    fi
-
-    if [[ $i -eq $max_iter ]]; then
-      echo "Subagents still failing after $max_iter iterations."
-      return 1
-    fi
-
-    # A semantic reviewer disagreement with clean deterministic evidence is
-    # advisory and cannot authorize mutation. Fail closed for human review.
-    echo "LLM review disagreed with clean deterministic evidence; no model-proposed changes were applied."
-    return 1
+    echo "Verified deterministically."
+    return 0
   done
+  return 1
 }
 
 # Fix function: yaml-integrity — remove only unsafe broad ignore selectors

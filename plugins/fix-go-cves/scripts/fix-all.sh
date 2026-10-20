@@ -619,24 +619,19 @@ while IFS= read -r _ic; do
 done <<< "$_ignore_commits"
 unset _ignore_commits _ic _ic_diff _ic_pkg _ic_cves _ic_reason
 
-# Missing audit sources fail through the same verification path as incomplete
-# evidence. An unavailable LLM cannot replace the required deterministic audits.
+# Missing audit sources fail through the same verification path as incomplete evidence.
 _EVIDENCE_VERIFY_STATUS=running
 if ! verify_fix_loop "$STATE_FILE" "$SUBAGENT_DIR" "$SUBAGENT_REPORT_DIR" 3; then
   _EVIDENCE_VERIFY_RC=1
   REVIEW_COUNT=$((REVIEW_COUNT + 1))
   VERIFY_FAILED=true
-  # Keep the report dir (see cleanup trap) and bundle in the state file so a
-  # failed subagent's .agent-output can be inspected or re-run after exit.
+  # Preserve audit evidence and state for inspection or rerunning after exit.
   PRESERVE_REPORTS=1
   cp "$STATE_FILE" "$SUBAGENT_REPORT_DIR/state.env" 2>/dev/null || true
   echo "Reports preserved for debugging: $SUBAGENT_REPORT_DIR"
   FIX_LINES+=("NEEDS_REVIEW: subagent verification failed — reports at $SUBAGENT_REPORT_DIR")
 else
   _EVIDENCE_VERIFY_RC=0
-  if [[ "${RUN_SUBAGENTS_VERIFIED_BY:-}" == "evidence" ]]; then
-    echo "Verified deterministically; LLM cross-check was unavailable."
-  fi
 fi
 _EVIDENCE_VERIFY_STATUS=completed
 

@@ -240,41 +240,6 @@ check "gte newer generic prerelease" version_gte 1.2.3-rc.2 1.2.3-rc.1
 check "gte numeric prerelease below nonnumeric" ! version_gte 1.2.3-1 1.2.3-alpha
 check "gte longer equal prerelease sequence" version_gte 1.2.3-alpha.1 1.2.3-alpha
 
-# Codex CLI transcripts echo prompts and examples. Only the final complete,
-# typed report may become verification state.
-_EAR_INPUT="$TMPD/agent-transcript"
-_EAR_OUTPUT="$TMPD/agent-report"
-cat > "$_EAR_INPUT" <<'EOF'
-prompt example:
-VERDICT: FAIL
-ISSUES: 9
-SUMMARY: example only
-DETAILS:
-example detail
-codex
-VERDICT: PASS
-ISSUES: 0
-SUMMARY: actual answer
-DETAILS:
-hook: Stop
-tokens used
-100
-VERDICT: PASS
-ISSUES: 0
-SUMMARY: actual answer
-DETAILS:
-verified detail
-EOF
-check "agent report extracts final complete block" \
-  extract_agent_report "$_EAR_INPUT" "$_EAR_OUTPUT"
-check "agent report ignores echoed prompt example" \
-  grep -qxF 'SUMMARY: actual answer' "$_EAR_OUTPUT"
-check "agent report retains final details" grep -qxF 'verified detail' "$_EAR_OUTPUT"
-check "agent report excludes earlier details" ! grep -qF 'example detail' "$_EAR_OUTPUT"
-printf '%s\n' 'VERDICT: PASS' 'ISSUES: not-a-number' > "$_EAR_INPUT"
-check "agent report rejects incomplete malformed block" ! \
-  extract_agent_report "$_EAR_INPUT" "$_EAR_OUTPUT"
-
 # === summary formatting (headline CVE count + detail truncation) ===
 # The run headline counts CVEs cleared (tokens after "for" on FIXED lines), not
 # packages or commits, and long CVE lists collapse to "<first> ... (N CVEs)".
@@ -1226,17 +1191,6 @@ check "clean output not infra" ! is_infra_error "$TMPD/ok.out"
 check "missing file not infra" ! is_infra_error "$TMPD/does-not-exist.out"
 check "missing file not auth" ! is_auth_error "$TMPD/does-not-exist.out"
 
-# Skip-vs-fail decision (mirrors run_subagents wait loop): a non-zero exit with
-# an auth OR infra signature and no report skips; everything else fails. Auth is
-# checked first so a 403 (which is deterministic) never routes to a retry bucket.
-# decide: no-retry variant — auth OR infra both skip immediately (no retry attempt).
-# Uses subagent_retry_decision with attempt=max so infra errors also skip rather than retry.
-check "no-report + rc!=0 + auth -> skip"  test "$(subagent_retry_decision 1 "$AUTH_OUT"     1 1)" = skip
-check "no-report + Codex 401 -> skip"      test "$(subagent_retry_decision 1 "$CODEX_AUTH_OUT" 1 3)" = skip
-check "no-report + rc!=0 + 429 -> skip"   test "$(subagent_retry_decision 1 "$TMPD/rl.out"  1 1)" = skip
-check "no-report + rc=0 + auth -> skip"   test "$(subagent_retry_decision 0 "$AUTH_OUT"     1 1)" = skip
-check "no-report + rc!=0 + clean -> fail" test "$(subagent_retry_decision 1 "$TMPD/ok.out"  1 1)" = fail
-
 # Model override: CVE_FIX_MODEL empty -> no --model flag (uses selected agent default).
 build_model_args() { local -a a=(); [[ -n "${CVE_FIX_MODEL:-}" ]] && a=(--model "$CVE_FIX_MODEL"); echo "${#a[@]}"; }
 check "no model flag by default" bash -c "unset CVE_FIX_MODEL; $(declare -f build_model_args); test \"\$(build_model_args)\" = 0"
@@ -1250,16 +1204,6 @@ check "backoff attempt1=2" test "$(CVE_FIX_RETRY_BASE=2 cve_fix_backoff_delay 1)
 check "backoff attempt3=8" test "$(CVE_FIX_RETRY_BASE=2 cve_fix_backoff_delay 3)" = 8
 check "backoff capped at 30" test "$(CVE_FIX_RETRY_BASE=2 cve_fix_backoff_delay 8)" = 30
 check "backoff base override 0" test "$(CVE_FIX_RETRY_BASE=0 cve_fix_backoff_delay 3)" = 0
-
-# Retry decision: delegates to subagent_retry_decision from lib.sh.
-check "auth error -> skip, never retry"  test "$(subagent_retry_decision 1 "$AUTH_OUT" 1 3)" = skip
-check "infra 429 early attempt -> retry" test "$(subagent_retry_decision 1 "$TMPD/rl.out" 1 3)" = retry
-check "infra 429 last attempt -> skip"   test "$(subagent_retry_decision 1 "$TMPD/rl.out" 3 3)" = skip
-check "genuine no-report -> no retry" test "$(subagent_retry_decision 1 "$TMPD/ok.out" 1 3)" = fail
-check "rc=0 auth still skips" test "$(subagent_retry_decision 0 "$AUTH_OUT" 1 3)" = skip
-check "silent timeout early attempt retries" test "$(subagent_retry_decision 124 "$TMPD/ok.out" 1 3)" = retry
-check "silent timeout last attempt uses evidence fallback" test "$(subagent_retry_decision 124 "$TMPD/ok.out" 3 3)" = skip
-check "timeout with auth diagnostic still skips immediately" test "$(subagent_retry_decision 124 "$AUTH_OUT" 1 3)" = skip
 
 # === UNRESOLVED feedback loop: review.sh -> fix-all.sh ===
 # Behavioral: cve_fix_exit_code must return non-zero when UNSEEN_NEEDS_REVIEW=true.
@@ -2031,13 +1975,13 @@ rm -f "$EV_DIR"/*.evidence
 check "evidence missing -> fail" ! evidence_verdict "$EV_DIR"
 
 
-# === Real verify_fix_loop, selected agent absent (hermetic): PATH-stripped,
-# complete companion evidence is authoritative and invalid evidence cannot repair. ===
-echo "verify_fix_loop (real, agent absent)"
-vfl_case() {  # $1=casedir $2=iterations -> prints "rc=<n> by=<verified_by>"
+# === Real deterministic verification: complete evidence permits bounded repair,
+# while incomplete evidence and installed model CLIs cannot authorize it. ===
+echo "verify_fix_loop (deterministic)"
+vfl_case() {  # $1=casedir $2=iterations -> prints "rc=<n>"
   local casedir="$1" iterations="${2:-1}" rc=0
   (
-    PATH="/usr/bin:/bin"  # excludes claude, includes coreutils the loop needs
+    PATH="${VFL_TEST_PATH:-/usr/bin:/bin}"
     subagent_fix_yaml_integrity() {
       local count=0
       [[ ! -f "$casedir/repair-dispatched" ]] || read -r count < "$casedir/repair-dispatched"
@@ -2045,7 +1989,7 @@ vfl_case() {  # $1=casedir $2=iterations -> prints "rc=<n> by=<verified_by>"
     }
     verify_fix_loop "$casedir/state.env" "$casedir/subagents" "$casedir/report" "$iterations" \
       >/dev/null 2>&1 || rc=$?
-    echo "rc=$rc by=${RUN_SUBAGENTS_VERIFIED_BY:-}"
+    echo "rc=$rc"
   )
 }
 mk_vfl_case() {  # $1=casedir $2=scan-regression body $3=yaml-integrity body
@@ -2063,40 +2007,73 @@ mk_vfl_case() {  # $1=casedir $2=scan-regression body $3=yaml-integrity body
 # Clean evidence -> verified via deterministic fallback.
 mk_vfl_case "$TMPD/vfl-clean" 'echo "NEW_CVES=0 UNRESOLVED=0"' 'echo "NEW_ISSUES=0"'
 check "vfl clean -> verified by evidence" \
-  test "$(vfl_case "$TMPD/vfl-clean")" = "rc=0 by=evidence"
+  test "$(vfl_case "$TMPD/vfl-clean")" = "rc=0"
 # Marker-less scan-regression (crashed before its NEW_CVES= line) -> 1b fails closed.
 mk_vfl_case "$TMPD/vfl-mlscan" 'echo "boom: crashed before marker"' 'echo "NEW_ISSUES=0"'
 check "vfl marker-less scan-regression -> not verified" \
-  test "$(vfl_case "$TMPD/vfl-mlscan")" = "rc=1 by="
+  test "$(vfl_case "$TMPD/vfl-mlscan")" = "rc=1"
 # Clean scan-regression but a marker-less other companion -> 1a fails closed.
 mk_vfl_case "$TMPD/vfl-mlcomp" 'echo "NEW_CVES=0 UNRESOLVED=0"' 'echo "boom: crashed"'
 check "vfl marker-less companion -> not verified" \
-  test "$(vfl_case "$TMPD/vfl-mlcomp")" = "rc=1 by="
+  test "$(vfl_case "$TMPD/vfl-mlcomp")" = "rc=1"
 mk_vfl_case "$TMPD/vfl-invalid-positive" 'echo "NEW_CVES=0"' 'echo "NEW_ISSUES=1"'
 check "vfl invalid evidence blocks a simultaneous valid repair" \
-  test "$(vfl_case "$TMPD/vfl-invalid-positive" 2)" = "rc=1 by="
+  test "$(vfl_case "$TMPD/vfl-invalid-positive" 2)" = "rc=1"
 check "vfl invalid evidence never dispatches repair" ! test -e "$TMPD/vfl-invalid-positive/repair-dispatched"
 mk_vfl_case "$TMPD/vfl-valid-positive" 'echo "NEW_CVES=0 UNRESOLVED=0"' \
   'if [[ -f "$2/../repair-dispatched" ]]; then echo "NEW_ISSUES=0"; else echo "NEW_ISSUES=1"; fi'
 check "vfl valid issue dispatches repair then verifies fresh evidence" \
-  test "$(vfl_case "$TMPD/vfl-valid-positive" 2)" = "rc=0 by=evidence"
+  test "$(vfl_case "$TMPD/vfl-valid-positive" 2)" = "rc=0"
 check "vfl valid issue dispatches exactly once" test "$(cat "$TMPD/vfl-valid-positive/repair-dispatched" 2>/dev/null)" = 1
 mk_vfl_case "$TMPD/vfl-missing-script" 'echo "NEW_CVES=0 UNRESOLVED=0"' 'echo "NEW_ISSUES=0"'
 printf 'NEW_ISSUES=0\n' > "$TMPD/vfl-missing-script/report/existing-entries.evidence"
 rm "$TMPD/vfl-missing-script/subagents/existing-entries.sh"
 check "vfl absent script cannot reuse prior clean evidence" \
-  test "$(vfl_case "$TMPD/vfl-missing-script")" = "rc=1 by="
+  test "$(vfl_case "$TMPD/vfl-missing-script")" = "rc=1"
 check "vfl clears evidence left by a removed script" ! test -e "$TMPD/vfl-missing-script/report/existing-entries.evidence"
-mk_vfl_case "$TMPD/vfl-llm-pass-invalid" 'echo "NEW_CVES=0"' 'echo "NEW_ISSUES=0"'
-check "LLM PASS cannot authorize incomplete deterministic evidence" bash -c '
-  source "$1/lib.sh"
-  run_subagents() {
-    _run_companions "$2" "$1" "$3"
-    RUN_SUBAGENTS_UNVERIFIED=0 RUN_SUBAGENTS_CLAUDE_ABSENT=0 RUN_SUBAGENTS_SKIPPED=0
-    return 0
-  }
-  ! verify_fix_loop "$2/state.env" "$2/subagents" "$2/report" 1
-' _ "$SCRIPT_DIR" "$TMPD/vfl-llm-pass-invalid"
+
+# Both supported CLIs are visibly installed and fail loudly if verification
+# invokes them. Even obsolete prompt files must not create model calls.
+VFL_POISON="$TMPD/vfl-poison"; mkdir -p "$VFL_POISON"
+for _vfl_provider in claude codex; do
+  printf '#!/usr/bin/env bash\necho "${0##*/}" >> "$VFL_POISON_LOG"\necho "unexpected verification model call" >&2\nexit 42\n' \
+    > "$VFL_POISON/$_vfl_provider"
+  chmod +x "$VFL_POISON/$_vfl_provider"
+done
+export VFL_POISON_LOG="$TMPD/vfl-model-calls"
+for _vfl_provider in claude codex; do
+  for _vfl_mode in clean repair incomplete; do
+    _vfl_case="$TMPD/vfl-$_vfl_provider-$_vfl_mode"
+    _vfl_scan='echo "NEW_CVES=0 UNRESOLVED=0"'
+    _vfl_yaml='echo "NEW_ISSUES=0"'
+    _vfl_expected='rc=0'
+    case "$_vfl_mode" in
+      repair) _vfl_yaml='if [[ -f "$2/../repair-dispatched" ]]; then echo "NEW_ISSUES=0"; else echo "NEW_ISSUES=1"; fi' ;;
+      incomplete) _vfl_scan='echo "NEW_CVES=0"'; _vfl_expected='rc=1' ;;
+    esac
+    mk_vfl_case "$_vfl_case" "$_vfl_scan" "$_vfl_yaml"
+    printf 'Obsolete verifier prompt; never invoke a model.\n' > "$_vfl_case/subagents/scan-regression.md"
+    check "deterministic $_vfl_mode ignores installed $_vfl_provider" \
+      test "$(CVE_FIX_AGENT="$_vfl_provider" VFL_TEST_PATH="$VFL_POISON:/usr/bin:/bin" \
+        vfl_case "$_vfl_case" 2)" = "$_vfl_expected"
+    if [[ "$_vfl_mode" == repair ]]; then
+      check "deterministic $_vfl_provider repair dispatches once" \
+        test "$(cat "$_vfl_case/repair-dispatched" 2>/dev/null)" = 1
+    fi
+  done
+done
+check "deterministic verification never invokes either installed model CLI" ! test -e "$VFL_POISON_LOG"
+
+mk_vfl_case "$TMPD/vfl-persistent" 'echo "NEW_CVES=0 UNRESOLVED=0"' \
+  'n=$(cat "$2/../audit-count" 2>/dev/null || echo 0); echo "$((n + 1))" > "$2/../audit-count"; echo "NEW_ISSUES=1"'
+check "persistent issues exhaust the bounded verification loop" \
+  test "$(vfl_case "$TMPD/vfl-persistent" 3)" = 'rc=1'
+check "persistent issues run exactly three audits" test "$(cat "$TMPD/vfl-persistent/audit-count")" = 3
+check "persistent issues dispatch at most two repairs" test "$(cat "$TMPD/vfl-persistent/repair-dispatched")" = 2
+mk_vfl_case "$TMPD/vfl-zero" 'echo "NEW_CVES=0 UNRESOLVED=0"' 'echo "NEW_ISSUES=0"'
+check "zero iterations cannot report successful verification" \
+  test "$(vfl_case "$TMPD/vfl-zero" 0)" = 'rc=1'
+check "zero iterations do not fabricate evidence" ! test -e "$TMPD/vfl-zero/report/scan-regression.evidence"
 
 # === Summary counts from git log (Commit 6) ===
 # COMMIT_COUNT can be lower than packages-fixed when a package resolves transitively (no dedicated commit).
@@ -6424,287 +6401,7 @@ check "K8S guard submodule-only: no FIXED line"    ! grep -qi 'FIXED:' <<< "$FP_
 # tools/go.mod must have been rolled back to v0.30.0
 check "K8S guard submodule-only: tools rolled back" grep -q 'v0\.30\.0' "$FP_K8SM/tools/go.mod"
 
-# === _collect_agent_results real invocation (Bug #2) ===
-# The function was never called by any test; only local re-implementations
-# (retry_or_skip, decide) mirrored its logic. A bug in the
-# if-elif ordering or wait-pid classification would go undetected. Drive the
-# REAL function with controlled background jobs (exit codes) and report files.
-echo "_collect_agent_results real invocation"
-CAR_DIR="$TMPD/car"; mkdir -p "$CAR_DIR"
-
-# Helper: run _collect_agent_results in an isolated subshell and emit
-# "failed=F skipped=S unverified=U retry=R" for assertion.
-car_run() {  # attempt max_attempts [pid:name:rc:report_content]...
-  local attempt="$1" max="$2"; shift 2
-  local -a pids_spec=("$@")
-  (
-    source "$SCRIPT_DIR/lib.sh"
-    _RSA_PIDS=()
-    local spec pid sa_name rc report_content
-    for spec in "${pids_spec[@]}"; do
-      pid="${spec%%:*}"; rest="${spec#*:}"
-      sa_name="${rest%%:*}"; rest="${rest#*:}"
-      rc="${rest%%:*}"; report_content="${rest#*:}"
-      # Write report file if content is non-empty ("-" means no report)
-      if [[ "$report_content" != "-" ]]; then
-        printf '%s\n' "$report_content" > "$CAR_DIR/${sa_name}.report"
-      else
-        rm -f "$CAR_DIR/${sa_name}.report"
-      fi
-      # Write output file (used by is_auth_error / is_infra_error)
-      printf '%s\n' "${rc}" > "$CAR_DIR/${sa_name}.agent-output"
-      # The waiter must own the child; a PID reaped by the outer shell only
-      # exercises wait's exit 127, not the requested process exit status.
-      (exit "$rc") & pid=$!
-      _RSA_PIDS+=("$pid:$sa_name")
-    done
-    _collect_agent_results "$CAR_DIR" "$attempt" "$max" >/dev/null 2>&1
-    echo "failed=${#_RSA_FAILED[@]} skipped=${#_RSA_SKIPPED[@]} unverified=${#_RSA_UNVERIFIED[@]} retry=${#_RSA_RETRY[@]}"
-  )
-}
-
-# (a) PASS report → cleared (not in any bucket).
-(sleep 0) & _CAR_PID=$!; wait "$_CAR_PID" 2>/dev/null || true
-_CAR_PASS_OUT=$(car_run 1 3 "${_CAR_PID}:agent-pass:0:VERDICT: PASS
-ISSUES: 0")
-check "car PASS: cleared (0 failed/skipped/unverified/retry)" \
-  test "$_CAR_PASS_OUT" = "failed=0 skipped=0 unverified=0 retry=0"
-
-# (b) FAIL report → _RSA_FAILED.
-(sleep 0) & _CAR_PID=$!; wait "$_CAR_PID" 2>/dev/null || true
-_CAR_FAIL_OUT=$(car_run 1 3 "${_CAR_PID}:agent-fail:0:VERDICT: FAIL
-ISSUES: 1")
-check "car FAIL: in failed bucket" \
-  test "$_CAR_FAIL_OUT" = "failed=1 skipped=0 unverified=0 retry=0"
-
-# (c) Garbled/missing verdict in report → _RSA_UNVERIFIED (fail closed).
-(sleep 0) & _CAR_PID=$!; wait "$_CAR_PID" 2>/dev/null || true
-_CAR_UNVER_OUT=$(car_run 1 3 "${_CAR_PID}:agent-unver:0:VERDICT: MAYBE
-ISSUES: 0")
-check "car garbled verdict: in unverified bucket" \
-  test "$_CAR_UNVER_OUT" = "failed=0 skipped=0 unverified=1 retry=0"
-
-# (d) No report + non-zero exit + auth error → _RSA_SKIPPED (never retry).
-(sleep 0; exit 1) & _CAR_PID=$!; wait "$_CAR_PID" 2>/dev/null || true
-printf 'API Error: 403 Forbidden\n' > "$CAR_DIR/agent-auth.agent-output"
-_CAR_AUTH_OUT=$(
-  source "$SCRIPT_DIR/lib.sh"
-  _RSA_PIDS=("${_CAR_PID}:agent-auth")
-  rm -f "$CAR_DIR/agent-auth.report"
-  _collect_agent_results "$CAR_DIR" 1 3 >/dev/null 2>&1
-  echo "failed=${#_RSA_FAILED[@]} skipped=${#_RSA_SKIPPED[@]} unverified=${#_RSA_UNVERIFIED[@]} retry=${#_RSA_RETRY[@]}"
-)
-check "car auth error: skipped, not retried" \
-  test "$_CAR_AUTH_OUT" = "failed=0 skipped=1 unverified=0 retry=0"
-
-# (e) No report + non-zero exit + infra error + attempts remaining → _RSA_RETRY.
-(sleep 0; exit 1) & _CAR_PID=$!; wait "$_CAR_PID" 2>/dev/null || true
-printf 'API Error: 429 rate limited\n' > "$CAR_DIR/agent-429.agent-output"
-_CAR_429E_OUT=$(
-  source "$SCRIPT_DIR/lib.sh"
-  _RSA_PIDS=("${_CAR_PID}:agent-429")
-  rm -f "$CAR_DIR/agent-429.report"
-  _collect_agent_results "$CAR_DIR" 1 3 >/dev/null 2>&1
-  echo "failed=${#_RSA_FAILED[@]} skipped=${#_RSA_SKIPPED[@]} unverified=${#_RSA_UNVERIFIED[@]} retry=${#_RSA_RETRY[@]}"
-)
-check "car infra 429 early attempt: in retry" \
-  test "$_CAR_429E_OUT" = "failed=0 skipped=0 unverified=0 retry=1"
-
-# (f) No report + non-zero exit + infra error + exhausted attempts → _RSA_SKIPPED.
-(sleep 0; exit 1) & _CAR_PID=$!; wait "$_CAR_PID" 2>/dev/null || true
-printf 'API Error: 429 rate limited\n' > "$CAR_DIR/agent-429x.agent-output"
-_CAR_429X_OUT=$(
-  source "$SCRIPT_DIR/lib.sh"
-  _RSA_PIDS=("${_CAR_PID}:agent-429x")
-  rm -f "$CAR_DIR/agent-429x.report"
-  _collect_agent_results "$CAR_DIR" 3 3 >/dev/null 2>&1
-  echo "failed=${#_RSA_FAILED[@]} skipped=${#_RSA_SKIPPED[@]} unverified=${#_RSA_UNVERIFIED[@]} retry=${#_RSA_RETRY[@]}"
-)
-check "car infra 429 last attempt: skipped" \
-  test "$_CAR_429X_OUT" = "failed=0 skipped=1 unverified=0 retry=0"
-
-# (g) No report + non-zero exit + no error signature → _RSA_FAILED (fail closed).
-(sleep 0; exit 1) & _CAR_PID=$!; wait "$_CAR_PID" 2>/dev/null || true
-printf 'some unexpected output\n' > "$CAR_DIR/agent-noreport.agent-output"
-_CAR_NR_OUT=$(
-  source "$SCRIPT_DIR/lib.sh"
-  (exit 1) & _CAR_PID=$!
-  _RSA_PIDS=("${_CAR_PID}:agent-noreport")
-  rm -f "$CAR_DIR/agent-noreport.report"
-  _collect_agent_results "$CAR_DIR" 1 3 >/dev/null 2>&1
-  echo "failed=${#_RSA_FAILED[@]} skipped=${#_RSA_SKIPPED[@]} unverified=${#_RSA_UNVERIFIED[@]} retry=${#_RSA_RETRY[@]}"
-)
-check "car failed process without report: unverified" \
-  test "$_CAR_NR_OUT" = "failed=0 skipped=0 unverified=1 retry=0"
-
-
-# (h) Codex can echo the prompt's FAIL example and then return zero on model
-# capacity. The provider error must win before report extraction.
-cat > "$CAR_DIR/agent-capacity.agent-output" <<'EOF'
-VERDICT: FAIL
-ISSUES: 2
-SUMMARY: prompt example
-DETAILS:
-example only
-ERROR: Selected model is at capacity. Please try a different model.
-EOF
-_CAR_CAPACITY_OUT=$(
-  source "$SCRIPT_DIR/lib.sh"
-  (exit 0) & _CAR_CAPACITY_PID=$!
-  _RSA_PIDS=("${_CAR_CAPACITY_PID}:agent-capacity")
-  rm -f "$CAR_DIR/agent-capacity.report"
-  _collect_agent_results "$CAR_DIR" 1 3 >/dev/null 2>&1
-  echo "failed=${#_RSA_FAILED[@]} skipped=${#_RSA_SKIPPED[@]} unverified=${#_RSA_UNVERIFIED[@]} retry=${#_RSA_RETRY[@]} report=$([[ -f "$CAR_DIR/agent-capacity.report" ]] && echo yes || echo no)"
-)
-check "car rc=0 capacity: retries without parsing prompt example" \
-  test "$_CAR_CAPACITY_OUT" = "failed=0 skipped=0 unverified=0 retry=1 report=no"
-
-
-# === _launch_llm_agents real invocation ===
-# R139 found this function (lib.sh:874) had zero test coverage. Drive the REAL
-# function with a mock 'claude' binary on PATH to verify PID population,
-# output-file creation, and echo formatting without network or API access.
-echo "_launch_llm_agents real invocation"
-LLA_DIR="$TMPD/lla"; mkdir -p "$LLA_DIR"
-git init -q "$LLA_DIR"
-
-# Mock 'claude': echoes its args and exits 0 so the function sees a successful run.
-LLA_MOCK_DIR="$TMPD/lla-mock-bin"; mkdir -p "$LLA_MOCK_DIR"
-printf '#!/usr/bin/env bash\necho "mock-claude args: $*"\nexit 0\n' \
-  > "$LLA_MOCK_DIR/claude"
-chmod +x "$LLA_MOCK_DIR/claude"
-
-# (a) Single agent, attempt 1: _RSA_PIDS gets 1 entry and output file is created.
-rm -f "$LLA_DIR"/*.agent-output
-_LLA_OUT=$(
-  source "$SCRIPT_DIR/lib.sh"
-  export PATH="$LLA_MOCK_DIR:$PATH"
-  ENV_SCRUB=()
-  _RSA_PENDING=("scan-agent")
-  declare -A _RSA_PROMPT; _RSA_PROMPT["scan-agent"]="my prompt"
-  _launch_llm_agents "$LLA_DIR" 1 3 >/dev/null 2>&1
-  wait 2>/dev/null || true
-  out="pids=${#_RSA_PIDS[@]}"
-  [[ -f "$LLA_DIR/scan-agent.agent-output" ]] && out+=" file=yes" || out+=" file=no"
-  echo "$out"
-)
-check "lla single agent: 1 PID entry" grep -q "pids=1" <<< "$_LLA_OUT"
-check "lla single agent: output file created" grep -q "file=yes" <<< "$_LLA_OUT"
-
-# (b) PID entry format is "digits:name" — the number is a real pid, name is preserved.
-_LLA_PID=$(
-  source "$SCRIPT_DIR/lib.sh"
-  export PATH="$LLA_MOCK_DIR:$PATH"
-  ENV_SCRUB=()
-  _RSA_PENDING=("myagent")
-  declare -A _RSA_PROMPT; _RSA_PROMPT["myagent"]="test"
-  _launch_llm_agents "$LLA_DIR" 1 3 >/dev/null 2>&1
-  wait 2>/dev/null || true
-  echo "${_RSA_PIDS[0]}"
-)
-check "lla PID entry format digits:name" bash -c '[[ "'"$_LLA_PID"'" =~ ^[0-9]+:myagent$ ]]'
-
-# (c) Two agents: _RSA_PIDS has 2 entries and both output files are created.
-rm -f "$LLA_DIR"/*.agent-output
-_LLA_OUT2=$(
-  source "$SCRIPT_DIR/lib.sh"
-  export PATH="$LLA_MOCK_DIR:$PATH"
-  ENV_SCRUB=()
-  _RSA_PENDING=("alpha" "beta")
-  declare -A _RSA_PROMPT; _RSA_PROMPT["alpha"]="prompt-a"; _RSA_PROMPT["beta"]="prompt-b"
-  _launch_llm_agents "$LLA_DIR" 1 3 >/dev/null 2>&1
-  wait 2>/dev/null || true
-  out="pids=${#_RSA_PIDS[@]}"
-  [[ -f "$LLA_DIR/alpha.agent-output" ]] && out+=" alpha=yes" || out+=" alpha=no"
-  [[ -f "$LLA_DIR/beta.agent-output" ]] && out+=" beta=yes" || out+=" beta=no"
-  echo "$out"
-)
-check "lla two agents: 2 PID entries" grep -q "pids=2" <<< "$_LLA_OUT2"
-check "lla two agents: alpha output file" grep -q "alpha=yes" <<< "$_LLA_OUT2"
-check "lla two agents: beta output file" grep -q "beta=yes" <<< "$_LLA_OUT2"
-
-# (d) No pending agents: _RSA_PIDS stays empty.
-_LLA_EMPTY=$(
-  source "$SCRIPT_DIR/lib.sh"
-  export PATH="$LLA_MOCK_DIR:$PATH"
-  ENV_SCRUB=()
-  _RSA_PENDING=()
-  _launch_llm_agents "$LLA_DIR" 1 3 >/dev/null 2>&1
-  echo "pids=${#_RSA_PIDS[@]}"
-)
-check "lla empty pending: 0 PID entries" test "$_LLA_EMPTY" = "pids=0"
-
-# (e) Mock claude output lands in the .agent-output file.
-rm -f "$LLA_DIR/content-agent.agent-output"
-(
-  source "$SCRIPT_DIR/lib.sh"
-  export PATH="$LLA_MOCK_DIR:$PATH"
-  ENV_SCRUB=()
-  _RSA_PENDING=("content-agent")
-  declare -A _RSA_PROMPT; _RSA_PROMPT["content-agent"]="my prompt"
-  _launch_llm_agents "$LLA_DIR" 1 3 >/dev/null 2>&1
-  wait 2>/dev/null || true
-)
-check "lla output file contains mock output" grep -q "mock-claude" "$LLA_DIR/content-agent.agent-output"
-
-# (f) Retry message format: attempt > 1 emits "(retry N/M)" in the banner.
-_LLA_RETRY=$(
-  source "$SCRIPT_DIR/lib.sh"
-  export PATH="$LLA_MOCK_DIR:$PATH"
-  ENV_SCRUB=()
-  _RSA_PENDING=("retry-agent")
-  declare -A _RSA_PROMPT; _RSA_PROMPT["retry-agent"]="prompt"
-  _launch_llm_agents "$LLA_DIR" 2 3 2>&1
-  wait 2>/dev/null || true
-)
-check "lla retry message format" grep -q "retry-agent (retry 1/2)" <<< "$_LLA_RETRY"
-
-# (g) Non-empty ENV_SCRUB: scrubbed var must be absent in the subprocess env.
-# Uses a separate mock claude that prints the value of LLA_SCRUB_VAR (or ABSENT
-# when unset) so the test can verify the env -u scrub actually takes effect.
-LLA_SCRUB_DIR="$TMPD/lla-scrub-bin"; mkdir -p "$LLA_SCRUB_DIR"
-printf '#!/usr/bin/env bash\necho "SCRUB_VAR=${LLA_SCRUB_VAR:-ABSENT}"\nexit 0\n' \
-  > "$LLA_SCRUB_DIR/claude"
-chmod +x "$LLA_SCRUB_DIR/claude"
-
-rm -f "$LLA_DIR/scrub-agent.agent-output"
-(
-  source "$SCRIPT_DIR/lib.sh"
-  export PATH="$LLA_SCRUB_DIR:$PATH"
-  export LLA_SCRUB_VAR="secret_sentinel"
-  ENV_SCRUB=(env -u LLA_SCRUB_VAR)
-  _RSA_PENDING=("scrub-agent")
-  declare -A _RSA_PROMPT; _RSA_PROMPT["scrub-agent"]="probe"
-  _launch_llm_agents "$LLA_DIR" 1 3 >/dev/null 2>&1
-  wait 2>/dev/null || true
-)
-check "lla ENV_SCRUB: var absent in subprocess" grep -q "SCRUB_VAR=ABSENT" "$LLA_DIR/scrub-agent.agent-output"
-
-# (h) Codex provider: the same launcher must call `codex exec` with its isolated
-# write/network policy and preserve the prompt as one literal argv element.
-LLA_CODEX_DIR="$TMPD/lla-codex-bin"; mkdir -p "$LLA_CODEX_DIR"
-printf '#!/usr/bin/env bash\nprintf "mock-codex arg=<%%s>\\n" "$@"\nexit 0\n' \
-  > "$LLA_CODEX_DIR/codex"
-chmod +x "$LLA_CODEX_DIR/codex"
-rm -f "$LLA_DIR/codex-agent.agent-output"
-(
-  source "$SCRIPT_DIR/lib.sh"
-  export PATH="$LLA_CODEX_DIR:$PATH"
-  CVE_FIX_AGENT=codex
-  REPO="$LLA_DIR"
-  ENV_SCRUB=()
-  _RSA_PENDING=("codex-agent")
-  declare -A _RSA_PROMPT; _RSA_PROMPT["codex-agent"]='literal $(do-not-run) prompt'
-  _launch_llm_agents "$LLA_DIR" 1 3 >/dev/null 2>&1
-  wait 2>/dev/null || true
-)
-check "lla Codex: invokes exec" grep -qF 'mock-codex arg=<exec>' "$LLA_DIR/codex-agent.agent-output"
-check "lla Codex: ephemeral" grep -qF 'mock-codex arg=<--ephemeral>' "$LLA_DIR/codex-agent.agent-output"
-check "lla Codex: target repository is not the working directory" ! grep -qF "mock-codex arg=<$LLA_DIR>" "$LLA_DIR/codex-agent.agent-output"
-check "lla Codex: runs in a reviewer directory" grep -qE 'mock-codex arg=<.*/cve-fix-reviewer\.[^/]*>' "$LLA_DIR/codex-agent.agent-output"
-check "lla Codex: prompt stays literal" grep -qF 'mock-codex arg=<literal $(do-not-run) prompt>' "$LLA_DIR/codex-agent.agent-output"
-
-# (i) Main review path with Codex: exercise review.sh itself, including provider
+# Main review path with Codex: exercise review.sh itself, including provider
 # selection, structured-output parsing, and stdin isolation.
 REVIEW_CODEX_REPO="$TMPD/review-codex-repo"
 make_test_repo "$REVIEW_CODEX_REPO"
@@ -8519,21 +8216,6 @@ check "stdlib fallback finds explicit common stream" test "$GO_SHARED_RC" -eq 0
 check "stdlib fallback uses common threshold" grep -q '^toolchain go1.26.2$' "$GO_SHARED_REPO/go.mod"
 check "stdlib fallback preserves library language floor" grep -q '^go 1.18$' "$GO_SHARED_REPO/go.mod"
 
-_CAR_FAILED_PASS_OUT=$(car_run 1 3 "0:agent-failed-pass:7:VERDICT: PASS
-ISSUES: 0")
-check "failed reviewer child cannot pass via report file" \
-  test "$_CAR_FAILED_PASS_OUT" = "failed=0 skipped=0 unverified=1 retry=0"
-_CAR_FAILED_TRANSCRIPT_OUT=$(
-  source "$SCRIPT_DIR/lib.sh"
-  printf '%s\n' 'VERDICT: PASS' 'ISSUES: 0' 'SUMMARY: unconfirmed' 'DETAILS:' > "$CAR_DIR/failed-transcript.agent-output"
-  rm -f "$CAR_DIR/failed-transcript.report"
-  (exit 7) & pid=$!
-  _RSA_PIDS=("$pid:failed-transcript")
-  _collect_agent_results "$CAR_DIR" 1 3 >/dev/null 2>&1
-  echo "unverified=${#_RSA_UNVERIFIED[@]} report=$([[ -f "$CAR_DIR/failed-transcript.report" ]] && echo yes || echo no)"
-)
-check "failed reviewer child cannot publish stdout report" test "$_CAR_FAILED_TRANSCRIPT_OUT" = "unverified=1 report=no"
-
 rm -f "$REVIEW_CAPACITY_COUNT" "${REVIEW_CODEX_STATE}.review-unresolved"
 cat > "$REVIEW_CODEX_BIN/codex" <<'EOF'
 #!/usr/bin/env bash
@@ -9375,6 +9057,7 @@ env PATH="$CR_WORKFLOW/bin:$PATH" GOMODCACHE="$RESTORE_REAL/modcache" GOFLAGS=-m
   GOPRIVATE= GONOPROXY=none GOPROXY="file://$RESTORE_REAL/proxy" GOSUMDB=off \
   CVE_FIX_GRYPE_VERSION=v9.8.7 CVE_FIX_AGENT=codex CVE_FIX_AGENT_ATTEMPTS=1 \
   CVE_FIX_AGENT_TIMEOUT=10 CVE_FIX_MAX_ITERATIONS=2 \
+  CVE_FIX_EVIDENCE_DIR="$CR_WORKFLOW/evidence" \
   bash "$CR_WORKFLOW/skill/scripts/fix-all.sh" "$CR_WORKFLOW/repo" devel \
   > "$CR_WORKFLOW/workflow.log" 2>&1 || _CR_WORKFLOW_RC=$?
 check "two-module native workflow remains partial for rejected tools API" test "$_CR_WORKFLOW_RC" -eq 2
@@ -9382,7 +9065,18 @@ check "two-module native workflow commits safe root requirement" grep -q 'exampl
 check "two-module native workflow restores rejected tools requirement" grep -q 'example.com/restore v1.0.0$' "$CR_WORKFLOW/repo/tools/go.mod"
 check "two-module native workflow reports root success with scope" grep -q '^FIXED: example.com/restore v1.0.1 for CVE-ROOT at /go.mod$' "$CR_WORKFLOW/workflow.log"
 check "two-module native workflow retains scoped tools review" grep -q '^NEEDS_REVIEW: example.com/restore .* at /tools/go.mod$' "$CR_WORKFLOW/workflow.log"
-check "two-module native workflow suppresses PR when companion verification fails" grep -q 'NOT READY TO PUSH' "$CR_WORKFLOW/workflow.log"
+check "two-module native workflow completes deterministic verification" jq -e \
+  '.phases.verification == "completed" and .verification_exit_code == 0' "$CR_WORKFLOW/evidence/run.json"
+check "two-module native workflow retains clean scan-regression counters after repair" \
+  grep -qx 'NEW_CVES=0 UNRESOLVED=0' "$CR_WORKFLOW/evidence/audits/scan-regression.evidence"
+for _cr_audit in existing-entries fix-availability yaml-integrity; do
+  check "two-module native workflow retains clean $_cr_audit counters" \
+    grep -qx 'NEW_ISSUES=0' "$CR_WORKFLOW/evidence/audits/$_cr_audit.evidence"
+done
+check "two-module native workflow explains the missing fork" \
+  grep -q 'PR command unavailable until a writable fork remote is configured' "$CR_WORKFLOW/workflow.log"
+check "two-module native workflow prints no unwitnessed publication command" \
+  ! grep -q '^PR command:' "$CR_WORKFLOW/workflow.log"
 check "two-module native workflow leaves tracked metadata clean" git -C "$CR_WORKFLOW/repo" diff --quiet
 if [[ "$_CR_WORKFLOW_RC" -ne 2 ]]; then tail -n 40 "$CR_WORKFLOW/workflow.log"; fi
 
@@ -9675,11 +9369,7 @@ elif [[ "$REVIEW_TIMEOUT_MODE" == auth-after-timeout ]]; then
   echo 'login required' >&2
   exit 1
 fi
-if [[ "${REVIEW_TIMEOUT_REPORT:-false}" == true ]]; then
-  printf 'VERDICT: PASS\nISSUES: 0\nSUMMARY: Evidence confirms repair\nDETAILS:\n'
-else
-  printf 'RESOLVED: stdlib — supported compiler\n'
-fi
+printf 'RESOLVED: stdlib — supported compiler\n'
 TIMEOUTAGENT
 chmod +x "$REVIEW_TIMEOUT_DIR/bin/codex"
 for _review_timeout_mode in then-success exhausted auth-after-timeout; do
@@ -10183,40 +9873,6 @@ for _replace_kind in same-path fork; do
   check "$_replace_kind rejection restores all metadata" git -C "$_replace_repo" diff --quiet HEAD
 done
 
-echo "verification reviewer timeouts retry with deterministic fallback"
-VERIFY_TIMEOUT_DIR="$REVIEW_TIMEOUT_DIR"
-mkdir -p "$VERIFY_TIMEOUT_DIR/subagents"
-printf '#!/usr/bin/env bash\nprintf "NEW_CVES=0 UNRESOLVED=0\\n"\n' > "$VERIFY_TIMEOUT_DIR/subagents/scan-regression.sh"
-for _verify_audit in existing-entries fix-availability yaml-integrity; do
-  printf '#!/usr/bin/env bash\nprintf "NEW_ISSUES=0\\n"\n' > "$VERIFY_TIMEOUT_DIR/subagents/$_verify_audit.sh"
-done
-printf '# Verification\n\nReview supplied evidence: ${COMPANION_EVIDENCE}\n' > "$VERIFY_TIMEOUT_DIR/subagents/scan-regression.md"
-chmod +x "$VERIFY_TIMEOUT_DIR/subagents/scan-regression.sh"
-for _verify_timeout_mode in then-success exhausted auth-after-timeout; do
-  rm -f "$VERIFY_TIMEOUT_DIR/count"
-  _verify_timeout_rc=0
-  _verify_timeout_out=$(
-    export PATH="$VERIFY_TIMEOUT_DIR/bin:$PATH" CVE_FIX_AGENT=codex
-    export CVE_FIX_AGENT_TIMEOUT=0.3s CVE_FIX_AGENT_ATTEMPTS=3 CVE_FIX_RETRY_BASE=0
-    export REVIEW_TIMEOUT_COUNT="$VERIFY_TIMEOUT_DIR/count" REVIEW_TIMEOUT_MODE="$_verify_timeout_mode" REVIEW_TIMEOUT_REPORT=true
-    verify_fix_loop "$VERIFY_TIMEOUT_DIR/state.env" "$VERIFY_TIMEOUT_DIR/subagents" \
-      "$VERIFY_TIMEOUT_DIR/report-$_verify_timeout_mode" || exit $?
-    printf 'VERIFIED_BY=%s\n' "$RUN_SUBAGENTS_VERIFIED_BY"
-  ) || _verify_timeout_rc=$?
-  check "verification timeout $_verify_timeout_mode: verification completes" test "$_verify_timeout_rc" -eq 0
-  check "verification timeout $_verify_timeout_mode: bounded retry is reported" grep -q 'retrying in 0s' <<< "$_verify_timeout_out"
-  if [[ "$_verify_timeout_mode" == exhausted ]]; then
-    check "verification timeout: retry count stays bounded" test "$(cat "$VERIFY_TIMEOUT_DIR/count")" -eq 3
-  else
-    check "verification timeout $_verify_timeout_mode: second attempt finishes" test "$(cat "$VERIFY_TIMEOUT_DIR/count")" -eq 2
-  fi
-  if [[ "$_verify_timeout_mode" == then-success ]]; then
-    check "verification timeout: successful retry receives an LLM verdict" grep -q '^VERIFIED_BY=llm$' <<< "$_verify_timeout_out"
-  else
-    check "verification timeout $_verify_timeout_mode: clean evidence is required for fallback" grep -q '^VERIFIED_BY=evidence$' <<< "$_verify_timeout_out"
-  fi
-done
-
 echo "ignore edits keep foreign and flow-style entries valid"
 IGY="$TMPD/ignore-yaml"; mkdir -p "$IGY"
 cat > "$IGY/foreign.yaml" <<'YAML'
@@ -10300,8 +9956,6 @@ git -C "$YIF" add -A && git -C "$YIF" commit -qm flow && git -C "$YIF" update-re
 make_go_state "$YIF/state.env" "$YIF"
 _yif_out=$(bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$YIF/state.env" 2>&1 || true)
 check "yaml-integrity accepts a flow-style entry" ! grep -q MISSING_PACKAGE_FIELD <<< "$_yif_out"
-check "prompt examples cannot be parsed as verdicts" \
-  ! grep -qE '^VERDICT: (PASS|FAIL|SKIP)$' "$SCRIPT_DIR"/../subagents/*.md
 
 echo "stdlib fixes respect workspaces and pre-1.21 modules"
 SWK="$TMPD/stdlib-guards"
@@ -10556,10 +10210,6 @@ cp "$SCRIPT_DIR/../subagents/"*.sh "$EVI_ROOT/subagents/"
 cat >> "$EVI_SCRIPTS/lib.sh" <<'SH'
 preflight_check() { return 0; }
 fetch_origin_branch() { return 0; }
-run_subagents() {
-  _run_companions "$2" "$1" "$3"
-  RUN_SUBAGENTS_CLAUDE_ABSENT=1
-}
 run_grype() {
   if [[ "${CVE_FIX_EVIDENCE_PHASE:-}" == final-gate && "${EVI_DEGRADED:-false}" == true ]]; then
     GRYPE_DB_DEGRADED=1
