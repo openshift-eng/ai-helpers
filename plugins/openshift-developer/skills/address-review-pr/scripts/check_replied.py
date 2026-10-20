@@ -201,16 +201,9 @@ def check_issue_comment(
     owner: str, repo: str, pr_number: int, comment_id: str, agent_login: str = "",
 ) -> dict:
     """Check if bot already replied after an issue comment."""
-    try:
-        comments = paginated_items(
-            f"repos/{owner}/{repo}/issues/{pr_number}/comments"
-        )
-    except RuntimeError as e:
-        return {
-            "safe_to_reply": False,
-            "reason": "api_error",
-            "message": str(e)
-        }
+    comments = paginated_items(
+        f"repos/{owner}/{repo}/issues/{pr_number}/comments"
+    )
 
     if not comments:
         return {
@@ -262,16 +255,9 @@ def check_review(
     owner: str, repo: str, pr_number: int, review_id: str, agent_login: str = "",
 ) -> dict:
     """Check if bot already replied after a PR review body (REST numeric review id)."""
-    try:
-        review = run_gh([
-            "api", f"repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}"
-        ])
-    except RuntimeError as e:
-        return {
-            "safe_to_reply": False,
-            "reason": "review_not_found",
-            "message": str(e)
-        }
+    review = run_gh([
+        "api", f"repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}"
+    ])
 
     if not review:
         return {
@@ -288,19 +274,12 @@ def check_review(
             "message": f"Review {review_id} has no submitted_at"
         }
 
-    try:
-        conversation = paginated_items(
-            f"repos/{owner}/{repo}/issues/{pr_number}/comments"
-        )
-        inline = paginated_items(
-            f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
-        )
-    except RuntimeError as e:
-        return {
-            "safe_to_reply": False,
-            "reason": "api_error",
-            "message": str(e)
-        }
+    conversation = paginated_items(
+        f"repos/{owner}/{repo}/issues/{pr_number}/comments"
+    )
+    inline = paginated_items(
+        f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
+    )
 
     for comment in (conversation or []) + (inline or []):
         if comment.get("created_at", "") <= submitted_at:
@@ -328,16 +307,9 @@ def check_review_comment(
     owner: str, repo: str, pr_number: int, comment_id: str, agent_login: str = "",
 ) -> dict:
     """Check if bot already replied to a review comment (inline code comment)."""
-    try:
-        comments = paginated_items(
-            f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
-        )
-    except RuntimeError as e:
-        return {
-            "safe_to_reply": False,
-            "reason": "api_error",
-            "message": str(e)
-        }
+    comments = paginated_items(
+        f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
+    )
 
     if not comments:
         return {

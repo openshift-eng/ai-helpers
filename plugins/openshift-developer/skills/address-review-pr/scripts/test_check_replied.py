@@ -336,21 +336,61 @@ class TestReviewReplyDeduplication(unittest.TestCase):
         )
 
     @patch("check_replied.run_gh")
-    def test_actual_thread_fetch_failure_remains_an_error(self, run_gh):
-        run_gh.side_effect = RuntimeError("thread lookup unavailable")
-        argv = [
-            "check_replied.py", "openshift", "release", "1", "PRRT_1",
-            "--type", "review_thread", "--agent-login", "review-agent",
-        ]
-        stdout = io.StringIO()
-        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
-            with self.assertRaises(SystemExit) as exit_context:
-                main()
+    def test_actual_fetch_failures_remain_errors(self, run_gh):
+        cases = (
+            ("issue_comment", "100"),
+            ("review", "200"),
+            ("review_comment", "300"),
+            ("review_thread", "PRRT_1"),
+        )
+        for comment_type, comment_id in cases:
+            with self.subTest(comment_type=comment_type):
+                run_gh.reset_mock()
+                run_gh.side_effect = RuntimeError("required lookup unavailable")
+                argv = [
+                    "check_replied.py", "openshift", "release", "1", comment_id,
+                    "--type", comment_type, "--agent-login", "review-agent",
+                ]
+                stdout = io.StringIO()
+                with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
+                    with self.assertRaises(SystemExit) as exit_context:
+                        main()
 
-        result = json.loads(stdout.getvalue())
-        self.assertEqual(exit_context.exception.code, 2)
-        self.assertFalse(result["safe_to_reply"])
-        self.assertEqual(result["reason"], "error_fallback")
+                result = json.loads(stdout.getvalue())
+                self.assertEqual(exit_context.exception.code, 2)
+                self.assertFalse(result["safe_to_reply"])
+                self.assertEqual(result["reason"], "error_fallback")
+
+    @patch("check_replied.run_gh")
+    def test_malformed_required_data_remains_an_error(self, run_gh):
+        cases = (
+            (
+                ["check_replied.py", "openshift", "release", "1", "PRRT_1",
+                 "--type", "review_thread", "--agent-login", "review-agent"],
+                [{}],
+            ),
+            (
+                ["check_replied.py", "openshift", "release", "1", "200",
+                 "--type", "review", "--agent-login", "review-agent"],
+                [
+                    {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+                    {"not": "REST pages"},
+                ],
+            ),
+        )
+        for argv, responses in cases:
+            with self.subTest(comment_type=argv[6]):
+                run_gh.reset_mock()
+                run_gh.side_effect = responses
+                stdout = io.StringIO()
+                with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
+                    with self.assertRaises(SystemExit) as exit_context:
+                        main()
+
+                result = json.loads(stdout.getvalue())
+                self.assertEqual(exit_context.exception.code, 2)
+                self.assertFalse(result["safe_to_reply"])
+                self.assertEqual(result["reason"], "error_fallback")
 
     @patch("check_replied.run_gh")
     def test_unknown_identity_without_recognizable_reply_is_best_effort(self, run_gh):
