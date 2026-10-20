@@ -9,18 +9,17 @@ itself.
 ## Next changes
 
 Reporting quotes the observed terminal result, then identifies remaining work
-through read-only source and patch inspection. The smaller workflow removes
-mandatory causal attribution; it does not establish reliable diagnosis. Its
-`2f6102d2` comparison stopped after one completed 005/007 pair: both contracts
-and backport criteria pass, but action/owner fails unanimously for unsupported
-causal claims. The full three-execution comparison remains incomplete.
+through read-only source and patch inspection. The smaller workflow remains
+unaccepted. The bounded-report treatment at `487d0759` failed its first replay
+pair and a real successful-repair reporting check; revert it instead of retaining
+extra format and ownership instructions without demonstrated benefit.
 
-Keep skill acceptance blocked. Detailed failed and incomplete trials, raw scores
-and costs belong in the [eval results](../evals/README.md#multi-failure-replay).
-The [testing plan](testing.md#next-steps) records the unresolved reporting boundary
-and a conditional successful-repair integration check. Source/native engine
-success remains separate from invoking-agent behavior; another wording cohort
-or new reviewer layer is not selected.
+Keep detailed trial histories and original scores in the
+[eval results](../evals/README.md#multi-failure-replay). The
+[testing plan](testing.md#next-steps) records the unresolved reporting boundary
+and genuine competing repository instructions. Current-engine source repair and
+parent completion are verified separately from failed publication advice. No
+further wording cohort, reviewer layer or automatic native retry is selected.
 
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.

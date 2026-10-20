@@ -187,3 +187,33 @@ alongside it (all 91 original files unchanged), and the full standard report is 
 reporting integration, not successful gates, native coverage or general skill
 acceptance. The final distinct-failure guidance is source-reviewed and unmeasured;
 no additional trial was run to replace this result.
+
+## Successful-repair reporting check
+
+`cve-live-admiral-bounded-20261020` froze clean source `487d0759` and completed
+the stock pipeline against pinned Admiral `devel`. The engine exited 0 after
+703 seconds, retaining `22f1e1628debbbcecdbdb07651f7693bc8e7375b` for five x/net
+findings. All 14 repair conditions pass: canonical `make unit` and verification
+passed on the retained tree, all four audits were clean, and the healthy final
+scan had zero actionable findings. License was explicitly unconfigured. This is
+source repair, without native-binary coverage. All 59 evidence hashes and the
+completion log hash match; runtime scripts/subagents match the frozen source.
+Actual Grype was v0.121.0 with a valid database built 2026-10-20T06:29:49Z.
+
+The parent genuinely waited for completion and observed exit 0, finishing in
+801.7 seconds (804.5 outer wall seconds) for $0.5262835, plus six unpriced judge
+calls and unknown nested costs. It copied the full Summary, then invented push
+and PR commands despite the script printing no recipe. Contract is false,
+outcome false 3/3, action/owner true 3/3, with no errors; overall pipeline exits 1.
+No publication or follow-up mutation was executed. Preserve the passing
+action/owner samples separately from this decisive publication failure.
+
+Tracked repository instruction files and their imported manual CVE workflow
+were preserved. Fresh ownership/cancellation probes passed; cancellation again
+required stopping one probe-owned container explicitly. The resumed daemon was
+then stopped with verified process identity and no running containers. Evidence,
+data and all 85 original run files remain retained. Independent runtime, invoking-
+agent, provenance and teardown audits are in `.work/fix-go-cves-bounded-report/`.
+The candidate's report instructions are reverted after measurement. These scores
+do not validate the final skill; unchanged runtime script hashes retain the engine
+evidence. No additional live trial is selected to seek a pass.

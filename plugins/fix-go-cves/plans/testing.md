@@ -73,69 +73,51 @@ caveats are retained in the [eval results](../evals/README.md#current-reporting-
 
 ## Next steps
 
-The observation-to-repair simplification at `2f6102d2` stopped after one completed
-005/007 pair. Both contracts and backport criteria pass; action/owner fails all
-six samples, without judge errors. Each actor still volunteers unsupported causal
-claims. Keep the smaller task for clarity, not as a demonstrated reliability fix.
-The declared three-execution comparison is incomplete; no additional wording
-trials are selected. [Detailed results](../evals/README.md#multi-failure-replay)
-retain the source revisions, original verdicts, costs and independent reviews.
+The bounded-report candidate at `487d0759` failed its first completed 005/007
+pair and the separately selected live successful-repair check. Revert its entire
+skill treatment, including the extra workflow-ownership sentence: unsupported
+claims moved inside the prescribed fields, retry coverage was lost, and the live
+reply still invented publication. Keep the prior smaller workflow as the chosen
+baseline, without claiming acceptance or comparative improvement. The declared
+three-execution comparison remains incomplete; no further wording trials are
+selected. [Detailed results](../evals/README.md#multi-failure-replay) preserve raw
+samples, native reviews, source revisions and costs.
 
-The open design question is how to bound diagnostic prose while retaining useful,
-source-supported repair recommendations. The engine result, retained state and
-literal Summary are independently checkable; unrestricted explanations remain
-unaccepted. Another search, causal warning, heading, reviewer loop or output
-schema has no demonstrated benefit. Any substantive next design must preserve
-all failures and attempts, matching-repair evidence, owners, remote prerequisites
-and uncertainty about future gates. Existing factual criteria still apply to
-claims anywhere in the reply. Detection by an eval does not enforce truthful
-runtime prose, and a passing engine does not establish a passing skill.
+The unresolved boundary is reliable generation of final advice. Script results,
+retained state and literal Summary are independently checkable; neither reducing
+the attribution task nor prescribing final report fields made generated advice
+reliable. A passing engine and a completed parent do not establish a passing
+skill. Existing factual criteria still apply throughout the reply. Further work
+needs evidence for a different mechanism, rather than another warning, format,
+reviewer loop or repeated trial. No new enforcement framework is selected.
 
-The next implementation narrows the final reply to the literal script result
-and per-failure observed attempts, matching repair or investigation, owner and
-remaining verification. General causal narratives are outside that report;
-read-only source analysis still selects useful actions. This replaces the
-unrestricted explanation contract rather than adding a warning or renderer.
-Measure one bounded 005/007 comparison with unchanged cases and criteria: stop
-after a completed pair if manual review or a verdict finds a substantive defect;
-otherwise complete the existing three-execution rule. No automatic new cohort.
+Keep Admiral's checked-in `CLAUDE.md` and imported CVE workflow intact. The legacy
+workflow requests manual mutation/verification and a generated publication
+recipe. This is genuine competing procedure context, not answer leakage to
+remove. `project_hooks: false` does not disable that context; its presence does
+not prove it caused the failures. Repository constraints remain distinct from
+workflow routing; the Go-minor conflict stays in [decisions](README.md#decisions).
 
-Keep Admiral's checked-in `CLAUDE.md` and imported CVE workflow intact. That
-workflow asks for manual mutation, verification and a generated publication
-recipe. The invoked skill owns this scripted procedure; repository constraints
-still apply. `project_hooks: false` does not remove this instruction context.
-Prior failures remain actor failures, not invalidated measurements. The existing
-Go-minor policy conflict remains in [decisions](README.md#decisions).
+The one live case-002 check now establishes actual source repair and invoking-
+agent completion under candidate `487d0759`: all 14 runtime conditions pass,
+but the response fails for invented publication. Its scores do not validate the
+reverted skill. Runtime script hashes are unchanged, so the engine evidence
+remains applicable. Do not rerun this scenario merely to seek acceptance. See
+[the live record](../evals/live/README.md#successful-repair-reporting-check).
 
-If a distinct live integration check is selected after that design review, use
-existing case 002 to ask whether the invoking agent completes a successful repair
-and reports the actual gates without inventing publication. Its engine already
-passed 14 runtime assertions. Reuse the existing contract, factual judges and
-independent runtime/hash review; do not add a case or judge. A blocked or clean
-fast path is missing successful-repair coverage, not grounds for an automatic
-retry. This check cannot close blocked-case synthesis defects or the separate
-native parent-completion gap.
+A future positive-publication relay case would add a distinct decision. Historical
+Submariner case 002 still needs a complete sanitized log, verified bundle/archive,
+corrected command reference and negatives. Its builder decision needs applicable
+outcome/action-owner criteria and matching thresholds through stock configuration,
+not the Admiral-only backport criterion or a new judge. Prepare model-free and
+calibrate before any measurement; it is not automatically selected.
 
-Positive publication relay is the next distinct candidate, not a prerequisite for
-this experiment. Historical Submariner case 002 needs a complete sanitized log,
-verified bundle/archive, corrected literal command reference and negatives. Its
-builder decision cannot use the current Admiral-specific backport judge: choose
-applicable outcome/action-owner criteria and matching thresholds through stock
-configuration support, rather than inventing a backport requirement or another
-judge. Verify
-model-free preparation and calibrate before measuring it.
-
-Further live work needs a concrete current-engine, successful-repair or long-run
-completion question. Existing live case-002 can measure completed successful-repair
-reporting without invented publication; local remotes still cannot prove positive
-PR-command relay. Case-003 can measure native invoking-agent completion after the
-wait-cadence change, preserving the earlier budget failure and established runtime
-evidence. Do not automatically run both. Neither a clean run nor another mutable
-blocked run is a substitute for the prepared multi-failure regression. Claim blocked coverage only
-when reached, and preserve database drift or different outcomes as missing
-coverage. Keep the worker stopped during preparation. Revalidate the existing
-ownership/cancellation probes if it is recreated; retain supervised lifecycle
-management for selected live runs.
+Native case 003 has separate parent-completion coverage missing after its
+43-minute engine success. A source-only repair cannot close it. Any later live
+run needs a changed mechanism or concrete current-engine question. Preserve
+mutable database misses and different outcomes as missing coverage. Revalidate
+ownership/cancellation when recreating the worker, retain supervised lifecycle
+management, and keep it stopped between selected runs.
 
 Frozen scoring uses copied inputs/configuration and exact selected cases,
 judges and complete samples. Extraction checks all collected case directories

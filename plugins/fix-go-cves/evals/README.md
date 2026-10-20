@@ -366,6 +366,29 @@ Keep this comparison incomplete and the skill unaccepted. Retain the smaller
 workflow for task fit only; this pair establishes neither comparative improvement
 nor degradation. No new judge, schema, runtime gate or reviewer layer was added.
 
+The `487d0759` candidate restricted final prose to observed results and per-failure
+actions, and added a workflow-ownership clarification. Its declared three-run
+005/007 comparison stopped after one completed pair,
+`cve-replay-bounded-20261020-r1`. Contracts are true for 005 and false for 007;
+backport is true in all six samples, action/owner false in all six, with no errors.
+Case 005 puts unsupported tooling causality inside its Observed field. Case 007
+never retrieves the syncer retry pass and omits it, leaves the owner unspecified,
+and attempts denied, read-only `git stash list`; no stash mutation occurred.
+Its syncer causal explanation is a hypothesis, not the earlier categorical claim.
+Some judge reasoning incorrectly questions directive-gated vet without a compiler
+change; the independent coverage/action defects still support rejection.
+
+Outer pair wall time was 223.2 seconds and actor cost $1.0215355, plus 12 unpriced
+judge calls. Frozen provenance, loaded skill, native finals and all 50 original
+files were independently verified. No r2/r3 ran. The actual Admiral `CLAUDE.md`
+imports a manual CVE workflow that requests mutation, verification and generated
+publication recipes; those files remain intact. Their presence does not establish
+the cause of the agent errors or invalidate earlier trials. The separate real
+[successful-repair check](live/README.md#successful-repair-reporting-check) also
+fails publication reporting. Revert the whole skill treatment, preserving the
+prior smaller baseline and all original results. Audits and declarations are in
+`.work/fix-go-cves-bounded-report/`; no new judge, renderer or reviewer loop was added.
+
 ## Live evidence and coverage
 
 The live helper opts into an external `CVE_FIX_EVIDENCE_DIR` and archives its
