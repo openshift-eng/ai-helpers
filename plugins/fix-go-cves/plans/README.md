@@ -24,13 +24,15 @@ evidence but violated the read-only boundary with temporary cherry-pick and
 cleanup commands; the original contract missed these writes. Its action/owner
 judge failed. A separate trace-guard correction and derived recheck preserve
 the original scores. Current live trials do not establish skill acceptance.
-Next design a small
+Next implement a small
 reporting change reusing the existing Summary/results for literal outcomes
 and separating evidence-qualified diagnosis. No parallel schema is needed.
 Use the engine's existing original ref for return advice, or omit unobserved
 advice; recommend maintainer-reviewed repairs without constructing publication
 recipes. Relay alone does not enforce read-only behavior: retain trace
-regressions and derived checks. This direction is unimplemented and unproven.
+regressions and derived checks. The file-level sequence and acceptance evidence
+are in the [testing plan](testing.md#next-implementation-slices); the behavioral
+change remains unimplemented and unproven.
 Do not add another prompt-only cohort merely to seek a pass, new scoring
 criteria or an eval framework ([testing plan](testing.md#next-implementation-slices)).
 

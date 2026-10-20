@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` has about 2,300 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 2,320 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -31,112 +31,53 @@ not attribute the historical run or replace a full baseline test suite.
 
 ## Next implementation slices
 
-Keep changes small enough to review independently. Source and native runtime
-repair are verified; skill behavior and all replay cohorts remain unaccepted.
+Preparation needs no paid calls. The next behavioral change remains unimplemented;
+the implemented provenance check protects measurement, not skill reliability.
 
-1. **Acceptance and frozen scoring inputs are implemented.**
-   Both tracks now require each factual judge's pass rate to be 1.0 as well as
-   zero errors. A controlled completed-failure probe using the stock regression
-   command exits 1; the helper preserves a measured false verdict separately
-   from an incomplete/error result. It checks exact selected cases, configured
-   judges, sample completeness and majority consistency. Every stock stage uses
-   the run's copied configuration, inputs and annotations, with file hashes and
-   helper identity recorded. A stock-workspace/scoring probe confirmed that
-   later working-tree annotation changes do not alter frozen scoring. Deliberate
-   rescoring needs a separate frozen record and must preserve original scores.
-2. **Durable engine evidence is verified for the Admiral repair.**
-   Keep the actual dependency patch or Git bundle, runtime/helper hashes,
-   detected build/test commands, phase outcomes and all four audit results when
-   reached. Retain initial and authoritative final-gate scan JSON, scanner exit
-   status and coverage/degraded-database evidence, plus relevant build/test logs.
-   Mark phases not reached on early failure; success requires complete evidence.
-   `PRESERVE_REPORTS=1` already preserves companion reports, but their final scan
-   precedes the independent final gate; it cannot stand in for that gate's JSON.
-   `CVE_FIX_EVIDENCE_DIR` now captures these artifacts before cleanup without
-   changing normal gates. The helper hashes and archives them, the retained
-   patch and observed tool/image identities. Tests cover strict scenario checks
-   and inspection after the temporary checkout is removed. A real Grype probe
-   confirmed a freshly built binary in the same scan's zero-findings catalog,
-   with matching file hash. The full shell suite passed 2,320 checks.
-   The corrected-worker run passed all 14 runtime assertions with matching
-   archived hashes. Scanner provenance and completion-observation corrections
-   are implemented. The archive-hash fix passed the fresh native evidence check
-   and retained Admiral re-verification. Keep valid runtime evidence separate
-   from failed agent behavior
-   ([results](../evals/live/README.md)); the original incomplete trial needed
-   operator retention and did not establish complete helper capture.
-3. **The focused skill and judge corrections are implemented and calibrated.**
-   Make the post-run diagnosis/recommendation boundary explicit: no source
-   repair, second invocation or cleanup without a further user request. Require
-   evidence for causal claims; uncertainty is valid when a comparable baseline
-   is unavailable. Extend the existing action/owner criterion, rather than add a
-   third judge. The actual live/replay references, causal negatives and replay
-   rerun negative passed 21 calls with three agreeing, error-free samples each.
-   Failed earlier calibration attempts remain preserved, including an observed
-   partial-credit defect corrected by an explicit must-fail criterion. Pinned
-   default-branch backport evidence is now available to live judges; the reduced
-   runtime log alone cannot verify every commit discovered during diagnosis.
-   Do not require automatic baseline testing for every remediation run or feed
-   judges entire raw tool traces.
-   Three frozen replay cohorts now fail acceptance ([results](../evals/README.md)).
-   The compact-report revision at `b8265808` cites the retained fix in every
-   reply, but two replies invent publication commands. One is falsely accepted
-   by both the fact judge and a column-zero-only fence regex. The guard now
-   covers indented fences with a failing-before/passing-after regression.
-   Re-verify retained outputs separately, preserving original scores. Reporting
-   needs a focused design around literal engine results and separate diagnosis. Expose the
-   existing `ORIGINAL_REF` in a human-readable summary, or omit unobserved
-   return advice; target branch is not original branch. Recommend maintainers
-   land the reviewed repair before a newly requested rerun without constructing
-   push recipes. This direction is unimplemented and unproven; do not add
-   another prompt-only cohort or expand criteria merely to seek acceptance.
-4. **Genuine Admiral devel runtime repair is verified.**
-   Use `https://github.com/submariner-io/admiral.git`, with base and default both
-   pinned to `af20d0bf09dade1c6537d6d38f5175f7b8704042`, target/original branch
-   `devel` and script argument `devel`. This real upstream revision already has
-   the reporter repair and Go 1.26; x/net remains v0.59.0. It avoids an artificial
-   preparatory source commit or a required backport. The corrected-worker trial
-   completes with exit 0 and passes all 14
-   repair assertions, including canonical tests, four clean audits and the
-   authoritative zero-actionable-findings scan. No license gate is configured.
-   The response still invents a publication command, so overall acceptance
-   fails despite both fact judges returning three true samples. Preserve that
-   judge limitation; the existing deterministic guard catches the failure.
-   The earlier ownership/collection failure remains preserved in the
-   [live results](../evals/live/README.md); preparation alone did not validate the worker.
-5. **Native Subctl runtime coverage is verified; skill completion failed.**
-   Use `https://github.com/submariner-io/subctl.git`, base/default
-   `50243ac421a985eb13a8be7797fc53595be0f34e`, branch/argument `devel`.
-   The candidate has Go 1.26 and x/net v0.59.0. Its canonical build, unit tests
-   and license check passed in the actual runtime. Native `make build`
-   produces `cmd/bin/subctl-<version>-<os>-<arch>` and a symlink; use that path
-   rather than the eight-platform cross-build. Case-003, repository-derived
-   paths and stock case selection are implemented. Its supervised native trial
-   completed with engine exit 0 after 2,583 seconds. Canonical tests and license
-   passed, all four raw audits had zero counters, final actionable findings were
-   zero with one no-fix ignore, and native hash/catalog/retained-file identities
-   matched. All 19 runtime conditions and 76 evidence hashes verified. The
-   parent ended exit 1
-   after 2,605 seconds, 183 turns and $10.85163125, without a completed final
-   reply. The runner aborted before collection/reporting when execution failed.
-   Preserve runtime success and failed skill measurement separately. Ordinary
-   30-second waits between reads are now explicit. The runner collects/reports
-   failed executions, preserves nonzero status and skips invalid grading.
-   Do not retry the native case merely to seek a pass.
-   A stdlib finding blocked by the builder may legitimately produce exit 2;
-   this case does not prove stdlib remediation unless that path actually runs.
-6. **Refreshed blocked Admiral execution remains behaviorally unaccepted.**
-   Runtime exit 2 retained `57d380de`, two failed canonical test attempts, four
-   zero-issue audits and a healthy final scan with zero actionable findings;
-   all 61 evidence hashes matched. Original scoring was contract true, outcome
-   3/3 true and action/owner 3/3 false. The parent temporarily cherry-picked
-   the backport, then used checkout/reset to restore a clean tree. The original
-   trace guard missed these writes. Separate stock collection, re-extraction
-   and contract checking with the corrected guard reject all four mutations;
-   all 91 original files and scores remain hash-identical. The guard detects
-   common direct commands; it is not a shell sandbox. Follow the reporting
-   direction in slice 3, retaining trace regressions for read-only compliance.
-   No more paid trials are planned this round.
+1. **Expose observed results using existing output.** In `scripts/fix-all.sh`,
+   print the existing `ORIGINAL_REF` beside the Summary's branch. Detection
+   already stores either the original branch or a detached commit hash; do not
+   infer it from the target branch or add a parallel report schema. Consolidate
+   `SKILL.md` reporting into faithful terminal outcomes followed by qualified,
+   read-only diagnosis. Give return advice only from observed original-ref
+   evidence. An upstream repair recommendation must not promise passing tests.
+2. **Prove the output boundaries before another model trial.** Extend the
+   existing `detect.sh --setup-branch` and orchestrator/PR fixtures in
+   `test/test-lib.sh`: original ref differs from target, detached start, missing
+   original-ref evidence, and successful/blocked results. Preserve exit codes,
+   counts, retained commits and publication prerequisites. The clean fast path
+   has no Summary; a no-commit Summary can name a fix branch subsequently
+   removed. Relay those outcomes without inventing a retained branch. Keep
+   publication/mutation guard regressions and separately frozen retained-trace
+   checks. They prove detection and plumbing, not revised agent behavior.
+3. **Freeze a deliberate behavioral experiment after implementation.** Keep
+   current cases, factual criteria and the tested harness pin. Use case-005
+   replay for interpretation; its historical scripts/log must remain unchanged,
+   so it cannot validate the new runtime summary line. Then select blocked live
+   case-001 to exercise today's output and read-only diagnosis. Use a new run ID
+   and stop editing the helper/runtime while that experiment runs. Preserve
+   every verdict; use the existing acceptance rule below. Reopen source/native
+   trials only for a relevant runtime, completion or environment change. No
+   additional paid trials are planned during this preparation.
+4. **Admit positive publication relay only with witnessed evidence.** Today's
+   publication check forbids push/PR recipes in backtick fences, including a
+   faithful relay; current cases correctly expect none.
+   Historical Submariner case 002 contains an actually printed command, while
+   live reduced evidence currently keeps only its first lines. Before admitting
+   that case, retain the complete emitted block and allow only the witnessed
+   recipe, with positive and altered/absent-command negatives. Continue rejecting
+   actual publication tool calls. Keep this separate from the no-command
+   reporting slice; do not invent GitHub remotes to force a live PR recipe.
+
+Frozen scoring uses copied inputs/configuration and exact selected cases,
+judges and complete samples. Extraction validates that provenance and its
+helper hash before changing state/reply files or scheduling factual judges.
+A changed helper requires a separately frozen derived record; preserve original
+outputs and scores. The tightened action/owner criterion passed seven
+three-sample checks (21 calls); the unchanged backport criterion passed six
+earlier reference/negative samples. All matched expected labels without errors;
+failed earlier calibrations remain evidence. Recalibrate if criteria or judge models
+change, rather than adding judges for the observed reporting failures.
 
 ## Runtime and behavioral acceptance
 
@@ -155,9 +96,11 @@ check actual engine evidence rather than the agent's final prose.
 Report measurement completion, behavioral verdicts and runtime scenario coverage
 separately. A no-findings fast path can be valid behavior but does not exercise a
 repair. A source-only scan, stale or opaque binary does not establish native
-binary coverage. Database drift may remove the candidate's actionable finding;
-record the missing coverage and choose a suitable new pin deliberately. Do not
-fake findings, stub tools, skip canonical gates or add broad ignores to qualify.
+binary coverage. Native coverage does not prove stdlib remediation unless a
+stdlib finding is actually repaired. Database drift may remove the candidate's
+actionable finding; record the missing coverage and choose a suitable new pin
+deliberately. Do not fake findings, stub tools, skip canonical gates or add broad
+ignores to qualify.
 
 The local origin/fork remotes prevent publication. They also mean that even a
 successful runtime may correctly emit no GitHub PR command. Keep that limitation
@@ -186,6 +129,15 @@ shared harness/worker environment. A container with the host Docker socket
 still lets canonical repository cleanup affect host resources. Verify that
 Dapper, scanner/database access, network and model credentials work in the
 chosen environment; do not implement a plugin-specific sandbox.
+
+The successful supervised worker also entered its dedicated rootless daemon's
+user and mount namespaces: UID 0 there mapped to the host task owner, preserving
+ownership through Dapper. Merely exporting `DOCKER_HOST` had left subuid-owned
+files and broken Git. Reuse the actual Dapper ownership and partial-evidence
+cancellation probes after recreating the now-stopped worker. One cancellation
+left a container requiring targeted operator cleanup; unattended teardown is
+still unproven. Keep worker lifecycle in the shared environment and retain
+operator-owned cleanup, without another plugin preflight layer.
 
 Exercise timeout/cancellation and retention of partial evidence in that
 disposable environment before unattended runs. Parent time/budget limits do

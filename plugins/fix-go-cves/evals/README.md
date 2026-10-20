@@ -53,6 +53,10 @@ and provide the container runtime and network access needed by the repository's
 detected commands and scanners. The live cases use local remotes and never
 publish changes. `DOCKER_HOST` is forwarded when set, allowing a dedicated
 build daemon; it does not isolate the invoking agent from host files or credentials.
+For the tested rootless Shipyard worker, daemon user/mount namespace mapping
+was also necessary to preserve checkout ownership through Dapper. Revalidate
+that mapping and targeted cancellation cleanup when recreating the worker;
+see the [worker evidence and limits](../plans/testing.md#environment-evidence-and-deadlines).
 
 Optionally export absolute `GRYPE_DB_CACHE_DIR` and `GOMODCACHE` paths outside
 the evaluated checkout to reuse host caches. These apply to local Grype and
@@ -84,6 +88,9 @@ The harness also writes its standard `report.html` in the result directory.
 Each run stores frozen configuration and fixtures with hashes under `provenance/`;
 all stock stages score those copies. The runner checks exact selected cases,
 judges and complete samples, and exits nonzero for factual acceptance failures.
+Extraction validates frozen inputs and the helper hash before changing captured
+state/replies or starting judges; a stale helper stops scoring without rewriting
+prior outputs or scores.
 Use a new frozen result record for deliberate rescoring; preserve prior scores.
 The replay contract checks one invocation, exact result commit and branch,
 clean state, unchanged staged skill/scripts and remote refs, required commit citations,
@@ -128,8 +135,8 @@ measurements use fresh executions rather than the earlier passing replies.
 The skill now explicitly limits post-run work to read-only diagnosis and
 recommendations. Current causal criteria reject a wrong explanation even when
 the proposed repair and owner are correct. Both references, four isolated causal
-negatives and the replay rerun negative passed a 21-call calibration with three
-agreeing, error-free samples per criterion. Earlier failed calibration attempts
+negatives and the replay rerun negative passed seven action/owner checks with
+three agreeing, error-free samples each (21 calls). Earlier failed calibration attempts
 remain preserved: one lacked dependency-diff context, and judges sometimes gave
 partial credit despite recognizing the wrong explanation. Judge costs were unavailable.
 
