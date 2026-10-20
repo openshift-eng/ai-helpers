@@ -172,15 +172,21 @@ deterministic re-verification needs a separate label, not a fourth paid cohort.
 
 The corrected-worker case-002 runtime passed all 14 repair assertions, while
 its agent response failed the publication guard. Native Subctl case-003 now
-passes engine remediation and binary evidence, but its parent exits 1 without
+passes all 19 engine/native runtime conditions, but its parent exits 1 without
 a completed final reply. The runner aborted before collection/reporting, so
 operator-verified runtime artifacts do not imply a scored skill pass. Plain
 30-second waits are now explicit. Failed executions now proceed through stock
 collection/reporting with nonzero status; invalid grading is skipped. No native
-retry is planned merely to seek a pass. Blocked
-case-001 will follow the committed corrections; see [live results](live/README.md). Reporting reliability remains a known blocker,
-requiring focused design around actual engine results rather than more prompt
-instructions. Runtime success and complete skill accuracy remain separate.
+retry is planned merely to seek a pass. Refreshed blocked case-001 retained
+valid runtime exit-2 evidence but temporarily cherry-picked and restored source.
+Its original contract passed despite these writes; outcome passed 3/3 and
+action/owner failed 3/3, without judge errors. Separate collection and trace
+re-extraction with the corrected guard reject those mutations, preserving all
+91 original files and raw scores.
+See [live results](live/README.md). Reporting and read-only behavior remain
+blockers; next design is literal engine-result relay with read-only diagnosis,
+not more paid trials or prompt instructions. Runtime success and skill accuracy
+remain separate.
 
 The live configuration permits a larger invoking-agent budget, but that budget
 does not cap independent reviewer CLIs launched by the remediation scripts or

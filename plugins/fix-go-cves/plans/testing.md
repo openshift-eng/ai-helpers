@@ -13,20 +13,14 @@ Three layers answer different questions:
   recorded contract 2/3 and factual conjunction 2/3; manual publication
   compliance was 1/3 because an indented fence bypassed the guard. Replay
   cannot validate today's remediation engine.
-- **Live evaluation:** today's plugin, real Grype and canonical repository
-  commands ran on Admiral release-0.24. One fully scored trial passed the
-  execution/reporting checks for a blocked runtime result: five CVEs fixed,
-  zero outstanding, but two failed canonical test attempts and runtime exit 2.
-  An earlier trial exposed unauthorized post-run repairs, a rerun and cleanup.
-  The new devel repair attempt was invalid: premature success claims and extra
-  scan/test commands, then engine exit 128 from rootless Dapper ownership drift.
-  Tests passed, but final-gate/license evidence and completed collection did not.
-  A corrected-worker trial then passed all 14 actual repair assertions and
-  evidence-hash checks, but failed its behavioral contract for an invented
-  publication command. Both fact judges passed it; the deterministic guard
-  correctly rejected the response. Subctl then completed real native remediation
-  with engine exit 0 and verified binary/evidence identity, while its parent
-  failed without a completed reply and collection did not run.
+- **Live evaluation:** real Grype and canonical commands establish Admiral
+  source repair (14 runtime assertions) and Subctl native repair (19), both
+  with engine exit 0. Skill execution remains unaccepted: Admiral invented
+  publication; Subctl exhausted its parent budget without a completed reply.
+  A refreshed blocked Admiral run retained valid exit-2 evidence, but performed
+  temporary cherry-pick/cleanup mutations. Its original contract missed these
+  writes; action/owner failed unanimously. Separate derived checks correct
+  guard gaps without replacing original scores.
 
 [Eval setup and replay results](../evals/README.md) and the
 [live results](../evals/live/README.md) retain the detailed evidence and costs.
@@ -37,8 +31,8 @@ not attribute the historical run or replace a full baseline test suite.
 
 ## Next implementation slices
 
-Keep changes small enough to review independently. Admiral runtime repair is
-verified; neither the full skill behavior nor a replay cohort is accepted yet.
+Keep changes small enough to review independently. Source and native runtime
+repair are verified; skill behavior and all replay cohorts remain unaccepted.
 
 1. **Acceptance and frozen scoring inputs are implemented.**
    Both tracks now require each factual judge's pass rate to be 1.0 as well as
@@ -90,8 +84,7 @@ verified; neither the full skill behavior nor a replay cohort is accepted yet.
    by both the fact judge and a column-zero-only fence regex. The guard now
    covers indented fences with a failing-before/passing-after regression.
    Re-verify retained outputs separately, preserving original scores. Reporting
-   needs a focused
-   design around literal engine results and separate diagnosis. Expose the
+   needs a focused design around literal engine results and separate diagnosis. Expose the
    existing `ORIGINAL_REF` in a human-readable summary, or omit unobserved
    return advice; target branch is not original branch. Recommend maintainers
    land the reviewed repair before a newly requested rerun without constructing
@@ -122,7 +115,8 @@ verified; neither the full skill behavior nor a replay cohort is accepted yet.
    completed with engine exit 0 after 2,583 seconds. Canonical tests and license
    passed, all four raw audits had zero counters, final actionable findings were
    zero with one no-fix ignore, and native hash/catalog/retained-file identities
-   matched. All 76 evidence hashes verified. The parent instead ended exit 1
+   matched. All 19 runtime conditions and 76 evidence hashes verified. The
+   parent ended exit 1
    after 2,605 seconds, 183 turns and $10.85163125, without a completed final
    reply. The runner aborted before collection/reporting when execution failed.
    Preserve runtime success and failed skill measurement separately. Ordinary
@@ -131,8 +125,18 @@ verified; neither the full skill behavior nor a replay cohort is accepted yet.
    Do not retry the native case merely to seek a pass.
    A stdlib finding blocked by the builder may legitimately produce exit 2;
    this case does not prove stdlib remediation unless that path actually runs.
-   Refresh blocked case-001 on these committed corrections; its earlier scored
-   pass used older behavior and judge criteria.
+6. **Refreshed blocked Admiral execution remains behaviorally unaccepted.**
+   Runtime exit 2 retained `57d380de`, two failed canonical test attempts, four
+   zero-issue audits and a healthy final scan with zero actionable findings;
+   all 61 evidence hashes matched. Original scoring was contract true, outcome
+   3/3 true and action/owner 3/3 false. The parent temporarily cherry-picked
+   the backport, then used checkout/reset to restore a clean tree. The original
+   trace guard missed these writes. Separate stock collection, re-extraction
+   and contract checking with the corrected guard reject all four mutations;
+   all 91 original files and scores remain hash-identical. The guard detects
+   common direct commands; it is not a shell sandbox. Follow the reporting
+   direction in slice 3, retaining trace regressions for read-only compliance.
+   No more paid trials are planned this round.
 
 ## Runtime and behavioral acceptance
 

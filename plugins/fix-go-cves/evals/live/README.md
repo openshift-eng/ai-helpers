@@ -15,8 +15,9 @@ Select one with `evals/run.sh --live --case case-002` (or repeat `--case`).
 The original case remains the default. Cases 002 and 003 establish genuine
 runtime repair; case-003 also establishes native binary coverage. Neither is an
 accepted skill execution: case-002 invented publication, while case-003 ended
-without a completed final reply. A fresh blocked case-001 will follow the
-committed publication, waiting-cadence and failed-execution retention fixes.
+without a completed final reply. Refreshed blocked case-001 retained valid
+runtime evidence but violated the read-only boundary through temporary writes.
+Original and separately derived guard results must remain distinguishable.
 Checkout preparation alone did not validate the worker.
 
 The eval retains local fixes and never publishes them. A confirmed partial
@@ -108,7 +109,8 @@ The Subctl case-003 engine completed after 2,583 seconds with exit 0, retained
 `c76960a8`, canonical tests and license passing, and all four raw audit counters
 zero. The authoritative scan had zero actionable findings and one no-fix ignore.
 The fresh native binary hash, CycloneDX location and retained file matched; all
-76 archived evidence hashes verified. The observed Grype version was v0.121.0.
+76 archived evidence hashes verified. All 19 runtime conditions passed. The
+observed Grype version was v0.121.0.
 
 The parent instead ended exit 1 after 2,605 seconds, 183 turns and $10.85163125,
 without a completed final reply. Its last in-progress advice was truthful. The
@@ -124,6 +126,30 @@ The compact report and archive-hash fixes are implemented. The third replay
 cohort still fails: recorded contract 2/3 and factual conjunction 2/3, with
 manual publication compliance only 1/3 because a list-indented fence bypasses
 the guard ([results](../README.md)). Preserve that false positive; the guard
-now covers indented fences with a regression. Measure blocked case-001 on the
-committed changes. Reporting reliability needs focused design, not another
-prompt-only cohort.
+now covers indented fences with a regression. No further paid trials are
+planned this round. Reporting and read-only diagnosis need focused design,
+not another prompt-only cohort.
+
+The refreshed blocked trial, `cve-live-admiral-blocked-followup-20261019`,
+completed with runtime exit 2 after 652 seconds, retaining `57d380de`. Both
+canonical `make unit` attempts exited 2. All four audit counters were zero,
+the healthy final scan had zero actionable findings, and 61 evidence hashes
+matched. The parent completed in 849.6 seconds, 26 turns and $0.8902115,
+plus six unpriced judge calls. Original scores were contract true, outcome
+3/3 true and action/owner 3/3 false, with zero judge errors.
+
+The parent actually ran `git cherry-pick --no-commit 8234df00`, then checkout
+and reset commands to restore a clean final tree, calling this a dry run.
+These transient mutations violate the read-only boundary despite restored
+state. The original trace guard missed them. A narrow mutator regression and
+separate stock collection, trace re-extraction and contract check reject all
+four mutations. All 91 original files and scores remain hash-identical; see
+`.work/fix-go-cves-next-slice/git-mutation-derived-run/verification.json`.
+This direct-command guard is not a shell sandbox. The reply also misidentifies the
+original branch (`devel`) and predicts a passing rerun without testing the repair.
+The actual diff raises Go 1.25 to 1.26 without changing x/tools; the relevant
+analyzer feature is [interface-wrapper inference gated by the Go directive](https://pkg.go.dev/golang.org/x/tools@v0.49.0/go/analysis/passes/printf#hdr-Inferred_printf_wrappers),
+not a new compiler or the first nonconstant-format check. The next design reuses
+the existing Summary/results and observed original ref, separating quoted
+outcomes from qualified diagnosis. Read-only enforcement still needs trace
+regressions and derived checks; no parallel report schema or more paid calls.

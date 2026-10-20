@@ -492,6 +492,26 @@ class EvidenceTests(unittest.TestCase):
                 self.assertIn('Independent scan, build or test outside the requested script',
                               EVAL.trace_violations(stream, workspace))
 
+    def test_direct_git_mutations_are_contract_violations(self):
+        workspace = self.root / "cases/case-001"
+        # Actual blocked001 source probe and restoration, mislabeled a dry run.
+        commands = [
+            ('git cherry-pick --no-commit 8234df00 2>&1 && echo "APPLIES CLEANLY" '
+             '|| echo "CONFLICT"\ngit checkout -- . 2>/dev/null', 'cherry-pick'),
+            ('git checkout -- . 2>/dev/null', 'checkout'),
+            ('git reset HEAD -- . >/dev/null 2>&1; git checkout -- . 2>/dev/null; '
+             'git status --short', 'reset'),
+            ('git -C . -c core.autocrlf=false restore --staged .', 'restore'),
+            ('git apply fix.patch', 'apply'),
+            ('git apply --check --apply fix.patch', 'apply'),
+        ]
+        for command, operation in commands:
+            with self.subTest(command=command):
+                stream = [{"type": "assistant", "message": {"content": [{
+                    "type": "tool_use", "name": "Bash", "input": {"command": command}}]}}]
+                self.assertIn(f'Git mutation outside the requested script: {operation}',
+                              EVAL.trace_violations(stream, workspace))
+
     def test_runtime_launch_and_read_only_inspection_remain_allowed(self):
         workspace = self.root / "cases/case-002"
         commands = [
@@ -502,6 +522,11 @@ class EvidenceTests(unittest.TestCase):
             'go version -m cmd/bin/subctl',
             'make --version',
             'make --help',
+            'git status --short; git diff HEAD -- go.mod',
+            'git log origin/devel -- pkg/reporter/adapter.go | head -20',
+            'git branch -a --contains HEAD; git rev-parse --abbrev-ref HEAD',
+            'git show 8234df00 -- pkg/reporter/adapter.go',
+            'git -C . apply --check fix.patch; echo --apply',
             'echo "make unit; grype ."',
             'ls -l "$PLUGIN_ROOT/scripts/scan.sh"',
             'tail -1 "$LOG"; grep -n ERROR "$LOG"',

@@ -19,12 +19,20 @@ fails the publication guard ([results](../evals/live/README.md)).
 Native Subctl completed genuine remediation and binary evidence with engine
 exit 0, while its parent failed without a completed final reply. Preserve both
 measurements. Ordinary 30-second waits and failed-execution collection/reporting
-are implemented. Measure blocked Admiral on the committed corrections. Next design a
-small reporting change around literal engine results and separate diagnosis.
+are implemented. The refreshed blocked Admiral run retained valid exit-2
+evidence but violated the read-only boundary with temporary cherry-pick and
+cleanup commands; the original contract missed these writes. Its action/owner
+judge failed. A separate trace-guard correction and derived recheck preserve
+the original scores. Current live trials do not establish skill acceptance.
+Next design a small
+reporting change reusing the existing Summary/results for literal outcomes
+and separating evidence-qualified diagnosis. No parallel schema is needed.
 Use the engine's existing original ref for return advice, or omit unobserved
 advice; recommend maintainer-reviewed repairs without constructing publication
-recipes. This direction is unimplemented and unproven. Do not add another
-prompt-only cohort merely to seek a pass, new scoring criteria or an eval framework ([testing plan](testing.md#next-implementation-slices)).
+recipes. Relay alone does not enforce read-only behavior: retain trace
+regressions and derived checks. This direction is unimplemented and unproven.
+Do not add another prompt-only cohort merely to seek a pass, new scoring
+criteria or an eval framework ([testing plan](testing.md#next-implementation-slices)).
 
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.
