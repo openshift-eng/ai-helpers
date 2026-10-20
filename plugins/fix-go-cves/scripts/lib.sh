@@ -3082,7 +3082,6 @@ subagent_fix_scan_regression() {
         "Regression from dependency update (no fix available)" --fix-state "$fix_state" \
         "${loc_flag[@]+"${loc_flag[@]}"}" "${cve_arr[@]}" </dev/null || _ignore_rc=$?
       if [[ $_ignore_rc -eq 0 ]]; then
-        echo "$sentinel_key" >> "$nr_file"
         echo "$pkg (no fix available) for ${cve_arr[*]}" >> "$report_dir/ignored-pkgs"
       fi
     fi

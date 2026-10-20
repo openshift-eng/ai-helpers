@@ -24,23 +24,19 @@ further wording cohort, reviewer layer or automatic native retry is selected.
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.
 
-1. **Successful no-fix ignores.** In `subagent_fix_scan_regression`, remove only
-   the successful-ignore write to `needs-review-pkgs`; retain `ignored-pkgs`
-   and every existing policy marker. Compare marker state before and after
-   the existing binary retry fixture, which may already contain another marker.
-   Fresh mixed-advisory and sibling-module cases must retain real policy
-   decisions; failed or ineffective ignores must remain actionable in the
-   production scan-regression companion. No outcome-schema change is needed.
-2. **Published major upgrades.** Guard the selected candidate against each
+1. **Published major upgrades.** Guard the selected candidate against each
    in-scope module's effective installed version, including transitive targets.
    Test scoped updates, permitted same-major updates, and unchanged HEAD and
    metadata on rejection. Keep absent/local-replacement handling and the
    missing-registry exit separate; do not treat an unknown version as major zero.
    This fixes the target-package bypass, not every incidental graph change.
-3. **Kubernetes guard identity.** Keep the existing `api`, `apimachinery` and
+2. **Kubernetes guard identity.** Keep the existing `api`, `apimachinery` and
    `client-go` scope. Compare by tracked module and dependency after tidy and
    workspace sync, including siblings a scoped update changed. The unchanged-set
    reproduction must roll back; patch updates and guard-disabled runs must work.
+
+Successful no-fix ignores now retain ignored credit without adding policy-review
+markers; existing decisions stay intact.
 
 Audit completeness and removal of model verification are implemented. All four
 audits gate verification and repair dispatch; shared helpers for `review.sh` and

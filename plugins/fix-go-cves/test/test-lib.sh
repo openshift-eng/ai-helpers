@@ -3088,6 +3088,51 @@ check "scan-reg.sh: new marked CVE emits NEW" grep -q '^NEW: CVE-2026-NEW .* loc
 printf '%s\n' "$SREG_SH_OUT" > "$SREG_SH_DIR/scan-regression.evidence"
 check "scan-reg.sh: new marked CVE fails evidence verification" ! evidence_verdict "$SREG_SH_DIR"
 
+# A successful ignore must not turn an ineffective action into a policy
+# exemption. Exercise the production companion against persistent scan evidence.
+SREG_NOFIX_JSON=$(jq '.matches[0].vulnerability.id = "CVE-NOFIX-MARKER" |
+  .matches[0].vulnerability.fix = {versions:[],state:"unknown"} |
+  .matches[0].artifact.locations = [{path:"/go.mod"}]' <<< "$SCAN_JSON")
+for _ignore_status in 0 7; do
+  printf '%s\n' "$SREG_NOFIX_JSON" > "$SREG_SH_DIR/initial-scan.json"
+  printf '%s\n' "$SREG_NOFIX_JSON" > "$SREG_SH_DIR/current.json"
+  printf 'go.etcd.io/etcd/client/pkg/v3|/tools/go.mod\nexample.com/other|/go.mod\n' > "$SREG_SH_DIR/needs-review-pkgs"
+  cp "$SREG_SH_DIR/needs-review-pkgs" "$SREG_SH_DIR/markers-before"
+  rm -f "$SREG_SH_DIR/ignored-pkgs"
+  printf '#!/bin/bash\nexit %s\n' "$_ignore_status" > "$SREG_SCRIPTS_DIR/ignore.sh"
+  bash "$SCRIPT_DIR/../subagents/scan-regression.sh" "$SREG_SH_DIR/state.env" "$SREG_SH_DIR" > "$SREG_SH_DIR/scan-regression.evidence"
+  evidence_as_report "$SREG_SH_DIR/scan-regression.evidence" "$SREG_SH_DIR/scan-regression.report"
+  (subagent_fix_scan_regression "$SREG_SH_DIR/state.env" "$SREG_SH_DIR/scan-regression.report" "$SREG_SCRIPTS_DIR") >/dev/null 2>&1
+  SREG_SH_OUT=$(bash "$SCRIPT_DIR/../subagents/scan-regression.sh" "$SREG_SH_DIR/state.env" "$SREG_SH_DIR")
+  check "ignore exit$_ignore_status with persistent finding stays actionable" grep -qx 'NEW_CVES=0 UNRESOLVED=1' <<< "$SREG_SH_OUT"
+  check "ignore exit$_ignore_status preserves exact sibling policy markers" cmp "$SREG_SH_DIR/markers-before" "$SREG_SH_DIR/needs-review-pkgs"
+  if [[ "$_ignore_status" == 0 ]]; then
+    check "successful ignore action still has ignored outcome credit" grep -q CVE-NOFIX-MARKER "$SREG_SH_DIR/ignored-pkgs"
+  else
+    check "failed ignore gets no ignored outcome credit" test ! -s "$SREG_SH_DIR/ignored-pkgs"
+  fi
+done
+
+# A distinct policy-bound advisory for the same package/scope must survive a
+# real successful ignore of a new no-fix advisory; sibling policy survives too.
+SREG_POLICY_JSON=$(jq '.matches[0].artifact.locations = [{path:"/go.mod"}]' <<< "$SCAN_JSON")
+printf '%s\n' "$SREG_POLICY_JSON" > "$SREG_SH_DIR/initial-scan.json"
+jq --argjson nofix "$SREG_NOFIX_JSON" '.matches += $nofix.matches' <<< "$SREG_POLICY_JSON" > "$SREG_SH_DIR/current.json"
+printf 'go.etcd.io/etcd/client/pkg/v3|/go.mod\ngo.etcd.io/etcd/client/pkg/v3|/tools/go.mod\n' > "$SREG_SH_DIR/needs-review-pkgs"
+cp "$SREG_SH_DIR/needs-review-pkgs" "$SREG_SH_DIR/markers-before"
+cp "$SCRIPT_DIR/ignore.sh" "$SREG_SCRIPTS_DIR/ignore.sh"
+bash "$SCRIPT_DIR/../subagents/scan-regression.sh" "$SREG_SH_DIR/state.env" "$SREG_SH_DIR" > "$SREG_SH_DIR/scan-regression.evidence"
+  evidence_as_report "$SREG_SH_DIR/scan-regression.evidence" "$SREG_SH_DIR/scan-regression.report"
+(subagent_fix_scan_regression "$SREG_SH_DIR/state.env" "$SREG_SH_DIR/scan-regression.report" "$SREG_SCRIPTS_DIR") >/dev/null 2>&1
+check "mixed-advisory ignore preserves exact original policy markers" cmp "$SREG_SH_DIR/markers-before" "$SREG_SH_DIR/needs-review-pkgs"
+check "mixed-advisory real ignore is module scoped" grep -q 'location: /go.mod' "$SREG_REPO/.grype.yaml"
+check "mixed-advisory real ignore retains unknown fix state" grep -q 'fix-state: unknown' "$SREG_REPO/.grype.yaml"
+# The scanner now reflects the effective ignore, while the policy finding remains.
+printf '%s\n' "$SREG_POLICY_JSON" > "$SREG_SH_DIR/current.json"
+SREG_SH_OUT=$(bash "$SCRIPT_DIR/../subagents/scan-regression.sh" "$SREG_SH_DIR/state.env" "$SREG_SH_DIR")
+check "mixed-advisory policy remains explicitly visible" grep -q '^NEEDS_REVIEW: GO-2026-6107 ' <<< "$SREG_SH_OUT"
+check "mixed-advisory ignore cannot clear genuine review" ! package_ignore_can_clear_review go.etcd.io/etcd/client/pkg/v3 "$SREG_SH_DIR/needs-review-pkgs"
+
 # Restore mock fix-package.sh for subsequent tests
 cat > "$MOCK_DIR/fix-package.sh" <<'MOCK'
 #!/bin/bash
@@ -8641,8 +8686,14 @@ cat > "$NESTED_REAL/retry-reports/final-scan.json" <<'EOF'
 EOF
 printf 'STATUS: FAIL\nDETAILS:\nUNRESOLVED: CVE-BINARY-NOFIX (example.com/restore v1.0.1 High no-fix) location:/output/root\n' \
   > "$NESTED_REAL/retry-reports/scan-regression.report"
+# A prior unproven binary may already have a legitimate policy marker.
+cat "$NESTED_REAL/retry-reports/needs-review-pkgs" > "$NESTED_REAL/retry-markers-before" 2>/dev/null || true
 (subagent_fix_scan_regression "$NESTED_REAL/retry.env" "$NESTED_REAL/retry-reports/scan-regression.report" "$SCRIPT_DIR") \
   > "$NESTED_REAL/retry-nofix.log" 2>&1 || true
+check "successful binary no-fix ignore preserves only prior policy markers" \
+  cmp "$NESTED_REAL/retry-markers-before" <(cat "$NESTED_REAL/retry-reports/needs-review-pkgs" 2>/dev/null || true)
+check "successful binary no-fix ignore still records ignored outcome" \
+  grep -q 'example.com/restore (no fix available) for CVE-BINARY-NOFIX' "$NESTED_REAL/retry-reports/ignored-pkgs"
 check "binary no-fix retry scopes its ignore to the source module" \
   grep -q 'location: /go.mod' "$BINARY_RETRY/.grype.yaml"
 check "binary no-fix retry preserves Grype's actual unknown state" \
