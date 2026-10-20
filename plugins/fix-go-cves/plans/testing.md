@@ -102,24 +102,28 @@ question. Fresh live case-001 may not reproduce that intermittent failure.
    actual base. Revert the two-line remaining-work treatment; this bounded
    comparison does not establish a general causal treatment effect or acceptance
    of the earlier wording. See [results](../evals/README.md#multi-failure-replay).
-4. **Measure the concrete retrieval change.** Anchored Go failure results now
-   expose both failure classes in model-free probes. A new user-directed
-   measurement selects cases 005 and 007 in each of three stock runs, with the
-   same models, calibrated factual judges, criteria and policy. Case 005 is the
-   established single-failure control; case 007 tests both failure patterns.
-   Before freezing, close the existing deterministic contract's full-Summary
-   blind spot using the trusted log and existing code-block handling. Preserve
-   previous scores; this new contract is not a retroactive rescore.
-   Apply the existing acceptance rule separately per case. Independently review
-   every execution for actual failure retrieval, both attempt outcomes, literal
-   Summary/exit/counts/ref/hashes, evidence supporting tooling claims, qualified
-   causality throughout, owner/remote-target prerequisites and unknown future
-   gates/PR availability. Case 005 must not invent case 007's syncer failure.
-   A majority score does not erase an individual defect or establish reliability
-   on unseen runs. Keep all completed and incomplete results. If synthesis
-   remains wrong after actual evidence exposure, stop this experiment branch;
-   do not automatically append warnings, start another cohort or escalate live.
-   Current-engine repair and native completion remain separate questions.
+4. **Retrieval measured; this experiment branch is stopped.** At `f3b12fd3`,
+   the selected 005/007 three-run comparison stopped after one completed pair.
+   Case 007 retrieves both failures and retry outcomes, but its overview still
+   makes unsupported global causal/repair claims. Preserve the raw majority
+   factual pass and manual failure separately. Case 005's original contract
+   false is a checker defect: a historical capture-status line was wrongly
+   required inside its otherwise complete engine Summary. Correct the shared
+   recording/authorization boundary and verify it model-free; do not rewrite
+   prior scores or rerun actors merely to fill the declared count. See
+   [results](../evals/README.md#multi-failure-replay).
+5. **Validate the known oracle gap.** The existing action/owner criterion
+   already rejects unsupported causal claims, but its judge accepted a global
+   overclaim despite later uncertainty. Add one focused contradictory-overview
+   negative and clarify whole-reply scope in that existing prompt. One calibration
+   covers both references and five relevant negatives, three samples each.
+   Require all 21 labels correct without errors; preserve mixed/error samples
+   and stop rather than tune/retry. This is oracle calibration, not skill
+   acceptance. Further skill work needs a design that prevents unsupported
+   synthesis after evidence has been retrieved; another search, warning or
+   prompt heading does not address the demonstrated mechanism. Keep literal
+   Summary, each attempt, actual base-to-result evidence and whole-reply causality
+   in manual review. Current-engine repair and native completion remain separate.
 
 Positive publication relay is the next distinct candidate, not a prerequisite for
 this experiment. Historical Submariner case 002 needs a complete sanitized log,

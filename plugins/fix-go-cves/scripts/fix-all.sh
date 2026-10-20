@@ -540,9 +540,9 @@ run_tests() {
   _record_test_evidence "$TEST_RC"
   local disk_full=false
   grep -qiE 'no space left on device|disk quota exceeded' "$TEST_LOG" && disk_full=true
-  # A single failure can be a flaky test; a real regression fails again.
+  # Retry once except for timeouts or disk exhaustion.
   if [[ $TEST_RC -ne 0 && $TEST_RC -ne 124 ]] && ! $disk_full; then
-    echo "Tests failed; rerunning once to rule out a flaky test..."
+    echo "Tests failed; rerunning once..."
     TEST_RC=0
     _EVIDENCE_TEST_ATTEMPT=2
     "${TEST_ENV[@]}" timeout --foreground "${CVE_FIX_TEST_TIMEOUT:-1800}" bash -c "$TEST_CMD" 2>&1 | tee "$TEST_LOG" || TEST_RC=$?

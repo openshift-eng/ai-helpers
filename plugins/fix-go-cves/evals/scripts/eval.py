@@ -304,6 +304,13 @@ def prepare(workspace, source):
     return baseline
 
 
+def without_recorded_exit(log, exit_code):
+    """The recording's capture status belongs to the invoking wrapper, not stdout."""
+    if type(exit_code) is int:
+        return re.sub(rf'(?m)^exit={exit_code}\n?\Z', '', log)
+    return log
+
+
 def replay(arguments):
     workspace = Path(__file__).resolve().parent.parent
     meta = read_json(workspace / '.replay/meta.json')
@@ -320,7 +327,7 @@ def replay(arguments):
     if meta.get('mode') == 'live':
         return live_run(workspace, arguments)
     git(workspace, 'checkout', '-b', meta['fix_branch'], meta['result_commit'])
-    print((workspace / '.replay/run.log').read_text(), end='')
+    print(without_recorded_exit((workspace / '.replay/run.log').read_text(), meta['exit_code']), end='')
     return meta['exit_code']
 
 
@@ -844,14 +851,8 @@ def publication_relay_allowed(blocks, log, exit_code):
     recipe = printed_pr_recipe(log) if log is not None else None
     if not recipe or len(publication) != 1:
         return False
-    allowed = {recipe}
-    summary = re.search(r'(?m)^--- Summary:', log)
-    if summary:
-        tail = log[summary.start():].strip()
-        allowed.add(tail)
-        if type(exit_code) is int and not re.search(r'(?m)^exit=[0-9]+$', tail):
-            allowed.add(tail + f'\nexit={exit_code}')
-    return publication[0] in allowed
+    return publication[0] == recipe or (publication[0].startswith('--- Summary:')
+        and summary_relay_allowed(publication, log, exit_code))
 
 
 def summary_relay_allowed(blocks, log, exit_code):
@@ -863,7 +864,7 @@ def summary_relay_allowed(blocks, log, exit_code):
     summary = re.search(r'(?m)^--- Summary:', log)
     if not summary:
         return not relayed
-    tail = log[summary.start():].strip()
+    tail = without_recorded_exit(log, exit_code)[summary.start():].strip()
     allowed = {tail}
     if type(exit_code) is int and not re.search(r'(?m)^exit=[0-9]+$', tail):
         allowed.add(tail + f'\nexit={exit_code}')

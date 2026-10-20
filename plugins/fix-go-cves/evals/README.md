@@ -283,16 +283,51 @@ unaccepted. No further prompt-only cohorts are selected.
 
 Trace review found reply 1 never retrieved the syncer failure: broad searches
 truncated expected-error chatter. The existing diagnostic grep now also selects
-anchored Go `FAIL` and `--- FAIL:` results. An actual-command, model-free probe
-on cases 005 and 007 exposes their reporter results and case 007's first-only
-syncer result; the latter produces eight lines including `NEEDS_REVIEW`, rather
-than one. This verifies evidence exposure only. No parent-agent measurement
-covers that search change yet. The next bounded measurement selects both cases
-for three executions each with unchanged factual judges. Its corrected contract
-checks complete Summary relay, closing the demonstrated truncation blind spot;
-older scores remain unchanged. See the [frozen review questions](../plans/testing.md#next-prepared-experiment).
-Neither comparison establishes current-engine repair, native completion or
-general reliability.
+anchored Go `FAIL` and `--- FAIL:` results. Actual-command probes on cases 005
+and 007 expose their reporter results and case 007's first-only syncer result.
+
+The measurement at `f3b12fd3` selected both cases for three executions each, but
+**stopped after the first pair**; it is not a completed comparison or acceptance.
+Both agents completed read-only and actually used the new search. Case 007
+retrieved both failures and retry outcomes, yet its overview attributes both
+to the directive change and claims both have existing repairs, despite qualified
+syncer detail later. This is synthesis after evidence exposure, not another
+retrieval miss. No further invoking-agent trials are selected for this branch.
+
+Original case-005 contract is false solely because the new Summary checker
+wrongly required a historical wrapper `exit=2` inside the fence; the reply quotes
+the complete engine Summary and states the exit separately. Its factual samples
+are all true. Original case-007 contract/backport pass; action/owner is true by
+majority with samples true/true/false and no errors. Manual review rejects its
+unsupported overview; the raw passing score remains unchanged. Agent cost is
+$1.015971 plus 12 unpriced judge calls. All 49 original files and earlier records
+remain intact under `cve-replay-retrieval-20261020-r1`; independent audits and the
+operator stop receipt are in `.work/fix-go-cves-e2e-reliability/`.
+
+The corrected checker separates an optional matching terminal wrapper status
+from the complete engine Summary. Replay likewise omits the historical wrapper
+status from emitted engine stdout, so the invoking wrapper records it once.
+Frozen recordings remain unchanged. Model-free checks cover the real case-005
+positive, case-007 truncation, and exact publication witness handling; prior
+scores are not rewritten. Runtime retry text now describes a retry without
+claiming to rule out flakiness; the historical measurement cannot test that edit.
+
+One focused case-007 negative adds an unsupported global attribution to the
+reviewed reference while retaining its later uncertainty. Two lines in the
+existing action/owner prompt explicitly cover the whole reply; the criterion
+is unchanged. A single oracle-only calibration is selected: both references,
+this negative, the existing retry negative and three case-005 negatives, with
+three samples each (21 calls). All samples must match expected labels without
+errors; disagreement stops calibration rather than a tuning loop. No backport
+judge, new judge, output schema or actor campaign is added. This does not
+establish current-engine repair, native completion or general reliability.
+
+The corrected helper passes 52 checks. The first full shell run passed
+2,335/2,343, with eight durable-evidence assertions failing; its temporary log
+was deleted. Three isolated 23-check repetitions pass. A later host `/tmp`
+quota exhaustion is observed, not a proven cause of the earlier failure.
+The shell suite now retains its owned temporary tree on failure and removes
+it on success; a full controlled recheck is pending.
 
 ## Live evidence and coverage
 

@@ -27,9 +27,13 @@ The frozen follow-up at `d9261b68` also fails: contract 3/3 and factual conjunct
 1/3; two replies omit the syncer failure. The two-line remaining-work treatment
 is reverted. A bounded change to the existing diagnostic grep exposes anchored
 Go failures; actual-command probes verify evidence exposure, not agent behavior.
-The [testing plan](testing.md#next-prepared-experiment) preserves the measurements
-and selects one bounded test of that concrete search change on cases 005/007,
-with a corrected full-Summary contract. No further prompt-only treatment is selected.
+The search measurement at `f3b12fd3` stopped after one completed 005/007 pair.
+It exposed both failures, but case 007 still makes unsupported global causal
+claims despite later uncertainty. Its raw majority pass and manual failure
+remain separate. A case-005 Summary-checker false negative is corrected without
+rewriting original scores. The [testing plan](testing.md#next-prepared-experiment)
+selects a bounded oracle-only calibration of whole-reply scope, with no further
+actor trials or prompt-only skill treatment.
 Source/native engine evidence remains separate; their failed invoking-agent
 measurements are not replaced.
 

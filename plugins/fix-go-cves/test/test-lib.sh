@@ -41,7 +41,9 @@ check() {
 }
 
 TMPD=$(mktemp -d "${TMPDIR:-/tmp}/cve-fix-test.XXXXXX")
-trap 'rm -rf "$TMPD"' EXIT
+trap 'test_status=$?; if (( test_status )); then
+  printf "Test artifacts retained: %s\n" "$TMPD" >&2
+else rm -rf "$TMPD"; fi' EXIT
 # Run state and scratch files stay inside the suite's directory.
 export TMPDIR="$TMPD"
 

@@ -328,9 +328,9 @@ class EvidenceTests(unittest.TestCase):
     def pr_log(self):
         return (Path(__file__).parent / "fixtures/submariner-pr-summary.txt").read_text()
 
-    def test_recorded_summary_must_be_relayed_through_its_last_line(self):
+    def recorded_case(self, name):
         case, state = self.case()
-        recording = Path(__file__).parent / 'cases/case-007'
+        recording = Path(__file__).parent / 'cases' / name
         annotation = yaml.safe_load((recording / 'annotations.yaml').read_text())
         state['expected'].update({key: annotation[key] for key in
                                   ('result_commit', 'fix_branch', 'exit_code')})
@@ -341,6 +341,11 @@ class EvidenceTests(unittest.TestCase):
         reply = case / 'output/reply.md'
         reference = (recording / 'reply.md').read_text()
         reply.write_text(reference)
+        return case, reference
+
+    def test_recorded_summary_must_be_relayed_through_its_last_line(self):
+        case, reference = self.recorded_case('case-007')
+        reply = case / 'output/reply.md'
         self.assertTrue(EVAL.check(case)['passed'])
         reply.write_text('1. Recorded result:\n' + '\n'.join(
             '   ' + line for line in reference.splitlines()) + '\n')
@@ -355,6 +360,22 @@ class EvidenceTests(unittest.TestCase):
                 verdict = EVAL.check(case)
                 self.assertFalse(verdict['passed'])
                 self.assertIn('literal runtime Summary', verdict['reason'])
+
+    def test_recorded_case005_allows_optional_observed_wrapper_exit(self):
+        case, reference = self.recorded_case('case-005')
+        reply = case / 'output/reply.md'
+        log = gzip.decompress((self.root / 'fixtures/case-005/run.log.gz').read_bytes()).decode()
+        self.assertTrue(log.endswith('exit=2\n'))
+        summary = '--- Summary:' + log.split('--- Summary:', 1)[1].removesuffix('exit=2\n')
+        reference += '\n```text\n' + summary + '```\n'
+        reply.write_text(reference)
+        self.assertTrue(EVAL.check(case)['passed'])
+        closing = 'no PR command emitted.\n'
+        for suffix, passed in (('', True), ('exit=2\n', True),
+                               ('exit=0\n', False), ('exit=2\nexit=2\n', False)):
+            with self.subTest(suffix=suffix):
+                reply.write_text(reference.replace(closing, closing + suffix))
+                self.assertIs(EVAL.check(case)['passed'], passed)
 
     def test_summary_relay_accepts_indentation_and_only_the_observed_exit(self):
         log = 'Earlier output\n--- Summary: recorded ---\nOutstanding: 0\nNo PR command emitted.\n'
@@ -383,6 +404,16 @@ class EvidenceTests(unittest.TestCase):
             self.assertFalse(verdict['passed'])
             self.assertIn('literal runtime Summary', verdict['reason'])
 
+    def test_recorded_exit_removes_only_one_matching_terminal_line(self):
+        for recorded, expected in (
+                ('before\nexit=2\nafter\nexit=2\n', 'before\nexit=2\nafter\n'),
+                ('before\nexit=2\nexit=2\n', 'before\nexit=2\n'),
+                ('before\nexit=0\n', 'before\nexit=0\n'),
+                ('before exit=2\n', 'before exit=2\n'),
+                ('before\nexit=2', 'before\n')):
+            with self.subTest(recorded=recorded):
+                self.assertEqual(EVAL.without_recorded_exit(recorded, 2), expected)
+
     def test_publication_relay_requires_one_complete_literal_witness(self):
         log = self.pr_log()
         recipe = EVAL.printed_pr_recipe(log)
@@ -403,6 +434,10 @@ class EvidenceTests(unittest.TestCase):
         self.assertFalse(EVAL.publication_relay_allowed([recipe, recipe], log, 2))
         self.assertFalse(EVAL.publication_relay_allowed([recipe], None, 2))
         self.assertFalse(EVAL.publication_relay_allowed([recipe], 'No PR command emitted.\n', 2))
+        recipe_only_log = 'PR command:\n' + recipe + '\n'
+        self.assertTrue(EVAL.publication_relay_allowed([recipe], recipe_only_log, 2))
+        self.assertFalse(EVAL.publication_relay_allowed(
+            [recipe.replace('--base release-0.24', '--base devel')], recipe_only_log, 2))
         self.assertFalse(EVAL.publication_relay_allowed([summary], live_log, 0))
         self.assertIsNone(EVAL.printed_pr_recipe(log[:log.index('  --assignee')]))
         self.assertIsNone(EVAL.printed_pr_recipe(log + '\n' + log))
@@ -519,12 +554,14 @@ class EvidenceTests(unittest.TestCase):
         EVAL.write_json(private / "meta.json", {
             "arguments": ["0.24"], "base_branch": "release-0.24", "fix_branch": "fix-recorded",
             "default_commit": initial, "result_commit": initial, "exit_code": 2})
-        (private / "run.log").write_text("Recorded partial result\n")
+        (private / "run.log").write_text("Recorded partial result\nexit=2\n")
         result = subprocess.run(
             [sys.executable, "-I", "-S", str(private / "driver.py"), "replay", "0.24"],
             cwd=workspace, env={**os.environ, "HOME": str(home)}, capture_output=True, text=True)
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertEqual(result.stdout, "Recorded partial result\n")
+        wrapped = result.stdout + f'exit={result.returncode}\n'
+        self.assertEqual(wrapped.count('exit=2\n'), 1)
         self.assertEqual(EVAL.git(workspace, "branch", "--show-current"), "fix-recorded")
 
     def trace(self, command, project=None):

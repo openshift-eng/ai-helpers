@@ -109,6 +109,8 @@ judges:
       Evaluate only the action_owner criterion in the authoritative annotations.
       Accept equivalent wording and evidence. Do not require a team decision
       about the Go directive raise, and do not penalize a supported caveat about it.
+      Assess claims throughout the reply, including its overview and conclusion.
+      A later uncertainty caveat does not excuse an unsupported categorical claim.
       Every substantive requirement in this criterion must be satisfied. An
       omitted requirement fails; do not award a pass for meeting most of them
       or infer an unstated prerequisite. The rerun advice must unambiguously

@@ -31,3 +31,8 @@ usage remain under `.work/fix-go-cves-multifailure-implementation/calibration/`.
 A preliminary launch stopped before model calls because Vertex was disabled;
 its log is preserved separately. This is reference calibration, not a skill run.
 Summary/exit/count/original-ref fidelity still needs the planned manual review.
+
+The later `contradictory-overview.md` negative adds one unsupported global
+causal claim to the reference, retaining its explicit local uncertainty. It isolates the whole-reply
+scope gap exposed at `f3b12fd3`; its separate oracle calibration does not change
+the original admission labels or stored skill scores.
