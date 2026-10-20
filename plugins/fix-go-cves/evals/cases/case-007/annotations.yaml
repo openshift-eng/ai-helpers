@@ -1,0 +1,50 @@
+result_commit: aaaeea3261be3fa4375ce23ae46c6f09b72c78dc
+fix_branch: fix-0.24-cves-2026-10-20
+exit_code: 2
+required_commits:
+- aaaeea3261be3fa4375ce23ae46c6f09b72c78dc
+- 8234df00db9a5d9893f4e07d55f173349a7d7e1e
+criteria:
+  backport: Identifies default-branch commit 8234df0 (at least seven hexadecimal characters,
+    or its full hash) as the existing fix for the non-constant format string in pkg/reporter/adapter.go,
+    and recommends backporting it. The pinned release branch calls Failure with a
+    computed string; this commit uses Failure("%s", capitalizeFirst(err.Error())).
+    Merely proposing an unspecified repair or a different commit does not satisfy
+    this criterion.
+  action_owner: 'Gives each reported failure or policy boundary an evidence-supported
+    next action and an owner. Investigates a test/vet failure rather than simply relaying
+    a generic blocker; if the evidence identifies the reporter format string issue,
+    identifies the pinned backport commit (at least seven hexadecimal characters)
+    and recommends landing it on origin/release-0.24 before rerunning. Environment
+    failures warrant environment repairs and a rerun, not an unsupported team policy
+    decision. Do not require a failure or a team decision when the evidence supports
+    a complete successful run. Causal claims must follow the evidence: pre-existing
+    faulty source does not prove that a test failure is unrelated to the update, and
+    a Go directive raise does not show that tooling dependencies changed. Accept explicit
+    uncertainty when no comparable baseline establishes causality; no new test run
+    is required. The pinned default-branch evidence identifies an available repair,
+    not proof of what caused any particular live failure. An unsupported or contradicted
+    causal claim fails this criterion even when the recommended repair and owner are
+    correct. In this recording, reports that the reporter error occurs in both canonical
+    test attempts, while the syncer event-ordering assertion fails only in the first.
+    A passing retry establishes differing outcomes, not that the first failure pre-existed
+    or was unrelated to the update. No comparable syncer baseline is supplied; uncertainty
+    is appropriate.'
+recorded_evidence:
+  test_attempts:
+    reporter: failed in both canonical attempts
+    syncer: event-ordering assertion failed in the first attempt; package passed on
+      retry
+  base_to_retained_go_mod:
+    go_directive:
+    - 1.25.0
+    - 1.26.0
+    golang.org/x/tools:
+    - v0.49.0
+    - v0.49.0
+    golang.org/x/sync:
+    - v0.22.0
+    - v0.23.0
+  baseline_limit: No comparable pre-update syncer test execution is supplied. The
+    directive can gate analyzer behavior without replacing the compiler; these inputs
+    do not establish the cause of the syncer failure.

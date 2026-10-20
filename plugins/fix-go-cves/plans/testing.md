@@ -12,8 +12,9 @@ Three layers answer different questions:
   calibrated. The first three frozen comparisons failed. The first literal-report
   comparison was incomplete after an SDK-event parsing error. The revised
   comparison passes contract and factual conjunction in all three executions;
-  manual wording caveats remain separate from those scores. Replay
-  cannot validate today's remediation engine.
+  manual wording caveats remain separate from those scores. New case 007 is
+  calibrated and admitted; its skill comparison is pending. Replay cannot
+  validate today's remediation engine.
 - **Live evaluation:** real Grype and canonical commands establish Admiral
   source repair (14 runtime assertions) and Subctl native repair (19), both
   with engine exit 0. Skill execution remains unaccepted: Admiral invented
@@ -76,29 +77,22 @@ the same real run without treating a passing retry as causal evidence. Case 005
 lacks the first-only syncer failure; another execution of it cannot answer that
 question. Fresh live case-001 may not reproduce that intermittent failure.
 
-1. **Review one replay of the preserved live result.** A local candidate, proposed
-   as case-007, is under `.work/fix-go-cves-e2e-next-prep/candidate-v2/`, with
-   the frozen preparation in `model-free-v2/` alongside it. It retains the full
-   two-attempt log, recorded plugin and `aaaeea3` bundle from
-   `cve-live-admiral-reporting-20261020`; its sole parent is the pinned base.
-   The existing stock workspace and unchanged helper completed model-free replay
-   with the expected exit 2, retained result and clean state. Original evidence
-   hashes matched. This proves preparation, not behavior or admission. Review
-   sanitization, the reference and its causal negative before committing the
-   fixture. Keep case 005 and its original measurements unchanged; no helper or
-   runtime redesign is needed for this candidate.
-2. **Calibrate the new reference and causal negative.** Use the existing stock
-   judges with the actual rendered replay annotations and reply, including the
-   recorded Go/x/tools facts. For `action_owner`, the uncertainty reference must
-   pass and the same-evidence retry-causality negative must fail. Both preserve
-   correct repair advice and should pass `backport`. Use the existing three-sample
-   checks and retain errors/disagreement. Do not require a new baseline run to
-   accept explicit uncertainty. A directive may
-   enable analyzer checks without replacing the compiler; the prior live verdict
-   remains false independently of its flawed compiler-change rationale. Preserve
-   that verdict. Change a rubric only if calibration demonstrates a defect; do
-   not add a judge or weaken the unsupported-causality criterion.
-3. **Admit and freeze after preparation and calibration pass.** Select only
+1. **Case 007 is admitted.** It preserves the full two-attempt log, recorded
+   plugin and `aaaeea3` bundle from `cve-live-admiral-reporting-20261020`, whose
+   sole parent is the pinned base. Independent review verified ancestry, facts,
+   reference/negative, sanitization and absence of answer leakage. The unchanged
+   helper completed model-free replay with expected exit 2 and clean retained
+   state. Original evidence and case 005 remain unchanged.
+2. **Reference calibration passed.** The stock factual judges received the
+   actual rendered annotations and reply, including recorded Go/x/tools facts.
+   All 12 samples agreed without errors: `backport` passes both replies;
+   `action_owner` passes the uncertainty reference and rejects the retry-causality
+   negative. The reference's directive explanation passed without requiring a
+   compiler replacement or new baseline run. Prompts/model/criteria were not
+   weakened. See [fixture provenance](../evals/cases/case-007/calibration.md).
+   This calibrates the oracle, not skill behavior. Preserve raw results and the
+   original live failure; change a rubric only if calibration demonstrates a defect.
+3. **Freeze the selected comparison.** Select only
    the admitted multi-failure case, preserving the tested harness, skill/helper,
    inputs, annotations and model settings. Use the existing three-execution
    replay rule below. The factual judges measure backport/causal advice, not
@@ -243,8 +237,9 @@ removing model verification; that removal does not need its own eval framework.
 
 ## Historical follow-ups
 
-Six source recordings remain under `.work/fix-go-cves-evals/source/`; only 005
-is packaged. Admit another only when it adds a concrete decision or regression.
+Of the six original recordings under `.work/fix-go-cves-evals/source/`, only 005
+is packaged. Case 007 comes from the later live capture. Admit another only when
+it adds a concrete decision or regression.
 
 | Case | Recording | Admission work |
 | --- | --- | --- |

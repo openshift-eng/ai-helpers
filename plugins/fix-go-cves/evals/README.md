@@ -16,9 +16,11 @@ when the skill correctly reports a blocked or partial remediation outcome.
 | Case | Repository | What it measures |
 | --- | --- | --- |
 | case-005 | admiral, release-0.24 | Diagnose the reporter vet failure, find the existing default-branch backport, and explain where it must land before rerunning. |
+| case-007 | admiral, release-0.24 | Distinguish a persistent reporter failure from a first-only syncer failure; qualify causality and give usable next steps. |
 
-Case numbers retain the recording identifiers. Other recordings remain planned
-in [testing and evals](../plans/testing.md).
+Case 005 retains its original recording identifier; case 007 preserves a later
+real live run as a separate replay. The default remains case 005. Other recordings
+remain planned in [testing and evals](../plans/testing.md).
 
 ## Setup
 
