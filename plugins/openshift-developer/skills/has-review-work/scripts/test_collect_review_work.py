@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from collect_review_work import (
-    Authorizer, THREAD_QUERY, ci_decision, collect_candidates, collect_snapshot,
+    Authorizer, GH_TIMEOUT, THREAD_QUERY, ci_decision, collect_candidates, collect_snapshot,
     fetch_threads, main, paginated_items, run_gh,
 )
 
@@ -58,6 +58,19 @@ class CandidateTests(unittest.TestCase):
         candidates, _ = self.collect(inline, threads={1: thread(1)})
         self.assertEqual([c["id"] for c in candidates], [3])
 
+    def test_shared_bot_matcher_keeps_other_automated_reviewers(self):
+        conversation = [
+            comment(1, "Done.", login="Review-Agent"),
+            comment(2, "Please change this", login="coderabbitai[bot]"),
+        ]
+
+        candidates, skipped = self.collect(
+            conversation=conversation, authorize=lambda _login: True,
+        )
+
+        self.assertEqual([candidate["id"] for candidate in candidates], [2])
+        self.assertEqual(skipped["bot"], 1)
+
     def test_resolved_comments_are_skipped_before_authorization(self):
         authorize = Mock()
         candidates, skipped = self.collect([comment(1)], threads={1: thread(1, True)}, authorize=authorize)
@@ -94,9 +107,54 @@ class CandidateTests(unittest.TestCase):
         candidates, _ = self.collect(reviews=reviews, conversation=conversation)
         self.assertEqual([(c["type"], c["id"]) for c in candidates], [("review", 9), ("issue_comment", 3)])
 
+    def test_later_inline_reply_suppresses_stale_review(self):
+        reviews = [
+            dict(comment(5571697371), submitted_at="2026-10-19T12:43:14Z", state="COMMENTED"),
+        ]
+        inline = [
+            comment(1, time="2026-10-19T12:40:00Z"),
+            comment(2, login="review-agent", in_reply_to_id=1, time="2026-10-19T13:00:00Z"),
+        ]
+
+        candidates, skipped = self.collect(inline=inline, reviews=reviews, threads={1: thread(1)})
+
+        self.assertEqual(candidates, [])
+        self.assertEqual(skipped["replied"], 2)
+
+    def test_equal_second_reply_does_not_suppress_review(self):
+        reviews = [
+            dict(comment(9), submitted_at="2026-10-19T14:00:00Z", state="COMMENTED"),
+        ]
+        conversation = [
+            comment(10, "Done.", login="review-agent", time="2026-10-19T14:00:00Z"),
+        ]
+
+        candidates, _ = self.collect(reviews=reviews, conversation=conversation)
+
+        self.assertEqual([(c["type"], c["id"]) for c in candidates], [("review", 9)])
+
+    def test_review_after_latest_bot_reply_remains_candidate(self):
+        reviews = [
+            dict(comment(5572473354), submitted_at="2026-10-19T13:45:25Z", state="COMMENTED"),
+        ]
+        inline = [
+            comment(1, time="2026-10-19T12:40:00Z"),
+            comment(2, login="review-agent", in_reply_to_id=1, time="2026-10-19T13:00:00Z"),
+        ]
+
+        candidates, _ = self.collect(inline=inline, reviews=reviews, threads={1: thread(1)})
+
+        self.assertEqual([(c["type"], c["id"]) for c in candidates], [("review", 5572473354)])
+
     def test_legacy_signature_counts_as_reply(self):
         candidates, _ = self.collect(
-            [comment(1), comment(2, "*AI-assisted response via Claude Code*", login="other-agent", in_reply_to_id=1)],
+            [
+                comment(1),
+                comment(
+                    2, "*AI-assisted response via Claude Code*", login="other-agent",
+                    in_reply_to_id=1, time="2026-10-02T13:01:00Z",
+                ),
+            ],
             threads={1: thread(1)},
         )
         self.assertEqual(candidates, [])
@@ -120,6 +178,7 @@ class ApiTests(unittest.TestCase):
     def test_nonzero_checks_exit_with_json_is_accepted(self, run):
         run.return_value = subprocess.CompletedProcess([], 1, json.dumps([FAILURE]), "checks failed")
         self.assertEqual(run_gh(["pr", "checks"], allow_failure_json=True), [FAILURE])
+        self.assertEqual(run.call_args.kwargs["timeout"], GH_TIMEOUT)
         with self.assertRaises(RuntimeError):
             run_gh(["api", "anything"])
         run.return_value.stdout = ""
@@ -133,7 +192,7 @@ class ApiTests(unittest.TestCase):
 
     @patch("collect_review_work.run_gh", return_value=[[{"id": 1}], [{"id": 2}]])
     def test_rest_pages_are_flattened(self, run):
-        self.assertEqual(paginated_items("endpoint"), [{"id": 1}, {"id": 2}])
+        self.assertEqual(paginated_items("endpoint", run), [{"id": 1}, {"id": 2}])
         self.assertIn("--paginate", run.call_args.args[0])
         self.assertIn("--slurp", run.call_args.args[0])
 
