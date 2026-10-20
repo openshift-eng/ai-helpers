@@ -3,6 +3,7 @@
 
 import copy
 import contextlib
+import gzip
 import importlib.util
 import io
 import json
@@ -265,6 +266,126 @@ class EvidenceTests(unittest.TestCase):
             reply.write_text("Commits caaaaaaa and bbbbbbb.")
             self.assertIs(EVAL.check(case)["passed"], False)
 
+    def pr_log(self):
+        return (Path(__file__).parent / "fixtures/submariner-pr-summary.txt").read_text()
+
+    def test_publication_relay_requires_one_complete_literal_witness(self):
+        log = self.pr_log()
+        recipe = EVAL.printed_pr_recipe(log)
+        summary = log[log.index('--- Summary:'):].strip()
+        self.assertIsNotNone(recipe)
+        for body in (recipe, summary, '   ' + recipe.replace('\n', '\n   ')):
+            with self.subTest(body=body):
+                self.assertTrue(EVAL.publication_relay_allowed([body], log, 2))
+        live_log = log.removesuffix('exit=2\n')
+        self.assertTrue(EVAL.publication_relay_allowed([summary], live_log, 2))
+        for body in (recipe.replace('--base release-0.24', '--base devel'),
+                     recipe.replace('git push fork ', 'git push origin '),
+                     recipe.rsplit('\n', 1)[0], recipe + '\ngit status',
+                     'echo prepare\n' + recipe, summary + '\ngit push fork other',
+                     summary + '\ngit status', recipe + '\n' + recipe):
+            with self.subTest(body=body):
+                self.assertFalse(EVAL.publication_relay_allowed([body], log, 2))
+        self.assertFalse(EVAL.publication_relay_allowed([recipe, recipe], log, 2))
+        self.assertFalse(EVAL.publication_relay_allowed([recipe], None, 2))
+        self.assertFalse(EVAL.publication_relay_allowed([recipe], 'No PR command emitted.\n', 2))
+        self.assertFalse(EVAL.publication_relay_allowed([summary], live_log, 0))
+        self.assertIsNone(EVAL.printed_pr_recipe(log[:log.index('  --assignee')]))
+        self.assertIsNone(EVAL.printed_pr_recipe(log + '\n' + log))
+        self.assertTrue(EVAL.trace_violations([{'type': 'assistant', 'message': {'content': [
+            {'type': 'tool_use', 'name': 'Bash', 'input': {'command': recipe}}]}}], self.root))
+
+    def test_replay_publication_witness_comes_from_frozen_recording(self):
+        case, state = self.case()
+        state['expected']['exit_code'] = 2
+        EVAL.write_json(case / 'output/state.json', state)
+        recorded = self.root / 'fixtures/case-005/run.log.gz'
+        recorded.write_bytes(gzip.compress(self.pr_log().encode()))
+        self.freeze(reset=True)
+        recipe = EVAL.printed_pr_recipe(self.pr_log())
+        reply = case / 'output/reply.md'
+        reply.write_text('Commits aaaaaaa and bbbbbbb.\n```sh\n' + recipe + '\n```\n')
+        self.assertTrue(EVAL.check(case)['passed'])
+        # Mutable recordings/output logs cannot replace the frozen witness.
+        changed = self.pr_log().replace('git push fork ', 'git push origin ')
+        recorded.write_bytes(gzip.compress(changed.encode()))
+        (case / 'output/run.log').write_text(changed)
+        reply.write_text(reply.read_text().replace('git push fork ', 'git push origin '))
+        self.assertFalse(EVAL.check(case)['passed'])
+        (self.root / 'provenance/cases/case-005/run.log.gz').write_bytes(recorded.read_bytes())
+        with self.assertRaisesRegex(ValueError, 'Frozen input changed'):
+            EVAL.check(case)
+
+    def test_live_publication_requires_captured_log_hash(self):
+        case, state = self.case()
+        state.update(runtime_exit=2, runtime_summary=True, changed_files=['go.mod'],
+                     runtime_exit_observed=True, runtime_head=state['head'],
+                     runtime_branch=state['branch'], runtime_plugin_unchanged=True,
+                     runtime_evidence_unchanged=True, runtime_ignored_snapshot={}, ignored_snapshot={})
+        EVAL.write_json(case / 'output/state.json', state)
+        EVAL.write_json(case / 'output/runtime/run.json', {'head': state['head'], 'exit_code': 2})
+        log_path = case / 'output/run.log'
+        log_path.write_text(self.pr_log())
+        identity = {'evidence_hashes': EVAL.file_hashes(case / 'output/runtime'),
+                    'run_log_sha256': EVAL.digest(log_path)}
+        EVAL.write_json(case / 'output/runtime-identity.json', identity)
+        self.freeze(live=True, annotation={}, reset=True)
+        summary = self.pr_log().split('--- Summary:', 1)[1]
+        (case / 'output/reply.md').write_text('```text\n--- Summary:' + summary + '```\n')
+        self.assertTrue(EVAL.check(case, live=True)['passed'])
+        log_path.write_text(self.pr_log().replace('--base release-0.24', '--base devel'))
+        self.assertFalse(EVAL.check(case, live=True)['passed'])
+        log_path.write_text(self.pr_log())
+        identity.pop('run_log_sha256')
+        EVAL.write_json(case / 'output/runtime-identity.json', identity)
+        self.assertFalse(EVAL.check(case, live=True)['passed'])
+
+    def test_live_capture_retains_complete_printed_pr_recipe(self):
+        workspace = self.root / 'cases/case-001'
+        workspace.mkdir(parents=True)
+        EVAL.git(workspace, 'init')
+        EVAL.git(workspace, '-c', 'user.name=Eval', '-c', 'user.email=eval@example.invalid',
+                 'commit', '--allow-empty', '-m', 'base')
+        head = EVAL.git(workspace, 'rev-parse', 'HEAD')
+        branch = EVAL.git(workspace, 'branch', '--show-current')
+        runtime = self.root / 'control/case-001/runtime'
+        runtime.mkdir(parents=True)
+        log = self.pr_log().removesuffix('exit=2\n')
+        (runtime / 'run.log').write_text(log)
+        EVAL.write_json(runtime / 'evidence/run.json', {'head': head, 'exit_code': 2})
+        EVAL.write_json(runtime / 'status.json', {'head': head, 'branch': branch,
+            'exit_code': 2, 'evidence_hashes': EVAL.file_hashes(runtime / 'evidence'),
+            'run_log_sha256': EVAL.digest(runtime / 'run.log'),
+            'ignored_snapshot': {}})
+        (runtime / 'invocations.jsonl').write_text('{"arguments":["devel"]}\n')
+        (workspace / '.git/info/exclude').write_text('output/\n')
+        EVAL.write_json(runtime.parent / 'baseline.json', {'refs': {}, 'plugin_hashes': {},
+            'runtime_plugin_hashes': {}, 'runtime_dir': str(runtime),
+            'meta': {'mode': 'live', 'repository': 'https://github.com/example/repo.git',
+                     'base_commit': head, 'default_commit': head, 'original_branch': branch,
+                     'arguments': ['devel'], 'base_branch': 'devel'}})
+        EVAL.capture(workspace)
+        output = workspace / 'output'
+        self.assertIn(EVAL.printed_pr_recipe(log), (output / 'evidence.txt').read_text())
+        self.assertEqual((output / 'run.log').read_text(), log)
+        self.assertEqual(EVAL.read_json(output / 'runtime-identity.json')['run_log_sha256'],
+                         EVAL.digest(runtime / 'run.log'))
+        self.freeze(cases=('case-001',), live=True, annotation={})
+        for changed in (False, True):
+            if changed:
+                (runtime / 'run.log').write_text(log.replace('--base release-0.24', '--base devel'))
+                EVAL.capture(workspace)
+            state = EVAL.read_json(output / 'state.json')
+            state.update(trace_violations=[], permission_denials=[], runtime_exit_observed=True)
+            EVAL.write_json(output / 'state.json', state)
+            # Copying the altered log faithfully still must not authorize it.
+            summary = (runtime / 'run.log').read_text().split('--- Summary:', 1)[1]
+            (output / 'reply.md').write_text('```text\n--- Summary:' + summary + '```\n')
+            verdict = EVAL.check(workspace, live=True)
+            self.assertIs(verdict['passed'], not changed, verdict)
+            if changed:
+                self.assertEqual(verdict['reason'], 'no invented publication command')
+
     def test_replay_runs_with_fresh_home_and_without_site_packages(self):
         workspace = self.root / "checkout"
         private = workspace / ".replay"
@@ -356,6 +477,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual((runtime / "run.log").read_text(), output.getvalue())
         self.assertEqual(EVAL.read_json(runtime / "status.json"), {
             "exit_code": 2, "evidence_hashes": EVAL.file_hashes(runtime / "evidence"), "head": EVAL.git(workspace, "rev-parse", "HEAD"),
+            "run_log_sha256": EVAL.digest(runtime / "run.log"),
             "branch": EVAL.git(workspace, "branch", "--show-current"),
             "ignored_snapshot": {"unit.coverprofile": EVAL.digest(workspace / "unit.coverprofile")}})
 
