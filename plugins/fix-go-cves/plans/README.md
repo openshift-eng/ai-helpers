@@ -8,36 +8,19 @@ itself.
 
 ## Next changes
 
-Reporting now quotes observed terminal results before qualified, read-only
-diagnosis. Existing original-ref evidence supports return advice, and publication
-relay requires the complete witnessed block. The selected case-005 replay
-comparison passes its contract and factual criteria in all three executions;
-earlier failures and the incomplete SDK-event trial remain preserved
-([results](../evals/README.md#current-reporting-implementation)). Manual wording
-caveats prompted a small prerequisite-to-verification clarification after that
-comparison; it is not retroactively tested by the earlier outputs.
+Reporting quotes the observed terminal result, then identifies remaining work
+through read-only source and patch inspection. The smaller workflow removes
+mandatory causal attribution; it does not establish reliable diagnosis. Its
+`2f6102d2` comparison stopped after one completed 005/007 pair: both contracts
+and backport criteria pass, but action/owner fails unanimously for unsupported
+causal claims. The full three-execution comparison remains incomplete.
 
-The current-engine blocked check verified reporter/evidence-capture integration
-and read-only behavior, but failed on unsupported syncer causality. Case 007 now
-replays both real test attempts after review, model-free preparation and successful
-reference calibration. Its comparison at `0fdccbb0` also fails: contract 2/3 and
-factual conjunction 0/3, with raw mixed samples and original failures preserved.
-
-The frozen follow-up at `d9261b68` also fails: contract 3/3 and factual conjunction
-1/3; two replies omit the syncer failure. The two-line remaining-work treatment
-is reverted. A bounded change to the existing diagnostic grep exposes anchored
-Go failures; actual-command probes verify evidence exposure, not agent behavior.
-The search measurement at `f3b12fd3` stopped after one completed 005/007 pair.
-It exposed both failures, but case 007 still makes unsupported global causal
-claims despite later uncertainty. Its raw majority pass and manual failure
-remain separate. A case-005 Summary-checker false negative is corrected without
-rewriting original scores. The [testing plan](testing.md#next-prepared-experiment)
-records the whole-reply oracle calibration passing all 21 samples without errors.
-This covers seven oracle examples; it does not regrade the natural reply or
-establish skill acceptance. No further actor trial or prompt-only skill treatment
-is selected.
-Source/native engine evidence remains separate; their failed invoking-agent
-measurements are not replaced.
+Keep skill acceptance blocked. Detailed failed and incomplete trials, raw scores
+and costs belong in the [eval results](../evals/README.md#multi-failure-replay).
+The [testing plan](testing.md#next-steps) records the unresolved reporting boundary
+and a conditional successful-repair integration check. Source/native engine
+success remains separate from invoking-agent behavior; another wording cohort
+or new reviewer layer is not selected.
 
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.

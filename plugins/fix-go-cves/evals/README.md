@@ -337,6 +337,35 @@ first failure. The shell suite now retains its owned temporary tree on failure
 and removes it on success. Diagnostic attempts and evidence remain separately
 recorded in `.work/fix-go-cves-e2e-reliability/shell-investigation.json`.
 
+The observation-to-repair workflow at `2f6102d2` removes the mandatory causal
+investigation throughout the skill, rather than only changing the final heading.
+It requires each failure/attempt outcome and an inspected matching repair or
+remaining investigation; dependency comparisons are conditional on change claims.
+Independent design review supports the smaller task, not a reliability claim.
+
+Its declared three-execution 005/007 comparison stopped after one completed pair,
+`cve-replay-remedy-20261020-r1`. Both actors completed read-only and relayed the
+full Summary. Both deterministic contracts pass, both backport criteria are true
+in all three samples, and both action/owner criteria are false in all three
+samples, with zero judge errors. The stock pipeline exits 1 for that regression.
+Case 005 spontaneously asserts newer tooling dependencies without comparing the
+actual dependencies. Case 007 retrieves both failure classes and attempts, then
+calls both failures pre-existing and unrelated without baseline evidence. It also
+leaves the separate syncer investigation's owner unspecified.
+The correct reporter backport and remote-target prerequisite do not cure those
+claims. Independent native/whole-reply review agrees with rejection.
+
+Agent wall time was 292 seconds and actual model usage cost $1.80188575, plus
+12 unpriced judge calls. The frozen source was clean, the harness remained
+`1a980e707909a23f8c143ce333d97f5203db34ab`, and the actual CLI was 2.1.304 with
+`claude-opus-4-6` for actor and judges. Both model-free preflights passed. Raw
+outputs, all samples and the standard report remain in the run directory;
+the experiment declaration and independent reviews are under
+`.work/fix-go-cves-remedy-workflow/`. No r2/r3 or additional wording cohort ran.
+Keep this comparison incomplete and the skill unaccepted. Retain the smaller
+workflow for task fit only; this pair establishes neither comparative improvement
+nor degradation. No new judge, schema, runtime gate or reviewer layer was added.
+
 ## Live evidence and coverage
 
 The live helper opts into an external `CVE_FIX_EVIDENCE_DIR` and archives its

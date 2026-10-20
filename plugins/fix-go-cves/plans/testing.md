@@ -43,7 +43,7 @@ not attribute the historical run or replace a full baseline test suite.
 2. **Boundary fixtures pass.** The existing shell suite passed 2,343 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
-   The 47 eval checks cover witnessed publication, tampering, frozen inputs,
+   The 52 eval checks cover witnessed publication, tampering, frozen inputs,
    native event shapes and preserved failures. Skipped/unconfigured gates are
    not passing gates; old-trace rechecks prove detection, not revised behavior.
 3. **Selected replay behavior is measured.** At `07515259`, case-005 passes its
@@ -71,73 +71,34 @@ native event correctly and retains the strict-policy denial as a false contract;
 it does not replace missing original scores. All original records and manual
 caveats are retained in the [eval results](../evals/README.md#current-reporting-implementation).
 
-## Next prepared experiment
+## Next steps
 
-The next question is whether the skill diagnoses **each distinct failure** from
-the same real run without treating a passing retry as causal evidence. Case 005
-lacks the first-only syncer failure; another execution of it cannot answer that
-question. Fresh live case-001 may not reproduce that intermittent failure.
+The observation-to-repair simplification at `2f6102d2` stopped after one completed
+005/007 pair. Both contracts and backport criteria pass; action/owner fails all
+six samples, without judge errors. Each actor still volunteers unsupported causal
+claims. Keep the smaller task for clarity, not as a demonstrated reliability fix.
+The declared three-execution comparison is incomplete; no additional wording
+trials are selected. [Detailed results](../evals/README.md#multi-failure-replay)
+retain the source revisions, original verdicts, costs and independent reviews.
 
-1. **Case 007 is admitted.** It preserves the full two-attempt log, recorded
-   plugin and `aaaeea3` bundle from `cve-live-admiral-reporting-20261020`, whose
-   sole parent is the pinned base. Independent review verified ancestry, facts,
-   reference/negative, sanitization and absence of answer leakage. The unchanged
-   helper completed model-free replay with expected exit 2 and clean retained
-   state. Original evidence and case 005 remain unchanged.
-2. **Reference calibration passed.** The stock factual judges received the
-   actual rendered annotations and reply, including recorded Go/x/tools facts.
-   All 12 samples agreed without errors: `backport` passes both replies;
-   `action_owner` passes the uncertainty reference and rejects the retry-causality
-   negative. The reference's directive explanation passed without requiring a
-   compiler replacement or new baseline run. Prompts/model/criteria were not
-   weakened. See [fixture provenance](../evals/cases/case-007/calibration.md).
-   This calibrates the oracle, not skill behavior. Preserve raw results and the
-   original live failure; change a rubric only if calibration demonstrates a defect.
-3. **Both frozen comparisons failed.** At `0fdccbb0`, contract passes 2/3 and
-   factual conjunction 0/3. At `d9261b68`, contract passes 3/3 and factual
-   conjunction 1/3. Preserve all raw samples and original failures; the one
-   follow-up pass is not overridden by manual precision caveats. Manual review
-   finds two follow-up replies omit the distinct syncer failure, one truncates
-   the literal Summary and one asserts changed tooling without comparing the
-   actual base. Revert the two-line remaining-work treatment; this bounded
-   comparison does not establish a general causal treatment effect or acceptance
-   of the earlier wording. See [results](../evals/README.md#multi-failure-replay).
-4. **Retrieval measured; this experiment branch is stopped.** At `f3b12fd3`,
-   the selected 005/007 three-run comparison stopped after one completed pair.
-   Case 007 retrieves both failures and retry outcomes, but its overview still
-   makes unsupported global causal/repair claims. Preserve the raw majority
-   factual pass and manual failure separately. Case 005's original contract
-   false is a checker defect: a historical capture-status line was wrongly
-   required inside its otherwise complete engine Summary. Correct the shared
-   recording/authorization boundary and verify it model-free; do not rewrite
-   prior scores or rerun actors merely to fill the declared count. See
-   [results](../evals/README.md#multi-failure-replay).
-5. **Validate the known oracle gap.** The existing action/owner criterion
-   already rejects unsupported causal claims, but its judge accepted a global
-   overclaim despite later uncertainty. Add one focused contradictory-overview
-   negative and clarify whole-reply scope in that existing prompt. The single
-   calibration at `eb44d2f1` passes all 21 samples without errors: both references
-   accepted and five negatives rejected, three samples each. Raw samples and
-   earlier mixed verdicts remain preserved; no tuning/retry loop was needed.
-   This calibrates seven oracle examples, not skill acceptance or a revised
-   factual score for the natural retained reply. Further skill work needs a design
-   that prevents unsupported synthesis after evidence has been retrieved; another
-   search, warning or
-   prompt heading does not address the demonstrated mechanism. Keep literal
-   Summary, each attempt, actual base-to-result evidence and whole-reply causality
-   in manual review. Current-engine repair and native completion remain separate.
-6. **Simplify the assigned reporting task.** Replace mandatory causal diagnosis
-   with each observed failure and attempt outcome, inspection of a candidate
-   patch for a matching repair, or an unresolved investigation with its owner.
-   Compare dependencies when making a change claim; do not require attribution
-   for every failure. This removes the lower causal-investigation duty left in
-   the failed two-line treatment. Keep all evidence, read-only boundaries and
-   factual criteria. Measure one frozen three-execution comparison of 005/007
-   through the stock runner and corrected guards. Review every complete reply
-   for omissions, unsupported overview/closing claims and patch-to-error support.
-   No additional automatic cohort: recurring synthesis failures call for a
-   different design, not more warnings. This is a reporting experiment; it cannot
-   establish current-engine repair or reliability on every run.
+The open design question is how to bound diagnostic prose while retaining useful,
+source-supported repair recommendations. The engine result, retained state and
+literal Summary are independently checkable; unrestricted explanations remain
+unaccepted. Another search, causal warning, heading, reviewer loop or output
+schema has no demonstrated benefit. Any substantive next design must preserve
+all failures and attempts, matching-repair evidence, owners, remote prerequisites
+and uncertainty about future gates. Existing factual criteria still apply to
+claims anywhere in the reply. Detection by an eval does not enforce truthful
+runtime prose, and a passing engine does not establish a passing skill.
+
+If a distinct live integration check is selected after that design review, use
+existing case 002 to ask whether the invoking agent completes a successful repair
+and reports the actual gates without inventing publication. Its engine already
+passed 14 runtime assertions. Reuse the existing contract, factual judges and
+independent runtime/hash review; do not add a case or judge. A blocked or clean
+fast path is missing successful-repair coverage, not grounds for an automatic
+retry. This check cannot close blocked-case synthesis defects or the separate
+native parent-completion gap.
 
 Positive publication relay is the next distinct candidate, not a prerequisite for
 this experiment. Historical Submariner case 002 needs a complete sanitized log,
