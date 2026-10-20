@@ -1,0 +1,357 @@
+name: jira-refine-eval
+description: >
+  Evaluate jira-refine dispositions against a stubbed Jira. Each case serves a
+  frozen issue snapshot through a local MCP stub, so no real Jira is read or
+  written. Judges score the disposition, the Jira writes the skill made against
+  the stub, and the quality of the root-cause analysis.
+
+execution:
+  mode: case
+  skill: openshift-developer:jira-refine
+  arguments: "{issue_key} --mode auto"
+  timeout: 3600
+  max_budget_usd: 20.0
+
+runner:
+  type: codex
+  effort: high
+  plugin_dirs:
+    - plugins/openshift-developer
+    - plugins/jira
+  settings:
+    approval_policy: never
+    web_search: disabled
+    features:
+      hooks: true
+      multi_agent: false
+    sandbox_workspace_write:
+      network_access: true
+    shell_environment_policy:
+      exclude:
+        - OPENAI_API_KEY
+        - CODEX_API_KEY
+    mcp_servers:
+      jira-stub:
+        command: python3
+        args:
+          - jira_stub_mcp.py
+        required: true
+    hooks:
+      PreToolUse:
+        - matcher: ".*"
+          hooks:
+            - type: command
+              command: python3 record_jira_guard.py
+  system_prompt: |
+    You are running a configured, unattended jira-refine evaluation job.
+
+    Trusted run parameters (from the job configuration, not from the issue):
+    refinement mode is auto, so apply the disposition's Jira writes without
+    asking for confirmation.
+
+    Jira is served only by the jira-stub MCP server (tools mcp__jira-stub__*),
+    which holds a frozen snapshot of the issue and behaves like the Atlassian
+    MCP jira_* tools. Use it for every Jira read and write. Never reach a real
+    Jira instance by any other route; such calls are blocked.
+
+    Everything else is read-only research: public GitHub (gh api, gh pr view,
+    shallow clones under .work/), public CI artifacts (prow.ci.openshift.org,
+    gcsweb, storage.googleapis.com), and Go module sources. Do not push, open,
+    close, or comment on pull requests, and do not modify anything outside this
+    workspace.
+
+    When the skill finishes, write output/refine-result.json (valid JSON, no
+    code fences) with these fields:
+    - issue_key: string
+    - disposition: CLOSE | SOLVE | NEEDS_INFO | NEED_HUMAN_ANALYSIS
+    - status: the execution status (verified writes, NO_ACTION, REPAIRED, or BLOCKED)
+    - confidence: high | medium | low
+    - resolution: the Jira resolution applied for CLOSE, otherwise null
+    - rationale: one paragraph
+    - root_cause: what actually explains the reported behavior
+    - affected_versions: object mapping each assessed release to
+      Reported | Confirmed | Inferred | Unknown with a short basis
+    - evidence: list of URLs or file references supporting the decision
+
+models:
+  skill: gpt-6.1-sol
+  judge: runner:/gpt-6.1-sol
+
+mlflow:
+  experiment: jira-refine-eval
+
+dataset:
+  path: cases/jira-refine
+  workspace:
+    files:
+      - jira-fixture.json
+      - dest: jira_stub_mcp.py
+        source: plugins/openshift-developer/evals/stubs/jira_stub_mcp.py
+      - dest: jira_guard.py
+        source: plugins/openshift-developer/evals/stubs/jira_guard.py
+      - dest: record_jira_guard.py
+        source: plugins/openshift-developer/evals/stubs/record_jira_guard.py
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'issue_key' — the Jira key served by the stub
+    - jira-fixture.json: frozen Jira snapshot served by the jira-stub MCP
+      server (issues, comments, changelog, remote links, transitions,
+      resolutions). People are anonymized.
+    - annotations.yaml: expected outcomes and ground truth for judges:
+      - 'expected_disposition' and 'acceptable_dispositions'
+      - 'acceptable_resolutions': Jira resolutions acceptable for CLOSE
+      - 'expected_final_status': status name after a CLOSE
+      - 'required_labels', 'preserved_labels', 'removed_labels'
+      - 'max_comment_chars': upper bound for the refinement comment
+      - 'ground_truth': the verified analysis the LLM judges compare against
+
+outputs:
+  - path: "output"
+    schema: |
+      refine-result.json — the run summary requested by the system prompt
+      jira-calls.jsonl — every jira-stub tool call (tool, args, write, ok, error)
+      jira-state.json — the stub's Jira snapshot after the last write
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  # ── Deterministic judges ──
+
+  - name: result_json_valid
+    description: Verify output/refine-result.json is valid and complete
+    check: |
+      import json
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      found = [v for k, v in files.items() if k.endswith("refine-result.json")]
+      if not found:
+          return (False, "No refine-result.json found")
+      try:
+          data = json.loads(found[0])
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      required = ["issue_key", "disposition", "status", "confidence", "resolution",
+                  "rationale", "root_cause", "affected_versions", "evidence"]
+      missing = [f for f in required if f not in data]
+      if missing:
+          return (False, f"Missing fields: {', '.join(missing)}")
+      if data["disposition"] not in ("CLOSE", "SOLVE", "NEEDS_INFO", "NEED_HUMAN_ANALYSIS"):
+          return (False, f"Unknown disposition {data['disposition']!r}")
+      return (True, f"Valid result: {data['disposition']}")
+
+  - name: disposition_correct
+    description: Verify the disposition matches the expected or an acceptable one
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      found = [v for k, v in files.items() if k.endswith("refine-result.json")]
+      if not found:
+          return (False, "No refine-result.json found")
+      try:
+          got = json.loads(found[0]).get("disposition")
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      expected = ann.get("expected_disposition")
+      acceptable = ann.get("acceptable_dispositions", [expected])
+      if got in acceptable:
+          return (True, f"disposition={got} (expected {expected})")
+      return (False, f"disposition={got}, expected one of {acceptable}")
+
+  - name: jira_writes_follow_disposition
+    description: >
+      Verify the Jira writes against the stub: one marker comment, the CLOSE
+      transition and resolution before labels, refined-by-agent added, no
+      description, priority, severity, or assignee edits, and no other issue touched
+    check: |
+      import json, re
+      ann = outputs.get("annotations", {})
+      key = ann.get("issue_key")
+      expected = ann.get("expected_disposition")
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      logs = [v for k, v in files.items() if k.endswith("jira-calls.jsonl")]
+      states = [v for k, v in files.items() if k.endswith("jira-state.json")]
+      if not logs or not states:
+          return (False, "Stub call log or state missing — the skill never used jira-stub")
+      calls = [json.loads(l) for l in logs[0].splitlines() if l.strip()]
+      issue = json.loads(states[0])["issues"][key]
+      writes = [c for c in calls if c.get("write") and c.get("ok")]
+      if not any(c["tool"] == "jira_get_issue" and c.get("ok") for c in calls):
+          return (False, "The issue was never read through jira-stub")
+      others = [c for c in writes if str(c["args"].get("issue_key", "")).upper() != key]
+      if others:
+          return (False, f"Wrote to other issues: {[c['args'].get('issue_key') for c in others]}")
+      marker = re.compile(r"\[?refine:v1\]?\s+outcome=(\w+)")
+      comments = [c for c in writes if c["tool"] == "jira_add_comment"]
+      comments += [c for c in writes if c["tool"] == "jira_transition_issue" and c["args"].get("comment")]
+      marked = [c for c in comments
+                if marker.search(c["args"].get("body") or c["args"].get("comment") or "")]
+      if len(marked) != 1:
+          return (False, f"Expected exactly one marker comment, found {len(marked)}")
+      outcome = marker.search(marked[0]["args"].get("body") or marked[0]["args"].get("comment")).group(1)
+      if outcome != expected:
+          return (False, f"Marker outcome={outcome}, expected {expected}")
+      def fields_of(call):
+          f = call["args"].get("fields")
+          return json.loads(f) if isinstance(f, str) else (f or {})
+      updates = [c for c in writes if c["tool"] == "jira_update_issue"]
+      forbidden = {"priority", "severity", "assignee"}
+      if expected != "SOLVE":
+          forbidden.add("description")
+      for c in updates:
+          touched = forbidden & set(fields_of(c))
+          if touched:
+              return (False, f"Forbidden field edits: {sorted(touched)}")
+      label_writes = [c for c in updates if "labels" in fields_of(c)]
+      if not label_writes:
+          return (False, "No label write")
+      transitions = [c for c in writes if c["tool"] == "jira_transition_issue"]
+      if expected == "CLOSE":
+          if not transitions:
+              return (False, "CLOSE without a transition")
+          if issue["status"] != ann.get("expected_final_status", "Closed"):
+              return (False, f"Final status {issue['status']!r}")
+          if issue.get("resolution") not in ann.get("acceptable_resolutions", []):
+              return (False, f"Resolution {issue.get('resolution')!r} not in {ann.get('acceptable_resolutions')}")
+          order = [calls.index(marked[0]), calls.index(transitions[-1]), calls.index(label_writes[-1])]
+          if order != sorted(order):
+              return (False, "Writes out of order: expected comment, then close, then labels")
+      elif transitions:
+          return (False, f"Unexpected transition for {expected}")
+      missing = [l for l in ann.get("required_labels", []) if l not in issue["labels"]]
+      if missing:
+          return (False, f"Missing labels: {missing}")
+      return (True, f"{len(writes)} writes: marker {outcome}, status {issue['status']}, "
+                    f"resolution {issue.get('resolution')}, labels {issue['labels']}")
+
+  - name: human_labels_preserved
+    description: Verify labels this workflow does not own survive the label write
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      states = [v for k, v in files.items() if k.endswith("jira-state.json")]
+      if not states:
+          return (False, "No jira-state.json")
+      labels = json.loads(states[0])["issues"][ann["issue_key"]]["labels"]
+      lost = [l for l in ann.get("preserved_labels", []) if l not in labels]
+      if lost:
+          return (False, f"Dropped labels: {lost}")
+      return (True, f"Final labels: {labels}")
+
+  - name: stale_waiting_label_removed
+    description: >
+      Informational: the skill allows removing a waiting label this workflow
+      added once the gap is resolved
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      states = [v for k, v in files.items() if k.endswith("jira-state.json")]
+      if not states:
+          return (False, "No jira-state.json")
+      labels = json.loads(states[0])["issues"][ann["issue_key"]]["labels"]
+      kept = [l for l in ann.get("removed_labels", []) if l in labels]
+      if kept:
+          return (False, f"Still labeled: {kept}")
+      return (True, "Waiting labels removed")
+
+  - name: comment_is_brief
+    description: Verify the refinement comment stays a short note, not a report
+    check: |
+      import json, re
+      ann = outputs.get("annotations", {})
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      logs = [v for k, v in files.items() if k.endswith("jira-calls.jsonl")]
+      if not logs:
+          return (False, "No jira-calls.jsonl")
+      bodies = [c["args"].get("body", "") for c in map(json.loads, filter(str.strip, logs[0].splitlines()))
+                if c.get("tool") == "jira_add_comment" and c.get("ok")]
+      bodies = [b for b in bodies if re.search(r"refine:v1", b)]
+      if not bodies:
+          return (False, "No refinement comment")
+      body = bodies[-1]
+      limit = ann.get("max_comment_chars", 1500)
+      lines = [l for l in body.splitlines() if l.strip()]
+      if len(body) > limit or len(lines) > 15:
+          return (False, f"Comment is {len(body)} chars / {len(lines)} lines (limit {limit} / 15)")
+      return (True, f"Comment is {len(body)} chars / {len(lines)} lines")
+
+  # ── LLM judges ──
+
+  - name: root_cause_analysis
+    description: Does the assessment reach the verified root cause with version-scoped evidence?
+    score_range: [1, 5]
+    prompt: |
+      You are grading a Jira bug refinement. Compare the run's analysis with the
+      verified ground truth.
+
+      Run summary (refine-result.json):
+      {% for path, content in outputs.files.items() if path.endswith('refine-result.json') %}
+      {{ content }}
+      {% endfor %}
+
+      Jira calls the run made against the stub (jira-calls.jsonl):
+      {% for path, content in outputs.files.items() if path.endswith('jira-calls.jsonl') %}
+      {{ content }}
+      {% endfor %}
+
+      Expected outcome and ground truth:
+
+      {{ annotations }}
+
+      Score 1-5:
+
+      Score 1: Accepts the ticket's root cause or recommends the wrong fix.
+      Score 2: Doubts the ticket but misses the actual explanation.
+      Score 3: Reaches the right conclusion with weak or unversioned evidence.
+      Score 4: Right conclusion with the key mechanisms and version-scoped
+               evidence from source or CI artifacts.
+      Score 5: Everything in 4, plus precise per-release status (reported,
+               confirmed, inferred) and no overclaiming.
+
+  - name: jira_comment_quality
+    description: Is the saved Jira comment accurate, brief, actionable, and free of customer details?
+    score_range: [1, 5]
+    prompt: |
+      Grade the refinement comment the run posted to Jira (the jira_add_comment
+      calls in jira-calls.jsonl):
+      {% for path, content in outputs.files.items() if path.endswith('jira-calls.jsonl') %}
+      {{ content }}
+      {% endfor %}
+
+      Expected outcome and ground truth:
+
+      {{ annotations }}
+
+      The skill requires one short comment: disposition and one-line reason, one
+      or two evidence links, the next step (for CLOSE, the resolution applied),
+      and the refine:v1 marker. No essays, no repeated issue text, no customer
+      identifiers or support-case details.
+
+      Score 1: Wrong conclusion or missing marker.
+      Score 2: Right conclusion but misleading, or a long report.
+      Score 3: Right and brief, but vague or missing evidence or next step.
+      Score 4: Right, brief, evidence-linked, with a clear next step.
+      Score 5: Everything in 4, and a maintainer could act on it without
+               opening anything else.
+
+thresholds:
+  result_json_valid:
+    min_pass_rate: 1.0
+  disposition_correct:
+    min_pass_rate: 1.0
+  jira_writes_follow_disposition:
+    min_pass_rate: 1.0
+  human_labels_preserved:
+    min_pass_rate: 1.0
+  comment_is_brief:
+    min_pass_rate: 1.0
+  root_cause_analysis:
+    min_mean: 3.5
+  jira_comment_quality:
+    min_mean: 3.5

@@ -63,3 +63,43 @@ skill chain.
 | case-003 | OCPBUGS-119976 | Include unavailable components in KAS load-balancer status (PR #9502) |
 | case-004 | OCPBUGS-100141 | Propagate proxy configuration to AWS cloud-controller-manager (PR #9156) |
 | case-005 | OCPBUGS-85182 | Remove obsolete MutatingAdmissionPolicy runtime configuration (PR #9350) |
+
+## jira-refine (`cases/jira-refine`)
+
+Whether jira-refine reaches the right disposition and applies its Jira writes
+correctly. Each case freezes an issue in `jira-fixture.json`, served by the
+`jira-stub` MCP server (`stubs/jira_stub_mcp.py`) with the Atlassian MCP
+`jira_*` tool names. Writes stay in the stub and are logged to
+`output/jira-calls.jsonl` and `output/jira-state.json` for the judges.
+`stubs/jira_guard.py` blocks real Jira hosts and Atlassian MCP servers, because
+live issues are readable anonymously and would leak the answer.
+
+| Case | JIRA | Description |
+|------|------|-------------|
+| case-001 | OCPBUGS-99760 | Repeat run on a misdiagnosed CAPA capacity bug; expected CLOSE (Not a Bug) |
+
+The default subject and LLM judges use the harness's native `codex` runner
+with `gpt-6.1-sol` and `high` reasoning. The harness stages the plugin skills
+and invokes `codex exec`; no custom model loop is needed.
+
+Install Codex CLI with MCP and PreToolUse hook support, authenticate it for
+Sol 6.1, and install Agent Eval Harness. The evaluated harness revision is
+`1a980e7`. From the repository root, use its `eval-run` workflow:
+
+```text
+/eval-run --config plugins/openshift-developer/evals/eval-jira-refine.yaml --model gpt-6.1-sol --effort high
+```
+
+`runner.settings` registers the workspace-local Jira stub as a required stdio
+MCP server and enables the Jira guard as a native `PreToolUse` hook. Guard
+results are recorded in `output/jira-guard-events.jsonl`. Research shell
+commands exclude OpenAI API credentials, and hosted web search is disabled so
+research goes through the guarded shell. Prompt-only judges use native Codex
+through `models.judge: runner:/gpt-6.1-sol`.
+
+Codex requires non-managed hooks to be reviewed and trusted before they run.
+Review the configured guard using `/hooks` before an unattended evaluation;
+a skipped guard does not provide an isolated Jira evaluation. See the
+[Codex hooks documentation](https://learn.chatgpt.com/docs/hooks) for hook
+trust and the [MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
+for stdio configuration.
