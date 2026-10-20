@@ -517,19 +517,19 @@ done <<< "$CVE_LINES"
 
 echo ""
 # Tests must exercise the retained commit, with no tracked changes to discard.
-_test_tree_unchanged() {
-  local observed_head tracked_status
+_tracked_tree_unchanged() {
+  local expected_head="$1" observed_head tracked_status
   observed_head=$(git rev-parse HEAD) || return 1
   tracked_status=$(git status --porcelain --untracked-files=no) || return 1
-  [[ "$observed_head" == "$TESTED_HEAD" && -z "$tracked_status" ]] && return 0
-  printf 'Expected HEAD: %s; observed HEAD: %s\n' "$TESTED_HEAD" "$observed_head" >&2
+  [[ "$observed_head" == "$expected_head" && -z "$tracked_status" ]] && return 0
+  printf 'Expected HEAD: %s; observed HEAD: %s\n' "$expected_head" "$observed_head" >&2
   [[ -z "$tracked_status" ]] || printf '%s\n' "$tracked_status" >&2
   return 1
 }
 
 # Keep test-created workspaces out of retries and retained-tree verification.
 _run_test_attempt() {
-  if ! _test_tree_unchanged; then
+  if ! _tracked_tree_unchanged "$TESTED_HEAD"; then
     echo "ERROR: Cannot verify clean tracked files and retained HEAD before tests; verification stopped." >&2
     _EVIDENCE_TEST_STATUS=not_reached
     exit 2
@@ -551,7 +551,7 @@ _run_test_attempt() {
       attempt_unverified=true
     fi
   done
-  if ! _test_tree_unchanged; then
+  if ! _tracked_tree_unchanged "$TESTED_HEAD"; then
     echo "ERROR: Cannot verify unchanged HEAD and tracked files after tests; verification stopped." >&2
     attempt_unverified=true
   fi
@@ -737,6 +737,14 @@ fold_fixed_package_outcomes "$SUBAGENT_REPORT_DIR"
 # Ignore-policy commits change no code, so only dependency changes are retested.
 if ! $TESTS_FAILED && ! git diff --quiet "$TESTED_HEAD" HEAD -- . ':(exclude).grype.yaml'; then
   run_tests
+fi
+
+# Final checks must describe the retained source, including policy-only commits.
+VERIFIED_HEAD=""
+if ! VERIFIED_HEAD=$(git rev-parse HEAD) || ! _tracked_tree_unchanged "$VERIFIED_HEAD"; then
+  echo "NEEDS_REVIEW: Retained HEAD and clean tracked files could not be confirmed before final checks." >&2
+  POLICY_CHECK_FAILED=true
+  UNSEEN_NEEDS_REVIEW=true
 fi
 
 # Agent review runs after deterministic verification, which can repair findings
@@ -964,6 +972,12 @@ if has_real_make_target licensecheck; then
   while IFS= read -r _f; do
     [[ -n "$_f" ]] && rm -f -- "$_f"
   done < <(comm -13 <(printf '%s\n' "$_LICENSE_BEFORE") <(_untracked_executables))
+fi
+
+if ! _tracked_tree_unchanged "$VERIFIED_HEAD"; then
+  echo "NEEDS_REVIEW: Retained HEAD and unchanged tracked files could not be confirmed after final checks." >&2
+  POLICY_CHECK_FAILED=true
+  UNSEEN_NEEDS_REVIEW=true
 fi
 
 # ── Phase 6: Report ───────────────────────────────────────────────────────────

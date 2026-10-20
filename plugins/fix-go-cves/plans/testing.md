@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 2,506 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 2,545 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -40,7 +40,7 @@ not attribute the historical run or replace a full baseline test suite.
    branch or detached ref in the Summary. Recommendations focus on the next
    unmet prerequisite and verification still needed. This is a behavioral
    treatment, not enforcement or proof of general reliability.
-2. **Boundary fixtures pass.** The existing shell suite passed 2,506 checks,
+2. **Boundary fixtures pass.** The existing shell suite passed 2,545 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
    The 52 eval checks cover witnessed publication, tampering, frozen inputs,
@@ -156,6 +156,13 @@ Cloud-prepare's canonical branch check adds checksum-only metadata, so its
 release-context verification ran in a separate checkout of the same commit.
 Those additions alone do not invalidate the unit/lint results or prove a changed
 dependency graph. Local checks must carry their required CI environment.
+
+Final checks also require the retained HEAD and clean tracked state captured
+after verification. A change during the reviewer refresh, final rebuild/scan or
+license check blocks publication through the existing policy gate, preserving
+the actual check results. The separate snapshot accepts earlier policy-only
+commits; checked index/worktree status catches changes hidden by an aggregate
+diff. This adds no automatic normalization or new evidence schema.
 
 The existing live contract accepts runtime exit 0 or 2 with a completed Summary
 or clean-fast-path message. It checks execution, retained state and allowed operations;

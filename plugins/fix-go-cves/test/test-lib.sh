@@ -10029,7 +10029,7 @@ RTX="$TMPD/run-tests"; mkdir -p "$RTX"
 python3 - "$SCRIPT_DIR/fix-all.sh" > "$RTX/run-tests.sh" <<'PY'
 import sys
 s = open(sys.argv[1]).read()
-for name in ("_test_tree_unchanged", "_run_test_attempt", "run_tests"):
+for name in ("_tracked_tree_unchanged", "_run_test_attempt", "run_tests"):
     i = s.index(name + "() {"); j = s.index("\n}\n", i) + 3
     print(s[i:j])
 PY
@@ -10198,7 +10198,7 @@ EVI_STATE="$EVI_ROOT/state.env"
 export EVI_ROOT EVI_STATE
 make_test_repo "$EVI_REPO"
 printf 'module example.com/evidence\n\ngo 1.24.0\nrequire example.com/pkg v1.0.0\n' > "$EVI_REPO/go.mod"
-printf '.PHONY: licensecheck\nlicensecheck:\n\t@echo canonical-license\n\t@exit $${EVI_LICENSE_RESULT:-0}\n' > "$EVI_REPO/Makefile"
+printf '.PHONY: licensecheck\nlicensecheck:\n\t@echo canonical-license\n\t@if [ "$${EVI_LATE_STAGE:-}" = license ]; then bash "$$EVI_ROOT/late-command.sh"; fi\n\t@exit $${EVI_LICENSE_RESULT:-0}\n' > "$EVI_REPO/Makefile"
 printf '/bin/\n' > "$EVI_REPO/.gitignore"
 git -C "$EVI_REPO" add -A
 git -C "$EVI_REPO" commit -qsm fixture
@@ -10212,6 +10212,18 @@ cat >> "$EVI_SCRIPTS/lib.sh" <<'SH'
 preflight_check() { return 0; }
 fetch_origin_branch() { return 0; }
 run_grype() {
+  if [[ "${EVI_LATE_STAGE:-}" == before-final && -f "$EVI_ROOT/test-count" && ! -f "$EVI_ROOT/late-change" ]]; then
+    bash "$EVI_ROOT/late-command.sh"
+  fi
+  if [[ "${EVI_LATE_STAGE:-}" == before-final && "${CVE_FIX_EVIDENCE_PHASE:-}" == final-gate ]]; then
+    git show HEAD:Makefile > Makefile
+    touch "$EVI_ROOT/late-restored"
+  fi
+  if [[ "${EVI_IGNORE_COMMIT:-false}" == true && -f "$EVI_ROOT/test-count" && ! -f "$EVI_ROOT/ignore-commit" ]]; then
+    printf 'ignore: []\n' > .grype.yaml
+    git add .grype.yaml && git commit -qsm 'Record empty ignore policy'
+    touch "$EVI_ROOT/ignore-commit"
+  fi
   if [[ -n "${EVI_WORKSPACE_MODE:-}" ]]; then
     if [[ "${CVE_FIX_EVIDENCE_PHASE:-}" == initial && -n "${EVI_WORKSPACE_SEED:-}" ]]; then
       case "$EVI_WORKSPACE_SEED" in
@@ -10258,6 +10270,24 @@ fi
 printf 'FIXED: example.com/pkg v1.1.0 for GO-2099-0001\n'
 SH
 printf '#!/usr/bin/env bash\nexit 0\n' > "$EVI_SCRIPTS/review.sh"
+cat > "$EVI_ROOT/late-command.sh" <<'SH'
+#!/usr/bin/env bash
+set -e
+if [[ "${EVI_LATE_CHANGE:-}" == head ]]; then
+  git rev-parse HEAD > "$EVI_ROOT/late-before-head"
+  git commit -qsm 'Unexpected final-check commit' --allow-empty
+  git rev-parse HEAD > "$EVI_ROOT/late-after-head"
+  git status --porcelain --untracked-files=no > "$EVI_ROOT/late-status"
+else
+  printf '# final-check change\n' >> Makefile
+  if [[ "${EVI_LATE_CHANGE:-}" == cancel ]]; then
+    git add Makefile
+    git show HEAD:Makefile > Makefile
+    git diff --quiet HEAD -- Makefile && touch "$EVI_ROOT/late-cancelled"
+  fi
+fi
+touch "$EVI_ROOT/late-change"
+SH
 cat > "$EVI_ROOT/test-command.sh" <<'SH'
 #!/usr/bin/env bash
 n=$(cat "$EVI_ROOT/test-count" 2>/dev/null || echo 0)
@@ -10310,7 +10340,9 @@ evi_run() {
   git -C "$EVI_REPO" branch -D fix-evidence >/dev/null 2>&1 || true
   rm -f "$EVI_ROOT/test-count"
   printf 'REPO=%q\nBRANCH=devel\nBASE_SHA=%q\nORIGINAL_REF=devel\nFIX_BRANCH=fix-evidence\n' "$EVI_REPO" "$EVI_BASE" > "$EVI_STATE"
-  printf 'BUILD_CMD="echo canonical-build"\nBUILD_IMAGE=""\nBUILD_GO_VERSION=unknown\nTEST_CMD=%q\n' 'bash "$EVI_ROOT/test-command.sh"' >> "$EVI_STATE"
+  printf 'BUILD_CMD=%q\nBUILD_IMAGE=""\nBUILD_GO_VERSION=unknown\nTEST_CMD=%q\n' \
+    'echo canonical-build; if [[ "${EVI_LATE_STAGE:-}" == final-gate && "${CVE_FIX_EVIDENCE_PHASE:-}" == final-gate ]]; then bash "$EVI_ROOT/late-command.sh"; fi' \
+    'bash "$EVI_ROOT/test-command.sh"' >> "$EVI_STATE"
   printf 'ENV_UNSET=""\nDIFF_IGNORE_ARGS=""\nCVE_SCRIPTS=%q\nFETCH_FAILED=false\n' "$EVI_SCRIPTS" >> "$EVI_STATE"
   EVI_RC=0
   CVE_FIX_EVIDENCE_DIR="$evidence" bash "$EVI_SCRIPTS/fix-all.sh" "$EVI_REPO" devel > "$EVI_ROOT/$name.log" 2>&1 || EVI_RC=$?
@@ -10381,6 +10413,7 @@ evi_workspace_reset() {
   rm -rf "$EVI_REPO/go.work" "$EVI_REPO/go.work.sum"
   : > "$EVI_REPO/.git/info/exclude"
   rm -f "$EVI_ROOT/workspace-scans" "$EVI_ROOT/workspace-residue" "$EVI_ROOT/cancelled-diff"
+  rm -f "$EVI_ROOT/"{late-change,late-restored,late-cancelled,late-before-head,late-after-head,late-status,ignore-commit}
   EVI_BASE="$EVI_WORKSPACE_BASE"
   git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
 }
@@ -10522,6 +10555,37 @@ check "test evidence failure still cleans generated checksum" test ! -e "$EVI_RE
 check "test evidence failure does not retry" test "$(cat "$EVI_ROOT/test-count")" -eq 1
 check "test evidence failure stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
 check "test evidence failure suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/workspace-record-failure.log"
+# Final scans and license recipes must preserve the source already verified.
+for _late_case in final-gate:worktree license:worktree license:cancel license:head before-final:worktree; do
+  evi_workspace_reset
+  _stage="${_late_case%:*}"
+  _change="${_late_case#*:}"
+  _case="late-$_stage-$_change"
+  EVI_LATE_STAGE="$_stage" EVI_LATE_CHANGE="$_change" evi_run "$_case" "$EVI_ROOT/$_case"
+  check "$_case mutation was actually exercised" test -f "$EVI_ROOT/late-change"
+  check "$_case mutation blocks successful completion" test "$EVI_RC" -eq 2
+  check "$_case preserves actual clean scan and license receipts" jq -e \
+    '.exit_code == 2 and .test_exit_code == 0 and .verification_exit_code == 0 and .license_exit_code == 0 and .phases.final_gate == "completed"' "$EVI_ROOT/$_case/run.json"
+  check "$_case retains healthy empty gate scan" jq -e '.matches | length == 0' "$EVI_ROOT/$_case/final-gate.json"
+  check "$_case does not rerun an already successful test" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+  check "$_case suppresses publication despite clean individual gates" ! grep -q '^PR command:' "$EVI_ROOT/$_case.log"
+  if [[ "$_change" == cancel ]]; then
+    check "late opposing index and worktree changes evade aggregate HEAD diff" test -f "$EVI_ROOT/late-cancelled"
+  elif [[ "$_change" == head ]]; then
+    check "license command actually moved HEAD" test "$(cat "$EVI_ROOT/late-before-head")" != "$(cat "$EVI_ROOT/late-after-head")"
+    check "license commit left tracked index and worktree clean" test ! -s "$EVI_ROOT/late-status"
+  elif [[ "$_stage" == before-final ]]; then
+    check "pre-final dirty tree was restored before final snapshot check" test -f "$EVI_ROOT/late-restored"
+  fi
+done
+
+evi_workspace_reset
+EVI_IGNORE_COMMIT=true evi_run earlier-ignore-commit "$EVI_ROOT/earlier-ignore-commit"
+check "earlier ignore-only commit is accepted by final source boundary" test "$EVI_RC" -eq 0
+check "earlier ignore-only commit was actually created" test -f "$EVI_ROOT/ignore-commit"
+check "ignore-only commit does not rerun unchanged code tests" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+check "ignore-only final head may differ from tested code head" jq -e '.exit_code == 0 and .head != .tested_head' "$EVI_ROOT/earlier-ignore-commit/run.json"
+check "earlier ignore-only commit preserves publication eligibility" grep -q '^PR command:' "$EVI_ROOT/earlier-ignore-commit.log"
 evi_workspace_reset
 git -C "$EVI_REPO" remote remove fork
 
