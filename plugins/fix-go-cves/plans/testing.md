@@ -126,6 +126,18 @@ question. Fresh live case-001 may not reproduce that intermittent failure.
    prompt heading does not address the demonstrated mechanism. Keep literal
    Summary, each attempt, actual base-to-result evidence and whole-reply causality
    in manual review. Current-engine repair and native completion remain separate.
+6. **Simplify the assigned reporting task.** Replace mandatory causal diagnosis
+   with each observed failure and attempt outcome, inspection of a candidate
+   patch for a matching repair, or an unresolved investigation with its owner.
+   Compare dependencies when making a change claim; do not require attribution
+   for every failure. This removes the lower causal-investigation duty left in
+   the failed two-line treatment. Keep all evidence, read-only boundaries and
+   factual criteria. Measure one frozen three-execution comparison of 005/007
+   through the stock runner and corrected guards. Review every complete reply
+   for omissions, unsupported overview/closing claims and patch-to-error support.
+   No additional automatic cohort: recurring synthesis failures call for a
+   different design, not more warnings. This is a reporting experiment; it cannot
+   establish current-engine repair or reliability on every run.
 
 Positive publication relay is the next distinct candidate, not a prerequisite for
 this experiment. Historical Submariner case 002 needs a complete sanitized log,

@@ -9,7 +9,7 @@ allowed-tools: Bash, Read
 # Fix Go CVEs
 
 Deterministic scripts own every mutation, rollback, and verification gate.
-Your job is to run them, then explain what they could not decide.
+Your job is to run them, report the observed results, and identify remaining work.
 
 ## Locate the scripts
 
@@ -109,8 +109,8 @@ Build the final reply in two parts:
    only from evidence; skipped, unconfigured and unknown do not mean passed.
    Give return advice only from an observed original ref, which may be a
    detached commit. Do not infer it from the target branch.
-2. **Diagnosis.** For each flagged outcome, give evidence (log line or
-   `file:line`), cause or uncertainty, next unmet prerequisite and owner.
+2. **Remaining work.** For each flagged outcome, give the observation and
+   evidence (log line or `file:line`), next supported action and owner.
    Investigate read-only using logs, history and diffs; never apply or test a
    candidate backport, even temporarily. Describe repairs in prose, separately
    from retained fixes. Leave repairs, reruns, builds/tests and cleanup for a new
@@ -132,21 +132,18 @@ Investigate flagged outcomes using these checks:
   and the repository's use of the changed API; estimate the migration.
 - Kubernetes minor bump, or Go above the build image: name the team decision
   and what unblocks it (a newer builder, an approved bump).
-- For each distinct test failure, read both attempts and identify evidence
-  linking it to the update; state when causality is unproven. A passing retry
-  shows differing outcomes, not that the failure pre-existed or was unrelated
-  to the update.
-  Compare dependencies from this run's actual base commit to its retained fix
-  commit, including the Go directive. The current fix-branch dependencies alone
-  are not baseline evidence.
-  Pre-existing source does not prove a pre-existing failure; a changed Go
-  directive can activate checks without changing tooling dependencies.
-  Tests that need `sudo` or a prompt need a non-interactive test command.
-- Test, lint, or license-check failure: if the default branch already fixed
-  it (`git log origin/<default> -- <file>`, such as the failing code or the
-  license config), recommend that backport.
+- For each distinct test, lint or license-check failure, report the observed
+  error and each attempt's result. Read the failing source/configuration and
+  relevant default-branch history (`git log origin/<default> -- <file>`).
+  Inspect candidate patches for a repair matching that error; recommend a
+  supported backport, or identify the investigation still needed and its owner.
   The repair must reach `origin/<branch>` before rerunning: the script starts
-  each fix branch there.
+  each fix branch there. Tests that need `sudo` or a prompt need a
+  non-interactive test command.
+- Leave a failure's cause unresolved unless the evidence establishes it;
+  a passing retry establishes only a changed outcome. For dependency or tooling
+  change claims, compare this run's actual base and retained fix commits,
+  including the Go directive.
 - Transient network, timeout, or degraded scanner: recommend a rerun.
 - Wrong build or test command: recommend `CVE_FIX_*` overrides for a rerun,
   or `.cve-fix.yaml` fields committed on the target branch
