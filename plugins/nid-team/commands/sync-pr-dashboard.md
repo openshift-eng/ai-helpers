@@ -32,7 +32,7 @@ Run `${CLAUDE_PLUGIN_ROOT}/scripts/pr-dashboard/sync-dashboard.sh`.
 This handles:
 - **PR Author** — Populates blank "PR Author" fields with display names
 - **Reviewer Sync** — When Primary or Secondary Reviewer is set, comments `/assign @user` on the PR if not already assigned
-- **Shared Repo PRs** — Adds team-authored PRs from shared repos (defined in `config.sh`)
+- **Shared Repo PRs** — Adds PRs authored by, assigned to, reviewed by, or awaiting review from team members in shared repos (defined in `config.sh`). Includes open PRs and merges from the last `SHARED_MERGED_DAYS` days (default 7); newly discovered merged PRs are marked Done.
 - **Area (deterministic)** — Sets Area for repos with obvious mappings (defined in `REPO_TO_AREA` in `config.sh`)
 
 ### Step 2: Classify ambiguous PR areas with AI
@@ -54,6 +54,7 @@ For each item in the output, classify into one of these areas based on the title
 | **DNS** | `c2935ddd` | DNS-related api changes, coredns plugins |
 | **ExDNS** | `b02c7810` | External DNS related changes |
 | **ALBO** | `a6184328` | ALB related changes |
+| **BGP** | `043d3184` | BGP Cloud Connector changes; related release CI files under `ci-operator/config/openshift/bgp-cloud-connector/`, `ci-operator/jobs/openshift/bgp-cloud-connector/`, or `ci-operator/step-registry/bgp-cloud-connector/` |
 | **Misc** | `1ec39a5b` | OWNERS file updates, CI/Prow config, AGENTS.md, coderabbit config, repo meta, go bumps that span areas, docs that don't fit another area |
 | **AI** | `9f9c29ab` | ai-helpers plugin PRs, MCP server tooling, Claude Code skills and agents |
 
@@ -64,7 +65,7 @@ gh project item-edit --project-id PVT_kwDOAAwXEc4BbxeH --id {item_id} --field-id
 
 5. Print what was classified: `SET AREA: repo#number → Area (reason)`
 
-If the PR is clearly meta/repo-maintenance (OWNERS, CI config, go bumps spanning areas), use **Misc**. For feature/bug PRs that are ambiguous, default to **Router**.
+For release PRs specifically configuring or testing BGP Cloud Connector, use **BGP**, including CI/Prow changes. Apply this component-specific classification before the generic **Misc** rule. If the PR is clearly meta/repo-maintenance (OWNERS, CI config, go bumps spanning areas), use **Misc**. For feature/bug PRs that are ambiguous, default to **Router**.
 
 ### Step 3: Report summary
 
@@ -98,7 +99,7 @@ Get the full PR title from the script output or via `gh pr view`. For "Other" as
 After the PR Scrub Assignments, query for PRs that merged without ever being assigned a reviewer. Run:
 
 ```bash
-gh project item-list 28 --owner openshift --format json --limit 500 | python3 -c "
+gh project item-list 28 --owner openshift --format json --limit 2000 | python3 -c "
 import json, sys, subprocess, datetime
 data = json.load(sys.stdin)
 one_week_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)

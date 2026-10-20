@@ -50,7 +50,7 @@ echo ""
 
 # Fetch all project items
 echo "Fetching project items..."
-ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 2000)
 ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['items']))")
 echo "Found $ITEM_COUNT items"
 echo ""
@@ -169,10 +169,10 @@ done
 
 echo ""
 
-# --- Operation C: Add shared repo PRs from team members ---
-# GitHub Projects auto-add workflows can't filter by PR author, so we can't
-# auto-add from shared repos (api, release, origin, etc.) without picking up
-# every other team's PRs too. This manually fetches team-authored PRs only.
+# --- Operation C: Add shared repo PRs involving team members ---
+# Search explicit authorship, assignment, and review roles rather than adding
+# every PR in a shared repo. A PR can be relevant even when its author is not
+# on the team. Recent merges account for reviews completed between syncs.
 echo "--- Operation C: Add shared repo team PRs ---"
 
 ADDED_URLS=""
@@ -186,16 +186,22 @@ for item in data['items']:
 ")
 
 SHARED_ADDED=0
+SHARED_MERGED_SINCE=$(python3 -c "
+import datetime
+print((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=$SHARED_MERGED_DAYS)).date())
+")
 
 for repo in "${SHARED_REPOS[@]}"; do
     for member in "${TEAM_USERNAMES[@]}"; do
-        urls=$(gh pr list --repo "$repo" --state open --search "author:$member" --json url -q '.[].url' 2>/dev/null || echo "")
-        for url in $urls; do
+        query="(author:$member OR assignee:$member OR reviewed-by:$member OR review-requested:$member) (is:open OR merged:>=$SHARED_MERGED_SINCE)"
+        prs=$(gh pr list --repo "$repo" --state all --search "$query" --limit 200 --json url,state -q '.[] | .url + "|" + .state' 2>/dev/null || echo "")
+        while IFS='|' read -r url pr_state; do
+            [ -z "$url" ] && continue
             if echo "$EXISTING_URLS" | grep -qFx "$url"; then
                 continue
             fi
-            echo "  ADD: $url (by $member)"
-            if ! gh project item-add "$PROJECT_NUM" --owner "$OWNER" --url "$url"; then
+            echo "  ADD: $url (team member: $member)"
+            if ! item_id=$(gh project item-add "$PROJECT_NUM" --owner "$OWNER" --url "$url" --format json --jq '.id'); then
                 echo "  ERROR: failed to add $url" >&2
                 continue
             fi
@@ -204,15 +210,23 @@ $url"
             ADDED_URLS="$ADDED_URLS
 $url"
             SHARED_ADDED=$((SHARED_ADDED + 1))
-        done
+            if [ "$pr_state" = "MERGED" ]; then
+                if gh project item-edit --project-id "$PROJECT_ID" --id "$item_id" \
+                    --field-id "$FIELD_STATUS" --single-select-option-id "$STATUS_DONE"; then
+                    echo "  STATUS: $repo#${url##*/} → Done (recently merged)"
+                else
+                    echo "  ERROR: failed to mark $url Done" >&2
+                fi
+            fi
+        done <<< "$prs"
     done
 done
 
 echo ""
 
 # --- Operation C2: Add shared repo PRs linked to team bugs (any author) ---
-# Operation C only finds team-authored PRs. This catches PRs by non-team
-# members (sustaining, external contributors) working on our bugs.
+# This also catches PRs by non-team members working on our bugs before a team
+# member has been assigned or requested for review.
 # Gets our bug keys from Jira filter 23465, then searches each shared repo
 # once for all open PRs with OCPBUGS- in the title and matches locally.
 # This uses ~10 search API calls instead of bugs × repos.
@@ -308,7 +322,7 @@ if [ "$SHARED_ADDED" -gt 0 ] || [ "$BUGPR_ADDED" -gt 0 ] || [ "$DOCS_ADDED" -gt 
     # Project item-list can briefly omit newly added PRs. Wait for all additions
     # before processing fields, so the same run populates their metadata.
     for attempt in 1 2 3 4 5 6; do
-        ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+        ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 2000)
         missing=$(printf '%s' "$ITEMS_JSON" | python3 -c "
 import json, sys
 expected = {url for url in sys.argv[1].splitlines() if url}
@@ -392,6 +406,7 @@ for item in data['items']:
     case "$area_id" in
         "$AREA_EXTERNAL_DNS") area_name="ExDNS" ;;
         "$AREA_ALBO") area_name="ALBO" ;;
+        "$AREA_BGP") area_name="BGP" ;;
         "$AREA_DNS") area_name="DNS" ;;
         "$AREA_AI") area_name="AI" ;;
         "$AREA_ROUTER") area_name="Router" ;;
@@ -722,7 +737,7 @@ rm -f "$PRIORITY_FILE"
 # Sweep blank author fields again using the latest board state.
 echo ""
 echo "--- Final refresh for late project items ---"
-ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 2000)
 ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['items']))")
 populate_pr_authors
 
