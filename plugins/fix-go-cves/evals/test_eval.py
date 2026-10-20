@@ -219,6 +219,36 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             EVAL.extract(self.root)
 
+    def test_extraction_rejects_changed_provenance_before_reading_or_rewriting_outputs(self):
+        case, state = self.case()
+        state["workspace"] = str(case)
+        EVAL.write_json(case / "output/state.json", state)
+        EVAL.write_json(case / "run_result.json", {"exit_code": 0})
+        stream = [{"type": "assistant", "message": {"content": [{
+            "type": "tool_use", "name": "Bash", "input": {"command": "git reset HEAD -- ."}}]}},
+            {"type": "result", "result": "A changed reply", "is_error": False}]
+        (case / "stdout.log").write_text("\n".join(json.dumps(event) for event in stream))
+        outputs = {name: (case / "output" / name).read_bytes()
+                   for name in ("state.json", "reply.md")}
+        manifest = self.root / "provenance/manifest.json"
+        input_path = self.root / "provenance/cases/case-005/input.yaml"
+        for path, replacement, error in (
+                (manifest, json.dumps({**EVAL.read_json(manifest), "helper_sha256": "0" * 64}),
+                 "Scoring helper changed"),
+                (input_path, "changed: true\n", "Frozen input changed")):
+            with self.subTest(path=path):
+                original = path.read_bytes()
+                path.write_text(replacement)
+                try:
+                    with patch.object(EVAL, "events") as read_trace:
+                        with self.assertRaisesRegex(ValueError, error):
+                            EVAL.extract(self.root)
+                        read_trace.assert_not_called()
+                    self.assertEqual(outputs, {name: (case / "output" / name).read_bytes()
+                                               for name in outputs})
+                finally:
+                    path.write_bytes(original)
+
     def test_contract_checks_command_blocks_but_allows_explanation(self):
         case, _ = self.case()
         reply = case / "output/reply.md"

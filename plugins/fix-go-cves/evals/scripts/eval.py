@@ -786,6 +786,7 @@ def trace_violations(stream, workspace):
 
 
 def extract(run_dir):
+    frozen_inputs(run_dir)
     cases = sorted((Path(run_dir) / 'cases').glob('case-*'))
     if not cases:
         raise ValueError('No completed case outputs')
