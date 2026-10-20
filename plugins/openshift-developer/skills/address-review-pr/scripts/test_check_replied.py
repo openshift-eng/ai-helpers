@@ -13,10 +13,36 @@ from check_replied import (
     check_issue_comment,
     check_review,
     check_review_comment,
+    check_review_thread,
     is_bot_reply,
     main,
     paginated_items,
 )
+
+
+def review_thread_payload(comments=(), *, resolved=False):
+    return {
+        "data": {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "nodes": [{
+                            "id": "PRRT_1", "isResolved": resolved,
+                            "comments": {"nodes": list(comments)},
+                        }],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        }
+    }
+
+
+def thread_comment(identifier, time, login="reviewer", body="Please change this"):
+    return {
+        "id": identifier, "author": {"login": login},
+        "body": body, "createdAt": time,
+    }
 
 
 class TestIsBotReply(unittest.TestCase):
@@ -134,6 +160,70 @@ class TestInlineReplyDeduplication(unittest.TestCase):
 
         self.assertTrue(result["safe_to_reply"])
         self.assertEqual(result["reason"], "no_bot_reply_found")
+
+
+class TestReviewThreadDeduplication(unittest.TestCase):
+    @patch("check_replied.run_gh")
+    def test_human_followup_after_bot_reply_is_safe(self, run_gh):
+        run_gh.return_value = review_thread_payload([
+            thread_comment("C1", "2026-10-20T12:00:00Z"),
+            thread_comment("C2", "2026-10-20T13:00:00Z", "review-agent", "Done."),
+            thread_comment("C3", "2026-10-20T14:00:00Z", body="This still needs work"),
+        ])
+
+        result = check_review_thread(
+            "openshift", "release", 1, "PRRT_1", "review-agent[bot]",
+        )
+
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_found")
+
+    @patch("check_replied.run_gh")
+    def test_later_bot_acknowledgement_suppresses_thread(self, run_gh):
+        run_gh.return_value = review_thread_payload([
+            thread_comment("C1", "2026-10-20T12:00:00Z"),
+            thread_comment("C2", "2026-10-20T13:00:00Z", "review-agent", "Done."),
+            thread_comment("C3", "2026-10-20T14:00:00Z", body="This still needs work"),
+            thread_comment("C4", "2026-10-20T15:00:00Z", "Review-Agent", "Fixed."),
+        ])
+
+        result = check_review_thread(
+            "openshift", "release", 1, "PRRT_1", "review-agent[bot]",
+        )
+
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "bot_already_replied")
+        self.assertEqual(result["existing_reply"]["created_at"], "2026-10-20T15:00:00Z")
+
+    @patch("check_replied.run_gh")
+    def test_equal_second_bot_reply_keeps_thread_eligible(self, run_gh):
+        run_gh.return_value = review_thread_payload([
+            thread_comment("C1", "2026-10-20T12:00:00Z"),
+            thread_comment("C2", "2026-10-20T14:00:00Z", body="Latest feedback"),
+            thread_comment(
+                "C3", "2026-10-20T14:00:00Z", "other-agent",
+                "Done.\n\n---\n*AI-assisted response*",
+            ),
+        ])
+
+        result = check_review_thread("openshift", "release", 1, "PRRT_1")
+
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_found")
+
+    @patch("check_replied.run_gh")
+    def test_missing_and_resolved_threads_remain_not_safe(self, run_gh):
+        missing = review_thread_payload()
+        missing["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"] = []
+        run_gh.side_effect = [missing, review_thread_payload(resolved=True)]
+
+        missing_result = check_review_thread("openshift", "release", 1, "PRRT_1")
+        resolved_result = check_review_thread("openshift", "release", 1, "PRRT_1")
+
+        self.assertFalse(missing_result["safe_to_reply"])
+        self.assertEqual(missing_result["reason"], "thread_not_found")
+        self.assertFalse(resolved_result["safe_to_reply"])
+        self.assertEqual(resolved_result["reason"], "thread_resolved")
 
 
 class TestReviewReplyDeduplication(unittest.TestCase):

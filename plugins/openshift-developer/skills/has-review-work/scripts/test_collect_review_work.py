@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from collect_review_work import (
-    Authorizer, THREAD_QUERY, ci_decision, collect_candidates, collect_snapshot,
+    Authorizer, GH_TIMEOUT, THREAD_QUERY, ci_decision, collect_candidates, collect_snapshot,
     fetch_threads, main, paginated_items, run_gh,
 )
 
@@ -57,6 +57,19 @@ class CandidateTests(unittest.TestCase):
         ]
         candidates, _ = self.collect(inline, threads={1: thread(1)})
         self.assertEqual([c["id"] for c in candidates], [3])
+
+    def test_shared_bot_matcher_normalizes_agent_but_not_unrelated_accounts(self):
+        conversation = [
+            comment(1, "Done.", login="Review-Agent"),
+            comment(2, "Please change this", login="other-agent"),
+        ]
+
+        candidates, skipped = self.collect(
+            conversation=conversation, authorize=lambda _login: True,
+        )
+
+        self.assertEqual([candidate["id"] for candidate in candidates], [2])
+        self.assertEqual(skipped["bot"], 1)
 
     def test_resolved_comments_are_skipped_before_authorization(self):
         authorize = Mock()
@@ -165,6 +178,7 @@ class ApiTests(unittest.TestCase):
     def test_nonzero_checks_exit_with_json_is_accepted(self, run):
         run.return_value = subprocess.CompletedProcess([], 1, json.dumps([FAILURE]), "checks failed")
         self.assertEqual(run_gh(["pr", "checks"], allow_failure_json=True), [FAILURE])
+        self.assertEqual(run.call_args.kwargs["timeout"], GH_TIMEOUT)
         with self.assertRaises(RuntimeError):
             run_gh(["api", "anything"])
         run.return_value.stdout = ""
@@ -178,7 +192,7 @@ class ApiTests(unittest.TestCase):
 
     @patch("collect_review_work.run_gh", return_value=[[{"id": 1}], [{"id": 2}]])
     def test_rest_pages_are_flattened(self, run):
-        self.assertEqual(paginated_items("endpoint"), [{"id": 1}, {"id": 2}])
+        self.assertEqual(paginated_items("endpoint", run), [{"id": 1}, {"id": 2}])
         self.assertIn("--paginate", run.call_args.args[0])
         self.assertIn("--slurp", run.call_args.args[0])
 

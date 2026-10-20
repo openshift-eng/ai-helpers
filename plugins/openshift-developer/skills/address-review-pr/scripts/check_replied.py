@@ -18,6 +18,7 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from typing import Any
 
 # Bot accounts that indicate we've already replied
@@ -48,9 +49,11 @@ def run_gh(args: list[str]) -> Any:
     return json.loads(result.stdout) if result.stdout.strip() else None
 
 
-def paginated_items(endpoint: str) -> list[dict]:
+def paginated_items(
+    endpoint: str, fetch: Callable[[list[str]], Any] | None = None,
+) -> list[dict]:
     """Fetch and flatten all pages from a REST array endpoint."""
-    pages = run_gh(["api", endpoint, "--paginate", "--slurp"])
+    pages = (fetch or run_gh)(["api", endpoint, "--paginate", "--slurp"])
     if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
         raise ValueError("REST response must contain arrays of items")
     items = [item for page in pages for item in page]
@@ -161,23 +164,32 @@ def check_review_thread(
             "message": f"Thread {thread_id} is resolved"
         }
 
-    # Check if any bot reply exists in the thread
+    # Check if a bot replied after the latest human feedback in the thread.
     # Note: If a thread has >100 comments, we may need additional pagination
     # but this is extremely rare for review threads
     comments = target_thread["comments"]["nodes"]
+    latest_feedback = ""
+    latest_reply = None
     for comment in comments:
         author = comment["author"]["login"] if comment["author"] else ""
         body = comment.get("body", "")
         if is_bot_reply(author, body, agent_login):
-            return {
-                "safe_to_reply": False,
-                "reason": "bot_already_replied",
-                "existing_reply": {
-                    "author": author,
-                    "created_at": comment["createdAt"],
-                    "body_preview": body[:200] if body else ""
-                }
+            if latest_reply is None or comment["createdAt"] > latest_reply[0]["createdAt"]:
+                latest_reply = (comment, author, body)
+        else:
+            latest_feedback = max(latest_feedback, comment["createdAt"])
+
+    if latest_reply and latest_feedback and latest_reply[0]["createdAt"] > latest_feedback:
+        comment, author, body = latest_reply
+        return {
+            "safe_to_reply": False,
+            "reason": "bot_already_replied",
+            "existing_reply": {
+                "author": author,
+                "created_at": comment["createdAt"],
+                "body_preview": body[:200] if body else ""
             }
+        }
 
     return {
         "safe_to_reply": True,

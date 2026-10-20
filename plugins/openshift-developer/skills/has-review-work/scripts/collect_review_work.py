@@ -22,7 +22,7 @@ from is_slash_command_only import is_slash_command_only
 # Reuse the worker's authorization policy and historical reply signatures.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "address-review-pr" / "scripts"))
 import check_authorized
-from check_replied import is_bot_reply, normalized_login
+from check_replied import is_bot_reply, normalized_login, paginated_items
 
 GH_TIMEOUT = 30
 THREAD_QUERY = """
@@ -54,17 +54,6 @@ def run_gh(args: list[str], *, allow_failure_json: bool = False) -> Any:
             return []
         raise RuntimeError("gh request did not return valid JSON") from err
     return value
-
-
-def paginated_items(endpoint: str) -> list[dict]:
-    # --slurp makes pagination explicit instead of depending on concatenated JSON.
-    pages = run_gh(["api", endpoint, "--paginate", "--slurp"])
-    if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
-        raise ValueError("REST response must contain arrays of items")
-    items = [item for page in pages for item in page]
-    if any(not isinstance(item, dict) for item in items):
-        raise ValueError("REST response contains an invalid item")
-    return items
 
 
 def fetch_threads(owner: str, repo: str, number: int) -> dict[int, dict]:
@@ -116,13 +105,9 @@ def collect_candidates(
     threads: dict[int, dict], agent_login: str, authorize,
 ) -> tuple[list[dict], dict[str, int]]:
     """Filter a single snapshot; never mutate shell state or refetch per item."""
-    agent = normalized_login(agent_login)
-
     def bot_reply(comment: dict) -> bool:
         login = (comment.get("user") or {}).get("login", "")
-        return bool(login) and (
-            normalized_login(login) == agent or is_bot_reply(login, comment.get("body", ""))
-        )
+        return is_bot_reply(login, comment.get("body", ""), agent_login)
 
     latest_inline_reply: dict[int, str] = {}
     for comment in inline:
@@ -233,9 +218,9 @@ def collect_snapshot(repo: str, number: int | None, context: dict) -> dict:
         raise ValueError("Agent login must be a string")
 
     prefix = f"repos/{repo}"
-    inline = paginated_items(f"{prefix}/pulls/{number}/comments")
-    reviews = paginated_items(f"{prefix}/pulls/{number}/reviews")
-    conversation = paginated_items(f"{prefix}/issues/{number}/comments")
+    inline = paginated_items(f"{prefix}/pulls/{number}/comments", run_gh)
+    reviews = paginated_items(f"{prefix}/pulls/{number}/reviews", run_gh)
+    conversation = paginated_items(f"{prefix}/issues/{number}/comments", run_gh)
     threads = fetch_threads(owner, repo_name, number)
     candidates, skipped = collect_candidates(
         inline, reviews, conversation, threads, agent, Authorizer(owner, repo_name),
