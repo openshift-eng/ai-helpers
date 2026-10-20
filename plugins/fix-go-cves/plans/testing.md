@@ -41,7 +41,7 @@ not attribute the historical run or replace a full baseline test suite.
 2. **Boundary fixtures pass.** The existing shell suite passed 2,343 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
-   The 46 eval checks cover witnessed publication, tampering, frozen inputs,
+   The 47 eval checks cover witnessed publication, tampering, frozen inputs,
    native event shapes and preserved failures. Skipped/unconfigured gates are
    not passing gates; old-trace rechecks prove detection, not revised behavior.
 3. **Selected replay behavior is measured.** At `07515259`, case-005 passes its
@@ -101,18 +101,21 @@ question. Fresh live case-001 may not reproduce that intermittent failure.
 3. **Admit and freeze after preparation and calibration pass.** Select only
    the admitted multi-failure case, preserving the tested harness, skill/helper,
    inputs, annotations and model settings. Use the existing three-execution
-   replay rule below. Manually verify both attempts, base-to-retained dependency
-   evidence, qualified causality, maintainer/remote-target prerequisites and
-   unconfirmed future gates/publication. Inspect failures before any further
-   change; no automatic extra cohort or live escalation. A pass establishes this
-   selected interpretation coverage, not current-engine or general reliability.
+   replay rule below. The factual judges measure backport/causal advice, not
+   complete outcome relay. Manually verify the literal Summary, exit, counts,
+   original ref, both attempts, base-to-retained dependency evidence, qualified
+   causality, maintainer/remote-target prerequisites and unconfirmed future
+   gates/publication. Inspect failures before any further change; no automatic
+   extra cohort or live escalation. A pass establishes this selected interpretation
+   coverage, not current-engine or general reliability.
 
 Positive publication relay is the next distinct candidate, not a prerequisite for
 this experiment. Historical Submariner case 002 needs a complete sanitized log,
 verified bundle/archive, corrected literal command reference and negatives. Its
 builder decision cannot use the current Admiral-specific backport judge: choose
-applicable outcome/action-owner criteria through the stock configuration/profile
-support, rather than inventing a backport requirement or another judge. Verify
+applicable outcome/action-owner criteria and matching thresholds through stock
+configuration support, rather than inventing a backport requirement or another
+judge. Verify
 model-free preparation and calibrate before measuring it.
 
 Further live work needs a concrete current-engine, successful-repair or long-run
@@ -123,12 +126,15 @@ wait-cadence change, preserving the earlier budget failure and established runti
 evidence. Do not automatically run both. Neither a clean run nor another mutable
 blocked run is a substitute for the prepared multi-failure regression. Claim blocked coverage only
 when reached, and preserve database drift or different outcomes as missing
-coverage. Keep the worker stopped during preparation; revalidate its existing
-ownership/cancellation probes and supervised lifecycle before a selected live run.
+coverage. Keep the worker stopped during preparation. Revalidate the existing
+ownership/cancellation probes if it is recreated; retain supervised lifecycle
+management for selected live runs.
 
 Frozen scoring uses copied inputs/configuration and exact selected cases,
-judges and complete samples. Extraction validates that provenance and its
-helper hash before changing state/reply files or scheduling factual judges.
+judges and complete samples. Extraction checks all collected case directories
+against the frozen selection, then validates outputs before factual scoring.
+Provenance, helper identity and case membership are checked before rewriting
+state/reply files; missing or extra cases stop the scoring hook.
 A changed helper requires a separately frozen derived record; preserve original
 outputs and scores. The tightened action/owner criterion passed seven
 three-sample checks (21 calls); the unchanged backport criterion passed six

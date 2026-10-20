@@ -250,6 +250,35 @@ class EvidenceTests(unittest.TestCase):
                 finally:
                     path.write_bytes(original)
 
+    def test_extraction_checks_selected_cases_before_reading_or_rewriting_outputs(self):
+        case, state = self.case()
+        state["workspace"] = str(case)
+        EVAL.write_json(case / "output/state.json", state)
+        EVAL.write_json(case / "run_result.json", {"exit_code": 0})
+        (case / "stdout.log").write_text(json.dumps({
+            "type": "result", "result": "A newly extracted reply", "is_error": False}))
+        outputs = {name: (case / "output" / name).read_bytes()
+                   for name in ("state.json", "reply.md")}
+        for extra in (None, "case-006", "notes"):
+            with self.subTest(extra=extra):
+                selected = ("case-005", "case-006") if extra is None else ("case-005",)
+                self.freeze(cases=selected, reset=True)
+                neighbor = self.root / "cases" / extra if extra else None
+                if neighbor:
+                    neighbor.mkdir()
+                try:
+                    with patch.object(EVAL, "events", wraps=EVAL.events) as read_trace:
+                        with self.assertRaisesRegex(ValueError, "selected cases"):
+                            EVAL.extract(self.root)
+                        read_trace.assert_not_called()
+                    self.assertEqual(outputs, {name: (case / "output" / name).read_bytes()
+                                               for name in outputs})
+                finally:
+                    if neighbor:
+                        neighbor.rmdir()
+                    for name, content in outputs.items():
+                        (case / "output" / name).write_bytes(content)
+
     def test_native_string_permission_event_preserves_denial_and_false_contract(self):
         case, state = self.case()
         state['workspace'] = str(case)

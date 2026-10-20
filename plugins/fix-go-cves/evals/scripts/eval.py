@@ -799,10 +799,10 @@ def trace_violations(stream, workspace):
 
 
 def extract(run_dir):
-    frozen_inputs(run_dir)
-    cases = sorted((Path(run_dir) / 'cases').glob('case-*'))
-    if not cases:
-        raise ValueError('No completed case outputs')
+    _, manifest, _ = frozen_inputs(run_dir)
+    cases = sorted(path for path in (Path(run_dir) / 'cases').iterdir() if path.is_dir())
+    if {path.name for path in cases} != set(manifest['selected_cases']):
+        raise ValueError('Case outputs do not match the selected cases')
     for case in cases:
         stream = events(case / 'stdout.log')
         output = case / 'output'

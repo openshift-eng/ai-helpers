@@ -88,8 +88,9 @@ The harness also writes its standard `report.html` in the result directory.
 Each run stores frozen configuration and fixtures with hashes under `provenance/`;
 all stock stages score those copies. The runner checks exact selected cases,
 judges and complete samples, and exits nonzero for factual acceptance failures.
-Extraction validates frozen inputs and the helper hash before changing captured
-state/replies or starting judges; a stale helper stops scoring without rewriting
+Extraction validates frozen inputs, the helper hash and exact collected case
+membership before changing captured state/replies or starting judges. Missing or
+extra case directories stop scoring; a stale helper also stops without rewriting
 prior outputs or scores.
 Use a new frozen result record for deliberate rescoring; preserve prior scores.
 The replay contract checks one invocation, exact result commit and branch,
@@ -206,7 +207,7 @@ read-only. Known original refs are printed by the runtime; unknown return advice
 is omitted. Publication relay accepts only the complete emitted recipe or literal
 Summary. Live log identity is recorded at completion, and native string-message
 permission events retain their denied-operation verdict instead of crashing.
-The shell suite passed 2,343 checks and the eval suite 46.
+The shell suite passed 2,343 checks and the eval suite 47.
 
 | Frozen source | Case-005 comparison | Original result | Agent cost |
 | --- | --- | --- | --- |
