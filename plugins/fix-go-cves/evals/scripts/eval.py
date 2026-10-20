@@ -646,6 +646,12 @@ def final_reply(stream):
     return results[-1]['result']
 
 
+def message_blocks(event):
+    message = event.get('message')
+    content = message.get('content') if isinstance(message, dict) else None
+    return content if isinstance(content, list) else []
+
+
 def terminal_exit_observed(stream, status):
     """Require a matched native log observation before the final response.
 
@@ -658,7 +664,7 @@ def terminal_exit_observed(stream, status):
     for event in stream:
         if event.get('type') == 'assistant':
             before_response = observed
-            for item in event.get('message', {}).get('content', []):
+            for item in message_blocks(event):
                 if not isinstance(item, dict) or item.get('type') != 'tool_use':
                     continue
                 name, value = item.get('name'), item.get('input', {})
@@ -678,7 +684,7 @@ def terminal_exit_observed(stream, status):
                 if eligible and item.get('id'):
                     observations.add(item.get('id'))
         elif event.get('type') == 'user':
-            for item in event.get('message', {}).get('content', []):
+            for item in message_blocks(event):
                 if (not isinstance(item, dict) or item.get('type') != 'tool_result'
                         or item.get('is_error') or item.get('tool_use_id') not in observations):
                     continue
@@ -733,7 +739,7 @@ def trace_violations(stream, workspace):
     allowed = (workspace.resolve(), runtime.resolve())
     violations = []
     for event in stream:
-        for item in event.get('message', {}).get('content', []):
+        for item in message_blocks(event):
             if not isinstance(item, dict) or item.get('type') != 'tool_use':
                 continue
             name, value = item.get('name', ''), item.get('input', {})

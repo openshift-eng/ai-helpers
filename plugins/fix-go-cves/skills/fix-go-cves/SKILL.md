@@ -114,7 +114,9 @@ Build the final reply in two parts:
    using logs, history and diffs; never apply or test a candidate backport,
    even temporarily. Describe recommended repairs in prose, separately from
    retained fixes. Leave repairs, reruns, builds/tests and cleanup for a new
-   request. An upstream commit does not prove compatibility or passing gates.
+   request. A candidate repair does not establish that a backport or rerun
+   will pass gates or emit a PR command; leave those outcomes unconfirmed
+   until observed.
 
 Copy a publication command only from the script's complete printed block,
 preserving it exactly. If absent, keep the stated reason and supply no

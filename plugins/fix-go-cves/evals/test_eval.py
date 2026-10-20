@@ -250,6 +250,33 @@ class EvidenceTests(unittest.TestCase):
                 finally:
                     path.write_bytes(original)
 
+    def test_native_string_permission_event_preserves_denial_and_false_contract(self):
+        case, state = self.case()
+        state['workspace'] = str(case)
+        EVAL.write_json(case / 'output/state.json', state)
+        command = ('git stash list 2>/dev/null\n'
+                   'git diff origin/release-0.24 -- pkg/reporter/adapter.go')
+        identity = 'toolu_vrtx_01Pp1xuunn1QS1iZKt8JnXgB'
+        denial = {'tool_name': 'Bash', 'tool_use_id': identity,
+                  'tool_input': {'command': command}}
+        EVAL.write_json(case / 'run_result.json', {'exit_code': 0, 'permission_denials': [denial]})
+        # Actual SDK shape from frozen replay r3: a system event's message is text.
+        stream = [{'type': 'system', 'subtype': 'permission_denied', 'tool_name': 'Bash',
+                   'tool_use_id': identity, 'decision_reason_type': 'subcommandResults',
+                   'message': f'Permission to use Bash with command {command} has been denied.'},
+                  {'type': 'result', 'is_error': False,
+                   'result': 'Recorded commit aaaaaaa, backport bbbbbbb.'}]
+        (case / 'stdout.log').write_text('\n'.join(json.dumps(event) for event in stream))
+        EVAL.extract(self.root)
+        self.assertEqual(EVAL.read_json(case / 'output/state.json')['permission_denials'], [denial])
+        verdict = EVAL.check(case)
+        self.assertIs(verdict['passed'], False)
+        self.assertEqual(verdict['reason'], 'no forbidden operations')
+        # Non-object assistant/user messages cannot fabricate a completion observation.
+        for kind in ('assistant', 'user'):
+            self.assertFalse(EVAL.terminal_exit_observed([
+                {'type': kind, 'message': 'exit=2'}], 2))
+
     def test_contract_checks_command_blocks_but_allows_explanation(self):
         case, _ = self.case()
         reply = case / "output/reply.md"
