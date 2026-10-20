@@ -21,6 +21,13 @@ naming anything missing.
 
 ## Run the scripts
 
+Before launch, inspect the target branch's verification instructions and relevant
+CI. Preserve caller-specified and repository-configured check commands. If the
+inferred default omits required local source checks, use `CVE_FIX_TEST_CMD` to
+run that default plus the relevant checks, for example
+`make unit && make golangci-lint`. Do not auto-select deployment, end-to-end or
+CI-only jobs. Report checks that did not run as unverified.
+
 Builds and tests can each take 30 minutes. Run every script in the background
 with its output in a log file, and wait for it to exit; do not let a tool
 timeout kill it (SIGKILL skips cleanup). Shell variables do not persist
@@ -145,7 +152,7 @@ Investigate flagged outcomes using these checks:
   change claims, compare this run's actual base and retained fix commits,
   including the Go directive.
 - Transient network, timeout, or degraded scanner: recommend a rerun.
-- Wrong build or test command: recommend `CVE_FIX_*` overrides for a rerun,
+- Wrong build command: recommend `CVE_FIX_BUILD_CMD` for a rerun,
   or `.cve-fix.yaml` fields committed on the target branch
   ([configuration](../../README.md#configuration)).
 

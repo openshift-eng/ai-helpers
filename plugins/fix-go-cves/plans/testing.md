@@ -133,6 +133,12 @@ change, rather than adding judges for the observed reporting failures.
 
 ## Runtime and behavioral acceptance
 
+Real release-0.24 use exposed a check-selection gap: Admiral's required Go lint
+job is separate from the inferred `make unit` command. The skill now instructs
+the agent to select relevant local checks before launch through the existing
+`CVE_FIX_TEST_CMD`, preserving explicit commands. This changes guidance, not runtime gate
+machinery or defaults; unrun CI remains unverified.
+
 The existing live contract accepts runtime exit 0 or 2 with a completed Summary
 or clean-fast-path message. It checks execution, retained state and allowed operations;
 fact judges check diagnosis and action/owner. A faithful report of an engine
