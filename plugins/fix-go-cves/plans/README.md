@@ -32,8 +32,10 @@ It exposed both failures, but case 007 still makes unsupported global causal
 claims despite later uncertainty. Its raw majority pass and manual failure
 remain separate. A case-005 Summary-checker false negative is corrected without
 rewriting original scores. The [testing plan](testing.md#next-prepared-experiment)
-selects a bounded oracle-only calibration of whole-reply scope, with no further
-actor trials or prompt-only skill treatment.
+records the whole-reply oracle calibration passing all 21 samples without errors.
+This covers seven oracle examples; it does not regrade the natural reply or
+establish skill acceptance. No further actor trial or prompt-only skill treatment
+is selected.
 Source/native engine evidence remains separate; their failed invoking-agent
 measurements are not replaced.
 

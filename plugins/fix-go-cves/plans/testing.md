@@ -115,12 +115,14 @@ question. Fresh live case-001 may not reproduce that intermittent failure.
 5. **Validate the known oracle gap.** The existing action/owner criterion
    already rejects unsupported causal claims, but its judge accepted a global
    overclaim despite later uncertainty. Add one focused contradictory-overview
-   negative and clarify whole-reply scope in that existing prompt. One calibration
-   covers both references and five relevant negatives, three samples each.
-   Require all 21 labels correct without errors; preserve mixed/error samples
-   and stop rather than tune/retry. This is oracle calibration, not skill
-   acceptance. Further skill work needs a design that prevents unsupported
-   synthesis after evidence has been retrieved; another search, warning or
+   negative and clarify whole-reply scope in that existing prompt. The single
+   calibration at `eb44d2f1` passes all 21 samples without errors: both references
+   accepted and five negatives rejected, three samples each. Raw samples and
+   earlier mixed verdicts remain preserved; no tuning/retry loop was needed.
+   This calibrates seven oracle examples, not skill acceptance or a revised
+   factual score for the natural retained reply. Further skill work needs a design
+   that prevents unsupported synthesis after evidence has been retrieved; another
+   search, warning or
    prompt heading does not address the demonstrated mechanism. Keep literal
    Summary, each attempt, actual base-to-result evidence and whole-reply causality
    in manual review. Current-engine repair and native completion remain separate.

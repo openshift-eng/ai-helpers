@@ -315,19 +315,27 @@ claiming to rule out flakiness; the historical measurement cannot test that edit
 One focused case-007 negative adds an unsupported global attribution to the
 reviewed reference while retaining its later uncertainty. Two lines in the
 existing action/owner prompt explicitly cover the whole reply; the criterion
-is unchanged. A single oracle-only calibration is selected: both references,
-this negative, the existing retry negative and three case-005 negatives, with
-three samples each (21 calls). All samples must match expected labels without
-errors; disagreement stops calibration rather than a tuning loop. No backport
-judge, new judge, output schema or actor campaign is added. This does not
-establish current-engine repair, native completion or general reliability.
+is unchanged. The oracle-only calibration at `eb44d2f1` passes all 21 samples
+without errors: both references are accepted and this negative, the existing
+retry negative and three case-005 negatives are rejected, three samples each.
+The stock rendered prompts, frozen inputs and raw rationales remain under
+`.work/fix-go-cves-e2e-reliability/oracle-calibration/`. It took 472.78 seconds;
+all 21 judge calls are unpriced. No backport judge, new judge, output schema,
+actor campaign or tuning loop was added. This validates the seven selected
+oracle examples, not the natural retained reply or new invoking-agent behavior.
+It does not establish current-engine repair, native completion or general reliability.
 
-The corrected helper passes 52 checks. The first full shell run passed
-2,335/2,343, with eight durable-evidence assertions failing; its temporary log
-was deleted. Three isolated 23-check repetitions pass. A later host `/tmp`
-quota exhaustion is observed, not a proven cause of the earlier failure.
-The shell suite now retains its owned temporary tree on failure and removes
-it on success; a full controlled recheck is pending.
+The corrected helper passes 52 tests. The controlled original shell suite
+passes 2,343/2,343 using a task-owned `TMPDIR` and matching
+`GIT_CEILING_DIRECTORIES`, after a separate discovery-equivalence probe.
+Retained evidence confirms the complete fixture reached tests, verification,
+license, final scan and all four audits. The first full shell run passed only
+2,335/2,343; its eight durable-evidence failures remain unexplained because
+its temporary log was deleted. Three isolated 23-check repetitions pass.
+A later host `/tmp` quota exhaustion is observed, not a proven cause of the
+first failure. The shell suite now retains its owned temporary tree on failure
+and removes it on success. Diagnostic attempts and evidence remain separately
+recorded in `.work/fix-go-cves-e2e-reliability/shell-investigation.json`.
 
 ## Live evidence and coverage
 

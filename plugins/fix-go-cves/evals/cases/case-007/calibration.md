@@ -36,3 +36,8 @@ The later `contradictory-overview.md` negative adds one unsupported global
 causal claim to the reference, retaining its explicit local uncertainty. It isolates the whole-reply
 scope gap exposed at `f3b12fd3`; its separate oracle calibration does not change
 the original admission labels or stored skill scores.
+
+At `eb44d2f1`, the single whole-reply calibration passes all 21 samples without
+errors: both case-005/007 references accepted, this negative and four existing
+causal/prerequisite negatives rejected. This does not rescore the natural
+retained reply or measure new skill behavior.
