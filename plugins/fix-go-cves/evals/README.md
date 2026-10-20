@@ -391,6 +391,29 @@ prior smaller baseline and all original results. Audits and declarations are in
 
 ## Live evidence and coverage
 
+Runtime audit completeness is now enforced before verification or repair
+dispatch. Previously a missing audit directory, a reduced script set, malformed
+counts such as `NEW_ISSUES=banana`, or missing `UNRESOLVED` could pass. The
+existing text format now requires four fresh known audits with complete, unique
+nonnegative integer counters. Invalid evidence blocks repair; valid positive
+evidence still enters the bounded repair/recheck loop.
+
+The focused regressions reproduce 28 failures on the prior library and pass
+61/61 on the fix. Existing orchestration and publication fixtures pass, and the
+full controlled shell suite passes 2,401/2,401. Its first run passed 2,384/2,401:
+17 native-fixture assertions failed because that fixture omitted every audit.
+Adding all four real companion scripts preserves its assertions and passes all
+130 native checks; no production requirement was relaxed. The 52 eval helper
+tests, Bash syntax and error-level ShellCheck of the changed runtime scripts
+pass. A broader ShellCheck invocation including the large test file ended 137
+without diagnostics; it is not passing evidence.
+
+The unchanged real Admiral audit archive also passes the new validator. This
+is compatibility evidence, not another live run or an invoking-agent acceptance
+claim. Original scores remain intact; no additional actor or judge calls were
+needed. Reproduction and validation logs are in
+`.work/fix-go-cves-audit-completeness/`.
+
 The live helper opts into an external `CVE_FIX_EVIDENCE_DIR` and archives its
 contents under each case's `output/runtime/`. This includes initial and
 independent final-gate JSON when reached, phase outcomes, canonical command logs,

@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 2,343 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 2,401 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -40,7 +40,7 @@ not attribute the historical run or replace a full baseline test suite.
    branch or detached ref in the Summary. Recommendations focus on the next
    unmet prerequisite and verification still needed. This is a behavioral
    treatment, not enforcement or proof of general reliability.
-2. **Boundary fixtures pass.** The existing shell suite passed 2,343 checks,
+2. **Boundary fixtures pass.** The existing shell suite passed 2,401 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
    The 52 eval checks cover witnessed publication, tampering, frozen inputs,
@@ -138,6 +138,15 @@ or clean-fast-path message. It checks execution, retained state and allowed oper
 fact judges check diagnosis and action/owner. A faithful report of an engine
 bug can pass these checks. Scenario-specific runtime assertions additionally
 check actual engine evidence rather than the agent's final prose.
+
+Runtime verification now requires all four audit scripts and fresh, complete
+counter records. Incomplete evidence stops before repair dispatch; complete
+positive counts retain the bounded repair/recheck loop. Existing shell fixtures
+cover this boundary, including missing sources, stale output, malformed counters
+and publication suppression. The preserved real Admiral audit archive passes the
+new validator. These checks establish runtime acceptance behavior, not improved
+invoking-agent reporting. Keep model-verification removal separate and retain
+the shared policy-review and scanner helpers.
 
 | Scenario | Required runtime evidence |
 | --- | --- |

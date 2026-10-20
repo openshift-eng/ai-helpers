@@ -1561,19 +1561,6 @@ check "remove_fix_branch no-op without FIX_BRANCH" bash -c "
   source '$SCRIPT_DIR/lib.sh'
   FIX_BRANCH= remove_fix_branch"
 
-# scan_regression_failed: reads the SCAN_FAILED sentinel from the evidence file.
-SRF_DIR="$TMPD/srf"; mkdir -p "$SRF_DIR"
-printf 'NEW_CVES=0 UNRESOLVED=0\nSCAN_FAILED=1\n' > "$SRF_DIR/scan-regression.evidence"
-check "scan_regression_failed detects sentinel" scan_regression_failed "$SRF_DIR"
-printf 'NEW_CVES=0 UNRESOLVED=0\n' > "$SRF_DIR/scan-regression.evidence"
-check "scan_regression_failed clean -> false" ! scan_regression_failed "$SRF_DIR"
-# A present-but-marker-less file means the companion crashed before its NEW_CVES=
-# counter line (set -e abort) — fail closed, not clean.
-printf 'boom: companion crashed before marker\n' > "$SRF_DIR/scan-regression.evidence"
-check "scan_regression_failed marker-less -> failed" scan_regression_failed "$SRF_DIR"
-rm -f "$SRF_DIR/scan-regression.evidence"
-check "scan_regression_failed missing -> failed" scan_regression_failed "$SRF_DIR"
-
 # Sentinels wired end-to-end: scan.sh records build failure; fix-all.sh refuses
 # to report clean; scan-regression.sh emits SCAN_FAILED on scanner failure.
 
@@ -1983,8 +1970,51 @@ printf 'NEW_ISSUES=0\n' > "$EV_DIR/fix-availability.evidence"
 printf 'NEW_ISSUES=0\n' > "$EV_DIR/yaml-integrity.evidence"
 printf 'NEW_ISSUES=0\n' > "$EV_DIR/existing-entries.evidence"
 check "evidence all clean -> pass" evidence_verdict "$EV_DIR"
+evidence_status_code() {
+  local rc=0
+  evidence_verdict "$@" >/dev/null 2>&1 || rc=$?
+  printf '%s' "$rc"
+}
+for _ev_name in scan-regression existing-entries fix-availability yaml-integrity; do
+  mv "$EV_DIR/$_ev_name.evidence" "$EV_DIR/$_ev_name.saved"
+  check "evidence requires $_ev_name even without a script directory" \
+    test "$(evidence_status_code "$EV_DIR")" = 2
+  mv "$EV_DIR/$_ev_name.saved" "$EV_DIR/$_ev_name.evidence"
+done
+for _ev_bad in 'NEW_ISSUES=banana' 'NEW_ISSUES=-1' 'NEW_ISSUES=0suffix' \
+  'NEW_ISSUES=1suffix' 'NEW_ISSUES=' $'NEW_ISSUES=0\nNEW_ISSUES=0' \
+  $'NEW_ISSUES=0\nNEW_ISSUES=1' 'prefixNEW_ISSUES=0'; do
+  printf '%s\n' "$_ev_bad" > "$EV_DIR/yaml-integrity.evidence"
+  check "malformed issue evidence is inconclusive: $_ev_bad" \
+    test "$(evidence_status_code "$EV_DIR")" = 2
+  check "malformed issue evidence cannot name a repair: $_ev_bad" \
+    test -z "$(evidence_issue_names "$EV_DIR")"
+done
+printf 'NEW_ISSUES=0\n' > "$EV_DIR/yaml-integrity.evidence"
+for _ev_bad in 'NEW_CVES=0' 'UNRESOLVED=0' 'NEW_CVES=0 UNRESOLVED=-1' \
+  'NEW_CVES=banana UNRESOLVED=0' 'NEW_CVES=0 UNRESOLVED=0suffix' \
+  $'NEW_CVES=0 UNRESOLVED=0\nNEW_CVES=0 UNRESOLVED=0'; do
+  printf '%s\n' "$_ev_bad" > "$EV_DIR/scan-regression.evidence"
+  check "malformed scan evidence is inconclusive: $_ev_bad" \
+    test "$(evidence_status_code "$EV_DIR")" = 2
+  check "malformed scan evidence cannot name a repair: $_ev_bad" \
+    test -z "$(evidence_issue_names "$EV_DIR")"
+done
+printf 'NEW_CVES=0 UNRESOLVED=0\n' > "$EV_DIR/scan-regression.evidence"
+for _ev_failure in 'SCAN_FAILED=1' 'BUILD_FAILED=1' 'SKIP: audit unavailable'; do
+  printf 'NEW_ISSUES=0\n%s\n' "$_ev_failure" > "$EV_DIR/yaml-integrity.evidence"
+  check "failure marker makes clean counters inconclusive: $_ev_failure" \
+    test "$(evidence_status_code "$EV_DIR")" = 2
+done
+printf 'NEW_ISSUES=0\n' > "$EV_DIR/yaml-integrity.evidence"
 printf 'NEW_ISSUES=2\n' > "$EV_DIR/yaml-integrity.evidence"
 check "evidence issue count -> fail" ! evidence_verdict "$EV_DIR"
+check "valid positive evidence has the repairable status" test "$(evidence_status_code "$EV_DIR")" = 1
+check "valid positive evidence names its audit" test "$(evidence_issue_names "$EV_DIR")" = yaml-integrity
+printf 'NEW_ISSUES=000\n' > "$EV_DIR/yaml-integrity.evidence"
+check "leading-zero zero counters remain clean" test "$(evidence_status_code "$EV_DIR")" = 0
+printf 'NEW_ISSUES=999999999999999999999999999999\n' > "$EV_DIR/yaml-integrity.evidence"
+check "large positive counters remain repairable without overflow" test "$(evidence_status_code "$EV_DIR")" = 1
 printf 'NEW_ISSUES=0\n' > "$EV_DIR/yaml-integrity.evidence"
 printf 'NEW_CVES=0 UNRESOLVED=3\n' > "$EV_DIR/scan-regression.evidence"
 check "evidence unresolved>0 -> fail" ! evidence_verdict "$EV_DIR"
@@ -2002,25 +2032,33 @@ check "evidence missing -> fail" ! evidence_verdict "$EV_DIR"
 
 
 # === Real verify_fix_loop, selected agent absent (hermetic): PATH-stripped,
-# companion evidence authoritative; covers marker-less fail-closed paths 1a+1b. ===
+# complete companion evidence is authoritative and invalid evidence cannot repair. ===
 echo "verify_fix_loop (real, agent absent)"
-vfl_case() {  # $1=casedir -> prints "rc=<n> by=<verified_by>"
-  local casedir="$1" rc=0
+vfl_case() {  # $1=casedir $2=iterations -> prints "rc=<n> by=<verified_by>"
+  local casedir="$1" iterations="${2:-1}" rc=0
   (
     PATH="/usr/bin:/bin"  # excludes claude, includes coreutils the loop needs
-    verify_fix_loop "$casedir/state.env" "$casedir/subagents" "$casedir/report" 1 \
+    subagent_fix_yaml_integrity() {
+      local count=0
+      [[ ! -f "$casedir/repair-dispatched" ]] || read -r count < "$casedir/repair-dispatched"
+      printf '%s\n' "$((count + 1))" > "$casedir/repair-dispatched"
+    }
+    verify_fix_loop "$casedir/state.env" "$casedir/subagents" "$casedir/report" "$iterations" \
       >/dev/null 2>&1 || rc=$?
     echo "rc=$rc by=${RUN_SUBAGENTS_VERIFIED_BY:-}"
   )
 }
 mk_vfl_case() {  # $1=casedir $2=scan-regression body $3=yaml-integrity body
-  local casedir="$1"
+  local casedir="$1" name
   mkdir -p "$casedir/subagents" "$casedir/report"
   touch "$casedir/go.mod"
   printf 'REPO=%q\nBRANCH=devel\nCVE_SCRIPTS=%q\n' "$casedir" "$SCRIPT_DIR" \
     > "$casedir/state.env"
   printf '#!/usr/bin/env bash\n%s\n' "$2" > "$casedir/subagents/scan-regression.sh"
   printf '#!/usr/bin/env bash\n%s\n' "$3" > "$casedir/subagents/yaml-integrity.sh"
+  for name in existing-entries fix-availability; do
+    printf '#!/usr/bin/env bash\necho "NEW_ISSUES=0"\n' > "$casedir/subagents/$name.sh"
+  done
 }
 # Clean evidence -> verified via deterministic fallback.
 mk_vfl_case "$TMPD/vfl-clean" 'echo "NEW_CVES=0 UNRESOLVED=0"' 'echo "NEW_ISSUES=0"'
@@ -2034,6 +2072,31 @@ check "vfl marker-less scan-regression -> not verified" \
 mk_vfl_case "$TMPD/vfl-mlcomp" 'echo "NEW_CVES=0 UNRESOLVED=0"' 'echo "boom: crashed"'
 check "vfl marker-less companion -> not verified" \
   test "$(vfl_case "$TMPD/vfl-mlcomp")" = "rc=1 by="
+mk_vfl_case "$TMPD/vfl-invalid-positive" 'echo "NEW_CVES=0"' 'echo "NEW_ISSUES=1"'
+check "vfl invalid evidence blocks a simultaneous valid repair" \
+  test "$(vfl_case "$TMPD/vfl-invalid-positive" 2)" = "rc=1 by="
+check "vfl invalid evidence never dispatches repair" ! test -e "$TMPD/vfl-invalid-positive/repair-dispatched"
+mk_vfl_case "$TMPD/vfl-valid-positive" 'echo "NEW_CVES=0 UNRESOLVED=0"' \
+  'if [[ -f "$2/../repair-dispatched" ]]; then echo "NEW_ISSUES=0"; else echo "NEW_ISSUES=1"; fi'
+check "vfl valid issue dispatches repair then verifies fresh evidence" \
+  test "$(vfl_case "$TMPD/vfl-valid-positive" 2)" = "rc=0 by=evidence"
+check "vfl valid issue dispatches exactly once" test "$(cat "$TMPD/vfl-valid-positive/repair-dispatched" 2>/dev/null)" = 1
+mk_vfl_case "$TMPD/vfl-missing-script" 'echo "NEW_CVES=0 UNRESOLVED=0"' 'echo "NEW_ISSUES=0"'
+printf 'NEW_ISSUES=0\n' > "$TMPD/vfl-missing-script/report/existing-entries.evidence"
+rm "$TMPD/vfl-missing-script/subagents/existing-entries.sh"
+check "vfl absent script cannot reuse prior clean evidence" \
+  test "$(vfl_case "$TMPD/vfl-missing-script")" = "rc=1 by="
+check "vfl clears evidence left by a removed script" ! test -e "$TMPD/vfl-missing-script/report/existing-entries.evidence"
+mk_vfl_case "$TMPD/vfl-llm-pass-invalid" 'echo "NEW_CVES=0"' 'echo "NEW_ISSUES=0"'
+check "LLM PASS cannot authorize incomplete deterministic evidence" bash -c '
+  source "$1/lib.sh"
+  run_subagents() {
+    _run_companions "$2" "$1" "$3"
+    RUN_SUBAGENTS_UNVERIFIED=0 RUN_SUBAGENTS_CLAUDE_ABSENT=0 RUN_SUBAGENTS_SKIPPED=0
+    return 0
+  }
+  ! verify_fix_loop "$2/state.env" "$2/subagents" "$2/report" 1
+' _ "$SCRIPT_DIR" "$TMPD/vfl-llm-pass-invalid"
 
 # === Summary counts from git log (Commit 6) ===
 # COMMIT_COUNT can be lower than packages-fixed when a package resolves transitively (no dedicated commit).
@@ -3015,6 +3078,9 @@ check "scan-reg.sh: policy boundary has no actionable count" grep -qx 'NEW_CVES=
 check "scan-reg.sh: policy boundary emits NEEDS_REVIEW" grep -q '^NEEDS_REVIEW: GO-2026-6107 ' <<< "$SREG_SH_OUT"
 check "scan-reg.sh: policy boundary is not UNRESOLVED" ! grep -q '^UNRESOLVED:' <<< "$SREG_SH_OUT"
 printf '%s\n' "$SREG_SH_OUT" > "$SREG_SH_DIR/scan-regression.evidence"
+for _sreg_audit in existing-entries fix-availability yaml-integrity; do
+  printf 'NEW_ISSUES=0\n' > "$SREG_SH_DIR/$_sreg_audit.evidence"
+done
 check "scan-reg.sh: policy evidence verifies partial repairs" evidence_verdict "$SREG_SH_DIR"
 check "scan-reg.sh: final scan retains policy finding" test "$(jq '.matches | length' "$SREG_SH_DIR/final-scan.json")" -eq 1
 
@@ -7528,6 +7594,17 @@ if command -v jq >/dev/null 2>&1; then
   printf '\npreflight_check() { return 0; }\n' >> "$PRT_SCRIPTS/lib.sh"
   cp "$SCRIPT_DIR/fix-all.sh" "$PRT_SCRIPTS/"
   cp "$SCRIPT_DIR/binary-module-locations.py" "$PRT_SCRIPTS/"
+  # Publication scenarios assume all independent audits complete successfully;
+  # individual cases below replace the audit whose behavior they exercise.
+  prt_clean_audits() {
+    local name
+    mkdir -p "$PRT_DIR/subagents"
+    printf '#!/usr/bin/env bash\necho "NEW_CVES=0 UNRESOLVED=0"\n' > "$PRT_DIR/subagents/scan-regression.sh"
+    for name in existing-entries fix-availability yaml-integrity; do
+      printf '#!/usr/bin/env bash\necho "NEW_ISSUES=0"\n' > "$PRT_DIR/subagents/$name.sh"
+    done
+  }
+  prt_clean_audits
 
   # Mock review.sh: always succeeds with no unresolved items
   printf '#!/usr/bin/env bash\nexit 0\n' > "$PRT_SCRIPTS/review.sh"
@@ -7651,6 +7728,7 @@ REPORTPROBE
     fi
   done
   rm -rf "$PRT_DIR/subagents"
+  prt_clean_audits
   # An abort before directory creation must not delete an inherited path.
   mkdir -p "$PRT_DIR/foreign-report"
   printf 'foreign data\n' > "$PRT_DIR/foreign-report/keep"
@@ -7863,6 +7941,7 @@ LICENSEMAKE
   check "policy partial: verification does not suppress PR" ! grep -q 'NOT READY TO PUSH' <<< "$PRT_POLICY_OUT"
   mv "$PRT_DIR/fix-package.saved" "$PRT_SCRIPTS/fix-package.sh"
   rm -rf "$PRT_DIR/subagents"
+  prt_clean_audits
 
   # --- Sub-case D: TESTS_FAILED -> suppress PR command as unconfirmed ---
   git -C "$PRT_REPO" reset --hard origin/devel -q 2>/dev/null || true
@@ -7952,7 +8031,7 @@ fi
 # _run_companions iterates companion *.sh scripts in a directory, runs each
 # with (state_file, report_dir) args, and captures stdout to
 # $report_dir/<name>.evidence. Tests verify: evidence file created, content
-# matches companion stdout, and a directory with no .sh files is a no-op.
+# matches companion stdout, and removed scripts cannot leave stale evidence.
 echo "_run_companions behavioral"
 RC_DIR="$TMPD/rc"; mkdir -p "$RC_DIR/subagents" "$RC_DIR/report"
 RC_STATE="$RC_DIR/state.env"; touch "$RC_STATE"
@@ -7986,6 +8065,10 @@ RC2_STATE="$RC2_DIR/state.env"; touch "$RC2_STATE"
 _run_companions "$RC2_DIR/subagents" "$RC2_STATE" "$RC2_DIR/report"
 check "_run_companions: empty dir -> no evidence files" \
   bash -c 'shopt -s nullglob; files=("'"$RC2_DIR"'/report"/*.evidence); [[ ${#files[@]} -eq 0 ]]'
+printf 'NEW_ISSUES=0\n' > "$RC2_DIR/report/removed-audit.evidence"
+_run_companions "$RC2_DIR/subagents" "$RC2_STATE" "$RC2_DIR/report"
+check "_run_companions clears stale evidence even with no remaining scripts" \
+  ! test -e "$RC2_DIR/report/removed-audit.evidence"
 
 # === _grep_pattern behavioral tests ===
 echo "_grep_pattern behavioral"
@@ -9723,6 +9806,8 @@ _skitt_selector incompatible-pseudo 2.0.1-0.20250101000000-aaaaaaaaaaaa+incompat
 echo "native grouped fixes through dispatch and final verification"
 SKITT_GROUP="$TMPD/skitt-group"
 mkdir -p "$SKITT_GROUP/scripts" "$SKITT_GROUP/scanner"
+mkdir -p "$SKITT_GROUP/subagents"
+cp "$SCRIPT_DIR/../subagents/"*.sh "$SKITT_GROUP/subagents/"
 for _skitt_script in lib.sh fix-all.sh fix-package.sh fix-stdlib.sh ignore.sh scan.sh binary-module-locations.py; do
   cp "$SCRIPT_DIR/$_skitt_script" "$SKITT_GROUP/scripts/"
 done
@@ -10102,6 +10187,9 @@ echo "verification reviewer timeouts retry with deterministic fallback"
 VERIFY_TIMEOUT_DIR="$REVIEW_TIMEOUT_DIR"
 mkdir -p "$VERIFY_TIMEOUT_DIR/subagents"
 printf '#!/usr/bin/env bash\nprintf "NEW_CVES=0 UNRESOLVED=0\\n"\n' > "$VERIFY_TIMEOUT_DIR/subagents/scan-regression.sh"
+for _verify_audit in existing-entries fix-availability yaml-integrity; do
+  printf '#!/usr/bin/env bash\nprintf "NEW_ISSUES=0\\n"\n' > "$VERIFY_TIMEOUT_DIR/subagents/$_verify_audit.sh"
+done
 printf '# Verification\n\nReview supplied evidence: ${COMPANION_EVIDENCE}\n' > "$VERIFY_TIMEOUT_DIR/subagents/scan-regression.md"
 chmod +x "$VERIFY_TIMEOUT_DIR/subagents/scan-regression.sh"
 for _verify_timeout_mode in then-success exhausted auth-after-timeout; do
@@ -10532,6 +10620,29 @@ for _audit in scan-regression yaml-integrity existing-entries fix-availability; 
 done
 check "evidence retains state before normal cleanup" test -s "$EVI_ROOT/complete/state.env"
 check "evidence does not preserve scratch state in place" test ! -f "$EVI_STATE"
+for _evi_audit_failure in missing-directory missing-script malformed; do
+  case "$_evi_audit_failure" in
+    missing-directory) mv "$EVI_ROOT/subagents" "$EVI_ROOT/subagents.saved" ;;
+    missing-script) mv "$EVI_ROOT/subagents/yaml-integrity.sh" "$EVI_ROOT/yaml-integrity.saved" ;;
+    malformed)
+      mv "$EVI_ROOT/subagents/yaml-integrity.sh" "$EVI_ROOT/yaml-integrity.saved"
+      printf '#!/usr/bin/env bash\nprintf "NEW_ISSUES=banana\\n"\n' > "$EVI_ROOT/subagents/yaml-integrity.sh"
+      ;;
+  esac
+  evi_run "$_evi_audit_failure" "$EVI_ROOT/$_evi_audit_failure"
+  check "$_evi_audit_failure audit blocks an otherwise successful fix" test "$EVI_RC" -eq 2
+  check "$_evi_audit_failure audit preserves failed verification evidence" jq -e \
+    '.exit_code == 2 and .verification_exit_code == 1' "$EVI_ROOT/$_evi_audit_failure/run.json"
+  check "$_evi_audit_failure audit preserves state for diagnosis" test -s "$EVI_ROOT/$_evi_audit_failure/state.env"
+  check "$_evi_audit_failure audit reports verification failure" \
+    grep -q 'NEEDS_REVIEW: subagent verification failed' "$EVI_ROOT/$_evi_audit_failure.log"
+  check "$_evi_audit_failure audit suppresses publication" \
+    ! grep -q '^PR command:' "$EVI_ROOT/$_evi_audit_failure.log"
+  case "$_evi_audit_failure" in
+    missing-directory) mv "$EVI_ROOT/subagents.saved" "$EVI_ROOT/subagents" ;;
+    *) mv "$EVI_ROOT/yaml-integrity.saved" "$EVI_ROOT/subagents/yaml-integrity.sh" ;;
+  esac
+done
 EVI_TEST_RESULT=1 EVI_LICENSE_RESULT=1 evi_run blocked "$EVI_ROOT/blocked"
 check "evidence preserves test and license gate failures" test "$EVI_RC" -eq 2
 check "evidence records failure and retained tested head" jq -e '.exit_code == 2 and .test_exit_code == 1 and .license_exit_code != 0 and .tested_head == .head' "$EVI_ROOT/blocked/run.json"

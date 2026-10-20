@@ -2014,85 +2014,70 @@ grype_ignored_fix_version() {
     "$_file" 2>/dev/null || true
 }
 
-# Return 0 if the scan-regression companion recorded a scanner failure
-# (SCAN_FAILED sentinel). A scanner failure means the final scan is unreliable,
-# so an LLM PASS must NOT be trusted — the caller forces the fix unverified.
-scan_regression_failed() {
-  local report_dir="${1:?scan_regression_failed REPORT_DIR}"
-  local ev="$report_dir/scan-regression.evidence"
-  # Fail closed when the companion left no trustworthy evidence: a missing file,
-  # a crash before its NEW_CVES= marker (set -e abort), or an explicit scanner
-  # failure. Keep the SCAN_FAILED=1 check even though such files carry a
-  # NEW_CVES=0 line (emitted before the sentinel), so it isn't masked here.
-  [[ -f "$ev" ]] || return 0
-  grep -q '^SCAN_FAILED=1' "$ev" 2>/dev/null && return 0
-  grep -q '^NEW_CVES=' "$ev" 2>/dev/null || return 0
-  return 1
+# Validate one known audit's existing counter record. Return 0 for clean,
+# 1 for valid positive counts, or 2 for incomplete/invalid evidence. Never use
+# arithmetic on untrusted counters: even very large decimal counts mean issues.
+_evidence_status() {
+  local name="$1" evidence="$2" counters
+  case "$name" in
+    scan-regression) counters="NEW_CVES UNRESOLVED" ;;
+    existing-entries|fix-availability|yaml-integrity) counters=NEW_ISSUES ;;
+    *) return 2 ;;
+  esac
+  [[ -s "$evidence" ]] || return 2
+  awk -v counters="$counters" '
+    BEGIN {
+      n = split(counters, keys, " ")
+      for (i = 1; i <= n; i++) required[keys[i]] = 1
+    }
+    /^[[:space:]]*(SKIP:|SCAN_FAILED=|BUILD_FAILED=)/ { invalid = 1 }
+    /^[[:space:]]*(NEW_CVES|UNRESOLVED|NEW_ISSUES)=/ {
+      for (i = 1; i <= NF; i++) {
+        split($i, pair, "=")
+        if (!(pair[1] in required) || $i !~ /^[A-Z_]+=[0-9]+$/ || ++seen[pair[1]] != 1)
+          invalid = 1
+        if (pair[2] ~ /[1-9]/) dirty = 1
+      }
+    }
+    END {
+      for (key in required) if (seen[key] != 1) invalid = 1
+      exit (invalid ? 2 : (dirty ? 1 : 0))
+    }
+  ' "$evidence"
 }
 
-# Aggregate every companion's deterministic .evidence into a single verdict.
-# Companions emit counters (scan-regression: NEW_CVES/UNRESOLVED; the others:
-# NEW_ISSUES) plus SKIP:/SCAN_FAILED lines. Returns 0 (PASS) only when at least
-# one evidence file exists AND all are clean: every counter 0, no SKIP:, no
-# SCAN_FAILED. Returns 1 for FAIL (a counter > 0) or INCONCLUSIVE (missing/empty
-# evidence, SKIP, or scanner failure) so callers fail closed when the LLM gate
-# is unavailable. Used as the authoritative fallback when the LLM is blocked.
+# Require the complete fixed audit set. Return 0 when all are clean, 1 when
+# all are valid but have issues, or 2 if any evidence/source script is missing
+# or invalid. Incomplete measurements must not authorize repair dispatch.
 evidence_verdict() {
   local report_dir="${1:?evidence_verdict REPORT_DIR [SUBAGENT_DIR]}"
-  local subagent_dir="${2:-}"
-  local ev found=0 problems=0 name
-  # When the companion set is known, require one complete evidence file for
-  # every companion. A partial directory is not proof of a clean result.
-  if [[ -n "$subagent_dir" ]]; then
-    local sh_file expected
-    for sh_file in "$subagent_dir"/*.sh; do
-      [[ -f "$sh_file" ]] || continue
-      expected="$report_dir/$(basename "$sh_file" .sh).evidence"
-      if [[ ! -f "$expected" ]]; then
-        echo "  evidence INCONCLUSIVE: missing $(basename "$expected")" >&2
-        problems=1
-      fi
-    done
-  fi
-  shopt -s nullglob
-  for ev in "$report_dir"/*.evidence; do
-    found=1
-    name=$(basename "$ev" .evidence)
-    if grep -qE '(NEW_CVES|UNRESOLVED|NEW_ISSUES)=[1-9]' "$ev" 2>/dev/null; then
-      echo "  evidence FAIL: $name has outstanding issues" >&2
-      problems=1
+  local subagent_dir="${2:-}" name status verdict=0
+  for name in scan-regression existing-entries fix-availability yaml-integrity; do
+    if [[ -n "$subagent_dir" && ! -f "$subagent_dir/$name.sh" ]]; then
+      echo "  evidence INCONCLUSIVE: missing $name.sh" >&2
+      verdict=2
     fi
-    if grep -qE '^SCAN_FAILED=1|^SKIP:' "$ev" 2>/dev/null; then
-      echo "  evidence INCONCLUSIVE: $name did not complete" >&2
-      problems=1
-    fi
-    # A present-but-marker-less file means the companion crashed before emitting
-    # its counter line (set -e under pipefail) — treat as INCONCLUSIVE, not clean.
-    if ! grep -qE '(NEW_CVES|UNRESOLVED|NEW_ISSUES)=|^SCAN_FAILED=1|^SKIP:' "$ev" 2>/dev/null; then
-      echo "  evidence INCONCLUSIVE: $name produced no marker" >&2
-      problems=1
-    fi
+    status=0
+    _evidence_status "$name" "$report_dir/$name.evidence" || status=$?
+    case "$status" in
+      0) ;;
+      1) echo "  evidence FAIL: $name has outstanding issues" >&2
+         [[ $verdict -eq 2 ]] || verdict=1 ;;
+      *) echo "  evidence INCONCLUSIVE: $name evidence is missing or invalid" >&2
+         verdict=2 ;;
+    esac
   done
-  shopt -u nullglob
-  if [[ $found -eq 0 ]]; then
-    echo "  evidence INCONCLUSIVE: no companion evidence found" >&2
-    return 1
-  fi
-  [[ $problems -eq 0 ]]
+  return "$verdict"
 }
 
-# Print companion names whose deterministic counters are non-zero. This is
-# deliberately independent of the LLM report: a model PASS cannot overrule
-# scanner evidence, and an unavailable model cannot prevent deterministic repair.
+# Only complete, valid positive audit records can supply mechanical repair input.
 evidence_issue_names() {
-  local report_dir="${1:?evidence_issue_names REPORT_DIR}" ev
-  shopt -s nullglob
-  for ev in "$report_dir"/*.evidence; do
-    if grep -qE '(NEW_CVES|UNRESOLVED|NEW_ISSUES)=[1-9]' "$ev" 2>/dev/null; then
-      basename "$ev" .evidence
-    fi
+  local report_dir="${1:?evidence_issue_names REPORT_DIR}" name status
+  for name in scan-regression existing-entries fix-availability yaml-integrity; do
+    status=0
+    _evidence_status "$name" "$report_dir/$name.evidence" || status=$?
+    [[ $status -ne 1 ]] || echo "$name"
   done
-  shopt -u nullglob
 }
 
 # Wrap raw companion output in the report shape consumed by deterministic fix
@@ -2506,6 +2491,7 @@ _run_companions() {
   local subagent_dir="$1" state_file="$2" report_dir="$3"
   local sh_file sa_name evidence scan_regression="$subagent_dir/scan-regression.sh"
   local -a ordered=()
+  rm -f "$report_dir"/*.evidence  # A prior iteration cannot stand in for a missing audit.
   [[ -f "$scan_regression" ]] && ordered+=("$scan_regression")
   for sh_file in "$subagent_dir"/*.sh; do
     [[ -f "$sh_file" ]] || continue
@@ -2733,13 +2719,15 @@ verify_fix_loop() {
 
     # Evidence completeness and scanner health are prerequisites. Do this before
     # reading any LLM verdict so a PASS can never mask a crashed companion.
-    if scan_regression_failed "$report_dir" || ! evidence_verdict "$report_dir" "$subagent_dir"; then
+    local evidence_rc=0
+    evidence_verdict "$report_dir" "$subagent_dir" || evidence_rc=$?
+    if [[ $evidence_rc -eq 2 ]]; then
+      echo "Verification INCONCLUSIVE — deterministic evidence is incomplete; fix NOT verified."
+      return 1
+    fi
+    if [[ $evidence_rc -eq 1 ]]; then
       local -a dirty_evidence=()
       mapfile -t dirty_evidence < <(evidence_issue_names "$report_dir")
-      if [[ ${#dirty_evidence[@]} -eq 0 ]]; then
-        echo "Verification INCONCLUSIVE — deterministic evidence is incomplete; fix NOT verified."
-        return 1
-      fi
 
       if [[ $i -eq $max_iter ]]; then
         echo "Deterministic issues remain after $max_iter iterations."

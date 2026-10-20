@@ -581,8 +581,7 @@ printf '%s\n' "$FINAL_SCAN"
 # so the subagents don't retry them. This prevents corrupted version data from being
 # passed to fix-package.sh when a package has no valid fix due to MVS constraints.
 banner "Subagent Verification"
-SUBAGENT_DIR="$(cd "$SCRIPT_DIR/../subagents" 2>/dev/null && pwd || true)"
-[[ -d "$SUBAGENT_DIR" ]] || SUBAGENT_DIR=""
+SUBAGENT_DIR="$SCRIPT_DIR/../subagents"
 
 SUBAGENT_REPORT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/cve-fix-subagents-$(basename "$REPO")-${BRANCH//\//-}.XXXXXX")
 echo "$SCAN_JSON" > "$SUBAGENT_REPORT_DIR/initial-scan.json"
@@ -620,34 +619,26 @@ while IFS= read -r _ic; do
 done <<< "$_ignore_commits"
 unset _ignore_commits _ic _ic_diff _ic_pkg _ic_cves _ic_reason
 
-# Run verification whenever the subagents dir exists — even without an agent. The
-# companion scripts produce deterministic evidence in Phase 1, and verify_fix_loop
-# treats that evidence as authoritative when the LLM gate is unavailable (absent
-# or blocked by an auth error), so a blocked LLM never silently passes a fix.
-if [[ -n "$SUBAGENT_DIR" ]]; then
-  _EVIDENCE_VERIFY_STATUS=running
-  if ! verify_fix_loop "$STATE_FILE" "$SUBAGENT_DIR" "$SUBAGENT_REPORT_DIR" 3; then
-    _EVIDENCE_VERIFY_RC=1
-    REVIEW_COUNT=$((REVIEW_COUNT + 1))
-    VERIFY_FAILED=true
-    # Keep the report dir (see cleanup trap) and bundle in the state file so a
-    # failed subagent's .agent-output can be inspected or re-run after exit.
-    PRESERVE_REPORTS=1
-    cp "$STATE_FILE" "$SUBAGENT_REPORT_DIR/state.env" 2>/dev/null || true
-    echo "Reports preserved for debugging: $SUBAGENT_REPORT_DIR"
-    FIX_LINES+=("NEEDS_REVIEW: subagent verification failed — reports at $SUBAGENT_REPORT_DIR")
-  else
-    _EVIDENCE_VERIFY_RC=0
-    if [[ "${RUN_SUBAGENTS_VERIFIED_BY:-}" == "evidence" ]]; then
-      echo "Verified deterministically; LLM cross-check was unavailable."
-    fi
-  fi
-  _EVIDENCE_VERIFY_STATUS=completed
+# Missing audit sources fail through the same verification path as incomplete
+# evidence. An unavailable LLM cannot replace the required deterministic audits.
+_EVIDENCE_VERIFY_STATUS=running
+if ! verify_fix_loop "$STATE_FILE" "$SUBAGENT_DIR" "$SUBAGENT_REPORT_DIR" 3; then
+  _EVIDENCE_VERIFY_RC=1
+  REVIEW_COUNT=$((REVIEW_COUNT + 1))
+  VERIFY_FAILED=true
+  # Keep the report dir (see cleanup trap) and bundle in the state file so a
+  # failed subagent's .agent-output can be inspected or re-run after exit.
+  PRESERVE_REPORTS=1
+  cp "$STATE_FILE" "$SUBAGENT_REPORT_DIR/state.env" 2>/dev/null || true
+  echo "Reports preserved for debugging: $SUBAGENT_REPORT_DIR"
+  FIX_LINES+=("NEEDS_REVIEW: subagent verification failed — reports at $SUBAGENT_REPORT_DIR")
 else
-  _EVIDENCE_VERIFY_STATUS=missing
-  echo "Skipping: no subagents directory found."
-  rm -rf "$SUBAGENT_REPORT_DIR"
+  _EVIDENCE_VERIFY_RC=0
+  if [[ "${RUN_SUBAGENTS_VERIFIED_BY:-}" == "evidence" ]]; then
+    echo "Verified deterministically; LLM cross-check was unavailable."
+  fi
 fi
+_EVIDENCE_VERIFY_STATUS=completed
 
 # Surface packages classified by fix functions during verify loop that are NOT
 # visible via the main fix loop (e.g. fix-state: not-fixed entries in .grype.yaml

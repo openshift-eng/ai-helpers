@@ -42,8 +42,9 @@ passes afterward, using the existing fixtures and full shell suite.
    workspace sync, including siblings a scoped update changed. The unchanged-set
    reproduction must roll back; patch updates and guard-disabled runs must work.
 
-Then fix report validation and scanner deadlines in separate changes. Harden
-audit completeness before removing model verification; retain shared helpers
+Then fix report validation and scanner deadlines in separate changes. Audit
+completeness now gates verification and repair dispatch; remove model verification
+in a separate change and retain shared helpers
 used by `review.sh` and scanner retries. Address failure reasons and inherited
 ignores separately. Keep these independent of the replay pilot:
 historical scripts cannot validate today's runtime fixes. Broader Go-minor
@@ -87,11 +88,12 @@ policy needs a decision before changing its behavior.
   prove the exact patched compiler required by the existing gates. Keep
   that version unknown without sufficient evidence. Decide how toolchain
   edits should behave for ART builds without weakening the builder bound.
-- **Audit completeness.** A missing audit directory currently skips verification,
-  and the expected evidence set is inferred from scripts still present. Require
-  all four known audits and their complete, nonnegative integer counters.
-  `NEW_ISSUES=banana` and a scan counter missing `UNRESOLVED` can currently pass.
-  Missing, empty, crashed, skipped or malformed evidence must not verify a fix.
+- **Audit completeness is implemented.** Verification requires all four known
+  scripts and fresh evidence with complete, unique nonnegative integer counters.
+  Missing or malformed evidence blocks repair dispatch, verification and
+  publication; valid positive evidence still repairs and rechecks. The existing
+  orchestration fixtures exercise missing directories/scripts and malformed
+  counters, and the real Admiral audit archive remains compatible.
 - **YAML parsing.** Replace the awk heuristics that find ignore entries with
   one parser using PyYAML node marks for entry boundaries. Preserve surrounding
   comments and untouched text explicitly; node marks do not retain comments.
