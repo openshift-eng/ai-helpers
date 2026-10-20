@@ -264,12 +264,30 @@ logs, metrics and independent audits are retained under
 `.work/fix-go-cves-multifailure-implementation/`. The factual judges measure
 backport/causal advice; manual outcome verification remains separate.
 
-One reviewed two-line treatment replaces the requested causal explanation with
-observed failure, unmet prerequisite and owner. Existing causal-evidence checks
-remain. It is unmeasured pending one frozen follow-up with identical cases,
-judges, model, criteria and policy. Do not append warnings or schedule further
-prompt-only cohorts if the same defect persists. Neither comparison establishes
-current-engine repair, native completion or general reliability.
+The frozen follow-up at `d9261b68` also **failed**: contract 3/3 and factual
+conjunction 1/3. Backport passed all nine samples; action/owner samples were
+false/false/false, true/true/true and false/false/false, without errors. Agent cost
+was $1.68287475 plus 18 unpriced judge calls. All three invocations completed;
+original artifacts and raw scores remain in `cve-replay-observed-work-20261020-rN`.
+
+Manual review found syncer entirely absent from replies 1 and 3, versus none
+omitted in the first comparison. Reply 1 also truncates the literal Summary;
+reply 3 asserts newer tooling without inspecting the base-to-result diff.
+Reply 2 preserves both attempts and explicitly leaves update causality unproven;
+its raw pass stands, with a precision caveat about locating a race in the test
+without distinguishing implementation behavior. It gives no separate syncer
+next action/owner. These observations do not establish a population-level effect.
+The two-line remaining-work treatment is reverted; the earlier wording remains
+unaccepted. No further prompt-only cohorts are selected.
+
+Trace review found reply 1 never retrieved the syncer failure: broad searches
+truncated expected-error chatter. The existing diagnostic grep now also selects
+anchored Go `FAIL` and `--- FAIL:` results. An actual-command, model-free probe
+on cases 005 and 007 exposes their reporter results and case 007's first-only
+syncer result; the latter produces eight lines including `NEEDS_REVIEW`, rather
+than one. This verifies evidence exposure only. No parent-agent measurement
+covers that search change. Neither comparison establishes current-engine repair,
+native completion or general reliability.
 
 ## Live evidence and coverage
 

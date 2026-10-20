@@ -13,9 +13,9 @@ Three layers answer different questions:
   comparison was incomplete after an SDK-event parsing error. The revised
   comparison passes contract and factual conjunction in all three executions;
   manual wording caveats remain separate from those scores. Case 007 is
-  admitted and calibrated, but its comparison fails contract (2/3) and factual
-  conjunction (0/3). Replay cannot
-  validate today's remediation engine.
+  admitted and calibrated, but both comparisons fail: the first has contract
+  2/3 and factual conjunction 0/3; the follow-up has contract 3/3 and factual
+  conjunction 1/3. Replay cannot validate today's remediation engine.
 - **Live evaluation:** real Grype and canonical commands establish Admiral
   source repair (14 runtime assertions) and Subctl native repair (19), both
   with engine exit 0. Skill execution remains unaccepted: Admiral invented
@@ -93,23 +93,26 @@ question. Fresh live case-001 may not reproduce that intermittent failure.
    weakened. See [fixture provenance](../evals/cases/case-007/calibration.md).
    This calibrates the oracle, not skill behavior. Preserve raw results and the
    original live failure; change a rubric only if calibration demonstrates a defect.
-3. **The first comparison failed; one changed treatment is selected.** At
-   `0fdccbb0`, contract passes 2/3 and factual conjunction 0/3. All action/owner
-   aggregates are false with two false and one true sample each; no judge errors.
-   Manual review confirms unsupported causal conclusions despite correct detailed
-   observations and nominal uncertainty. Run 2 also attempts read-only stash
-   inspection, which fails the existing strict policy without a stash mutation.
-   The two-line treatment removes the requested causal explanation and asks for
-   observed failure, next unmet prerequisite and owner. Causal safeguards remain.
-   Freeze one follow-up with the same case, judge prompts, model, criteria and policy;
-   do not recalibrate unchanged judges or replace the failed original scores.
-   Apply the existing three-execution rule below. The factual judges measure
-   backport/causal advice, not complete outcome relay. Manually verify literal
-   Summary, exit, counts, original ref, both attempts, actual base-to-result diff,
-   causal uncertainty throughout the reply, owner/remote-target prerequisites and
-   unconfirmed future outcomes. If causal synthesis still fails, stop prompt-only
-   cohorts rather than append warnings. Keep the evidence and question separate
-   from current-engine repair, native completion and general reliability.
+3. **Both frozen comparisons failed.** At `0fdccbb0`, contract passes 2/3 and
+   factual conjunction 0/3. At `d9261b68`, contract passes 3/3 and factual
+   conjunction 1/3. Preserve all raw samples and original failures; the one
+   follow-up pass is not overridden by manual precision caveats. Manual review
+   finds two follow-up replies omit the distinct syncer failure, one truncates
+   the literal Summary and one asserts changed tooling without comparing the
+   actual base. Revert the two-line remaining-work treatment; this bounded
+   comparison does not establish a general causal treatment effect or acceptance
+   of the earlier wording. See [results](../evals/README.md#multi-failure-replay).
+4. **Improve evidence retrieval without another cohort.** One trace never
+   retrieved the syncer failure. Extend the existing diagnostic grep with
+   anchored Go failure results. Actual-command probes on cases 005 and 007
+   expose the relevant failures without expected-error chatter. This checks
+   evidence exposure only; parent-agent behavior after the search change remains
+   unmeasured. Stop prompt-only cohorts and additional warnings. Any later
+   measurement needs a separately justified question about retrieving and
+   reporting every distinct failure, with literal Summary and attempt coverage
+   reviewed alongside the existing factual scores. Do not add another judge or
+   output schema merely to turn these results green. Current-engine repair,
+   native completion and general reliability remain separate questions.
 
 Positive publication relay is the next distinct candidate, not a prerequisite for
 this experiment. Historical Submariner case 002 needs a complete sanitized log,

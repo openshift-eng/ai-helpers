@@ -46,7 +46,7 @@ Then read the outcome rather than the whole log:
 ```bash
 tail -1 "$LOG"
 grep -q '^--- Summary' "$LOG" && sed -n '/^--- Summary/,$p' "$LOG" || tail -40 "$LOG"
-grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIEW)' "$LOG"
+grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIEW|FAIL([[:space:]]|$)|--- FAIL:)' "$LOG"
 ```
 
 Set `CVE_FIX_AGENT` to the host runtime: `claude` in Claude Code, `codex` in
@@ -109,8 +109,8 @@ Build the final reply in two parts:
    only from evidence; skipped, unconfigured and unknown do not mean passed.
    Give return advice only from an observed original ref, which may be a
    detached commit. Do not infer it from the target branch.
-2. **Remaining work.** For each flagged outcome, cite the observed failure
-   (log line or `file:line`), the next unmet prerequisite and its owner.
+2. **Diagnosis.** For each flagged outcome, give evidence (log line or
+   `file:line`), cause or uncertainty, next unmet prerequisite and owner.
    Investigate read-only using logs, history and diffs; never apply or test a
    candidate backport, even temporarily. Describe repairs in prose, separately
    from retained fixes. Leave repairs, reruns, builds/tests and cleanup for a new

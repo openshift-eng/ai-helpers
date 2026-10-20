@@ -23,12 +23,14 @@ replays both real test attempts after review, model-free preparation and success
 reference calibration. Its comparison at `0fdccbb0` also fails: contract 2/3 and
 factual conjunction 0/3, with raw mixed samples and original failures preserved.
 
-The next reviewed treatment removes the requested cause narrative and centers
-remaining work on observations, unmet prerequisites and ownership. One follow-up
-with unchanged criteria is selected in the [testing plan](testing.md#next-prepared-experiment).
+The frozen follow-up at `d9261b68` also fails: contract 3/3 and factual conjunction
+1/3; two replies omit the syncer failure. The two-line remaining-work treatment
+is reverted. A bounded change to the existing diagnostic grep exposes anchored
+Go failures; actual-command probes verify evidence exposure, not agent behavior.
+The [testing plan](testing.md#next-prepared-experiment) preserves the measurements
+and remaining question. No further prompt-only cohorts are selected.
 Source/native engine evidence remains separate; their failed invoking-agent
-measurements are not replaced. No further prompt-only cohorts are planned if
-this treatment repeats the same defect.
+measurements are not replaced.
 
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.
