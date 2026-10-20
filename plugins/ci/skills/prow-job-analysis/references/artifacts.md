@@ -563,7 +563,7 @@ zgrep -E "Out of memory|Kernel panic" local/nodes/*/journal
 | Path | Contents |
 |------|----------|
 | `inspect/` | `oc adm inspect` output: YAML per resource under `cluster-scoped-resources/` and `namespaces/<ns>/`, including pod logs at `namespaces/<ns>/pods/<pod>/<container>/<container>/logs/{current,previous}.log`. Already unpacked — often enough without downloading must-gather |
-| `metrics/prometheus.tar.gz` | Prometheus TSDB snapshot (hundreds of MB). Load it with PromeCIeus (`https://promecieus.dptools.openshift.org/`) to run PromQL against the run; `metrics/job_metrics.json` holds a few precomputed queries (capacity, CPU usage) |
+| `metrics/prometheus.tar.gz`, `metrics/prometheus-k8s-1.tar.gz` | Prometheus TSDB snapshots of the two replicas (hundreds of MB each). Use the [prow-job-prometheus skill](../../prow-job-prometheus/SKILL.md) to load one locally and run PromQL against the run; it repairs the WAL corruption that otherwise makes Prometheus discard most of the data. PromeCIeus (`https://promecieus.dptools.openshift.org/`) loads the raw snapshot and may show the same data loss. `metrics/job_metrics.json` holds a few precomputed queries (capacity, CPU usage) |
 | `network/` | Per-`ovnkube-node` pod `iptables-save-*`, `nft-list-ruleset-*`, and `ss-*` output, plus multus logs |
 | `nodes/<node>/heap`, `nodes/<node>/lsmod` | Kubelet pprof heap profile and loaded kernel modules per node |
 | `junit/junit_install_status.xml`, `junit/junit_symptoms.xml` | Operator conditions and journal/pod panic checks at gather time (see SKILL.md Step 3) |
