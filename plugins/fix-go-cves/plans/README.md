@@ -25,6 +25,12 @@ Source/native engine repair remains established by earlier trials; their failed
 invoking-agent measurements are not replaced. The
 [testing plan](testing.md#reporting-and-e2e-status) distinguishes these claims.
 
+Next, review and calibrate one replay of the preserved multi-failure live result.
+Its model-free candidate uses the existing machinery; it adds the intermittent
+failure missing from case 005 without another live run. The
+[prepared experiment](testing.md#next-prepared-experiment) defines admission,
+calibration and bounded measurement; no new case is admitted or model-tested yet.
+
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.
 

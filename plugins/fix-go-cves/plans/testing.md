@@ -63,24 +63,68 @@ not attribute the historical run or replace a full baseline test suite.
    establish positive relay by the invoking agent; full case-002 admission
    remains conditional on useful additional judgment coverage.
 
-Do not expand acceptance or add another trial merely to replace these failures.
-The current remaining behavioral question is evidence-qualified diagnosis across
-multiple failures; the existing action/owner criterion already rejects unsupported
-causality. Keep any later experiment focused on that question, with frozen inputs
-and original outcomes preserved.
-
 Keep the first literal-report comparison incomplete: two scored passes and a
 third extraction failure. A separate frozen, model-free recheck handles that
 native event correctly and retains the strict-policy denial as a false contract;
 it does not replace missing original scores. All original records and manual
 caveats are retained in the [eval results](../evals/README.md#current-reporting-implementation).
 
-Future experiments require an unanswered question and a reviewed frozen change.
-Use the existing fixtures and stock harness first; inspect replay failures before
-selecting live work. Claim blocked coverage only when that run actually reaches
-the blocker. Preserve database drift or a different truthful outcome as missing
-coverage. Source/native reruns need a relevant runtime, completion or environment
-question. Do not add another cohort merely for cleaner recommendation wording.
+## Next prepared experiment
+
+The next question is whether the skill diagnoses **each distinct failure** from
+the same real run without treating a passing retry as causal evidence. Case 005
+lacks the first-only syncer failure; another execution of it cannot answer that
+question. Fresh live case-001 may not reproduce that intermittent failure.
+
+1. **Review one replay of the preserved live result.** A local candidate, proposed
+   as case-007, is under `.work/fix-go-cves-e2e-next-prep/candidate-v2/`, with
+   the frozen preparation in `model-free-v2/` alongside it. It retains the full
+   two-attempt log, recorded plugin and `aaaeea3` bundle from
+   `cve-live-admiral-reporting-20261020`; its sole parent is the pinned base.
+   The existing stock workspace and unchanged helper completed model-free replay
+   with the expected exit 2, retained result and clean state. Original evidence
+   hashes matched. This proves preparation, not behavior or admission. Review
+   sanitization, the reference and its causal negative before committing the
+   fixture. Keep case 005 and its original measurements unchanged; no helper or
+   runtime redesign is needed for this candidate.
+2. **Calibrate the new reference and causal negative.** Use the existing stock
+   judges with the actual rendered replay annotations and reply, including the
+   recorded Go/x/tools facts. For `action_owner`, the uncertainty reference must
+   pass and the same-evidence retry-causality negative must fail. Both preserve
+   correct repair advice and should pass `backport`. Use the existing three-sample
+   checks and retain errors/disagreement. Do not require a new baseline run to
+   accept explicit uncertainty. A directive may
+   enable analyzer checks without replacing the compiler; the prior live verdict
+   remains false independently of its flawed compiler-change rationale. Preserve
+   that verdict. Change a rubric only if calibration demonstrates a defect; do
+   not add a judge or weaken the unsupported-causality criterion.
+3. **Admit and freeze after preparation and calibration pass.** Select only
+   the admitted multi-failure case, preserving the tested harness, skill/helper,
+   inputs, annotations and model settings. Use the existing three-execution
+   replay rule below. Manually verify both attempts, base-to-retained dependency
+   evidence, qualified causality, maintainer/remote-target prerequisites and
+   unconfirmed future gates/publication. Inspect failures before any further
+   change; no automatic extra cohort or live escalation. A pass establishes this
+   selected interpretation coverage, not current-engine or general reliability.
+
+Positive publication relay is the next distinct candidate, not a prerequisite for
+this experiment. Historical Submariner case 002 needs a complete sanitized log,
+verified bundle/archive, corrected literal command reference and negatives. Its
+builder decision cannot use the current Admiral-specific backport judge: choose
+applicable outcome/action-owner criteria through the stock configuration/profile
+support, rather than inventing a backport requirement or another judge. Verify
+model-free preparation and calibrate before measuring it.
+
+Further live work needs a concrete current-engine, successful-repair or long-run
+completion question. Existing live case-002 can measure completed successful-repair
+reporting without invented publication; local remotes still cannot prove positive
+PR-command relay. Case-003 can measure native invoking-agent completion after the
+wait-cadence change, preserving the earlier budget failure and established runtime
+evidence. Do not automatically run both. Neither a clean run nor another mutable
+blocked run is a substitute for the prepared multi-failure regression. Claim blocked coverage only
+when reached, and preserve database drift or different outcomes as missing
+coverage. Keep the worker stopped during preparation; revalidate its existing
+ownership/cancellation probes and supervised lifecycle before a selected live run.
 
 Frozen scoring uses copied inputs/configuration and exact selected cases,
 judges and complete samples. Extraction validates that provenance and its
