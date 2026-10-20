@@ -17,10 +17,13 @@ earlier failures and the incomplete SDK-event trial remain preserved
 caveats prompted a small prerequisite-to-verification clarification after that
 comparison; it is not retroactively tested by the earlier outputs.
 
-One current-engine blocked live check is selected for reporter/evidence-capture
-integration. Source/native engine repair remains established by earlier trials;
-their failed invoking-agent measurements are not replaced or treated as passes.
-The [testing plan](testing.md#reporting-and-e2e-status) distinguishes these claims.
+The current-engine blocked check verified reporter/evidence-capture integration
+and read-only behavior, but failed action/owner grading on unsupported causality
+for a first-only syncer failure. A small clarification now covers each distinct
+failure and what a passing retry establishes; it is source-reviewed, unmeasured.
+Source/native engine repair remains established by earlier trials; their failed
+invoking-agent measurements are not replaced. The
+[testing plan](testing.md#reporting-and-e2e-status) distinguishes these claims.
 
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.

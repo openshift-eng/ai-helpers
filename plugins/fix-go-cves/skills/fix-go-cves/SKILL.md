@@ -132,8 +132,10 @@ Investigate flagged outcomes using these checks:
   and the repository's use of the changed API; estimate the migration.
 - Kubernetes minor bump, or Go above the build image: name the team decision
   and what unblocks it (a newer builder, an approved bump).
-- Test failure (already retried once): read the failing output and identify
-  the evidence linking it to the update; say when causality is unproven.
+- For each distinct test failure, read both attempts and identify evidence
+  linking it to the update; state when causality is unproven. A passing retry
+  shows differing outcomes, not that the failure pre-existed or was unrelated
+  to the update.
   Compare dependencies from this run's actual base commit to its retained fix
   commit, including the Go directive. The current fix-branch dependencies alone
   are not baseline evidence.

@@ -50,14 +50,24 @@ not attribute the historical run or replace a full baseline test suite.
    mutation, publication recipes or guessed return advice. Manual review still
    found overconfident future-result wording. A subsequent affirmative
    prerequisite-to-verification clarification is source-reviewed, not measured
-   by those replays. One fresh live case-001 is selected to check the reporter,
-   original-ref output and completion evidence together on today's engine.
+   by those replays. The fresh live case-001 at `a6c8e5a0` verifies reporter,
+   original-ref and completion evidence on today's engine: contract passes and
+   outcome is true 3/3. Action/owner is false 3/3 for unsupported causality about
+   a first-only syncer failure; no judge errors. Read-only behavior is preserved.
+   A final source-reviewed clarification covers each distinct failure and what
+   a passing retry establishes; it is not measured by this trial.
 4. **Positive publication detection is covered.** A small real historical
    Submariner command fragment exercises exact recipe/Summary relay and
    altered/extra/absent witnesses. Replay uses frozen logs; live logs are hashed
    at completion. Actual publication tools remain forbidden. This does not
    establish positive relay by the invoking agent; full case-002 admission
    remains conditional on useful additional judgment coverage.
+
+Do not expand acceptance or add another trial merely to replace these failures.
+The current remaining behavioral question is evidence-qualified diagnosis across
+multiple failures; the existing action/owner criterion already rejects unsupported
+causality. Keep any later experiment focused on that question, with frozen inputs
+and original outcomes preserved.
 
 Keep the first literal-report comparison incomplete: two scored passes and a
 third extraction failure. A separate frozen, model-free recheck handles that

@@ -226,10 +226,15 @@ Manual review supports literal-result and non-mutation behavior in all three
 revised executions, but records future-result estimates/purpose wording as
 limitations. A subsequent wording refinement makes recommendations describe the
 next prerequisite and verification needed. The earlier replays do not measure
-that refinement. One current-engine blocked live check is selected for the new
-reporter and capture path; no native retry or extra replay cohort is required
-merely to replace the wording caveats. Positive command relay currently has
-helper-fixture coverage, not a new full historical-case/model measurement.
+that refinement. The current-engine blocked check at `a6c8e5a0` passed contract
+and outcome (3/3), but failed action/owner (3/3 false) on unsupported causality
+for a first-only syncer failure, with no judge errors. Reporter/capture integration
+and read-only behavior are verified; overall skill acceptance still fails.
+A final clarification covers each distinct failure and what a passing retry
+establishes; it is source-reviewed, unmeasured. See the
+[live record](live/README.md#current-reporting-integration-check). No native retry
+or extra cohort is required merely to replace failures. Positive command relay
+has helper-fixture coverage, not a new full historical-case/model measurement.
 
 ## Live evidence and coverage
 

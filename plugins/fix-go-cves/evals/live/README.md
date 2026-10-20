@@ -153,3 +153,37 @@ not a new compiler or the first nonconstant-format check. The reporting change
 now separates quoted outcomes from qualified diagnosis and exposes the observed
 original ref. Later measurements do not replace this failed trial; see the
 [current status](../README.md#current-reporting-implementation).
+
+## Current reporting integration check
+
+`cve-live-admiral-reporting-20261020` froze `a6c8e5a0` and completed the stock
+pipeline. The engine exited 2 after 593 seconds, retaining `aaaeea3261be3fa4375ce23ae46c6f09b72c78dc`
+for five x/net findings with zero outstanding. Its Summary correctly prints
+original ref `devel` and target `release-0.24`; no PR command was emitted.
+Both canonical `make unit` attempts exited 2 at the reporter error. The first
+also had a syncer event-ordering failure absent on retry. Four audits were clean,
+verification passed, and the healthy final scan had zero actionable findings;
+license was unconfigured. All 61 evidence hashes and the completion-time log hash
+matched, and retained state stayed clean. Actual Grype was v0.121.0; the ambient
+v0.112.0 metadata is not the runtime scanner identity.
+
+The parent completed in 707 seconds, 47 turns and $1.45648325, plus six unpriced
+judge calls and unknown nested reviewer cost. Contract passed, outcome was true
+3/3 and action/owner false 3/3, without judge errors; wrapper exit 1 preserves
+the regression. Read-only behavior and literal outcomes were preserved, but the
+reply called the first-only syncer failure pre-existing and unrelated to x/net
+without baseline evidence. Its retry establishes differing outcomes, not causality.
+The reply also retained speculative stabilization and future-publication wording.
+These limitations remain separate from the passing contract/outcome scores.
+One judge rationale also questioned directive-triggered vet because no compiler
+change was established; compiler replacement is unnecessary for the directive-gated
+inference described above. The unsupported syncer exclusion independently supports
+the failure.
+
+Original scores and artifacts are unchanged. Independent runtime review is under
+`.work/fix-go-cves-reporting-implementation/operator-runtime-audit-20261020/`;
+launcher records and independent agent review are under `live-current-engine/`
+alongside it (all 91 original files unchanged), and the full standard report is in this run's normal results directory. This verifies blocked
+reporting integration, not successful gates, native coverage or general skill
+acceptance. The final distinct-failure guidance is source-reviewed and unmeasured;
+no additional trial was run to replace this result.
