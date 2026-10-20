@@ -191,13 +191,45 @@ action/owner failed 3/3, without judge errors. Separate collection and trace
 re-extraction with the corrected guard reject those mutations, preserving all
 91 original files and raw scores.
 See [live results](live/README.md). Reporting and read-only behavior remain
-blockers; next design is literal engine-result relay with read-only diagnosis,
-not more paid trials or prompt instructions. Runtime success and skill accuracy
+blockers exposed by those older measurements; the current implementation and
+separate measurements are recorded below. Runtime success and skill accuracy
 remain separate.
 
 The live configuration permits a larger invoking-agent budget, but that budget
 does not cap independent reviewer CLIs launched by the remediation scripts or
 judge costs. See the live configuration for its execution and runtime deadlines.
+
+## Current reporting implementation
+
+The skill now quotes the actual terminal result, then diagnoses flagged outcomes
+read-only. Known original refs are printed by the runtime; unknown return advice
+is omitted. Publication relay accepts only the complete emitted recipe or literal
+Summary. Live log identity is recorded at completion, and native string-message
+permission events retain their denied-operation verdict instead of crashing.
+The shell suite passed 2,343 checks and the eval suite 46.
+
+| Frozen source | Case-005 comparison | Original result | Agent cost |
+| --- | --- | --- | --- |
+| `07794846` | Literal report | Incomplete: two scored passes, third extraction error | $1.798218 plus 12 unpriced judge calls |
+| `07515259` | Typed SDK events and future-outcome clarification | Contract 3/3, factual conjunction 3/3; all 18 factual samples agree without errors | $1.60757575 plus 18 unpriced judge calls |
+
+The first comparison's original summary remains absent for run 3. A separately
+frozen, model-free extraction now yields a false contract with its denied
+read-only `git stash list` attempt retained under the existing strict policy;
+no stash mutation occurred. Original artifacts and scores were not rewritten.
+Both comparisons' logs, metrics, hashes and independent manual review are under
+`.work/fix-go-cves-reporting-implementation/replay-literal-20261020/` and
+`replay-literal-followup-20261020/` alongside it, with standard results under each
+`cve-replay-literal[-followup]-20261020-rN` run directory.
+
+Manual review supports literal-result and non-mutation behavior in all three
+revised executions, but records future-result estimates/purpose wording as
+limitations. A subsequent wording refinement makes recommendations describe the
+next prerequisite and verification needed. The earlier replays do not measure
+that refinement. One current-engine blocked live check is selected for the new
+reporter and capture path; no native retry or extra replay cohort is required
+merely to replace the wording caveats. Positive command relay currently has
+helper-fixture coverage, not a new full historical-case/model measurement.
 
 ## Live evidence and coverage
 

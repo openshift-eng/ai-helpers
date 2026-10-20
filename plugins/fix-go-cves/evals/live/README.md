@@ -125,10 +125,10 @@ merely to seek acceptance.
 The compact report and archive-hash fixes are implemented. The third replay
 cohort still fails: recorded contract 2/3 and factual conjunction 2/3, with
 manual publication compliance only 1/3 because a list-indented fence bypasses
-the guard ([results](../README.md)). Preserve that false positive; the guard
-now covers indented fences with a regression. No further paid trials are
-planned this round. Reporting and read-only diagnosis need focused design,
-not another prompt-only cohort.
+the guard ([results](../README.md)). That false positive is preserved; the guard
+now covers indented fences with a regression. The later focused reporting change
+and its separate measurements are recorded in the
+[current reporting status](../README.md#current-reporting-implementation).
 
 The refreshed blocked trial, `cve-live-admiral-blocked-followup-20261019`,
 completed with runtime exit 2 after 652 seconds, retaining `57d380de`. Both
@@ -149,7 +149,7 @@ This direct-command guard is not a shell sandbox. The reply also misidentifies t
 original branch (`devel`) and predicts a passing rerun without testing the repair.
 The actual diff raises Go 1.25 to 1.26 without changing x/tools; the relevant
 analyzer feature is [interface-wrapper inference gated by the Go directive](https://pkg.go.dev/golang.org/x/tools@v0.49.0/go/analysis/passes/printf#hdr-Inferred_printf_wrappers),
-not a new compiler or the first nonconstant-format check. The next design reuses
-the existing Summary/results and observed original ref, separating quoted
-outcomes from qualified diagnosis. Read-only enforcement still needs trace
-regressions and derived checks; no parallel report schema or more paid calls.
+not a new compiler or the first nonconstant-format check. The reporting change
+now separates quoted outcomes from qualified diagnosis and exposes the observed
+original ref. Later measurements do not replace this failed trial; see the
+[current status](../README.md#current-reporting-implementation).

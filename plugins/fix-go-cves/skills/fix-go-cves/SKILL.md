@@ -110,13 +110,14 @@ Build the final reply in two parts:
    Give return advice only from an observed original ref, which may be a
    detached commit. Do not infer it from the target branch.
 2. **Diagnosis.** For each flagged outcome, give evidence (log line or
-   `file:line`), cause or uncertainty, action and owner. Investigate read-only
-   using logs, history and diffs; never apply or test a candidate backport,
-   even temporarily. Describe recommended repairs in prose, separately from
-   retained fixes. Leave repairs, reruns, builds/tests and cleanup for a new
-   request. A candidate repair does not establish that a backport or rerun
-   will pass gates or emit a PR command; leave those outcomes unconfirmed
-   until observed.
+   `file:line`), cause or uncertainty, next unmet prerequisite and owner.
+   Investigate read-only using logs, history and diffs; never apply or test a
+   candidate backport, even temporarily. Describe repairs in prose, separately
+   from retained fixes. Leave repairs, reruns, builds/tests and cleanup for a new
+   request. Describe the verification still needed, for example: "After the
+   maintainer lands the reviewed repair on origin/<branch>, request a rerun
+   to check the gates." That future run's outcome and PR availability remain
+   unconfirmed.
 
 Copy a publication command only from the script's complete printed block,
 preserving it exactly. If absent, keep the stated reason and supply no

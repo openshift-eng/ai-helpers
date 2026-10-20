@@ -4,14 +4,15 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 2,320 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 2,343 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
   pinned history and recorded scripts/output. Its references and negatives are
-  calibrated. All three frozen three-execution cohorts failed. The latest
-  recorded contract 2/3 and factual conjunction 2/3; manual publication
-  compliance was 1/3 because an indented fence bypassed the guard. Replay
+  calibrated. The first three frozen comparisons failed. The first literal-report
+  comparison was incomplete after an SDK-event parsing error. The revised
+  comparison passes contract and factual conjunction in all three executions;
+  manual wording caveats remain separate from those scores. Replay
   cannot validate today's remediation engine.
 - **Live evaluation:** real Grype and canonical commands establish Admiral
   source repair (14 runtime assertions) and Subctl native repair (19), both
@@ -29,52 +30,47 @@ directive activates the current vet failure. The source defect pre-existed;
 that does not establish that the failure was unrelated to the update. It does
 not attribute the historical run or replace a full baseline test suite.
 
-## Next implementation slices
+## Reporting and E2E status
 
-Preparation needs no paid calls. The next behavioral change remains unimplemented;
-the implemented provenance check protects measurement, not skill reliability.
+1. **Reporting is implemented.** `SKILL.md` quotes the completed terminal
+   result, then gives evidence-qualified, read-only diagnosis. Return advice
+   needs observed original-ref evidence; `fix-all.sh` exposes its existing
+   branch or detached ref in the Summary. Recommendations focus on the next
+   unmet prerequisite and verification still needed. This is a behavioral
+   treatment, not enforcement or proof of general reliability.
+2. **Boundary fixtures pass.** The existing shell suite passed 2,343 checks,
+   including different original/target refs, detached and absent refs,
+   successful/blocked outcomes, clean fast paths and removed empty branches.
+   The 46 eval checks cover witnessed publication, tampering, frozen inputs,
+   native event shapes and preserved failures. Skipped/unconfigured gates are
+   not passing gates; old-trace rechecks prove detection, not revised behavior.
+3. **Selected replay behavior is measured.** At `07515259`, case-005 passes its
+   deterministic contract and both factual judges in all three executions,
+   with agreeing samples and no errors. It retains actual outcomes without
+   mutation, publication recipes or guessed return advice. Manual review still
+   found overconfident future-result wording. A subsequent affirmative
+   prerequisite-to-verification clarification is source-reviewed, not measured
+   by those replays. One fresh live case-001 is selected to check the reporter,
+   original-ref output and completion evidence together on today's engine.
+4. **Positive publication detection is covered.** A small real historical
+   Submariner command fragment exercises exact recipe/Summary relay and
+   altered/extra/absent witnesses. Replay uses frozen logs; live logs are hashed
+   at completion. Actual publication tools remain forbidden. This does not
+   establish positive relay by the invoking agent; full case-002 admission
+   remains conditional on useful additional judgment coverage.
 
-1. **Define a small reporting treatment against the observed failures.**
-   Consolidate `SKILL.md` around observed terminal results followed by qualified,
-   read-only diagnosis, preserving retained commit citations and action/owner
-   requirements. Omit return advice when the original ref was not observed.
-   If retaining that advice, `scripts/fix-all.sh` can print its existing
-   `ORIGINAL_REF` beside the Summary's branch; detection stores a branch or
-   detached commit hash. This line addresses return advice only. Neither it nor
-   literal relay enforces read-only work or proves behavioral improvement.
-   Keep the change within existing output and instructions.
-2. **Test the changed boundary at the cheapest useful layer.** For a runtime
-   output change, extend the existing `detect.sh --setup-branch` and
-   orchestrator/PR fixtures in `test/test-lib.sh`: original ref differs from
-   target, detached start, absent evidence, and successful/blocked outcomes.
-   Assert the reported ref agrees with the start state and that exit codes,
-   counts, retained commits and publication prerequisites stay correct. The
-   clean fast path has no Summary; a no-commit Summary can name a subsequently
-   removed branch. Skipped or unconfigured gates are not passing gates. Keep
-   existing publication/mutation regressions. Derived checks of old traces test
-   detection, not compliance by a revised skill.
-3. **Run a fresh experiment only for an unanswered behavioral question.**
-   Freeze the reviewed change, current cases/criteria and tested harness pin;
-   stop editing helper/runtime until it finishes. Use case-005 replay for
-   interpretation; its historical scripts/log cannot validate a new runtime
-   line. Inspect failures before deciding whether live case-001 adds evidence;
-   do not automatically progress to live after the same publication or mutation
-   failure. Claim blocked-path coverage only if that run actually reaches its
-   test blocker. Preserve a different truthful outcome and record missing
-   coverage rather than alter findings. Source/native reruns need a relevant
-   runtime, completion or environment question. No paid trials are needed for
-   this preparation, and adding a return-ref line alone warrants none.
-4. **Cover positive publication relay without a new fixture framework.** The
-   current check forbids push/PR recipes in backtick fences even when faithfully
-   copied; current cases expect none. When implementing positive relay, first
-   use the actual command block from historical Submariner case 002 in a focused
-   helper fixture. Preserve the complete block, including flags and escaping;
-   live reduced evidence currently truncates it, although the full log remains.
-   Compare witnessed commands as data, with copied/altered/absent-block checks;
-   keep actual publication tool calls forbidden. Admit the full historical case
-   only when its additional judgment coverage justifies packaging it. This is
-   separate from the no-command treatment; do not invent remotes, a shell parser
-   or another reporting schema.
+Keep the first literal-report comparison incomplete: two scored passes and a
+third extraction failure. A separate frozen, model-free recheck handles that
+native event correctly and retains the strict-policy denial as a false contract;
+it does not replace missing original scores. All original records and manual
+caveats are retained in the [eval results](../evals/README.md#current-reporting-implementation).
+
+Future experiments require an unanswered question and a reviewed frozen change.
+Use the existing fixtures and stock harness first; inspect replay failures before
+selecting live work. Claim blocked coverage only when that run actually reaches
+the blocker. Preserve database drift or a different truthful outcome as missing
+coverage. Source/native reruns need a relevant runtime, completion or environment
+question. Do not add another cohort merely for cleaner recommendation wording.
 
 Frozen scoring uses copied inputs/configuration and exact selected cases,
 judges and complete samples. Extraction validates that provenance and its
@@ -141,7 +137,7 @@ The successful supervised worker also entered its dedicated rootless daemon's
 user and mount namespaces: UID 0 there mapped to the host task owner, preserving
 ownership through Dapper. Merely exporting `DOCKER_HOST` had left subuid-owned
 files and broken Git. Reuse the actual Dapper ownership and partial-evidence
-cancellation probes after recreating the now-stopped worker. One cancellation
+cancellation probes after recreating the worker. One cancellation
 left a container requiring targeted operator cleanup; unattended teardown is
 still unproven. Keep worker lifecycle in the shared environment and retain
 operator-owned cleanup, without another plugin preflight layer.
@@ -158,8 +154,8 @@ observed violations remain evidence even when a trial is stopped.
 ## Acceptance rounds and expansion
 
 Freeze case membership, criteria and configuration before comparing skill
-changes. All three frozen replay comparisons failed; original scores, revisions
-and retained report locations belong in the [eval results](../evals/README.md#run-and-inspect).
+changes. Original comparison scores, revisions and retained report locations
+belong in the [eval results](../evals/README.md#current-reporting-implementation).
 Keep failed trials and separately label corrected-guard rechecks. A fresh
 comparison needs a changed behavioral question, not another attempt to get a pass.
 

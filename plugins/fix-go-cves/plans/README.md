@@ -1,6 +1,6 @@
 # Improvement ideas
 
-Unimplemented follow-ups found while porting and reviewing the plugin.
+Follow-ups found while porting and reviewing the plugin.
 Fix the correctness issues before expanding supported workflows.
 
 The [testing and evals plan](testing.md) covers how to measure the skill
@@ -8,19 +8,19 @@ itself.
 
 ## Next changes
 
-Source and native runtime repair are verified, while current skill executions
-and all three replay cohorts remain unaccepted
-([measurements](../evals/live/README.md)). Preserve original scores and label
-corrected-guard rechecks separately.
+Reporting now quotes observed terminal results before qualified, read-only
+diagnosis. Existing original-ref evidence supports return advice, and publication
+relay requires the complete witnessed block. The selected case-005 replay
+comparison passes its contract and factual criteria in all three executions;
+earlier failures and the incomplete SDK-event trial remain preserved
+([results](../evals/README.md#current-reporting-implementation)). Manual wording
+caveats prompted a small prerequisite-to-verification clarification after that
+comparison; it is not retroactively tested by the earlier outputs.
 
-The next reporting experiment should reuse existing engine results and separate
-qualified, read-only diagnosis. Omit return advice without observed original-ref
-evidence. Exposing the existing original ref can support that advice, but cannot
-prevent invented publication or post-run mutation. The
-[testing plan](testing.md#next-implementation-slices) defines the smallest change,
-its fixtures and when a fresh experiment is useful. This behavioral direction
-remains unimplemented and unproven; more instructions alone are not evidence of
-improvement.
+One current-engine blocked live check is selected for reporter/evidence-capture
+integration. Source/native engine repair remains established by earlier trials;
+their failed invoking-agent measurements are not replaced or treated as passes.
+The [testing plan](testing.md#reporting-and-e2e-status) distinguishes these claims.
 
 Land each runtime fix with a regression that fails on the current code and
 passes afterward, using the existing fixtures and full shell suite.
