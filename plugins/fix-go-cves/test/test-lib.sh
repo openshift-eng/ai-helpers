@@ -10757,6 +10757,105 @@ check "test evidence failure still cleans generated checksum" test ! -e "$EVI_RE
 check "test evidence failure does not retry" test "$(cat "$EVI_ROOT/test-count")" -eq 1
 check "test evidence failure stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
 check "test evidence failure suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/workspace-record-failure.log"
+
+# The logger is a separate pipeline child; its failure cannot replace the test
+# command's observed exit, permit a retry, or certify successful verification.
+mkdir -p "$EVI_ROOT/test-log-bin"
+export EVI_REAL_TEE
+EVI_REAL_TEE=$(command -v tee)
+cat > "$EVI_ROOT/test-log-bin/tee" <<'SH'
+#!/usr/bin/env bash
+logfile="${1:-}"
+case "${logfile##*/}" in
+  cve-fix-test.*)
+    [[ "${EVI_TEE_MODE:-}" != interrupt ]] || kill -TERM "$PPID"
+    "$EVI_REAL_TEE" "$@"
+    [[ "${EVI_TEE_MODE:-}" != fail ]] || exit 19
+    ;;
+  *) exec "$EVI_REAL_TEE" "$@" ;;
+esac
+SH
+chmod +x "$EVI_ROOT/test-log-bin/tee"
+for _child_rc in 0 7; do
+  evi_workspace_reset
+  _case="test-log-failure-$_child_rc"
+  PATH="$EVI_ROOT/test-log-bin:$PATH" EVI_TEE_MODE=fail EVI_WORKSPACE_MODE=guard EVI_TEST_RESULT="$_child_rc" \
+    evi_run "$_case" "$EVI_ROOT/$_case"
+  check "failed logger after child $_child_rc blocks pipeline" test "$EVI_RC" -eq 2
+  check "failed logger preserves actual child $_child_rc receipt" jq -e ".exit_code == $_child_rc" "$EVI_ROOT/$_case/tests/1-1.json"
+  check "failed logger records completed actual child $_child_rc status" jq -e \
+    ".phases.tests == \"completed\" and .test_exit_code == $_child_rc and .phases.verification == \"not_reached\"" "$EVI_ROOT/$_case/run.json"
+  check "failed logger after child $_child_rc is diagnosed" grep -q 'Cannot capture test output' "$EVI_ROOT/$_case.log"
+  check "failed logger after child $_child_rc never retries" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+  check "failed logger after child $_child_rc cleans new workspace" test ! -e "$EVI_REPO/go.work"
+  check "failed logger after child $_child_rc cleans new checksum" test ! -e "$EVI_REPO/go.work.sum"
+  check "failed logger after child $_child_rc stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
+  check "failed logger after child $_child_rc prevents final gate" test ! -e "$EVI_ROOT/$_case/final-gate.json"
+  check "failed logger after child $_child_rc suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/$_case.log"
+done
+evi_workspace_reset
+PATH="$EVI_ROOT/test-log-bin:$PATH" EVI_TEE_MODE=interrupt EVI_WORKSPACE_MODE=guard \
+  evi_run test-interrupted "$EVI_ROOT/test-interrupted"
+check "interrupted test preserves signal exit" test "$EVI_RC" -eq 143
+check "interrupted test does not invent a child exit" jq -e '.exit_code == null' "$EVI_ROOT/test-interrupted/tests/1-1.json"
+check "interrupted test phase remains incomplete" jq -e \
+  '.phases.tests == "running" and .test_exit_code == null and .phases.verification == "not_reached"' "$EVI_ROOT/test-interrupted/run.json"
+check "interrupted test is not retried" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+check "interrupted test prevents final gate" test ! -e "$EVI_ROOT/test-interrupted/final-gate.json"
+check "interrupted test suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/test-interrupted.log"
+
+# A later evidence-write failure must not destroy an already valid test receipt.
+# The shell opens/truncates the target before jq, so a second call is observable.
+export EVI_REAL_JQ
+EVI_REAL_JQ=$(command -v jq)
+cat > "$EVI_ROOT/test-log-bin/jq" <<'SH'
+#!/usr/bin/env bash
+target=$(readlink "/proc/$$/fd/1")
+case "$target" in
+  "$EVI_ROOT/record-once/tests/"*.json)
+    n=$(cat "$EVI_ROOT/receipt-writes" 2>/dev/null || echo 0)
+    echo $((n + 1)) > "$EVI_ROOT/receipt-writes"
+    [[ "$n" == 0 ]] || exit 73
+    "$EVI_REAL_JQ" "$@" || exit $?
+    cp "$target" "$EVI_ROOT/first-test-receipt.json"
+    ;;
+  *) exec "$EVI_REAL_JQ" "$@" ;;
+esac
+SH
+chmod +x "$EVI_ROOT/test-log-bin/jq"
+evi_workspace_reset
+PATH="$EVI_ROOT/test-log-bin:$PATH" evi_run record-once "$EVI_ROOT/record-once"
+check "completed test evidence permits successful pipeline" test "$EVI_RC" -eq 0
+check "completed test receipt is written only once" test "$(cat "$EVI_ROOT/receipt-writes")" -eq 1
+check "completed test receipt preserves first successful bytes" cmp "$EVI_ROOT/first-test-receipt.json" "$EVI_ROOT/record-once/tests/1-1.json"
+check "completed test receipt is not lost to a later write failure" ! grep -q 'durable runtime evidence is incomplete' "$EVI_ROOT/record-once.log"
+check "completed test receipt retains final run evidence" jq -e '.exit_code == 0 and .test_exit_code == 0' "$EVI_ROOT/record-once/run.json"
+
+# Interrupt the retry's precheck after its predecessor has an observed result.
+# That result belongs to attempt1 and must not become attempt2's child status.
+export EVI_REAL_GIT
+EVI_REAL_GIT=$(command -v git)
+cat > "$EVI_ROOT/test-log-bin/git" <<'SH'
+#!/usr/bin/env bash
+if [[ "$1" == status && -f "$EVI_ROOT/test-count" ]]; then
+  n=$(cat "$EVI_ROOT/post-test-status-count" 2>/dev/null || echo 0)
+  echo $((n + 1)) > "$EVI_ROOT/post-test-status-count"
+  [[ "$n" != 1 ]] || kill -TERM "$PPID"
+fi
+exec "$EVI_REAL_GIT" "$@"
+SH
+chmod +x "$EVI_ROOT/test-log-bin/git"
+evi_workspace_reset
+PATH="$EVI_ROOT/test-log-bin:$PATH" EVI_WORKSPACE_MODE=retry \
+  evi_run retry-precheck-interrupted "$EVI_ROOT/retry-precheck-interrupted"
+check "retry precheck interruption preserves signal exit" test "$EVI_RC" -eq 143
+check "retry precheck interruption retains first actual child failure" jq -e '.exit_code == 7' "$EVI_ROOT/retry-precheck-interrupted/tests/1-1.json"
+check "retry precheck interruption does not reuse preceding child status" jq -e '.exit_code == null' "$EVI_ROOT/retry-precheck-interrupted/tests/1-2.json"
+check "retry precheck interruption records incomplete current attempt" jq -e \
+  '.phases.tests == "running" and .test_exit_code == null and .phases.verification == "not_reached"' "$EVI_ROOT/retry-precheck-interrupted/run.json"
+check "retry precheck interruption launches no second child" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+check "retry precheck interruption does not reuse preceding output" test ! -s "$EVI_ROOT/retry-precheck-interrupted/tests/1-2.log"
+check "retry precheck interruption prevents final gate" test ! -e "$EVI_ROOT/retry-precheck-interrupted/final-gate.json"
 # An empty initial scan cannot certify source changed by its own build, even
 # when generated-file normalization subsequently erases the tracked difference.
 for _initial_case in worktree head generated generated-with-cve; do

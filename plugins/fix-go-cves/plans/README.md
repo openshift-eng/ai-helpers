@@ -32,6 +32,9 @@ The Kubernetes guard now preserves existing tracked-module/dependency identities
 after tidy and workspace sync, alongside its original global minor check. The
 unchanged-set regression rolls back; patch, disabled and absence controls pass.
 
+Test logging failures now block verification while preserving observed command
+results and successfully saved receipts.
+
 Audit completeness and removal of model verification are implemented. All four
 audits gate verification and repair dispatch; shared helpers for `review.sh` and
 scanner retries remain. Fix report validation and scanner deadlines separately.
@@ -96,9 +99,9 @@ policy needs a decision before changing its behavior.
 - **Report completeness.** `report.sh` accepts empty scanner output with exit 0.
   Use the same validated JSON evidence as remediation before declaring a report
   complete; render the human output from that evidence.
-- **Temp space.** Dapper builds use the host `/tmp`; a nearly full tmpfs
-  quota surfaced as test and build failures. Classify observed ENOSPC consistently
-  in builds and test retries; tests currently recognize it only on the first
+- **Temp space.** Host temporary directories and container storage can fill,
+  producing test and build failures. Classify observed ENOSPC consistently in
+  builds and test retries; tests currently recognize it only on the first
   attempt. The existing writable-temp probe cannot predict build-space needs.
 - **Interactive tests.** Report non-interactive authentication/prompt failures
   with the `test-command` remedy. Avoid a general prompt detector for shell commands.

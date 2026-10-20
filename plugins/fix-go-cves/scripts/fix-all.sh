@@ -47,16 +47,20 @@ _tracked_tree_unchanged() {
 _record_test_evidence() {
   $_EVIDENCE_READY || return 0
   local rc="${1:-null}" target="$CVE_FIX_EVIDENCE_DIR/tests/$_EVIDENCE_TEST_RUN-$_EVIDENCE_TEST_ATTEMPT"
-  mkdir -p "$CVE_FIX_EVIDENCE_DIR/tests"
-  [[ ! -f "${TEST_LOG:-}" ]] || cp "$TEST_LOG" "$target.log"
+  mkdir -p "$CVE_FIX_EVIDENCE_DIR/tests" || return 1
+  [[ ! -f "${TEST_LOG:-}" ]] || cp "$TEST_LOG" "$target.log" || return 1
   jq -n --arg head "${TESTED_HEAD:-}" --arg command "${TEST_CMD:-}" --argjson exit_code "$rc" \
-    '{head:$head,command:$command,exit_code:$exit_code}' > "$target.json"
+    '{head:$head,command:$command,exit_code:$exit_code}' > "$target.json" || return 1
+  _EVIDENCE_TEST_RECORDED=true
 }
 
 # shellcheck disable=SC2329 # invoked by the EXIT cleanup trap
 _record_run_evidence() {
   $_EVIDENCE_READY || return 0
   if [[ "$_EVIDENCE_TEST_STATUS" == running ]]; then _record_test_evidence null || return 1; fi
+  if [[ "$_EVIDENCE_TEST_STATUS" == completed && "${_EVIDENCE_TEST_RECORDED:-false}" != true ]]; then
+    _record_test_evidence "$_EVIDENCE_TEST_RC" || return 1
+  fi
   [[ ! -f "${STATE_FILE:-}" ]] || cp "$STATE_FILE" "$CVE_FIX_EVIDENCE_DIR/state.env" || return 1
   if [[ -d "${SUBAGENT_REPORT_DIR:-}" ]]; then
     mkdir -p "$CVE_FIX_EVIDENCE_DIR/audits" || return 1
@@ -540,6 +544,9 @@ echo ""
 
 # Keep test-created workspaces out of retries and retained-tree verification.
 _run_test_attempt() {
+  # Clear prior output before an interrupted retry can acquire its own receipt.
+  : > "$TEST_LOG"
+  _EVIDENCE_TEST_STATUS=running _EVIDENCE_TEST_RECORDED=false
   if ! _tracked_tree_unchanged "$TESTED_HEAD"; then
     echo "ERROR: Cannot verify clean tracked files and retained HEAD before tests; verification stopped." >&2
     _EVIDENCE_TEST_STATUS=not_reached
@@ -554,7 +561,12 @@ _run_test_attempt() {
     fi
   done
   TEST_RC=0
-  "${TEST_ENV[@]}" timeout --foreground "${CVE_FIX_TEST_TIMEOUT:-1800}" bash -c "$TEST_CMD" 2>&1 | tee "$TEST_LOG" || TEST_RC=$?
+  local -a test_status=(0 0)
+  "${TEST_ENV[@]}" timeout --foreground "${CVE_FIX_TEST_TIMEOUT:-1800}" bash -c "$TEST_CMD" 2>&1 | tee "$TEST_LOG" || test_status=("${PIPESTATUS[@]}")
+  # The command has exited even if logging or a later diagnostic fails. Keep
+  # its observed status separate from tee's, including for the EXIT receipt.
+  TEST_RC=${test_status[0]}
+  _EVIDENCE_TEST_STATUS=completed _EVIDENCE_TEST_RC=$TEST_RC
   for workspace in "${generated_workspaces[@]+"${generated_workspaces[@]}"}"; do
     git ls-files --error-unmatch -- "$workspace" &>/dev/null && continue
     if ! rm -f -- "$workspace"; then
@@ -566,9 +578,11 @@ _run_test_attempt() {
     echo "ERROR: Cannot verify unchanged HEAD and tracked files after tests; verification stopped." >&2
     attempt_unverified=true
   fi
+  if [[ ${test_status[1]} -ne 0 ]]; then
+    echo "ERROR: Cannot capture test output (tee exited ${test_status[1]}); verification stopped." >&2
+    attempt_unverified=true
+  fi
   if $attempt_unverified; then
-    _EVIDENCE_TEST_STATUS=completed
-    _EVIDENCE_TEST_RC=$TEST_RC
     _record_test_evidence "$TEST_RC"
     exit 2
   fi
