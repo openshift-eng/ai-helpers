@@ -407,17 +407,23 @@ def main():
     )
     parser.add_argument(
         "--agent-login",
-        help="Agent GitHub login (defaults to the authenticated gh user)",
+        help="Agent GitHub login (otherwise discovered from the authenticated gh user when available)",
     )
 
     args = parser.parse_args()
 
     try:
-        agent_login = args.agent_login
+        agent_login = args.agent_login or ""
         if not agent_login:
-            agent_login = run_gh(["api", "user"])["login"]
-        if not isinstance(agent_login, str) or not agent_login:
-            raise ValueError("Agent login must be a non-empty string")
+            try:
+                user = run_gh(["api", "user"])
+                discovered_login = user.get("login", "") if isinstance(user, dict) else ""
+                if isinstance(discovered_login, str):
+                    agent_login = discovered_login
+            except (RuntimeError, TypeError, ValueError, OSError):
+                # Identity discovery is optional. Known account and body
+                # signatures still provide best-effort duplicate detection.
+                pass
         if args.type == "review_thread":
             result = check_review_thread(
                 args.owner, args.repo, args.pr_number, args.comment_id, agent_login,

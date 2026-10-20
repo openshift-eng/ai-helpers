@@ -290,8 +290,76 @@ class TestReviewReplyDeduplication(unittest.TestCase):
 
         self.assertEqual(exit_context.exception.code, 1)
 
-    @patch("check_replied.run_gh", side_effect=RuntimeError("identity unavailable"))
-    def test_cli_identity_lookup_failure_is_an_error(self, _run_gh):
+    @patch("check_replied.run_gh")
+    def test_failed_identity_lookup_uses_known_accounts_and_signatures(self, run_gh):
+        replies = (
+            {"user": {"login": "github-actions[bot]"}, "body": "Done."},
+            {"user": {"login": "other-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
+        )
+        for reply in replies:
+            with self.subTest(reply=reply):
+                run_gh.reset_mock()
+                run_gh.side_effect = [
+                    RuntimeError("identity unavailable"),
+                    {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+                    [[]],
+                    [[{"id": 300, "created_at": "2026-10-19T12:01:00Z", **reply}]],
+                ]
+                argv = [
+                    "check_replied.py", "openshift", "release", "1", "200",
+                    "--type", "review",
+                ]
+                with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaises(SystemExit) as exit_context:
+                        main()
+                self.assertEqual(exit_context.exception.code, 1)
+
+    @patch("check_replied.run_gh")
+    def test_explicit_identity_bypasses_discovery(self, run_gh):
+        run_gh.side_effect = [
+            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+            [[]],
+            [[{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "Review-Agent"}, "body": "Done."}]],
+        ]
+        argv = [
+            "check_replied.py", "openshift", "release", "1", "200",
+            "--type", "review", "--agent-login", "review-agent[bot]",
+        ]
+        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as exit_context:
+                main()
+
+        self.assertEqual(exit_context.exception.code, 1)
+        self.assertEqual(
+            run_gh.call_args_list[0].args[0],
+            ["api", "repos/openshift/release/pulls/1/reviews/200"],
+        )
+
+    @patch("check_replied.run_gh")
+    def test_actual_thread_fetch_failure_remains_an_error(self, run_gh):
+        run_gh.side_effect = RuntimeError("thread lookup unavailable")
+        argv = [
+            "check_replied.py", "openshift", "release", "1", "PRRT_1",
+            "--type", "review_thread", "--agent-login", "review-agent",
+        ]
+        stdout = io.StringIO()
+        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as exit_context:
+                main()
+
+        result = json.loads(stdout.getvalue())
+        self.assertEqual(exit_context.exception.code, 2)
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "error_fallback")
+
+    @patch("check_replied.run_gh")
+    def test_unknown_identity_without_recognizable_reply_is_best_effort(self, run_gh):
+        run_gh.side_effect = [
+            RuntimeError("identity unavailable"),
+            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+            [[]],
+            [[{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "unsigned-agent"}, "body": "Done."}]],
+        ]
         argv = [
             "check_replied.py", "openshift", "release", "1", "200",
             "--type", "review",
@@ -301,8 +369,10 @@ class TestReviewReplyDeduplication(unittest.TestCase):
             with self.assertRaises(SystemExit) as exit_context:
                 main()
 
-        self.assertEqual(exit_context.exception.code, 2)
-        self.assertEqual(json.loads(stdout.getvalue())["reason"], "error_fallback")
+        result = json.loads(stdout.getvalue())
+        self.assertEqual(exit_context.exception.code, 0)
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_after")
 
 if __name__ == "__main__":
     unittest.main()

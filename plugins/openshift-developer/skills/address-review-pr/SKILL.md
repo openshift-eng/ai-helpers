@@ -278,7 +278,7 @@ Before posting ANY reply, verify you haven't already responded:
 python3 ${CLAUDE_SKILL_DIR}/scripts/check_replied.py <owner> <repo> <pr_number> <comment_id> --type <type>
 ```
 
-The helper uses the authenticated `gh` login as the agent identity. If the caller has an explicit configured login, pass it with `--agent-login <login>`; GitHub App `[bot]` suffixes and case are normalized.
+The helper attempts to discover the authenticated `gh` login as the agent identity. Discovery is best effort: if unavailable, known bot accounts and reply body signatures still prevent duplicates. Pass an explicit configured identity with `--agent-login <login>` to recognize unsigned replies from other accounts; GitHub App `[bot]` suffixes and case are normalized.
 
 Where `<type>` is one of: `issue_comment`, `review`, `review_thread`, or `review_comment`
 
