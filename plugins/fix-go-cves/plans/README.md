@@ -30,13 +30,13 @@ passes afterward, using the existing fixtures and full shell suite.
    metadata on rejection. Keep absent/local-replacement handling and the
    missing-registry exit separate; do not treat an unknown version as major zero.
    This fixes the target-package bypass, not every incidental graph change.
-2. **Kubernetes guard identity.** Keep the existing `api`, `apimachinery` and
-   `client-go` scope. Compare by tracked module and dependency after tidy and
-   workspace sync, including siblings a scoped update changed. The unchanged-set
-   reproduction must roll back; patch updates and guard-disabled runs must work.
 
 Successful no-fix ignores now retain ignored credit without adding policy-review
 markers; existing decisions stay intact.
+
+The Kubernetes guard now preserves existing tracked-module/dependency identities
+after tidy and workspace sync, alongside its original global minor check. The
+unchanged-set regression rolls back; patch, disabled and absence controls pass.
 
 Audit completeness and removal of model verification are implemented. All four
 audits gate verification and repair dispatch; shared helpers for `review.sh` and

@@ -351,6 +351,31 @@ _k8s_minor_versions() {
     grep -E 'k8s\.io/(api|apimachinery|client-go) v0\.' "$_GM" 2>/dev/null || true
   done < <(find_gomods) | { grep -oE 'v0\.[0-9]+' || true; } | sed 's/^v0\.//' | sort -un | tr '\n' ' '
 }
+# Compare existing declared dependency pairs without losing module identity.
+# Return 1 for a minor change, 2 when the comparison cannot be verified.
+_k8s_minor_pairs_unchanged() {
+  [[ -r "$1" && -r "$2" ]] || return 2
+  awk '
+    function dependency(pkg, version, parts, minor) {
+      if (pkg !~ /^k8s[.]io\/(api|apimachinery|client-go)$/) return
+      if (version !~ /^v0[.][0-9]+[.][0-9]+([+-].*)?$/) return
+      split(version, parts, ".")
+      minor=parts[2]
+      if (FILENAME == ARGV[1]) before[pkg]=minor
+      else if (pkg in before && before[pkg] != minor) changed=1
+    }
+    FNR == 1 { section=0 }
+    { sub(/\/\/.*/, "") }
+    $1 == "require" {
+      section=($2 == "(")
+      if (!section) dependency($2, $3)
+      next
+    }
+    $1 == ")" { section=0; next }
+    section { dependency($1, $2) }
+    END { exit (changed ? 1 : 0) }
+  ' "$1" "$2"
+}
 K8S_BEFORE=""
 if [[ "${K8S_VERSION_GUARD:-false}" == "true" ]]; then
   K8S_BEFORE=$(_k8s_minor_versions)
@@ -740,6 +765,20 @@ if [[ "${K8S_VERSION_GUARD:-false}" == "true" ]]; then
   K8S_AFTER=$(_k8s_minor_versions)
   if [[ -n "$K8S_BEFORE" ]] && [[ -n "$K8S_AFTER" ]] && [[ "$K8S_BEFORE" != "$K8S_AFTER" ]]; then
     BREAKING="${BREAKING:+$BREAKING; }K8s minor versions changed"
+  else
+    # Workspace sync can change siblings outside a scoped update. Compare every
+    # tracked module against the existing transaction snapshot after all syncs.
+    while IFS= read -r GOMOD; do
+      _K8S_PAIR_RC=0
+      _k8s_minor_pairs_unchanged "$_DEPENDENCY_SNAPSHOT/$GOMOD" "$GOMOD" || _K8S_PAIR_RC=$?
+      if [[ "$_K8S_PAIR_RC" -eq 1 ]]; then
+        BREAKING="${BREAKING:+$BREAKING; }$GOMOD: K8s minor versions changed"
+        break
+      elif [[ "$_K8S_PAIR_RC" -ne 0 ]]; then
+        BREAKING="${BREAKING:+$BREAKING; }$GOMOD: K8s minor versions could not be verified"
+        break
+      fi
+    done < <(find_gomods)
   fi
 fi
 

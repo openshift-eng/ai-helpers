@@ -5177,6 +5177,7 @@ _fpx_stub() {
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 [ -z "$FPX_CALLS" ] || echo "$*" >> "$FPX_CALLS"
+case "$FPX_MODE" in k8s-*) printf 'DIR=%s %s\n' "$dir" "$*" >> "$FPX_CALLS" ;; esac
 case "$1" in
   get)
     pkg=$(echo "$2" | cut -d@ -f1); ver=$(echo "$2" | cut -d@ -f2)
@@ -5190,6 +5191,21 @@ case "$1" in
     exit 0 ;;
   mod)
     [ "$2" = vendor ] && mkdir -p "$dir/vendor" && echo "# regenerated" > "$dir/vendor/modules.txt"
+    exit 0 ;;
+  work)
+    case "$FPX_MODE" in
+      k8s-swap)
+        sed -i -e 's|k8s.io/api v0.30.1|k8s.io/api v0.31.1|' \
+          -e 's|k8s.io/apimachinery v0.31.1|k8s.io/apimachinery v0.30.1|' tools/go.mod ;;
+      k8s-patch) sed -i 's|k8s.io/api v0.30.1|k8s.io/api v0.30.2|' tools/go.mod ;;
+      k8s-prefix) sed -i 's|k8s.io/api-extra v0.30.1|k8s.io/api-extra v0.32.1|' tools/go.mod ;;
+      k8s-add) sed -i '/^)/i\ k8s.io/client-go v0.31.1' tools/go.mod ;;
+      k8s-remove) sed -i '\|^ k8s.io/api v0.30.1$|d' tools/go.mod ;;
+    esac
+    case "$FPX_MODE" in
+      k8s-*) printf 'sync checksum\n' >> tools/go.sum; printf 'sync checksum\n' >> go.work.sum
+        cp tools/go.mod "$FPX_CALLS.sync-go.mod" ;;
+    esac
     exit 0 ;;
   list)
     pkg=""; for a in "$@"; do pkg="$a"; done
@@ -5210,8 +5226,10 @@ _fpx_run() {  # name gomod-content [mode]
   [[ -z "${FPX_SETUP:-}" ]] || (cd "$d" && eval "$FPX_SETUP")
   git -C "$d" add -A && git -C "$d" commit -qm init
   [[ -z "${FPX_STATE:-}" ]] || printf '%s\n' "$FPX_STATE" >> "$d/st.env"
+  local -a location=()
+  [[ -z "${FPX_LOCATION:-}" ]] || location=(--location "$FPX_LOCATION")
   FPX_OUT=$(cd "$d" && FPX_MODE="${3:-}" FPX_CALLS="$d/go-calls" PATH="$d/bin:$PATH" \
-    bash "$SCRIPT_DIR/fix-package.sh" "$d/st.env" "${FPX_PKG:-example.com/cve-pkg}" "${FPX_VER:-1.1.0}" GHSA-fpx-0001 2>&1) && FPX_RC=0 || FPX_RC=$?
+    bash "$SCRIPT_DIR/fix-package.sh" "$d/st.env" "${FPX_PKG:-example.com/cve-pkg}" "${FPX_VER:-1.1.0}" "${location[@]}" GHSA-fpx-0001 2>&1) && FPX_RC=0 || FPX_RC=$?
   FPX_DIR="$d"
 }
 _fpx_run nogo $'module x\n\nrequire example.com/cve-pkg v1.0.0'
@@ -5253,6 +5271,38 @@ FPX_PKG=k8s.io/apimachinery FPX_VER=0.32.1 FPX_STATE='K8S_VERSION_GUARD=true' \
   _fpx_run k8s-guard $'module x\n\ngo 1.24.0\n\nrequire k8s.io/apimachinery v0.31.1'
 check "k8s guard covers apimachinery minors" test "$FPX_RC" -eq 2
 check "k8s guard reports the minor change" grep -q 'K8s minor versions changed' <<< "$FPX_OUT"
+
+# Workspace sync can change another tracked module despite a root-only repair.
+# Swapping two exact dependencies keeps both global and per-module minor sets
+# unchanged, so the policy must retain module and dependency identity.
+FPX_K8S_SETUP='mkdir tools; printf "module x/tools\n\ngo 1.24.0\n\nrequire (\n k8s.io/api v0.30.1\n k8s.io/apimachinery v0.31.1\n k8s.io/api-extra v0.30.1\n)\n" > tools/go.mod; printf "original sibling checksum\n" > tools/go.sum; printf "go 1.24.0\nuse (\n .\n ./tools\n)\n" > go.work; printf "original workspace checksum\n" > go.work.sum'
+FPX_K8S_ROOT=$'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v1.0.0\nrequire k8s.io/api v0.30.1\nrequire k8s.io/client-go v0.31.1'
+FPX_SETUP="$FPX_K8S_SETUP" FPX_LOCATION=/go.mod FPX_STATE=K8S_VERSION_GUARD=true \
+  _fpx_run k8s-workspace-swap "$FPX_K8S_ROOT" k8s-swap
+check "k8s identity: root-scoped get ran" grep -qx 'DIR=. get example.com/cve-pkg@v1.1.0' "$FPX_DIR/go-calls"
+check "k8s identity: sibling changed through workspace sync" grep -qx 'work sync' "$FPX_DIR/go-calls"
+check "k8s identity: sync changed sibling api minor" grep -q '^ k8s.io/api v0.31.1$' "$FPX_DIR/go-calls.sync-go.mod"
+check "k8s identity: sync retained both original minor values" grep -q '^ k8s.io/apimachinery v0.30.1$' "$FPX_DIR/go-calls.sync-go.mod"
+check "k8s identity: unchanged minor set still needs review" test "$FPX_RC" -eq 2
+check "k8s identity: reports Kubernetes boundary" grep -q 'K8s minor versions changed' <<< "$FPX_OUT"
+check "k8s identity: rejected repair is not fixed" ! grep -q '^FIXED:' <<< "$FPX_OUT"
+check "k8s identity: rejection creates no commit" test "$(git -C "$FPX_DIR" rev-list --count HEAD)" -eq 1
+check "k8s identity: all tracked metadata bytes restored" git -C "$FPX_DIR" diff --exit-code "$(git -C "$FPX_DIR" rev-list --max-parents=0 HEAD)" -- go.mod go.sum tools/go.mod tools/go.sum go.work go.work.sum
+for _k8s_control in patch disabled prefix add remove; do
+  _k8s_guard=true; _k8s_mode="k8s-$_k8s_control"
+  [[ "$_k8s_control" != disabled ]] || { _k8s_guard=false; _k8s_mode=k8s-swap; }
+  FPX_SETUP="$FPX_K8S_SETUP" FPX_LOCATION=/go.mod FPX_STATE="K8S_VERSION_GUARD=$_k8s_guard" \
+    _fpx_run "k8s-workspace-$_k8s_control" "$FPX_K8S_ROOT" "$_k8s_mode"
+  check "k8s identity: $_k8s_control control succeeds" test "$FPX_RC" -eq 0
+  check "k8s identity: $_k8s_control control commits repaired root" grep -q 'example.com/cve-pkg v1.1.0' "$FPX_DIR/go.mod"
+  case "$_k8s_control" in
+    patch) check "k8s identity: sibling patch is retained" grep -q 'k8s.io/api v0.30.2' "$FPX_DIR/tools/go.mod" ;;
+    disabled) check "k8s identity: disabled guard permits sibling minor" grep -q 'k8s.io/api v0.31.1' "$FPX_DIR/tools/go.mod" ;;
+    prefix) check "k8s identity: prefix-related module is independent" grep -q 'k8s.io/api-extra v0.32.1' "$FPX_DIR/tools/go.mod" ;;
+    add) check "k8s identity: new pair preserves absence policy" grep -q 'k8s.io/client-go v0.31.1' "$FPX_DIR/tools/go.mod" ;;
+    remove) check "k8s identity: removed pair preserves absence policy" ! grep -q '^ k8s.io/api v' "$FPX_DIR/tools/go.mod" ;;
+  esac
+done
 FPX_SETUP='printf "go 1.24.0\n\nuse .\n" > go.work && echo go.work > .gitignore' \
   _fpx_run untracked-work $'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v1.0.0'
 check "untracked go.work is never synced" ! grep -q 'work sync' "$FPX_DIR/go-calls"
