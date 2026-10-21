@@ -1155,13 +1155,6 @@ elif [[ "$COMMIT_COUNT" -gt 0 ]]; then
       done < <(git remote)
     fi
 
-    # A fork remote may not exist (only 'origin', or a non-GitHub URL). Never
-    # print angle-bracket placeholders in an executable shell command: `<name>`
-    # is input redirection, not a safe placeholder.
-    if [[ -z "$FORK_REMOTE" ]]; then
-      echo "NOTE: no fork remote detected — add a writable HTTPS fork remote before pushing."
-    fi
-
     if [[ "$GATE_REMAINING" -gt 0 ]]; then
       PR_TITLE="Partial CVE fix in ${BASE_BRANCH} ($GATE_REMAINING unresolved)"
       echo "NOTE: $GATE_REMAINING finding(s) remain — PR title reflects a partial fix."
@@ -1178,7 +1171,7 @@ elif [[ "$COMMIT_COUNT" -gt 0 ]]; then
       printf '  --head %q \\\n' "${FORK_USER}:${CURRENT_BRANCH}"
       echo "  --assignee \"@me\""
     else
-      echo "PR command unavailable until a writable fork remote is configured."
+      echo "PR command unavailable: no GitHub fork push remote was detected."
     fi
   fi
 else

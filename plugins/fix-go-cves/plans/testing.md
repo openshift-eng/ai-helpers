@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 2,781 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 2,787 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -40,7 +40,7 @@ not attribute the historical run or replace a full baseline test suite.
    branch or detached ref in the Summary. Recommendations focus on the next
    unmet prerequisite and verification still needed. This is a behavioral
    treatment, not enforcement or proof of general reliability.
-2. **Boundary fixtures pass.** The existing shell suite passed 2,781 checks,
+2. **Boundary fixtures pass.** The existing shell suite passed 2,787 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
    The 53 eval checks cover witnessed publication, tampering, frozen inputs,
@@ -119,10 +119,15 @@ mutable database misses and different outcomes as missing coverage. Revalidate
 ownership/cancellation when recreating the worker, retain supervised lifecycle
 management, and keep it stopped between selected runs.
 
-The first case-004 invocation replaced the configured lint and unit command
-with unit alone. Its measurement remains unaccepted. Explicit test-command
-precedence is selected for one targeted follow-up after that run finishes;
-no target repair or unchanged retry is selected.
+The completed case-004 invocation replaced the configured lint and unit command
+with unit alone. Contract fails; both factual judges pass 3/3, but independent
+review also rejects replacement publication advice. The result remains
+unaccepted. Explicit test-command precedence and an accurate missing-remote
+diagnostic are selected for one targeted follow-up with the same pinned inputs
+and criteria. The diagnostic correction removes an imperative and unverified
+HTTPS/writability claims; it does not establish improved agent behavior.
+No target repair or unchanged retry is selected. [The live record](../evals/live/README.md#subctl-release-check)
+preserves the original measurement and limitations.
 
 Frozen scoring uses copied inputs/configuration and exact selected cases,
 judges and complete samples. Extraction checks all collected case directories

@@ -218,3 +218,29 @@ agent, provenance and teardown audits are in `.work/fix-go-cves-bounded-report/`
 The candidate's report instructions are reverted after measurement. These scores
 do not validate the final skill; unchanged runtime script hashes retain the engine
 evidence. No additional live trial is selected to seek a pass.
+
+## Subctl release check
+
+`cve-live-subctl-release024-20261020` froze `b8ed99db` against the pinned
+release-0.24 case 004. The engine exited 0 after 1,283 seconds, retaining
+`07d0fe12ca6176f9db2fdde41e0aac45e56d067a` and four dependency/ignore commits.
+The invoking agent replaced inherited `make golangci-lint && make unit` with
+`make unit`. Unit, four audits, license and fresh native AMD64 scanning passed;
+the final scan had zero actionable findings and one scoped no-fix ignore.
+Required lint coverage is missing, so this is not accepted remediation.
+
+The parent completed in 1,386 seconds (1,390.3 outer wall seconds), for
+$0.89185725 plus six unpriced judge calls and unknown nested costs. Machine
+metrics record 25 turns; the progress line reports 30. Stock contract fails for
+the canonical-command mismatch; outcome and action/owner each pass 3/3 without
+errors. Independent review also rejects the reply's replacement publication
+recipe. The outcome judge treated the lack of a literal PR command as sufficient;
+the action/owner rationale accepted the guidance as future prerequisites.
+Those passing scores do not override skill conformance. No custom target edits
+or publication occurred, and the literal Summary was preserved.
+
+Original outputs, frozen source/configuration, raw scores and report are retained
+in the standard results directory. Independent runtime and behavior reviews are
+under `.work/fix-go-cves-release024/`. The follow-up changes command precedence
+and the inaccurate, imperative missing-remote diagnostic; inputs and criteria
+remain unchanged. It is selected, not yet measured.

@@ -7911,7 +7911,7 @@ LICENSEMAKE
   PRT_B_OUT=$(bash "$PRT_SCRIPTS/fix-all.sh" "$PRT_REPO" devel 2>&1) || true
   check "PR cmd B: absent original-ref evidence is omitted" ! grep -q '^Original ref:' <<< "$PRT_B_OUT"
   check "PR cmd B: no placeholder remote shown" ! grep -q "<fork-remote>" <<< "$PRT_B_OUT"
-  check "PR cmd B: NOTE about missing fork"    grep -q "no fork remote" <<< "$PRT_B_OUT"
+  check "PR cmd B: explains detection limit" grep -qx "PR command unavailable: no GitHub fork push remote was detected." <<< "$PRT_B_OUT"
   check "PR cmd B: no unusable gh command"    ! grep -q "gh pr create" <<< "$PRT_B_OUT"
   git -C "$PRT_REPO" remote add myfork "https://github.com/testforkuser/testrepo.git"
 
@@ -9424,7 +9424,7 @@ for _cr_audit in existing-entries fix-availability yaml-integrity; do
     grep -qx 'NEW_ISSUES=0' "$CR_WORKFLOW/evidence/audits/$_cr_audit.evidence"
 done
 check "two-module native workflow explains the missing fork" \
-  grep -q 'PR command unavailable until a writable fork remote is configured' "$CR_WORKFLOW/workflow.log"
+  grep -q 'PR command unavailable: no GitHub fork push remote was detected' "$CR_WORKFLOW/workflow.log"
 check "two-module native workflow prints no unwitnessed publication command" \
   ! grep -q '^PR command:' "$CR_WORKFLOW/workflow.log"
 check "two-module native workflow leaves tracked metadata clean" git -C "$CR_WORKFLOW/repo" diff --quiet
@@ -9651,14 +9651,17 @@ for _remote_pair in \
   check "GitHub URL pair $_remote_pair derives the fork owner" grep -q -- '--head bob:fix-review' <<< "$_pr_out"
   check "GitHub URL pair $_remote_pair uses the fork remote" grep -q 'git push myfork fix-review' <<< "$_pr_out"
 done
+git init --bare -q "$RREV/local-fork.git"
 for _remote_pair in \
   'git@gitlab.example.com:team/repo.git|https://github.com/bob/repo.git' \
   'https://github.com/openshift/repo.git|git@gitlab.example.com:bob/repo.git' \
-  'https://github.com/openshift/repo.git|https://notgithub.com/bob/repo.git'; do
+  'https://github.com/openshift/repo.git|https://notgithub.com/bob/repo.git' \
+  "https://github.com/openshift/repo.git|$RREV/local-fork.git"; do
   _pr_remotes "${_remote_pair%|*}" "${_remote_pair#*|}"
   _pr_run
   check "non-GitHub pair $_remote_pair still reports successfully" test "$_pr_rc" -eq 0
   check "non-GitHub pair $_remote_pair emits no executable PR command" ! grep -q 'gh pr create' <<< "$_pr_out"
+  check "non-GitHub pair $_remote_pair explains detection limit" grep -qx 'PR command unavailable: no GitHub fork push remote was detected.' <<< "$_pr_out"
 done
 _pr_remotes https://github.com/openshift/repo.git https://github.com/bob/repo.git
 git -C "$_pr_repo" remote add backup https://gitlab.example.com/bob/repo.git
