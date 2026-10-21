@@ -119,9 +119,10 @@ mutable database misses and different outcomes as missing coverage. Revalidate
 ownership/cancellation when recreating the worker, retain supervised lifecycle
 management, and keep it stopped between selected runs.
 
-Case 004 prepares one pinned Subctl release-0.24 check of the current engine and
-faithful reporting, including partial results, through the existing live runner
-and criteria. It has not run and establishes no skill acceptance.
+The first case-004 invocation replaced the configured lint and unit command
+with unit alone. Its measurement remains unaccepted. Explicit test-command
+precedence is selected for one targeted follow-up after that run finishes;
+no target repair or unchanged retry is selected.
 
 Frozen scoring uses copied inputs/configuration and exact selected cases,
 judges and complete samples. Extraction checks all collected case directories

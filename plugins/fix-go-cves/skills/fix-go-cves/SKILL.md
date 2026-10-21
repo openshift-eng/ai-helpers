@@ -21,12 +21,11 @@ naming anything missing.
 
 ## Run the scripts
 
-Before launch, inspect the target branch's verification instructions and relevant
-CI, including required environment variables. Preserve caller-specified and
-repository-configured check commands. If the
-inferred default omits required local source checks, use `CVE_FIX_TEST_CMD` to
-run that default plus the relevant checks, for example
-`make unit && make golangci-lint`. Do not auto-select deployment, end-to-end or
+Before launch, inspect the target branch's instructions/CI and required environment.
+Read inherited `CVE_FIX_TEST_CMD`; preserve a nonempty value unchanged. Otherwise
+preserve the target branch's nonempty `.cve-fix.yaml` `test-command`. Only when neither
+is configured, use `CVE_FIX_TEST_CMD` for the inferred default plus required local source checks.
+Do not auto-select deployment, end-to-end or
 CI-only jobs. Report checks that did not run as unverified.
 
 Builds and tests can each take 30 minutes. Run every script in the background
