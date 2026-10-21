@@ -43,8 +43,9 @@ These establish engine behavior, not remediation or skill acceptance. The
 environment corrections and the independent reviews.
 
 A fresh-context diagnosis pilot failed its first case and stopped. No production
-subagent routing or reviewer loop was added. Finish the full-pipeline integration
-check separately from behavioral acceptance; see the
+subagent routing or reviewer loop was added. The full replay pipeline completed
+and preserved a failed skill verdict. Next close current-runtime live integration
+separately from behavioral acceptance; see the
 [current E2E work](../evals/README.md#current-e2e-work). Resolve the Go-minor
 policy conflict before changing that behavior. Existing
 major-version, Kubernetes-identity, no-fix-credit, audit and test-evidence guards

@@ -168,15 +168,25 @@ unsupported sole causality. It stopped after that first execution: no case 007,
 Subctl component or retries. One failed component does not prove fresh contexts
 never help, but provides no basis for production routing or a reviewer loop.
 
-One full stock replay-005 pipeline is selected after the evaluator changes are
-committed and reviewed. It checks invocation, collection, extraction, contracts,
-factual scoring, report and regression status together. It is an integration
-check, not a new behavioral treatment, comparison or test of the revised live
-judge. Preserve a completed failing skill measurement as a failure; do not repeat
-it to seek accepted prose. Further behavioral work needs a justified mechanism
-and declared acceptance questions, while preserving useful diagnosis and actual
-repository instructions. The optional operational Summary handoff has separate
-human value and does not solve unsupported causal prose.
+The single full stock replay-005 pipeline at `d6ad2e5c` completed invocation,
+collection, extraction, contract, all six factual samples, report and regression.
+Contract and backport pass; action/owner fails all three samples for a contradicted
+newer-`x/tools` claim, with zero errors. Runner exit 1 is retained. This establishes
+orchestration, not improved skill behavior, current runtime or the revised live
+judge. The [current E2E record](../evals/README.md#current-e2e-work) preserves costs
+and exact artifact identities.
+
+One stock live case 004 is selected for the remaining current-runtime integration
+question: the actual skill, valid-policy path, fresh HOME, remediation/native
+commands and completed-gate receipts together. Previous full case 004 used the
+older runtime; the report and early guard checks do not exercise this chain.
+Forward and freeze the existing scanner-version override through the standard
+runner before launch. Reuse the supervised worker and cache procedures, preserve
+actual nonzero outcomes and all earlier failures, and stop after this execution.
+No source repair or prose-oriented retry is selected. Further behavioral work
+needs a justified mechanism and declared acceptance questions. The optional
+operational Summary handoff has separate human value and does not solve
+unsupported causal prose.
 
 Keep checked-in repository instructions, including Admiral's `CLAUDE.md` and
 imported CVE workflow. They contain genuine competing procedure context, not

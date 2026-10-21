@@ -43,8 +43,24 @@ its completed reply preserved state and Summary, but omitted the available
 backport, guessed the original ref and overstated causality. It took 101.8 seconds
 and $0.69357725, without judges. No later case or retry ran, and no production
 subagent routing was added. Raw results and independent reviews remain under
-`.work/fix-go-cves-release024/diagnosis-component/`. A full stock replay pipeline
-integration check is selected separately; it does not establish a changed skill.
+`.work/fix-go-cves-release024/diagnosis-component/`.
+
+The full stock replay-005 pipeline at `d6ad2e5c` completed in about 250 seconds:
+one actual skill invocation, collection/extraction, contracts, all six factual
+samples, HTML report, completion verification and regression output. Contract
+passes, backport is true 3/3 and action/owner false 3/3 for the contradicted
+newer-`x/tools` explanation; zero judge errors. Runner exit 1 is preserved.
+Actor cost is $0.72549375; six judge calls are unpriced, so total cost is unknown.
+All 30 recorded artifacts match their hashes. Records remain under `.work/fix-go-cves-release024/full-pipeline-check/`. This is completed
+orchestration with a failed skill result, using historical runtime and the
+existing replay criteria; it does not measure today's remediation or the revised
+live judge.
+
+One stock live case-004 run is selected to close that current-runtime integration
+gap. It will combine the actual invoking skill, fresh HOME, valid inherited
+policy, native commands and reached-gate receipts. Keep the exact inputs and
+canonical command, make no target repairs, and independently inspect native
+binary evidence and final advice. No rerun merely to obtain accepted prose.
 
 ## Recorded cases
 
@@ -98,6 +114,11 @@ For the tested rootless Shipyard worker, daemon user/mount namespace mapping
 was also necessary to preserve checkout ownership through Dapper. Revalidate
 that mapping and targeted cancellation cleanup when recreating the worker;
 see the [worker evidence and limits](../plans/testing.md#environment-evidence-and-deadlines).
+
+For a controlled live run, set `CVE_FIX_GRYPE_VERSION` to the requested
+release (for example, the observed `v0.121.0`). The live runner forwards and
+freezes it; unset keeps the runtime's default update behavior. Capture the actual
+scanner identity as well: the database and builder tags remain live.
 
 Optionally export absolute `GRYPE_DB_CACHE_DIR` and `GOMODCACHE` paths outside
 the evaluated checkout to reuse host caches. These apply to local Grype and
