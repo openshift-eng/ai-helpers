@@ -1,0 +1,20 @@
+jira_key: OCPSTRAT-3851
+expected_format: ieee829
+expected_preliminary: true
+forbidden_terms:
+  - SNO
+  - FIPS
+  - disconnected
+min_scenarios: 3
+difficulty: medium
+category: feature
+notes: >
+  Pre-implementation feature with no merged PRs. The plan must carry the
+  PRELIMINARY banner, mark coverage as [PRELIMINARY], and set target file
+  paths to TBD rather than inventing locations in a codebase that does not yet
+  contain the feature. Verified 2026-10-16: status New, Development field
+  empty (no linked branches, commits or PRs), and the only engineering link is
+  a GitHub *issue* (openshift/kueue-operator#2529), not a pull request. The
+  feature does carry five explicit acceptance criteria, so there is real
+  source material to plan against - this exercises the zero-PR path without
+  also being an empty-source case, which is case-005's job.
