@@ -1,0 +1,12 @@
+# Use only for scoring collected outputs; subjects use eval-jira-refine.yaml.
+extends: eval-jira-refine.yaml
+
+runner:
+  plugin_dirs: !replace []
+  settings:
+    features:
+      hooks: false
+    mcp_servers:
+      jira-stub:
+        enabled: false
+        required: false

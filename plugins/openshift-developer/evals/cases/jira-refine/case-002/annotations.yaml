@@ -1,0 +1,93 @@
+issue_key: OCPBUGS-99759
+expected_disposition: CLOSE
+acceptable_dispositions: [CLOSE]
+acceptable_resolutions: ["Not a Bug", "Won't Do"]
+expected_final_status: Closed
+required_labels: [refined-by-agent]
+preserved_labels: [cluster-autoscaler, hypershift, scale-from-zero]
+removed_labels: []
+max_comment_chars: 1500
+difficulty: complex
+category: bug-refinement
+ground_truth: |
+  First run: the issue has no refine:v1 marker and no refined-by-agent label.
+  Evaluate the reported incident and its proposed root cause under the skill's
+  incident-scoped disposition rule. Expected disposition: CLOSE the scoped
+  annotation-key diagnosis with precise conditions for reopening. The reported
+  incident's actual cause remains unknown; no different root cause has been
+  established for it.
+
+  The original description claims that --cloud-provider=clusterapi ignores
+  machine.openshift.io/* resource keys on the reported 4.18-4.22 releases.
+  That diagnosis is too broad: the OpenShift 4.18 CAPI provider reads the legacy
+  keys, while release-4.19 through release-4.22 accept both key families and
+  prefer the CAPI keys. A cloud-provider flag alone does not establish which
+  annotation readers shipped. Version-specific source and payload evidence
+  must support the assessment; branch names alone do not prove a deployed
+  component revision.
+
+  Public 4.18 and 4.20 scale-from-zero CI provides counterevidence to the broad
+  diagnosis: legacy capacity annotations are present and zero-to-one scaling
+  succeeds. Newer inspected 5.0/5.1 runs succeed using native status.capacity.
+  Such native-capacity successes exercise another capacity path and do not
+  validate the annotation fallback. Do not claim that every listed release,
+  every configuration, or the original customer deployment is unaffected.
+
+  The original Jira provides source references and a proposed PR, but no exact
+  failing producer/consumer build pair, object snapshots, or logs proving the
+  claimed mechanism caused the incident. The support comment asks whether the
+  incident is related; it does not establish causation. PR #9110 closed
+  unmerged and proves no shipped fix. The related missing-ownerReference
+  diagnosis in OCPBUGS-99760 was rejected; OCPBUGS-100300 concerns installer
+  MachineSets and establishes no cause for this HyperShift incident.
+
+  Preserve the separate source-level compatibility finding: HyperShift main
+  at 51bfaf4a8d2a writes only legacy resource-capacity keys when native capacity
+  is absent and the optional provider is configured. Autoscaler main at
+  a819db459f3e and release-5.0 read only CAPI resource keys; that combination
+  cannot obtain CPU/memory capacity from legacy annotations. This observation
+  does not establish that the reported deployment used that combination or
+  that it caused the incident. Keep it separate from this scoped closure;
+  neither deny the mismatch nor require implementing its additive dual-key
+  fix as the handoff for this incident. Passing native-capacity CI does not
+  disprove that compatibility finding.
+
+  Correct disposition: CLOSE because investigation disproves the proposed
+  cause for the scoped report and does not prove another cause for the
+  reported incident. Do not present lack of logs alone as evidence that no
+  bug exists. This is not a stale closure. If new evidence proves an actual
+  incident root cause with a bounded fix, reassess rather than applying CLOSE
+  automatically.
+
+  Post one short comment with the scoped close reason, one or two evidence
+  links, the resolution, precise reopening conditions, and the refine:v1
+  outcome=CLOSE marker. Reopening should request the failing HostedCluster,
+  HyperShift operator, and autoscaler builds; NodePool and MachineDeployment
+  or MachineSet/template snapshots including capacity and annotations; and
+  autoscaler logs identifying the failed capacity path. Explicitly leave the
+  incident's cause unknown.
+
+  After verifying the comment, transition to Closed with Not a Bug (Won't Do
+  acceptable), then add refined-by-agent while preserving all existing
+  labels. Verify the writes. Do not update the description, priority,
+  severity, assignee, or version fields. No implementation plan or readiness
+  description is required for CLOSE. Preserve Reported versus Confirmed,
+  Inferred, or Unknown version distinctions and leave earliest affected and
+  first fixed builds unknown without evidence.
+
+  Evidence:
+  - https://github.com/openshift/kubernetes-autoscaler/blob/4674e81c349b841a139af8a5b5041722ec2f7b2f/cluster-autoscaler/cloudprovider/clusterapi/clusterapi_utils.go
+  - https://github.com/openshift/hypershift/blob/51bfaf4a8d2a8b4cb3e80987b2748623c642f8ea/hypershift-operator/controllers/nodepool/scale_from_zero.go
+  - https://github.com/openshift/kubernetes-autoscaler/blob/a819db459f3e0a88becba4c58bf053c6dbda28f2/cluster-autoscaler/cloudprovider/clusterapi/clusterapi_utils.go
+  - https://github.com/openshift/hypershift/pull/9110
+  - https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-hypershift-release-4.18-periodics-e2e-aws-ovn/2108292529538469888
+notes: |
+  The fixture freezes OCPBUGS-99759 before the 2026-10-21T09:27Z refinement;
+  real Jira is blocked because the live issue contains later analysis.
+  This case now tests the edited skill's incident-scoped CLOSE rule, not a
+  SOLVE handoff for a separate compatibility mechanism. The source-level
+  findings are retained without claiming they caused the reported incident.
+
+  Public source and CI state can change. Revisit or pin this case if new
+  evidence establishes the incident's cause or invalidates its version-scoped
+  counterevidence.

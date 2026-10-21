@@ -77,6 +77,7 @@ live issues are readable anonymously and would leak the answer.
 | Case | JIRA | Description |
 |------|------|-------------|
 | case-001 | OCPBUGS-99760 | Repeat run on a misdiagnosed CAPA capacity bug; expected CLOSE (Not a Bug) |
+| case-002 | OCPBUGS-99759 | Misdiagnosed scale-from-zero incident; expected CLOSE with version-scoped evidence and reopening conditions |
 
 The default subject and LLM judges use the harness's native `codex` runner
 with `gpt-6.1-sol` and `high` reasoning. The harness stages the plugin skills
@@ -91,11 +92,18 @@ Sol 6.1, and install Agent Eval Harness. The evaluated harness revision is
 ```
 
 `runner.settings` registers the workspace-local Jira stub as a required stdio
-MCP server and enables the Jira guard as a native `PreToolUse` hook. Guard
+MCP server and enables the Jira guard as a native `PreToolUse` hook. Subject
+runs fail at startup if the stub cannot initialize. Guard
 results are recorded in `output/jira-guard-events.jsonl`. Research shell
 commands exclude OpenAI API credentials, and hosted web search is disabled so
 research goes through the guarded shell. Prompt-only judges use native Codex
 through `models.judge: runner:/gpt-6.1-sol`.
+
+For the scoring step, use `eval-jira-refine-judges.yaml` as the config passed
+to the harness's `score.py judges` command. It inherits the same cases and
+judges, but disables skill staging, the Jira stub, and hooks for prompt-only
+judges, whose temporary workspaces contain no Jira fixture. Keep
+`eval-jira-refine.yaml` for subject execution so the stub remains mandatory.
 
 Codex requires non-managed hooks to be reviewed and trusted before they run.
 Review the configured guard using `/hooks` before an unattended evaluation;

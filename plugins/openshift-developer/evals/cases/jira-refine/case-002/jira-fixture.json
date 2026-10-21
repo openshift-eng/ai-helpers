@@ -1,0 +1,593 @@
+{
+  "snapshot": "OCPBUGS-99759 as of 2026-10-21T09:20:00Z, before the refinement this case scores. Related issues are frozen at the same time. People, customer accounts, and support cases are anonymized.",
+  "resolutions": [
+    "Done",
+    "Done-Errata",
+    "Won't Do",
+    "Not a Bug",
+    "Cannot Reproduce",
+    "Duplicate",
+    "Obsolete"
+  ],
+  "transitions": [
+    {
+      "id": "11",
+      "name": "New",
+      "category": "To Do"
+    },
+    {
+      "id": "21",
+      "name": "ASSIGNED",
+      "category": "In Progress"
+    },
+    {
+      "id": "31",
+      "name": "POST",
+      "category": "In Progress"
+    },
+    {
+      "id": "41",
+      "name": "ON_QA",
+      "category": "In Progress"
+    },
+    {
+      "id": "61",
+      "name": "Verified",
+      "category": "In Progress"
+    },
+    {
+      "id": "71",
+      "name": "Release Pending",
+      "category": "In Progress"
+    },
+    {
+      "id": "81",
+      "name": "Closed",
+      "category": "Done"
+    },
+    {
+      "id": "91",
+      "name": "MODIFIED",
+      "category": "In Progress"
+    }
+  ],
+  "issues": {
+    "OCPBUGS-99759": {
+      "key": "OCPBUGS-99759",
+      "browse_url": "https://redhat.atlassian.net/browse/OCPBUGS-99759",
+      "summary": "HyperShift scale-from-zero annotations use wrong keys for CAPI autoscaler provider",
+      "issue_type": "Bug",
+      "status": "New",
+      "resolution": null,
+      "priority": "Major",
+      "severity": "Important",
+      "release_blocker": null,
+      "components": [
+        "Cluster Autoscaler",
+        "HyperShift"
+      ],
+      "versions": [
+        "4.18",
+        "4.19",
+        "4.20",
+        "4.21",
+        "4.22"
+      ],
+      "fixVersions": [
+        "5.0"
+      ],
+      "target_version": [
+        "5.0"
+      ],
+      "target_backport_versions": null,
+      "story_points": 3,
+      "sfdc_cases_counter": 1,
+      "labels": [
+        "cluster-autoscaler",
+        "hypershift",
+        "scale-from-zero"
+      ],
+      "created": "2026-07-24T21:22:00+00:00",
+      "updated": "2026-10-01T02:32:25+00:00",
+      "reporter": "bug-reporter",
+      "assignee": "bug-reporter",
+      "description": "### Impact\n\nHyperShift scale-from-zero capacity detection is broken for the cluster-autoscaler.\nUsers may see nodes fail to scale from zero because the autoscaler ignores the annotations written by HyperShift.\n\n### Expected behaviour\n\nHyperShift should write capacity annotations that match the CAPI autoscaler provider.\nThe autoscaler should read these annotations and detect CPU, memory, and GPU capacity correctly.\n\n### Actual behaviour\n\nHyperShift writes CPU, memory, and GPU capacity annotations using `machine.openshift.io/**` keys.\nThe cluster-autoscaler runs with `--cloud-provider=clusterapi` and only reads `capacity.cluster-autoscaler.kubernetes.io/**` keys.\nAs a result, the CAPI autoscaler provider silently ignores the annotations and scale-from-zero capacity detection fails.\n\nWrong keys (current):\n\n```java\ncpuKey    = \"machine.openshift.io/vCPU\"\nmemoryKey = \"machine.openshift.io/memoryMb\"\ngpuKey    = \"machine.openshift.io/GPU\"\n```\n\n### Steps to reproduce\n\n- Deploy HyperShift with cluster-autoscaler using `--cloud-provider=clusterapi`.\n- Use the scale-from-zero\n- Observe that the annotations are written with `machine.openshift.io/**` keys.\n- Check that the CAPI autoscaler provider only reads `capacity.cluster-autoscaler.kubernetes.io/**` keys.\n- Confirm that the autoscaler ignores the written annotations and does not detect capacity for scale-from-zero.\n\n### Environment\n\n- HyperShift\n- `hypershift-operator/controllers/nodepool/scale_from_zero.go`\n- `control-plane-operator/controllers/hostedcontrolplane/v2/assets/cluster-autoscaler/deployment.yaml`\n- `openshift/kubernetes-autoscaler cloudprovider/clusterapi/clusterapi_utils.go`\n\n### Workarounds\n\nN/A\n\n### Other information\n\nLabels and taints annotations in the same file already correctly use `capacity.cluster-autoscaler.kubernetes.io/*` prefix at `L39-40`.\n\nCorrect keys for the CAPI autoscaler provider:\n\n```java\ncpuKey      = \"capacity.cluster-autoscaler.kubernetes.io/cpu\"\nmemoryKey   = \"capacity.cluster-autoscaler.kubernetes.io/memory\"\ngpuCountKey = \"capacity.cluster-autoscaler.kubernetes.io/gpu-count\"\ngpuTypeKey  = \"capacity.cluster-autoscaler.kubernetes.io/gpu-type\"\n```\n\nEvidence:\n\n- HyperShift autoscaler deployment: `--cloud-provider=clusterapi` (`control-plane-operator/controllers/hostedcontrolplane/v2/assets/cluster-autoscaler/deployment.yaml:26`)\n- OpenShift autoscaler fork CAPI provider reads only `capacity.cluster-autoscaler.kubernetes.io/*` (`openshift/kubernetes-autoscaler cloudprovider/clusterapi/clusterapi_utils.go:35-42`)\n- `machine.openshift.io/*` keys exist only in `cloudprovider/openshift/` (Machine API provider, marked deprecated at `L73-75`)\n",
+      "issue_links": [
+        {
+          "type": "relates to",
+          "key": "OCPBUGS-100300"
+        },
+        {
+          "type": "impacts account",
+          "key": "CIPOE-100001"
+        }
+      ],
+      "remote_links": [],
+      "comments": [
+        {
+          "id": "17723297",
+          "author": "bug-reporter",
+          "created": "2026-07-24T21:22:29+00:00",
+          "body": "Related: OCPBUGS-99760 (CAPA AWSMachineTemplate.Status.Capacity never populated due to missing ownerReferences). Both bugs together mean scale-from-zero has no working capacity signal to the autoscaler."
+        },
+        {
+          "id": "17723703",
+          "author": "art-bot",
+          "created": "2026-07-24T22:03:02+00:00",
+          "body": "Looks like this bug is far enough along in the workflow that a code fix is ready. Customers and support need to know the backport plan. Please complete the \"Target Backport Versions\" field to indicate which version(s) will receive the fix."
+        },
+        {
+          "id": "17758399",
+          "author": "triage-engineer",
+          "created": "2026-07-28T15:48:25+00:00",
+          "body": "[~bug-reporter] we are assigning it to you since you already did the work and posted the PR. Thanks!"
+        },
+        {
+          "id": "18348995",
+          "author": "support-engineer",
+          "created": "2026-09-08T14:52:54+00:00",
+          "body": "Hello [~bug-reporter] \nI have a case, ROSA HCP MachinePool Autoscaling min*replicas=0, think they are facing this bug because the cluster is not able to provide Nodes for newly created MachineSets with min*replicas=0. \nCan you please confirm if it’s the same? \nCase: 00000000"
+        },
+        {
+          "id": "18491613",
+          "author": "sfdc-integration",
+          "created": "2026-09-17T11:54:07+00:00",
+          "body": "[~support-engineer] created new external case link for case: 00000000."
+        },
+        {
+          "id": "18719723",
+          "author": "prow-bot",
+          "created": "2026-10-01T02:32:25+00:00",
+          "body": "Bug status changed to NEW as previous linked PR https://github.com/openshift/hypershift/pull/9110 has been closed"
+        }
+      ],
+      "changelog": [
+        {
+          "created": "2026-07-24T21:24:42+00:00",
+          "author": "bug-reporter",
+          "items": [
+            {
+              "field": "description",
+              "from": "(earlier draft)",
+              "to": "(current description)"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-24T21:25:11+00:00",
+          "author": "bug-reporter",
+          "items": [
+            {
+              "field": "Severity",
+              "from": null,
+              "to": "Important"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-24T21:25:44+00:00",
+          "author": "bug-reporter",
+          "items": [
+            {
+              "field": "Version",
+              "from": null,
+              "to": "4.22"
+            },
+            {
+              "field": "Version",
+              "from": null,
+              "to": "4.19"
+            },
+            {
+              "field": "Version",
+              "from": null,
+              "to": "4.20"
+            },
+            {
+              "field": "Version",
+              "from": null,
+              "to": "4.21"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-24T21:28:55+00:00",
+          "author": "bug-reporter",
+          "items": [
+            {
+              "field": "Component",
+              "from": null,
+              "to": "HyperShift"
+            },
+            {
+              "field": "Component",
+              "from": null,
+              "to": "Cluster Autoscaler"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-24T21:28:57+00:00",
+          "author": "automation-bot",
+          "items": [
+            {
+              "field": "assignee",
+              "from": null,
+              "to": "component-owner"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-24T21:57:23+00:00",
+          "author": "prow-bot",
+          "items": [
+            {
+              "field": "RemoteWorkItemLink",
+              "from": null,
+              "to": "openshift/hypershift#9110: OCPBUGS-99759: fix(nodepool): add CAPI autoscaler capacity annotations for scale-from-zero"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-24T21:58:52+00:00",
+          "author": "bug-reporter",
+          "items": [
+            {
+              "field": "Target Version",
+              "from": null,
+              "to": "5.0"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-24T21:58:58+00:00",
+          "author": "bug-reporter",
+          "items": [
+            {
+              "field": "Fix Version",
+              "from": null,
+              "to": "5.0"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-24T22:02:59+00:00",
+          "author": "prow-bot",
+          "items": [
+            {
+              "field": "status",
+              "from": "New",
+              "to": "POST"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-28T15:48:03+00:00",
+          "author": "triage-engineer",
+          "items": [
+            {
+              "field": "assignee",
+              "from": "component-owner",
+              "to": "bug-reporter"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-28T15:48:34+00:00",
+          "author": "triage-engineer",
+          "items": [
+            {
+              "field": "Story Points",
+              "from": null,
+              "to": "3"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-30T17:17:04+00:00",
+          "author": "capi-engineer",
+          "items": [
+            {
+              "field": "Link",
+              "from": null,
+              "to": "This work item relates to OCPBUGS-100300"
+            }
+          ]
+        },
+        {
+          "created": "2026-08-06T01:20:39+00:00",
+          "author": "automation-bot",
+          "items": [
+            {
+              "field": "Activity Type",
+              "from": null,
+              "to": "Quality / Stability / Reliability"
+            }
+          ]
+        },
+        {
+          "created": "2026-09-17T20:30:44+00:00",
+          "author": "customer-intelligence-bot",
+          "items": [
+            {
+              "field": "Link",
+              "from": null,
+              "to": "This work item impacts account CIPOE-100001"
+            }
+          ]
+        },
+        {
+          "created": "2026-09-17T21:09:46+00:00",
+          "author": "automation-bot",
+          "items": [
+            {
+              "field": "Interested_Parties",
+              "from": "0 (0 affected, 0 interested)",
+              "to": "1 (1 affected, 0 interested)"
+            }
+          ]
+        },
+        {
+          "created": "2026-10-01T02:32:24+00:00",
+          "author": "prow-bot",
+          "items": [
+            {
+              "field": "RemoteWorkItemLink",
+              "from": "openshift/hypershift#9110: OCPBUGS-99759: fix(nodepool): add CAPI autoscaler capacity annotations for scale-from-zero",
+              "to": null
+            }
+          ]
+        },
+        {
+          "created": "2026-10-01T02:32:25+00:00",
+          "author": "prow-bot",
+          "items": [
+            {
+              "field": "status",
+              "from": "POST",
+              "to": "New"
+            }
+          ]
+        }
+      ]
+    },
+    "OCPBUGS-99760": {
+      "key": "OCPBUGS-99760",
+      "browse_url": "https://redhat.atlassian.net/browse/OCPBUGS-99760",
+      "summary": "CAPA AWSMachineTemplate.Status.Capacity never populated in HyperShift (missing ownerReferences)",
+      "issue_type": "Bug",
+      "status": "Closed",
+      "resolution": "Not a Bug",
+      "priority": "Major",
+      "severity": null,
+      "release_blocker": null,
+      "components": [
+        "HyperShift"
+      ],
+      "versions": [
+        "4.18"
+      ],
+      "fixVersions": [],
+      "target_backport_versions": null,
+      "sfdc_cases_counter": null,
+      "labels": [
+        "CAPA",
+        "cluster-autoscaler",
+        "hypershift",
+        "issue-for-agent",
+        "refined-by-agent",
+        "scale-from-zero"
+      ],
+      "created": "2026-07-24T21:22:22+00:00",
+      "updated": "2026-10-20T09:42:39+00:00",
+      "reporter": "bug-reporter",
+      "assignee": null,
+      "description": "**Description of problem:**\n\nCAPA's `AWSMachineTemplateReconciler` is registered and running in HyperShift's capi-provider deployment, but silently skips all AWSMachineTemplates because it cannot find an owning CAPI `Cluster` object. This means `AWSMachineTemplate.Status.Capacity` is never populated, preventing native CAPI scale-from-zero support.\n\n**Root cause:**\n\nCAPA's reconciler at `controllers/awsmachinetemplate_controller.go:143-146` calls:\n\n```java\ncluster, err := util.GetOwnerCluster(ctx, r.Client, awsMachineTemplate.ObjectMeta)\nif cluster == nil {\n    return ctrl.Result{}, nil  // silent early return\n}\n```\n\n`GetOwnerCluster` walks `ownerReferences` upward (AWSMachineTemplate -> MachineDeployment/MachineSet -> Cluster). HyperShift's NodePool controller creates AWSMachineTemplates **without any ownerReferences** — there is no `SetControllerReference`, `SetOwnerReference`, or `OwnerReferences` set on AWSMachineTemplate creation in `hypershift-operator/controllers/nodepool/aws.go` or `hypershift-operator/controllers/nodepool/capi.go`.\n\nWithout the owner chain, `GetOwnerCluster` returns nil, the controller returns early, and `Status.Capacity` is never populated.\n\n**Evidence:**\n\n- Production MC: 45 AWSMachineTemplates checked, all have empty `status.capacity`\n- CAPA controller is registered (not disabled) — `--disable-controllers` flag is not passed in HyperShift's CAPA deployment args (`hypershift-operator/controllers/hostedcluster/internal/platform/aws/aws.go:214`)\n- Controller silently skips templates without owner chain (no error, no event, no log)\n\n**Impact:**\n\n- `hasStatusCapacity()` in `hypershift-operator/controllers/nodepool/capi.go:61` always returns `false`\n- Native CAPI scale-from-zero path is never used\n- Combined with OCPBUGS-99759 (wrong annotation keys on the fallback workaround path), scale-from-zero has no working capacity signal to the autoscaler\n\n**Fix options:**\n1. Add ownerReferences on AWSMachineTemplate pointing to MachineDeployment (may have GC side effects — needs analysis)\n2. Accept this is a HyperShift-specific CAPI usage pattern and rely on the annotation workaround path (fix OCPBUGS-99759 instead)\n3. Both — fix annotations for immediate relief, add owner refs for long-term native support",
+      "issue_links": [],
+      "remote_links": [
+        {
+          "url": "https://github.com/openshift/hypershift/pull/10030",
+          "title": "openshift/hypershift#10030: OCPBUGS-99760: Investigate AWS template ownership (diagnostic placeholder)"
+        }
+      ],
+      "comments": [
+        {
+          "id": "17723298",
+          "author": "bug-reporter",
+          "created": "2026-07-24T21:22:30+00:00",
+          "body": "Related: OCPBUGS-99759 (wrong annotation keys on fallback workaround path). Both bugs together mean scale-from-zero has no working capacity signal to the autoscaler."
+        },
+        {
+          "id": "18982300",
+          "author": "ship-help-jira",
+          "created": "2026-10-19T10:52:41+00:00",
+          "body": "## Refinement assessment\n\n**Disposition:** NEED*HUMAN*ANALYSIS\n**Assessed:** 2026-10-19\n**Recorded priority:** Major. Severity was not available in the retrieved fields.\n**Confidence:** High in the inspected source-level mismatch; deployed-release impact remains unconfirmed.\n\nThe report describes AWSMachineTemplates without status.capacity. Current HyperShift source constructs templates without ownerReferences, and CAPA's AWSMachineTemplateReconciler returns before capacity discovery when GetOwnerCluster returns nil. Important correction: GetOwnerCluster checks direct Cluster owner references; it does not recursively follow MachineDeployment or MachineSet owners. Adding only a MachineDeployment owner reference would not satisfy the inspected implementation.\n\nSources:\n\n- https://raw.githubusercontent.com/openshift/cluster-api-provider-aws/main/vendor/sigs.k8s.io/cluster-api/util/util.go\n- https://raw.githubusercontent.com/openshift/cluster-api-provider-aws/main/controllers/awsmachinetemplate_controller.go\n- HyperShift main: hypershift-operator/controllers/nodepool/aws.go (awsMachineTemplate), capi.go (machineTemplateBuilders, cleanupMachineTemplates).\n\nNative capacity population is worth addressing, but this evidence does not establish that scale-from-zero fails on every release. The related annotation-path issue OCPBUGS-99759 remains separate. Its PR https://github.com/openshift/hypershift/pull/9110 closed without merging. A human review on that PR states older autoscaler versions recognize both annotation families, so the blanket annotation-incompatibility claim needs verification against the deployed autoscaler revision.\n\n**Version scope:** Jira lists 4.18, treated as reported only. No exact management/operator, CAPA, or autoscaler build or reproduction artifacts were supplied. Current-main code inspection is not proof of shipped 4.18 behavior. Earliest affected and first fixed releases remain unknown; no version edits or backport targets proposed.\n\n**Decision needed:** Choose between a direct Cluster owner reference managed by HyperShift and explicit non-owning cluster association/resolution in CAPA. Do not add ownership solely to bypass lookup without reviewing deletion semantics and HyperShift's existing explicit template cleanup. Annotation repair is a separate mitigation candidate, not a verified workaround.\n\nBefore implementation, identify deployed revisions and reproduce with the fallback disabled or demonstrably unused. Validate capacity population and actual zero-to-one autoscaling for Replace and InPlace NodePools, existing-template reconciliation, template replacement and cleanup, cluster deletion, and region/IAM error handling. Existing tests that inject capacity do not demonstrate CAPA population.\n\nNext step: HyperShift/CAPA maintainers select the association/lifecycle contract and provide build-scoped evidence; then produce a bounded implementation plan and acceptance criteria.\n\nrefine:v1 outcome=NEED*HUMAN*ANALYSIS\n\n----\n\n*AI-generated. Review for accuracy.*\n\nRequested via Chai Bot (hypershift_internal)"
+        },
+        {
+          "id": "18982302",
+          "author": "ship-help-jira",
+          "created": "2026-10-19T10:52:46+00:00",
+          "body": "Labels added refined-by-agent, need-human-analysis\n\n----\n\nRequested via Chai Bot (hypershift_internal)"
+        },
+        {
+          "id": "18982945",
+          "author": "hypershift-maintainer",
+          "created": "2026-10-19T11:36:36+00:00",
+          "body": "> there is no `SetControllerReference`, `SetOwnerReference`, or `OwnerReferences` set on AWSMachineTemplate creation in `hypershift-operator/controllers/nodepool/aws.go` or `hypershift-operator/controllers/nodepool/capi.go`.\n\n\n\ncapi reconciliation should set this. Is that not happening? why?"
+        },
+        {
+          "id": "19004214",
+          "author": "hypershift-maintainer",
+          "created": "2026-10-20T09:42:01+00:00",
+          "body": "Closing as Not a Bug: the reported root cause does not hold. CAPI's MachineDeployment/MachineSet controllers add a direct Cluster ownerReference to referenced templates; CI dumps show it on every AWSMachineTemplate within ~1–2s of creation (4.18, 4.20, 4.21, 5.1).\n\nEmpty status.capacity on ≤4.20 HostedClusters is expected: the CAPA in those payloads has no AWSMachineTemplate controller (only AWSCluster/AWSMachine/AWSMachinePool start). From 4.21 CAPA populates capacity. Older versions rely on the HO scale-from-zero fallback ([OCPBUGS-99759](https://redhat.atlassian.net/browse/OCPBUGS-99759)). If templates on ≥4.21 HostedClusters show empty capacity, reopen with the HC version and capi-provider logs.\n\n4.18: https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-hypershift-release-4.18-periodics-e2e-aws-ovn/2108292529538469888\n\n4.21: https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-hypershift-release-4.21-periodics-e2e-aws-ovn/2108317632322080768\n\nrefine:v1 outcome=CLOSE"
+        }
+      ],
+      "changelog": [
+        {
+          "created": "2026-07-24T21:28:23+00:00",
+          "author": "bug-reporter",
+          "items": [
+            {
+              "field": "description",
+              "from": "(earlier draft)",
+              "to": "(current description)"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-24T21:28:37+00:00",
+          "author": "bug-reporter",
+          "items": [
+            {
+              "field": "Component",
+              "from": null,
+              "to": "HyperShift"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-28T15:49:01+00:00",
+          "author": "triage-engineer",
+          "items": [
+            {
+              "field": "Component",
+              "from": "Cluster Autoscaler",
+              "to": null
+            }
+          ]
+        },
+        {
+          "created": "2026-08-06T01:20:38+00:00",
+          "author": "automation-bot",
+          "items": [
+            {
+              "field": "Activity Type",
+              "from": null,
+              "to": "Quality / Stability / Reliability"
+            }
+          ]
+        },
+        {
+          "created": "2026-10-19T10:52:46+00:00",
+          "author": "ship-help-jira",
+          "items": [
+            {
+              "field": "labels",
+              "from": "CAPA cluster-autoscaler hypershift scale-from-zero",
+              "to": "CAPA cluster-autoscaler hypershift need-human-analysis refined-by-agent scale-from-zero"
+            }
+          ]
+        },
+        {
+          "created": "2026-10-19T10:53:45+00:00",
+          "author": "ship-help-jira",
+          "items": [
+            {
+              "field": "labels",
+              "from": "CAPA cluster-autoscaler hypershift need-human-analysis refined-by-agent scale-from-zero",
+              "to": "CAPA cluster-autoscaler hypershift issue-for-agent need-human-analysis refined-by-agent scale-from-zero"
+            }
+          ]
+        },
+        {
+          "created": "2026-10-19T12:01:04+00:00",
+          "author": "prow-bot",
+          "items": [
+            {
+              "field": "RemoteWorkItemLink",
+              "from": null,
+              "to": "openshift/hypershift#10030: OCPBUGS-99760: Investigate AWS template ownership (diagnostic placeholder)"
+            }
+          ]
+        },
+        {
+          "created": "2026-10-20T09:42:33+00:00",
+          "author": "hypershift-maintainer",
+          "items": [
+            {
+              "field": "status",
+              "from": "New",
+              "to": "Closed"
+            },
+            {
+              "field": "resolution",
+              "from": null,
+              "to": "Not a Bug"
+            }
+          ]
+        },
+        {
+          "created": "2026-10-20T09:42:39+00:00",
+          "author": "hypershift-maintainer",
+          "items": [
+            {
+              "field": "labels",
+              "from": "CAPA cluster-autoscaler hypershift issue-for-agent need-human-analysis refined-by-agent scale-from-zero",
+              "to": "CAPA cluster-autoscaler hypershift issue-for-agent refined-by-agent scale-from-zero"
+            }
+          ]
+        }
+      ]
+    },
+    "OCPBUGS-100300": {
+      "key": "OCPBUGS-100300",
+      "browse_url": "https://redhat.atlassian.net/browse/OCPBUGS-100300",
+      "summary": "CAPI worker MachineSet missing scale from zero annotations",
+      "issue_type": "Bug",
+      "status": "Closed",
+      "resolution": "Not a Bug",
+      "priority": "Undefined",
+      "severity": null,
+      "components": [
+        "Installer / openshift-installer"
+      ],
+      "versions": [
+        "5.0"
+      ],
+      "fixVersions": [],
+      "labels": [
+        "Apotheosis"
+      ],
+      "created": "2026-07-30T17:17:00+00:00",
+      "updated": "2026-08-21T13:25:36+00:00",
+      "reporter": "capi-engineer",
+      "assignee": null,
+      "description": "On AWS TechPreviewNoUpgrade clusters where workers are provisioned via CAPI instead of MAPI, the installer does not stamp the cluster-autoscaler scale-from-zero capacity annotations (e.g. `capacity.cluster-autoscaler.kubernetes.io/labels`) onto the CAPI worker MachineSet it creates. The equivalent MAPI worker MachineSet, on a standard (non-CAPI-default) cluster, does carry these annotations. Without them, cluster-autoscaler cannot determine node capacity/architecture for a CAPI worker MachineSet scaled to zero replicas.\n\n### Example: MAPI worker MachineSet (has the annotations)\n\nJob: `pull-ci-openshift-installer-main-e2e-azure-nat-gateway-single-zone` — [spyglass link](https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_installer/10684/pull-ci-openshift-installer-main-e2e-azure-nat-gateway-single-zone/2082756741304422400)\n\n```json\n{\n  \"annotations\": {\n    \"capacity.cluster-autoscaler.kubernetes.io/labels\": \"kubernetes.io/arch=amd64\",\n    \"machine.openshift.io/GPU\": \"0\",\n    \"machine.openshift.io/memoryMb\": \"16384\",\n    \"machine.openshift.io/vCPU\": \"4\"\n  },\n  \"creationTimestamp\": \"2026-07-30T10:19:45Z\",\n  \"generation\": 1,\n  \"labels\": {\n    \"machine.openshift.io/cluster-api-cluster\": \"ci-op-xi1igdb1-8112b-5l5rx\",\n    \"machine.openshift.io/cluster-api-machine-role\": \"worker\",\n    \"machine.openshift.io/cluster-api-machine-type\": \"worker\",\n    \"machineconfiguration.openshift.io/osstream\": \"rhel-10\"\n  },\n  \"name\": \"ci-op-xi1igdb1-8112b-5l5rx-worker-westus\",\n  \"namespace\": \"openshift-machine-api\",\n  \"resourceVersion\": \"31828\",\n  \"uid\": \"82ee3c1c-25c5-4001-90df-c683bffbfd5f\"\n}\n```\n\n### Example: CAPI worker MachineSet (missing the annotations)\n\nJob: `pull-ci-openshift-installer-main-e2e-aws-ovn-dualstack-ipv4-primary-techpreview` — [spyglass link](https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_installer/10717/pull-ci-openshift-installer-main-e2e-aws-ovn-dualstack-ipv4-primary-techpreview/2082474822729732096)\n\n```json\n{\n  \"creationTimestamp\": \"2026-07-29T15:55:45Z\",\n  \"finalizers\": [\n    \"cluster.x-k8s.io/machineset\"\n  ],\n  \"generation\": 1,\n  \"labels\": {\n    \"cluster.x-k8s.io/cluster-name\": \"ci-op-jy180yfq-73c27-xvq7m\",\n    \"machineconfiguration.openshift.io/osstream\": \"rhel-10\"\n  },\n  \"name\": \"ci-op-jy180yfq-73c27-xvq7m-worker-us-east-1c\",\n  \"namespace\": \"openshift-cluster-api\",\n  \"ownerReferences\": [\n    {\n      \"apiVersion\": \"cluster.x-k8s.io/v1beta2\",\n      \"kind\": \"Cluster\",\n      \"name\": \"ci-op-jy180yfq-73c27-xvq7m\",\n      \"uid\": \"f5f7ae92-d114-41d1-afc1-f02535628957\"\n    }\n  ],\n  \"resourceVersion\": \"51340\",\n  \"uid\": \"f4fd064a-db1d-4d13-9c2a-bcbe28d0dcb9\"\n}\n\n(metadata.annotations: null; spec.template.metadata.annotations: null)\n```\n\nNote the CAPI MachineSet has no `metadata.annotations` at all, unlike the MAPI equivalent.\n",
+      "issue_links": [
+        {
+          "type": "is related to",
+          "key": "OCPBUGS-99759"
+        }
+      ],
+      "remote_links": [],
+      "comments": [
+        {
+          "id": "17936435",
+          "author": "capi-engineer",
+          "created": "2026-08-10T15:11:46+00:00",
+          "body": "See discussion in the team Slack thread (internal link removed).\n\nThis is NOTABUG because it is CAPA’s responsibility to add this metadata. I misunderstood this feature when I opened this bug."
+        }
+      ],
+      "changelog": []
+    },
+    "CIPOE-100001": {
+      "key": "CIPOE-100001",
+      "browse_url": "https://redhat.atlassian.net/browse/CIPOE-100001",
+      "summary": "Customer account (anonymized)",
+      "issue_type": "Epic",
+      "status": "New",
+      "resolution": null,
+      "priority": "Undefined",
+      "labels": [],
+      "issue_links": [
+        {
+          "type": "account is impacted by",
+          "key": "OCPBUGS-99759"
+        }
+      ],
+      "description": "Customer account record. Account details are anonymized in this fixture.",
+      "comments": [],
+      "changelog": []
+    }
+  }
+}

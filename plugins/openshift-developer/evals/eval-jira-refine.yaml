@@ -3,7 +3,8 @@ description: >
   Evaluate jira-refine dispositions against a stubbed Jira. Each case serves a
   frozen issue snapshot through a local MCP stub, so no real Jira is read or
   written. Judges score the disposition, the Jira writes the skill made against
-  the stub, and the quality of the root-cause analysis.
+  the stub, the quality of the root-cause analysis, and for SOLVE the refined
+  description.
 
 execution:
   mode: case
@@ -105,6 +106,9 @@ dataset:
       - 'required_labels', 'preserved_labels', 'removed_labels'
       - 'max_comment_chars': upper bound for the refinement comment
       - 'ground_truth': the verified analysis the LLM judges compare against
+      - 'reference_description' (SOLVE cases): a file in the case directory
+        holding the description a verified refinement saved; the harness
+        loads it for the LLM judges and never copies it into the workspace
 
 outputs:
   - path: "output"
@@ -165,8 +169,9 @@ judges:
   - name: jira_writes_follow_disposition
     description: >
       Verify the Jira writes against the stub: one marker comment, the CLOSE
-      transition and resolution before labels, refined-by-agent added, no
-      description, priority, severity, or assignee edits, and no other issue touched
+      transition and resolution before labels, the SOLVE description before
+      the comment, refined-by-agent added, no priority, severity, or assignee
+      edits, no description edits outside SOLVE, and no other issue touched
     check: |
       import json, re
       ann = outputs.get("annotations", {})
@@ -196,8 +201,11 @@ judges:
       if outcome != expected:
           return (False, f"Marker outcome={outcome}, expected {expected}")
       def fields_of(call):
-          f = call["args"].get("fields")
-          return json.loads(f) if isinstance(f, str) else (f or {})
+          merged = {}
+          for name in ("fields", "additional_fields"):
+              f = call["args"].get(name)
+              merged.update(json.loads(f) if isinstance(f, str) else (f or {}))
+          return merged
       updates = [c for c in writes if c["tool"] == "jira_update_issue"]
       forbidden = {"priority", "severity", "assignee"}
       if expected != "SOLVE":
@@ -222,6 +230,16 @@ judges:
               return (False, "Writes out of order: expected comment, then close, then labels")
       elif transitions:
           return (False, f"Unexpected transition for {expected}")
+      if expected == "SOLVE":
+          described = [c for c in updates if "description" in fields_of(c)]
+          if not described:
+              return (False, "SOLVE without a description update")
+          # The refinement, plus at most one readiness correction after the comment.
+          if len(described) > 2:
+              return (False, f"{len(described)} description updates")
+          order = [calls.index(described[0]), calls.index(marked[0]), calls.index(label_writes[-1])]
+          if order != sorted(order):
+              return (False, "Writes out of order: expected description, then comment, then labels")
       missing = [l for l in ann.get("required_labels", []) if l not in issue["labels"]]
       if missing:
           return (False, f"Missing labels: {missing}")
@@ -280,6 +298,33 @@ judges:
       if len(body) > limit or len(lines) > 15:
           return (False, f"Comment is {len(body)} chars / {len(lines)} lines (limit {limit} / 15)")
       return (True, f"Comment is {len(body)} chars / {len(lines)} lines")
+
+  - name: solve_description_ready
+    description: >
+      For SOLVE, verify the saved description passes the REQUIRED section
+      checks of jira:ready-to-solve (Context, Acceptance Criteria, Technical
+      Details)
+    if: "annotations.get('expected_disposition') == 'SOLVE'"
+    check: |
+      import importlib.util, json
+      from pathlib import Path
+      ann = outputs.get("annotations", {})
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      states = [v for k, v in files.items() if k.endswith("jira-state.json")]
+      if not states:
+          return (False, "No jira-state.json")
+      description = json.loads(states[0])["issues"][ann["issue_key"]].get("description") or ""
+      script = Path("plugins/jira/skills/ready-to-solve/scripts/check_sections.py")
+      if not script.is_file():
+          return (False, f"{script} not found; run the eval from the repository root")
+      spec = importlib.util.spec_from_file_location("check_sections", script)
+      sections = importlib.util.module_from_spec(spec)
+      spec.loader.exec_module(sections)
+      failed = [c["id"] for c in sections.run_checks(description)["checks"]
+                if c["severity"] == "REQUIRED" and not c["passed"]]
+      if failed:
+          return (False, f"Saved description fails readiness checks: {failed}")
+      return (True, f"Saved description passes readiness checks ({len(description)} chars)")
 
   # ── LLM judges ──
 
@@ -340,7 +385,51 @@ judges:
       Score 5: Everything in 4, and a maintainer could act on it without
                opening anything else.
 
+  - name: solve_description_quality
+    description: Does the saved SOLVE description carry the verified diagnosis, fix, and plan?
+    if: "annotations.get('expected_disposition') == 'SOLVE'"
+    score_range: [1, 5]
+    prompt: |
+      You are grading the description a Jira bug refinement saved for a SOLVE
+      disposition. Compare it with the verified ground truth and with the
+      reference description a verified refinement saved for the same issue.
+
+      Jira calls the run made against the stub (jira-calls.jsonl). The last
+      jira_update_issue call that sets description is the saved description:
+      {% for path, content in outputs.files.items() if path.endswith('jira-calls.jsonl') %}
+      {{ content }}
+      {% endfor %}
+
+      Expected outcome, ground truth, and reference description:
+
+      {{ annotations }}
+
+      The run need not match the reference's wording, structure, or CI
+      details. Grade whether a developer could implement and validate the
+      right fix from the saved description alone.
+
+      Score 1: No description was saved, or it repeats the ticket's diagnosis
+               and fix (replace the legacy keys with the CAPI keys).
+      Score 2: A partial or additive plan that keeps a material error: it
+               claims every listed release ignores the legacy keys, drops the
+               legacy keys, or writes CAPI memory as a bare integer.
+      Score 3: The additive dual-key fix for openshift/hypershift main with
+               acceptance criteria, but it misses two or more of: Mi memory
+               units, GPU count plus type, removal of both key families when
+               native capacity appears or the provider is disabled, and the
+               version-scoped correction of the older-release claim.
+      Score 4: The additive fix with Mi memory units, GPU count plus type,
+               cleanup that keeps labels and taints, testable acceptance
+               criteria, validation that exercises the fallback with native
+               capacity absent, and the version-scoped correction.
+      Score 5: Everything in 4, plus per-release status (reported, confirmed,
+               inferred, unknown) backed by source or payload evidence, the
+               risk that annotations override native status, and no
+               overclaiming of affected or fixed releases.
+
 thresholds:
+  # Both current cases expect CLOSE. Restore thresholds for the conditional
+  # SOLVE-only judges when adding a case that expects SOLVE.
   result_json_valid:
     min_pass_rate: 1.0
   disposition_correct:

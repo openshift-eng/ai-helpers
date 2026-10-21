@@ -73,9 +73,10 @@ Analyze links of CI failures if provided to prove veracity of the report.
 Use tools like oc adm to track down specific images and source code running on specific releases.
 Exercise the relevant persistence or controller behavior, including a control that distinguishes the suspected trigger from normal behavior. Record the revision, command, result, and limitations.
 
-Before choosing NEEDS_INFO, investigate relevant public CI artifacts and release payloads, including representative runs when the issue supplies no links. Establish whether the symptom is expected for the reported versions and identify existing fallback behavior. When that evidence supports expected behavior, close the scoped report with precise conditions for reopening. Keep unrelated findings separate.
-
-Use NEEDS_INFO only for facts that remain external after feasible investigation. Distinguish reproducing a defect mechanism from proving it caused the reported deployment’s failure. Temporary diagnostics do not authorize implementing a product fix.
+Before choosing NEEDS_INFO, investigate relevant public CI artifacts and release payloads, including representative runs when the issue supplies no links. Establish whether the symptom is expected for the reported versions and identify existing fallback behavior.
+When that evidence supports expected behavior, close the scoped report with precise conditions for reopening. Keep unrelated findings separate.
+If disproving the proposed root cause does not disproves the reported incident and you can prove a different root cause, then choose SOLVE with your proposed solution.
+If disproving the proposed root cause does not necessarily disproves the reported incident but you can not prove a different root cause, then choose CLOSE the scoped report with precise conditions for reopening.
 
 Check for a saved assessment and unfinished writes first (`NO_ACTION` and
 `REPAIRED` below), then run the stale check below; a stale issue is `CLOSE`
