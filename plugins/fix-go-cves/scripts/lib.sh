@@ -2680,7 +2680,7 @@ _fix_fv_package() {
       fi
     fi
   fi
-  local _fp_output
+  local _fp_output reason
   _fp_output=$(CVE_FIX_ALL_VERSIONS="${all_fix_versions}" \
     CVE_FIX_REQUIREMENTS_B64="${requirements_b64}" \
     bash "$script_dir/fix-package.sh" "$state_file" "$pkg" "$version" \
@@ -2688,7 +2688,12 @@ _fix_fv_package() {
   [[ -n "$_fp_output" ]] && echo "$_fp_output"
 
   if [[ $fix_rc -eq 2 ]]; then
-    echo "  NEEDS_REVIEW: $pkg — deterministic fix reached a policy boundary"
+    reason=$(awk -v prefix="NEEDS_REVIEW: $pkg — " '
+      index($0, prefix) == 1 { print substr($0, length(prefix) + 1); exit }
+    ' <<< "$_fp_output")
+    [[ -n "$reason" ]] || reason="fix-package.sh exited 2; inspect fix output"
+    echo "  NEEDS_REVIEW: $pkg — $reason"
+    printf '%s\t%s\n' "$sentinel_key" "$reason" >> "$report_dir/needs-review-reasons"
     echo "$sentinel_key" >> "$nr_file"
     return 2
   elif [[ $fix_rc -eq 3 ]]; then
@@ -2698,10 +2703,12 @@ _fix_fv_package() {
   elif [[ $fix_rc -eq 4 ]]; then
     # Lookup failure does not establish no-fix status for any advisory.
     if [[ "$_fp_output" == *INCOMPATIBLE_MAJOR* ]]; then
-      echo "  NEEDS_REVIEW: $pkg — incompatible major version bump (module path changed)"
+      reason="incompatible major version bump (module path changed)"
     else
-      echo "  NEEDS_REVIEW: $pkg — selected fix $version is unavailable at the current module path; verify advisory version mapping or alternative fixes"
+      reason="selected fix $version is unavailable at the current module path; verify advisory version mapping or alternative fixes"
     fi
+    echo "  NEEDS_REVIEW: $pkg — $reason"
+    printf '%s\t%s\n' "$sentinel_key" "$reason" >> "$report_dir/needs-review-reasons"
     echo "$sentinel_key" >> "$nr_file"
     return 4
   elif [[ $fix_rc -eq 124 ]]; then
@@ -2972,10 +2979,10 @@ subagent_fix_scan_regression() {
     _current_scan="$_dispatch_scan"
   fi
 
-  # Packages that fix-package.sh returned exit 2 for (a builder, Kubernetes,
-  # module-scope, or common-fix-stream policy boundary). Retained for the final
-  # summary. Retry any NEW/UNRESOLVED evidence still dispatched here: a prior
-  # policy decision must never exempt a newly introduced vulnerability.
+  # Packages requiring review after a policy rejection or an unverifiable fix
+  # (for example, failed scans or builds). Retained for the final summary.
+  # Retry any NEW/UNRESOLVED evidence still dispatched here: a prior rejection
+  # must never exempt a newly introduced vulnerability.
   local nr_file="$report_dir/needs-review-pkgs"
   # Packages that fix-package.sh returned exit 3 for (CVE persists after update —
   # likely a missed replace directive). Retain the classification while retrying

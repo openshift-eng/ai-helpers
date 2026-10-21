@@ -4229,6 +4229,91 @@ check "repos.yaml git-ignored" git -C "$SCRIPT_DIR/.." check-ignore -q repos.yam
 # reviewers into converting to fix-state: not-fixed instead of fixing the package).
 echo "existing-entries FIX-AVAILABLE output"
 
+# Verification subprocesses must keep the actual reason for the final Summary.
+echo "verification rejection reasons retain package and module identity"
+FVR="$TMPD/fv-reasons"; mkdir -p "$FVR/scripts" "$FVR/reports"
+printf '{"matches":[],"ignoredMatches":[]}\n' > "$FVR/scan.json"
+cat > "$FVR/scripts/fix-package.sh" <<'SH'
+#!/usr/bin/env bash
+source "$1"
+echo 'NEEDS_REVIEW: exampleXcom/reason — unrelated package diagnostic'
+echo 'NEEDS_REVIEW: example.com/reason/other — unrelated package diagnostic'
+[[ -z "$FV_REASON" ]] || printf 'NEEDS_REVIEW: example.com/reason — %s\n' "$FV_REASON"
+exit "$FV_RC"
+SH
+# Execute the real parent folding block, rather than copying its behavior.
+sed -n '/^if \[\[ -f "\$SUBAGENT_REPORT_DIR\/needs-review-pkgs"/,/^fi$/p' \
+  "$SCRIPT_DIR/fix-all.sh" > "$FVR/fold.sh"
+for _fv_case in build scan policy missing unavailable incompatible; do
+  _fv_expected_rc=2
+  case "$_fv_case" in
+    build) _fv_scope=/go.mod; _fv_reason='project build failed after dependency update (exit 1)' ;;
+    scan) _fv_scope=/tools/go.mod; _fv_reason='source scan could not verify dependency update' ;;
+    policy) _fv_scope=/api/go.mod; _fv_reason='selected fix crosses a major version: v1 to v2' ;;
+    missing) _fv_scope=/other/go.mod; _fv_reason='' ;;
+    unavailable) _fv_scope=/unavailable/go.mod; _fv_reason=''; _fv_expected_rc=4 ;;
+    incompatible) _fv_scope=/incompatible/go.mod; _fv_reason=INCOMPATIBLE_MAJOR; _fv_expected_rc=4 ;;
+  esac
+  printf 'REPO=%q\nFV_REASON=%q\nFV_RC=%q\n' "$FVR" "$_fv_reason" "$_fv_expected_rc" > "$FVR/state.env"
+  _fv_rc=0
+  (source "$SCRIPT_DIR/lib.sh"; REPO="$FVR"; CVE_FIX_SCAN_JSON="$FVR/scan.json"
+   _fix_fv_package "$FVR/state.env" "$FVR/reports" "$FVR/scripts" stale \
+     example.com/reason 1.1.0 "$_fv_scope" GO-2099-0001
+  ) > "$FVR/$_fv_case.log" 2>&1 || _fv_rc=$?
+  check "$_fv_case verification rejection retains its exit code" test "$_fv_rc" -eq "$_fv_expected_rc"
+  check "$_fv_case verification rejection retains exact scope key" \
+    grep -qxF "example.com/reason|$_fv_scope" "$FVR/reports/needs-review-pkgs"
+done
+SUBAGENT_REPORT_DIR="$FVR/reports"
+FIX_LINES=('NEEDS_REVIEW: example.com/reason — earlier module reason at /already/go.mod')
+UNSEEN_NEEDS_REVIEW=false
+source "$FVR/fold.sh"
+_fv_summary=$(printf '%s\n' "${FIX_LINES[@]}")
+check "verification build failure stays a build failure in final outcomes" grep -qxF \
+  'NEEDS_REVIEW: example.com/reason — project build failed after dependency update (exit 1) at /go.mod' <<< "$_fv_summary"
+check "verification scan failure stays a scan failure in its sibling module" grep -qxF \
+  'NEEDS_REVIEW: example.com/reason — source scan could not verify dependency update at /tools/go.mod' <<< "$_fv_summary"
+check "verification policy boundary retains the actual policy decision" grep -qxF \
+  'NEEDS_REVIEW: example.com/reason — selected fix crosses a major version: v1 to v2 at /api/go.mod' <<< "$_fv_summary"
+check "missing verification diagnostic has a neutral final reason" grep -qxF \
+  'NEEDS_REVIEW: example.com/reason — fix-package.sh exited 2; inspect fix output at /other/go.mod' <<< "$_fv_summary"
+check "verification unavailable version preserves exit-4 diagnosis" grep -qxF \
+  'NEEDS_REVIEW: example.com/reason — selected fix 1.1.0 is unavailable at the current module path; verify advisory version mapping or alternative fixes at /unavailable/go.mod' <<< "$_fv_summary"
+check "verification incompatible module preserves its distinct exit-4 diagnosis" grep -qxF \
+  'NEEDS_REVIEW: example.com/reason — incompatible major version bump (module path changed) at /incompatible/go.mod' <<< "$_fv_summary"
+check "verification reasons never borrow another package diagnostic" ! grep -q 'unrelated package' <<< "$_fv_summary"
+check "verification reason fold preserves an earlier sibling outcome" grep -qxF \
+  'NEEDS_REVIEW: example.com/reason — earlier module reason at /already/go.mod' <<< "$_fv_summary"
+check "verification reason fold still blocks a clean result" test "$UNSEEN_NEEDS_REVIEW" = true
+check "verification failures never invent approval in final outcomes" \
+  ! grep -q 'team approval\|policy boundary' <<< "$_fv_summary"
+# A later attempt for the same exact key supersedes only that key's reason.
+printf 'REPO=%q\nFV_REASON=%q\nFV_RC=2\n' "$FVR" 'updated root failure' > "$FVR/state.env"
+(source "$SCRIPT_DIR/lib.sh"; REPO="$FVR"; CVE_FIX_SCAN_JSON="$FVR/scan.json"
+ _fix_fv_package "$FVR/state.env" "$FVR/reports" "$FVR/scripts" stale \
+   example.com/reason 1.1.0 /go.mod GO-2099-0001
+) > "$FVR/repeated.log" 2>&1 || true
+FIX_LINES=()
+source "$FVR/fold.sh"
+check "latest reason replaces only the same exact scope" grep -qxF \
+  'NEEDS_REVIEW: example.com/reason — updated root failure at /go.mod' <<< "$(printf '%s\n' "${FIX_LINES[@]}")"
+# Legacy keys and other exit codes may have no recorded reason at all.
+[[ ! -f "$FVR/reports/needs-review-reasons" ]] || mv "$FVR/reports/needs-review-reasons" "$FVR/reports/recorded-reasons"
+FIX_LINES=()
+source "$FVR/fold.sh"
+check "missing reason file stays neutral without guessing an exit or approval" test \
+  "$(printf '%s\n' "${FIX_LINES[@]}" | sort -u)" = \
+  "$(printf 'NEEDS_REVIEW: example.com/reason — deterministic fix requires review; inspect fix output at %s\n' \
+    /go.mod /tools/go.mod /api/go.mod /other/go.mod /unavailable/go.mod /incompatible/go.mod | sort)"
+
+# A truncated record without its separator is absent evidence, not a reason.
+_fv_missing_summary=$(printf '%s\n' "${FIX_LINES[@]}" | sort -u)
+printf 'example.com/reason|/go.mod\n' > "$FVR/reports/needs-review-reasons"
+FIX_LINES=()
+source "$FVR/fold.sh"
+check "truncated reason record uses the same neutral fallback" test \
+  "$(printf '%s\n' "${FIX_LINES[@]}" | sort -u)" = "$_fv_missing_summary"
+
 # === exit-124: timeout(1) kill → TIMEOUT (timeout_file not nr_file); retryable ===
 # _fix_fv_package must NOT skip the package on next verify_fix_loop iteration.
 echo "  exit-124 classification: functional test"

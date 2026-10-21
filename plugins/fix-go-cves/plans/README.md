@@ -41,7 +41,7 @@ identity in the body and preserving ignore reasons for existing summaries.
 Audit completeness and removal of model verification are implemented. All four
 audits gate verification and repair dispatch; shared helpers for `review.sh` and
 scanner retries remain. Fix report validation and scanner deadlines separately.
-Address failure reasons and inherited ignores separately. Keep these independent of the replay pilot:
+Address inherited ignores separately. Keep these independent of the replay pilot:
 historical scripts cannot validate today's runtime fixes. Broader Go-minor
 policy needs a decision before changing its behavior.
 
@@ -70,12 +70,10 @@ policy needs a decision before changing its behavior.
 
 ## Correctness
 
-- **Preserve failure reasons.** `_fix_fv_package` classifies every exit 2
-  as a policy boundary, including failed scans and builds; the review prompt
-  also makes every `UNRESOLVED` reason end in "(need team input)". Preserve
-  the actual cause through verification and reporting. Subctl's leftover
-  `bin/lichen` blocked scans; it did not establish that the bumps needed
-  approval. Distinguish a rerun remedy from a compatibility or policy decision.
+- **Failure reasons preserved.** Verification carries available exit-2
+  diagnostics and existing exit-4 registry reasons into package/module summaries.
+  Missing reasons stay neutral; failed scans and builds no longer imply team
+  approval.
 - **Accurate regression labels.** Label scan-regression ignores by cause;
   findings exposed by an ignore removal are not dependency regressions.
 - **OpenShift builder evidence.** Image configuration and Dockerfile tags

@@ -706,8 +706,8 @@ _EVIDENCE_VERIFY_STATUS=completed
 
 # Surface packages classified by fix functions during verify loop that are NOT
 # visible via the main fix loop (e.g. fix-state: not-fixed entries in .grype.yaml
-# that fix-availability.sh found a version for, but fix-package.sh moved to a
-# deterministic policy review). These don't appear in the scan, so the final
+# that fix-availability.sh found a version for, but fix-package.sh could not
+# verify or accept). These don't appear in the scan, so the final
 # gate won't flag them — append them to FIX_LINES explicitly.
 if [[ -f "$SUBAGENT_REPORT_DIR/needs-review-pkgs" ]]; then
   while IFS= read -r _sentinel; do
@@ -719,7 +719,12 @@ if [[ -f "$SUBAGENT_REPORT_DIR/needs-review-pkgs" ]]; then
     # Skip if main loop already added this package (scan-visible packages get a
     # NEEDS_REVIEW line from fix-package.sh exit 2 during the deterministic phase)
     if ! printf '%s\n' "${FIX_LINES[@]+"${FIX_LINES[@]}"}" | package_outcome_exists NEEDS_REVIEW "$_pkg" "$_scope_loc"; then
-      FIX_LINES+=("NEEDS_REVIEW: $_pkg — deterministic fix reached a policy boundary (team approval needed)$_scope")
+      _reason=$(awk -F '\t' -v key="$_sentinel" '
+        $1 == key && NF > 1 { reason=substr($0, index($0, "\t") + 1) }
+        END { print reason }
+      ' "$SUBAGENT_REPORT_DIR/needs-review-reasons" 2>/dev/null || true)
+      [[ -n "$_reason" ]] || _reason="deterministic fix requires review; inspect fix output"
+      FIX_LINES+=("NEEDS_REVIEW: $_pkg — $_reason$_scope")
       UNSEEN_NEEDS_REVIEW=true
     fi
   done < "$SUBAGENT_REPORT_DIR/needs-review-pkgs"
