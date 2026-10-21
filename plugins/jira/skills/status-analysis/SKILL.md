@@ -381,13 +381,24 @@ The Status Summary field (`customfield_10814`) requires an ADF JSON document —
   * Risk 1 (or "None at this time")
 ```
 
-This is a draft format for callers that explicitly supply a verified
-Markdown-to-ADF converter before REST API v3 writes. The draft is not a valid
-direct value for `customfield_10814`; `contentFormat: "markdown"` does not convert
-custom field values. Use `ryg_field` for native ADF JSON by default. Stop if a
-requested Markdown draft has no supported conversion path. Follow the PR-link
-and list rules in `formatting.md`, then validate the converted ADF and preserve
-raw ADF history as required by the loaded project conventions.
+This is a draft format for external clients, not a plugin-provided conversion
+path. This plugin **does not bundle or perform Markdown-to-ADF conversion**.
+The public reference is Herald at `54b490c`, whose `_text_to_adf` uses
+`pyadf.Document.from_markdown(text).to_adf()` with pinned `pyadf==0.5.2`;
+see [source links, constraints and structural gates in formatting.md](formatting.md#external-consumer-and-conversion-boundary).
+Before PUT, the external client must validate the converted new entry against
+all [native ADF checks](formatting.md#ryg_field-validation), then retain raw ADF
+history as the project requires. Herald's whole-field replacement/readback path
+is not a structural validator or an ARO raw-history-prepend guarantee. Its
+permissive validator does not relax the canonical draft grammar.
+
+The draft is not a valid direct value for `customfield_10814`;
+`contentFormat: "markdown"` does not convert custom field values. Use native
+`ryg_field` by default. Never improvise conversion; stop if the external client
+lacks a supported converter, validation or required history-preservation path.
+The qualified Markdown PR-link rule applies only to this draft, not the native
+ADF examples. Preserve non-PR/unknown references and unrelated evidence as
+described in `formatting.md`.
 
 **For `feature_markdown` (generate-feature-updates)**:
 

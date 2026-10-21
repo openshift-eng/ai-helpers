@@ -20,7 +20,9 @@ Four output formats are supported:
 
 **Important**: When posting comments via `addCommentToJiraIssue` or updating descriptions via `editJiraIssue`, always include `contentFormat: "markdown"`.
 
-For Markdown output formats, render PR references as `[owner/repo#number](PR_URL)` using the repository and URL present in the evidence. Do not emit bare `#number` or shorthand `repo#number` references, or print a raw PR URL in parentheses; the URL belongs in the Markdown link target. Do not invent a repository or URL when the evidence lacks one.
+The qualified PR-link rules below apply only to the opt-in `ryg_field_markdown`
+draft, not native `ryg_field` or the other formats. Native ADF logical-content
+examples remain unchanged; this option does not add a new ADF link-mark requirement.
 
 ## Format: markdown_comment
 
@@ -100,7 +102,7 @@ Used by `/jira:status-rollup` to post a comprehensive status comment to a Jira i
 ### This Period
 
 **Completed:**
-1. [AUTH-101](https://redhat.atlassian.net/browse/AUTH-101) - OAuth2 implementation ([openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456) merged, all review feedback addressed)
+1. [AUTH-101](https://redhat.atlassian.net/browse/AUTH-101) - OAuth2 implementation (PR #456 merged, all review feedback addressed)
 1. [AUTH-102](https://redhat.atlassian.net/browse/AUTH-102) - Token validation with comprehensive unit tests
 
 **In Progress:**
@@ -236,11 +238,46 @@ API v3 writes. It is not a valid direct value for `customfield_10814`.
 `contentFormat: "markdown"` does not convert custom field values. Keep `ryg_field`
 as the default native ADF JSON format; it is not legacy Jira wiki text.
 
-Convert the draft with the caller's supported converter, validate the resulting
-ADF against the `ryg_field` contract, and write the ADF document explicitly.
-Preserve raw ADF history where required by project conventions. If the caller
-cannot provide a supported converter, stop rather than sending draft text to
-Jira or assuming an API option performs conversion.
+### External consumer and conversion boundary
+
+This ai-helpers plugin **does not bundle or perform Markdown-to-ADF conversion**.
+Only external clients with a verified conversion path may opt in; never improvise
+conversion or send the draft string directly as a custom field value.
+
+A public reference is [Herald at `54b490c`](https://github.com/celebdor/herald/tree/54b490c):
+[`src/herald/jira.py::_text_to_adf`](https://github.com/celebdor/herald/blob/54b490c/src/herald/jira.py)
+calls `pyadf.Document.from_markdown(text).to_adf()`, with
+[`pyadf==0.5.2` pinned in `pyproject.toml`](https://github.com/celebdor/herald/blob/54b490c/pyproject.toml).
+Its writer sends an ADF object in `customfield_10814` and verifies the PUT with a
+GET and normalized-ADF comparison. These are source-verified reference behaviors,
+not a claim that this plugin ran pyadf or provides that writer. Readback equality
+does not establish structural compliance with the status-entry contract below.
+
+Herald's [draft validator](https://github.com/celebdor/herald/blob/54b490c/src/herald/validation.py)
+accepts case differences and leading whitespace; it is more permissive than this
+canonical draft grammar, which remains unchanged. Its
+[gatherer](https://github.com/celebdor/herald/blob/54b490c/src/herald/gather.py)
+renders existing ADF to Markdown and its writer replaces the whole field. It is
+an OCPSTRAT-style replacement reference, **not** an ARO raw-history-prepend
+guarantee. An ARO-capable external writer must separately retain original raw
+ADF nodes and prepend the validated new entry as project guidance requires;
+never reconstruct historical ADF from rendered Markdown.
+
+Before a REST API v3 PUT, the external client must convert the draft and validate
+the **new status-entry document** using all [native `ryg_field` checks](#ryg_field-validation):
+
+- A JSON object with `type: "doc"`, `version: 1`, and one top-level `bulletList`.
+- Exactly three `listItem` nodes in that list, in order.
+- First item: `Color Status:` followed by exactly one of `Red`, `Yellow`, `Green`.
+- Second item: `Status summary:` with a nested `bulletList` containing at least one item.
+- Third item: `Risks:` with a nested `bulletList` containing at least one item
+  (use `None at this time` when there are no risks); no empty text nodes.
+
+Then apply required raw-ADF history preservation and write an ADF object, not the
+draft. Stop if conversion, structural validation or required history support is
+unavailable. See selected-format handling in [SKILL.md](SKILL.md#step-5-format-output)
+and the weekly command; the default native ADF construction and history path
+are unchanged.
 
 ### Template
 
@@ -266,11 +303,20 @@ Jira or assuming an API option performs conversion.
 - Render every PR reference as a Markdown link labeled `owner/repo#number`,
   using the repository and URL in the evidence (for example,
   `[openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456)`).
-- Never use a bare `#number` or shorthand `repo#number` PR reference.
+- For confirmed PR references, use qualified labels rather than bare `#number`
+  or shorthand `repo#number`; the evidence URL is the authority for identity.
 - Do not print a raw PR URL in parentheses, such as `Enhancement PR (https://...)`;
   put the URL only in the Markdown link target.
 - Do not infer or fabricate a repository or URL. If the evidence does not identify
   the repository and URL, avoid an ambiguous PR reference.
+- Qualify only references unambiguously identified as PRs by their evidence. Do
+  not transform arbitrary `#N` text, issues, language names or headings. Preserve
+  unknown references and unrelated links; never attach a separate PR URL to
+  unrelated prose. For multiple or mismatched references, request matching
+  evidence rather than guessing repositories or discarding the original meaning.
+- Preserve supplied PR destinations, including query strings, fragments and
+  subpages. A confirmed `/pull/3/files` reference belongs in a Markdown link
+  target; do not fabricate a replacement URL by stripping the subpath.
 - Output only the draft text, with no code fence, preamble, or explanation.
 
 ### Example
@@ -312,7 +358,7 @@ Color circle mapping (from the `color` field in Status Summary):
 5. **No metrics**: No completion percentages, issue counts, or tables
 6. **Cross-references as markdown links**: Reference related issues, PRs, and people inline
 7. **Continuous list**: All entries in one unordered list, no blank lines between items
-8. **PR references**: Use `[owner/repo#N](url)` format when referencing specific PRs
+8. **PR references**: Use `[PR #N](url)` format when referencing specific PRs
 9. **First names for attribution**: Use `author_name` fields (not `author` logins) when attributing contributions. Always use first names, never GitHub handles.
 
 ### Content Guidelines
@@ -330,7 +376,7 @@ Color circle mapping (from the `color` field in Status Summary):
 **Attribution for recognition:**
 
 - Name team members who drove key accomplishments
-- Example: "Thanks to the feature contributor's work on [openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456), the migration path is now fully tested"
+- Example: "Thanks to Contributor A's work on PR #456, the migration path is now fully tested"
 
 **Tone:**
 
@@ -343,14 +389,14 @@ Color circle mapping (from the `color` field in Status Summary):
 - Explain scope changes and their rationale
 - Call out blockers with clear ownership
 - Attribute contributions so team members get recognition
-- Use first names for attribution and explain the contribution, rather than using GitHub handles or ambiguous PR references
+- Use first names for attribution (e.g., "Contributor B's PR #7746" not "contributor-b's PR #7746")
 
 **DON'T**:
 - List every sub-task or minor change
 - Use vague language ("making progress", "ongoing work")
 - Include metrics or completion percentages
 - Use bullet points (prose only)
-- Use GitHub handles. Always use first names from evidence-backed `author_name` fields instead; do not invent contributor identities.
+- Use GitHub handles (e.g., `contributor-b`, `contributor-c`). Always use first names from `author_name` fields instead.
 
 ### Example Outputs
 
@@ -360,9 +406,9 @@ Color circle mapping (from the `color` field in Status Summary):
 - 🟡 [OCPSTRAT-1409](https://issues.redhat.com/browse/OCPSTRAT-1409): Auto backup/restore for Hosted Clusters
     - A bug found in the implementation has highlighted a permission gap that we are going to cover with better UX.
 - 🟢 [OCPSTRAT-1558](https://issues.redhat.com/browse/OCPSTRAT-1558): Shared ingress for HCP
-    - The feature contributor's [openshift/hypershift#7143](https://github.com/openshift/hypershift/pull/7143) landed this week, completing the core shared ingress controller. Integration tests are passing on AWS.
+    - Contributor C's [PR #7143](https://github.com/openshift/hypershift/pull/7143) landed this week, completing the core shared ingress controller. Integration tests are passing on AWS.
 - 🔴 [OCPSTRAT-2100](https://issues.redhat.com/browse/OCPSTRAT-2100): IPv6 support for Hosted Control Planes
-    - Blocked on upstream Kubernetes networking changes expected in 1.32. The implementation owner has prepared the downstream patches and they are ready to go once the dependency lands.
+    - Blocked on upstream Kubernetes networking changes expected in 1.32. Contributor D has prepared the downstream patches and they are ready to go once the dependency lands.
 ```
 
 ### Significant Activity Filter
@@ -525,109 +571,24 @@ def format_ryg_field(issue_data, config):
 
 ### For ryg_field_markdown format
 
-Use each activity record's evidence URL, not an assumed repository. The helper below
-accepts the dictionaries produced by `external-links.md` as well as attribute-style
-records. Only a single unambiguous reference may inherit the record's URL; unsupported
-references are generalized. Inline PR link labels are qualified from their verified
-targets without changing the URL; other links, code, images, and reference
-definitions are preserved. URLs cannot be rewritten as bare references. No external helper or converter is
-required by this draft formatter.
+Produce a draft using the [template and rules](#format-ryg_field_markdown), not a
+regex transformation of activity descriptions. Draft formatting does not perform
+final conversion; the [external client owns it](#external-consumer-and-conversion-boundary).
+The native formatter's existing 3/2/2 selection limits and empty-summary fallback
+predate this draft option; they are not new features of this PR.
 
-```python
-import re
+These documentation cases constrain drafting, not executable rewrite behavior:
 
-
-def markdown_activity_item(item):
-    def field(name):
-        if isinstance(item, dict):
-            return item.get(name, "")
-        return getattr(item, name, "")
-
-    def pr_identity(url):
-        match = re.fullmatch(
-            r"https?://github\.com/([A-Za-z0-9_-]+/[A-Za-z0-9_.-]+)/pull/([1-9][0-9]*)/?(?:[?#][^\s<>\[\]()]*)?",
-            url if isinstance(url, str) else "",
-        )
-        return (match[1], match[2]) if match else None
-
-    def pr_link(url, identity):
-        repository, number = identity
-        return f"[{repository}#{number}]({url})"
-
-    def prose_url(url):
-        target = url or ""
-        if not pr_identity(target) and "?" not in target and "#" not in target:
-            target = target.rstrip(".,;:!)")
-        return target, (url or "")[len(target):], pr_identity(target)
-
-    description = item if isinstance(item, str) else field("description")
-    evidence_url = field("url")
-    evidence = pr_identity(evidence_url)
-    tokens = re.compile(
-        r"(?P<definition>^[ ]{0,3}\[[^\]\n]+\]:[^\n]*)"
-        r"|(?P<protected>(?P<ticks>`+)[^\n]*?(?P=ticks)|<https?://[^<>\n]*>|\[[^\]\n]*\]\[[^\]\n]*\])"
-        r"|(?P<link>!?\[[^\]\n]*\]\((?:[^()\n]|\([^()\n]*\))*\))"
-        r"|(?P<bracket>\[[^\]\n]*\])"
-        r"|(?P<url>https?://[^\s<>\[\]]+)"
-        r"|(?P<reference>(?<![\w/])(?:PR\s+)?(?P<repository>[\w.-]+(?:/[\w.-]+)?)?#(?P<number>[0-9]+)\b)",
-        re.MULTILINE,
-    )
-    matches = list(tokens.finditer(description))
-    references = [match for match in matches if match.group("reference")]
-    links = [match for match in matches
-             if match.group("link") or match.group("protected") or match.group("definition") or match.group("bracket")]
-    linked_prs = [match for match in matches if prose_url(match.group("url"))[2]]
-
-    def replace(match):
-        if match.group("link"):
-            inline = re.fullmatch(
-                r"\[[^\]\n]*\]\([ \t]*(?:<(?P<angle>[^<>\s]+)>|(?P<plain>[^\s<>]+?))"
-                r"(?:[ \t]+(?:\"[^\"\n]*\"|'[^'\n]*'|\([^()\n]*\)))?[ \t]*\)",
-                match[0],
-            )
-            identity = pr_identity(inline.group("angle") or inline.group("plain")) if inline else None
-            if identity:
-                repository, number = identity
-                return f"[{repository}#{number}" + match[0][match[0].index("]("):]
-            return match[0]
-        if match.group("protected") or match.group("definition") or match.group("bracket"):
-            return match[0]
-        target = match.group("url")
-        if target:
-            target, punctuation, identity = prose_url(target)
-            return pr_link(target, identity) + punctuation if identity else match[0]
-        if (evidence and len(references) == 1 and not links and not linked_prs
-                and match.group("number") == evidence[1]
-                and match.group("repository") in (None, evidence[0])):
-            return pr_link(evidence_url, evidence)
-        return "pull request"
-
-    rendered = tokens.sub(replace, description)
-    if evidence and not references and not links and not linked_prs:
-        rendered += f" ({pr_link(evidence_url, evidence)})"
-    return rendered
-
-
-def format_ryg_field_markdown(issue_data, config):
-    output = []
-    health = issue_data.analysis.health.capitalize()  # Green, Yellow, Red
-    output.append(f"* Color Status: {health}")
-    output.append("* Status summary:")
-
-    items = [markdown_activity_item(item) for item in issue_data.analysis.achievements[:3]]
-    items.extend(markdown_activity_item(item) for item in issue_data.analysis.in_progress[:2])
-    if not items:
-        items = ["No status updates this period"]
-    output.extend(f"  * {item}" for item in items)
-
-    output.append("* Risks:")
-    risks = issue_data.analysis.risks[:2]
-    output.extend(f"  * {markdown_activity_item(risk)}" for risk in risks)
-    if not risks:
-        output.append("  * None at this time")
-
-    return "\n".join(output)
-```
+| Evidence and input | Required treatment |
+|---|---|
+| `fixes #12`, no PR evidence | Preserve the unknown reference; do not replace it with "pull request". |
+| `closed #99`, evidence points to `/issues/99` | Preserve the issue reference; it is not a PR. |
+| `ported C#12 code` or `fixed heading #1 in docs` | Preserve language text and heading numbers verbatim. |
+| `#456 and #457 merged`, evidence identifies only PR 456 | Do not assign PR 456's repository or URL to 457; retain meaning and request missing evidence. |
+| `openshift/other#456 merged`, evidence identifies `openshift/hypershift` | Treat as conflicting evidence; do not relabel or generalize away the reference. |
+| `https://github.com/o/r/pull/3/files`, confirmed PR evidence | Render `[o/r#3](https://github.com/o/r/pull/3/files)` without changing the destination. |
+| `docs at https://example.com/x`, unrelated PR URL present separately | Preserve the documentation link; do not append or associate the unrelated PR. |
+| A link on an unrecognized host with no verified PR identity | Preserve it as an unrelated/unknown link, not an inferred GitHub PR. |
 
 ### For feature_markdown format
 

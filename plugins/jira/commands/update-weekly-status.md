@@ -226,9 +226,16 @@ Using the pre-gathered data, apply the activity analysis rules from `activity-an
 ##### c. Generate Status Update
 
 Use `ryg_field` (native ADF JSON) by default. Select `ryg_field_markdown` only
-when a caller explicitly requests a Markdown draft and supplies a verified
-Markdown-to-ADF converter for this field. Follow the selected format's contract
-in `formatting.md`; a Markdown draft is not a valid direct Jira field value.
+when an external caller explicitly requests a draft and owns a verified
+Markdown-to-ADF converter. This plugin **does not bundle or perform conversion**.
+The source-verified reference is
+[Herald `54b490c`, `jira.py::_text_to_adf`](https://github.com/celebdor/herald/blob/54b490c/src/herald/jira.py),
+using `pyadf.Document.from_markdown(text).to_adf()` with pinned `pyadf==0.5.2`.
+Never improvise conversion or send a draft string as the field value. Follow
+[`formatting.md`'s conversion boundary](../skills/status-analysis/formatting.md#external-consumer-and-conversion-boundary)
+and the selected-format contract in `SKILL.md`. Herald's permissive validator
+does not relax the canonical draft grammar; its whole-field replacement writer
+does not implement ARO raw-history prepend.
 
 For `ryg_field`, format the status content as native ADF (Atlassian Document Format) JSON — a nested `bulletList` with three top-level items: Color Status, Status summary (with nested bullet items), and Risks (with nested bullet items). The gathered `issue.current_status_summary` value is the raw ADF document, not Markdown; use the summary script's rendered text only for review, and retain the raw document when project-specific guidance requires history preservation.
 
@@ -301,10 +308,16 @@ Options:
 
 ##### e. Update the Issue
 
-For an explicitly selected `ryg_field_markdown` draft, first convert it with the
-caller's verified Markdown-to-ADF converter and validate the resulting document
-against the native `ryg_field` contract. Stop if no supported converter is
-available. Never pass the draft as a custom field value or assume
+For an explicitly selected `ryg_field_markdown` draft, the external client must
+convert it and validate the new status-entry document **before PUT**: `type: "doc"`,
+`version: 1`, one top-level `bulletList` with exactly three `listItem` nodes;
+`Color Status:` plus exactly one of Red/Yellow/Green first, then `Status summary:`
+and `Risks:` each with a nonempty nested `bulletList`, and no empty text nodes.
+Use all [native validation gates](../skills/status-analysis/formatting.md#ryg_field-validation),
+then apply required raw-ADF history preservation. Stop if conversion, validation,
+or required history support is unavailable. This plugin does not perform that
+conversion; Herald's normalized readback comparison is not a schema validator or
+an ARO history guarantee. Never pass the draft as a custom field value or assume
 `contentFormat: "markdown"` converts it. Apply the same raw ADF history
 preservation rules below to both paths.
 
