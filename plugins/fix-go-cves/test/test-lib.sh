@@ -1084,6 +1084,49 @@ check "versioned long pkg: uses branch short form" bash -c "echo '$VERSIONED_SUB
 check "versioned long pkg: CVE recorded in grype.yaml" grep -q "GHSA-subj-0005" "$SUBJ_REPO/.grype.yaml"
 check "versioned long pkg: commit was created" test "$VERSIONED_COMMIT_AFTER" -gt "$VERSIONED_COMMIT_BEFORE"
 check "versioned long pkg: body contains reason" bash -c "echo '$VERSIONED_BODY' | grep -q 'Needs Go 1.26'"
+check "versioned basename fallback keeps full package in body" grep -qF 'github.com/very-long-github-org/some-package/v3' <<< "$VERSIONED_BODY"
+
+# Long subjects retain their template; complete identity stays in the body.
+printf -- '---\nignore:\n' > "$SUBJ_REPO/.grype.yaml"
+git -C "$SUBJ_REPO" add .grype.yaml; git -C "$SUBJ_REPO" commit -qm reset-subject-containerd
+bash "$SCRIPT_DIR/ignore.sh" "$TMPD/subj.env" github.com/containerd/containerd High "No published fix" \
+  --no-fix --location /tools/go.mod GO-2026-5064 GO-2026-5338 >/dev/null 2>&1
+SUBJ=$(git -C "$SUBJ_REPO" log -1 --format=%s)
+BODY=$(git -C "$SUBJ_REPO" log -1 --format=%b)
+check "containerd no-fix subject <=50" test "${#SUBJ}" -le 50
+check "containerd retains no-fix template" test "$SUBJ" = "Ignore containerd CVEs (no fix available)"
+check "shortened ignore body retains full package" grep -qF 'Full package: github.com/containerd/containerd' <<< "$BODY"
+check "shortened ignore body retains both CVEs" bash -c '[[ "$1" == *GO-2026-5064* && "$1" == *GO-2026-5338* ]]' _ "$BODY"
+check "shortened ignore body retains module" grep -qF 'Module: /tools/go.mod' <<< "$BODY"
+check "shortened ignore body retains reason" grep -qF 'No published fix' <<< "$BODY"
+check "shortened no-fix reason remains available to resume" test "$(git -C "$SUBJ_REPO" log -1 --format=%B | tail -n +3 | head -1)" = 'No published fix'
+LONG_PACKAGE=github.com/example/an-extraordinarily-long-module-name-that-cannot-fit/v3
+bash "$SCRIPT_DIR/ignore.sh" "$TMPD/subj.env" "$LONG_PACKAGE" High "Long leaf reason" \
+  --no-fix GHSA-subject-long >/dev/null 2>&1
+SUBJ=$(git -C "$SUBJ_REPO" log -1 --format=%s)
+check "oversized leaf subject <=50" test "${#SUBJ}" -le 50
+check "oversized leaf retains version and template" grep -qF '.../v3 CVEs (no fix available)' <<< "$SUBJ"
+check "oversized leaf full package remains" grep -qF "$LONG_PACKAGE" <<< "$(git -C "$SUBJ_REPO" log -1 --format=%b)"
+# Same entry with a new state exercises the final Update... override.
+bash "$SCRIPT_DIR/ignore.sh" "$TMPD/subj.env" "$LONG_PACKAGE" High "Updated state reason" \
+  --fix-state unknown GHSA-subject-long >/dev/null 2>&1
+SUBJ=$(git -C "$SUBJ_REPO" log -1 --format=%s)
+BODY=$(git -C "$SUBJ_REPO" log -1 --format=%b)
+check "long update subject <=50" test "${#SUBJ}" -le 50
+check "long update retains update template" grep -qE '^Update .*/v3 CVE ignores$' <<< "$SUBJ"
+check "long update full package remains" grep -qF "$LONG_PACKAGE" <<< "$BODY"
+check "long update reason remains" grep -qF 'Updated state reason' <<< "$BODY"
+
+# A branch containing the original abbreviation cannot hide label shortening.
+git -C "$SUBJ_REPO" checkout -qb release-verylongorg/pkg
+printf 'REPO="%s"\nBRANCH="release-verylongorg/pkg"\nCVE_SCRIPTS="%s"\n' "$SUBJ_REPO" "$SCRIPT_DIR" > "$TMPD/subject-overlap.env"
+bash "$SCRIPT_DIR/ignore.sh" "$TMPD/subject-overlap.env" github.com/verylongorg/pkg High "Branch overlap reason" \
+  --permanent GHSA-subject-overlap >/dev/null 2>&1
+SUBJ=$(git -C "$SUBJ_REPO" log -1 --format=%s)
+BODY=$(git -C "$SUBJ_REPO" log -1 --format=%b)
+check "branch overlap preserves existing short subject" test "$SUBJ" = 'Ignore pkg CVEs (release-verylongorg/pkg)'
+check "branch overlap retains full package in body" grep -qF 'Full package: github.com/verylongorg/pkg' <<< "$BODY"
+check "shortened policy reason remains available to resume" test "$(git -C "$SUBJ_REPO" log -1 --format=%B | tail -n +3 | head -1)" = 'Branch overlap reason'
 
 # === ignore.sh all-duplicates skips commit ===
 echo "ignore.sh all-duplicates"
@@ -5279,6 +5322,28 @@ _fpx_run() {  # name gomod-content [mode]
     bash "$SCRIPT_DIR/fix-package.sh" "$d/st.env" "${FPX_PKG:-example.com/cve-pkg}" "${FPX_VER:-1.1.0}" "${location[@]}" GHSA-fpx-0001 2>&1) && FPX_RC=0 || FPX_RC=$?
   FPX_DIR="$d"
 }
+_fpx_run subject-short $'module x\ngo 1.24.0\nrequire example.com/cve-pkg v1.0.0'
+check "short fix keeps existing subject" test "$(git -C "$FPX_DIR" log -1 --format=%s)" = 'Bump example.com/cve-pkg for GHSA-fpx-0001'
+check "short fix succeeds" test "$FPX_RC" -eq 0
+
+FPX_LOCATION=/tools/go.mod \
+  FPX_SETUP='mkdir tools; printf "module example.com/tools\ngo 1.24.0\nrequire example.com/cve-pkg v1.0.0\n" > tools/go.mod' \
+  _fpx_run subject-fitting-tools $'module x\ngo 1.24.0'
+check "fitting tools fallback succeeds" test "$FPX_RC" -eq 0
+check "fitting tools fallback body stays unchanged" test "$(git -C "$FPX_DIR" log -1 --format=%b | sed '/^Signed-off-by:/,$d' | sed '/^$/d')" = $'Full package: example.com/cve-pkg\nFixes: GHSA-fpx-0001'
+
+FPX_PKG=github.com/distribution/distribution/v3 FPX_VER=3.1.0 FPX_LOCATION=/tools/go.mod \
+  FPX_SETUP='mkdir tools; printf "module example.com/tools\ngo 1.24.0\nrequire github.com/distribution/distribution/v3 v3.0.0\n" > tools/go.mod' \
+  _fpx_run subject-tools $'module x\ngo 1.24.0'
+check "long tools subject fix succeeds" test "$FPX_RC" -eq 0
+SUBJ=$(git -C "$FPX_DIR" log -1 --format=%s)
+BODY=$(git -C "$FPX_DIR" log -1 --format=%b)
+check "distribution tools subject <=50" test "${#SUBJ}" -le 50
+check "distribution tools subject preserves identity and scope" test "$SUBJ" = 'Bump distribution/v3 for CVEs in /tools'
+check "shortened fix body retains package" grep -qF 'Full package: github.com/distribution/distribution/v3' <<< "$BODY"
+check "shortened fix body retains CVE" grep -qF GHSA-fpx-0001 <<< "$BODY"
+check "shortened fix body retains exact module" grep -qF 'Module: /tools/go.mod' <<< "$BODY"
+
 _fpx_run nogo $'module x\n\nrequire example.com/cve-pkg v1.0.0'
 check "module without a go directive can be fixed" test "$FPX_RC" -eq 0
 check "module without a go directive reaches the fix" grep -q 'example.com/cve-pkg v1.1.0' "$FPX_DIR/go.mod"

@@ -1009,6 +1009,11 @@ if ! git diff --staged --quiet 2>/dev/null; then
     FIXES_LINE=$(format_cve_fixes "${CVE_IDS[@]}")
     BODY="Full package: $PACKAGE
 $FIXES_LINE"
+    if [[ ${#SUBJECT} -gt 50 ]]; then
+      ABBREV=$(abbreviate_package "$PACKAGE" "$((50 - ${#SUBJECT} + ${#ABBREV}))")
+      SUBJECT="Bump ${ABBREV} for CVEs${TOOLS_ONLY}"
+      [[ -z "$FIX_LOCATION" ]] || BODY+=$'\n'"Module: $FIX_LOCATION"
+    fi
   fi
   _also_pkg=""
   while IFS='|' read -r _pkg _cve; do

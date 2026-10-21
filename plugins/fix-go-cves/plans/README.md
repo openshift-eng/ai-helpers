@@ -35,6 +35,9 @@ unchanged-set regression rolls back; patch, disabled and absence controls pass.
 Test logging failures now block verification while preserving observed command
 results and successfully saved receipts.
 
+Package-fix and ignore commit subjects now fit 50 characters while retaining full
+identity in the body and preserving ignore reasons for existing summaries.
+
 Audit completeness and removal of model verification are implemented. All four
 audits gate verification and repair dispatch; shared helpers for `review.sh` and
 scanner retries remain. Fix report validation and scanner deadlines separately.

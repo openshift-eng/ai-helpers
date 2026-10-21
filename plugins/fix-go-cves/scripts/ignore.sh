@@ -124,6 +124,7 @@ if git diff --staged --quiet .grype.yaml; then
 fi
 
 ABBREV=$(abbreviate_package "$PACKAGE")
+_SUBJECT_PACKAGE="$ABBREV"
 
 if [[ -n "$FIX_STATE" ]]; then
   SUBJECT="Ignore $ABBREV CVEs (no fix available)"
@@ -131,10 +132,7 @@ else
   SUBJECT="Ignore $ABBREV CVEs incompatible with $BRANCH"
 fi
 
-# The 50-char guideline yields to template compliance: "(no fix available)" and
-# "(incompatible with <branch>)" are required verbatim — truncating them produces
-# non-standard subjects. Long abbreviated package names may push past 50 chars;
-# that is acceptable here since the template form is the priority.
+# Preserve the existing branch-incompatible short forms before bounding the label.
 if [[ ${#SUBJECT} -gt 50 ]] && [[ -z "$FIX_STATE" ]]; then
   # Only the branch-incompatible form has a documented short variant
   SUBJECT="Ignore $ABBREV CVEs ($BRANCH)"
@@ -155,11 +153,28 @@ Updates the existing entries${LOCATION:+, scoped to $LOCATION,} to the fix-state
 Grype reports${FIX_STATE:+ ($FIX_STATE)}."
 fi
 
-git commit -s -m "$(cat <<EOF
-$SUBJECT
+BODY="$REASON"
+if [[ ${#SUBJECT} -gt 50 ]]; then
+  _SUBJECT_PREFIX="Ignore "
+  if [[ "$_UPDATES_EXISTING" == true ]]; then
+    _SUBJECT_PREFIX="Update "; _SUBJECT_SUFFIX=" CVE ignores"
+  elif [[ -n "$FIX_STATE" ]]; then
+    _SUBJECT_SUFFIX=" CVEs (no fix available)"
+  else
+    _SUBJECT_SUFFIX=" CVEs ($BRANCH)"
+  fi
+  _SUBJECT_BUDGET=$((50 - ${#_SUBJECT_PREFIX} - ${#_SUBJECT_SUFFIX}))
+  ABBREV=$(abbreviate_package "$PACKAGE" "$_SUBJECT_BUDGET") || die "Commit subject has no room for a package label"
+  SUBJECT="$_SUBJECT_PREFIX$ABBREV$_SUBJECT_SUFFIX"
+fi
+if [[ "$SUBJECT" != "Ignore $_SUBJECT_PACKAGE "* && "$SUBJECT" != "Update $_SUBJECT_PACKAGE "* ]]; then
+  BODY="$REASON
 
-$REASON
-EOF
-)"
+Full package: $PACKAGE${LOCATION:+
+Module: $LOCATION}
+$(format_cve_fixes "${CVE_IDS[@]}")"
+fi
+
+git commit -s -m "$(printf '%s\n\n%s' "$SUBJECT" "$BODY")"
 
 echo "IGNORED: ${CVE_IDS[*]} ($PACKAGE) — $REASON"

@@ -661,6 +661,21 @@ has_build_target() {
 # sigs.k8s.io/controller-runtime -> controller-runtime
 # k8s.io/* stays as-is
 abbreviate_package() {
+  # Commit callers may bound only the package label, leaving their template intact.
+  if [[ -n "${2:-}" ]]; then
+    local name suffix="" limit="$2"
+    (( limit > 3 )) || return 1
+    name=$(abbreviate_package "$1")
+    if (( ${#name} > limit )); then
+      if [[ "$name" =~ /v[0-9]+$ ]]; then suffix="/${name##*/}"; name="${name%/*}"; fi
+      name="${name##*/}"
+      (( ${#suffix} < limit - 3 )) || suffix=""
+      if (( ${#name} + ${#suffix} > limit )); then name="${name:0:limit-${#suffix}-3}..."; fi
+      name="$name$suffix"
+    fi
+    printf '%s\n' "$name"
+    return
+  fi
   local pkg="$1"
   case "$pkg" in
     github.com/*) echo "${pkg#github.com/}" ;;
