@@ -227,12 +227,15 @@ release-0.24 case 004. The engine exited 0 after 1,283 seconds, retaining
 The invoking agent replaced inherited `make golangci-lint && make unit` with
 `make unit`. Unit, four audits, license and fresh native AMD64 scanning passed;
 the final scan had zero actionable findings and one scoped no-fix ignore.
-Required lint coverage is missing, so this is not accepted remediation.
+The inherited lint command was selected by our harness. The maintainer later
+clarified that this lint is not maintained or required on release branches; its
+absence is not a remediation defect. The original command-mismatch score remains
+unchanged, and the independent publication/reporting failure below still applies.
 
 The parent completed in 1,386 seconds (1,390.3 outer wall seconds), for
 $0.89185725 plus six unpriced judge calls and unknown nested costs. Machine
 metrics record 25 turns; the progress line reports 30. Stock contract fails for
-the canonical-command mismatch; outcome and action/owner each pass 3/3 without
+the frozen command mismatch; outcome and action/owner each pass 3/3 without
 errors. Independent review also rejects the reply's replacement publication
 recipe. The outcome judge treated the lack of a literal PR command as sufficient;
 the action/owner rationale accepted the guidance as future prerequisites.
@@ -241,9 +244,10 @@ or publication occurred, and the literal Summary was preserved.
 
 Original outputs, frozen source/configuration, raw scores and report are retained
 in the standard results directory. Independent runtime and behavior reviews are
-under `.work/fix-go-cves-release024/`. The follow-up changes command precedence
-and the inaccurate, imperative missing-remote diagnostic; inputs and criteria
-remain unchanged.
+under `.work/fix-go-cves-release024/`. That historical follow-up changed command
+precedence and the inaccurate, imperative missing-remote diagnostic without
+changing its inputs or criteria. The later policy correction updates case 004
+while preserving those frozen measurements.
 
 `cve-live-subctl-precedence-20261021` froze `56aa02b2` and completed the stock
 pipeline. The engine exited 2 after 664 seconds, retaining
@@ -325,7 +329,14 @@ remain unresolved; these results do not replace earlier actor failures.
 
 ## Current runtime integration
 
-Two stock case-004 measurements preserve separate outcomes:
+The two historical case-004 measurements below used our explicit
+`make golangci-lint && make unit` override. The maintainer subsequently clarified
+that Submariner release branches do not maintain this lint gate and avoid API
+changes solely to clear it. That check selection was incorrect; neither run
+establishes a required release lint repair. The input now selects `make unit`;
+original inputs, artifacts and scores remain unchanged.
+
+The measurements preserve separate outcomes:
 
 - At `22d6717d`, `quality-full-live004-20261021-01` completed evaluation but
   stopped before remediation. Native build succeeded; local scan, container DB
@@ -343,7 +354,8 @@ Two stock case-004 measurements preserve separate outcomes:
   Four clean audits, license checking and the final scan passed. The retained
   AMD64 binary, VCS metadata, positive binary catalog location and SHA-256 agree;
   final scanning has zero actionable findings and one scoped x/crypto ignore.
-  Engine exit 2 and the withheld PR command correctly preserve the failed test gate.
+  Engine exit 2 and the withheld PR command preserve the selected command's failure;
+  maintained unit checks still need execution under the corrected selection.
 
 The continuation's contract fails because the reply omits the Summary's last
 line. Outcome is true 3/3 and action/owner false 3/3, with zero judge errors;
@@ -371,7 +383,8 @@ reviews remain under `.work/fix-go-cves-release024/full-live-current/` and
 `full-live-600/`. Validation passes 3,023 shell checks, 64 helper tests and 71
 focused scanner/abort checks, including regressions that fail on prior source.
 The current path through a blocked remediation is exercised; unit coverage and reliable
-final advice remain unresolved. No additional actor or production reviewer
-workflow is selected.
+final advice remain unresolved. A fresh run of the packaged four-cell live
+matrix and both replay cases is selected after the branch-policy correction,
+using existing commands and one actor per cell.
 The owned worker is stopped; process/socket removal and the unchanged host alias
 are verified, with caches and evidence retained.

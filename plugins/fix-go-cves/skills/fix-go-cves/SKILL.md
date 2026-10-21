@@ -21,10 +21,13 @@ naming anything missing.
 
 ## Run the scripts
 
-Before launch, inspect the target branch's instructions/CI and required environment.
-Read inherited `CVE_FIX_TEST_CMD`; preserve a nonempty value unchanged. Otherwise
-preserve the target branch's nonempty `.cve-fix.yaml` `test-command`. Only when neither
-is configured, use `CVE_FIX_TEST_CMD` for the inferred default plus required local source checks.
+Before launch, inspect the target branch's instructions/CI, maintainer policy and
+required environment. User-supplied branch policy takes precedence over conflicting
+inherited check settings. Otherwise preserve a nonempty inherited `CVE_FIX_TEST_CMD`
+unchanged. If empty or unset, preserve the target branch's nonempty `.cve-fix.yaml`
+`test-command`. When neither is configured, set `CVE_FIX_TEST_CMD` for the inferred
+default plus local checks maintained and required for that branch. A CI job or
+Make target alone does not establish that requirement.
 Do not auto-select deployment, end-to-end or
 CI-only jobs. Report checks that did not run as unverified.
 
@@ -135,11 +138,14 @@ once Grype records one.
 
 Investigate flagged outcomes using these checks:
 
+- If a selected check is outside the branch's maintained requirements, retain its
+  observed failure and recommend correcting check selection for a new run. Do not
+  require API changes or relaxed lint rules solely to satisfy that check.
 - Breaking or incompatible update: read the target version's release notes
   and the repository's use of the changed API; estimate the migration.
 - Kubernetes minor bump, or Go above the build image: name the team decision
   and what unblocks it (a newer builder, an approved bump).
-- For each distinct test, lint or license-check failure, report the observed
+- For each distinct required test, lint or license-check failure, report the observed
   error and each attempt's result. Read the failing source/configuration and
   relevant default-branch history (`git log origin/<default> -- <file>`).
   Inspect candidate patches for a repair matching that error; recommend a

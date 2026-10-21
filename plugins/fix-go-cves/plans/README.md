@@ -16,7 +16,9 @@ independent review must still inspect the whole reply against the evidence.
 The current-runtime continuation reaches every recorded phase and completes
 evaluation, with lint blocking unit tests and PR readiness. Its final advice
 still fails; the [live record](../evals/live/README.md#current-runtime-integration)
-retains both attempts and the narrow diagnostic/evidence fixes.
+retains both attempts and the narrow diagnostic/evidence fixes. The maintainer
+clarified that our release lint override was incorrect; the packaged live/replay
+matrix will verify corrected branch-policy selection.
 The [testing plan](testing.md#next-steps) separates these behavioral questions
 from deterministic engine fixes.
 

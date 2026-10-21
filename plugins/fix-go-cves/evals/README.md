@@ -62,8 +62,10 @@ completed the stock pipeline after narrow corrections to diagnostics, collection
 and scan timeouts. Two lint attempts failed, leaving unit tests unrun; audits, license
 and native final scanning passed. The invoking skill still fails literal Summary
 relay and factual diagnosis. The [live record](live/README.md#current-runtime-integration)
-retains both measurements, scores, coverage limits and costs. No target repairs,
-additional actor run or production reviewer workflow is selected.
+retains both measurements, scores, coverage limits and costs. Those runs used
+our incorrect release lint override. Corrected branch-policy selection now needs
+verification across all four live cells and both packaged replay cases, using
+the existing runner and preserving each first outcome.
 
 ## Recorded cases
 

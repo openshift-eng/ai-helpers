@@ -6,7 +6,7 @@ execution:
   skill: fix-go-cves:fix-go-cves
   arguments: "{branch}"
   timeout: 3600
-  max_budget_usd: 10.0
+  max_budget_usd: 20.0
   parallelism: 1
   project_hooks: false
 

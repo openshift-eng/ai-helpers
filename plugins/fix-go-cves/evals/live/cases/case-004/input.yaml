@@ -10,7 +10,7 @@ arguments:
 original_branch: devel
 runtime_expectation: observed
 canonical_commands:
-  test: make golangci-lint && make unit
+  test: make unit
   build: DAPPER_ENV="${DAPPER_ENV:+$DAPPER_ENV }BUILD_UPX GOEXPERIMENT" BUILD_UPX=false GOEXPERIMENT="${GOEXPERIMENT-,}"
     make build
   license: make licensecheck

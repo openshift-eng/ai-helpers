@@ -103,11 +103,11 @@ skill acceptance. The live evaluator now also checks receipts for completed gate
 on blocked runs, preserving actual nonzero exits rather than requiring success.
 Missing test attempts/logs, successful audits or scan receipts cannot be hidden
 behind a matching `run.json`; explicit repair/native cases retain stronger gates. Healthy real scans do not prove timeout termination; controlled
-stalls cover that. The existing live contract requires Summary completion and
-does not accept early rejection; it remains unchanged.
+stalls cover that. Completed aborts now use authenticated terminal receipts;
+Summary text is required only when the runtime actually emits it.
 
-Keep the source repair and final advice acceptance decisions separate. The latest
-case-004 follow-up preserves the canonical command and exit-2 result: two lint
+Keep the source repair and final advice acceptance decisions separate. A historical
+case-004 follow-up preserves the harness-selected command and exit-2 result: two lint
 attempts failed with 43 issues across three linters; unit remained unrun because
 of `&&`. The retained commits change only dependency/policy files. Both base and
 result declare Go 1.26.0; Admiral's different Go-directive experiment does not
@@ -176,8 +176,8 @@ orchestration, not improved skill behavior, current runtime or the revised live
 judge. The [current E2E record](../evals/README.md#current-e2e-work) preserves costs
 and exact artifact identities.
 
-The current-runtime stock live case-004 continuation at `a938b674` closes the
-integration question for a blocked remediation run: all five recorded phases and the stock
+The historical stock live case-004 continuation at `a938b674` exercises
+integration with the harness-selected command: all five recorded phases and the stock
 pipeline complete. Both lint attempts fail; unit tests remain unrun. Four audits,
 license and positively cataloged native final scanning pass. The contract catches
 an omitted Summary line; action/owner fails all three samples for unsupported
@@ -185,8 +185,9 @@ causality. Outcome passes all three, with limitations in coverage reporting and
 judge reasoning. The [live record](../evals/live/README.md#current-runtime-integration)
 preserves both measurements, immutable artifacts, costs and independent reviews.
 The first run's scan timeouts led to narrow corrections to diagnostics,
-completion evidence, retained changes and the existing scan deadline. No target repair,
-additional actor or prose-oriented retry is selected. Further behavioral work
+completion evidence, retained changes and the existing scan deadline. The user
+subsequently clarified that our release lint override was incorrect; the
+maintained unit command needs a fresh measurement. Further behavioral work
 needs a justified mechanism and declared acceptance questions. The optional
 operational Summary handoff has separate human value and does not solve
 unsupported causal prose.
@@ -197,6 +198,27 @@ answer leakage to remove. `project_hooks: false` does not disable that context;
 its presence does not prove causation. Resolve the Go-minor compatibility policy
 separately in [decisions](README.md#decisions), without removing repository policy
 or installing a natural-language policy parser.
+
+### Verify branch-policy selection across the packaged matrix
+
+After the policy correction is committed and reviewed, freeze the source, pins,
+criteria and selected environment for all four live cases (Admiral and Subctl,
+release-0.24 and devel) and replay cases 005 and 007. Run each cell once through
+its full stock pipeline, retaining collection, extraction, contract, six factual
+samples, report and regression output even when the result fails. Select commands
+per branch policy: both release cells use `make unit`, and the pinned CVE
+workflows on both devel cells also specify `make unit`. Additional CI checks
+remain unverified. Preserve recorded replay commands and freeze each live cell's
+selection explicitly rather than inheriting a campaign-wide override. Use the existing runner serially with supervised
+owned build resources; add no campaign framework or target repairs. Preserve each
+first outcome and compare coverage and advice with raw evidence, not pooled scores.
+
+The prior native case 003 exhausted its $10 actor allowance after 2,605 seconds
+and $10.85163125, without a completed final reply. Use the existing live actor
+budget of $20 for this matrix, keeping the 3,600-second native deadline and
+operation limits. Replay budgets stay unchanged. Judge/nested costs are separate;
+record unknown totals and retain any budget or timeout failure without extending
+or retrying a cell adaptively.
 
 ### Close distinct E2E coverage after relevant changes
 
@@ -226,11 +248,17 @@ relevant result is independently correct and produced by the skill.
 
 ## Runtime and behavioral acceptance
 
-Real release-0.24 use exposed a check-selection gap: Admiral's required Go lint
-job is separate from the inferred `make unit` command. The skill now instructs
-the agent to select relevant local checks before launch through the existing
-`CVE_FIX_TEST_CMD`, preserving explicit commands. This changes guidance, not runtime gate
-machinery or defaults; unrun CI remains unverified.
+The maintainer clarified that Submariner release branches do not maintain
+`golangci-lint` as a release requirement; API changes solely to clear its findings
+are inappropriate. Earlier claims that release lint coverage was required were
+incorrect. Our ambient `CVE_FIX_TEST_CMD="make golangci-lint && make unit"` imposed
+that gate and prevented unit execution. Preserve those runs and raw scores as
+evidence of incorrect check selection, not proof that release lint needs repairs.
+Live case 004 now selects `make unit`. General skill guidance follows user and
+maintainer branch policy, preserving configured commands otherwise; CI/Make
+availability alone does not establish a release requirement. Runtime defaults and
+gates remain unchanged. Maintained unit coverage needs a fresh measurement;
+recorded unit/vet failures retain their actual repair and backport requirements.
 
 Cloud-prepare's real run also exposed test-generated workspace leakage: lint
 created root `go.work` and `go.work.sum`, and the retry could no longer resolve
