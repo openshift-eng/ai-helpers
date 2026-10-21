@@ -310,16 +310,25 @@ class EvidenceTests(unittest.TestCase):
             self.assertFalse(EVAL.terminal_exit_observed([
                 {'type': kind, 'message': 'exit=2'}], 2))
 
-    def test_contract_checks_command_blocks_but_allows_explanation(self):
+    def test_contract_checks_explicit_publication_commands_but_allows_explanation(self):
         case, _ = self.case()
         reply = case / "output/reply.md"
         with patch.object(EVAL, "EVAL_ROOT", self.root):
-            reply.write_text("Commits aaaaaaa and bbbbbbb. No gh pr create command was printed.")
-            self.assertIs(EVAL.check(case)["passed"], True)
+            for explanation in ('No gh pr create command was printed.',
+                                'No `gh pr create` command was printed.',
+                                'No `git push` command was emitted.'):
+                reply.write_text("Commits aaaaaaa and bbbbbbb. " + explanation)
+                self.assertIs(EVAL.check(case)["passed"], True)
             for command_block in (
                     "```sh\ngh pr create --title bad\n```\n",
                     "1. Backport before rerunning:\n   ```bash\n"
-                    "   git push origin release-0.24\n   ```\n"):
+                    "   git push origin release-0.24\n   ```\n",
+                    "Run `git push origin release-0.24`, then `gh pr create --title bad`.\n",
+                    "git push origin release-0.24\ngh pr create --title bad\n",
+                    "1. git push origin release-0.24\n2. gh pr create --title bad\n",
+                    "    git push origin release-0.24\n",
+                    "$ gh pr create --title bad\n",
+                    "git push\n", "gh pr create\n"):
                 with self.subTest(command_block=command_block):
                     reply.write_text("Commits aaaaaaa and bbbbbbb.\n" + command_block)
                     self.assertIs(EVAL.check(case)["passed"], False)
@@ -422,24 +431,30 @@ class EvidenceTests(unittest.TestCase):
         self.assertIsNotNone(recipe)
         for body in (recipe, summary, '   ' + recipe.replace('\n', '\n   ')):
             with self.subTest(body=body):
-                self.assertTrue(EVAL.publication_relay_allowed([body], log, 2))
+                self.assertTrue(EVAL.publication_relay_allowed('```text\n' + body + '\n```', log, 2))
+        self.assertTrue(EVAL.publication_relay_allowed(recipe, log, 2))
         live_log = log.removesuffix('exit=2\n')
-        self.assertTrue(EVAL.publication_relay_allowed([summary], live_log, 2))
+        self.assertTrue(EVAL.publication_relay_allowed('```text\n' + summary + '\n```', live_log, 2))
         for body in (recipe.replace('--base release-0.24', '--base devel'),
                      recipe.replace('git push fork ', 'git push origin '),
                      recipe.rsplit('\n', 1)[0], recipe + '\ngit status',
                      'echo prepare\n' + recipe, summary + '\ngit push fork other',
                      summary + '\ngit status', recipe + '\n' + recipe):
             with self.subTest(body=body):
-                self.assertFalse(EVAL.publication_relay_allowed([body], log, 2))
-        self.assertFalse(EVAL.publication_relay_allowed([recipe, recipe], log, 2))
-        self.assertFalse(EVAL.publication_relay_allowed([recipe], None, 2))
-        self.assertFalse(EVAL.publication_relay_allowed([recipe], 'No PR command emitted.\n', 2))
+                self.assertFalse(EVAL.publication_relay_allowed('```text\n' + body + '\n```', log, 2))
+        self.assertFalse(EVAL.publication_relay_allowed(recipe + '\n' + recipe, log, 2))
+        self.assertFalse(EVAL.publication_relay_allowed(recipe, None, 2))
+        self.assertFalse(EVAL.publication_relay_allowed(recipe, 'No PR command emitted.\n', 2))
+        for extra in ('\nRun `git push fork other`.\n', '\ngit push fork other\n',
+                      '\n```sh\ngh pr create --title other\n```\n'):
+            with self.subTest(extra=extra):
+                self.assertFalse(EVAL.publication_relay_allowed(
+                    '```text\n' + summary + '\n```' + extra, log, 2))
         recipe_only_log = 'PR command:\n' + recipe + '\n'
-        self.assertTrue(EVAL.publication_relay_allowed([recipe], recipe_only_log, 2))
+        self.assertTrue(EVAL.publication_relay_allowed(recipe, recipe_only_log, 2))
         self.assertFalse(EVAL.publication_relay_allowed(
-            [recipe.replace('--base release-0.24', '--base devel')], recipe_only_log, 2))
-        self.assertFalse(EVAL.publication_relay_allowed([summary], live_log, 0))
+            recipe.replace('--base release-0.24', '--base devel'), recipe_only_log, 2))
+        self.assertFalse(EVAL.publication_relay_allowed('```text\n' + summary + '\n```', live_log, 0))
         self.assertIsNone(EVAL.printed_pr_recipe(log[:log.index('  --assignee')]))
         self.assertIsNone(EVAL.printed_pr_recipe(log + '\n' + log))
         self.assertTrue(EVAL.trace_violations([{'type': 'assistant', 'message': {'content': [
