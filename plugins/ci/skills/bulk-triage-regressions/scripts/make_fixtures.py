@@ -5,7 +5,7 @@ import json
 import os
 import sys
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FROZEN_SRC = '/root/OPNET-595-BGP/tmp-opencode/bulk-existing-triage-4.16-4.22-2026-10-07/inventory.json'
@@ -15,8 +15,14 @@ REPLAY_DAYS = ['2026-08-30', '2026-09-20', '2026-09-24', '2026-09-25']
 REGRESSIONS_URL = 'https://sippy.dptools.openshift.org/api/component_readiness/regressions?release=%s'
 
 
+sys.path.insert(0, HERE)
+import clustering  # noqa: E402
+
+
 def parse(s):
-    return datetime.fromisoformat(s.replace('Z', '+00:00').split('.')[0] + '+00:00')
+    # Go RFC3339Nano drops trailing zero fractions, so whole-second timestamps are valid input; parse_ts
+    # handles those, any fraction length and non-UTC offsets (CodeRabbit on #804).
+    return clustering.parse_ts(s)
 
 
 def slim(r, views):
