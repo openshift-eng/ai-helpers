@@ -17,7 +17,7 @@ Rulebook for the weekly post-GA run. Read after SKILL.md; the deep-dive rules in
 
 - `id`, `lineage`, `fingerprint`, `members` (regression ids, `new_since_baseline`, views, components), `shape`. In `shape`, `days_open` counts from the regression's (re)activation in the view — Sippy resets it when a test recovers briefly and regresses again — and is the rules' input; `regression_days_open` counts from Sippy's regression-level `opened` and is the age to quote in prose. Do not recompute either.
 - `blast_radius{level,score,reasons}`.
-- `oracle{status,runs_probed,labels,label_bugs}`; `observation.symptom_probe.status ∈ ok|unauthorized|failed|skipped`. Anything but `ok` is **unknown**, never "no symptoms matched": use the SKILL.md fallback ladder.
+- `oracle{status,runs_probed,labels,label_bugs,error}`; `observation.symptom_probe.status ∈ ok|unauthorized|failed|skipped`. Anything but `ok` is **unknown**, never "no symptoms matched": use the SKILL.md fallback ladder. A `failed` probe may still list `labels` — a label that fired on a run is positive evidence you may use; the empty remainder is unknown. `label_bugs: null` means the label→bug catalogue could not be read: look the labels up yourself (`list-symptoms`, public endpoint) before concluding a label has no bug.
 
 Clusters are hypotheses. You may split one when signatures differ; record it in `lineage`.
 
@@ -58,7 +58,7 @@ Set `escalation.required: true` on every `HIGH` cluster, **regardless of disposi
 
 ## 6. Jira write scope
 
-Only on **verified existing issues**:
+Only on **verified existing issues in approved projects** — `OCPBUGS` and `TRT` (the catch-all `OCPQUAL-88` needs no Jira write: its triage link exists). A label, sibling precedent or search result that names an issue in any other project is a recommendation in the report, never a write; the approved set is an owner decision recorded here, not something to infer from permissions.
 
 - `add-jira-triage-link` (description append; footer stays last).
 - **One** comment template: the backport-candidate note. One consolidated comment per bug covering all verified affected releases, concise, no mentions, deduplicated (skip if already present), budget **5 comments per run**:
@@ -109,8 +109,8 @@ Write the per-cluster JSON files, then merge and validate (`manifest.py` is in `
        "representative_runs": [{"prowjob_run_id": "2043...", "url": "<prow url>", "job": "<job>"}], "sippy_links": []}}}
    ```
 
-   `escalation` and `members_unlinked` are moved onto the cluster by the merge; omit it for non-`HIGH` clusters unless you set the §5 fields. A cluster you did not reach is `{"state": "UNANALYSED", "analysis": {"depth": "none", "confidence": "low", "root_cause": "<reason: budget exhausted after …>", "evidence": [], "unverified_hypotheses": []}, "escalation": {...}}` and is also listed in `extra.json` `unanalysed[]`.
-2. `actions.json`: object keyed by cluster id; each value is a list, e.g. `{"c-2e1a40": [{"type": "extend_triage", "triage_id": 652, "regression_ids": [49531, 49532], "status": "done", "precheck": {"triage_reread": true, "already_present": []}, "result_url": "<triage url>", "error": null}]}`. Status `planned|done|failed|skipped-report-mode`; only `done` counts as coverage. Clusters with no actions need no entry.
+   `escalation` and `members_unlinked` are moved onto the cluster by the merge. `escalation` may be omitted for non-`HIGH` clusters unless you set the §5 fields; `members_unlinked` is required whenever `proposed_action.type` is not `none`, whatever the level. A cluster you did not reach is `{"state": "UNANALYSED", "analysis": {"depth": "none", "confidence": "low", "root_cause": "<reason: budget exhausted after …>", "evidence": [], "unverified_hypotheses": []}, "escalation": {...}}` and is also listed in `extra.json` `unanalysed[]`.
+2. `actions.json`: object keyed by cluster id; each value is a list, e.g. `{"c-2e1a40": [{"type": "extend_triage", "triage_id": 652, "regression_ids": [49531, 49532], "status": "done", "precheck": {"triage_reread": true, "already_present": []}, "result_url": "<triage url>", "error": null}]}`. Status `planned|done|failed|skipped-report-mode`; only `done` counts as coverage. Every `extend_triage`/`create_triage` action may only name cluster members that an evidence item supports (`catch_all` actions: members admitted under §4); the validator rejects anything else. Clusters with no actions need no entry.
 3. `members.unlinked`: put `"members_unlinked": [{"id": <regression id>, "reason": "<why no evidence>"}]` in the cluster's `dispositions.json` entry; the merge moves it to `members.unlinked`. List every member not covered by evidence whenever `proposed_action.type` is not `none`.
 4. `extra.json`, all five keys (shallow-merged at top level):
 

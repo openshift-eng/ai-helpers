@@ -92,6 +92,7 @@ class ManifestTest(unittest.TestCase):
         d = example()
         c = d['clusters'][0]
         c['disposition'] = {'state': 'UNANALYSED'}
+        c['actions'] = []            # an unanalysed cluster proposes no write (a planned one would now fail validation)
         c['escalation']['required'] = False
         self.assertTrue(any('escalation' in e for e in m.validate(d)))
         c['escalation']['required'] = True
@@ -322,6 +323,41 @@ class ManifestTest(unittest.TestCase):
             self.assertEqual(doc["audit"]["guards"]["jql_audit"], "pass")
             self.assertEqual(doc["audit"]["receipt"]["downgraded_to_report"], True)
             self.assertEqual(doc["source_run"]["run_id"], "2200")
+
+    def test_top_level_containers_must_have_the_right_shape(self):
+        for key, bad in (('policy', None), ('policy', {}), ('source_run', None), ('source_run', {}), ('observation', {}),
+                         ('observation', None), ('baseline_run', []), ('clusters', None), ('clusters', {}),
+                         ('watch_list', None), ('catch_all', []), ('backport_candidates', {}), ('unanalysed', None),
+                         ('audit', None), ('audit', [])):
+            x = example(); x[key] = bad
+            errs = m.validate(x)
+            self.assertTrue(any(key in e for e in errs), (key, bad, errs))
+        x = example(); x['clusters'] = []            # a quiet week is valid
+        self.assertEqual([e for e in m.validate(x) if 'clusters' in e], [])
+
+    def test_actions_are_bound_to_members_and_evidence(self):
+        x = example(); c = x['clusters'][0]
+        c['actions'][0].update(type='extend_triage', status='done', regression_ids=[99999])
+        c['disposition']['proposed_action'] = {'type': 'none'}
+        errs = m.validate(x)
+        self.assertTrue(any('99999' in e and 'action' in e for e in errs), errs)
+        # an action on a member that no evidence item supports is also an error
+        x = example(); c = x['clusters'][0]
+        member = c['members']['regression_ids'][0]
+        for ev in c['disposition']['analysis']['evidence']:
+            ev['supports_regression_ids'] = [i for i in ev['supports_regression_ids'] if i != member]
+        c['disposition']['proposed_action'] = {'type': 'none'}
+        c['members']['unlinked'] = [{'id': member, 'reason': 'no own-run evidence'}]
+        c['actions'] = [{'type': 'extend_triage', 'triage_id': 1, 'jira': 'OCPBUGS-1', 'regression_ids': [member], 'status': 'done'}]
+        errs = m.validate(x)
+        self.assertTrue(any(str(member) in e and 'evidence' in e for e in errs), errs)
+
+    def test_duplicate_cluster_ids_are_rejected(self):
+        x = example(); x['clusters'].append(copy.deepcopy(x['clusters'][0]))
+        self.assertTrue(any('duplicate' in e for e in m.validate(x)))
+        pp = fresh_prepass(); pp['clusters'].append(copy.deepcopy(pp['clusters'][0]))
+        with self.assertRaises(ValueError):
+            m.merge(pp, {}, {})
 
     def test_cli_error_paths_and_merge_then_validate(self):
         cli = os.path.join(HERE, 'manifest.py')

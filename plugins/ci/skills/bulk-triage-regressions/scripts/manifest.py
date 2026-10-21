@@ -127,6 +127,29 @@ def _rule_actions(w, c):
             continue
         errs += _enum(p, "status", a.get("status"), ACTION_STATUS)
         errs += _enum(p, "type", a.get("type"), ACTION_TYPES)
+        if a.get("type") in ("extend_triage", "create_triage", "catch_all"):
+            errs += _rule_action_targets(p, c, a)
+    return errs
+
+
+def _rule_action_targets(p, c, a):
+    """A write (intended, done or failed) may only target cluster members, and — except for the catch-all,
+    whose admission is governed by rule_checks — only members some evidence item supports (review I5)."""
+    ids = a.get("regression_ids")
+    if not isinstance(ids, list) or not ids:
+        return ["%s: regression_ids must be a non-empty list for a %s action" % (p, a.get("type"))]
+    members = _ids((c.get("members") or {}).get("regression_ids")) if isinstance(c.get("members"), dict) else set()
+    errs = []
+    outside = sorted(_ids(ids) - members, key=str)
+    if outside:
+        errs.append("%s: action targets non-members %s" % (p, outside))
+    if a.get("type") != "catch_all":
+        supported = set()
+        for ev in _evidence_items(c):
+            supported |= _ids(ev.get("supports_regression_ids"))
+        unsupported = sorted(_ids(ids) - supported - set(outside), key=str)
+        if unsupported:
+            errs.append("%s: action targets members without evidence support %s" % (p, unsupported))
     return errs
 
 
@@ -225,19 +248,50 @@ def validate(doc):
     errs = ["missing top-level key: %s" % k for k in TOP_PREPASS + TOP_LLM if k not in doc]
     if "schema_version" in doc and doc["schema_version"] != SCHEMA_VERSION:
         errs.append("schema_version: %r != %r" % (doc["schema_version"], SCHEMA_VERSION))
+    errs += _rule_top_level_shapes(doc)
     errs += _rule_probe(doc)
     cl = doc.get("clusters", [])
     if not isinstance(cl, list):
-        errs.append("clusters: expected list, got %s" % _t(cl))
         cl = []
+    seen = {}
     for i, c in enumerate(cl):
         errs += _cluster(c, i)
+        cid = c.get("id") if isinstance(c, dict) else None
+        if cid is not None:
+            if cid in seen:
+                errs.append("cluster %s: duplicate cluster id (also at index %d)" % (cid, seen[cid]))
+            seen.setdefault(cid, i)
     return errs + _rule_catch_all(doc) + _rule_audit(doc)
+
+
+TOP_SHAPES = {"policy": dict, "source_run": dict, "observation": dict, "baseline_run": dict, "clusters": list,
+              "watch_list": list, "catch_all": dict, "backport_candidates": list, "unanalysed": list, "audit": dict}
+TOP_REQUIRED_FIELDS = {"policy": ("name",), "source_run": ("run_id",), "observation": ("time", "views", "symptom_probe")}
+
+
+def _rule_top_level_shapes(doc):
+    """Required containers must have their documented shape; a null or empty object is not a manifest (review I5)."""
+    errs = []
+    for key, typ in TOP_SHAPES.items():
+        if key not in doc:
+            continue
+        v = doc[key]
+        if not isinstance(v, typ):
+            errs.append("%s: expected %s, got %s" % (key, typ.__name__, _t(v)))
+            continue
+        for f in TOP_REQUIRED_FIELDS.get(key, ()):
+            if f not in v:
+                errs.append("%s.%s: missing" % (key, f))
+    return errs
 
 
 def merge(prepass, dispositions, actions):
     """Combine prepass.json with LLM-phase dispositions (id -> dict) and actions (id -> list)."""
-    known = {c["id"] for c in prepass["clusters"]}
+    ids = [c["id"] for c in prepass["clusters"]]
+    dupes = sorted({i for i in ids if ids.count(i) > 1})
+    if dupes:
+        raise ValueError("prepass has duplicate cluster ids: %s" % dupes)
+    known = set(ids)
     for name, d in (("dispositions", dispositions), ("actions", actions)):
         unknown = sorted(set(d) - known)
         if unknown:
