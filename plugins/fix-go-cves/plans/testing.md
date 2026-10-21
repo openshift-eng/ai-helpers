@@ -176,16 +176,17 @@ orchestration, not improved skill behavior, current runtime or the revised live
 judge. The [current E2E record](../evals/README.md#current-e2e-work) preserves costs
 and exact artifact identities.
 
-The first current-runtime stock live case 004 completed the full evaluation
-pipeline but stopped before remediation: local scan, fallback DB update and
-fallback scan each exhausted 300 seconds. Native build succeeded; no usable scan
-or downstream gate coverage resulted. The [live record](../evals/live/README.md#current-runtime-integration)
-retains the mixed factual scores, independent causal rejection and completion-
-check false negative. Narrow diagnostic and collector fixes address those
-measured defects. One stock continuation uses the existing runtime's 600-second
-scan bound to answer the still-missing integration question. Preserve the first
-run, pins, canonical commands and nonzero outcomes; make no target repairs or
-prose-oriented retries. Further behavioral work
+The current-runtime stock live case-004 continuation at `a938b674` closes the
+integration question for a blocked remediation run: all five recorded phases and the stock
+pipeline complete. Both lint attempts fail; unit tests remain unrun. Four audits,
+license and positively cataloged native final scanning pass. The contract catches
+an omitted Summary line; action/owner fails all three samples for unsupported
+causality. Outcome passes all three, with limitations in coverage reporting and
+judge reasoning. The [live record](../evals/live/README.md#current-runtime-integration)
+preserves both measurements, immutable artifacts, costs and independent reviews.
+The first run's scan timeouts led to narrow corrections to diagnostics,
+completion evidence, retained changes and the existing scan deadline. No target repair,
+additional actor or prose-oriented retry is selected. Further behavioral work
 needs a justified mechanism and declared acceptance questions. The optional
 operational Summary handoff has separate human value and does not solve
 unsupported causal prose.

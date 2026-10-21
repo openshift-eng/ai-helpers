@@ -57,13 +57,13 @@ orchestration with a failed skill result, using historical runtime and the
 existing replay criteria; it does not measure today's remediation or the revised
 live judge.
 
-The first current-runtime live case-004 pipeline completed, but three scanner
-operations exhausted its 300-second bounds before remediation. It exposed narrow
-diagnostic and collection defects; the [live record](live/README.md#current-runtime-integration)
-retains the failed measurement, mixed factual grades and independently rejected
-causal advice. One continuation using the existing runtime's 600-second scan bound
-is selected to reach the missing integration coverage, without target repairs
-or a prose-oriented retry.
+The current-runtime live case-004 continuation reached every recorded phase and
+completed the stock pipeline after narrow corrections to diagnostics, collection
+and scan timeouts. Two lint attempts failed, leaving unit tests unrun; audits, license
+and native final scanning passed. The invoking skill still fails literal Summary
+relay and factual diagnosis. The [live record](live/README.md#current-runtime-integration)
+retains both measurements, scores, coverage limits and costs. No target repairs,
+additional actor run or production reviewer workflow is selected.
 
 ## Recorded cases
 

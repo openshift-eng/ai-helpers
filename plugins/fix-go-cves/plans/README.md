@@ -13,9 +13,10 @@ not establish reliable final advice. The clarified live factual judge now reject
 the known unsupported explanation in a fixed five-fixture calibration (15 samples,
 zero errors). That measures selected distinctions, not general grading reliability;
 independent review must still inspect the whole reply against the evidence.
-The first current-runtime integration attempt completed evaluation but exhausted
-its scanner budgets before remediation; the [live record](../evals/live/README.md#current-runtime-integration)
-tracks its preserved failure and narrow follow-ups.
+The current-runtime continuation reaches every recorded phase and completes
+evaluation, with lint blocking unit tests and PR readiness. Its final advice
+still fails; the [live record](../evals/live/README.md#current-runtime-integration)
+retains both attempts and the narrow diagnostic/evidence fixes.
 The [testing plan](testing.md#next-steps) separates these behavioral questions
 from deterministic engine fixes.
 

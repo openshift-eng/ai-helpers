@@ -325,34 +325,53 @@ remain unresolved; these results do not replace earlier actor failures.
 
 ## Current runtime integration
 
-The stock case-004 run `quality-full-live004-20261021-01` at `22d6717d`
-completed actor execution, capture, collection, extraction, all six factual
-samples, report, completion verification and regression; outer exit 1 is retained.
-All 37 stock artifacts match their hashes. The native Subctl build succeeded,
-but local scan, container DB update and container scan each exhausted 300 seconds.
-No usable scan JSON or catalog resulted. Engine exit 2 restored clean `devel`
-and removed the empty fix branch; remediation, tests, audits, license and final
-gate were unreached. No target repairs were made.
+Two stock case-004 measurements preserve separate outcomes:
 
-Outcome samples are true/true/true. Action/owner is true/false/true, a passing
-majority with unstable samples and no judge errors. Independent review rejects
-the reply's unsupported matching-phase diagnosis and categorical resource-versus-
-network attribution. The contract separately fails only because its completion
-check requires Summary text despite authenticated terminal abort evidence.
-Actor execution took 1,337.7 seconds and $0.8799725; six judge calls are unpriced,
-so total cost is unknown. Original replies, scores and artifacts remain unchanged
-under `.work/fix-go-cves-release024/full-live-current/`.
+- At `22d6717d`, `quality-full-live004-20261021-01` completed evaluation but
+  stopped before remediation. Native build succeeded; local scan, container DB
+  update and container scan each exhausted 300 seconds without usable scan JSON
+  or catalog. Engine exit 2 restored clean `devel` and removed the empty branch.
+  The contract falsely rejected authenticated completion without a Summary.
+  Outcome samples are true/true/true; action/owner is true/false/true, a passing
+  but unstable majority. Independent review rejects the matching-phase and
+  claim that resources caused the failure and network problems did not. All 37 stock artifacts remain unchanged.
+- At `a938b674`, `quality-full-live004-600-20261021-01` reached all five recorded
+  phases and completed the full stock pipeline. Four dependency/policy commits
+  remain at `76721c27`: three packages and 16 findings fixed, one finding ignored,
+  zero outstanding. Both canonical lint attempts failed with the same 43 issues
+  (36 govet, six modernize, one staticcheck); the `&& make unit` suffix was unrun.
+  Four clean audits, license checking and the final scan passed. The retained
+  AMD64 binary, VCS metadata, positive binary catalog location and SHA-256 agree;
+  final scanning has zero actionable findings and one scoped x/crypto ignore.
+  Engine exit 2 and the withheld PR command correctly preserve the failed test gate.
 
-The measured defects have narrow fixes: neutral scanner failure diagnostics,
-receipt-based completion without requiring a Summary, and an empty retained diff
-when the original checkout is restored. The last correction prevents restored checkouts from contributing unrelated
-history as retained changes (174 KB in the original capture). Literal
-Summary relay, integrity checks, failure gates and cleanup remain required.
-The live scan limit now matches the existing runtime default of 600 seconds;
-the local DB became valid only after 293.9 seconds of its former 300-second bound.
-One stock continuation is selected for missing downstream integration evidence.
-This bound does not guarantee completion or establish the timeout's cause.
+The continuation's contract fails because the reply omits the Summary's last
+line. Outcome is true 3/3 and action/owner false 3/3, with zero judge errors;
+outer exit 1 is retained. Independent review also rejects unsupported causal
+independence and missing source/configuration/default-branch repair investigation.
+The outcome rationale is permissive about explicitly reporting native coverage and
+incorrectly attributes an omitted quotation to the reply. Action/owner reasoning
+also contains unsupported mechanisms. These are recorded scores, not acceptance
+or flawless reasoning; only two representative factual rationales are retained.
+All 120 stock artifact hashes and 94 archived evidence hashes match.
 
-Validation passes 3,023 hermetic shell checks, 64 helper tests and 71 focused
-scanner/abort checks. The new regressions fail against the prior source; strict
-terminal evidence, missing-scanner advice and healthy fallback controls remain.
+The measured fixes stay narrow: neutral failed-scanner diagnostics, authenticated
+terminal completion without requiring a Summary, and consistent empty retained
+changes when the original checkout is restored. The last prevents unrelated
+history entering that diff (174 KB in the first capture). Integrity, mutation,
+literal Summary and failure gates remain. The live scan limit now matches the
+existing 600-second runtime default; DB loading consumed 293.9 seconds of the
+former bound. Retained DB/cache state also changed, so the continuation does not
+isolate the limit's effect or guarantee completion with a newly populated cache.
+
+Actor execution was 1,337.7 seconds/$0.8799725 for the first run and
+753.8 seconds/$1.14885925 for the continuation. Each used six unpriced judge
+calls; total evaluation costs are unknown. Raw attempts, identities and independent
+reviews remain under `.work/fix-go-cves-release024/full-live-current/` and
+`full-live-600/`. Validation passes 3,023 shell checks, 64 helper tests and 71
+focused scanner/abort checks, including regressions that fail on prior source.
+The current path through a blocked remediation is exercised; unit coverage and reliable
+final advice remain unresolved. No additional actor or production reviewer
+workflow is selected.
+The owned worker is stopped; process/socket removal and the unchanged host alias
+are verified, with caches and evidence retained.
