@@ -172,6 +172,40 @@ class DiffReviewTests(unittest.TestCase):
         self.assertEqual(t["resolution_reason"], "jira-progression")
 
 
+class DiffReviewWave2Tests(unittest.TestCase):
+    """Review wave 2: N1 — creation identity and composition."""
+
+    def created(self, ids, key="OCPBUGS-9"):
+        return tri(ids, url="https://j/browse/" + key)
+
+    def test_explicit_id_declaration_does_not_cover_a_second_creation_by_key(self):
+        decl = [{"type": "create_triage", "triage_id": 7, "jira": "OCPBUGS-9", "regression_ids": [5], "status": "done"}]
+        r = audit.diff_triages(snap({}), snap({"7": self.created([5]), "8": self.created([5])}), decl)
+        self.assertEqual(r["status"], "mismatch")
+        self.assertEqual([o["triage_id"] for o in r["undeclared"]], ["8"])
+
+    def test_declared_id_and_key_must_both_agree(self):
+        decl = [{"type": "create_triage", "triage_id": 7, "jira": "OCPBUGS-9", "regression_ids": [5], "status": "done"}]
+        r = audit.diff_triages(snap({}), snap({"7": self.created([5], "OCPBUGS-99")}), decl)
+        self.assertEqual(r["status"], "mismatch")
+
+    def test_create_then_extend_same_run_is_legitimate(self):
+        decl = [{"type": "create_triage", "triage_id": 7, "jira": "OCPBUGS-9", "regression_ids": [5], "status": "done"},
+                {"type": "extend_triage", "triage_id": 7, "regression_ids": [6], "status": "done"}]
+        self.assertEqual(audit.diff_triages(snap({}), snap({"7": self.created([5, 6])}), decl)["status"], "match")
+
+    def test_two_clusters_sharing_one_creation_with_and_without_id(self):
+        decl = [{"type": "create_triage", "triage_id": 7, "jira": "OCPBUGS-9", "regression_ids": [5], "status": "done"},
+                {"type": "create_triage", "jira": "OCPBUGS-9", "regression_ids": [6], "status": "done"}]
+        self.assertEqual(audit.diff_triages(snap({}), snap({"7": self.created([5, 6])}), decl)["status"], "match")
+
+    def test_key_only_declaration_covers_exactly_one_creation(self):
+        decl = [{"type": "create_triage", "jira": "OCPBUGS-9", "regression_ids": [5], "status": "done"}]
+        r = audit.diff_triages(snap({}), snap({"7": self.created([5]), "8": self.created([5])}), decl)
+        self.assertEqual(r["status"], "mismatch")      # the duplicate triage for the same bug is undeclared
+        self.assertEqual(len(r["undeclared"]), 1)
+
+
 W = ("2026-10-12T01:00:00Z", "2026-10-12T02:00:00Z")
 
 
@@ -351,6 +385,44 @@ class ReceiptTests(unittest.TestCase):
             d, _, why = audit.read_receipt_decision({"run_id": "X", "audit": {"jira_creations": jira, "sippy_catalog_diff": diff}})
             self.assertEqual(d, "report", (jira, diff, why))
 
+    def test_malformed_carrier_keeps_inherited_origins(self):
+        bad = {"run_id": "B", "downgrade": {"pending": True, "origin": "A", "reason": "creation in A"},
+               "audit": {"jira_creations": None, "sippy_catalog_diff": {"status": "match"}}}
+        d, origin, why = audit.read_receipt_decision(bad)
+        self.assertEqual(d, "report")
+        self.assertEqual(set(origin.split(",")), {"A", "B"})     # A survives, B (unreadable audit) joins
+        self.assertIn("A", why)
+        bad["audit"] = "not a dict"
+        self.assertEqual(set(audit.read_receipt_decision(bad)[1].split(",")), {"A", "B"})
+
+    def test_negative_count_is_not_clean(self):
+        rc = {"run_id": "X", "audit": {"jira_creations": {"status": "ok", "count": -1}, "sippy_catalog_diff": {"status": "match"}}}
+        self.assertEqual(audit.read_receipt_decision(rc)[0], "report")
+
+    def test_inherited_reasons_are_bounded_per_origin(self):
+        # N9: a clean carrier chain must not grow the reason text; per-origin reasons stay bounded.
+        rc = {"run_id": "C0", "downgrade": {"pending": True, "origins": ["A", "B"], "reason": "x" * 50,
+                                            "reasons": {"A": "creation in A", "B": "mismatch in B"}},
+              "audit": {"jira_creations": {"status": "ok", "count": 0}, "sippy_catalog_diff": {"status": "match"}}}
+        lengths = []
+        with tempfile.TemporaryDirectory() as t:
+            for i in range(1, 13):
+                d, origin, reason = audit.read_receipt_decision(rc)
+                self.assertEqual((d, set(origin.split(","))), ("report", {"A", "B"}))
+                lengths.append(len(reason))
+                p = os.path.join(t, "r.json")
+                audit.write_receipt(p, run_id="C%d" % i, mode_requested="auto", mode_effective="report",
+                                    audit={"jira_creations": {"status": "ok", "count": 0}, "sippy_catalog_diff": {"status": "match"}},
+                                    previous_run="C%d" % (i - 1),
+                                    downgrade={"pending": True, "origins": origin.split(","), "reason": reason,
+                                               "previous_receipt": rc})
+                with open(p) as f:
+                    rc = json.load(f)
+                self.assertEqual(set(rc["downgrade"]["origins"]), {"A", "B"})
+                self.assertIn("creation in A", rc["downgrade"]["reasons"]["A"])
+        self.assertLess(max(lengths), 400)
+        self.assertEqual(lengths[-1], lengths[1])        # stable, not growing
+
     def test_write_receipt_records_downgrade(self):
         with tempfile.TemporaryDirectory() as t:
             p = os.path.join(t, "r.json")
@@ -359,7 +431,7 @@ class ReceiptTests(unittest.TestCase):
                                 previous_run="rA", downgrade={"pending": True, "origin": "rA", "reason": "x"})
             with open(p) as f:
                 r = json.load(f)
-            self.assertEqual(r["downgrade"], {"pending": True, "origin": "rA", "origins": ["rA"], "reason": "x"})
+            self.assertEqual(r["downgrade"], {"pending": True, "origin": "rA", "origins": ["rA"], "reasons": {"rA": "x"}, "reason": "rA: x"})
             audit.write_receipt(p, run_id="rC", mode_requested="auto", mode_effective="auto",
                                 audit={"jira_creations": {"status": "ok", "count": 0}, "sippy_catalog_diff": {"status": "match"}},
                                 previous_run="rB")
