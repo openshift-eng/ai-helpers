@@ -11,6 +11,41 @@ See [live cases](live/README.md) for its status. A passing historical replay doe
 not establish that current remediation works end to end. A live eval can pass
 when the skill correctly reports a blocked or partial remediation outcome.
 
+## Current E2E work
+
+Live scenarios now check receipts for declared completed gates, including blocked
+runs: paired test logs/receipts agree with the last tested HEAD, command and exit;
+successful verification retains all four clean audits; reached scans retain
+matching phase/HEAD status and successful scan documents; completed license
+checks retain their log. Nonzero gate results remain valid observed outcomes.
+The stronger successful-repair and native-coverage requirements remain separate.
+The helper passes 62 tests; the runtime and its 3,016-check proof are unchanged.
+
+The explicit publication-command contract now checks fenced blocks, inline
+commands with arguments and command-leading lines. It preserves ordinary bare
+command-name mentions and still requires the complete emitted recipe. Seven
+regressions fail against the prior helper. This does not interpret arbitrary
+prose procedures; whole-reply review remains necessary.
+
+A six-line clarification to the existing live `action_owner` prompt fixes a
+measured inference error: unchanged source/configuration alone does not establish
+that a failure was independent of dependency/toolchain changes. A fixed
+five-fixture calibration matches all 15 expected labels with zero errors,
+including the untouched actual negative and a supported controlled experiment.
+The stock CLI's exit 1 is retained: negative calibration fixtures correctly fail
+actor thresholds. It retains five representative rationales, not fifteen; minor
+nondecisive terminology errors remain. This is selected oracle coverage, not
+actor improvement or general grader acceptance. Original scores are unchanged.
+Records are under `.work/fix-go-cves-release024/causal-evidence-calibration/`.
+
+The stock prompt-mode fresh-diagnosis component pilot stopped on case 005:
+its completed reply preserved state and Summary, but omitted the available
+backport, guessed the original ref and overstated causality. It took 101.8 seconds
+and $0.69357725, without judges. No later case or retry ran, and no production
+subagent routing was added. Raw results and independent reviews remain under
+`.work/fix-go-cves-release024/diagnosis-component/`. A full stock replay pipeline
+integration check is selected separately; it does not establish a changed skill.
+
 ## Recorded cases
 
 | Case | Repository | What it measures |

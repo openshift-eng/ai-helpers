@@ -43,7 +43,7 @@ not attribute the historical run or replace a full baseline test suite.
 2. **Boundary fixtures pass.** The existing shell suite passed 3,016 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
-   The 56 eval checks cover witnessed publication, tampering, frozen inputs,
+   The 62 eval checks cover witnessed publication, tampering, frozen inputs,
    native event shapes and preserved failures. Skipped/unconfigured gates are
    not passing gates; old-trace rechecks prove detection, not revised behavior.
 3. **Selected replay behavior is measured.** At `07515259`, case-005 passes its
@@ -99,7 +99,10 @@ distinguish stock preparation, the direct guard check and environment correction
 The helper now checks both pinned trees for reserved paths before checkout,
 without admitting tracked `.claude` settings or removing repository instructions.
 The worker is stopped. These are direct engine checks, not actor executions or
-skill acceptance. Healthy real scans do not prove timeout termination; controlled
+skill acceptance. The live evaluator now also checks receipts for completed gates
+on blocked runs, preserving actual nonzero exits rather than requiring success.
+Missing test attempts/logs, successful audits or scan receipts cannot be hidden
+behind a matching `run.json`; explicit repair/native cases retain stronger gates. Healthy real scans do not prove timeout termination; controlled
 stalls cover that. The existing live contract requires Summary completion and
 does not accept early rejection; it remains unchanged.
 
@@ -109,7 +112,7 @@ attempts failed with 43 issues across three linters; unit remained unrun because
 of `&&`. The retained commits change only dependency/policy files. Both base and
 result declare Go 1.26.0; Admiral's different Go-directive experiment does not
 attribute this failure. Independent archived-evidence review verifies the native
-scan and four audits; case 004's stock runtime check does not assert these.
+scan and four audits; case 004's original stock check did not assert these.
 The reply overstates causal independence and miscounts linters. Contract
 passes, outcome is true 3/3 and action/owner is false/true/false. Neither a blocked
 run nor a passing factual sample establishes correct advice. The
@@ -120,7 +123,7 @@ run nor a passing factual sample establishes correct advice. The
 Recorded tool observations now expose the real history citation and its `--all`
 query without agent prose or reasoning. All 13 stock-render checks pass. Keep this
 accurate context: omitting it caused a judge to call a real commit fabricated.
-The separate action/owner calibration still fails: the reviewed reference and
+The earlier action/owner calibration failed: the reviewed reference and
 the untouched actual negative are both accepted 3/3. More context is not evidence
 of reliable grading, and these are repeated judges on replies, not independent
 skill executions. Original scores remain unchanged.
@@ -135,15 +138,18 @@ causal false label under the existing criterion. Membership alone is outside its
 explicit causal rule; keep that control manual/exploratory rather than silently
 expanding the criterion or adding a judge.
 
-If a calibration is selected, freeze the positive/causal-only pair and run three
-samples each through the existing stock scorer, with unchanged criteria/model.
-Require all six expected labels, no errors and evidence-supported rationales;
-calling an observed commit fabricated is still a failure. Stop after that set,
-without adaptive retuning or retries. Passing this deliberately clear pair would
-show only that distinction. It would not resolve false acceptance of the actual
-reply or validate general grading, actor improvement or the skill. Preserve that
-actual negative as an acceptance check; independent whole-reply review remains
-necessary. No scoring campaign or additional model trial is selected by this audit.
+The selected clarification adds one evidence rule to the existing live judge:
+unchanged source/configuration alone cannot establish causal independence;
+a comparable baseline or captured failure-specific mechanism can support a claim.
+Criterion IDs and requirements, model and three-sample settings remain unchanged. The fixed calibration
+accepts the reviewed reference and supported controlled experiment, and rejects
+the causal-only control, untouched actual negative and contradicted experiment:
+all 15 expected labels, zero errors. Only five representative rationales are
+retained, with nondecisive terminology slips; do not call them flawless. The raw
+stock CLI exits 1 because deliberately negative fixtures fail actor thresholds.
+Original results remain unchanged. This supports the selected distinctions, not
+general grading reliability or actor improvement. See the
+[current E2E work](../evals/README.md#current-e2e-work).
 
 ### Select a different behavioral mechanism before another live run
 
@@ -155,23 +161,22 @@ reverted. More warnings, prescribed fields or repetitions of that treatment have
 no demonstrated benefit. [Detailed results](../evals/README.md#multi-failure-replay)
 retain failed and incomplete trials, source revisions and costs.
 
-A candidate experiment is diagnosis in a fresh context over completed, frozen
-artifacts. Treat execution-context interference as a hypothesis, not an established
-cause: shorter replay contexts also failed. Before selecting it, verify the
-existing tool can evaluate this component. Predeclare the same diagnosis task,
-complete runtime/investigation inputs and repository instructions for treatment
-and comparator, and record added latency/cost and supported hosts. Preserve
-useful source/history analysis and prerequisite advice. Silently
-reducing the product to Summary-only reporting is not acceptance.
+The completed-artifact fresh-context component pilot used stock prompt mode and
+the unchanged diagnosis task on case 005. It preserved the Summary and read-only
+boundary but omitted the available backport, invented the return ref and asserted
+unsupported sole causality. It stopped after that first execution: no case 007,
+Subctl component or retries. One failed component does not prove fresh contexts
+never help, but provides no basis for production routing or a reviewer loop.
 
-Use case 005's supported repair, case 007's distinct failures/retry, and the latest
-Subctl case's unconfirmed attribution. Freeze witnesses and review the whole
-reply manually; the current judge cannot be the sole oracle. A component pass
-would justify a full invocation test, not acceptance by itself. Stop if the same
-errors persist. Do not add a permanent reviewer loop, new user command or context
-routing framework before showing a benefit. No production mechanism or new actor
-run is selected yet. The optional operational Summary handoff in the main plan
-has separate human value and does not solve unsupported causal prose.
+One full stock replay-005 pipeline is selected after the evaluator changes are
+committed and reviewed. It checks invocation, collection, extraction, contracts,
+factual scoring, report and regression status together. It is an integration
+check, not a new behavioral treatment, comparison or test of the revised live
+judge. Preserve a completed failing skill measurement as a failure; do not repeat
+it to seek accepted prose. Further behavioral work needs a justified mechanism
+and declared acceptance questions, while preserving useful diagnosis and actual
+repository instructions. The optional operational Summary handoff has separate
+human value and does not solve unsupported causal prose.
 
 Keep checked-in repository instructions, including Admiral's `CLAUDE.md` and
 imported CVE workflow. They contain genuine competing procedure context, not

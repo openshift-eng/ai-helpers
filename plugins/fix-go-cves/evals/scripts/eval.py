@@ -458,9 +458,49 @@ def runtime_scenario(case, state):
     for name, command in expected.get('canonical_commands', {}).items():
         if name != 'license' or result.get('phases', {}).get('license') != 'not_reached':
             conditions[f'canonical {name} command used'] = result.get(name + '_command') == command
-    if expectation == 'observed':
-        return conditions
     try:
+        phases = result.get('phases', {})
+        if phases.get('tests') == 'completed':
+            attempts = []
+            for path in (root / 'tests').glob('*.json'):
+                run, attempt = map(int, re.fullmatch(r'([1-9][0-9]*)-([1-9][0-9]*)', path.stem).groups())
+                record = read_json(path)
+                attempts.append((run, attempt, record))
+            attempts.sort(key=lambda item: item[:2])
+            conditions['canonical test receipts and logs retained'] = (bool(attempts)
+                and {path.stem for path in (root / 'tests').glob('*.json')}
+                    == {path.stem for path in (root / 'tests').glob('*.log') if path.is_file()}
+                and all(record.get('command') == result.get('test_command')
+                        and bool(record.get('head')) and type(record.get('exit_code')) is int
+                        for _, _, record in attempts)
+                and sorted({run for run, _, _ in attempts}) == list(range(1, attempts[-1][0] + 1))
+                and all([attempt for run, attempt, _ in attempts if run == number]
+                        == list(range(1, 1 + sum(run == number for run, _, _ in attempts)))
+                        for number in {run for run, _, _ in attempts}))
+            conditions['last canonical test agrees with completion'] = (bool(attempts)
+                and attempts[-1][2].get('head') == result.get('tested_head')
+                and attempts[-1][2].get('exit_code') == result.get('test_exit_code'))
+        if phases.get('verification') == 'completed' and result.get('verification_exit_code') == 0:
+            for name in AUDITS:
+                path = root / 'audits' / f'{name}.evidence'
+                text = path.read_text() if path.exists() else ''
+                counters = ('NEW_CVES', 'UNRESOLVED') if name == 'scan-regression' else ('NEW_ISSUES',)
+                conditions[f'{name} audit complete and clean'] = (bool(text.strip())
+                    and not re.search(r'(?m)^SKIP:|SCAN_FAILED=|BUILD_FAILED=', text)
+                    and all(re.findall(rf'\b{counter}=([^\s]+)', text) == ['0'] for counter in counters))
+        if phases.get('license') == 'completed':
+            conditions['canonical license evidence retained'] = (root / 'license.log').is_file()
+        for name, phase, head in (('initial-scan', 'initial', expected.get('base_commit')),
+                                  ('final-gate', 'final-gate', state['runtime_head'])):
+            if phases.get('initial_scan' if phase == 'initial' else 'final_gate') == 'completed':
+                status = read_json(root / f'{name}-status.json')
+                conditions[f'{name} receipt agrees with completed phase'] = (
+                    status.get('phase') == phase and status.get('head') == head
+                    and type(status.get('exit_code')) is int)
+                if status.get('exit_code') == 0:
+                    grype_document(root / f'{name}.json')
+        if expectation == 'observed':
+            return conditions
         initial = grype_document(root / 'initial-scan.json')
         initial_status = read_json(root / 'initial-scan-status.json')
         phase = 'final-gate'
@@ -484,20 +524,6 @@ def runtime_scenario(case, state):
                 and ((phases.get('license') == 'not_configured'
                       and 'license' not in expected.get('canonical_commands', {}))
                      or (phases.get('license') == 'completed' and result.get('license_exit_code') == 0)))
-            for name in AUDITS:
-                path = root / 'audits' / f'{name}.evidence'
-                text = path.read_text() if path.exists() else ''
-                counters = ('NEW_CVES', 'UNRESOLVED') if name == 'scan-regression' else ('NEW_ISSUES',)
-                conditions[f'{name} audit complete and clean'] = (bool(text.strip())
-                    and not re.search(r'(?m)^SKIP:|SCAN_FAILED=|BUILD_FAILED=', text)
-                    and all(re.findall(rf'\b{counter}=([^\s]+)', text) == ['0'] for counter in counters))
-            attempts = [(path, read_json(path)) for path in (root / 'tests').glob('*.json')]
-            conditions['successful canonical test evidence retained'] = any(
-                record.get('head') == state['runtime_head'] and record.get('exit_code') == 0
-                and record.get('command') == result.get('test_command')
-                and path.with_suffix('.log').is_file() for path, record in attempts)
-            if result.get('phases', {}).get('license') == 'completed':
-                conditions['canonical license evidence retained'] = (root / 'license.log').is_file()
         if expectation == 'repair':
             conditions['initial scan coverage confirmed'] = scan_usable(initial_status)
             repairable = {(m['vulnerability']['id'], m['artifact']['name'])

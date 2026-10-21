@@ -9,9 +9,10 @@ itself.
 ## Next changes
 
 The skill remains unaccepted: real repairs and passing runtime assertions do
-not establish reliable final advice. The current factual judge also accepts a
-known unsupported explanation. Keep its scores advisory until calibration
-works; independent review must inspect the whole reply against the evidence.
+not establish reliable final advice. The clarified live factual judge now rejects
+the known unsupported explanation in a fixed five-fixture calibration (15 samples,
+zero errors). That measures selected distinctions, not general grading reliability;
+independent review must still inspect the whole reply against the evidence.
 The [testing plan](testing.md#next-steps) separates these behavioral questions
 from deterministic engine fixes.
 
@@ -33,7 +34,7 @@ Three demonstrated engine gaps are now implemented, with focused regressions:
   branch. PyYAML is an explicit prerequisite; no serialization rewrite or
   entry-provenance machinery was added.
 
-All 3,016 hermetic runtime checks and 56 eval helper checks pass. Two model-free
+All 3,016 hermetic runtime checks and 62 eval helper checks pass. Two model-free
 real checks on frozen runtime `c916dfa9` also pass: Subctl release-0.24 report
 mode faithfully renders 17 findings, and operator devel rejects genuine inherited
 broad rules before cleanup/build/scan while preserving policy and instructions.
@@ -41,8 +42,11 @@ These establish engine behavior, not remediation or skill acceptance. The
 [live record](../evals/live/README.md#runtime-quality-checks) retains failures,
 environment corrections and the independent reviews.
 
-Next resolve the Go-minor policy conflict before changing that behavior, and
-choose a justified behavioral mechanism before another paid actor run. Existing
+A fresh-context diagnosis pilot failed its first case and stopped. No production
+subagent routing or reviewer loop was added. Finish the full-pipeline integration
+check separately from behavioral acceptance; see the
+[current E2E work](../evals/README.md#current-e2e-work). Resolve the Go-minor
+policy conflict before changing that behavior. Existing
 major-version, Kubernetes-identity, no-fix-credit, audit and test-evidence guards
 remain implemented; keep their regressions rather than reopening them without
 a new failure.

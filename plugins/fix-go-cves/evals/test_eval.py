@@ -902,12 +902,126 @@ class EvidenceTests(unittest.TestCase):
         EVAL.write_json(root / "initial-scan.json", initial)
         EVAL.write_json(root / "final-gate.json", {**initial, "matches": []})
         for phase in ("initial-scan", "final-gate"):
-            EVAL.write_json(root / f"{phase}-status.json", scan)
+            EVAL.write_json(root / f"{phase}-status.json", {**scan,
+                "phase": "initial" if phase == "initial-scan" else "final-gate",
+                "head": base if phase == "initial-scan" else head})
         for audit in EVAL.AUDITS:
             path = root / "audits" / f"{audit}.evidence"
             path.parent.mkdir(exist_ok=True)
             path.write_text("NEW_CVES=0 UNRESOLVED=0\n" if audit == "scan-regression" else "NEW_ISSUES=0\n")
         return case, state, result, scan, initial
+
+    def test_observed_accepts_consistent_blocked_gates_and_earlier_test_heads(self):
+        case, state, result, scan, initial = self.scenario("observed")
+        root = case / "output/runtime"
+        state["runtime_exit"] = 2
+        result.update(exit_code=2, test_exit_code=2)
+        EVAL.write_json(root / "run.json", result)
+        EVAL.write_json(root / "tests/1-1.json", {"head": "c" * 40, "command": "make unit", "exit_code": 1})
+        EVAL.write_json(root / "tests/2-1.json", {"head": state["runtime_head"], "command": "make unit", "exit_code": 2})
+        (root / "tests/2-1.log").write_text("retained failing test output\n")
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        # An observed failed verification or license gate need not pass.
+        result.update(verification_exit_code=1, license_exit_code=1)
+        result["phases"]["license"] = "completed"
+        (root / "license.log").write_text("license gate failed\n")
+        EVAL.write_json(root / "run.json", result)
+        shutil.rmtree(root / "audits")
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+
+    def test_observed_rejects_missing_or_inconsistent_test_receipts(self):
+        case, state, result, scan, initial = self.scenario("observed")
+        root = case / "output/runtime"
+        record = EVAL.read_json(root / "tests/1-1.json")
+        for changed in ({**record, "head": "c" * 40}, {**record, "command": "true"},
+                        {**record, "exit_code": 1}, {**record, "exit_code": None}):
+            with self.subTest(changed=changed):
+                EVAL.write_json(root / "tests/1-1.json", changed)
+                self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(root / "tests/1-1.json", record)
+        (root / "tests/1-1.log").unlink()
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        (root / "tests/1-1.log").mkdir()
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        (root / "tests/1-1.log").rmdir()
+        (root / "tests/1-1.log").write_text("")
+        (root / "tests/1-1.json").rename(root / "tests/1-2.json")
+        (root / "tests/1-1.log").rename(root / "tests/1-2.log")
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        shutil.rmtree(root / "tests")
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+
+    def test_observed_orders_test_runs_numerically_and_checks_retry_logs(self):
+        case, state, result, scan, initial = self.scenario("observed")
+        root = case / "output/runtime"
+        for number in range(2, 11):
+            EVAL.write_json(root / f"tests/{number}-1.json", {
+                "head": state["runtime_head"], "command": "make unit", "exit_code": 0})
+            (root / f"tests/{number}-1.log").write_text("")
+        state["runtime_exit"] = 2
+        result.update(exit_code=2, test_exit_code=2)
+        EVAL.write_json(root / "run.json", result)
+        EVAL.write_json(root / "tests/10-2.json", {
+            "head": state["runtime_head"], "command": "make unit", "exit_code": 2})
+        (root / "tests/10-2.log").write_text("")
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        first = (root / "tests/1-1.json").read_text()
+        (root / "tests/1-1.json").unlink()
+        (root / "tests/1-1.log").unlink()
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        (root / "tests/1-1.json").write_text(first)
+        (root / "tests/1-1.log").write_text("")
+        (root / "tests/10-1.json").unlink()
+        (root / "tests/10-1.log").unlink()
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+
+    def test_observed_requires_no_receipts_for_unreached_phases(self):
+        case, state, result, scan, initial = self.scenario("observed")
+        root = case / "output/runtime"
+        for child in list(root.iterdir()):
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+        result["phases"] = dict.fromkeys(result["phases"], "not_reached")
+        EVAL.write_json(root / "run.json", result)
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        result["phases"]["tests"] = "running"
+        EVAL.write_json(root / "tests/1-1.json", {"head": state["runtime_head"],
+            "command": "make unit", "exit_code": None})
+        EVAL.write_json(root / "run.json", result)
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+
+    def test_observed_requires_successful_audits_and_completed_license_log(self):
+        case, state, result, scan, initial = self.scenario("observed")
+        root = case / "output/runtime"
+        path = root / "audits/yaml-integrity.evidence"
+        for text in ("", "NEW_ISSUES=1\n", "NEW_ISSUES=0\nSKIP: unavailable\n"):
+            path.write_text(text)
+            self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        path.write_text("NEW_ISSUES=0\n")
+        result["phases"]["license"] = "completed"
+        result["license_exit_code"] = 1
+        EVAL.write_json(root / "run.json", result)
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        (root / "license.log").write_text("")
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+
+    def test_observed_requires_reached_scan_identity_and_successful_document(self):
+        case, state, result, scan, initial = self.scenario("observed")
+        root = case / "output/runtime"
+        for changed in ({**scan, "phase": "initial"}, {**scan, "head": "c" * 40},
+                        {**scan, "exit_code": None}):
+            EVAL.write_json(root / "final-gate-status.json", changed)
+            self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(root / "final-gate-status.json", {**scan, "phase": "final-gate"})
+        EVAL.write_json(root / "final-gate.json", {})
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        # A reached failed scan can legitimately have no usable document.
+        EVAL.write_json(root / "final-gate-status.json", {**scan, "phase": "final-gate", "exit_code": 1})
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        (root / "final-gate-status.json").unlink()
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
 
     def test_repair_requires_real_finding_cleared_and_all_canonical_gates(self):
         case, state, result, scan, initial = self.scenario()
@@ -958,6 +1072,7 @@ class EvidenceTests(unittest.TestCase):
             result["phases"]["final_gate"] = "not_reached"
             EVAL.write_json(root / "run.json", result)
             EVAL.write_json(root / "initial-scan.json", {**initial, "matches": []})
+            EVAL.write_json(root / "initial-scan-status.json", {**scan, "phase": "initial"})
             (root / "final-gate.json").unlink()
         directory = root / "scans" / (phase + ".example")
         binary = "cmd/bin/subctl-v0.26.0-linux-amd64"
