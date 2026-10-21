@@ -2,6 +2,19 @@
 
 Index of what each opaque `case-NNN` directory tests.
 
+## preassessment (`cases/preassessment`)
+
+End-to-end evaluation of the preassessment skill against real Jira issues and
+repositories. Each case clones the target repo at a pinned commit and lets the
+skill explore code to inform its planning-level decision.
+
+| Case | JIRA | Description |
+|------|------|-------------|
+| case-001 | TRT-2755 | Mechanical context.Context threading is implementation-ready |
+| case-002 | TRT-2688 | Assumed-context agentic infra story needs clarification |
+| case-003 | TRT-2575 | Paging for test queries requires planning for API contract decisions |
+| case-004 | TRT-2296 | Aggressive new-test retesting needs decomposition into independent pieces |
+
 ## address-reviews (`cases/address-reviews`)
 
 Whether the address-reviews flow deduplicates bot replies, categorizes review

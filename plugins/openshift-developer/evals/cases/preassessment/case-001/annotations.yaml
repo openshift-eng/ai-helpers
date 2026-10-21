@@ -1,0 +1,9 @@
+expected_planning_level: implementation_ready
+expected_read_only: true
+notes: >
+  The Jira description specifies the exact files, functions, and pattern to
+  follow (BigQuery calls already use context; GORM WithContext is the only
+  API needed). The work is mechanical threading of context.Context through
+  call chains with no unresolved design decisions. The skill should
+  recognize this as bounded, understood work despite the number of call
+  sites.

@@ -16,6 +16,8 @@ These workflows are meant to be a common engine for different consumption models
 
 Run `/openshift-developer:jira-solve` for the end-to-end workflow. It analyzes the Jira issue, chooses a proportional skill chain, and invokes `implement`, `code-review:pre-commit-review`, `check-gates`, and `create-pr` when appropriate.
 
+Run `/openshift-developer:preassessment` when only a read-only decision about planning readiness is needed. It returns structured JSON and does not create a plan, change Jira, implement code, or deliver work.
+
 Alternatively, invoke the building blocks directly when you need manual control:
 
 1. `/openshift-developer:implement` — Implement the ticket or apply findings from `/code-review:pre-commit-review`.
@@ -51,6 +53,7 @@ Repeat steps 1-3 until the PR is approved and CI is green or non-actionable fail
 
 ### Skills
 
+- **preassessment** — Read-only classification of Jira work as implementation-ready, planning-required, decomposition-required, or needing clarification.
 - **jira-solve** — Central Jira workflow orchestrator that chooses implementation, review, gate, and delivery skills based on ticket complexity.
 - **implement** — Implement Jira requirements or apply local pre-commit review findings.
 - **address-review-precommit** — Deprecated compatibility alias for `implement`; retained temporarily for existing Chai callers.
