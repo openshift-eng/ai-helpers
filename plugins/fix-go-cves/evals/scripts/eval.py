@@ -389,7 +389,7 @@ def live_run(workspace, arguments):
     return status
 
 
-def archive_live_evidence(workspace, baseline, completion):
+def archive_live_evidence(workspace, baseline, completion, restored_original):
     runtime = Path(baseline['runtime_dir'])
     output = workspace / 'output'
     output.mkdir(exist_ok=True)
@@ -402,7 +402,7 @@ def archive_live_evidence(workspace, baseline, completion):
         shutil.rmtree(target)
     if evidence.is_dir():
         shutil.copytree(evidence, target)
-    patch = git(workspace, 'diff', '--binary', baseline['meta']['base_commit'], 'HEAD')
+    patch = '' if restored_original else git(workspace, 'diff', '--binary', baseline['meta']['base_commit'], 'HEAD')
     (output / 'change.patch').write_text(patch + ('\n' if patch else ''))
     write_json(output / 'runtime-identity.json', {
         'repository': baseline['meta']['repository'],
@@ -634,10 +634,10 @@ def capture(workspace):
         state['runtime_head'] = completion.get('head')
         state['runtime_branch'] = completion.get('branch')
         state['runtime_ignored_snapshot'] = completion.get('ignored_snapshot')
-        state['runtime_evidence_unchanged'] = archive_live_evidence(workspace, baseline, completion)
+        original = state['branch'] == state['expected']['original_branch'] and state['head'] == state['expected']['default_commit']
+        state['runtime_evidence_unchanged'] = archive_live_evidence(workspace, baseline, completion, original)
         state['ignored_snapshot'] = ignored
         state['runtime_plugin_unchanged'] = plugin_hashes(Path(baseline['runtime_dir']) / 'plugin') == baseline['runtime_plugin_hashes']
-        original = state['branch'] == state['expected']['original_branch'] and state['head'] == state['expected']['default_commit']
         state['changed_files'] = [] if original else git(workspace, 'diff', '--name-only',
                                                        state['expected']['base_commit'], 'HEAD').splitlines()
         log_path = witnesses / 'run.log'
@@ -663,7 +663,6 @@ def capture(workspace):
                     + '\n'.join(lines[index] for index in sorted(selected))
                     + '\n\nRetained dependency diff:\n' + (workspace / 'output/change.patch').read_text())
         (workspace / 'output/evidence.txt').write_text(evidence + '\n')
-        state['runtime_summary'] = '--- Summary:' in log or 'No CVEs found.' in log
     write_json(workspace / 'output/state.json', state)
 
 
@@ -976,7 +975,7 @@ def check(case_dir, live=False):
         conditions['runtime ignored-output measurement recorded'] = isinstance(recorded_ignored, dict)
         if isinstance(recorded_ignored, dict):
             conditions['runtime ignored outputs retained'] = state['ignored_snapshot'] == recorded_ignored
-        conditions['actual runtime completed'] = state['runtime_exit'] in (0, 2) and state['runtime_summary']
+        conditions['actual runtime completed'] = type(state['runtime_exit']) is int and state['runtime_exit'] in (0, 2)
         conditions['runtime exit observed before final response'] = state.get('runtime_exit_observed') is True
         conditions['runtime result retained'] = state['head'] == state['runtime_head'] and state['branch'] == state['runtime_branch']
         conditions['runtime plugin unchanged'] = state['runtime_plugin_unchanged']

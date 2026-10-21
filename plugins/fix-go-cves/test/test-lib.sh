@@ -1802,6 +1802,7 @@ RG_NOSCAN_OUT=$(
 ) && RG_NOSCAN_RC=0 || RG_NOSCAN_RC=$?
 check "run_grype no-scanner: exits 1" test "$RG_NOSCAN_RC" -eq 1
 check "run_grype no-scanner: error message" grep -q "No scanner available" <<< "$RG_NOSCAN_OUT"
+check "run_grype no-scanner: installation advice" grep -q "Install grype" <<< "$RG_NOSCAN_OUT"
 
 # (b) Local grype fails → container fallback succeeds.
 # Mock grype exits nonzero; mock container cmd absorbs all subcommands and exits 0.
@@ -1835,6 +1836,25 @@ RG_FAILNOC_OUT=$(
   run_grype 2>&1
 ) && RG_FAILNOC_RC=0 || RG_FAILNOC_RC=$?
 check "run_grype local-fail no-container: exits 1" test "$RG_FAILNOC_RC" -eq 1
+check "run_grype local-fail no-container: reports failed attempts" grep -q "Scanner attempts failed" <<< "$RG_FAILNOC_OUT"
+check "run_grype local-fail no-container: no false installation advice" ! grep -qE "No scanner available|Install grype" <<< "$RG_FAILNOC_OUT"
+
+# An installed local scanner and available container can both fail.
+cat > "$RG_BIN/mock-fail-ctr" <<'SH'
+#!/usr/bin/env bash
+exit 2
+SH
+chmod +x "$RG_BIN/mock-fail-ctr"
+RG_BOTHFAIL_OUT=$(
+  cd "$RG_REPO"
+  PATH="$RG_BIN:$PATH"
+  HAS_LOCAL_GRYPE=true
+  CONTAINER_CMD="$RG_BIN/mock-fail-ctr"
+  run_grype 2>&1
+) && RG_BOTHFAIL_RC=0 || RG_BOTHFAIL_RC=$?
+check "run_grype both fail: exits 1" test "$RG_BOTHFAIL_RC" -eq 1
+check "run_grype both fail: reports failed attempts" grep -q "Scanner attempts failed" <<< "$RG_BOTHFAIL_OUT"
+check "run_grype both fail: no false installation advice" ! grep -qE "No scanner available|Install grype" <<< "$RG_BOTHFAIL_OUT"
 
 # (d) Local grype fails with transient network error → GRYPE_SCAN_TRANSIENT=1 + distinct warning.
 # Use `|| _rc=$?` inside the subshell so set -e doesn't kill the subshell before
@@ -2079,7 +2099,8 @@ check "aeb network-broken drops fix branch" \
 
 AEB_RC=0; AEB_OUT=$(aeb_run scanner-degraded) || AEB_RC=$?
 check "aeb scanner-degraded exits 2" test "$AEB_RC" -eq 2
-check "aeb scanner-degraded shows banner" grep -q 'vulnerability database unavailable' <<< "$AEB_OUT"
+check "aeb scanner-degraded shows banner" grep -q 'vulnerability database update unconfirmed' <<< "$AEB_OUT"
+check "aeb scanner-degraded does not invent a network cause" ! grep -qiE 'network/DNS|Restore.*connectivity' <<< "$AEB_OUT"
 check "aeb scanner-degraded truly exits" ! grep -q '__FELL_THROUGH__' <<< "$AEB_OUT"
 check "aeb scanner-degraded cleans sentinel" ! test -f "${AEB_STATE}.scanner-degraded"
 check "aeb scanner-degraded drops fix branch" \

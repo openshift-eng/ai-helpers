@@ -19,7 +19,8 @@ successful verification retains all four clean audits; reached scans retain
 matching phase/HEAD status and successful scan documents; completed license
 checks retain their log. Nonzero gate results remain valid observed outcomes.
 The stronger successful-repair and native-coverage requirements remain separate.
-The helper passes 62 tests; the runtime and its 3,016-check proof are unchanged.
+The helper also checks completed aborts without requiring a Summary, and omits
+unrelated default-branch history when the runtime restores the original checkout.
 
 The explicit publication-command contract now checks fenced blocks, inline
 commands with arguments and command-leading lines. It preserves ordinary bare
@@ -56,11 +57,13 @@ orchestration with a failed skill result, using historical runtime and the
 existing replay criteria; it does not measure today's remediation or the revised
 live judge.
 
-One stock live case-004 run is selected to close that current-runtime integration
-gap. It will combine the actual invoking skill, fresh HOME, valid inherited
-policy, native commands and reached-gate receipts. Keep the exact inputs and
-canonical command, make no target repairs, and independently inspect native
-binary evidence and final advice. No rerun merely to obtain accepted prose.
+The first current-runtime live case-004 pipeline completed, but three scanner
+operations exhausted its 300-second bounds before remediation. It exposed narrow
+diagnostic and collection defects; the [live record](live/README.md#current-runtime-integration)
+retains the failed measurement, mixed factual grades and independently rejected
+causal advice. One continuation using the existing runtime's 600-second scan bound
+is selected to reach the missing integration coverage, without target repairs
+or a prose-oriented retry.
 
 ## Recorded cases
 

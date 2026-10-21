@@ -483,7 +483,7 @@ class EvidenceTests(unittest.TestCase):
 
     def test_live_publication_requires_captured_log_hash(self):
         case, state = self.case()
-        state.update(runtime_exit=2, runtime_summary=True, changed_files=['go.mod'],
+        state.update(runtime_exit=2, changed_files=['go.mod'],
                      runtime_exit_observed=True, runtime_head=state['head'],
                      runtime_branch=state['branch'], runtime_plugin_unchanged=True,
                      runtime_evidence_unchanged=True, runtime_ignored_snapshot={}, ignored_snapshot={})
@@ -705,7 +705,7 @@ class EvidenceTests(unittest.TestCase):
 
     def test_live_contract_uses_live_annotations_and_retains_runtime_result(self):
         case, state = self.case()
-        state.update(runtime_exit=2, runtime_summary=True, changed_files=["go.mod"],
+        state.update(runtime_exit=2, changed_files=["go.mod"],
                      runtime_exit_observed=True,
                      runtime_head=state["head"], runtime_branch=state["branch"],
                      runtime_plugin_unchanged=True, runtime_evidence_unchanged=True,
@@ -739,7 +739,7 @@ class EvidenceTests(unittest.TestCase):
             self.assertFalse(EVAL.check(case, live=True)['passed'])
             EVAL.write_json(identity_path, identity)
             self.assertTrue(EVAL.check(case, live=True)['passed'])
-            for key, value in (("runtime_exit", None), ("runtime_summary", False),
+            for key, value in (("runtime_exit", None),
                                ("runtime_exit_observed", False),
                                ("head", "d" * 40), ("runtime_plugin_unchanged", False),
                                ("changed_files", ["pkg/source.go"])):
@@ -762,6 +762,113 @@ class EvidenceTests(unittest.TestCase):
             verdict = EVAL.check(case, live=True)
             self.assertIs(verdict["passed"], False)
             self.assertIn("runtime ignored-output measurement recorded", verdict["reason"])
+
+    def test_completed_live_abort_requires_terminal_evidence_without_invented_summary(self):
+        case, state = self.case()
+        # Retain the old capture's no-Summary marker to reproduce its false rejection.
+        state.update(runtime_exit=2, runtime_summary=False, changed_files=[],
+                     runtime_exit_observed=True, runtime_head=state['head'],
+                     runtime_branch=state['branch'], runtime_plugin_unchanged=True,
+                     runtime_evidence_unchanged=True, runtime_ignored_snapshot={}, ignored_snapshot={})
+        state['expected']['base_commit'] = 'b' * 40
+        evidence = case / 'output/runtime'
+        EVAL.write_json(evidence / 'run.json', {'head': state['head'], 'exit_code': 2,
+            'phases': {'initial_scan': 'completed', 'tests': 'not_reached',
+                       'verification': 'not_reached', 'license': 'not_reached', 'final_gate': 'not_reached'}})
+        EVAL.write_json(evidence / 'initial-scan-status.json', {
+            'phase': 'initial', 'head': 'b' * 40, 'exit_code': 1})
+        log = '--- Aborted: vulnerability database unavailable ---\nNo changes were committed.\n'
+        (case / 'output/run.log').write_text(log)
+        identity = {'evidence_hashes': EVAL.file_hashes(evidence),
+                    'run_log_sha256': EVAL.digest(case / 'output/run.log')}
+        EVAL.write_json(case / 'output/runtime-identity.json', identity)
+        EVAL.write_json(case / 'output/state.json', state)
+        reply = case / 'output/reply.md'
+        reply.write_text('The scan aborted with exit 2; tests were not reached.\n')
+        self.freeze(live=True, annotation={}, reset=True)
+        self.assertTrue(EVAL.check(case, live=True)['passed'])
+        for key, value in (('runtime_exit', None), ('runtime_exit', 124), ('runtime_exit', False),
+                           ('runtime_exit_observed', False), ('invocations', []),
+                           ('invocations', state['invocations'] * 2), ('dirty', ' M go.mod'),
+                           ('runtime_head', 'c' * 40), ('refs_unchanged', False)):
+            with self.subTest(key=key, value=value):
+                EVAL.write_json(case / 'output/state.json', {**state, key: value})
+                verdict = EVAL.check(case, live=True)
+                self.assertFalse(verdict['passed'])
+                if key == 'runtime_exit':
+                    self.assertIn('actual runtime completed', verdict['reason'])
+        EVAL.write_json(case / 'output/state.json', state)
+        run = evidence / 'run.json'
+        original = run.read_bytes()
+        for changed in (None, original + b'\n'):
+            with self.subTest(run=changed):
+                run.unlink() if changed is None else run.write_bytes(changed)
+                self.assertFalse(EVAL.check(case, live=True)['passed'])
+        # Even a newly hashed archive must retain the actual terminal run receipt.
+        run.unlink()
+        EVAL.write_json(case / 'output/runtime-identity.json', {
+            **identity, 'evidence_hashes': EVAL.file_hashes(evidence)})
+        self.assertFalse(EVAL.check(case, live=True)['passed'])
+        run.write_bytes(original)
+        EVAL.write_json(case / 'output/runtime-identity.json', identity)
+        reply.write_text('```text\n--- Summary: invented successful run ---\n```\n')
+        verdict = EVAL.check(case, live=True)
+        self.assertFalse(verdict['passed'])
+        self.assertIn('literal runtime Summary', verdict['reason'])
+
+    def test_capture_omits_restored_default_history_but_retains_actual_fix_diff(self):
+        workspace = self.root / 'cases/case-001'
+        workspace.mkdir(parents=True)
+        EVAL.git(workspace, 'init', '-b', 'devel')
+        module = workspace / 'go.mod'
+        module.write_text('module example.invalid/fixture\n\ngo 1.25.0\n')
+        EVAL.git(workspace, 'add', 'go.mod')
+        EVAL.git(workspace, '-c', 'user.name=Eval', '-c', 'user.email=eval@example.invalid',
+                 'commit', '-m', 'release base')
+        base = EVAL.git(workspace, 'rev-parse', 'HEAD')
+        (workspace / 'README.md').write_text('Unrelated default-branch history.\n')
+        EVAL.git(workspace, 'add', 'README.md')
+        EVAL.git(workspace, '-c', 'user.name=Eval', '-c', 'user.email=eval@example.invalid',
+                 'commit', '-m', 'default history')
+        default = EVAL.git(workspace, 'rev-parse', 'HEAD')
+        self.assertNotEqual(base, default)
+        runtime = self.root / 'control/case-001/runtime'
+        runtime.mkdir(parents=True)
+        (runtime / 'run.log').write_text('--- Aborted: scanner unavailable ---\n')
+        (runtime / 'invocations.jsonl').write_text('{"arguments":["release-0.24"]}\n')
+        (workspace / '.git/info/exclude').write_text('output/\n')
+        EVAL.write_json(runtime.parent / 'baseline.json', {'refs': {}, 'plugin_hashes': {},
+            'runtime_plugin_hashes': {}, 'runtime_dir': str(runtime),
+            'meta': {'mode': 'live', 'repository': 'https://github.com/example/repo.git',
+                     'base_commit': base, 'default_commit': default, 'original_branch': 'devel'}})
+        for restored in (True, False):
+            if not restored:
+                EVAL.git(workspace, 'checkout', '-b', 'fix-release', base)
+                module.write_text(module.read_text() + '\nrequire golang.org/x/net v0.60.0\n')
+                EVAL.git(workspace, 'add', 'go.mod')
+                EVAL.git(workspace, '-c', 'user.name=Eval', '-c', 'user.email=eval@example.invalid',
+                         'commit', '-m', 'dependency repair')
+            head = EVAL.git(workspace, 'rev-parse', 'HEAD')
+            EVAL.write_json(runtime / 'evidence/run.json', {'head': head, 'exit_code': 2})
+            EVAL.write_json(runtime / 'status.json', {'head': head, 'exit_code': 2,
+                'branch': EVAL.git(workspace, 'branch', '--show-current'),
+                'evidence_hashes': EVAL.file_hashes(runtime / 'evidence'),
+                'run_log_sha256': EVAL.digest(runtime / 'run.log'), 'ignored_snapshot': {}})
+            EVAL.capture(workspace)
+            output = workspace / 'output'
+            state = EVAL.read_json(output / 'state.json')
+            patch_text = (output / 'change.patch').read_text()
+            self.assertEqual(state['changed_files'], [] if restored else ['go.mod'])
+            self.assertNotIn('Unrelated default-branch history', patch_text)
+            if restored:
+                self.assertEqual(patch_text, '')
+                self.assertTrue((output / 'evidence.txt').read_text().endswith('Retained dependency diff:\n\n'))
+            else:
+                self.assertIn('+require golang.org/x/net v0.60.0', patch_text)
+                self.assertIn(patch_text, (output / 'evidence.txt').read_text())
+            self.assertEqual(EVAL.read_json(output / 'runtime-identity.json')['change_sha256'],
+                             EVAL.digest(output / 'change.patch'))
+            self.assertTrue(state['runtime_evidence_unchanged'])
 
     def test_capture_fingerprints_all_native_ignored_outputs(self):
         workspace = self.root / "cases/case-001"
@@ -1119,7 +1226,7 @@ class EvidenceTests(unittest.TestCase):
         state.update(head=state["runtime_head"], branch="fix-devel-cves", runtime_branch="fix-devel-cves",
                      dirty="", unexpected_ignored=list(state["ignored_snapshot"]),
                      runtime_ignored_snapshot=dict(state["ignored_snapshot"]),
-                     runtime_summary=True, runtime_exit_observed=True, runtime_evidence_unchanged=True,
+                     runtime_exit_observed=True, runtime_evidence_unchanged=True,
                      plugin_unchanged=True, runtime_plugin_unchanged=True, refs_unchanged=True,
                      invocations=[{"arguments": ["devel"]}], gh_calls="", trace_violations=[], permission_denials=[])
         EVAL.write_json(case / "output/state.json", state)
@@ -1193,10 +1300,10 @@ class EvidenceTests(unittest.TestCase):
         baseline = {"runtime_dir": str(runtime), "runtime_plugin_hashes": {},
                     "meta": {"repository": "https://github.com/example/test.git", "base_commit": EVAL.git(workspace, "rev-parse", "HEAD"), "default_commit": "a" * 40}}
         completion = {"evidence_hashes": EVAL.file_hashes(runtime / "evidence")}
-        self.assertTrue(EVAL.archive_live_evidence(workspace, baseline, completion))
+        self.assertTrue(EVAL.archive_live_evidence(workspace, baseline, completion, False))
         self.assertFalse((workspace / "output/runtime/final-gate.json").exists())
         EVAL.write_json(runtime / "evidence/run.json", {"exit_code": 0})
-        self.assertFalse(EVAL.archive_live_evidence(workspace, baseline, completion))
+        self.assertFalse(EVAL.archive_live_evidence(workspace, baseline, completion, False))
         (runtime / "evidence/linked").symlink_to(self.root / "outside")
         with self.assertRaises(ValueError):
             EVAL.file_hashes(runtime / "evidence")

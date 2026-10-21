@@ -13,6 +13,9 @@ not establish reliable final advice. The clarified live factual judge now reject
 the known unsupported explanation in a fixed five-fixture calibration (15 samples,
 zero errors). That measures selected distinctions, not general grading reliability;
 independent review must still inspect the whole reply against the evidence.
+The first current-runtime integration attempt completed evaluation but exhausted
+its scanner budgets before remediation; the [live record](../evals/live/README.md#current-runtime-integration)
+tracks its preserved failure and narrow follow-ups.
 The [testing plan](testing.md#next-steps) separates these behavioral questions
 from deterministic engine fixes.
 
@@ -34,7 +37,7 @@ Three demonstrated engine gaps are now implemented, with focused regressions:
   branch. PyYAML is an explicit prerequisite; no serialization rewrite or
   entry-provenance machinery was added.
 
-All 3,016 hermetic runtime checks and 62 eval helper checks pass. Two model-free
+All 3,023 hermetic runtime checks and 64 eval helper checks pass. Two model-free
 real checks on frozen runtime `c916dfa9` also pass: Subctl release-0.24 report
 mode faithfully renders 17 findings, and operator devel rejects genuine inherited
 broad rules before cleanup/build/scan while preserving policy and instructions.

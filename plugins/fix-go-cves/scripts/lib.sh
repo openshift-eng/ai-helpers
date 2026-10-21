@@ -396,8 +396,13 @@ PY
   fi
 
   rm -f "$errfile" "$outfile"
-  echo "ERROR: No scanner available." >&2
-  echo "  Install grype locally or docker/podman." >&2
+  if [[ "$HAS_LOCAL_GRYPE" == true || -n "$CONTAINER_CMD" ]]; then
+    echo "ERROR: Scanner attempts failed; no usable scan results were produced." >&2
+    echo "  Review the scanner diagnostics above before retrying." >&2
+  else
+    echo "ERROR: No scanner available." >&2
+    echo "  Install grype locally or docker/podman." >&2
+  fi
   return 1
 }
 
@@ -1528,11 +1533,10 @@ abort_if_environment_broken() {
 
   if [[ -f "${state_file}.scanner-degraded" ]]; then
     rm -f "${state_file}.scanner-degraded"
-    banner "Aborted: vulnerability database unavailable"
-    echo "grype could not update its vulnerability database (network/DNS)."
-    echo "A scan against a stale or missing DB can silently miss CVEs, so its"
-    echo "results can't be trusted and no changes were committed. Restore"
-    echo "connectivity and re-run."
+    banner "Aborted: vulnerability database update unconfirmed"
+    echo "grype could not complete its vulnerability database update."
+    echo "Scan coverage is unconfirmed, so no changes were committed."
+    echo "Review the scanner diagnostics above and resolve the failure before re-running."
     remove_fix_branch
     exit 2
   fi

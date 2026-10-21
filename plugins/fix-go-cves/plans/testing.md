@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 3,016 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 3,023 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -40,10 +40,10 @@ not attribute the historical run or replace a full baseline test suite.
    branch or detached ref in the Summary. Recommendations focus on the next
    unmet prerequisite and verification still needed. This is a behavioral
    treatment, not enforcement or proof of general reliability.
-2. **Boundary fixtures pass.** The existing shell suite passed 3,016 checks,
+2. **Boundary fixtures pass.** The existing shell suite passed 3,023 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
-   The 62 eval checks cover witnessed publication, tampering, frozen inputs,
+   The 64 eval checks cover witnessed publication, tampering, frozen inputs,
    native event shapes and preserved failures. Skipped/unconfigured gates are
    not passing gates; old-trace rechecks prove detection, not revised behavior.
 3. **Selected replay behavior is measured.** At `07515259`, case-005 passes its
@@ -78,7 +78,7 @@ caveats are retained in the [eval results](../evals/README.md#current-reporting-
 The three [prioritized fixes](README.md#next-changes) are implemented:
 validated single-scan reports, scanner deadlines and preservation of inherited
 ignore policy through read-only YAML parsing. Focused checks reproduce the
-prior failures and pass with the changes; the full suite passes 3,016 checks.
+prior failures and pass with the changes; the full suite passes 3,023 checks.
 They check exit status, retained HEAD/files and suppressed publication, not just
 diagnostic wording. Historical replay uses historical scripts and cannot
 validate these fixes.
@@ -151,7 +151,7 @@ Original results remain unchanged. This supports the selected distinctions, not
 general grading reliability or actor improvement. See the
 [current E2E work](../evals/README.md#current-e2e-work).
 
-### Select a different behavioral mechanism before another live run
+### Separate behavioral work from integration checks
 
 Literal Summary relay is implemented, followed by read-only diagnosis. The smaller
 workflow remains unaccepted. The bounded-report treatment at `487d0759` failed
@@ -176,14 +176,16 @@ orchestration, not improved skill behavior, current runtime or the revised live
 judge. The [current E2E record](../evals/README.md#current-e2e-work) preserves costs
 and exact artifact identities.
 
-One stock live case 004 is selected for the remaining current-runtime integration
-question: the actual skill, valid-policy path, fresh HOME, remediation/native
-commands and completed-gate receipts together. Previous full case 004 used the
-older runtime; the report and early guard checks do not exercise this chain.
-Forward and freeze the existing scanner-version override through the standard
-runner before launch. Reuse the supervised worker and cache procedures, preserve
-actual nonzero outcomes and all earlier failures, and stop after this execution.
-No source repair or prose-oriented retry is selected. Further behavioral work
+The first current-runtime stock live case 004 completed the full evaluation
+pipeline but stopped before remediation: local scan, fallback DB update and
+fallback scan each exhausted 300 seconds. Native build succeeded; no usable scan
+or downstream gate coverage resulted. The [live record](../evals/live/README.md#current-runtime-integration)
+retains the mixed factual scores, independent causal rejection and completion-
+check false negative. Narrow diagnostic and collector fixes address those
+measured defects. One stock continuation uses the existing runtime's 600-second
+scan bound to answer the still-missing integration question. Preserve the first
+run, pins, canonical commands and nonzero outcomes; make no target repairs or
+prose-oriented retries. Further behavioral work
 needs a justified mechanism and declared acceptance questions. The optional
 operational Summary handoff has separate human value and does not solve
 unsupported causal prose.

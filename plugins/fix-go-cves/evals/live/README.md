@@ -321,3 +321,38 @@ The owned worker is stopped; evidence and caches remain. The 3,016 runtime
 checks cover controlled stalls and invalid/ignored scan evidence that these real
 checks do not exercise. Full skill acceptance and reliable semantic grading
 remain unresolved; these results do not replace earlier actor failures.
+
+
+## Current runtime integration
+
+The stock case-004 run `quality-full-live004-20261021-01` at `22d6717d`
+completed actor execution, capture, collection, extraction, all six factual
+samples, report, completion verification and regression; outer exit 1 is retained.
+All 37 stock artifacts match their hashes. The native Subctl build succeeded,
+but local scan, container DB update and container scan each exhausted 300 seconds.
+No usable scan JSON or catalog resulted. Engine exit 2 restored clean `devel`
+and removed the empty fix branch; remediation, tests, audits, license and final
+gate were unreached. No target repairs were made.
+
+Outcome samples are true/true/true. Action/owner is true/false/true, a passing
+majority with unstable samples and no judge errors. Independent review rejects
+the reply's unsupported matching-phase diagnosis and categorical resource-versus-
+network attribution. The contract separately fails only because its completion
+check requires Summary text despite authenticated terminal abort evidence.
+Actor execution took 1,337.7 seconds and $0.8799725; six judge calls are unpriced,
+so total cost is unknown. Original replies, scores and artifacts remain unchanged
+under `.work/fix-go-cves-release024/full-live-current/`.
+
+The measured defects have narrow fixes: neutral scanner failure diagnostics,
+receipt-based completion without requiring a Summary, and an empty retained diff
+when the original checkout is restored. The last correction prevents restored checkouts from contributing unrelated
+history as retained changes (174 KB in the original capture). Literal
+Summary relay, integrity checks, failure gates and cleanup remain required.
+The live scan limit now matches the existing runtime default of 600 seconds;
+the local DB became valid only after 293.9 seconds of its former 300-second bound.
+One stock continuation is selected for missing downstream integration evidence.
+This bound does not guarantee completion or establish the timeout's cause.
+
+Validation passes 3,023 hermetic shell checks, 64 helper tests and 71 focused
+scanner/abort checks. The new regressions fail against the prior source; strict
+terminal evidence, missing-scanner advice and healthy fallback controls remain.
