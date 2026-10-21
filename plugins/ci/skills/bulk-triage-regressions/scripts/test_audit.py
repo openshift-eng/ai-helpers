@@ -37,12 +37,16 @@ class DiffTests(unittest.TestCase):
 
     def test_declared_actions_match(self):
         decl = [{"type": "extend_triage", "triage_id": 1, "regression_ids": [2, 3], "status": "done"}]
-        r = audit.diff_triages(snap({"1": tri([1])}), snap({"1": tri([1, 2])}), decl)
+        r = audit.diff_triages(snap({"1": tri([1, 3])}), snap({"1": tri([1, 2, 3])}), decl)   # 3 already linked
         self.assertEqual(r["undeclared"], [])
         self.assertEqual(r["status"], "match")
+        # a declared id that never reached the triage is a write that did not happen → mismatch
+        r = audit.diff_triages(snap({"1": tri([1])}), snap({"1": tri([1, 2])}), decl)
+        self.assertEqual(r["status"], "mismatch")
+        self.assertEqual(len(r["declared_not_observed"]), 1)
 
     def test_declared_create_matches_by_url_and_ids(self):
-        decl = [{"type": "create_triage", "jira": "OCPBUGS-9", "regression_ids": [5], "status": "done"}]
+        decl = [{"type": "create_triage", "jira": "OCPBUGS-9", "regression_ids": [5, 6], "status": "done"}]
         after = snap({"7": tri([5, 6], url="https://j/browse/OCPBUGS-9")})
         r = audit.diff_triages(snap({}), after, decl)
         self.assertEqual(r["created"], ["7"])
@@ -88,7 +92,9 @@ class SnapshotTests(unittest.TestCase):
         data = [{"id": 3, "url": "u", "resolved": res,
                  "regressions": [{"id": 10, "x": 1}, {"id": 11}]}]
         s = audit.snapshot_triages(fetch=lambda: data)
-        self.assertEqual(s["triages"]["3"], {"regression_ids": [10, 11], "url": "u", "resolved": res})
+        t = s["triages"]["3"]
+        self.assertEqual((t["regression_ids"], t["url"], t["resolved"]), ([10, 11], "u", res))
+        self.assertEqual(set(t), {"regression_ids", "url", "type", "description", "resolved", "resolution_reason"})
 
     def test_fetch_failure_is_unknown(self):
         def bad():
@@ -100,6 +106,70 @@ class SnapshotTests(unittest.TestCase):
 
 def issue(key, created):
     return {"key": key, "fields": {"created": created, "summary": "s"}}
+
+
+class DiffReviewTests(unittest.TestCase):
+    """Findings C1/C2 of the pre-merge review: coverage must be exact and every write observable."""
+
+    def test_created_triage_with_undeclared_extra_member_is_mismatch(self):
+        decl = [{"type": "create_triage", "jira": "OCPBUGS-9", "regression_ids": [5], "status": "done"}]
+        r = audit.diff_triages(snap({}), snap({"7": tri([5, 999], url="https://j/browse/OCPBUGS-9")}), decl)
+        self.assertEqual(r["status"], "mismatch")
+        self.assertEqual(r["undeclared"][0]["kind"], "created")
+
+    def test_jira_key_match_is_exact_not_substring(self):
+        decl = [{"type": "create_triage", "jira": "OCPBUGS-9", "regression_ids": [5], "status": "done"}]
+        r = audit.diff_triages(snap({}), snap({"7": tri([5], url="https://j/browse/OCPBUGS-99")}), decl)
+        self.assertEqual(r["status"], "mismatch")
+        r = audit.diff_triages(snap({}), snap({"7": tri([5], url="https://j/browse/OCPBUGS-9")}), decl)
+        self.assertEqual(r["status"], "match")
+
+    def test_created_triage_matches_by_returned_triage_id(self):
+        decl = [{"type": "create_triage", "triage_id": 7, "regression_ids": [5], "status": "done"}]
+        r = audit.diff_triages(snap({}), snap({"7": tri([5], url="https://j/browse/OCPBUGS-1")}), decl)
+        self.assertEqual(r["status"], "match")
+
+    def test_two_clusters_extending_one_triage_are_aggregated(self):
+        decl = [{"type": "extend_triage", "triage_id": 1, "regression_ids": [i], "status": "done"} for i in (2, 3)]
+        r = audit.diff_triages(snap({"1": tri([1])}), snap({"1": tri([1, 2, 3])}), decl)
+        self.assertEqual(r["status"], "match", r)
+
+    def test_deleted_triage_is_undeclared(self):
+        r = audit.diff_triages(snap({"1": tri([1])}), snap({}), [])
+        self.assertEqual(r["status"], "mismatch")
+        self.assertEqual(r["deleted"], ["1"])
+        self.assertEqual(r["undeclared"][0]["kind"], "deleted")
+
+    def test_protected_field_changes_are_undeclared_even_with_declared_extension(self):
+        decl = [{"type": "extend_triage", "triage_id": 1, "regression_ids": [2], "status": "done"}]
+        before = snap({"1": tri([1], url="https://j/browse/OCPBUGS-1")})
+        for field, value in (("url", "https://j/browse/OCPBUGS-999"), ("type", "product"),
+                             ("resolved", {"Time": "2026-10-01T00:00:00Z", "Valid": True}),
+                             ("resolution_reason", "user")):
+            t = tri([1, 2], url="https://j/browse/OCPBUGS-1")
+            t[field] = value
+            r = audit.diff_triages(before, snap({"1": t}), decl)
+            self.assertEqual(r["status"], "mismatch", field)
+            self.assertTrue(any(o["kind"] == "modified" and field in o["fields"] for o in r["undeclared"]), field)
+
+    def test_description_change_is_covered_by_a_declared_extension_only(self):
+        before = snap({"1": tri([1])}); before["triages"]["1"]["description"] = "old"
+        after = snap({"1": tri([1, 2])}); after["triages"]["1"]["description"] = "old + new"
+        decl = [{"type": "extend_triage", "triage_id": 1, "regression_ids": [2], "status": "done"}]
+        self.assertEqual(audit.diff_triages(before, after, decl)["status"], "match")
+        self.assertEqual(audit.diff_triages(before, after, [])["status"], "mismatch")
+
+    def test_equivalent_resolved_timestamps_are_not_a_change(self):
+        before = snap({"1": tri([1], resolved={"Time": "2026-10-01T00:00:00Z", "Valid": True})})
+        after = snap({"1": tri([1], resolved={"Time": "2026-10-01T00:00:00+00:00", "Valid": True})})
+        self.assertEqual(audit.diff_triages(before, after, [])["status"], "match")
+
+    def test_snapshot_captures_protected_fields(self):
+        data = [{"id": 1, "url": "u", "type": "ci-infra", "description": "d", "resolved": None,
+                 "resolution_reason": "jira-progression", "regressions": [{"id": 3}]}]
+        t = audit.snapshot_triages(fetch=lambda: data)["triages"]["1"]
+        self.assertEqual(t["type"], "ci-infra"); self.assertEqual(t["description"], "d")
+        self.assertEqual(t["resolution_reason"], "jira-progression")
 
 
 W = ("2026-10-12T01:00:00Z", "2026-10-12T02:00:00Z")
@@ -141,6 +211,15 @@ class JqlTests(unittest.TestCase):
         self.assertEqual(r["status"], "unknown")
         self.assertIsNone(r["count"])
         self.assertIn("401", r["error"])
+
+    def test_nonterminal_page_without_token_is_unknown_not_complete_zero(self):
+        r = audit.jql_creations(*W, "bot", search=lambda *_: {"issues": [], "isLast": False})
+        self.assertEqual(r["status"], "unknown")
+        self.assertIsNone(r["count"])
+        r = audit.jql_creations(*W, "bot", search=lambda *_: {"issues": []})  # no isLast, no token
+        self.assertEqual(r["status"], "unknown")
+        r = audit.jql_creations(*W, "bot", search=lambda *_: {"issues": [], "isLast": True})
+        self.assertEqual((r["status"], r["count"]), ("ok", 0))
 
     def test_missing_credentials_unknown(self):
         with mock.patch.dict(os.environ, {}, clear=True):
@@ -246,6 +325,32 @@ class ReceiptTests(unittest.TestCase):
         d, origin, _ = audit.read_receipt_decision(rc, ack_run_id="rB")
         self.assertEqual((d, origin), ("report", "rA"))
 
+    def test_carrier_failure_does_not_replace_inherited_origin(self):
+        rc = self.rc(run="B", jira={"status": "unknown", "count": None, "error": "timeout"})
+        rc["downgrade"] = {"pending": True, "origin": "A", "reason": "creation in A"}
+        d, origin, why = audit.read_receipt_decision(rc, ack_run_id="B")
+        self.assertEqual(d, "report")
+        self.assertEqual(origin, "A")           # A is still outstanding after acking B
+        self.assertIn("A", why)
+        d, origin, _ = audit.read_receipt_decision(rc)
+        self.assertEqual(d, "report")
+        self.assertEqual(set(origin.split(",")), {"A", "B"})   # both outstanding, both propagated
+
+    def test_ack_of_all_outstanding_origins_restores_configured(self):
+        rc = self.rc(run="B", jira={"status": "ok", "count": 1, "issues": [{"key": "X-1"}]})
+        rc["downgrade"] = {"pending": True, "origin": "A", "reason": "r"}
+        self.assertEqual(audit.read_receipt_decision(rc, ack_run_id="A,B")[0], "configured")
+        self.assertEqual(audit.read_receipt_decision(rc, ack_run_id="A")[0], "report")
+
+    def test_malformed_or_incomplete_audit_is_never_clean(self):
+        for jira, diff in (({}, {}),
+                           ({"status": "ok", "count": None}, {"status": "match"}),
+                           ({"status": "weird", "count": 0}, {"status": "match"}),
+                           ({"status": "ok", "count": 0}, {"status": "weird"}),
+                           ({"status": "ok", "count": 0}, {})):
+            d, _, why = audit.read_receipt_decision({"run_id": "X", "audit": {"jira_creations": jira, "sippy_catalog_diff": diff}})
+            self.assertEqual(d, "report", (jira, diff, why))
+
     def test_write_receipt_records_downgrade(self):
         with tempfile.TemporaryDirectory() as t:
             p = os.path.join(t, "r.json")
@@ -254,7 +359,7 @@ class ReceiptTests(unittest.TestCase):
                                 previous_run="rA", downgrade={"pending": True, "origin": "rA", "reason": "x"})
             with open(p) as f:
                 r = json.load(f)
-            self.assertEqual(r["downgrade"], {"pending": True, "origin": "rA", "reason": "x"})
+            self.assertEqual(r["downgrade"], {"pending": True, "origin": "rA", "origins": ["rA"], "reason": "x"})
             audit.write_receipt(p, run_id="rC", mode_requested="auto", mode_effective="auto",
                                 audit={"jira_creations": {"status": "ok", "count": 0}, "sippy_catalog_diff": {"status": "match"}},
                                 previous_run="rB")
@@ -263,7 +368,8 @@ class ReceiptTests(unittest.TestCase):
 
     def test_receipt_unknown_audit_forces_report(self):
         d, _, why = audit.read_receipt_decision(self.rc(jira={"status": "unknown", "count": None, "error": "no creds"}))
-        self.assertEqual((d, why), ("report", "audit unknown — no creds"))
+        self.assertEqual(d, "report")
+        self.assertIn("unknown", why); self.assertIn("no creds", why)
 
     def test_mismatch_forces_report(self):
         d, _, why = audit.read_receipt_decision(self.rc(diff={"status": "mismatch", "undeclared": [{"kind": "created"}]}))
@@ -310,6 +416,12 @@ class PermissionsTests(unittest.TestCase):
         self.assertEqual(r["create_issues"], True)   # any project with create → True (write-capable token)
         self.assertEqual(r["edit_issues"], True)
         self.assertEqual(r["per_project"]["TRT"]["CREATE_ISSUES"], False)
+
+    def test_permissions_missing_observations_stay_unknown(self):
+        r = audit.permissions(["OCPBUGS"], fetch=lambda _: {})
+        self.assertNotEqual(r["status"], "ok")
+        self.assertIsNone(r["create_issues"]); self.assertIsNone(r["edit_issues"])
+        self.assertIsNone(r["per_project"]["OCPBUGS"]["CREATE_ISSUES"])
 
     def test_permissions_failure_is_unknown(self):
         def fetch(project):
