@@ -162,6 +162,10 @@ base branch moved or could not be fetched, a commit lacks `Signed-off-by:`,
 than `go.mod`, `go.sum`, `go.work*`, `vendor/`, and `.grype.yaml`. The
 scripts never rebase, push, or change licensing policy.
 
+The Summary reports configured commands, scan confirmation, test attempts with
+their exits and tested commits, and verification/license status. Unconfigured or
+unreached checks remain explicit.
+
 Fetches use `origin` exactly as configured, non-interactively. Private
 repositories need a working SSH key or agent; public ones work best with an
 HTTPS fetch URL and an SSH `pushurl`.

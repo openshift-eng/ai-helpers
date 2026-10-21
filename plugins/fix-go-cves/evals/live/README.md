@@ -382,9 +382,54 @@ calls; total evaluation costs are unknown. Raw attempts, identities and independ
 reviews remain under `.work/fix-go-cves-release024/full-live-current/` and
 `full-live-600/`. Validation passes 3,023 shell checks, 64 helper tests and 71
 focused scanner/abort checks, including regressions that fail on prior source.
-The current path through a blocked remediation is exercised; unit coverage and reliable
-final advice remain unresolved. A fresh run of the packaged four-cell live
-matrix and both replay cases is selected after the branch-policy correction,
-using existing commands and one actor per cell.
+That continuation exercised blocked remediation while leaving unit coverage
+unverified. The corrected matrix below measures the maintained unit command;
+reliable final advice remains unresolved.
 The owned worker is stopped; process/socket removal and the unchanged host alias
 are verified, with caches and evidence retained.
+
+## Branch-policy matrix
+
+The six frozen trials at `7b6a7714` used the stock runner serially, one invoking
+actor per cell. Every live cell explicitly selected `make unit`; both pinned devel
+CVE workflows also specify it. Additional CI checks remain unverified. This
+measures the selected command reaching the engine, while conflicting inherited
+settings were checked separately by forward review.
+
+| Cell | Runtime / execution | Stock grading | Independent reply review |
+| --- | --- | --- | --- |
+| Replay 005 | Invoked once; CLI timed out at 900s after its final result | Unscored; six samples skipped | Denied plain `git stash` attempt; unsupported historical claim and original-ref advice |
+| Replay 007 | CLI completed; recorded blocked result retained | Contract false; backport TTT; action FFF | Unsupported first-only syncer causality; read-only `git stash list` denied by the strict family policy |
+| Admiral release (001) | Engine 2; unit attempts 2/2; audits and final scan pass | Contract true; outcome TTT; action FFF | Separate attempt results omitted; causal attribution not established; future-result wording insufficiently qualified |
+| Admiral devel (002) | Engine 0; unit 0; genuine 5-to-0 repair | Contract true; outcome TTT; action TTT | Replacement publication procedure; overbroad all-gates wording |
+| Subctl devel (003) | Engine 0; unit, audits, license and native final scan pass | Contract true; outcome TTT; action TTT | Replacement publication procedure; native build conflated with unit compilation |
+| Subctl release (004) | Engine 0; unit, audits, license and native final scan pass | Contract true; outcome TTT; action TTF, majority true and unstable | Replacement publication procedure; native build/test distinction omitted |
+
+All four live cells actually executed unit tests. Admiral release retained the
+reporter format-string/vet failure; it did not require golangci-lint or API repairs
+to satisfy that unmaintained check. Admiral standalone build and license checks
+were unconfigured. Both Subctl runs have positive initial and final native Linux
+AMD64 binary coverage: actual file SHA, clean embedded VCS revision, corresponding
+scan HEAD and catalog location/file hash agree. Final binaries also match the
+retained output. Devel went from 12 actionable findings to
+zero with one scoped crypto ignore; release went from 17 to zero with one ignore.
+No stdlib repair is claimed. No target was hand-repaired or published.
+
+The stock results use their original criteria. Those criteria could accept future
+descriptive publication steps although the skill prohibits a replacement recipe.
+Outcome reasoning also mistook directory scanning for source-only coverage and
+waived explicit native reporting; its input omitted the archived native proof.
+Other rationales contain unsupported causal mechanisms or reject permitted
+original-ref advice. Keep these limitations and the unstable sample, rather than
+treating the grades as certification. Whole-reply review remains required.
+
+All 428 stock artifacts and six outer console maps were reverified, with source,
+mirror and earlier measurements unchanged. Six actors ran; five pipelines scored
+30 factual samples with zero judge errors. Known actor costs total $5.5467455;
+judge and total costs are unknown. Run IDs are
+`quality-policy-{replay005,replay007,live001,live002,live003,live004}-20261021-01`.
+Receipts, raw identities, reviews and retained failures are under
+`.work/fix-go-cves-release024/policy-matrix-20261021/`.
+The owned worker's fresh identities were checked before targeted shutdown;
+processes/socket/pidfile are gone, the host alias is unchanged, and data/caches
+are preserved. The matrix is closed, not accepted as reliable skill behavior.

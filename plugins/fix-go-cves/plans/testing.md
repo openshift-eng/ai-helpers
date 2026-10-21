@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 3,023 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 3,046 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -16,14 +16,12 @@ Three layers answer different questions:
   admitted and calibrated, but both comparisons fail: the first has contract
   2/3 and factual conjunction 0/3; the follow-up has contract 3/3 and factual
   conjunction 1/3. Replay cannot validate today's remediation engine.
-- **Live evaluation:** real Grype and canonical commands establish Admiral
-  source repair (14 runtime assertions) and Subctl native repair (19), both
-  with engine exit 0. Skill execution remains unaccepted: Admiral invented
-  publication; Subctl exhausted its parent budget without a completed reply.
-  A refreshed blocked Admiral run retained valid exit-2 evidence, but performed
-  temporary cherry-pick/cleanup mutations. Its original contract missed these
-  writes; action/owner failed unanimously. Separate derived checks correct
-  guard gaps without replacing original scores.
+- **Live evaluation:** the latest six-cell matrix executed `make unit` in all
+  four live cells. Admiral release retained its unit/vet blocker; the other
+  three passed their configured gates, with positive native binary coverage
+  on both Subctl branches. Skill behavior remains unaccepted: successful live
+  replies supplied replacement publication steps. Earlier failures, guard gaps
+  and original scores remain in the linked records.
 
 [Eval setup and replay results](../evals/README.md) and the
 [live results](../evals/live/README.md) retain the detailed evidence and costs.
@@ -40,11 +38,11 @@ not attribute the historical run or replace a full baseline test suite.
    branch or detached ref in the Summary. Recommendations focus on the next
    unmet prerequisite and verification still needed. This is a behavioral
    treatment, not enforcement or proof of general reliability.
-2. **Boundary fixtures pass.** The existing shell suite passed 3,023 checks,
+2. **Boundary fixtures pass.** The existing shell suite passed 3,046 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
-   The 64 eval checks cover witnessed publication, tampering, frozen inputs,
-   native event shapes and preserved failures. Skipped/unconfigured gates are
+   The 67 eval checks cover witnessed publication, tampering, frozen inputs,
+   native identity and evidence projection, and preserved failures. Skipped/unconfigured gates are
    not passing gates; old-trace rechecks prove detection, not revised behavior.
 3. **Selected replay behavior is measured.** At `07515259`, case-005 passes its
    deterministic contract and both factual judges in all three executions,
@@ -187,7 +185,7 @@ preserves both measurements, immutable artifacts, costs and independent reviews.
 The first run's scan timeouts led to narrow corrections to diagnostics,
 completion evidence, retained changes and the existing scan deadline. The user
 subsequently clarified that our release lint override was incorrect; the
-maintained unit command needs a fresh measurement. Further behavioral work
+maintained unit command needed the separate matrix below. Further behavioral work
 needs a justified mechanism and declared acceptance questions. The optional
 operational Summary handoff has separate human value and does not solve
 unsupported causal prose.
@@ -199,19 +197,39 @@ its presence does not prove causation. Resolve the Go-minor compatibility policy
 separately in [decisions](README.md#decisions), without removing repository policy
 or installing a natural-language policy parser.
 
-### Verify branch-policy selection across the packaged matrix
+### Verify the handoff across the packaged matrix
 
-After the policy correction is committed and reviewed, freeze the source, pins,
-criteria and selected environment for all four live cases (Admiral and Subctl,
-release-0.24 and devel) and replay cases 005 and 007. Run each cell once through
-its full stock pipeline, retaining collection, extraction, contract, six factual
-samples, report and regression output even when the result fails. Select commands
-per branch policy: both release cells use `make unit`, and the pinned CVE
-workflows on both devel cells also specify `make unit`. Additional CI checks
-remain unverified. Preserve recorded replay commands and freeze each live cell's
-selection explicitly rather than inheriting a campaign-wide override. Use the existing runner serially with supervised
-owned build resources; add no campaign framework or target repairs. Preserve each
-first outcome and compare coverage and advice with raw evidence, not pooled scores.
+The frozen six-cell matrix at `7b6a7714` is closed. All four live cells actually
+ran `make unit`; additional CI checks remain unverified. Admiral release failed
+both unit attempts; the other live cells passed their configured gates, with
+positive native coverage on both Subctl branches. Replay 005 timed out after
+its final result event and received no factual grades. Replay 007 still invented
+causal certainty. The [matrix record](../evals/live/README.md#branch-policy-matrix)
+retains all six first outcomes and manual limitations separately from stock scores.
+Explicit per-cell commands measure command forwarding and execution; the separate
+forward review checks conflicting inherited-command precedence.
+
+Before another measurement, fix the observed interfaces using existing state:
+Summary commands/phases/actual attempts, one-shot wakeup completion, precise
+publication wording, and compact factual-judge evidence from archived receipts.
+Share native proof logic with the existing binary contract, adding the missing
+retained VCS binding only to that dedicated scenario. Observed cases must not gain
+a new native gate; absent evidence stays unestablished. Keep strict Git-family
+restrictions but describe a disallowed read-only command truthfully.
+
+Align the existing live action/owner criterion with the prohibition on replacement
+publication steps for retained CVE changes, including prose. Calibrate exactly
+three fixed controls, three samples each: untouched live-002 negative, its sole
+publication-procedure deletion, and the existing supported experiment with its own
+evidence and prerequisite-repair advice. Preserve original scores. This measures
+the selected distinction, not general judge reliability or actor improvement.
+
+After regressions and critical review, freeze the updated source, pins, criteria
+and explicit per-cell environment for the same four live cells and replay 005/007.
+Run each once through the stock pipeline, serially, retaining skipped stages and
+failures without forcing scores or adaptive retries. Compare each outcome with
+raw evidence and whole-reply review. Use existing owned build resources and the
+runner; add no campaign framework, target repair or additional repository.
 
 The prior native case 003 exhausted its $10 actor allowance after 2,605 seconds
 and $10.85163125, without a completed final reply. Use the existing live actor
@@ -257,8 +275,9 @@ evidence of incorrect check selection, not proof that release lint needs repairs
 Live case 004 now selects `make unit`. General skill guidance follows user and
 maintainer branch policy, preserving configured commands otherwise; CI/Make
 availability alone does not establish a release requirement. Runtime defaults and
-gates remain unchanged. Maintained unit coverage needs a fresh measurement;
-recorded unit/vet failures retain their actual repair and backport requirements.
+gates remain unchanged. The corrected matrix executes unit checks in every live
+cell, retaining the Admiral release unit/vet blocker. Recorded failures keep
+their actual repair and backport requirements.
 
 Cloud-prepare's real run also exposed test-generated workspace leakage: lint
 created root `go.work` and `go.work.sum`, and the retry could no longer resolve

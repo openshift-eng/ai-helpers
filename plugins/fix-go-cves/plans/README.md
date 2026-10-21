@@ -8,19 +8,23 @@ itself.
 
 ## Next changes
 
-The skill remains unaccepted: real repairs and passing runtime assertions do
-not establish reliable final advice. The clarified live factual judge now rejects
-the known unsupported explanation in a fixed five-fixture calibration (15 samples,
-zero errors). That measures selected distinctions, not general grading reliability;
-independent review must still inspect the whole reply against the evidence.
-The current-runtime continuation reaches every recorded phase and completes
-evaluation, with lint blocking unit tests and PR readiness. Its final advice
-still fails; the [live record](../evals/live/README.md#current-runtime-integration)
-retains both attempts and the narrow diagnostic/evidence fixes. The maintainer
-clarified that our release lint override was incorrect; the packaged live/replay
-matrix will verify corrected branch-policy selection.
-The [testing plan](testing.md#next-steps) separates these behavioral questions
-from deterministic engine fixes.
+The skill remains unaccepted: verified repairs do not establish correct final
+advice. The [six-cell branch-policy matrix](../evals/live/README.md#branch-policy-matrix)
+at `7b6a7714` executed `make unit` in every live cell. Admiral release retained
+its genuine reporter unit/vet blocker; Admiral devel and both Subctl branches
+passed their configured gates. Both Subctl runs have independently verified
+initial and final native binary coverage. One replay timed out; the other still
+invented causal certainty. All three successful live replies supplied publication
+steps despite the missing printed recipe. Original scores remain unchanged.
+
+The current changes address demonstrated handoff and evidence gaps: show observed
+commands, phases and test attempts in the Summary; finish run-owned wakeups in
+one-shot requests; clarify the existing publication boundary; bind the dedicated
+Subctl binary check to its embedded VCS metadata; and expose the same compact
+runtime proof to factual judges. Tighten the existing live publication criterion,
+with a small fixed calibration before the next declared matrix. These changes
+do not establish reliable causal advice. Keep whole-reply review and do not add
+another warning template, reviewer loop or campaign framework.
 
 Three demonstrated engine gaps are now implemented, with focused regressions:
 
@@ -40,7 +44,7 @@ Three demonstrated engine gaps are now implemented, with focused regressions:
   branch. PyYAML is an explicit prerequisite; no serialization rewrite or
   entry-provenance machinery was added.
 
-All 3,023 hermetic runtime checks and 64 eval helper checks pass. Two model-free
+All 3,046 hermetic runtime checks and 67 eval helper checks pass. Two model-free
 real checks on frozen runtime `c916dfa9` also pass: Subctl release-0.24 report
 mode faithfully renders 17 findings, and operator devel rejects genuine inherited
 broad rules before cleanup/build/scan while preserving policy and instructions.
@@ -50,10 +54,10 @@ environment corrections and the independent reviews.
 
 A fresh-context diagnosis pilot failed its first case and stopped. No production
 subagent routing or reviewer loop was added. The full replay pipeline completed
-and preserved a failed skill verdict. Next close current-runtime live integration
-separately from behavioral acceptance; see the
-[current E2E work](../evals/README.md#current-e2e-work). Resolve the Go-minor
-policy conflict before changing that behavior. Existing
+and preserved a failed skill verdict. Current-runtime integration and behavioral
+acceptance remain separate; see the
+[current E2E work](../evals/README.md#current-e2e-work). Keep branch policy and
+builder compatibility distinct when reviewing Go-minor changes. Existing
 major-version, Kubernetes-identity, no-fix-credit, audit and test-evidence guards
 remain implemented; keep their regressions rather than reopening them without
 a new failure.

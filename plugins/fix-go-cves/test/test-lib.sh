@@ -10976,9 +10976,14 @@ run_grype() {
     git show HEAD:Makefile > Makefile
     touch "$EVI_ROOT/late-restored"
   fi
-  if [[ "${EVI_IGNORE_COMMIT:-false}" == true && -f "$EVI_ROOT/test-count" && ! -f "$EVI_ROOT/ignore-commit" ]]; then
-    printf 'ignore: []\n' > .grype.yaml
-    git add .grype.yaml && git commit -qsm 'Record empty ignore policy'
+  if [[ -n "${EVI_VERIFY_COMMIT:-}" && -f "$EVI_ROOT/test-count" && ! -f "$EVI_ROOT/ignore-commit" ]]; then
+    if [[ "$EVI_VERIFY_COMMIT" == dependency ]]; then
+      printf '// verification dependency update\n' >> go.mod
+      git add go.mod && git commit -qsm 'Verification dependency update'
+    else
+      printf 'ignore: []\n' > .grype.yaml
+      git add .grype.yaml && git commit -qsm 'Record empty ignore policy'
+    fi
     touch "$EVI_ROOT/ignore-commit"
   fi
   if [[ -n "${EVI_WORKSPACE_MODE:-}" ]]; then
@@ -11103,11 +11108,22 @@ evi_run() {
     'echo canonical-build; if [[ -n "${EVI_LATE_STAGE:-}" && "$EVI_LATE_STAGE" == "${CVE_FIX_EVIDENCE_PHASE:-}" ]]; then bash "$EVI_ROOT/late-command.sh"; fi' \
     'bash "$EVI_ROOT/test-command.sh"' >> "$EVI_STATE"
   printf 'ENV_UNSET=""\nDIFF_IGNORE_ARGS=%q\nCVE_SCRIPTS=%q\nFETCH_FAILED=false\n' "${EVI_INITIAL_RULES:-}" "$EVI_SCRIPTS" >> "$EVI_STATE"
+  if [[ "${EVI_NO_COMMANDS:-false}" == true ]]; then
+    printf 'BUILD_CMD=""\nTEST_CMD=""\n' >> "$EVI_STATE"
+  fi
   EVI_RC=0
   CVE_FIX_EVIDENCE_DIR="$evidence" bash "$EVI_SCRIPTS/fix-all.sh" "$EVI_REPO" devel > "$EVI_ROOT/$name.log" 2>&1 || EVI_RC=$?
 }
 evi_run default ""
 check "evidence default leaves successful gate semantics unchanged" test "$EVI_RC" -eq 0
+check "Summary reports scan confirmation without evidence opt-in" grep -qxF \
+  'Scans: initial completed (exit 0); final completed (exit 0; confirmed=true)' "$EVI_ROOT/default.log"
+check "Summary reports actual successful test attempt and tested HEAD" grep -qE \
+  '^Tests: completed \(exit 0; failed=false\); tested HEAD: ([0-9a-f]{40}); attempts: 1-1@\1=0$' "$EVI_ROOT/default.log"
+check "Summary prints selected commands without executing their text again" grep -qxF \
+  "Commands: build: echo canonical-build; if [[ -n \"\${EVI_LATE_STAGE:-}\" && \"\$EVI_LATE_STAGE\" == \"\${CVE_FIX_EVIDENCE_PHASE:-}\" ]]; then bash \"\$EVI_ROOT/late-command.sh\"; fi; test: bash \"\$EVI_ROOT/test-command.sh\"" "$EVI_ROOT/default.log"
+check "Summary reports completed verification and license statuses" grep -qxF \
+  'Verification: completed (exit 0); license: completed (exit 0)' "$EVI_ROOT/default.log"
 evi_run complete "$EVI_ROOT/complete"
 check "evidence enabled leaves successful gate semantics unchanged" test "$EVI_RC" -eq 0
 check "evidence retains actual initial findings" jq -e '.matches | length == 1' "$EVI_ROOT/complete/initial-scan.json"
@@ -11149,13 +11165,39 @@ check "evidence preserves test and license gate failures" test "$EVI_RC" -eq 2
 check "evidence records failure and retained tested head" jq -e '.exit_code == 2 and .test_exit_code == 1 and .license_exit_code != 0 and .tested_head == .head' "$EVI_ROOT/blocked/run.json"
 check "evidence retains first failed test attempt" grep -q canonical-test-attempt-1 "$EVI_ROOT/blocked/tests/1-1.log"
 check "evidence retains retried test attempt separately" grep -q canonical-test-attempt-2 "$EVI_ROOT/blocked/tests/1-2.log"
+check "Summary retains both failed attempts and the blocked test gate" grep -qE \
+  '^Tests: completed \(exit 1; failed=true\); tested HEAD: ([0-9a-f]{40}); attempts: 1-1@\1=1 1-2@\1=1$' "$EVI_ROOT/blocked.log"
+check "Summary completed license status does not claim a passing exit" grep -qE \
+  '^Verification: completed \(exit 0\); license: completed \(exit [1-9][0-9]*\)$' "$EVI_ROOT/blocked.log"
 EVI_DEGRADED=true evi_run degraded "$EVI_ROOT/degraded"
 check "evidence does not turn a degraded gate into clean" test "$EVI_RC" -eq 2
 check "evidence captures degraded sentinel before consumption" jq -e '.scanner_degraded == true' "$EVI_ROOT/degraded/final-gate-status.json"
+check "Summary does not call a zero-exit degraded scan confirmed" grep -qxF \
+  'Scans: initial completed (exit 0); final completed (exit 0; confirmed=false)' "$EVI_ROOT/degraded.log"
 EVI_EMPTY=true evi_run clean "$EVI_ROOT/clean"
 check "evidence clean fast path retains not-reached phases" jq -e \
   '.exit_code == 0 and .phases.initial_scan == "completed" and .phases.final_gate == "not_reached" and .phases.tests == "not_reached" and .phases.verification == "not_reached" and .license_command == ""' "$EVI_ROOT/clean/run.json"
 check "evidence clean fast path does not fabricate a final gate" test ! -f "$EVI_ROOT/clean/final-gate.json"
+check "clean fast path does not fabricate Summary gate or attempt lines" ! grep -qE \
+  '^(Scans:|Commands:|Tests:|Verification:)' "$EVI_ROOT/clean.log"
+_evi_configured_base=$EVI_BASE
+git -C "$EVI_REPO" checkout -q devel
+printf '.PHONY: fixture\nfixture:\n\t@true\n' > "$EVI_REPO/Makefile"
+git -C "$EVI_REPO" commit -qasm 'No configured license target'
+EVI_BASE=$(git -C "$EVI_REPO" rev-parse HEAD)
+git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
+EVI_NO_COMMANDS=true evi_run unconfigured "$EVI_ROOT/unconfigured"
+check "unconfigured commands preserve successful gate semantics" test "$EVI_RC" -eq 0
+check "Summary distinguishes missing build and test commands" grep -qxF \
+  'Commands: build: not configured; test: not configured' "$EVI_ROOT/unconfigured.log"
+check "Summary does not invent tests, tested HEAD or attempts for an unconfigured command" grep -qxF \
+  'Tests: not_configured (exit not run; failed=false); tested HEAD: not run; attempts: none' "$EVI_ROOT/unconfigured.log"
+check "Summary distinguishes an unconfigured license from completion" grep -qxF \
+  'Verification: completed (exit 0); license: not_configured (exit not run)' "$EVI_ROOT/unconfigured.log"
+git -C "$EVI_REPO" checkout -q devel
+git -C "$EVI_REPO" reset -q --hard "$_evi_configured_base"
+EVI_BASE=$_evi_configured_base
+git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
 evi_run rejected "$EVI_REPO/.git/evidence"
 check "evidence directory cannot contaminate the source, even under .git" test "$EVI_RC" -ne 0
 check "rejected evidence directory was not created" test ! -d "$EVI_REPO/.git/evidence"
@@ -11182,6 +11224,8 @@ check "new workspace is cleaned before retry succeeds" test "$EVI_RC" -eq 0
 check "workspace retry runs exactly twice" test "$(cat "$EVI_ROOT/test-count")" -eq 2
 check "workspace first actual child failure is retained" jq -e '.exit_code == 7' "$EVI_ROOT/workspace-retry/tests/1-1.json"
 check "workspace retry actual child success is retained" jq -e '.exit_code == 0' "$EVI_ROOT/workspace-retry/tests/1-2.json"
+check "Summary retains a recovered first-attempt failure" grep -qE \
+  '^Tests: completed \(exit 0; failed=false\); tested HEAD: ([0-9a-f]{40}); attempts: 1-1@\1=7 1-2@\1=0$' "$EVI_ROOT/workspace-retry.log"
 check "successful workspace cleanup permits downstream scans" test -s "$EVI_ROOT/workspace-scans"
 check "downstream scans never see generated workspaces" test ! -e "$EVI_ROOT/workspace-residue"
 check "workspace cleanup leaves both generated paths absent" test ! -e "$EVI_REPO/go.work"
@@ -11282,6 +11326,7 @@ for _change in worktree index cancel timeout head; do
   check "post-test $_change mutation still cleans new checksum" test ! -e "$EVI_REPO/go.work.sum"
   check "post-test $_change mutation stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
   check "post-test $_change mutation suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/$_case.log"
+  check "post-test $_change mutation aborts before Summary handoff" ! grep -q '^Scans:' "$EVI_ROOT/$_case.log"
   if [[ "$_change" == cancel ]]; then
     check "opposing staged and worktree edits evade aggregate HEAD diff" test -s "$EVI_ROOT/cancelled-diff"
   elif [[ "$_change" == head ]]; then
@@ -11343,6 +11388,7 @@ for _child_rc in 0 7; do
   check "failed logger records completed actual child $_child_rc status" jq -e \
     ".phases.tests == \"completed\" and .test_exit_code == $_child_rc and .phases.verification == \"not_reached\"" "$EVI_ROOT/$_case/run.json"
   check "failed logger after child $_child_rc is diagnosed" grep -q 'Cannot capture test output' "$EVI_ROOT/$_case.log"
+  check "failed logger after child $_child_rc aborts before a success Summary" ! grep -q '^Scans:' "$EVI_ROOT/$_case.log"
   check "failed logger after child $_child_rc never retries" test "$(cat "$EVI_ROOT/test-count")" -eq 1
   check "failed logger after child $_child_rc cleans new workspace" test ! -e "$EVI_REPO/go.work"
   check "failed logger after child $_child_rc cleans new checksum" test ! -e "$EVI_REPO/go.work.sum"
@@ -11481,12 +11527,20 @@ for _late_case in final-gate:worktree license:worktree license:cancel license:he
 done
 
 evi_workspace_reset
-EVI_IGNORE_COMMIT=true evi_run earlier-ignore-commit "$EVI_ROOT/earlier-ignore-commit"
+EVI_VERIFY_COMMIT=ignore evi_run earlier-ignore-commit "$EVI_ROOT/earlier-ignore-commit"
 check "earlier ignore-only commit is accepted by final source boundary" test "$EVI_RC" -eq 0
 check "earlier ignore-only commit was actually created" test -f "$EVI_ROOT/ignore-commit"
 check "ignore-only commit does not rerun unchanged code tests" test "$(cat "$EVI_ROOT/test-count")" -eq 1
 check "ignore-only final head may differ from tested code head" jq -e '.exit_code == 0 and .head != .tested_head' "$EVI_ROOT/earlier-ignore-commit/run.json"
 check "earlier ignore-only commit preserves publication eligibility" grep -q '^PR command:' "$EVI_ROOT/earlier-ignore-commit.log"
+evi_workspace_reset
+EVI_VERIFY_COMMIT=dependency evi_run verification-retest "$EVI_ROOT/verification-retest"
+check "verification dependency change is tested again" test "$(cat "$EVI_ROOT/test-count")" -eq 2
+_evi_first_test_head=$(jq -r .head "$EVI_ROOT/verification-retest/tests/1-1.json")
+_evi_final_test_head=$(jq -r .head "$EVI_ROOT/verification-retest/tests/2-1.json")
+check "verification retest actually moves tested HEAD" test "$_evi_first_test_head" != "$_evi_final_test_head"
+check "Summary binds every test run to its actual HEAD and exit" grep -qxF \
+  "Tests: completed (exit 0; failed=false); tested HEAD: $_evi_final_test_head; attempts: 1-1@$_evi_first_test_head=0 2-1@$_evi_final_test_head=0" "$EVI_ROOT/verification-retest.log"
 evi_workspace_reset
 git -C "$EVI_REPO" remote remove fork
 

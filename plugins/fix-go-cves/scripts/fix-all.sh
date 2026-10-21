@@ -32,6 +32,7 @@ _EVIDENCE_TEST_STATUS=not_reached
 _EVIDENCE_VERIFY_STATUS=not_reached
 _EVIDENCE_LICENSE_STATUS=not_reached
 _EVIDENCE_TEST_RUN=0
+_TEST_ATTEMPT_RESULTS=()
 
 # Check that commands preserved the expected commit and tracked files.
 _tracked_tree_unchanged() {
@@ -575,6 +576,7 @@ _run_test_attempt() {
   # The command has exited even if logging or a later diagnostic fails. Keep
   # its observed status separate from tee's, including for the EXIT receipt.
   TEST_RC=${test_status[0]}
+  _TEST_ATTEMPT_RESULTS+=("$_EVIDENCE_TEST_RUN-$_EVIDENCE_TEST_ATTEMPT@$TESTED_HEAD=$TEST_RC")
   _EVIDENCE_TEST_STATUS=completed _EVIDENCE_TEST_RC=$TEST_RC
   for workspace in "${generated_workspaces[@]+"${generated_workspaces[@]}"}"; do
     git ls-files --error-unmatch -- "$workspace" &>/dev/null && continue
@@ -1028,6 +1030,21 @@ echo "Fix branch: $CURRENT_BRANCH"
 if [[ -n "${ORIGINAL_REF:-}" ]]; then
   printf 'Original ref: %s\n' "$ORIGINAL_REF"
 fi
+GATE_CONFIRMED=true
+$GATE_FAILED && GATE_CONFIRMED=false
+SUMMARY_TESTED_HEAD="not run"
+if [[ "$_EVIDENCE_TEST_STATUS" == completed && ${#_TEST_ATTEMPT_RESULTS[@]} -gt 0 ]]; then
+  SUMMARY_TESTED_HEAD=$TESTED_HEAD
+fi
+printf 'Scans: initial %s (exit %s); final %s (exit %s; confirmed=%s)\n' \
+  "$_EVIDENCE_INITIAL_STATUS" "$SCAN_RC" "$_EVIDENCE_FINAL_STATUS" "$GATE_RC" "$GATE_CONFIRMED"
+printf 'Commands: build: %s; test: %s\n' "${BUILD_CMD:-not configured}" "${TEST_CMD:-not configured}"
+printf 'Tests: %s (exit %s; failed=%s); tested HEAD: %s; attempts: %s\n' \
+  "$_EVIDENCE_TEST_STATUS" "${_EVIDENCE_TEST_RC:-not run}" "$TESTS_FAILED" \
+  "$SUMMARY_TESTED_HEAD" "${_TEST_ATTEMPT_RESULTS[*]:-none}"
+printf 'Verification: %s (exit %s); license: %s (exit %s)\n' \
+  "$_EVIDENCE_VERIFY_STATUS" "${_EVIDENCE_VERIFY_RC:-not run}" \
+  "$_EVIDENCE_LICENSE_STATUS" "${_EVIDENCE_LICENSE_RC:-not run}"
 
 # Refresh the base before printing a push/PR command. Do not silently rebase:
 # this branch may contain operator edits, and a history rewrite can hide a

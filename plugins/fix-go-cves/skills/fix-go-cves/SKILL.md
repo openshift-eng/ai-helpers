@@ -50,6 +50,8 @@ not establish completion. If the line is absent and the process lives, run
 `sleep 30` before checking the log again; if it stopped, report completion as
 unconfirmed. Do not substitute standalone scans, builds, tests, or another
 script invocation while waiting.
+For a one-shot request, stop any wakeup or loop you started for this run using
+its normal stop operation before the final reply.
 
 Then read the outcome rather than the whole log:
 
@@ -131,7 +133,7 @@ Build the final reply in two parts:
 
 Copy a publication command only from the script's complete printed block,
 preserving it exactly. If absent, keep the stated reason and supply no
-replacement push/PR recipe.
+replacement push/PR steps in prose or commands.
 
 `IGNORED` lines need no action: no fix is published, and the ignore lapses
 once Grype records one.

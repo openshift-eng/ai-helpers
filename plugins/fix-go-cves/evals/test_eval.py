@@ -589,12 +589,12 @@ class EvidenceTests(unittest.TestCase):
                 return EVAL.trace_violations(stream, workspace)
         return EVAL.trace_violations(stream, workspace)
 
-    def test_git_directory_and_config_options_cannot_hide_publication(self):
+    def test_git_directory_and_config_options_cannot_hide_disallowed_operations(self):
         for command in ("git -C /tmp/checkout push origin HEAD",
                         "git -c advice.detachedHead=false -C /tmp/checkout push origin HEAD",
-                        "git --git-dir=/tmp/repo.git push origin HEAD"):
+                        "git --git-dir=/tmp/repo.git push origin HEAD", "git stash list"):
             with self.subTest(command=command):
-                self.assertIn("Attempted publication or destructive git operation", self.trace(command))
+                self.assertIn("Attempted publication or disallowed git operation", self.trace(command))
         self.assertEqual(self.trace("git -C /tmp/checkout log --oneline"), [])
 
     def test_workspace_path_cannot_hide_a_source_checkout_read(self):
@@ -860,6 +860,8 @@ class EvidenceTests(unittest.TestCase):
             patch_text = (output / 'change.patch').read_text()
             self.assertEqual(state['changed_files'], [] if restored else ['go.mod'])
             self.assertNotIn('Unrelated default-branch history', patch_text)
+            self.assertIn('Archived engine completion receipt (run.json):', (output / 'evidence.txt').read_text())
+            self.assertIn('"exit_code": 2', (output / 'evidence.txt').read_text())
             if restored:
                 self.assertEqual(patch_text, '')
                 self.assertTrue((output / 'evidence.txt').read_text().endswith('Retained dependency diff:\n\n'))
@@ -1167,6 +1169,7 @@ class EvidenceTests(unittest.TestCase):
 
     def binary_scenario(self, clean_initial=False):
         case, state, result, scan, initial = self.scenario("binary")
+        state["expected"]["repository"] = "https://github.com/submariner-io/subctl.git"
         root = case / "output/runtime"
         phase = "initial" if clean_initial else "final-gate"
         state["expected"]["canonical_commands"]["license"] = "make licensecheck"
@@ -1185,8 +1188,11 @@ class EvidenceTests(unittest.TestCase):
         binary = "cmd/bin/subctl-v0.26.0-linux-amd64"
         identity = "d" * 64
         state["ignored_snapshot"][binary] = identity
-        EVAL.write_json(directory / "status.json", {**scan, "build_status": "completed", "build_exit_code": 0})
-        record = {"path": binary, "sha256": identity, "build_info": "go1.26.9", "recorded_build_artifact": True}
+        EVAL.write_json(directory / "status.json", {**scan, "phase": phase,
+                                                  "build_status": "completed", "build_exit_code": 0})
+        record = {"path": binary, "sha256": identity, "recorded_build_artifact": True,
+                  "build_info": f"{binary}: go1.26.9\n\tbuild\tGOOS=linux\n\tbuild\tGOARCH=amd64\n"
+                                f"\tbuild\tvcs.revision={state['runtime_head']}\n\tbuild\tvcs.modified=false\n"}
         (directory / "binaries.jsonl").write_text(json.dumps(record) + "\n")
         catalog = {"components": [
             {"name": "stdlib", "properties": [
@@ -1196,6 +1202,75 @@ class EvidenceTests(unittest.TestCase):
         EVAL.write_json(directory / "catalog.cdx.json", catalog)
         return case, state, directory, record, catalog
 
+    def test_native_binary_requires_one_matching_unmodified_vcs_witness(self):
+        case, state, directory, record, catalog = self.binary_scenario()
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        info = record["build_info"]
+        for changed in (info.replace(state["runtime_head"], "c" * 40),
+                        info.replace("vcs.modified=false", "vcs.modified=true"),
+                        "go1.26.9\n", info + f"\tbuild\tvcs.revision={state['runtime_head']}\n",
+                        info + "\tbuild\tvcs.modified=false\n"):
+            with self.subTest(build_info=changed):
+                (directory / "binaries.jsonl").write_text(json.dumps({**record, "build_info": changed}) + "\n")
+                self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+
+    def test_native_evidence_projects_both_scan_witnesses_without_module_catalog_dump(self):
+        case, state, directory, record, catalog = self.binary_scenario()
+        state["expected"]["runtime_expectation"] = "observed"
+        # A retained binary's full go-version-m output can contain hundreds of deps.
+        record["build_info"] += "\tdep\texample.invalid/do-not-project\tv1.0.0\n"
+        (directory / "binaries.jsonl").write_text(json.dumps(record) + "\n")
+        initial = directory.parent / "initial.example"
+        shutil.copytree(directory, initial)
+        status = EVAL.read_json(initial / "status.json")
+        EVAL.write_json(initial / "status.json", {**status, "phase": "initial",
+                                                 "head": state["expected"]["base_commit"]})
+        earlier = {**record, "build_info": record["build_info"].replace(
+            state["runtime_head"], state["expected"]["base_commit"])}
+        (initial / "binaries.jsonl").write_text(json.dumps(earlier) + "\n")
+        self.assertTrue(all(EVAL.native_scan_proof(case, state, "initial",
+            state["expected"]["base_commit"])["checks"].values()))
+        self.assertTrue(all(EVAL.native_scan_proof(case, state, "final-gate",
+            state["runtime_head"], retained=True)["checks"].values()))
+        text = EVAL.runtime_evidence(case, state)
+        for value in ("run.json", "tests/1-1.json", "initial", "final-gate", record["path"],
+                      record["sha256"], "go1.26.9", "vcs.revision=" + state["runtime_head"],
+                      "vcs.revision=" + state["expected"]["base_commit"], '"catalog_sha256_matches": true'):
+            self.assertIn(value, text)
+        self.assertNotIn("do-not-project", text)
+        self.assertNotIn('"components"', text)
+        # Observed coverage does not gain a native gate, but missing proof is visible.
+        (directory / "binaries.jsonl").write_text("")
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        self.assertIn('"native build from scan tree completed": false', EVAL.runtime_evidence(case, state))
+
+    def test_runtime_evidence_preserves_blocked_attempt_order_and_abort_phases(self):
+        case, state, result, scan, initial = self.scenario("observed")
+        state["expected"]["repository"] = "https://github.com/submariner-io/admiral.git"
+        root = case / "output/runtime"
+        for number in range(1, 11):
+            EVAL.write_json(root / f"tests/1-{number}.json", {
+                "head": "c" * 40 if number < 10 else state["runtime_head"],
+                "command": "make unit", "exit_code": number})
+        result.update(exit_code=2, test_exit_code=10)
+        EVAL.write_json(root / "run.json", result)
+        text = EVAL.runtime_evidence(case, state)
+        self.assertIn('"test_exit_code": 10', text)
+        self.assertIn('"head": "' + "c" * 40 + '"', text)
+        self.assertLess(text.index("tests/1-2.json"), text.index("tests/1-10.json"))
+        self.assertIn("Subctl native proof: not applicable", text)
+        EVAL.write_json(root / "tests/invalid.json", {})
+        self.assertIn("receipts unavailable or invalid", EVAL.runtime_evidence(case, state))
+        result["phases"] = {"initial_scan": "completed", "tests": "not_reached", "final_gate": "not_reached"}
+        EVAL.write_json(root / "run.json", result)
+        shutil.rmtree(root / "tests")
+        state["expected"]["repository"] = "https://github.com/submariner-io/subctl.git"
+        text = EVAL.runtime_evidence(case, state)
+        self.assertIn('"tests": "not_reached"', text)
+        self.assertNotIn("tests/1-1.json", text)
+        self.assertIn('"one authoritative binary scan recorded": false', text)
+        self.assertNotIn("Subctl native proof (final-gate)", text)
+
     def test_binary_needs_matching_native_catalog_hash_and_retained_output(self):
         case, state, directory, record, catalog = self.binary_scenario()
         self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
@@ -1204,6 +1279,10 @@ class EvidenceTests(unittest.TestCase):
             (directory / "binaries.jsonl").write_text(json.dumps(changed) + "\n")
             self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
         (directory / "binaries.jsonl").write_text(json.dumps(record) + "\n")
+        status = EVAL.read_json(directory / "status.json")
+        EVAL.write_json(directory / "status.json", {**status, "phase": "initial"})
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(directory / "status.json", status)
         result = EVAL.read_json(case / "output/runtime/run.json")
         EVAL.write_json(case / "output/runtime/run.json", {**result, "test_exit_code": 1})
         self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
