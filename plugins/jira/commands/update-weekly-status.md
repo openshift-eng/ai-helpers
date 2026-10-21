@@ -227,15 +227,13 @@ Using the pre-gathered data, apply the activity analysis rules from `activity-an
 
 Use `ryg_field` (native ADF JSON) by default. Select `ryg_field_markdown` only
 when an external caller explicitly requests a draft and owns a verified
-Markdown-to-ADF converter. This plugin **does not bundle or perform conversion**.
-The source-verified reference is
-[Herald `54b490c`, `jira.py::_text_to_adf`](https://github.com/celebdor/herald/blob/54b490c/src/herald/jira.py),
-using `pyadf.Document.from_markdown(text).to_adf()` with pinned `pyadf==0.5.2`.
-Never improvise conversion or send a draft string as the field value. Follow
-[`formatting.md`'s conversion boundary](../skills/status-analysis/formatting.md#external-consumer-and-conversion-boundary)
-and the selected-format contract in `SKILL.md`. Herald's permissive validator
-does not relax the canonical draft grammar; its whole-field replacement writer
-does not implement ARO raw-history prepend.
+Markdown-to-ADF converter (an external Herald-style client). This plugin **does
+not bundle or perform conversion**. Never improvise conversion or send a draft
+string as the field value. See the canonical
+[external conversion boundary and source references](../skills/status-analysis/formatting.md#external-consumer-and-conversion-boundary).
+For draft PR references, qualify only unambiguously confirmed evidence; otherwise
+retain the original text exactly verbatim, add no repository or link, and do not
+guess or request human input.
 
 For `ryg_field`, format the status content as native ADF (Atlassian Document Format) JSON — a nested `bulletList` with three top-level items: Color Status, Status summary (with nested bullet items), and Risks (with nested bullet items). The gathered `issue.current_status_summary` value is the raw ADF document, not Markdown; use the summary script's rendered text only for review, and retain the raw document when project-specific guidance requires history preservation.
 
@@ -300,8 +298,10 @@ Options:
 - Validate the selected representation against `formatting.md`: `ryg_field`
   requires valid native ADF JSON with the expected list structure and color;
   never apply a text-prefix check to an ADF document. `ryg_field_markdown`
-  requires a draft starting with `* Color Status:` and Red, Yellow, or Green,
-  standard nested Markdown bullets, and evidence-backed qualified PR links.
+  requires exactly one Color Status line first (`* Color Status: Red`,
+  `* Color Status: Yellow`, or `* Color Status: Green`), standard nested Markdown
+  bullets, and qualified PR links agreeing with confirmed evidence URLs. Retain
+  unknown/issue references exactly verbatim without adding links or requesting input.
 - If the user edits the rendered display text for `ryg_field`, reconstruct and
   validate the native ADF document rather than treating the display as field data.
 - Show modified version and ask for final confirmation

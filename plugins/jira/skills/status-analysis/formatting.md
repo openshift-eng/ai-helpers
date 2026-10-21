@@ -297,23 +297,26 @@ are unchanged.
 - Do not use Jira wiki-style `**` markers or indentation-only pseudo-lists.
 - Keep `Color Status`, `Status summary`, and `Risks` as top-level bullets.
 - Put each achievement, progress item, and risk under its corresponding section.
-- Always start with `* Color Status:` and use exactly `Red`, `Yellow`, or `Green`.
+- Include exactly one Color Status line, first, as `* Color Status: Red`,
+  `* Color Status: Yellow`, or `* Color Status: Green`.
 - Include at least one status summary item and a Risks section; use
   `  * None at this time` when there are no risks.
-- Render every PR reference as a Markdown link labeled `owner/repo#number`,
+- Render each unambiguously confirmed PR reference as a Markdown link labeled `owner/repo#number`,
   using the repository and URL in the evidence (for example,
   `[openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456)`).
 - For confirmed PR references, use qualified labels rather than bare `#number`
   or shorthand `repo#number`; the evidence URL is the authority for identity.
-- Do not print a raw PR URL in parentheses, such as `Enhancement PR (https://...)`;
+- For confirmed PRs, do not print a raw PR URL in parentheses, such as `Enhancement PR (https://...)`;
   put the URL only in the Markdown link target.
-- Do not infer or fabricate a repository or URL. If the evidence does not identify
-  the repository and URL, avoid an ambiguous PR reference.
+- Do not infer or fabricate a repository or URL. If a reference cannot be tied
+  unambiguously to a confirmed PR URL, retain its original text **exactly verbatim**,
+  add no repository or link, and do not guess or request human input.
 - Qualify only references unambiguously identified as PRs by their evidence. Do
   not transform arbitrary `#N` text, issues, language names or headings. Preserve
-  unknown references and unrelated links; never attach a separate PR URL to
-  unrelated prose. For multiple or mismatched references, request matching
-  evidence rather than guessing repositories or discarding the original meaning.
+  unknown references and unrelated links exactly verbatim; never attach a separate
+  PR URL to unrelated prose. For multiple references, qualify only those confirmed
+  by evidence and leave the others verbatim. If a written repository conflicts
+  with the evidence URL, keep that reference exactly as written and unlinked.
 - Preserve supplied PR destinations, including query strings, fragments and
   subpages. A confirmed `/pull/3/files` reference belongs in a Markdown link
   target; do not fabricate a replacement URL by stripping the subpath.
@@ -574,18 +577,21 @@ def format_ryg_field(issue_data, config):
 Produce a draft using the [template and rules](#format-ryg_field_markdown), not a
 regex transformation of activity descriptions. Draft formatting does not perform
 final conversion; the [external client owns it](#external-consumer-and-conversion-boundary).
-The native formatter's existing 3/2/2 selection limits and empty-summary fallback
-predate this draft option; they are not new features of this PR.
+Use the same selection caps as native `ryg_field`: at most 3 achievements,
+2 in-progress items and 2 risks. If no summary items are selected, emit
+`  * No status updates this period` under `* Status summary:`. If no risks are
+selected, emit `  * None at this time` under `* Risks:`.
 
-These documentation cases constrain drafting, not executable rewrite behavior:
+These hypothetical fixtures constrain drafting, not executable rewrite behavior
+or claims about the contents of actual PRs:
 
 | Evidence and input | Required treatment |
 |---|---|
 | `fixes #12`, no PR evidence | Preserve the unknown reference; do not replace it with "pull request". |
 | `closed #99`, evidence points to `/issues/99` | Preserve the issue reference; it is not a PR. |
 | `ported C#12 code` or `fixed heading #1 in docs` | Preserve language text and heading numbers verbatim. |
-| `#456 and #457 merged`, evidence identifies only PR 456 | Do not assign PR 456's repository or URL to 457; retain meaning and request missing evidence. |
-| `openshift/other#456 merged`, evidence identifies `openshift/hypershift` | Treat as conflicting evidence; do not relabel or generalize away the reference. |
+| `#456 and #457 merged`, confirmed evidence `https://github.com/openshift/hypershift/pull/456` | Output `[openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456) and #457 merged`. Qualify only 456; keep 457 verbatim. |
+| `openshift/other#456`, evidence `https://github.com/openshift/hypershift/pull/456` | Output `openshift/other#456` exactly as written and unlinked; do not attach mismatched evidence or change the repository. |
 | `https://github.com/o/r/pull/3/files`, confirmed PR evidence | Render `[o/r#3](https://github.com/o/r/pull/3/files)` without changing the destination. |
 | `docs at https://example.com/x`, unrelated PR URL present separately | Preserve the documentation link; do not append or associate the unrelated PR. |
 | A link on an unrecognized host with no verified PR identity | Preserve it as an unrelated/unknown link, not an inferred GitHub PR. |
@@ -681,11 +687,12 @@ Before outputting, validate the formatted text:
 
 ### ryg_field_markdown validation
 
-- [ ] Starts with `* Color Status:` and uses exactly Red, Yellow, or Green
+- [ ] Exactly one Color Status line, first: `* Color Status: Red`, `* Color Status: Yellow`, or `* Color Status: Green`
 - [ ] `Status summary` and `Risks` are top-level `* ` bullets
 - [ ] Summary items and risks use two-space nested `  * ` bullets
 - [ ] Contains no Jira wiki-style `**` sub-bullets
 - [ ] No empty bullet points
+- [ ] Confirmed qualified PR links agree with their evidence URLs; unknown/issue references and unrelated text remain exactly verbatim, without guesses or requests for input
 
 ## Escaping Special Characters
 

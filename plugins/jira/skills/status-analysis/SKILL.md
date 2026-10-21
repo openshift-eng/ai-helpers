@@ -381,24 +381,15 @@ The Status Summary field (`customfield_10814`) requires an ADF JSON document —
   * Risk 1 (or "None at this time")
 ```
 
-This is a draft format for external clients, not a plugin-provided conversion
-path. This plugin **does not bundle or perform Markdown-to-ADF conversion**.
-The public reference is Herald at `54b490c`, whose `_text_to_adf` uses
-`pyadf.Document.from_markdown(text).to_adf()` with pinned `pyadf==0.5.2`;
-see [source links, constraints and structural gates in formatting.md](formatting.md#external-consumer-and-conversion-boundary).
-Before PUT, the external client must validate the converted new entry against
-all [native ADF checks](formatting.md#ryg_field-validation), then retain raw ADF
-history as the project requires. Herald's whole-field replacement/readback path
-is not a structural validator or an ARO raw-history-prepend guarantee. Its
-permissive validator does not relax the canonical draft grammar.
-
-The draft is not a valid direct value for `customfield_10814`;
-`contentFormat: "markdown"` does not convert custom field values. Use native
-`ryg_field` by default. Never improvise conversion; stop if the external client
-lacks a supported converter, validation or required history-preservation path.
-The qualified Markdown PR-link rule applies only to this draft, not the native
-ADF examples. Preserve non-PR/unknown references and unrelated evidence as
-described in `formatting.md`.
+Use native ADF `ryg_field` by default. This draft requires an external Herald-style
+client with verified Markdown-to-ADF conversion; this plugin **does not bundle
+or perform conversion**. A draft string is not a valid direct custom-field value.
+Follow the canonical [external conversion boundary, source references and pre-write gates](formatting.md#external-consumer-and-conversion-boundary);
+never improvise conversion or bypass required validation/history support.
+The qualified Markdown PR-link rule applies only to this draft, not native ADF.
+Qualify only references tied unambiguously to confirmed PR URLs; otherwise retain
+the original text exactly verbatim, add no repository or link, and do not guess
+or request human input. Follow all [draft formatting and selection rules](formatting.md#for-ryg_field_markdown-format).
 
 **For `feature_markdown` (generate-feature-updates)**:
 
