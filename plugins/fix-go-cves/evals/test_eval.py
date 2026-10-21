@@ -15,6 +15,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml
@@ -1147,6 +1148,28 @@ class EvidenceTests(unittest.TestCase):
         frozen.write_text("required_commits: [ccccccc]\n")
         with self.assertRaisesRegex(ValueError, "Frozen input changed"):
             EVAL.check(case)
+
+    def test_snapshot_freezes_configured_test_command_and_overlay(self):
+        self.freeze(cases=("case-004",), live=True, annotation={})
+        raw = {"dataset": {"path": "fixtures"}, "runner": {"env": {
+            "CVE_FIX_TEST_CMD": "$CVE_FIX_TEST_CMD", "DAPPER_ARGS": "$DAPPER_ARGS"}}}
+        config = SimpleNamespace(
+            runner=SimpleNamespace(plugin_dirs=[]), models=SimpleNamespace(judge=None),
+            dataset=SimpleNamespace(path="fixtures"),
+            resolve_path=lambda _: self.root / "fixtures", project_root=self.root)
+        loader = SimpleNamespace(
+            EvalConfig=SimpleNamespace(from_yaml=lambda _: config),
+            load_raw=lambda _: (copy.deepcopy(raw), None), resolve_plugin_dir=lambda *_: None)
+        selected = {"CVE_FIX_TEST_CMD": "make golangci-lint && make unit",
+                    "DAPPER_ARGS": "-f /external/Dockerfile.cache"}
+        with patch.dict(sys.modules, {"agent_eval.config": loader}), \
+                patch.dict(os.environ, selected), \
+                patch.object(EVAL, "git", side_effect=lambda _, command, *args:
+                             "a" * 40 if command == "rev-parse" else ""):
+            EVAL.snapshot(self.root / "eval.yaml", self.root / "snapshot", ["case-004"])
+        with patch.dict(os.environ, {key: "changed after snapshot" for key in selected}):
+            _, _, frozen = EVAL.frozen_inputs(self.root / "snapshot")
+            self.assertEqual(frozen["runner"]["env"], selected)
 
     def test_snapshot_selection_does_not_copy_neighbors_or_replace_old_inputs(self):
         self.freeze(cases=("case-005",))

@@ -71,7 +71,7 @@ def snapshot(config_path, run_dir, case_ids, model=None):
         str(resolve_plugin_dir(config, path)) for path in config.runner.plugin_dirs]
     # Freeze explicit nonsecret settings without copying provider credentials.
     environment = raw['runner'].get('env', {})
-    for name in ('DOCKER_HOST', 'GRYPE_DB_CACHE_DIR', 'GOMODCACHE', 'GOOGLE_APPLICATION_CREDENTIALS', 'GOMAXPROCS', 'DAPPER_ENV'):
+    for name in ('DOCKER_HOST', 'GRYPE_DB_CACHE_DIR', 'GOMODCACHE', 'GOOGLE_APPLICATION_CREDENTIALS', 'GOMAXPROCS', 'DAPPER_ENV', 'DAPPER_ARGS', 'CVE_FIX_TEST_CMD'):
         value = environment.get(name)
         if isinstance(value, str) and value.startswith('$'):
             environment[name] = os.environ.get(value[1:])

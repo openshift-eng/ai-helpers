@@ -43,7 +43,7 @@ not attribute the historical run or replace a full baseline test suite.
 2. **Boundary fixtures pass.** The existing shell suite passed 2,781 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
-   The 52 eval checks cover witnessed publication, tampering, frozen inputs,
+   The 53 eval checks cover witnessed publication, tampering, frozen inputs,
    native event shapes and preserved failures. Skipped/unconfigured gates are
    not passing gates; old-trace rechecks prove detection, not revised behavior.
 3. **Selected replay behavior is measured.** At `07515259`, case-005 passes its
@@ -118,6 +118,10 @@ run needs a changed mechanism or concrete current-engine question. Preserve
 mutable database misses and different outcomes as missing coverage. Revalidate
 ownership/cancellation when recreating the worker, retain supervised lifecycle
 management, and keep it stopped between selected runs.
+
+Case 004 prepares one pinned Subctl release-0.24 check of the current engine and
+faithful reporting, including partial results, through the existing live runner
+and criteria. It has not run and establishes no skill acceptance.
 
 Frozen scoring uses copied inputs/configuration and exact selected cases,
 judges and complete samples. Extraction checks all collected case directories

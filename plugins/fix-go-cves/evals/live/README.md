@@ -10,6 +10,7 @@ See [setup and commands](../README.md).
 | case-001 | Admiral release-0.24 | Actual remediation and evidence-based reporting |
 | case-002 | Admiral devel | Genuine dependency repair with all canonical gates passing |
 | case-003 | Subctl devel | Fresh native Linux/amd64 binary and positive scan coverage |
+| case-004 | Subctl release-0.24 | Actual remediation and faithful reporting, including a partial result |
 
 Select one with `evals/run.sh --live --case case-002` (or repeat `--case`).
 The original case remains the default. Cases 002 and 003 establish genuine
