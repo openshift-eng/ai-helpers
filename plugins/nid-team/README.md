@@ -21,6 +21,10 @@ Add to your Claude Code settings:
 
 ## Commands
 
+The plugin also exposes `sync-pr-dashboard` and `nudge-prs` as Codex skills.
+Select either workflow from Codex's skill picker. The skills follow the same
+command instructions and use the bundled scripts and shared team configuration.
+
 ### `/nid-team:sync-pr-dashboard`
 
 Syncs the [NI&D PR Review](https://github.com/orgs/openshift/projects/28) GitHub Projects board. Populates PR Author, Area, and Author Type fields, syncs reviewer assignments to GitHub, adds shared repo and docs PRs, and uses AI to classify ambiguous areas.
