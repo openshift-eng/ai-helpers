@@ -22,7 +22,18 @@ CLEAN_AT_START=false
 trap '$CLEAN_AT_START && git checkout -- . 2>/dev/null; rm -rf -- "$(dirname "$STATE_FILE")"' EXIT
 [[ "$BRANCH" == "$(git branch --show-current)" ]] || die "report.sh scans the checked-out branch; got $BRANCH"
 
-"$SCRIPT_DIR/scan.sh" "$STATE_FILE" --fresh
+# Use the validated JSON path once; table-mode scanner output has no evidence
+# validation and an empty successful response cannot establish a complete scan.
+SCAN_JSON=$("$SCRIPT_DIR/scan.sh" "$STATE_FILE" --fresh --json)
+jq -r '
+  def row($status):
+    [.artifact.name, .artifact.version,
+     ((.vulnerability.fix.versions // []) | join(", ")),
+     .vulnerability.id, .vulnerability.severity, $status];
+  ["NAME", "INSTALLED", "FIXED-IN", "VULNERABILITY", "SEVERITY", "STATUS"],
+  (.matches[] | row("finding")),
+  (.ignoredMatches[]? | row("ignored")) | @tsv
+' <<< "$SCAN_JSON"
 for sentinel in build-failed coverage-unknown scanner-degraded scan-transient; do
   if [[ -e "$STATE_FILE.$sentinel" ]]; then
     echo "INCOMPLETE: $sentinel — this scan may miss findings" >&2

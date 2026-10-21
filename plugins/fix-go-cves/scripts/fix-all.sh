@@ -171,6 +171,15 @@ if [[ -n "${CVE_FIX_EVIDENCE_DIR:-}" ]]; then
   _EVIDENCE_READY=true
 fi
 
+# Inherited selectors are maintainer policy. Do not let a build, clean command
+# or the YAML repair loop erase them, even when a scanner would report no CVEs.
+if [[ -e .grype.yaml || -L .grype.yaml ]]; then
+  if ! python3 "$SCRIPT_DIR/check-grype-ignores.py" .grype.yaml; then
+    echo "NEEDS_REVIEW: inherited Grype ignore policy is invalid or broad; maintainer must review .grype.yaml before rerunning." >&2
+    exit 2
+  fi
+fi
+
 echo ""
 if [[ -n "${CLEAN_CMD:-}" ]]; then
   echo "Cleaning build artifacts..."

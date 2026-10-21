@@ -17,6 +17,10 @@ def missing_prerequisite():
     for tool in ("bash", "git", "go", "jq", "make"):
         if shutil.which(tool) is None:
             return f"{tool} not found"
+    try:
+        __import__("yaml").CSafeLoader
+    except (ImportError, AttributeError):
+        return "PyYAML with libyaml (CSafeLoader) is required for Grype policy checks"
     version = subprocess.run(["go", "env", "GOVERSION"], capture_output=True, text=True,
                              env={**os.environ, "GOTOOLCHAIN": "local"}).stdout
     match = re.match(r"go(\d+)\.(\d+)", version)

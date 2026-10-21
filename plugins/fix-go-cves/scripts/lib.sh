@@ -125,15 +125,76 @@ grype_container_image() {
   printf '%s\n' "$image"
 }
 
-grype_container_version_matches() {
-  local runtime="$1" image="$2" version="${3#v}" actual
-  [[ -n "$image" ]] || return 1
-  if ! actual=$(timeout --foreground "${CVE_FIX_SCAN_TIMEOUT:-600}" \
-      "$runtime" run --rm "$image" version -o json) ||
-      ! jq -se --arg version "$version" 'length == 1 and .[0].version == $version' <<< "$actual" >/dev/null; then
-    echo "ERROR: container scanner $image could not confirm requested grype v$version" >&2
-    return 1
+# Scanner deadlines apply per operation, including fallback and DB updates.
+# Use timeout's process group so a scanner's subprocess cannot keep its pipes
+# open after the deadline. Escalate if it ignores TERM; scanners need no TTY.
+_grype_timeout() {
+  local operation="$1" _grype_child="" rc=0 saved_int saved_term
+  shift
+  saved_int=$(trap -p INT)
+  saved_term=$(trap -p TERM)
+  # Waiting on a background child lets Bash handle an enclosing caller's
+  # shorter timeout immediately, rather than defer TERM until the scan ends.
+  trap '_grype_cancel 130' INT
+  trap '_grype_cancel 143' TERM
+  timeout --kill-after=5 "${CVE_FIX_SCAN_TIMEOUT:-600}" "$@" &
+  _grype_child=$!
+  wait "$_grype_child" || rc=$?
+  if [[ -n "$saved_int" ]]; then eval "$saved_int"; else trap - INT; fi
+  if [[ -n "$saved_term" ]]; then eval "$saved_term"; else trap - TERM; fi
+  if [[ $rc -eq 124 ]]; then
+    echo "WARNING: scanner $operation timed out (exit $rc)." >&2
+  elif [[ $rc -eq 137 ]]; then
+    echo "WARNING: scanner $operation was killed (exit $rc)." >&2
   fi
+  return "$rc"
+}
+
+_grype_remove_container() {
+  # This name belongs only to this operation. Never clean other containers or
+  # volumes, and bound cleanup itself if the daemon is unavailable.
+  timeout --kill-after=1 5 "$1" rm -f "$2" >/dev/null 2>&1 ||
+    echo "WARNING: could not remove scanner container $2; targeted cleanup may be needed." >&2
+}
+
+# shellcheck disable=SC2329 # invoked by _grype_timeout's signal traps
+_grype_cancel() {
+  trap - INT TERM
+  if [[ -n "$_grype_child" ]]; then
+    kill -TERM "$_grype_child" 2>/dev/null || true
+    wait "$_grype_child" 2>/dev/null || true
+  fi
+  if [[ -n "${_grype_container_name:-}" ]]; then
+    _grype_remove_container "$_grype_container_runtime" "$_grype_container_name"
+  fi
+  exit "$1"
+}
+
+_grype_container_run() {
+  local _grype_container_runtime="$1" operation="$2" rc=0
+  local _grype_container_name="cve-fix-grype-${BASHPID}-${RANDOM}-${RANDOM}"
+  shift 2
+  _grype_timeout "$operation" "$_grype_container_runtime" run --rm \
+    --name "$_grype_container_name" "$@" || rc=$?
+  if [[ $rc -eq 124 || $rc -eq 137 || $rc -eq 143 ]]; then
+    _grype_remove_container "$_grype_container_runtime" "$_grype_container_name"
+  fi
+  return "$rc"
+}
+
+grype_container_version_matches() {
+  local runtime="$1" image="$2" version="${3#v}" actual_file rc=0
+  [[ -n "$image" ]] || return 1
+  actual_file=$(mktemp "${TMPDIR:-/tmp}/cve-grype-version.XXXXXX") || return 1
+  _grype_container_run "$runtime" "container version check" "$image" version -o json >"$actual_file" || rc=$?
+  if [[ $rc -ne 0 ]] ||
+      ! jq -se --arg version "$version" 'length == 1 and .[0].version == $version' "$actual_file" >/dev/null; then
+    rm -f "$actual_file"
+    echo "ERROR: container scanner $image could not confirm requested grype v$version" >&2
+    [[ $rc -ne 0 ]] || rc=1
+    return "$rc"
+  fi
+  rm -f "$actual_file"
 }
 
 # Optional durable evidence belongs outside the scanned checkout, including .git.
@@ -209,8 +270,9 @@ run_grype() {
   # Prefer local grype (fast, uses host-cached DB); fall back to container on failure
   local use_local="$HAS_LOCAL_GRYPE"
   if [[ "$use_local" == true && -n "${CVE_FIX_GRYPE_VERSION:-}" ]]; then
-    if ! grype version -o json 2>/dev/null | jq -se --arg version "${CVE_FIX_GRYPE_VERSION#v}" \
-        'length == 1 and .[0].version == $version' >/dev/null; then
+    if ! _grype_timeout "local version check" grype version -o json >"$outfile" ||
+       ! jq -se --arg version "${CVE_FIX_GRYPE_VERSION#v}" \
+        'length == 1 and .[0].version == $version' "$outfile" >/dev/null; then
       echo "WARNING: local scanner could not confirm requested grype $CVE_FIX_GRYPE_VERSION; trying the pinned container." >&2
       use_local=false
     fi
@@ -236,7 +298,7 @@ print(json.dumps({'mode': 'local', 'path': str(path), 'sha256': sha.hexdigest()}
 PY
       ) || selected_identity='{"mode":"local","identity_error":"executable hash unavailable"}'
     fi
-    "${_grype_env[@]+"${_grype_env[@]}"}" grype . "${config_args[@]}" \
+    _grype_timeout "local scan" "${_grype_env[@]+"${_grype_env[@]}"}" grype . "${config_args[@]}" \
       -v -o "$output_format" "${evidence_output[@]}" >"$outfile" 2>"$errfile" && grype_ok=true
     cat "$errfile" >&2
     if [[ "$no_update" != "true" ]] && grype_db_degraded "$errfile"; then
@@ -272,9 +334,14 @@ PY
     GRYPE_SCAN_TRANSIENT=0
     : > "$errfile"
     if [[ "$fresh" == "true" ]]; then
-      $CONTAINER_CMD volume create grype-db >/dev/null 2>&1 || true
+      local volume_rc=0
+      _grype_timeout "container volume creation" "$CONTAINER_CMD" volume create grype-db >/dev/null || volume_rc=$?
+      if [[ $volume_rc -eq 124 || $volume_rc -eq 137 ]]; then
+        rm -f "$errfile" "$outfile"
+        return "$volume_rc"
+      fi
       echo "Updating vulnerability database (container)..." >&2
-      if ! $CONTAINER_CMD run --rm \
+      if ! _grype_container_run "$CONTAINER_CMD" "container database update" \
         -e GRYPE_DB_CACHE_DIR=/root/.cache/grype/db \
         -v grype-db:/root/.cache/grype "$scanner_image" db update >&2; then
         echo "WARNING: DB update failed. Scan will use cached data." >&2
@@ -294,7 +361,7 @@ PY
       container_evidence=(-o cyclonedx-json=/cve-evidence/catalog.cdx.json)
     fi
     : > "$outfile"
-    if $CONTAINER_CMD run --rm "${env_args[@]}" \
+    if _grype_container_run "$CONTAINER_CMD" "container scan" "${env_args[@]}" \
       -v grype-db:/root/.cache/grype \
       -v "$(pwd)":/src \
       "${evidence_mount[@]}" "$scanner_image" /src "${container_config[@]}" -v -o "$output_format" \
@@ -305,9 +372,13 @@ PY
         GRYPE_DB_DEGRADED=1
       fi
       if [[ -n "${CVE_FIX_EVIDENCE_SCAN_DIR:-}" ]]; then
-        local image_identity
-        image_identity=$(timeout --foreground 10 "$CONTAINER_CMD" image inspect "$scanner_image" --format \
-          '{"image_id":{{json .Id}},"repo_digests":{{json .RepoDigests}}}' 2>/dev/null) || image_identity=''
+        local image_identity identity_file
+        identity_file=$(mktemp "${TMPDIR:-/tmp}/cve-grype-identity.XXXXXX")
+        _grype_timeout "container image inspection" timeout --kill-after=5 10 \
+          "$CONTAINER_CMD" image inspect "$scanner_image" --format \
+          '{"image_id":{{json .Id}},"repo_digests":{{json .RepoDigests}}}' >"$identity_file" || : >"$identity_file"
+        image_identity=$(cat "$identity_file")
+        rm -f "$identity_file"
         [[ -n "$image_identity" ]] || image_identity='{"identity_error":"image inspection unavailable"}'
         jq -cn --arg image "$scanner_image" --argjson identity "$image_identity" \
           '{mode:"container",image:$image} + $identity' > "$CVE_FIX_EVIDENCE_SCAN_DIR/scanner-identity.json"
@@ -1196,7 +1267,7 @@ clean_gomod() {
 # the ignore is scoped to that module so it can't mask the same CVE elsewhere.
 # It is written after name: — remove_grype_ignore relies on that order.
 _grype_yaml_valid() {
-  python3 -c "import yaml,sys; list(yaml.safe_load_all(open(sys.argv[1])))" "$1" 2>/dev/null
+  python3 -c "import yaml,sys; list(yaml.load_all(open(sys.argv[1]), Loader=yaml.CSafeLoader))" "$1" 2>/dev/null
 }
 
 # Usage: insert_grype_ignore FILE CVE_ID PACKAGE REASON [FIX_STATE] [LOCATION]
@@ -1276,8 +1347,8 @@ ${padding}    name: $package"
   tmp=$(mktemp "${TMPDIR:-/tmp}/cve-fix.XXXXXX")
   { head -n "$((insert_line - 1))" "$file"; printf '%s\n' "$entry"; tail -n +"$insert_line" "$file"; } > "$tmp"
   mv "$tmp" "$file"
-  if ! python3 -c "import yaml" 2>/dev/null; then
-    echo "WARNING: python3-yaml unavailable — skipping YAML validation of $file"
+  if ! python3 -c "from yaml import CSafeLoader" 2>/dev/null; then
+    echo "WARNING: PyYAML CSafeLoader unavailable — skipping YAML validation of $file"
   elif $was_valid && ! _grype_yaml_valid "$file"; then
     echo "ERROR: inserting the ignore made $file invalid YAML" >&2
     if [[ -n "$backup" ]]; then mv -- "$backup" "$file"; else rm -f -- "$file"; fi
@@ -1563,7 +1634,7 @@ ensure_grype() {
     }
 
     current_ver=""
-    [[ -x "$grype_bin" ]] && current_ver=$("$grype_bin" version 2>/dev/null | \
+    [[ -x "$grype_bin" ]] && current_ver=$(_grype_timeout "installed local version check" "$grype_bin" version | \
       grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//' || true)
     [[ "$current_ver" == "${latest_ver#v}" ]] && exit 0
 
@@ -1623,7 +1694,7 @@ ensure_grype() {
       echo "ERROR: grype artifact produced no regular executable" >&2
       exit 1
     }
-    current_ver=$("$tmp_dir/grype" version 2>/dev/null | \
+    current_ver=$(_grype_timeout "downloaded local version check" "$tmp_dir/grype" version | \
       grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//' || true)
     [[ "$current_ver" == "${latest_ver#v}" ]] || {
       echo "ERROR: installed grype version v$current_ver, expected $latest_ver" >&2
@@ -1823,6 +1894,10 @@ preflight_check() {
     echo "ERROR: missing required tools: ${missing[*]}" >&2
     return 1
   fi
+  if ! python3 -c 'from yaml import CSafeLoader' >/dev/null 2>&1; then
+    echo "ERROR: PyYAML with libyaml (CSafeLoader) is required for python3." >&2
+    return 1
+  fi
   if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     container_scanner=true; scanner_runtime=docker
   elif command -v podman >/dev/null 2>&1 && podman info >/dev/null 2>&1; then
@@ -1850,7 +1925,7 @@ preflight_check() {
   elif [[ -n "${CVE_FIX_GRYPE_VERSION:-}" ]]; then
     local requested_version="${CVE_FIX_GRYPE_VERSION#v}" current_version=""
     if command -v grype >/dev/null 2>&1; then
-      current_version=$(grype version 2>/dev/null | \
+      current_version=$(_grype_timeout "local prerequisite version check" grype version | \
         grep -oE 'v?[0-9]+[.][0-9]+[.][0-9]+' | head -1 | sed 's/^v//' || true)
     fi
     if [[ "$current_version" != "$requested_version" ]] &&

@@ -46,6 +46,8 @@ trap 'test_status=$?; if (( test_status )); then
 else rm -rf "$TMPD"; fi' EXIT
 # Run state and scratch files stay inside the suite's directory.
 export TMPDIR="$TMPD"
+# Scratch may live inside this checkout; only fixture repositories belong in scope.
+export GIT_CEILING_DIRECTORIES="$(cd "$TMPD/.." && pwd -P)${GIT_CEILING_DIRECTORIES:+:$GIT_CEILING_DIRECTORIES}"
 
 # Host runtimes must not pull builder images during hermetic detection tests.
 # Tests that exercise containers prepend their own controlled runtime stubs.
@@ -1855,6 +1857,172 @@ RG_TRANS_RC=0; RG_TRANS_OUT=$(
 check "run_grype transient local-fail: exits 1" test "$RG_TRANS_RC" -eq 1
 check "run_grype transient local-fail: transient warning" grep -q "transient network error" <<< "$RG_TRANS_OUT"
 check "run_grype transient local-fail: GRYPE_SCAN_TRANSIENT set" grep -q "GRYPE_SCAN_TRANSIENT=1" <<< "$RG_TRANS_OUT"
+
+# === Scanner operation deadline regressions ===
+echo "scanner operations have bounded deadlines and targeted cleanup"
+GDT_ROOT="$TMPD/grype-deadlines"; mkdir -p "$GDT_ROOT/bin" "$GDT_ROOT/repo"
+cat > "$GDT_ROOT/bin/grype" <<'SH'
+#!/usr/bin/env bash
+operation=local_scan
+[[ "$1" != version ]] || operation=local_version
+echo "$operation" >> "$GDT_ROOT/calls"
+if [[ "$GDT_STALL" == "$operation" ]]; then
+  [[ "${GDT_IGNORE_TERM:-false}" != true ]] || trap '' TERM
+  sleep 30
+fi
+if [[ "$1" == version ]]; then
+  echo '{"version":"9.8.7"}'
+elif [[ "$GDT_STALL" == local_failure ]]; then
+  echo 'no route to host; failed to update vulnerability database' >&2
+  exit 1
+else
+  echo '{"matches":[],"ignoredMatches":[]}'
+fi
+SH
+cat > "$GDT_ROOT/bin/container" <<'PY'
+#!/usr/bin/env python3
+import json, os, pathlib, signal, subprocess, sys, time
+root = pathlib.Path(os.environ['GDT_ROOT'])
+args = sys.argv[1:]
+if args[:2] == ['rm', '-f']:
+    name = args[2]
+    with (root / 'calls').open('a') as out:
+        out.write('remove ' + name + '\n')
+    active = root / (name + '.active')
+    if active.exists():
+        os.kill(int(active.read_text()), signal.SIGTERM)
+        for _ in range(100):
+            if (root / (name + '.stopped')).exists():
+                active.unlink()
+                break
+            time.sleep(.01)
+        else:
+            sys.exit(1)
+    sys.exit(0)
+if args[:2] == ['volume', 'create']:
+    operation = 'volume'
+elif args[:2] == ['image', 'inspect']:
+    operation = 'metadata'
+elif 'version' in args:
+    operation = 'container_version'
+elif args[-2:] == ['db', 'update']:
+    operation = 'db'
+else:
+    operation = 'container_scan'
+with (root / 'calls').open('a') as out:
+    out.write(operation + '\n')
+if os.environ['GDT_STALL'] == operation:
+    if args[0] == 'run':
+        # Simulate daemon-owned work outside the timed-out client's group.
+        name = args[args.index('--name') + 1]
+        code = '''import pathlib, signal, sys, time
+root, name = pathlib.Path(sys.argv[1]), sys.argv[2]
+def stop(*_):
+    (root / (name + '.stopped')).touch()
+    sys.exit(0)
+signal.signal(signal.SIGTERM, stop)
+(root / (name + '.ready')).touch()
+time.sleep(30)
+'''
+        child = subprocess.Popen([sys.executable, '-c', code, str(root), name],
+                                 start_new_session=True, stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        (root / (name + '.active')).write_text(str(child.pid))
+        for _ in range(100):
+            if (root / (name + '.ready')).exists():
+                break
+            time.sleep(.001)
+    time.sleep(30)
+if operation == 'container_version':
+    print('{"version":"9.8.7"}')
+elif operation == 'metadata':
+    print('{"image_id":"sha256:abc","repo_digests":[]}')
+elif operation == 'container_scan':
+    print('{"matches":[],"ignoredMatches":[]}')
+PY
+chmod +x "$GDT_ROOT/bin/"*
+_gdt_run() {
+  local stall="$1" local_scanner="$2" container="$3" evidence="${4:-}"
+  : > "$GDT_ROOT/calls"
+  GDT_RC=0
+  ( cd "$GDT_ROOT/repo"
+    export GDT_ROOT GDT_STALL="$stall" PATH="$GDT_ROOT/bin:$PATH"
+    CVE_FIX_SCAN_TIMEOUT=2 CVE_FIX_GRYPE_VERSION=v9.8.7 CVE_FIX_GRYPE_IMAGE=""
+    CVE_FIX_EVIDENCE_SCAN_DIR="$evidence"
+    HAS_LOCAL_GRYPE="$local_scanner" CONTAINER_CMD="$container"
+    _gdt_rc=0; run_grype --json --fresh || _gdt_rc=$?
+    printf '%s:%s\n' "$GRYPE_DB_DEGRADED" "$GRYPE_SCAN_TRANSIENT" > "$GDT_ROOT/flags"
+    exit "$_gdt_rc"
+  ) > "$GDT_ROOT/output" 2> "$GDT_ROOT/errors" || GDT_RC=$?
+}
+_gdt_run local_scan true ""
+check "stalled local scan fails" test "$GDT_RC" -ne 0
+check "local scan timeout remains diagnostic" grep -q 'local scan timed out' "$GDT_ROOT/errors"
+export GDT_IGNORE_TERM=true
+_gdt_run local_scan true ""
+unset GDT_IGNORE_TERM
+check "TERM-resistant scanner is killed after grace period" test "$GDT_RC" -ne 0
+check "forced scanner termination remains diagnostic" grep -q 'local scan was killed (exit 137)' "$GDT_ROOT/errors"
+GDT_RC=0
+_grype_timeout "SIGKILL control" bash -c 'kill -KILL "$$"' \
+  > "$GDT_ROOT/output" 2> "$GDT_ROOT/errors" || GDT_RC=$?
+check "SIGKILL before deadline preserves status" test "$GDT_RC" -eq 137
+check "SIGKILL before deadline remains diagnostic" grep -q 'SIGKILL control was killed (exit 137)' "$GDT_ROOT/errors"
+check "SIGKILL before deadline does not invent a timeout" ! grep -q 'timed out' "$GDT_ROOT/errors"
+_gdt_run local_version true "$GDT_ROOT/bin/container"
+check "stalled local version can use verified fallback" test "$GDT_RC" -eq 0
+check "local version timeout remains diagnostic" grep -q 'local version check timed out' "$GDT_ROOT/errors"
+check "unconfirmed local version never scans" ! grep -qx local_scan "$GDT_ROOT/calls"
+check "successful version fallback has healthy flags" grep -qx '0:0' "$GDT_ROOT/flags"
+_gdt_run container_version false "$GDT_ROOT/bin/container"
+check "stalled container version fails closed" test "$GDT_RC" -ne 0
+check "container version timeout remains diagnostic" grep -q 'container version check timed out' "$GDT_ROOT/errors"
+check "unconfirmed container version never scans" ! grep -qx container_scan "$GDT_ROOT/calls"
+check "timed-out version container receives targeted cleanup" grep -q '^remove cve-fix-grype-' "$GDT_ROOT/calls"
+_gdt_run volume false "$GDT_ROOT/bin/container"
+check "stalled volume creation propagates timeout" test "$GDT_RC" -eq 124
+check "volume timeout remains diagnostic" grep -q 'volume creation timed out' "$GDT_ROOT/errors"
+check "volume timeout stops before DB update" ! grep -qx db "$GDT_ROOT/calls"
+printf 'unrelated\n' > "$GDT_ROOT/unrelated.active"
+_gdt_run db false "$GDT_ROOT/bin/container"
+check "DB timeout retains cached scan behavior" test "$GDT_RC" -eq 0
+check "DB timeout marks scan degraded" grep -qx '1:0' "$GDT_ROOT/flags"
+check "DB timeout remains diagnostic" grep -q 'database update timed out' "$GDT_ROOT/errors"
+check "timed-out DB container receives targeted cleanup" grep -q '^remove cve-fix-grype-' "$GDT_ROOT/calls"
+_gdt_run container_scan false "$GDT_ROOT/bin/container"
+check "stalled container scan fails" test "$GDT_RC" -ne 0
+check "container scan timeout remains diagnostic" grep -q 'container scan timed out' "$GDT_ROOT/errors"
+check "timed-out scan container receives targeted cleanup" grep -q '^remove cve-fix-grype-' "$GDT_ROOT/calls"
+check "all timed-out daemon jobs terminated" test "$(find "$GDT_ROOT" -name 'cve-fix-grype-*.active' | wc -l)" -eq 0
+check "scanner cleanup preserves unrelated work" grep -qx unrelated "$GDT_ROOT/unrelated.active"
+mkdir -p "$GDT_ROOT/evidence"
+_gdt_run metadata false "$GDT_ROOT/bin/container" "$GDT_ROOT/evidence"
+check "optional metadata timeout preserves completed scan" test "$GDT_RC" -eq 0
+check "metadata timeout uses configured shorter limit" grep -q 'image inspection timed out' "$GDT_ROOT/errors"
+check "unavailable metadata remains explicit" jq -e '.identity_error == "image inspection unavailable"' "$GDT_ROOT/evidence/scanner-identity.json"
+_gdt_run local_failure true "$GDT_ROOT/bin/container"
+check "healthy fallback succeeds after local failure" test "$GDT_RC" -eq 0
+check "healthy fallback clears local failure flags" grep -qx '0:0' "$GDT_ROOT/flags"
+GDT_RC=0
+( export GDT_ROOT GDT_STALL=container_scan PATH="$GDT_ROOT/bin:$PATH" CVE_FIX_SCAN_TIMEOUT=10
+  timeout --foreground 2 bash -c '
+    source "$1/lib.sh"
+    HAS_LOCAL_GRYPE=false CONTAINER_CMD="$GDT_ROOT/bin/container" CVE_FIX_GRYPE_VERSION=""
+    CVE_FIX_EVIDENCE_SCAN_DIR=""
+    run_grype --no-update --json
+  ' _ "$SCRIPT_DIR"
+) > "$GDT_ROOT/output" 2> "$GDT_ROOT/errors" || GDT_RC=$?
+check "stricter caller deadline retains timeout status" test "$GDT_RC" -eq 124
+check "caller cancellation terminates task-owned daemon work" test "$(find "$GDT_ROOT" -name 'cve-fix-grype-*.active' | wc -l)" -eq 0
+GDT_TRAPS=$(
+  trap ':' INT
+  trap ':' TERM
+  _gdt_before=$(trap -p INT TERM)
+  _grype_timeout 'successful control' true
+  [[ "$(trap -p INT TERM)" == "$_gdt_before" ]] && echo restored
+)
+check "scanner helper restores caller signal traps" test "$GDT_TRAPS" = restored
+# === End scanner operation deadline regressions ===
 
 # Restore non-transient grype for subsequent tests.
 cat > "$RG_BIN/grype" <<'SH'
@@ -4217,7 +4385,7 @@ check "no host Go skips stale-readable check" test "$OB6_RC" -eq 1
 
 # No concrete repos.yaml is shipped; the example is generic and org-neutral.
 check "example registry shipped" test -f "$SCRIPT_DIR/../repos.yaml.example"
-check "repos.yaml git-ignored" git -C "$SCRIPT_DIR/.." check-ignore -q repos.yaml
+check "repos.yaml git-ignored" git -C "$REPO_ROOT" check-ignore -q "$SCRIPT_DIR/../repos.yaml"
 
 # fix-availability must NOT skip a package just because it was bumped for a
 # different CVE (HAS_FIXABLE=1 bug: one branch still has fixable CVEs when
@@ -7165,7 +7333,7 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$MC0_REPO" commit -qm "init"
 
   # lib.sh is sourced by fix-all.sh via SCRIPT_DIR.
-  cp "$SCRIPT_DIR/lib.sh" "$MC0_SCRIPTS/"
+  cp "$SCRIPT_DIR/"{lib.sh,check-grype-ignores.py} "$MC0_SCRIPTS/"
   printf '\npreflight_check() { return 0; }\n' >> "$MC0_SCRIPTS/lib.sh"
 
   # Helper: (re-)write the state file before each invocation.
@@ -7630,7 +7798,7 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$PRT_REPO" remote add myfork "https://github.com/testforkuser/testrepo.git"
 
   # Copy scripts (fix-all.sh uses SCRIPT_DIR = its own directory)
-  cp "$SCRIPT_DIR/lib.sh" "$PRT_SCRIPTS/"
+  cp "$SCRIPT_DIR/"{lib.sh,check-grype-ignores.py} "$PRT_SCRIPTS/"
   printf '\npreflight_check() { return 0; }\n' >> "$PRT_SCRIPTS/lib.sh"
   cp "$SCRIPT_DIR/fix-all.sh" "$PRT_SCRIPTS/"
   cp "$SCRIPT_DIR/binary-module-locations.py" "$PRT_SCRIPTS/"
@@ -9785,7 +9953,7 @@ for _yaml_section in exclude-only exclude-before exclude-after missing-vulnerabi
   elif [[ "$_yaml_section" == missing-package ]]; then
     check "YAML indent $_yaml_indent rejects vulnerability-only ignores" grep -qx 'NEW_ISSUES=1' <<< "$_yaml_section_out"
   elif [[ "$_yaml_section" == empty-item ]]; then
-    check "YAML indent $_yaml_indent rejects empty ignore items" grep -qx 'NEW_ISSUES=2' <<< "$_yaml_section_out"
+    check "YAML indent $_yaml_indent rejects empty ignore items" grep -qx 'NEW_ISSUES=1' <<< "$_yaml_section_out"
   else
     check "YAML $_yaml_section does not treat exclude paths as ignores" grep -qx 'NEW_ISSUES=0' <<< "$_yaml_section_out"
   fi
@@ -9807,6 +9975,170 @@ done
   check "YAML indent $_yaml_indent preserves list indentation" grep -qx -- "${_yaml_pad}- vulnerability: CVE-INSERT" "$YAML_SECTION_REPO/.grype.yaml"
   check "YAML indent $_yaml_indent preserves other settings" grep -qx 'only-fixed: true' "$YAML_SECTION_REPO/.grype.yaml"
   check "YAML indent $_yaml_indent preserves unrelated ignore" grype_ignore_entry_exists "$YAML_SECTION_REPO/.grype.yaml" CVE-NEIGHBOR example.com/neighbor
+done
+
+# === Read-only inherited Grype policy boundary ===
+echo "inherited Grype policy structural validation"
+POLICY_ROOT="$TMPD/inherited-policy"
+mkdir -p "$POLICY_ROOT"
+make_test_repo "$POLICY_ROOT/audit"
+make_go_state "$POLICY_ROOT/audit.env" "$POLICY_ROOT/audit"
+_policy_structure_case() {
+  local label="$1" expected="$2" content="$3" rc=0 output audit
+  printf '%s\n' "$content" > "$POLICY_ROOT/audit/.grype.yaml"
+  cp "$POLICY_ROOT/audit/.grype.yaml" "$POLICY_ROOT/original.yaml"
+  output=$(python3 "$SCRIPT_DIR/check-grype-ignores.py" "$POLICY_ROOT/audit/.grype.yaml" 2>&1) || rc=$?
+  check "policy $label: parser status" test "$rc" -eq "$expected"
+  check "policy $label: bytes preserved" cmp -s "$POLICY_ROOT/audit/.grype.yaml" "$POLICY_ROOT/original.yaml"
+  # Freeze the file as inherited policy so this isolates structural checking
+  # from the audit's separate checks for formatting newly introduced content.
+  git -C "$POLICY_ROOT/audit" add .grype.yaml
+  git -C "$POLICY_ROOT/audit" commit --allow-empty -qm "$label"
+  git -C "$POLICY_ROOT/audit" update-ref refs/remotes/origin/devel HEAD
+  audit=$(bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$POLICY_ROOT/audit.env")
+  if [[ "$expected" -eq 0 ]]; then
+    check "policy $label: YAML audit accepts" grep -qx NEW_ISSUES=0 <<< "$audit"
+  else
+    check "policy $label: YAML audit blocks" grep -qE '^NEW_ISSUES=[1-9][0-9]*$' <<< "$audit"
+    check "policy $label: diagnostic is concrete" test -n "$output"
+  fi
+}
+_policy_structure_case absent-list 0 'exclude: ["**/node_modules/**"]'
+_policy_structure_case empty-file 0 ''
+_policy_structure_case empty-list 0 'ignore: []'
+_policy_structure_case null-list 0 'ignore:'
+_policy_structure_case valid-block 0 $'ignore:\n  - vulnerability: CVE-POLICY\n    package:\n      name: example.com/valid\nexclude: ["**/node_modules/**"]'
+_policy_structure_case valid-quoted-package-key 0 $'ignore:\n  - vulnerability: CVE-POLICY\n    package:\n      "name": example.com/valid'
+_policy_structure_case valid-quoted-flow 0 "'ignore': [{'vulnerability': 'CVE-POLICY', 'package': {'name': 'name # literal'}}]"
+_policy_structure_case valid-alias 0 $'selector: &selector {vulnerability: CVE-POLICY, package: {name: example.com/valid}}\nignore: [*selector]'
+_policy_structure_case valid-merge 0 $'selector: &selector {vulnerability: CVE-POLICY, package: {name: example.com/valid}}\nignore:\n  - <<: *selector\n    vulnerability: CVE-OVERRIDE'
+_policy_structure_case valid-tab-separator 0 $'ignore:\n  - vulnerability: CVE-POLICY\n    fix-state: not-fixed \t # rationale\n    package: {name: example.com/valid}'
+check "policy syntax validator accepts tab separation" _grype_yaml_valid "$POLICY_ROOT/audit/.grype.yaml"
+_policy_structure_case tab-indentation 1 $'ignore:\n\t- vulnerability: CVE-POLICY\n\t  package: {name: example.com/invalid}'
+check "policy syntax validator rejects tab indentation" ! _grype_yaml_valid "$POLICY_ROOT/audit/.grype.yaml"
+_policy_structure_case broad-package 1 $'ignore:\n  - package: {name: example.com/broad}\n  - vulnerability: CVE-NEIGHBOR\n    package: {name: example.com/valid}'
+_policy_structure_case broad-flow 1 'ignore: [{vulnerability: CVE-POLICY}]'
+_policy_structure_case broad-quoted-key 1 "'ignore': [{'package': {'name': example.com/broad}}]"
+_policy_structure_case broad-alias 1 $'selector: &selector {package: {name: example.com/broad}}\nignore: [*selector]'
+_policy_structure_case nonmapping-root 1 '[ignore]'
+_policy_structure_case nonlist-ignore 1 'ignore: {vulnerability: CVE-POLICY}'
+_policy_structure_case nonmapping-entry 1 'ignore: ["CVE-POLICY"]'
+_policy_structure_case empty-entry 1 'ignore: [null]'
+_policy_structure_case nonmapping-package 1 'ignore: [{vulnerability: CVE-POLICY, package: example.com/broad}]'
+_policy_structure_case numeric-vulnerability 1 'ignore: [{vulnerability: 123, package: {name: example.com/broad}}]'
+_policy_structure_case boolean-name 1 'ignore: [{vulnerability: CVE-POLICY, package: {name: true}}]'
+_policy_structure_case blank-identity 1 'ignore: [{vulnerability: " ", package: {name: " "}}]'
+_policy_structure_case malformed 1 'ignore: ['
+_policy_structure_case multiple-documents 1 $'ignore: []\n---\nignore: []'
+_policy_structure_case duplicate-ignore 1 $'ignore: [{package: {name: example.com/broad}}]\nignore: []'
+
+# Disable site-packages without depending on the host's installation layout.
+POLICY_PYTHON=$(command -v python3)
+mkdir -p "$POLICY_ROOT/no-yaml"
+printf '#!%s\nexec %q -S "$@"\n' "$BASH" "$POLICY_PYTHON" > "$POLICY_ROOT/no-yaml/python3"
+chmod +x "$POLICY_ROOT/no-yaml/python3"
+printf 'ignore: []\n' > "$POLICY_ROOT/audit/.grype.yaml"
+_policy_missing_rc=0
+_policy_missing_out=$(PATH="$POLICY_ROOT/no-yaml:$PATH" python3 "$SCRIPT_DIR/check-grype-ignores.py" "$POLICY_ROOT/audit/.grype.yaml" 2>&1) || _policy_missing_rc=$?
+check "policy missing PyYAML: helper fails" test "$_policy_missing_rc" -ne 0
+check "policy missing PyYAML: helper names dependency" grep -q 'CSafeLoader' <<< "$_policy_missing_out"
+_policy_missing_out=$(PATH="$POLICY_ROOT/no-yaml:$PATH" bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$POLICY_ROOT/audit.env")
+check "policy missing PyYAML: audit blocks" grep -qE '^NEW_ISSUES=[1-9][0-9]*$' <<< "$_policy_missing_out"
+_policy_missing_rc=0
+_policy_missing_out=$(PATH="$POLICY_ROOT/no-yaml:$PATH" preflight_check 2>&1) || _policy_missing_rc=$?
+check "policy missing PyYAML: preflight fails" test "$_policy_missing_rc" -ne 0
+check "policy missing PyYAML: preflight names dependency" grep -q 'CSafeLoader' <<< "$_policy_missing_out"
+
+# Module presence is insufficient: never silently switch to the pure-Python
+# loader, whose scanner rejects valid scalar/comment tab separation.
+mkdir -p "$POLICY_ROOT/pure-yaml"
+printf 'SafeLoader = object\n' > "$POLICY_ROOT/pure-yaml/yaml.py"
+check "policy backend control has yaml but no CSafeLoader" \
+  env PYTHONPATH="$POLICY_ROOT/pure-yaml" "$POLICY_PYTHON" -S -c 'import yaml; assert yaml.SafeLoader is object; assert not hasattr(yaml, "CSafeLoader")'
+_policy_backend_rc=0
+_policy_backend_out=$(PYTHONPATH="$POLICY_ROOT/pure-yaml" PATH="$POLICY_ROOT/no-yaml:$PATH" \
+  python3 "$SCRIPT_DIR/check-grype-ignores.py" "$POLICY_ROOT/audit/.grype.yaml" 2>&1) || _policy_backend_rc=$?
+check "policy missing libyaml: helper fails" test "$_policy_backend_rc" -ne 0
+check "policy missing libyaml: helper names backend" grep -q CSafeLoader <<< "$_policy_backend_out"
+_policy_backend_out=$(PYTHONPATH="$POLICY_ROOT/pure-yaml" PATH="$POLICY_ROOT/no-yaml:$PATH" \
+  bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$POLICY_ROOT/audit.env")
+check "policy missing libyaml: audit blocks" grep -qE '^NEW_ISSUES=[1-9][0-9]*$' <<< "$_policy_backend_out"
+_policy_backend_rc=0
+_policy_backend_out=$(PYTHONPATH="$POLICY_ROOT/pure-yaml" PATH="$POLICY_ROOT/no-yaml:$PATH" preflight_check 2>&1) || _policy_backend_rc=$?
+check "policy missing libyaml: preflight fails" test "$_policy_backend_rc" -ne 0
+check "policy missing libyaml: preflight names backend" grep -q CSafeLoader <<< "$_policy_backend_out"
+check "policy missing libyaml: test wrapper names prerequisite" \
+  env PYTHONPATH="$POLICY_ROOT/pure-yaml" "$POLICY_PYTHON" -S -c \
+  'import runpy,sys; reason=runpy.run_path(sys.argv[1])["missing_prerequisite"](); assert reason and "CSafeLoader" in reason' \
+  "$SCRIPT_DIR/../test/test_fix_go_cves.py"
+_policy_backend_out=$(PYTHONPATH="$POLICY_ROOT/pure-yaml" PATH="$POLICY_ROOT/no-yaml:$PATH" \
+  insert_grype_ignore "$POLICY_ROOT/audit/.grype.yaml" CVE-BACKEND example.com/backend 'No fix' not-fixed 2>&1)
+check "standalone insert retains explicit optional-backend warning" grep -q 'CSafeLoader unavailable' <<< "$_policy_backend_out"
+
+echo "inherited Grype policy stops before clean and scan"
+mkdir -p "$POLICY_ROOT/scripts"
+cp "$SCRIPT_DIR/"{lib.sh,fix-all.sh,check-grype-ignores.py,binary-module-locations.py} "$POLICY_ROOT/scripts/"
+printf '\npreflight_check() { return 0; }\n' >> "$POLICY_ROOT/scripts/lib.sh"
+cat > "$POLICY_ROOT/scripts/detect.sh" <<'SH'
+#!/usr/bin/env bash
+git -C "$POLICY_TEST_REPO" checkout -qb fix-policy refs/remotes/origin/devel
+printf '%s\n' "$POLICY_TEST_STATE"
+SH
+cat > "$POLICY_ROOT/scripts/scan.sh" <<'SH'
+#!/usr/bin/env bash
+touch "$POLICY_TEST_SCAN"
+printf '{"matches":[],"ignoredMatches":[]}\n'
+SH
+chmod +x "$POLICY_ROOT/scripts/"{detect.sh,scan.sh}
+for _policy_mode in broad flow malformed missing-parser detached valid; do
+  _policy_repo="$POLICY_ROOT/$_policy_mode"
+  make_test_repo "$_policy_repo"
+  case "$_policy_mode" in
+    broad|detached) printf 'ignore:\n  - package: {name: example.com/broad}\n' > "$_policy_repo/.grype.yaml" ;;
+    flow) printf '"ignore": [{"vulnerability": "CVE-BROAD"}]\n' > "$_policy_repo/.grype.yaml" ;;
+    malformed) printf 'ignore: [\n' > "$_policy_repo/.grype.yaml" ;;
+    *) printf 'ignore: []\n' > "$_policy_repo/.grype.yaml" ;;
+  esac
+  git -C "$_policy_repo" add .grype.yaml
+  git -C "$_policy_repo" commit -qm policy
+  git -C "$_policy_repo" update-ref refs/remotes/origin/devel HEAD
+  git -C "$_policy_repo" checkout -qb original
+  touch "$_policy_repo/original.txt"
+  git -C "$_policy_repo" add original.txt
+  git -C "$_policy_repo" commit -qm 'Original branch differs from target'
+  _policy_original_head=$(git -C "$_policy_repo" rev-parse HEAD)
+  _policy_original_ref=original
+  _policy_original_branch=original
+  if [[ "$_policy_mode" == detached ]]; then
+    git -C "$_policy_repo" checkout -q --detach
+    _policy_original_ref="$_policy_original_head"
+    _policy_original_branch=""
+  fi
+  cp "$_policy_repo/.grype.yaml" "$POLICY_ROOT/expected-$_policy_mode.yaml"
+  _policy_state="$POLICY_ROOT/$_policy_mode.env"
+  make_go_state "$_policy_state" "$_policy_repo"
+  printf 'STATE_FILE=%q\nFIX_BRANCH=fix-policy\nORIGINAL_REF=%q\nFETCH_FAILED=false\n' "$_policy_state" "$_policy_original_ref" >> "$_policy_state"
+  printf 'CLEAN_CMD=%q\nNEEDS_BUILD_FOR_SCAN=false\nDIFF_IGNORE_ARGS=\n' "touch '$POLICY_ROOT/$_policy_mode.clean'" >> "$_policy_state"
+  _policy_rc=0
+  _policy_path="$PATH"
+  [[ "$_policy_mode" != missing-parser ]] || _policy_path="$POLICY_ROOT/no-yaml:$PATH"
+  _policy_out=$(PATH="$_policy_path" POLICY_TEST_REPO="$_policy_repo" POLICY_TEST_STATE="$_policy_state" \
+    POLICY_TEST_SCAN="$POLICY_ROOT/$_policy_mode.scan" bash "$POLICY_ROOT/scripts/fix-all.sh" 2>&1) || _policy_rc=$?
+  if [[ "$_policy_mode" == valid ]]; then
+    check "policy orchestration valid: clean fast path exits 0" test "$_policy_rc" -eq 0
+    check "policy orchestration valid: clean runs" test -e "$POLICY_ROOT/$_policy_mode.clean"
+    check "policy orchestration valid: scan runs" test -e "$POLICY_ROOT/$_policy_mode.scan"
+  else
+    check "policy orchestration $_policy_mode: exits 2" test "$_policy_rc" -eq 2
+    check "policy orchestration $_policy_mode: clean never runs" test ! -e "$POLICY_ROOT/$_policy_mode.clean"
+    check "policy orchestration $_policy_mode: scan/build never runs" test ! -e "$POLICY_ROOT/$_policy_mode.scan"
+    check "policy orchestration $_policy_mode: names remaining policy work" grep -q 'NEEDS_REVIEW: inherited Grype ignore policy' <<< "$_policy_out"
+    check "policy orchestration $_policy_mode: cannot claim clean or publish" ! grep -qE 'No CVEs found|gh pr create' <<< "$_policy_out"
+  fi
+  check "policy orchestration $_policy_mode: original branch/detachment restored" test "$(git -C "$_policy_repo" branch --show-current)" = "$_policy_original_branch"
+  check "policy orchestration $_policy_mode: original HEAD restored/no repair commit" test "$(git -C "$_policy_repo" rev-parse HEAD)" = "$_policy_original_head"
+  check "policy orchestration $_policy_mode: policy bytes unchanged" cmp -s "$_policy_repo/.grype.yaml" "$POLICY_ROOT/expected-$_policy_mode.yaml"
+  check "policy orchestration $_policy_mode: empty fix branch removed" ! git -C "$_policy_repo" show-ref --verify --quiet refs/heads/fix-policy
 done
 
 # === Skitt grouped-version and executable-text regressions ===
@@ -9851,7 +10183,7 @@ SKITT_GROUP="$TMPD/skitt-group"
 mkdir -p "$SKITT_GROUP/scripts" "$SKITT_GROUP/scanner"
 mkdir -p "$SKITT_GROUP/subagents"
 cp "$SCRIPT_DIR/../subagents/"*.sh "$SKITT_GROUP/subagents/"
-for _skitt_script in lib.sh fix-all.sh fix-package.sh fix-stdlib.sh ignore.sh scan.sh binary-module-locations.py; do
+for _skitt_script in lib.sh fix-all.sh fix-package.sh fix-stdlib.sh ignore.sh scan.sh binary-module-locations.py check-grype-ignores.py; do
   cp "$SCRIPT_DIR/$_skitt_script" "$SKITT_GROUP/scripts/"
 done
 printf '\npreflight_check() { return 0; }\n' >> "$SKITT_GROUP/scripts/lib.sh"
@@ -10354,7 +10686,7 @@ check "null command is rejected" ! python3 "$SCRIPT_DIR/read-config.py" config-j
 printf '\xef\xbb\xbftest-command: make unit\n' > "$TMPD/bom.yaml"
 check "BOM is accepted" python3 "$SCRIPT_DIR/read-config.py" config-json "$TMPD/bom.yaml"
 
-echo "report-only scans leave no branch, commit or state"
+echo "report-only scans validate one scan and leave no branch, commit or state"
 RPT="$TMPD/report-only"
 mkdir -p "$RPT/bin" "$RPT/scripts"
 cp "$SCRIPT_DIR"/{lib.sh,report.sh,detect.sh,scan.sh,read-config.py} "$RPT/scripts/"
@@ -10362,20 +10694,71 @@ printf '\npreflight_check() { return 0; }\n' >> "$RPT/scripts/lib.sh"
 make_test_repo "$RPT/repo" ""
 printf 'module example.com/rpt\ngo 1.24.0\n' > "$RPT/repo/go.mod"
 git -C "$RPT/repo" add -A && git -C "$RPT/repo" commit -qm rpt
-printf '#!/bin/sh\necho "NAME INSTALLED VULNERABILITY"\n' > "$RPT/bin/grype"
+cat > "$RPT/bin/grype" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "$RPT_SCAN_LOG"
+printf '%s' "$RPT_JSON"
+printf '%s' "${RPT_STDERR:-}" >&2
+exit "${RPT_RC:-0}"
+EOF
 chmod +x "$RPT/bin/grype"
+export RPT_SCAN_LOG="$RPT/scans.log" RPT_JSON='{"matches":[]}' RPT_RC=0 RPT_STDERR=""
 _rpt_head=$(git -C "$RPT/repo" rev-parse HEAD)
 _rpt_branches=$(git -C "$RPT/repo" branch)
-_rpt_out=$(cd "$RPT/repo" && PATH="$RPT/bin:$PATH" bash "$RPT/scripts/report.sh" 2>&1 </dev/null || true)
-check "report-only prints the scan" grep -q 'NAME INSTALLED VULNERABILITY' <<< "$_rpt_out"
+_rpt_run() {
+  : > "$RPT_SCAN_LOG"
+  _rpt_rc=0
+  _rpt_out=$(cd "$RPT/repo" && PATH="$RPT/bin:$PATH" bash "$RPT/scripts/report.sh" 2>&1 </dev/null) || _rpt_rc=$?
+}
+_rpt_run
+check "report-only accepts valid empty findings" test "$_rpt_rc" -eq 0
+check "report-only renders the human header" grep -q 'NAME.*INSTALLED.*VULNERABILITY.*STATUS' <<< "$_rpt_out"
+check "report-only scans exactly once" test "$(wc -l < "$RPT_SCAN_LOG")" -eq 1
+check "report-only requests validated JSON" grep -q -- '-o json' "$RPT_SCAN_LOG"
 check "report-only leaves HEAD unchanged" test "$(git -C "$RPT/repo" rev-parse HEAD)" = "$_rpt_head"
 check "report-only creates no branch" test "$(git -C "$RPT/repo" branch)" = "$_rpt_branches"
 check "report-only removes its state" test -z "$(find "$TMPD" -maxdepth 1 -name 'cve-fix-repo-*')"
+RPT_JSON='{"matches":[{"artifact":{"type":"go-module","name":"example.com/actionable","version":"v1.0.0"},"vulnerability":{"id":"CVE-2026-1001","severity":"High","fix":{"versions":["v1.1.0","v1.2.0"]}}}],"ignoredMatches":[{"artifact":{"type":"go-module","name":"example.com/ignored","version":"v2.0.0"},"vulnerability":{"id":"CVE-2026-1002","severity":"Low","fix":{"versions":[]}}}]}'
+_rpt_run
+check "report-only accepts valid findings and ignores" test "$_rpt_rc" -eq 0
+check "report-only labels actionable finding" grep -q $'example.com/actionable\tv1.0.0\tv1.1.0, v1.2.0\tCVE-2026-1001\tHigh\tfinding' <<< "$_rpt_out"
+check "report-only labels ignored finding separately" grep -q $'example.com/ignored\tv2.0.0\t\tCVE-2026-1002\tLow\tignored' <<< "$_rpt_out"
+check "report findings also use one scan" test "$(wc -l < "$RPT_SCAN_LOG")" -eq 1
+RPT_JSON=$(jq '.ignoredMatches += .matches | .matches = []' <<< "$RPT_JSON")
+_rpt_run
+check "report-only accepts ignored-only findings" test "$_rpt_rc" -eq 0
+check "ignored-only report retains every finding" test "$(grep -c $'\tignored$' <<< "$_rpt_out")" -eq 2
+for RPT_JSON in '' '{}' $'{"matches":[]}\n{"matches":[]}' '{"matches":null}' '{"matches":[],"ignoredMatches":{}}'; do
+  _rpt_run
+  check "report-only rejects invalid scanner evidence ($RPT_JSON)" test "$_rpt_rc" -ne 0
+  check "invalid report does not render a complete table" ! grep -q $'NAME\tINSTALLED' <<< "$_rpt_out"
+  check "invalid report still removes its state" test -z "$(find "$TMPD" -maxdepth 1 -name 'cve-fix-repo-*')"
+done
+RPT_JSON='{"matches":[]}' RPT_RC=17
+_rpt_run
+# run_grype maps exhausted scanner/fallback failure to 1; report preserves it.
+check "report-only propagates scanner failure" test "$_rpt_rc" -eq 1
+check "failed report does not render a complete table" ! grep -q $'NAME\tINSTALLED' <<< "$_rpt_out"
+RPT_RC=0
+RPT_STDERR='unable to update vulnerability database'
+_rpt_run
+check "report-only fails degraded scanner coverage" test "$_rpt_rc" -eq 2
+check "report-only names degraded scanner coverage" grep -q 'INCOMPLETE: scanner-degraded' <<< "$_rpt_out"
+RPT_STDERR=""
 printf 'build:\n\t@echo regenerated >> tracked.txt\n' > "$RPT/repo/Makefile"
 printf 'base\n' > "$RPT/repo/tracked.txt"
 git -C "$RPT/repo" add -A && git -C "$RPT/repo" commit -qm build
-(cd "$RPT/repo" && PATH="$RPT/bin:$PATH" bash "$RPT/scripts/report.sh" >/dev/null 2>&1 </dev/null || true)
+_rpt_run
+check "report-only build succeeds" test "$_rpt_rc" -eq 0
 check "report-only restores files its build changed" git -C "$RPT/repo" diff --quiet
+printf 'build:\n\t@echo regenerated >> tracked.txt\n\t@false\n' > "$RPT/repo/Makefile"
+git -C "$RPT/repo" commit -qam 'failing build'
+_rpt_run
+check "report-only fails incomplete build coverage" test "$_rpt_rc" -eq 2
+check "report-only names incomplete build coverage" grep -q 'INCOMPLETE: build-failed' <<< "$_rpt_out"
+check "incomplete report restores tracked build changes" git -C "$RPT/repo" diff --quiet
+check "incomplete report removes its state" test -z "$(find "$TMPD" -maxdepth 1 -name 'cve-fix-repo-*')"
+unset RPT_SCAN_LOG RPT_JSON RPT_RC RPT_STDERR
 
 echo "tests retry once and classify full disks"
 RTX="$TMPD/run-tests"; mkdir -p "$RTX"
@@ -10559,7 +10942,7 @@ EVI_BASE=$(git -C "$EVI_REPO" rev-parse HEAD)
 git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
 git -C "$EVI_REPO" remote add origin https://github.com/example/evidence.git
 mkdir -p "$EVI_SCRIPTS" "$EVI_ROOT/subagents"
-cp "$SCRIPT_DIR/"{fix-all.sh,scan.sh,lib.sh,binary-module-locations.py} "$EVI_SCRIPTS/"
+cp "$SCRIPT_DIR/"{fix-all.sh,scan.sh,lib.sh,binary-module-locations.py,check-grype-ignores.py} "$EVI_SCRIPTS/"
 cp "$SCRIPT_DIR/../subagents/"*.sh "$EVI_ROOT/subagents/"
 cat >> "$EVI_SCRIPTS/lib.sh" <<'SH'
 preflight_check() { return 0; }

@@ -60,6 +60,8 @@ upstream exists and every readiness gate passes.
 - `git`, `go`, `jq`, `python3`, `make`, `base64`, GNU `timeout` and
   `sort -V`, and Bash 4+. On macOS, install `bash` and `coreutils` with
   Homebrew and put coreutils' `libexec/gnubin` on `PATH`.
+- PyYAML with its libyaml backend (`CSafeLoader`) available to `python3` for
+  read-only validation of Grype ignore rules.
 - Grype: with `curl`, the latest release is installed into this plugin's
   `bin/`, checked against the release's `checksums.txt`. Set
   `CVE_FIX_GRYPE_VERSION=vX.Y.Z` to pin it. Otherwise Docker or Podman runs
@@ -122,7 +124,8 @@ Absolute paths work without a registry.
   same package and CVE is a policy conflict that blocks the PR command.
 - **Repository Grype config:** `.grype.yaml` ignores and excludes apply, but
   `only-notfixed` and `ignore-wontfix` are overridden so fixable findings
-  always reach the gate.
+  always reach the gate. Invalid or broad inherited ignore rules stop remediation
+  before clean, build or scan; maintainers must review that policy first.
 - **Reviewer:** reads prefetched evidence from an empty working directory with
   no tools (Claude: `--tools ""`, no MCP servers or project settings; Codex:
   read-only sandbox). Only its
@@ -171,7 +174,8 @@ explicitly marked; the option preserves the normal remediation gates.
 Timeouts: `CVE_FIX_BUILD_TIMEOUT` and `CVE_FIX_TEST_TIMEOUT` (1800 s each),
 `CVE_FIX_SCAN_TIMEOUT` and `CVE_FIX_AGENT_TIMEOUT` (600 s),
 `CVE_FIX_LICENSE_TIMEOUT` (300 s), `CVE_FIX_IMAGE_TIMEOUT` (180 s). A timeout
-is an unverified result.
+is an unverified result. Scanner limits apply per operation (such as a version
+check, database update or scan); fallback and bounded termination/cleanup add time.
 
 ## Troubleshooting
 

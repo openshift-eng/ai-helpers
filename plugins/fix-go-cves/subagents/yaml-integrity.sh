@@ -7,7 +7,8 @@ set -euo pipefail
 STATE_FILE="${1:?Usage: yaml-integrity.sh STATE_FILE}"
 
 # shellcheck source=/dev/null
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)/lib.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd)"
+source "$SCRIPT_DIR/lib.sh"
 load_state "$STATE_FILE"
 
 ISSUES=()
@@ -63,32 +64,17 @@ fi
 # Audit the complete current ignore list, not only additions. A pre-existing
 # vulnerability-only entry suppresses that CVE for every package and must never
 # be grandfathered in merely because this branch did not add it.
-if [[ -n "$FULL_GRYPE" ]]; then
+if [[ -e .grype.yaml || -L .grype.yaml ]]; then
+  STRUCTURAL_ISSUES=""
+  if ! STRUCTURAL_ISSUES=$(python3 "$SCRIPT_DIR/check-grype-ignores.py" .grype.yaml 2>&1); then
+    [[ -n "$STRUCTURAL_ISSUES" ]] || STRUCTURAL_ISSUES="YAML_PARSE_ERROR: structural check failed without diagnostics"
+  fi
   while IFS= read -r structural_issue; do
     [[ -n "$structural_issue" ]] && ISSUES+=("$structural_issue")
-  done < <(awk '
-    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-    function flush() {
-      if (!entry) return
-      if (vuln == "") print "MISSING_VULNERABILITY_FIELD: ignore entry for \047" (pkg==""?"unknown":pkg) "\047 has no vulnerability: field"
-      if (pkg == "") print "MISSING_PACKAGE_FIELD: ignore entry for \047" (vuln==""?"unknown":vuln) "\047 has no package name — broad ignores are forbidden"
-      entry=0; vuln=pkg=""
-    }
-    /^ignore:[[:space:]]*(#.*)?$/ { in_ignore=1; next }
-    /^[^[:space:]#]/ && !/^-([[:space:]]|$)/ { if (in_ignore) flush(); in_ignore=0 }
-    in_ignore && /^[[:space:]]*-([[:space:]]|$)/ {
-      flush(); entry=1
-    }
-    in_ignore && entry && /vulnerability:/ { x=$0; sub(/.*vulnerability:[[:space:]]*/, "", x); vuln=trim(x) }
-    in_ignore && entry {
-      t = $0; sub(/(^|[[:space:]])#.*/, "", t)
-      if (t ~ /^[[:space:]]*name:/ || t ~ /package:[[:space:]]*\{[^}]*name:/) {
-        x = t; sub(/.*(^|[{,[:space:]])name:[[:space:]]*/, "", x); sub(/[,}].*/, "", x); pkg = trim(x)
-      }
-    }
-    END { if (in_ignore) flush() }
-  ' <<< "$FULL_GRYPE")
+  done <<< "$STRUCTURAL_ISSUES"
+fi
 
+if [[ -n "$FULL_GRYPE" ]]; then
   # A repository-wide ignore must not shadow a module-scoped ignore for the
   # same CVE/package. Grype may still report the desired clean scan, but the
   # policy is misleading and unsafe to ship.

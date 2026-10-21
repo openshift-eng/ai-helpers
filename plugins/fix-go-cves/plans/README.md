@@ -15,45 +15,35 @@ works; independent review must inspect the whole reply against the evidence.
 The [testing plan](testing.md#next-steps) separates these behavioral questions
 from deterministic engine fixes.
 
-Implement the following independently, with a focused regression for each:
+Three demonstrated engine gaps are now implemented, with focused regressions:
 
-1. **Validate report evidence.** `report.sh` takes the table-output path through
-   `scan.sh`, bypassing its JSON validator. Hermetic probes return exit 0 for
-   empty output, `{}` and multiple JSON documents, while the JSON path rejects
-   all three. Request one fresh JSON scan and render the human report from that
-   validated result. Preserve scanner failure/sentinel statuses and branch
-   cleanup; do not scan twice. Cover valid empty findings, findings and ignores,
-   malformed evidence and nonzero scanner outcomes. Assert exit status as well
-   as output; existing report fixtures mask it with `|| true`.
-2. **Bound shared scanner operations.** Enforce the existing timeout setting
-   around local version/scan calls and container database/scan operations.
-   A local scanner probe currently succeeds after exceeding its configured
-   limit. Reuse existing timeout handling, preserve diagnostics and caller
-   limits, and keep build deadlines separate. Specify whether the limit applies
-   per operation or to the complete fallback sequence; do not claim a total
-   deadline from several independent limits. Cover stalled operations, healthy
-   fallback without stale failure flags, and propagation to callers. Verify
-   timed-out container work terminates without broad container cleanup.
-3. **Preserve inherited ignore policy.** Implement the selected decision below
-   with a read-only structural check before `CLEAN_CMD`, build/scan and the
-   clean fast path.
-   Reuse that check in the YAML audit. The current awk checker misses flow-style
-   and quoted-key broad rules and rejects a valid quoted package name. Use a
-   real YAML parser; declare and verify PyYAML through existing prerequisites
-   rather than treating its absence as an empty policy. Parse failures and
-   unsupported structures must block. Cover block/flow styles, quoted keys,
-   aliases, malformed input and unavailable parser, plus absent/empty ignore
-   lists and valid neighboring rules. Require mappings for entries/packages
-   and string identities. On rejection, preserve policy bytes, create no repair
-   commit, restore the original ref/HEAD and remove the empty fix branch.
-   Keep legitimate complete unscoped-rule merging and introduced-rule repair working. This needs no
-   inherited-entry tracking or YAML serialization rewrite.
+- **Report evidence:** one fresh JSON scan uses the existing validator before
+  rendering findings and ignores. Invalid evidence and failed scans cannot
+  declare completion; incomplete coverage retains exit 2 and cleanup.
+- **Scanner deadlines:** shared per-operation limits cover executable version
+  probes, scans, container database updates, volume creation and image inspection.
+  Termination grace and targeted container cleanup are bounded separately.
+  Healthy fallback resets prior failure flags; shorter caller deadlines remain
+  effective. Installer downloads and generic daemon probes are outside this fix.
+- **Inherited ignore policy:** a shared read-only PyYAML `CSafeLoader` check runs before
+  `CLEAN_CMD`, build/scan and the clean fast path. It handles flow/quoted forms
+  and aliases, rejects malformed or broad selectors, and preserves valid empty
+  policies and complete unscoped rules. Rejection preserves policy bytes,
+  creates no repair commit, restores the original ref and removes the empty
+  branch. PyYAML is an explicit prerequisite; no serialization rewrite or
+  entry-provenance machinery was added.
 
-Resolve the Go-minor policy conflict before changing that behavior. The three
-engine fixes do not depend on another paid reporting trial. Existing major-
-version, Kubernetes-identity, no-fix-credit, audit and test-evidence guards remain
-implemented; keep their regressions rather than reopening them without a new
-failure.
+All 3,016 hermetic runtime checks and 53 eval helper checks pass. The selected
+model-free real runtime checks remain pending. Report mode needs a real
+report invocation; the existing live remediation case never reaches it. Test
+inherited-policy rejection on an actual broad policy, not a modified target.
+The [testing plan](testing.md#next-steps) records those separate questions.
+
+Next resolve the Go-minor policy conflict before changing that behavior, and
+choose a justified behavioral mechanism before another paid actor run. Existing
+major-version, Kubernetes-identity, no-fix-credit, audit and test-evidence guards
+remain implemented; keep their regressions rather than reopening them without
+a new failure.
 
 ## Decisions
 
@@ -66,10 +56,9 @@ failure.
   repair loop and independent final rescan remain.
 - **Flag, don't delete, pre-existing broad ignores.** Inherited package-only
   entries (including submariner-operator's `/tools` docker and containerd
-  exemptions) are currently removed and can be re-ignored as "Regression from
-  dependency update". The selected change is to stop with exit 2 before any
-  repair, preserving that policy until the maintainer changes `.grype.yaml`.
-  An early read-only check avoids introducing entry-provenance machinery.
+  exemptions) used to be removed and could be re-ignored as "Regression from
+  dependency update". The early read-only check now stops with exit 2 before
+  repair, preserving policy until the maintainer changes `.grype.yaml`.
 
 - **Plugin policy or repository notes on Go minor raises.**
   `fix-package.sh` accepts a Go directive raise the build image supports,

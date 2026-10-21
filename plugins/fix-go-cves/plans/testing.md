@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Scripts:** `test/test-lib.sh` passed 2,787 hermetic checks for mutations,
+- **Scripts:** `test/test-lib.sh` passed 3,016 hermetic checks for mutations,
   rollback and gates. Runtime changes need regressions here. `make test` requires
   Go 1.24 or later and fails rather than skips when `CI` is set.
 - **Historical replay:** packaged Admiral case 005 runs today's skill over real
@@ -40,7 +40,7 @@ not attribute the historical run or replace a full baseline test suite.
    branch or detached ref in the Summary. Recommendations focus on the next
    unmet prerequisite and verification still needed. This is a behavioral
    treatment, not enforcement or proof of general reliability.
-2. **Boundary fixtures pass.** The existing shell suite passed 2,787 checks,
+2. **Boundary fixtures pass.** The existing shell suite passed 3,016 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
    The 53 eval checks cover witnessed publication, tampering, frozen inputs,
@@ -73,14 +73,31 @@ caveats are retained in the [eval results](../evals/README.md#current-reporting-
 
 ## Next steps
 
-### Fix demonstrated engine gaps first
+### Verify the changed engine paths
 
-Implement the three [prioritized changes](README.md#next-changes) separately:
-validated single-scan reports, scanner deadlines, then preservation of inherited
-ignore policy with reliable read-only YAML parsing. Reproduce each defect in the
-existing shell suite before fixing it. Include passing controls and check exit
-status, retained HEAD/files and suppressed publication, not just diagnostic text.
-Historical replay uses historical scripts and cannot validate these fixes.
+The three [prioritized fixes](README.md#next-changes) are implemented:
+validated single-scan reports, scanner deadlines and preservation of inherited
+ignore policy through read-only YAML parsing. Focused checks reproduce the
+prior failures and pass with the changes; the full suite passes 3,016 checks.
+They check exit status, retained HEAD/files and suppressed publication, not just
+diagnostic wording. Historical replay uses historical scripts and cannot
+validate these fixes.
+
+The full suite exposed a Grype-valid tab separating a scalar and comment that
+PyYAML's Python loader rejected. The explicit `CSafeLoader` prerequisite keeps
+parser behavior consistent without normalizing YAML. Scratch directories also
+bound Git discovery so a caller's `TMPDIR` inside this checkout cannot change
+fixture module ownership; real nested fixture repositories remain discoverable.
+
+Two model-free real runtime checks are selected after source freeze and review:
+report mode on pinned Subctl release-0.24, and early policy rejection on pinned
+operator devel containing genuine package-only rules. Operator release-0.24 has
+complete selectors and cannot exercise the latter rejection. Reuse stock workspace
+preparation and the supervised worker; do not edit a target to force coverage.
+These are direct engine checks, not paid actor executions or skill acceptance.
+Healthy real scans do not prove timeout termination; controlled stalls cover that.
+The existing live contract requires Summary completion and does not accept the
+early rejection path; do not weaken it to manufacture a passing score.
 
 Keep the source repair and final advice acceptance decisions separate. The latest
 case-004 follow-up preserves the canonical command and exit-2 result: two lint
@@ -302,10 +319,10 @@ operator-owned cleanup, without another plugin preflight layer.
 
 Exercise timeout/cancellation and retention of partial evidence in that
 disposable environment before unattended runs. Parent time/budget limits do
-not account for all nested reviewers and judges. `CVE_FIX_SCAN_TIMEOUT` is not
-currently enforced uniformly across scanner and database calls; keep that
-runtime fix in the [prioritized changes](README.md#next-changes), rather
-than claim the configured value bounds every scan. Record environment failures,
+not account for all nested reviewers and judges. `CVE_FIX_SCAN_TIMEOUT` now
+bounds shared scanner operations, including database calls; fallback and bounded
+termination/cleanup add time. It is not a whole-pipeline deadline and does not
+bound installer downloads or generic daemon probes. Record environment failures,
 operator stops, elapsed time and available costs separately from model behavior;
 observed violations remain evidence even when a trial is stopped.
 
