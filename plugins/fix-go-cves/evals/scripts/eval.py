@@ -115,12 +115,15 @@ def frozen_inputs(run_dir):
     return provenance, manifest, config
 
 
-def check_reserved_paths(workspace):
+def check_reserved_paths(workspace, ref=None):
+    paths = (git(workspace, 'ls-tree', '-rz', '--name-only', ref) if ref
+             else git(workspace, 'ls-files', '-z'))
     collisions = {PurePosixPath(name).parts[0]
-                  for name in git(workspace, 'ls-files', '-z').split('\0') if name
+                  for name in paths.split('\0') if name
                   and PurePosixPath(name).parts[0] in INFRA}
     if collisions:
-        raise ValueError(f'Repository uses reserved eval paths: {sorted(collisions)}')
+        pin = f' at {ref}' if ref else ''
+        raise ValueError(f'Repository uses reserved eval paths{pin}: {sorted(collisions)}')
 
 
 def run(*args, cwd=None, env=None):
@@ -222,6 +225,8 @@ def prepare(workspace, source):
         # Only pinned history, no tags or later branch tips. Setup alone fetches.
         run('git', '-c', 'protocol.https.allow=always', '-C', str(upstream),
             'fetch', '--no-tags', data['repository'], f'{commit}:refs/heads/{branch}')
+    for commit in dict.fromkeys((data['base_commit'], data['default_commit'])):
+        check_reserved_paths(upstream, commit)
     git(upstream, 'symbolic-ref', 'HEAD', f'refs/heads/{data["default_branch"]}')
     fork = private / 'remotes/fork' / f'{repository}.git'
     fork.parent.mkdir(parents=True)

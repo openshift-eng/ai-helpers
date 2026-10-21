@@ -1213,6 +1213,85 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "reserved eval paths"):
             EVAL.check_reserved_paths(workspace)
 
+    def prepare_local_repository(self, collision=None):
+        repository = self.root / "repository"
+        EVAL.git(self.root, "init", str(repository))
+        EVAL.git(repository, "config", "user.name", "Fixture")
+        EVAL.git(repository, "config", "user.email", "fixture@example.invalid")
+        (repository / "cmd/bin").mkdir(parents=True)
+        (repository / "cmd/bin/source.go").write_text("package main\n")
+        (repository / "go.mod").write_text("module example.com/fixture\n")
+        tracked_settings = repository / ".claude/settings.json"
+        if collision == "base":
+            tracked_settings.parent.mkdir()
+            tracked_settings.write_text('{"enabledPlugins": {"fixture": true}}\n')
+        EVAL.git(repository, "add", ".")
+        EVAL.git(repository, "commit", "-m", "base")
+        base = EVAL.git(repository, "rev-parse", "HEAD")
+        if collision == "default":
+            tracked_settings.parent.mkdir()
+            tracked_settings.write_text('{"enabledPlugins": {"fixture": true}}\n')
+        elif collision == "base":
+            tracked_settings.unlink()
+        EVAL.git(repository, "add", "-A")
+        EVAL.git(repository, "commit", "--allow-empty", "-m", "default")
+        default = EVAL.git(repository, "rev-parse", "HEAD")
+        source = self.root / "fixture"
+        source.mkdir()
+        data = {"mode": "live", "repository": "https://github.com/example/fixture.git",
+                "base_branch": "release-0.24", "default_branch": "devel",
+                "original_branch": "operator-start", "base_commit": base,
+                "default_commit": default}
+        (source / "input.yaml").write_text(yaml.safe_dump(data))
+        (source / "annotations.yaml").write_text("{}\n")
+        workspace = self.root / "cases/case-local"
+        settings = workspace / ".claude/settings.json"
+        settings.parent.mkdir(parents=True)
+        settings.write_bytes(b'{"permissions": {"defaultMode": "dontAsk"}}\n')
+        original_run = EVAL.run
+
+        def local_fetch(*args, **kwargs):
+            # Keep real Git/bare trees and checkout behavior; replace only the
+            # validated remote transport so this setup test cannot use network.
+            if "fetch" in args and data["repository"] in args:
+                args = tuple(str(repository) if arg == data["repository"] else arg
+                             for arg in args)
+            return original_run(*args, **kwargs)
+
+        return workspace, source, data, local_fetch
+
+    def test_prepare_rejects_reserved_default_tree_before_checkout(self):
+        self.assert_prepare_rejects_reserved_tree("default")
+
+    def test_prepare_rejects_reserved_base_tree_with_clean_default(self):
+        self.assert_prepare_rejects_reserved_tree("base")
+
+    def assert_prepare_rejects_reserved_tree(self, collision):
+        workspace, source, data, local_fetch = self.prepare_local_repository(collision)
+        settings = workspace / ".claude/settings.json"
+        original_settings = settings.read_bytes()
+        pin = data[f"{collision}_commit"]
+        with patch.object(EVAL, "run", side_effect=local_fetch):
+            with self.assertRaisesRegex(ValueError, rf"reserved eval paths at {pin}:.*\.claude"):
+                EVAL.prepare(workspace, source)
+        self.assertEqual(settings.read_bytes(), original_settings)
+        self.assertFalse((workspace / ".git").exists())
+        self.assertFalse((workspace / ".replay/remotes/fork").exists())
+        self.assertFalse((workspace / "go.mod").exists())
+
+    def test_prepare_clean_pinned_trees_preserves_settings_and_allowed_paths(self):
+        workspace, source, data, local_fetch = self.prepare_local_repository()
+        settings = workspace / ".claude/settings.json"
+        original_settings = settings.read_bytes()
+        with patch.object(EVAL, "run", side_effect=local_fetch), \
+                contextlib.redirect_stdout(io.StringIO()):
+            EVAL.prepare(workspace, source)
+        self.assertEqual(settings.read_bytes(), original_settings)
+        self.assertEqual(EVAL.git(workspace, "rev-parse", "HEAD"), data["default_commit"])
+        self.assertEqual(EVAL.git(workspace, "branch", "--show-current"), "operator-start")
+        self.assertTrue((workspace / "cmd/bin/source.go").is_file())
+        EVAL.check_reserved_paths(workspace)
+
 class RunnerFailureTests(unittest.TestCase):
     def test_failed_stages_preserve_artifacts_and_nonzero_completion(self):
         # Inject CLI stage outcomes while executing the actual Bash runner.

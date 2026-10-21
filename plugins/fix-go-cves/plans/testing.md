@@ -43,7 +43,7 @@ not attribute the historical run or replace a full baseline test suite.
 2. **Boundary fixtures pass.** The existing shell suite passed 3,016 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
-   The 53 eval checks cover witnessed publication, tampering, frozen inputs,
+   The 56 eval checks cover witnessed publication, tampering, frozen inputs,
    native event shapes and preserved failures. Skipped/unconfigured gates are
    not passing gates; old-trace rechecks prove detection, not revised behavior.
 3. **Selected replay behavior is measured.** At `07515259`, case-005 passes its
@@ -89,15 +89,19 @@ parser behavior consistent without normalizing YAML. Scratch directories also
 bound Git discovery so a caller's `TMPDIR` inside this checkout cannot change
 fixture module ownership; real nested fixture repositories remain discoverable.
 
-Two model-free real runtime checks are selected after source freeze and review:
-report mode on pinned Subctl release-0.24, and early policy rejection on pinned
-operator devel containing genuine package-only rules. Operator release-0.24 has
-complete selectors and cannot exercise the latter rejection. Reuse stock workspace
-preparation and the supervised worker; do not edit a target to force coverage.
-These are direct engine checks, not paid actor executions or skill acceptance.
-Healthy real scans do not prove timeout termination; controlled stalls cover that.
-The existing live contract requires Summary completion and does not accept the
-early rejection path; do not weaken it to manufacture a passing score.
+Both selected model-free real checks passed on frozen runtime `c916dfa9`:
+report mode on pinned Subctl release-0.24 returned 17 faithful findings, and
+operator devel rejected its genuine package-only rules before cleanup/build/scan.
+The latter preserved policy, settings, instructions and refs. Operator
+release-0.24 has complete selectors and cannot exercise that rejection.
+[Results and retained failures](../evals/live/README.md#runtime-quality-checks)
+distinguish stock preparation, the direct guard check and environment correction.
+The helper now checks both pinned trees for reserved paths before checkout,
+without admitting tracked `.claude` settings or removing repository instructions.
+The worker is stopped. These are direct engine checks, not actor executions or
+skill acceptance. Healthy real scans do not prove timeout termination; controlled
+stalls cover that. The existing live contract requires Summary completion and
+does not accept early rejection; it remains unchanged.
 
 Keep the source repair and final advice acceptance decisions separate. The latest
 case-004 follow-up preserves the canonical command and exit-2 result: two lint

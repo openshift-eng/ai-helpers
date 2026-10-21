@@ -35,11 +35,15 @@ python3 -m venv .work/fix-go-cves-evals/venv
 . .work/fix-go-cves-evals/venv/bin/activate
 python -m pip install -e "$HARNESS[anthropic]"
 export CVE_EVAL_PYTHON="$VIRTUAL_ENV/bin/python"
+python3 -I -c 'from yaml import CSafeLoader'
 ```
 
 The pin is the harness revision used for the pilot. Keep the environment active
-so hook commands using `python3` also find its dependencies. Each run records the
-actual harness commit in `harness-revision.txt`.
+so hooks and live runtime commands using `python3` find its dependencies even
+with a fresh case `HOME`. `CVE_EVAL_PYTHON` selects the driver only; it does not
+activate that environment for child commands. The isolated import above checks
+the required YAML backend without relying on user-site packages. Each run
+records the actual harness commit in `harness-revision.txt`.
 
 Supply model authentication through the environment: each case gets a fresh
 `HOME`, so an existing interactive CLI login alone is insufficient. For Vertex,
@@ -77,6 +81,10 @@ plugins/fix-go-cves/evals/run.sh --live
 
 `--dry-run` fetches the real pinned history and replays the result without model
 calls, builds or scans. `--prepare-only` prepares the checkout without replaying.
+Preparation checks both pinned trees for reserved eval paths before checkout.
+Repositories tracking paths such as `.claude` remain unsupported: preserve their
+settings and instructions rather than deleting them to admit a case. Composing
+project settings with harness settings needs a separate design.
 Use `--model MODEL` for the invoking agent and `EVAL_JUDGE_MODEL` for judges.
 `--run-id ID` chooses a new result identifier; existing identifiers are rejected.
 Repeat `--case ID` to select cases within the chosen track; defaults remain the

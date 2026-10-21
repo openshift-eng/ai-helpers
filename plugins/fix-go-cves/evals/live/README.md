@@ -283,3 +283,41 @@ No retuning or additional actor trial is selected. The owned worker stopped
 with no running containers; its identity, socket removal and unchanged host
 alias were verified. Independent source/rendering/reference reviews and frozen
 calibration records are under `.work/fix-go-cves-release024/`.
+
+
+## Runtime quality checks
+
+Two model-free checks used the frozen WIP runtime at `c916dfa9`, outside the
+scanned checkout, with genuine repository inputs:
+
+| Check | Pinned repository commit | Actual result |
+| --- | --- | --- |
+| Subctl release-0.24 `report.sh` | `bf62ddf2341761904710527e36fa4e46e820b72b` | Exit 0 in 42.08 seconds; 17 findings, zero ignores; every table row matches the raw JSON |
+| Operator devel `fix-all.sh` early guard | `f9ba98a96151141e026e8a4087c581e1e37aa463` | Exit 2 in 3.36 seconds; two inherited rules lack vulnerability selectors; all five recorded phases unrun, zero scans |
+
+The report performed one fresh canonical Dapper native build/scan with Go
+1.26.9 and checksum-verified Grype v0.121.0. The retained AMD64 binary, VCS
+metadata and same-scan catalog hashes agree. This is a complete report with
+findings, not a clean scan or remediation. The guard used a separate normal
+pinned checkout and local bare origin, preserving tracked `.claude/settings.json`,
+instructions, policy bytes, index, HEAD and refs; its empty fix branch was removed.
+No target source was edited to obtain either result. Independent engine review
+passed 48 checks; root review separately matched all 17 rows and all nine durable
+evidence hashes. These are engine checks, without actors, judges or publication.
+
+Two earlier failures remain preserved. Stock preparation failed on the operator's
+tracked `.claude/settings.json` before either target script ran; the helper also
+reserves `.claude`, so the guard was checked directly without weakening admission
+or stripping context. Preparation now diagnoses collisions in either pinned tree
+before checkout. The first actual report invocation failed preflight because a
+fresh `HOME` hid user-site PyYAML. Activating the existing eval virtual environment
+for child `python3` commands corrected that environment; no package or runtime
+source change was needed. The successful report is the second invocation, and
+the first to reach build/scan.
+
+Raw attempts, frozen identities, independent reviews and targeted worker teardown
+are retained under `.work/fix-go-cves-release024/quality-runtime-validation/`.
+The owned worker is stopped; evidence and caches remain. The 3,016 runtime
+checks cover controlled stalls and invalid/ignored scan evidence that these real
+checks do not exercise. Full skill acceptance and reliable semantic grading
+remain unresolved; these results do not replace earlier actor failures.

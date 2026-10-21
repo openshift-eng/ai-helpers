@@ -33,11 +33,13 @@ Three demonstrated engine gaps are now implemented, with focused regressions:
   branch. PyYAML is an explicit prerequisite; no serialization rewrite or
   entry-provenance machinery was added.
 
-All 3,016 hermetic runtime checks and 53 eval helper checks pass. The selected
-model-free real runtime checks remain pending. Report mode needs a real
-report invocation; the existing live remediation case never reaches it. Test
-inherited-policy rejection on an actual broad policy, not a modified target.
-The [testing plan](testing.md#next-steps) records those separate questions.
+All 3,016 hermetic runtime checks and 56 eval helper checks pass. Two model-free
+real checks on frozen runtime `c916dfa9` also pass: Subctl release-0.24 report
+mode faithfully renders 17 findings, and operator devel rejects genuine inherited
+broad rules before cleanup/build/scan while preserving policy and instructions.
+These establish engine behavior, not remediation or skill acceptance. The
+[live record](../evals/live/README.md#runtime-quality-checks) retains failures,
+environment corrections and the independent reviews.
 
 Next resolve the Go-minor policy conflict before changing that behavior, and
 choose a justified behavioral mechanism before another paid actor run. Existing
