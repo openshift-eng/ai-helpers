@@ -193,22 +193,14 @@ print((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=$S
 
 for repo in "${SHARED_REPOS[@]}"; do
     for member in "${TEAM_USERNAMES[@]}"; do
-        query="(author:$member OR assignee:$member OR reviewed-by:$member OR review-requested:$member) (is:open OR merged:>=$SHARED_MERGED_SINCE)"
+        query="(author:$member OR assignee:$member OR reviewed-by:$member) (is:open OR merged:>=$SHARED_MERGED_SINCE)"
         prs=$(gh pr list --repo "$repo" --state all --search "$query" --limit 200 --json url,state -q '.[] | .url + "|" + .state' 2>/dev/null || echo "")
         while IFS='|' read -r url pr_state; do
             [ -z "$url" ] && continue
             if echo "$EXISTING_URLS" | grep -qFx "$url"; then
                 continue
             fi
-            # Review requests can concern a former team member's old component.
-            # Team-linked OCPBUGS without recognizable files are covered by C2.
-            if ! scope_reason=$(gh pr view "$url" --json title,files | \
-                python3 "$SCRIPT_DIR/shared-pr-scope.py" "$repo" "${SHARED_COMPONENT_REPOS[@]}"); then
-                echo "  SCOPE REVIEW: $url (team member: $member; component not established)"
-                continue
-            fi
             echo "  ADD: $url (team member: $member)"
-            echo "  SCOPE: $scope_reason"
             if ! item_id=$(gh project item-add "$PROJECT_NUM" --owner "$OWNER" --url "$url" --format json --jq '.id'); then
                 echo "  ERROR: failed to add $url" >&2
                 continue
