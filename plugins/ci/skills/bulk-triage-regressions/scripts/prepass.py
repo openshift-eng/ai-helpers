@@ -413,7 +413,8 @@ def tripwire(regs, now, window_hours, previous_status, view_status=None, run_id=
         if not isinstance(t, dict):
             continue
         if 'new_members' in t:                      # weekly-growth trigger (dedicated shape)
-            prev_growth[t['cluster_id']] = set(t.get('new_members') or [])
+            for kid in (t.get('known_cluster_ids') or [t['cluster_id']]):
+                prev_growth.setdefault(kid, set()).update(t.get('new_members') or [])   # merge, never overwrite
             continue
         c = prev_clusters.get(t.get('cluster_id'))
         if not c:
@@ -421,12 +422,16 @@ def tripwire(regs, now, window_hours, previous_status, view_status=None, run_id=
         n, lvl = len(c['members']['regression_ids']), t.get('level')
         prev[c['id']] = (lvl, n)
         for rid in c['members']['regression_ids']:        # the same regressions = the same event, whatever the id
-            prev_member[rid] = (lvl, n)
+            old = prev_member.get(rid)
+            if old is None or LEVEL_ORDER.get(lvl, 9) < LEVEL_ORDER.get(old[0], 9) or (lvl == old[0] and n > old[1]):
+                prev_member[rid] = (lvl, n)
         fp = c.get('fingerprint') or {}
         # a rolling window's test_family is unstable, so a same-release same-lane notified cluster is the same event
         k = (fp.get('release'), fp.get('lane_family'))
         old = prev_fp.get(k)
-        prev_fp[k] = (lvl, n) if old is None or LEVEL_ORDER.get(lvl, 9) < LEVEL_ORDER.get(old[0], 9) or n > old[1] else old
+        better = (old is None or LEVEL_ORDER.get(lvl, 9) < LEVEL_ORDER.get(old[0], 9)
+                  or (LEVEL_ORDER.get(lvl, 9) == LEVEL_ORDER.get(old[0], 9) and n > old[1]))   # level first, then size
+        prev_fp[k] = (lvl, n) if better else old
     triggers = []
     for c in clusters:
         level, s = c['blast_radius']['level'], c['shape']
@@ -451,22 +456,28 @@ def tripwire(regs, now, window_hours, previous_status, view_status=None, run_id=
     known_growth = []
     if known_high:
         active = build_clusters([r for r in regs if is_open(r)], now)
-        for kid, k in known_high.items():
-            kmembers = set(k['members']['regression_ids'])
-            for a in active:
-                members = set(a['members']['regression_ids'])
-                if not (members & kmembers):
-                    continue
-                new = sorted((members & window_ids) - kmembers)
-                if new:
-                    before = prev_growth.get(kid)
-                    kind = 'continuing' if before is not None and set(new) <= before else 'growth'
-                    triggers.append({'cluster_id': kid, 'kind': kind, 'level': 'HIGH', 'new_members': new,
-                                     'active_cluster_id': a['id'],
-                                     'reasons': ['known HIGH cluster %s (%d regressions in the weekly run) gained %d in the window'
-                                                 % (kid, len(kmembers), len(new))] + list(k['blast_radius'].get('reasons') or [])})
-                    known_growth.append({'known_cluster_id': kid, 'known_level': 'HIGH', 'new_members': new,
-                                         'active_cluster': _public(a)})
+        for a in sorted(active, key=lambda a: a['id']):
+            members = set(a['members']['regression_ids'])
+            hits = sorted(kid for kid, k in known_high.items() if members & set(k['members']['regression_ids']))
+            if not hits:
+                continue
+            known_members = set().union(*(set(known_high[kid]['members']['regression_ids']) for kid in hits))
+            new = sorted((members & window_ids) - known_members)
+            if not new:
+                continue
+            # One trigger per active cluster: a known cluster split into children yields one trigger per child
+            # (history merged per known id, W2-5); known clusters merged by a new member yield ONE trigger
+            # naming all of them, so the reporter pages once.
+            before = set().union(*(prev_growth.get(kid, set()) for kid in hits))
+            kind = 'continuing' if set(new) <= before else 'growth'
+            lead = hits[0]
+            triggers.append({'cluster_id': lead, 'kind': kind, 'level': 'HIGH', 'new_members': new,
+                             'known_cluster_ids': hits, 'active_cluster_id': a['id'],
+                             'reasons': ['known HIGH cluster%s %s (%d regressions in the weekly run) gained %d in the window'
+                                         % ('s' if len(hits) > 1 else '', ', '.join(hits), len(known_members), len(new))]
+                                        + list(known_high[lead]['blast_radius'].get('reasons') or [])})
+            known_growth.append({'known_cluster_ids': hits, 'known_level': 'HIGH', 'new_members': new,
+                                 'active_cluster': _public(a)})
         for a in active:
             del a['_members']
     for c in clusters:

@@ -152,31 +152,34 @@ def diff_triages(before, after, declared):
         elif d.get("triage_id") is not None:
             ext_by_tid.setdefault(str(d.get("triage_id")), set()).update(regs)
 
-    # Key-only declarations bind to the first created triage carrying that key (by id); a second
-    # creation for the same bug is a duplicate and stays undeclared.
+    # Resolve every declaration group to exactly ONE physical creation (W2-1):
+    #  - explicit-id groups bind to that id (and all their declared keys must agree with what was created);
+    #  - key-only groups bind to the explicitly-declared creation carrying that key if there is one (several
+    #    clusters sharing one new triage), else to the first created triage with that key that no explicit
+    #    group claims; any further creation for the same bug is a duplicate and stays undeclared.
+    created_obs = [o for o in observed if o["kind"] == "created"]
     key_bound = {}
-    for o in observed:
-        if o["kind"] == "created" and o.get("jira") in create_by_key and o["jira"] not in key_bound \
-                and o["triage_id"] not in create_by_tid:
-            key_bound[o["jira"]] = o["triage_id"]
+    for key in create_by_key:
+        explicit = [o["triage_id"] for o in created_obs if o.get("jira") == key and o["triage_id"] in create_by_tid]
+        free = [o["triage_id"] for o in created_obs if o.get("jira") == key and o["triage_id"] not in create_by_tid]
+        if explicit:
+            key_bound[key] = explicit[0]
+        elif free:
+            key_bound[key] = free[0]
 
     def expected_creation(o):
-        """Expected final membership of a created triage, or None when nothing declared it."""
+        """Expected final membership of a created triage, or None when nothing declares it."""
         tid, key = o["triage_id"], o.get("jira")
-        regs, declared = set(), False
+        regs = set()
         slot = create_by_tid.get(tid)
         if slot is not None:
-            if slot["keys"] and key not in slot["keys"]:
-                return None           # declared id and declared key disagree with what was created
+            if len(slot["keys"]) > 1 or (slot["keys"] and key not in slot["keys"]):
+                return None           # conflicting declared keys, or a key that disagrees with the creation
             regs |= slot["regs"]
-            declared = True
-            if key in create_by_key:  # key-only declarations for the same bug share this creation
-                regs |= create_by_key[key]
-        elif key and key_bound.get(key) == tid:
-            regs |= create_by_key[key]
-            declared = True
-        if not declared:
+        elif not (key and key_bound.get(key) == tid):
             return None
+        if key and key_bound.get(key) == tid:
+            regs |= create_by_key[key]   # the key-only clusters' ids live in THIS creation only
         return regs | ext_by_tid.get(tid, set())   # a creation followed by an extension in the same run
 
     def covered(o):
@@ -198,8 +201,7 @@ def diff_triages(before, after, declared):
             key = _jira_key(d.get("jira"))
             if tid is not None:
                 return any(o["kind"] == "created" and o["triage_id"] == tid for o in observed)
-            return key in key_bound or any(o["kind"] == "created" and o.get("jira") == key and o["triage_id"] in create_by_tid
-                                           for o in observed)
+            return key in key_bound
         tid = str(d.get("triage_id"))
         # Declared ids must be present at the end; a declared write whose ids were already linked is a no-op.
         return tid in a and regs <= set(a[tid].get("regression_ids") or [])
@@ -350,13 +352,14 @@ def write_receipt(path, *, run_id, mode_requested, mode_effective, audit, previo
         if origins:
             given = downgrade.get("reasons") if isinstance(downgrade.get("reasons"), dict) else {}
             prev = downgrade.get("previous_receipt")
-            prev_reasons = ((prev.get("downgrade") or {}).get("reasons") or {}) if isinstance(prev, dict) else {}
+            prev_dg = prev.get("downgrade") if isinstance(prev, dict) else None
+            prev_reasons = prev_dg.get("reasons") if isinstance(prev_dg, dict) and isinstance(prev_dg.get("reasons"), dict) else {}
             own = {o: r for o, r in (_own_violations(str(run_id), jira, diff) if isinstance(jira, dict) and isinstance(diff, dict)
                                       else [(str(run_id), "audit unreadable")])}
             reasons = {}
             for o in origins:
                 text = given.get(o) or prev_reasons.get(o) or own.get(o) or downgrade.get("reason") or ""
-                reasons[o] = _strip_inherited(text)
+                reasons[o] = _strip_inherited(text if isinstance(text, str) else json.dumps(text))
             dg = {"pending": True, "origin": ",".join(origins), "origins": origins, "reasons": reasons,
                   "reason": "; ".join("%s: %s" % (o, reasons[o]) for o in origins)[:REASON_MAX * max(1, len(origins))]}
     receipt = {"schema_version": SCHEMA_VERSION, "run_id": run_id, "written_at": _now(),
@@ -408,7 +411,11 @@ def read_receipt_decision(receipt, ack_run_id=None):
     """Return (decision, origin, reason). decision is "report" or "configured"; origin lists every run id
     whose violation still forces report mode (comma-separated, "" when none) — what a manager must
     acknowledge (POSTGA_ACK_RECEIPT accepts the same comma-separated form). Inherited origins are
-    recovered BEFORE this receipt's own audit is judged, so an unreadable carrier never erases them."""
+    recovered BEFORE this receipt's own audit is judged, so an unreadable carrier never erases them.
+    An unreadable receipt cannot be acknowledged while it IS the latest receipt (nobody has looked at that
+    run yet); once a later readable receipt carries it as an origin, a manager who reviewed the run may
+    acknowledge it like any other origin — a permanent block would leave the job in report mode with no
+    remedy after a single crashed run."""
     if receipt is None:
         return "report", "", "no receipt from the latest preceding attempt"
     if not isinstance(receipt, dict):
@@ -447,6 +454,16 @@ def _write_json(path, obj):
 def _read_json(path):
     with open(path) as f:
         return json.load(f)
+
+
+def _read_json_optional(path):
+    """Diagnostic inputs are best-effort: unreadable or invalid files count as absent (W2-6)."""
+    if not path:
+        return None
+    try:
+        return _read_json(path)
+    except (OSError, ValueError):
+        return None
 
 
 def _declared(manifest):
@@ -510,8 +527,7 @@ def main(argv=None):
                           previous_run=args.previous_run,
                           downgrade=({"pending": True, "origins": _origins(args.downgrade_origin),
                                       "reason": args.downgrade_reason,
-                                      "previous_receipt": (_read_json(args.previous_receipt)
-                                                           if args.previous_receipt and os.path.exists(args.previous_receipt) else None)}
+                                      "previous_receipt": _read_json_optional(args.previous_receipt)}
                                      if args.downgrade_origin else None))
         elif args.cmd == "receipt-decide":
             try:

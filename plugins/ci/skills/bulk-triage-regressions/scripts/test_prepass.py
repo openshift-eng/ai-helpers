@@ -555,6 +555,88 @@ class ReviewWave2Test(unittest.TestCase):
         self.assertEqual(cl['lineage']['first_seen_run'], 'hist-2')
 
 
+class ReviewWave3Test(unittest.TestCase):
+    """Review wave 3: W2-4 order-independent history, W2-5 split known clusters, merged parents coalesce."""
+
+    def _burst(self, *a, **k):
+        return ReviewWave2Test._burst(self, *a, **k)
+
+    def test_notified_history_is_order_independent(self):
+        opened, started = '2026-10-20T11:00:00Z', '2026-10-20T12:00:00Z'
+        high = self._burst(0, opened, started, True); mass = self._burst(100, opened, started, False, n=50)
+        for r in high: r['test_name'] = 'old HIGH'
+        for r in mass: r['test_name'] = 'old ELEVATED'
+        prev = p.tripwire(high + mass, ts('2026-10-21T06:00:00Z'), 24, None)
+        self.assertEqual(sorted(t['level'] for t in prev['triggers']), ['ELEVATED', 'HIGH'])
+        fresh = self._burst(200, '2026-10-21T10:00:00Z', '2026-10-21T11:00:00Z', True)
+        for r in fresh: r['test_name'] = 'new wave'
+        now = ts('2026-10-21T12:00:00Z')
+        kinds = set()
+        for history in (prev, dict(prev, triggers=list(reversed(prev['triggers'])))):
+            kinds.add(tuple((x['level'], x['kind']) for x in p.tripwire(high + mass + fresh, now, 24, history)['triggers']))
+        self.assertEqual(len(kinds), 1, kinds)
+
+    def _split_setup(self):
+        # a weekly HIGH cluster whose two test groups were joined by two old runs that later leave retention
+        now_weekly, now_next = ts('2026-10-21T06:00:00Z'), ts('2026-10-21T12:00:00Z')
+        base = 'periodic-ci-openshift-release-main-nightly-4.22-e2e-'
+        def grp(offset, test, plats, suffix='-ovn'):
+            out = []
+            for i, plat in enumerate(plats):
+                r = reg(offset + i, test, [run(str(offset + i), job=base + plat + suffix, start='2026-10-20T12:00:00Z')],
+                        opened='2026-10-20T11:00:00Z')
+                r['variants'] = ['Platform:' + plat]
+                out.append(r)
+            return out
+        g1 = grp(0, 'test one', ['aws', 'gcp', 'aws', 'gcp'])
+        g2 = grp(10, 'test two', ['azure', 'metal', 'azure', 'metal'], suffix='-ovn-runc')   # second lane family
+        for r in (g1[0], g2[0]):            # the bridge: shared old runs 9001/9002
+            r['job_runs'] += [run('9001', job=base + 'aws-ovn', start='2026-10-14T06:30:00Z'), run('9002', job=base + 'aws-ovn', start='2026-10-14T06:30:00Z')]
+        weekly = p.weekly(g1 + g2, now_weekly, None)
+        self.assertEqual([c['blast_radius']['level'] for c in weekly['clusters']], ['HIGH'])
+        kid = weekly['clusters'][0]['id']
+        new1 = reg(200, 'test one', [run('200', job=base + 'aws-ovn', start='2026-10-21T11:00:00Z'), run('0', job=base + 'aws-ovn', start='2026-10-20T12:00:00Z')], opened='2026-10-21T10:00:00Z')
+        new2 = reg(201, 'test two', [run('201', job=base + 'azure-ovn-runc', start='2026-10-21T11:00:00Z'), run('10', job=base + 'azure-ovn-runc', start='2026-10-20T12:00:00Z')], opened='2026-10-21T10:00:00Z')
+        inv = [dict(r, job_runs=[j for j in r['job_runs'] if j['prowjob_run_id'] not in ('9001', '9002')]) for r in g1 + g2] + [new1, new2]
+        return weekly, kid, inv, now_next
+
+    def test_split_known_cluster_history_is_merged_and_order_independent(self):
+        weekly, kid, inv, now = self._split_setup()
+        first = p.tripwire(inv, now, 24, None, baseline=weekly)
+        g = [t for t in first['triggers'] if 'new_members' in t]
+        self.assertEqual(sorted(m for t in g for m in t['new_members']), [200, 201])
+        self.assertTrue(all(t['kind'] == 'growth' and t['cluster_id'] == kid for t in g))
+        second = p.tripwire(inv, now + __import__('datetime').timedelta(hours=6), 24, first, baseline=weekly)
+        self.assertEqual([t['kind'] for t in second['triggers'] if 'new_members' in t], ['continuing', 'continuing'])
+        third = p.tripwire(inv, now + __import__('datetime').timedelta(hours=6), 24, dict(first, triggers=list(reversed(first['triggers']))), baseline=weekly)
+        self.assertEqual([t['kind'] for t in third['triggers'] if 'new_members' in t], ['continuing', 'continuing'])
+
+    def test_merged_known_clusters_coalesce_into_one_growth_trigger(self):
+        now = ts('2026-10-21T12:00:00Z')
+        a = self._burst(0, '2026-10-20T11:00:00Z', '2026-10-20T12:00:00Z', True)
+        b = self._burst(100, '2026-10-20T11:00:00Z', '2026-10-20T12:00:00Z', True)
+        for r in a: r['test_name'] = 'test A'
+        for r in b: r['test_name'] = 'test B'
+        # one member of each known cluster also ran in an older shared run, so the wrapper shares TWO runs with each
+        a[0]['job_runs'].append(run('7000', job=a[0]['job_runs'][0]['prowjob_name'], start='2026-10-19T12:00:00Z'))
+        b[0]['job_runs'].append(run('7001', job=b[0]['job_runs'][0]['prowjob_name'], start='2026-10-19T12:00:00Z'))
+        weekly = p.weekly(a + b, ts('2026-10-21T06:00:00Z'), None)
+        kids = sorted(c['id'] for c in weekly['clusters'] if c['blast_radius']['level'] == 'HIGH')
+        self.assertEqual(len(kids), 2)
+        wrapper = reg(999, 'install should succeed: overall',
+                      [run('0', job=a[0]['job_runs'][0]['prowjob_name'], start='2026-10-20T12:00:00Z'),
+                       run('7000', job=a[0]['job_runs'][0]['prowjob_name'], start='2026-10-19T12:00:00Z'),
+                       run('100', job=b[0]['job_runs'][0]['prowjob_name'], start='2026-10-20T12:00:00Z'),
+                       run('7001', job=b[0]['job_runs'][0]['prowjob_name'], start='2026-10-19T12:00:00Z'),
+                       run('999', job=a[0]['job_runs'][0]['prowjob_name'], start='2026-10-21T11:00:00Z')], opened='2026-10-21T10:00:00Z')
+        doc = p.tripwire(a + b + [wrapper], now, 24, None, baseline=weekly)
+        g = [t for t in doc['triggers'] if 'new_members' in t]
+        self.assertEqual(len(g), 1, g)
+        self.assertEqual(g[0]['new_members'], [999])
+        self.assertEqual(sorted(g[0]['known_cluster_ids']), kids)
+        self.assertEqual(len(doc['known_growth']), 1)
+
+
 class CliTest(unittest.TestCase):
     def test_cli_weekly_and_tripwire(self):
         with tempfile.TemporaryDirectory() as d:

@@ -392,6 +392,25 @@ class ManifestTest(unittest.TestCase):
         x, member = self._catch_all_doc(triage_id=810)
         self.assertTrue(any('catch_all' in e and '810' in e for e in m.validate(x)))
 
+    def test_missing_catch_all_configuration_does_not_skip_the_rule(self):
+        x, member = self._catch_all_doc(admitted=False)
+        x['clusters'][0]['actions'][0]['status'] = 'done'
+        x['catch_all'] = {}
+        self.assertTrue(any('catch_all' in e for e in m.validate(x)))
+        x, member = self._catch_all_doc(triage_id=810)
+        x['clusters'][0]['actions'][0]['status'] = 'done'
+        x['catch_all'].pop('triage_id')
+        self.assertTrue(any('catch_all.triage_id' in e for e in m.validate(x)))
+
+    def test_malformed_evidence_items_are_reported_even_without_a_write(self):
+        x = example(); c = x['clusters'][0]
+        c['disposition'] = {'state': 'UNANALYSED', 'analysis': {'depth': 'none', 'confidence': 'low', 'root_cause': 'r',
+                                                                'evidence': [None, 1, 'x'], 'unverified_hypotheses': []}}
+        c['actions'] = []
+        c['escalation']['required'] = True
+        errs = m.validate(x)
+        self.assertEqual(len([e for e in errs if 'evidence' in e and 'expected object' in e]), 3, errs)
+
     def test_cli_error_paths_and_merge_then_validate(self):
         cli = os.path.join(HERE, 'manifest.py')
         ex = example()

@@ -206,6 +206,37 @@ class DiffReviewWave2Tests(unittest.TestCase):
         self.assertEqual(len(r["undeclared"]), 1)
 
 
+class DiffReviewWave3Tests(unittest.TestCase):
+    """Review wave 3: W2-1 — each declaration group resolves to exactly one physical creation."""
+
+    def created(self, ids, key="OCPBUGS-9"):
+        return tri(ids, url="https://j/browse/" + key)
+
+    def test_key_only_members_are_not_consumed_twice(self):
+        decl = [{"type": "create_triage", "triage_id": 7, "jira": "OCPBUGS-9", "regression_ids": [5], "status": "done"},
+                {"type": "create_triage", "jira": "OCPBUGS-9", "regression_ids": [6], "status": "done"}]
+        after = snap({"7": self.created([5, 6]), "8": self.created([6])})
+        r = audit.diff_triages(snap({}), after, decl)
+        self.assertEqual(r["status"], "mismatch")
+        self.assertEqual([o["triage_id"] for o in r["undeclared"]], ["8"])
+
+    def test_conflicting_keys_for_one_returned_id_are_rejected(self):
+        decl = [{"type": "create_triage", "triage_id": 7, "jira": "OCPBUGS-9", "regression_ids": [5], "status": "done"},
+                {"type": "create_triage", "triage_id": 7, "jira": "TRT-1", "regression_ids": [6], "status": "done"}]
+        r = audit.diff_triages(snap({}), snap({"7": self.created([5, 6])}), decl)
+        self.assertEqual(r["status"], "mismatch")
+
+    def test_key_only_group_prefers_the_explicitly_declared_triage(self):
+        decl = [{"type": "create_triage", "triage_id": 8, "jira": "OCPBUGS-9", "regression_ids": [5], "status": "done"},
+                {"type": "create_triage", "jira": "OCPBUGS-9", "regression_ids": [6], "status": "done"}]
+        # created 7 (lower id) for the same key is NOT where the key-only cluster's ids went: 8 holds 5 and 6
+        r = audit.diff_triages(snap({}), snap({"7": self.created([9]), "8": self.created([5, 6])}), decl)
+        self.assertEqual(r["status"], "mismatch")
+        self.assertEqual([o["triage_id"] for o in r["undeclared"]], ["7"])
+        r = audit.diff_triages(snap({}), snap({"8": self.created([5, 6])}), decl)
+        self.assertEqual(r["status"], "match")
+
+
 W = ("2026-10-12T01:00:00Z", "2026-10-12T02:00:00Z")
 
 
@@ -422,6 +453,50 @@ class ReceiptTests(unittest.TestCase):
                 self.assertIn("creation in A", rc["downgrade"]["reasons"]["A"])
         self.assertLess(max(lengths), 400)
         self.assertEqual(lengths[-1], lengths[1])        # stable, not growing
+
+    def test_unreadable_latest_receipt_is_not_ackable_but_a_carried_one_is(self):
+        # Rule (narrowed, wave 3): an unreadable receipt cannot be acknowledged while it IS the latest receipt;
+        # once a later readable receipt carries it as an origin, a manager who reviewed that run may ack it.
+        bad = {"run_id": "B", "downgrade": {"pending": True, "origins": ["A"], "reasons": {"A": "creation in A"}},
+               "audit": {"jira_creations": None, "sippy_catalog_diff": {"status": "match"}}}
+        self.assertEqual(audit.read_receipt_decision(bad, "A,B")[1], "B")
+        with tempfile.TemporaryDirectory() as t:
+            p = os.path.join(t, "c.json")
+            d, origin, reason = audit.read_receipt_decision(bad)
+            audit.write_receipt(p, run_id="C", mode_requested="auto", mode_effective="report",
+                                audit={"jira_creations": {"status": "ok", "count": 0}, "sippy_catalog_diff": {"status": "match"}},
+                                previous_run="B", downgrade={"pending": True, "origins": origin.split(","), "reason": reason, "previous_receipt": bad})
+            with open(p) as f:
+                c = json.load(f)
+        self.assertEqual(audit.read_receipt_decision(c)[1], "A,B")
+        self.assertEqual(audit.read_receipt_decision(c, "A")[1], "B")
+        self.assertEqual(audit.read_receipt_decision(c, "A,B")[0], "configured")
+
+    def test_malformed_previous_receipt_never_blocks_receipt_write(self):
+        prev = {"run_id": "B", "downgrade": "not an object",
+                "audit": {"jira_creations": {"status": "unknown", "error": "timeout"}, "sippy_catalog_diff": {"status": "match"}}}
+        with tempfile.TemporaryDirectory() as t:
+            pp = os.path.join(t, "prev.json")
+            with open(pp, "w") as f:
+                json.dump(prev, f)
+            for name, obj in (("j.json", {"status": "ok", "count": 0}), ("s.json", {"status": "match"})):
+                with open(os.path.join(t, name), "w") as f:
+                    json.dump(obj, f)
+            out = os.path.join(t, "c.json")
+            code = audit.main(["receipt-write", "--out", out, "--run-id", "C", "--mode-requested", "auto", "--mode-effective", "report",
+                               "--jira-creations", os.path.join(t, "j.json"), "--sippy-diff", os.path.join(t, "s.json"),
+                               "--downgrade-origin", "B", "--downgrade-reason", "Jira audit unknown", "--previous-receipt", pp])
+            self.assertEqual(code, 0)
+            with open(out) as f:
+                c = json.load(f)
+            self.assertEqual(c["downgrade"]["origins"], ["B"])
+            # and a previous-receipt file that is not even JSON
+            with open(pp, "w") as f:
+                f.write("{ not json")
+            code = audit.main(["receipt-write", "--out", out, "--run-id", "C", "--mode-requested", "auto", "--mode-effective", "report",
+                               "--jira-creations", os.path.join(t, "j.json"), "--sippy-diff", os.path.join(t, "s.json"),
+                               "--downgrade-origin", "B", "--previous-receipt", pp])
+            self.assertEqual(code, 0)
 
     def test_write_receipt_records_downgrade(self):
         with tempfile.TemporaryDirectory() as t:

@@ -69,9 +69,16 @@ def _evidence_items(c):
     return [e for e in ev if isinstance(e, dict)] if isinstance(ev, list) else []
 
 
+def _raw_evidence(c):
+    d = c.get("disposition")
+    an = d.get("analysis") if isinstance(d, dict) else None
+    ev = an.get("evidence") if isinstance(an, dict) else None
+    return ev if isinstance(ev, list) else []
+
+
 def _rule_evidence(w, c):
     errs = []
-    for i, ev in enumerate(_evidence_items(c)):
+    for i, ev in enumerate(_raw_evidence(c)):      # the raw list: non-object items are reported here, filtered elsewhere
         p = "%s evidence[%d]" % (w, i)
         if not isinstance(ev, dict):
             errs.append("%s: expected object, got %s" % (p, _t(ev)))
@@ -205,14 +212,14 @@ def _rule_probe(doc):
 def _rule_catch_all(doc):
     ca = doc.get("catch_all")
     if ca is None:
-        return []
+        return _rule_catch_all_actions(doc, {}, [])          # no configuration = no admissions, not "skip"
     if not isinstance(ca, dict):
-        return ["catch_all: expected object, got %s" % _t(ca)]
+        return ["catch_all: expected object, got %s" % _t(ca)] + _rule_catch_all_actions(doc, {}, [])
     adm = ca.get("admitted")
     if adm is None:
-        return []
+        return _rule_catch_all_actions(doc, ca, [])
     if not isinstance(adm, list):
-        return ["catch_all.admitted: expected list, got %s" % _t(adm)]
+        return ["catch_all.admitted: expected list, got %s" % _t(adm)] + _rule_catch_all_actions(doc, ca, [])
     errs = []
     for i, a in enumerate(adm):
         p = "catch_all.admitted[%d]" % i
@@ -240,7 +247,9 @@ def _rule_catch_all_actions(doc, ca, adm):
             if not isinstance(a, dict) or a.get("type") != "catch_all":
                 continue
             p = "cluster %s actions[%d]" % (c.get("id"), j)
-            if target is not None and str(a.get("triage_id")) != str(target):
+            if target is None:
+                errs.append("%s: catch_all.triage_id must be configured when catch_all actions exist" % p)
+            elif str(a.get("triage_id")) != str(target):
                 errs.append("%s: catch_all action targets triage %s, not the catch-all triage %s" % (p, a.get("triage_id"), target))
             not_admitted = sorted(_ids(a.get("regression_ids")) - admitted, key=str)
             if not_admitted:
