@@ -50,8 +50,11 @@ done <<< "$TEAM_DATA"
 
 BOT_USERNAMES="openshift-bot openshift-cherrypick-robot"
 
-# Shared repos: PRs are only added if authored by a team member
-SHARED_REPOS=("openshift/images" "openshift/api" "openshift/release" "openshift/origin" "openshift/enhancements" "openshift-eng/ai-helpers" "openshift/openshift-mcp-server" "openshift/library-go" "openshift/openshift-apiserver" "openshift/coredns-ocp-dnsnameresolver")
+# Shared repos: discover PRs authored by, assigned to, or actually reviewed by
+# a team member. Review requests do not count as team work. Include recent
+# merges so review work is accounted for between dashboard syncs.
+SHARED_REPOS=("openshift/images" "openshift/api" "openshift/release" "openshift/origin" "openshift/enhancements" "openshift-eng/ai-helpers" "openshift/openshift-mcp-server" "openshift/library-go" "openshift/openshift-apiserver" "openshift/coredns-ocp-dnsnameresolver" "openshift/bgp-cloud-connector")
+SHARED_MERGED_DAYS=7
 
 # =============================================================================
 # GITHUB PROJECT CONFIGURATION
@@ -102,6 +105,7 @@ AREA_GWAPI="196a759b"
 AREA_DNS="c2935ddd"
 AREA_EXTERNAL_DNS="b02c7810"
 AREA_ALBO="a6184328"
+AREA_BGP="043d3184"
 AREA_ROUTER="667048b1"
 AREA_AI="9f9c29ab"
 
@@ -112,6 +116,7 @@ openshift/external-dns|$AREA_EXTERNAL_DNS
 openshift/external-dns-operator|$AREA_EXTERNAL_DNS
 openshift/aws-load-balancer-operator|$AREA_ALBO
 openshift/aws-load-balancer-controller|$AREA_ALBO
+openshift/bgp-cloud-connector|$AREA_BGP
 openshift/cluster-dns-operator|$AREA_DNS
 openshift/coredns|$AREA_DNS
 openshift/coredns-ocp-dnsnameresolver|$AREA_DNS

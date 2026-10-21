@@ -577,7 +577,7 @@
       "name": "nid-team",
       "source": "./plugins/nid-team",
       "description": "Development and workflow tools for the Network Ingress & DNS team",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "category": "development",
       "keywords": [
         "nid",
