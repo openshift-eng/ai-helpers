@@ -243,4 +243,43 @@ Original outputs, frozen source/configuration, raw scores and report are retaine
 in the standard results directory. Independent runtime and behavior reviews are
 under `.work/fix-go-cves-release024/`. The follow-up changes command precedence
 and the inaccurate, imperative missing-remote diagnostic; inputs and criteria
-remain unchanged. It is selected, not yet measured.
+remain unchanged.
+
+`cve-live-subctl-precedence-20261021` froze `56aa02b2` and completed the stock
+pipeline. The engine exited 2 after 664 seconds, retaining
+`d853985c662e7f5bccb39a7bfb27d20fd58d90aa` and four dependency/ignore commits.
+The inherited command was preserved. Both lint attempts exited 2 with 43 issues:
+36 govet, six modernize and one staticcheck. Unit did not run because of `&&`.
+Four audits, fresh native AMD64 scanning and license passed; the final scan
+had zero actionable findings and one scoped no-fix ignore. No publication
+recipe was emitted. The missing-remote diagnostic path was not exercised.
+
+The parent completed in 912.6 seconds (920.5 outer wall seconds), for
+$1.0999025 plus six unpriced judge calls and unknown nested costs. Machine metrics
+record 31 turns; progress reports 43. Contract passes; outcome is true/true/true,
+and action/owner is false/true/false, without errors. Independent review rejects
+the global claim that lint failures were not caused by the CVE fixes and the
+claim of six linters instead of three. Both Go directives are 1.26.0; unchanged
+source alone does not establish causal independence from dependency changes.
+The literal Summary, four hashes and read-only boundary were preserved.
+
+The returned failing judge rationale also called a real observed history commit
+fabricated.
+The factual prompts omitted the actor's tool observations. Its `git log --all`
+result establishes the citation exists, but does not alone establish the claimed
+default-branch membership. Supplying existing normalized tool inputs/results is
+a separate judge-context correction, not a fix for the agent's causal inference.
+The separate, frozen action/owner calibration fails: the reviewed test reference
+is accepted 3/3, but the untouched actual negative is also accepted 3/3, with no
+errors. The returned negative rationale still treats unchanged source as proof
+of causal independence. Six unpriced calls took 144.84 seconds and used 247,464
+prompt tokens, approximately 41.2k per sample versus 18.8k in the original
+record. The context correction is retained as accurate evidence delivery;
+semantic grading remains unaccepted. The outcome projection has only model-free
+rendering coverage, not this judge calibration.
+
+Calibration fixtures and grades do not replace the actual reply or scores.
+No retuning or additional actor trial is selected. The owned worker stopped
+with no running containers; its identity, socket removal and unchanged host
+alias were verified. Independent source/rendering/reference reviews and frozen
+calibration records are under `.work/fix-go-cves-release024/`.

@@ -119,15 +119,26 @@ mutable database misses and different outcomes as missing coverage. Revalidate
 ownership/cancellation when recreating the worker, retain supervised lifecycle
 management, and keep it stopped between selected runs.
 
-The completed case-004 invocation replaced the configured lint and unit command
-with unit alone. Contract fails; both factual judges pass 3/3, but independent
-review also rejects replacement publication advice. The result remains
-unaccepted. Explicit test-command precedence and an accurate missing-remote
-diagnostic are selected for one targeted follow-up with the same pinned inputs
-and criteria. The diagnostic correction removes an imperative and unverified
-HTTPS/writability claims; it does not establish improved agent behavior.
-No target repair or unchanged retry is selected. [The live record](../evals/live/README.md#subctl-release-check)
-preserves the original measurement and limitations.
+The first case-004 invocation omitted configured lint and failed contract;
+both factual judges passed 3/3 despite independently rejected publication advice.
+The changed-source follow-up preserved the command and correctly retained a
+blocked result: both lint attempts failed, leaving unit unrun. Contract passes,
+outcome is true 3/3 and action/owner is false/true/false. Independent review
+rejects unsupported causal exoneration and an incorrect linter count. The
+missing-remote diagnostic branch was not exercised. No target repair, further
+wording trial or actor retry is selected. [The live record](../evals/live/README.md#subctl-release-check)
+preserves both measurements and judge limitations.
+
+The follow-up also exposed omitted judge context: a real observed history
+commit was called fabricated because factual prompts lacked the investigation's
+tool results. Use existing normalized `outputs.events` to supply fenced tool
+inputs/results, preserving IDs, errors and truncation while excluding agent
+prose and reasoning. This needs no new collector, helper or judge. All 13 stock
+rendering checks pass. Separate action/owner calibration fails: the reference is
+accepted 3/3, but the untouched actual negative is also accepted 3/3. Retain the
+accurate context without claiming reliable semantic grading or improved agent
+behavior. Original grades remain unchanged. Further work needs a different
+mechanism; no retuning or additional trial is selected.
 
 Frozen scoring uses copied inputs/configuration and exact selected cases,
 judges and complete samples. Extraction checks all collected case directories
