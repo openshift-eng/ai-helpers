@@ -56,6 +56,18 @@ BOT_USERNAMES="openshift-bot openshift-cherrypick-robot"
 SHARED_REPOS=("openshift/images" "openshift/api" "openshift/release" "openshift/origin" "openshift/enhancements" "openshift-eng/ai-helpers" "openshift/openshift-mcp-server" "openshift/library-go" "openshift/openshift-apiserver" "openshift/coredns-ocp-dnsnameresolver" "openshift/bgp-cloud-connector")
 SHARED_MERGED_DAYS=7
 
+# Component repositories establish scope in shared-repo paths, including CI.
+# Team participation alone is only a discovery hint.
+SHARED_COMPONENT_REPOS=(
+    "openshift/router" "openshift/cluster-ingress-operator"
+    "openshift/route-controller-manager" "openshift/cluster-dns-operator"
+    "openshift/coredns" "openshift/coredns-ocp-dnsnameresolver"
+    "openshift/external-dns" "openshift/external-dns-operator"
+    "openshift/aws-load-balancer-operator" "openshift/aws-load-balancer-controller"
+    "openshift/bgp-cloud-connector" "openshift/network-edge-tools"
+    "openshift-eng/ai-helpers" "openshift/openshift-mcp-server"
+)
+
 # =============================================================================
 # GITHUB PROJECT CONFIGURATION
 # IDs from: gh project field-list 28 --owner openshift --format json

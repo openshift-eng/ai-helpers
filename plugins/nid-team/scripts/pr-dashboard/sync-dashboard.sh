@@ -200,7 +200,15 @@ for repo in "${SHARED_REPOS[@]}"; do
             if echo "$EXISTING_URLS" | grep -qFx "$url"; then
                 continue
             fi
+            # Review requests can concern a former team member's old component.
+            # Team-linked OCPBUGS without recognizable files are covered by C2.
+            if ! scope_reason=$(gh pr view "$url" --json title,files | \
+                python3 "$SCRIPT_DIR/shared-pr-scope.py" "$repo" "${SHARED_COMPONENT_REPOS[@]}"); then
+                echo "  SCOPE REVIEW: $url (team member: $member; component not established)"
+                continue
+            fi
             echo "  ADD: $url (team member: $member)"
+            echo "  SCOPE: $scope_reason"
             if ! item_id=$(gh project item-add "$PROJECT_NUM" --owner "$OWNER" --url "$url" --format json --jq '.id'); then
                 echo "  ERROR: failed to add $url" >&2
                 continue

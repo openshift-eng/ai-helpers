@@ -33,6 +33,9 @@ Shared-repo discovery includes team authors, assignees, reviewers, and requested
 reviewers. It tracks open PRs and merges from the last seven days so completed
 reviews are accounted for between syncs. BGP Cloud Connector and its related
 release CI changes use the **BGP** Area.
+Shared-repo candidates also need component or linked team-issue evidence;
+unrelated review requests stay off the board, and uncertain matches are
+reported for AI review.
 
 ### `/nid-team:nudge-prs` (experimental)
 

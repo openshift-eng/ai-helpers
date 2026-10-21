@@ -74,9 +74,14 @@ elif args[:2] == ["pr", "list"]:
             continue
         print(pr["url"] + "|" + pr["state"])
 elif args[:2] == ["pr", "view"]:
-    pr = next(pr for pr in data["prs"]
-              if pr["repo"] == value("-R") and str(pr["number"]) == args[2])
-    print(pr["author"])
+    if value("--json") == "title,files":
+        pr = next(pr for pr in data["prs"] if pr["url"] == args[2])
+        print(json.dumps({"title": pr["title"],
+                          "files": [{"path": path} for path in pr["files"]]}))
+    else:
+        pr = next(pr for pr in data["prs"]
+                  if pr["repo"] == value("-R") and str(pr["number"]) == args[2])
+        print(pr["author"])
 else:
     data.setdefault("unhandled", []).append(args)
     save()
@@ -97,17 +102,20 @@ class SharedPRDiscoveryTest(unittest.TestCase):
         recent = str(today - datetime.timedelta(days=1))
         old = str(today - datetime.timedelta(days=30))
 
-        def pr(repo, number, state="OPEN", roles=(), merged=recent, author="external-author"):
+        def pr(repo, number, state="OPEN", roles=(), merged=recent, author="external-author",
+               title="Component change", files=("ci-operator/config/openshift/router/main.yaml",)):
             return {"repo": repo, "number": number, "state": state,
                     "url": f"https://github.com/{repo}/pull/{number}",
-                    "roles": roles, "merged": merged, "author": author}
+                    "roles": roles, "merged": merged, "author": author,
+                    "title": title, "files": files}
 
         bgp = "openshift/bgp-cloud-connector"
         release = "openshift/release"
         prs = [
             pr(bgp, 187, "MERGED", [("assignee", "aswinsuryan"),
                                     ("review-requested", "pedjak")]),
-            pr(release, 87291, "MERGED", [("assignee", "aswinsuryan")]),
+            pr(release, 87291, "MERGED", [("assignee", "aswinsuryan")], files=[
+                "ci-operator/config/openshift/bgp-cloud-connector/main.yaml"]),
             pr(bgp, 125, roles=[("author", "aswinsuryan")], author="aswinsuryan"),
             pr(bgp, 126, roles=[("author", "aswinsuryan")], author="aswinsuryan"),
             pr(release, 99901, roles=[("reviewed-by", "grzpiotrowski")]),
@@ -116,6 +124,21 @@ class SharedPRDiscoveryTest(unittest.TestCase):
             pr(bgp, 99904, "CLOSED", [("assignee", "aswinsuryan")]),
             pr(bgp, 99905, roles=[("review-requested", "aswinsuryan")]),
             pr(bgp, 99906, roles=[("assignee", "aswinsuryan")], merged=old),
+            pr(release, 84226, roles=[("review-requested", "pedjak")],
+               title="olm,operator-controller: remove unmonitored compact s390x periodics",
+               files=["ci-operator/config/openshift/operator-framework-olm/main.yaml"]),
+            pr("openshift/enhancements", 2153, "MERGED", [("review-requested", "Miciah")],
+               title="Update KMS health reporting to match typed encryptionStatus aggregation",
+               files=["enhancements/kube-apiserver/kms-encryption-foundations.md"]),
+            pr("openshift/api", 2435, roles=[("assignee", "Miciah")],
+               title="Support custom list of services in cluster DNS",
+               files=["operator/v1/types_dns.go"]),
+            pr("openshift/api", 99908, roles=[("review-requested", "Miciah")],
+               files=["operator/v1/types_storage.go"]),
+            pr(release, 99909, roles=[("review-requested", "aswinsuryan")],
+               files=["ci-operator/config/openshift/bgp-cloud-connector-unrelated/main.yaml"]),
+            pr("openshift/library-go", 99910, roles=[("assignee", "pedjak")],
+               title="NE-1234: improve shared helper", files=["pkg/operator/shared.go"]),
         ]
         existing = {"id": "EXISTING", "edits": {}, "content": {
             "type": "PullRequest", "repository": bgp, "number": 125,
@@ -177,6 +200,18 @@ class SharedPRDiscoveryTest(unittest.TestCase):
                     if item["content"]["number"] == 187)
         self.assertEqual(item["edits"][self.constants["FIELD_AREA"]],
                          self.constants["AREA_BGP"])
+
+    def test_review_requests_without_component_evidence_do_not_add_prs(self):
+        for repo, number in (("release", 84226), ("enhancements", 2153),
+                             ("api", 99908), ("release", 99909)):
+            with self.subTest(repo=repo, number=number):
+                self.assertNotIn(f"https://github.com/openshift/{repo}/pull/{number}",
+                                 self.state["added"])
+        self.assertIn("SCOPE REVIEW:", self.result.stdout)
+
+    def test_component_files_and_linked_team_issues_preserve_relevant_prs(self):
+        self.assertIn("https://github.com/openshift/api/pull/2435", self.state["added"])
+        self.assertIn("https://github.com/openshift/library-go/pull/99910", self.state["added"])
 
 
 if __name__ == "__main__":

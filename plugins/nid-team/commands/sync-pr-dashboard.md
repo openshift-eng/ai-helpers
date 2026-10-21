@@ -32,10 +32,18 @@ Run `${CLAUDE_PLUGIN_ROOT}/scripts/pr-dashboard/sync-dashboard.sh`.
 This handles:
 - **PR Author** — Populates blank "PR Author" fields with display names
 - **Reviewer Sync** — When Primary or Secondary Reviewer is set, comments `/assign @user` on the PR if not already assigned
-- **Shared Repo PRs** — Adds PRs authored by, assigned to, reviewed by, or awaiting review from team members in shared repos (defined in `config.sh`). Includes open PRs and merges from the last `SHARED_MERGED_DAYS` days (default 7); newly discovered merged PRs are marked Done.
+- **Shared Repo PRs** — Discovers PRs authored by, assigned to, reviewed by, or awaiting review from team members in shared repos (defined in `config.sh`). Requires component evidence before adding them: a component repository, relevant changed files or title, or a linked team Jira issue. Includes open PRs and merges from the last `SHARED_MERGED_DAYS` days (default 7); newly discovered merged PRs are marked Done. External contributors remain External.
 - **Area (deterministic)** — Sets Area for repos with obvious mappings (defined in `REPO_TO_AREA` in `config.sh`)
 
 ### Step 2: Classify ambiguous PR areas with AI
+
+First review any `SCOPE REVIEW:` candidates in the sync output. A team review
+request alone does not establish Network Edge ownership. Inspect the PR's title,
+changed files, and linked issues; leave unrelated or uncertain candidates off
+the board and report them. For a candidate with confirmed component evidence,
+add it with `gh project item-add 28 --owner openshift --url {url}`, then rerun the
+sync to populate its fields. Do not apply the default Router Area to an
+out-of-scope candidate.
 
 After the script completes, run the helper script to get structured data on unclassified items:
 
