@@ -1618,6 +1618,53 @@ class EvidenceTests(unittest.TestCase):
         EVAL.check_reserved_paths(workspace)
 
 class RunnerFailureTests(unittest.TestCase):
+    def test_documented_launch_preserves_exit_and_terminal_receipt(self):
+        skill = (Path(__file__).parents[1] / "skills/fix-go-cves/SKILL.md").read_text()
+        launches = [block.split("```", 1)[0] for block in skill.split("```bash\n")[1:]
+                    if "/scripts/fix-all.sh" in block.split("```", 1)[0]]
+        self.assertEqual(len(launches), 1, "Expected one canonical Bash launch fence")
+        command = launches[0].replace(" ARGS", "")
+        shells = [("bash", ["--noprofile", "--norc"])]
+        if shutil.which("zsh"):
+            shells.append(("zsh", ["-f"]))
+        for shell, options in shells:
+            for errexit in (False, True):
+                for child_exit in (0, 1, 2):
+                    with self.subTest(shell=shell, errexit=errexit, child_exit=child_exit), \
+                            tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory)
+                        (root / "scripts").mkdir()
+                        (root / "scripts/fix-all.sh").write_text(
+                            'echo "child output"\nexit "$CHILD_EXIT"\n')
+                        result = subprocess.run(
+                            [shell, *options, *(["-e"] if errexit else []), "-c", command],
+                            env={**os.environ, "PLUGIN_ROOT": str(root), "TMPDIR": str(root),
+                                 "CHILD_EXIT": str(child_exit)}, text=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+                        logs = list(root.glob("fix-go-cves.*.log"))
+                        self.assertEqual(len(logs), 1, result.stderr)
+                        self.assertEqual(result.stdout.splitlines(), [f"LOG={logs[0]}"])
+                        self.assertEqual(logs[0].read_text().splitlines(),
+                                         ["child output", f"exit={child_exit}"])
+                        self.assertEqual(result.returncode, child_exit, result.stderr)
+                with self.subTest(shell=shell, errexit=errexit, parent_printf_failure=True), \
+                        tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / "scripts").mkdir()
+                    (root / "scripts/fix-all.sh").write_text('echo "child output"\nexit 0\n')
+                    result = subprocess.run(
+                        [shell, *options, *(["-e"] if errexit else []), "-c",
+                         "printf() { return 1; }\n" + command],
+                        env={**os.environ, "PLUGIN_ROOT": str(root), "TMPDIR": str(root)},
+                        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    logs = list(root.glob("fix-go-cves.*.log"))
+                    self.assertEqual(len(logs), 1, result.stderr)
+                    self.assertIn("child output", logs[0].read_text().splitlines())
+                    self.assertFalse(any(line.startswith("exit=")
+                                         for log in logs
+                                         for line in log.read_text().splitlines()))
+
     def test_failed_stages_preserve_artifacts_and_nonzero_completion(self):
         # Inject CLI stage outcomes while executing the actual Bash runner.
         for failed, code, expected in (

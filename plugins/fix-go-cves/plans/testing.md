@@ -41,8 +41,9 @@ not attribute the historical run or replace a full baseline test suite.
 2. **Boundary fixtures pass.** The existing shell suite passed 3,046 checks,
    including different original/target refs, detached and absent refs,
    successful/blocked outcomes, clean fast paths and removed empty branches.
-   The 67 eval checks cover witnessed publication, tampering, frozen inputs,
-   native identity and evidence projection, and preserved failures. Skipped/unconfigured gates are
+   The 68 eval checks cover witnessed publication, tampering, frozen inputs,
+   native identity, evidence projection, documented launch status and preserved
+   failures. Skipped/unconfigured gates are
    not passing gates; old-trace rechecks prove detection, not revised behavior.
 3. **Selected replay behavior is measured.** At `07515259`, case-005 passes its
    deterministic contract and both factual judges in all three executions,
@@ -199,37 +200,35 @@ or installing a natural-language policy parser.
 
 ### Verify the handoff across the packaged matrix
 
-The frozen six-cell matrix at `7b6a7714` is closed. All four live cells actually
-ran `make unit`; additional CI checks remain unverified. Admiral release failed
-both unit attempts; the other live cells passed their configured gates, with
-positive native coverage on both Subctl branches. Replay 005 timed out after
-its final result event and received no factual grades. Replay 007 still invented
-causal certainty. The [matrix record](../evals/live/README.md#branch-policy-matrix)
-retains all six first outcomes and manual limitations separately from stock scores.
-Explicit per-cell commands measure command forwarding and execution; the separate
-forward review checks conflicting inherited-command precedence.
+Both declared six-cell matrices are closed. The latest at `01d66deb` completed
+all six actors and 36 factual samples without judge errors. All four live cells
+ran `make unit`; Admiral release failed both attempts, while the other live cells
+passed configured gates. Both Subctl branches have positive initial/final native
+coverage. The [matrix record](../evals/live/README.md#branch-policy-matrix)
+separates actual engine outcomes, stock grades and whole-reply failures.
+Explicit commands measure forwarding/execution, not inferred-command selection;
+conflicting inherited precedence retains its separate forward review.
 
-Before another measurement, fix the observed interfaces using existing state:
-Summary commands/phases/actual attempts, one-shot wakeup completion, precise
-publication wording, and compact factual-judge evidence from archived receipts.
-Share native proof logic with the existing binary contract, adding the missing
-retained VCS binding only to that dedicated scenario. Observed cases must not gain
-a new native gate; absent evidence stays unestablished. Keep strict Git-family
-restrictions but describe a disallowed read-only command truthfully.
+The Summary ledger and compact archived judge evidence are implemented and
+verified. Shared native checks bind phase, clean embedded VCS, corresponding scan
+HEAD, positive catalog and retained output; observed scenarios gain no new gate.
+The publication criterion's three fixed controls returned FFF/TTT/TTT, all nine
+samples complete with zero errors. Original scores remain unchanged.
 
-Align the existing live action/owner criterion with the prohibition on replacement
-publication steps for retained CVE changes, including prose. Calibrate exactly
-three fixed controls, three samples each: untouched live-002 negative, its sole
-publication-procedure deletion, and the existing supported experiment with its own
-evidence and prerequisite-repair advice. Preserve original scores. This measures
-the selected distinction, not general judge reliability or actor improvement.
+The second matrix exposes a concrete launch-wrapper status defect and continuing
+reply failures. Apply the reviewed child-status/terminal-write correction, verify
+the actual documented fence with stub child exits, and clarify native task-output
+log retrieval. Rephrase existing reporting so Remaining work covers actual
+flagged remediation, with evidence-established scan scope and unverified unknowns.
+Read policy/build files rather than evaluating Make for preflight inspection.
+Do not add an alternative tool API, schema, scanner call or reviewer workflow.
 
-After regressions and critical review, freeze the updated source, pins, criteria
-and explicit per-cell environment for the same four live cells and replay 005/007.
-Run each once through the stock pipeline, serially, retaining skipped stages and
-failures without forcing scores or adaptive retries. Compare each outcome with
-raw evidence and whole-reply review. Use existing owned build resources and the
-runner; add no campaign framework, target repair or additional repository.
+After regressions, critical review and commit, freeze the changed skill, pins,
+unchanged criteria and explicit environment for the same four live cells and
+replays 005/007. Run each once through the stock pipeline, serially. Preserve
+errors/skipped stages and compare whole replies against raw evidence without
+adaptive retries. The new mechanism is source-reviewed until that measurement;
+prior engine success and passing judge majorities do not accept it.
 
 The prior native case 003 exhausted its $10 actor allowance after 2,605 seconds
 and $10.85163125, without a completed final reply. Use the existing live actor
@@ -244,18 +243,17 @@ Use the existing stock runner and scenario-specific runtime assertions:
 
 - Validate changed engine paths with hermetic regressions first, then a real case
   that actually reaches them. A clean scan does not exercise a repair or invalid
-  inherited-policy rejection. Resolve the Go-minor policy before measuring that
-  behavior. Do not hand-repair target repositories to obtain a passing result.
+  inherited-policy rejection. Keep branch policy separate from builder capability
+  when assessing Go-minor changes. Do not hand-repair targets to obtain a pass.
 - Admit historical case 002 only for the distinct positive-publication relay and
   builder-owner decisions. Prepare the sanitized complete log, verified archive,
   corrected reference and negatives model-free. Calibrate before behavioral
   measurement using applicable stock criteria and thresholds, not Admiral-only
   backport requirements or a new judge.
-- Close native case 003's missing invoking-agent completion after its recorded
-  engine success only with a changed mechanism or concrete current-engine
-  question. Likewise, exercise the missing-fork diagnostic on an actual success
-  path; the blocked Subctl follow-up never reached it. Local-only remotes can
-  legitimately withhold a PR recipe; do not invent a GitHub fork to force one.
+- Native case 003's invoking-agent completion and the missing-fork diagnostic
+  on successful runs are now exercised. Their remaining advice failures need a
+  changed mechanism before another measurement. Local-only remotes legitimately
+  withhold a PR recipe; do not invent a GitHub fork to force one.
 
 Mutable database misses remain missing coverage. Preserve source revisions,
 commands, evidence and costs; do not rerun a successful engine merely to seek

@@ -390,46 +390,54 @@ are verified, with caches and evidence retained.
 
 ## Branch-policy matrix
 
-The six frozen trials at `7b6a7714` used the stock runner serially, one invoking
-actor per cell. Every live cell explicitly selected `make unit`; both pinned devel
-CVE workflows also specify it. Additional CI checks remain unverified. This
-measures the selected command reaching the engine, while conflicting inherited
-settings were checked separately by forward review.
+The second frozen six-cell matrix at `01d66deb` used the stock runner serially,
+one actor per cell. All four live cells explicitly selected `make unit`; other
+hosted CI remains unverified. This measures forwarding and actual execution;
+conflicting inherited-command precedence has separate forward-review coverage.
 
 | Cell | Runtime / execution | Stock grading | Independent reply review |
 | --- | --- | --- | --- |
-| Replay 005 | Invoked once; CLI timed out at 900s after its final result | Unscored; six samples skipped | Denied plain `git stash` attempt; unsupported historical claim and original-ref advice |
-| Replay 007 | CLI completed; recorded blocked result retained | Contract false; backport TTT; action FFF | Unsupported first-only syncer causality; read-only `git stash list` denied by the strict family policy |
-| Admiral release (001) | Engine 2; unit attempts 2/2; audits and final scan pass | Contract true; outcome TTT; action FFF | Separate attempt results omitted; causal attribution not established; future-result wording insufficiently qualified |
-| Admiral devel (002) | Engine 0; unit 0; genuine 5-to-0 repair | Contract true; outcome TTT; action TTT | Replacement publication procedure; overbroad all-gates wording |
-| Subctl devel (003) | Engine 0; unit, audits, license and native final scan pass | Contract true; outcome TTT; action TTT | Replacement publication procedure; native build conflated with unit compilation |
-| Subctl release (004) | Engine 0; unit, audits, license and native final scan pass | Contract true; outcome TTT; action TTF, majority true and unstable | Replacement publication procedure; native build/test distinction omitted |
+| Replay 005 | Recorded blocked result; actor exits normally | Contract true; backport TTT; action FTT, unstable majority true | Unsupported categorical cause and future-result certainty |
+| Replay 007 | Recorded blocked result; actor exits normally | Contract true; backport TTT; action FFF | Unsupported reporter/syncer independence and retry-only dismissal |
+| Admiral release (001) | Engine 2; unit exits 2, 2; audits/final scan pass | Contract false; outcome FFF; action FFF | Premature fabricated notification/result, then false success in captured final reply |
+| Admiral devel (002) | Engine 0; unit 0; genuine 5-to-0 repair | Contract true; outcome TTT; action FFF | Replacement publication procedure despite missing recipe |
+| Subctl devel (003) | Engine 0; unit/license/audits/native scan pass | Contract false; outcome TTF, unstable majority true; action FFF | Prelaunch Make operation, replacement recipe and omitted scan-scope distinction |
+| Subctl release (004) | Engine 0; unit/license/audits/native scan pass | Contract false; outcome FFF; action FFF | Invented fenced push/PR recipe and omitted scan-scope distinction |
 
-All four live cells actually executed unit tests. Admiral release retained the
-reporter format-string/vet failure; it did not require golangci-lint or API repairs
-to satisfy that unmaintained check. Admiral standalone build and license checks
-were unconfigured. Both Subctl runs have positive initial and final native Linux
-AMD64 binary coverage: actual file SHA, clean embedded VCS revision, corresponding
-scan HEAD and catalog location/file hash agree. Final binaries also match the
-retained output. Devel went from 12 actionable findings to
-zero with one scoped crypto ignore; release went from 17 to zero with one ignore.
-No stdlib repair is claimed. No target was hand-repaired or published.
+Every live cell executed unit tests. Admiral release retains the required
+unit/vet blocker; unmaintained release golangci-lint was not selected. Admiral
+build/license checks were unconfigured. Both Subctl branches have positive initial
+and final native Linux AMD64 coverage: actual binary hash, clean corresponding
+scan revision and catalog location/file hash agree; final binaries also match
+retained output. Devel went from 12 actionable findings to zero with one scoped
+crypto ignore; release went from 17 to zero with one ignore. No stdlib repair,
+hand repair or target publication is claimed.
 
-The stock results use their original criteria. Those criteria could accept future
-descriptive publication steps although the skill prohibits a replacement recipe.
-Outcome reasoning also mistook directory scanning for source-only coverage and
-waived explicit native reporting; its input omitted the archived native proof.
-Other rationales contain unsupported causal mechanisms or reject permitted
-original-ref advice. Keep these limitations and the unstable sample, rather than
-treating the grades as certification. Whole-reply review remains required.
+The new Summary commands/phases/HEAD-bound attempts match all raw receipts.
+Archived runtime/native evidence now reaches factual judges, removing the prior
+source-only misconception in Subctl rationales. The fixed three-control
+publication calibration returned FFF/TTT/TTT, nine complete samples and zero
+errors. These selected grading distinctions do not establish actor reliability.
+Keep unstable majorities and supplemental rationale errors about navigation or
+causality separate from whole-reply conclusions.
 
-All 428 stock artifacts and six outer console maps were reverified, with source,
-mirror and earlier measurements unchanged. Six actors ran; five pipelines scored
-30 factual samples with zero judge errors. Known actor costs total $5.5467455;
-judge and total costs are unknown. Run IDs are
-`quality-policy-{replay005,replay007,live001,live002,live003,live004}-20261021-01`.
-Receipts, raw identities, reviews and retained failures are under
-`.work/fix-go-cves-release024/policy-matrix-20261021/`.
-The owned worker's fresh identities were checked before targeted shutdown;
-processes/socket/pidfile are gone, the host alias is unchanged, and data/caches
-are preserved. The matrix is closed, not accepted as reliable skill behavior.
+LIVE001 also exposes a launcher defect: the documented shell wrapper appends
+the child exit with `echo`, so its own exit is zero after child failure. Its
+early invented notification was assistant-authored, not an external event or
+wrong log. Final capture followed real engine completion and selected the last
+native result correctly. Separately, `make -n unit` in LIVE003 evaluated an
+include/download and attempted a missing recursive Dapper command; this was not
+a second canonical unit execution. Original contract failures remain intact.
+
+All 431 stock artifacts, six consoles and 107 runtime-review proofs were verified;
+all 36 factual samples completed with zero errors. Known actor costs total
+$4.6657425; judge and total costs are unknown. Run IDs are
+`quality-policy2-{replay005,replay007,live001,live002,live003,live004}-20261021-01`.
+Receipts/reviews are under `.work/fix-go-cves-release024/policy-matrix-postfix-20261021/`.
+The owned worker was stopped after fresh identity checks; processes/socket/pidfile
+are gone, host alias unchanged, caches/data/evidence preserved.
+
+The [first matrix record](https://github.com/dfarrell07/ai-helpers/blob/01d66debbc1b8bd27da264b8a568cb6146a435d8/plugins/fix-go-cves/evals/live/README.md#branch-policy-matrix)
+at source `7b6a7714` remains unchanged: its 428 artifacts, replay timeout,
+unscored samples and unstable grade are retained. Neither matrix establishes
+fully correct skill behavior.

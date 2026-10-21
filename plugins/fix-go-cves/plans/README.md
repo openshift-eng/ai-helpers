@@ -8,23 +8,25 @@ itself.
 
 ## Next changes
 
-The skill remains unaccepted: verified repairs do not establish correct final
-advice. The [six-cell branch-policy matrix](../evals/live/README.md#branch-policy-matrix)
-at `7b6a7714` executed `make unit` in every live cell. Admiral release retained
-its genuine reporter unit/vet blocker; Admiral devel and both Subctl branches
-passed their configured gates. Both Subctl runs have independently verified
-initial and final native binary coverage. One replay timed out; the other still
-invented causal certainty. All three successful live replies supplied publication
-steps despite the missing printed recipe. Original scores remain unchanged.
+The skill remains unaccepted. The [second six-cell matrix](../evals/live/README.md#branch-policy-matrix)
+at `01d66deb` completed all actors and 36 factual samples, with zero judge errors.
+Every live cell executed `make unit`; Admiral release retained its real blocker
+while the other three passed configured gates. Both Subctl branches have positive
+initial/final native evidence. New Summary and judge-evidence handoffs work, but
+unsupported causal advice, false completion and replacement publication remain.
 
-The current changes address demonstrated handoff and evidence gaps: show observed
-commands, phases and test attempts in the Summary; finish run-owned wakeups in
-one-shot requests; clarify the existing publication boundary; bind the dedicated
-Subctl binary check to its embedded VCS metadata; and expose the same compact
-runtime proof to factual judges. Tighten the existing live publication criterion,
-with a small fixed calibration before the next declared matrix. These changes
-do not establish reliable causal advice. Keep whole-reply review and do not add
-another warning template, reviewer loop or campaign framework.
+The measured launcher defect has a small shell fix: preserve the child status
+through terminal logging and fail if that receipt cannot be written. Read the
+actual Bash task output for its printed log path. Keep preflight inspection to
+file/history reads, state only evidenced scan scope, and make Remaining work
+conditional on actual unresolved remediation. Missing publication availability
+belongs in the result. These are bounded changes to existing instructions;
+they do not establish reliable causal advice or justify a reviewer loop.
+
+The scoped publication criterion passed its fixed nine-sample calibration.
+After regressions and critical review, commit the changes and measure the same
+six cells once on newly frozen source. Preserve both closed matrices and their
+original grades; add no runner, target repair, warning template or repository.
 
 Three demonstrated engine gaps are now implemented, with focused regressions:
 
@@ -44,7 +46,7 @@ Three demonstrated engine gaps are now implemented, with focused regressions:
   branch. PyYAML is an explicit prerequisite; no serialization rewrite or
   entry-provenance machinery was added.
 
-All 3,046 hermetic runtime checks and 67 eval helper checks pass. Two model-free
+All 3,046 hermetic runtime checks and 68 eval helper checks pass. Two model-free
 real checks on frozen runtime `c916dfa9` also pass: Subctl release-0.24 report
 mode faithfully renders 17 findings, and operator devel rejects genuine inherited
 broad rules before cleanup/build/scan while preserving policy and instructions.

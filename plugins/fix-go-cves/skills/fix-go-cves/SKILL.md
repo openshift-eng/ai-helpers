@@ -21,10 +21,11 @@ naming anything missing.
 
 ## Run the scripts
 
-Before launch, inspect the target branch's instructions/CI, maintainer policy and
-required environment. User-supplied branch policy takes precedence over conflicting
-inherited check settings. Otherwise preserve a nonempty inherited `CVE_FIX_TEST_CMD`
-unchanged. If empty or unset, preserve the target branch's nonempty `.cve-fix.yaml`
+Before launch, read the target branch's instructions, CI and relevant build/config
+files for maintainer policy and required environment. User-supplied branch policy
+takes precedence over conflicting inherited check settings. Otherwise preserve a
+nonempty inherited `CVE_FIX_TEST_CMD` unchanged. If empty or unset, preserve the
+target branch's nonempty `.cve-fix.yaml`
 `test-command`. When neither is configured, set `CVE_FIX_TEST_CMD` for the inferred
 default plus local checks maintained and required for that branch. A CI job or
 Make target alone does not establish that requirement.
@@ -35,13 +36,17 @@ Builds and tests can each take 30 minutes. Run every script in the background
 with its output in a log file, and wait for it to exit; do not let a tool
 timeout kill it (SIGKILL skips cleanup). Shell variables do not persist
 between tool calls, so reuse the printed log path literally.
-In Claude Code, set Bash `run_in_background: true` for the launch.
+In Claude Code, set Bash `run_in_background: true` for the launch and read its
+returned output file for the printed `LOG` path.
 In Codex, use `exec_command` with a short `yield_time_ms` and poll its returned
 session with `write_stdin`. Replace `ARGS` with the request's arguments, or delete it:
 
 ```bash
 LOG=$(mktemp "${TMPDIR:-/tmp}/fix-go-cves.XXXXXX.log"); echo "LOG=$LOG"
-CVE_FIX_AGENT=claude bash "$PLUGIN_ROOT/scripts/fix-all.sh" ARGS </dev/null >"$LOG" 2>&1; echo "exit=$?" >>"$LOG"
+fix_rc=0
+CVE_FIX_AGENT=claude bash "$PLUGIN_ROOT/scripts/fix-all.sh" ARGS </dev/null >"$LOG" 2>&1 || fix_rc=$?
+printf 'exit=%s\n' "$fix_rc" >>"$LOG" || exit 1
+exit "$fix_rc"
 ```
 
 Before interpreting the outcome, read that actual log and confirm its terminal
@@ -110,18 +115,21 @@ done
 | 1 | Setup or invocation error: quote the last `ERROR:` line (or the log tail) |
 | 130, 143 | Interrupted; report the observed checkout state |
 
-Build the final reply in two parts:
+Always report the script result, including publication availability. Add
+remaining remediation only for actual flagged failures or unresolved decisions:
 
 1. **Script result.** State the observed exit and quote the actual Summary
    through the end of the log in a text block, preserving all retained fix
    hashes, the `Outstanding` count and publication text. Without a Summary,
    quote the terminal clean/error message or relevant log tail; missing
    completion evidence is unconfirmed. An empty fix branch may have been
-   removed after its Summary line: report that outcome. State gate results
-   only from evidence; skipped, unconfigured and unknown do not mean passed.
+   removed after its Summary line: report that outcome. State gate results and scan
+   scope only from returned evidence; distinguish source/module inventory from
+   verified native-binary coverage. Unknown coverage, skipped and unconfigured
+   checks remain unverified.
    Give return advice only from an observed original ref, which may be a
    detached commit. Do not infer it from the target branch.
-2. **Remaining work.** For each flagged outcome, give the observation and
+2. **Remaining remediation.** For each such outcome, give the observation and
    evidence (log line or `file:line`), next supported action and owner.
    Investigate read-only using logs, history and diffs; never apply or test a
    candidate backport, even temporarily. Describe repairs in prose, separately

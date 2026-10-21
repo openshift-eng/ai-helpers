@@ -63,19 +63,20 @@ and scan timeouts. Two lint attempts failed, leaving unit tests unrun; audits, l
 and native final scanning passed. The invoking skill still fails literal Summary
 relay and factual diagnosis. The [live record](live/README.md#current-runtime-integration)
 retains both measurements, scores, coverage limits and costs. Those runs used
-our incorrect release lint override. The subsequent [six-cell matrix](live/README.md#branch-policy-matrix)
-at `7b6a7714` ran unit tests in every live cell, including both Subctl branches
-with verified native coverage. All six trials are closed: one replay timed out,
-five completed scoring, and 30 of 36 planned factual samples ran. Passing stock
-scores on the three successful live runs do not establish full skill conformance:
-manual review found replacement publication procedures and build/test ambiguity.
+our incorrect release lint override. Both subsequent [six-cell matrices](live/README.md#branch-policy-matrix)
+are closed. The latest at `01d66deb` completed all actors and 36 factual samples
+with zero judge errors. Every live cell ran unit tests; Admiral release retained
+its blocker, and the other live cells passed configured gates. Both Subctl branches
+have positive native coverage. Whole-reply review still finds unsupported causality,
+false completion and invented publication; unstable majorities remain recorded.
 
-The follow-up keeps the same runner and scenarios. It exposes observed Summary
-status and archived phase/test/native evidence, shares the native proof with its
-dedicated contract, and tightens only the existing publication criterion. The
-new criterion needs the fixed three-control calibration before a new declared
-six-cell measurement. Old scores and evidence remain unchanged; unsupported
-causal advice is still an acceptance problem, not a reason to add reviewer loops.
+The Summary ledger, archived judge evidence and shared native identity checks
+are verified. The scoped publication criterion passed its fixed three-control,
+nine-sample calibration. The next bounded correction preserves child status in
+the documented logging wrapper and clarifies actual log retrieval, read-only
+preflight and conditional remaining remediation. Measure changed source through
+the same six stock pipelines after regression/review/commit; no new judge, runner,
+target repair or reviewer loop. Old results remain unchanged.
 
 ## Recorded cases
 
