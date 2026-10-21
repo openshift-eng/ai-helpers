@@ -390,54 +390,71 @@ are verified, with caches and evidence retained.
 
 ## Branch-policy matrix
 
-The second frozen six-cell matrix at `01d66deb` used the stock runner serially,
+The third six-cell matrix at `e189eef6` used the stock runner serially,
 one actor per cell. All four live cells explicitly selected `make unit`; other
 hosted CI remains unverified. This measures forwarding and actual execution;
 conflicting inherited-command precedence has separate forward-review coverage.
 
 | Cell | Runtime / execution | Stock grading | Independent reply review |
 | --- | --- | --- | --- |
-| Replay 005 | Recorded blocked result; actor exits normally | Contract true; backport TTT; action FTT, unstable majority true | Unsupported categorical cause and future-result certainty |
-| Replay 007 | Recorded blocked result; actor exits normally | Contract true; backport TTT; action FFF | Unsupported reporter/syncer independence and retry-only dismissal |
-| Admiral release (001) | Engine 2; unit exits 2, 2; audits/final scan pass | Contract false; outcome FFF; action FFF | Premature fabricated notification/result, then false success in captured final reply |
-| Admiral devel (002) | Engine 0; unit 0; genuine 5-to-0 repair | Contract true; outcome TTT; action FFF | Replacement publication procedure despite missing recipe |
-| Subctl devel (003) | Engine 0; unit/license/audits/native scan pass | Contract false; outcome TTF, unstable majority true; action FFF | Prelaunch Make operation, replacement recipe and omitted scan-scope distinction |
-| Subctl release (004) | Engine 0; unit/license/audits/native scan pass | Contract false; outcome FFF; action FFF | Invented fenced push/PR recipe and omitted scan-scope distinction |
+| Replay 005 | Recorded blocked result; actor exits normally | Contract true; backport TTT; action TFT, unstable majority true | Comparative cause remains unestablished; future-result certainty |
+| Replay 007 | Recorded blocked result; actor exits normally | Contract false; backport TTT; action FFF | Blocked plain-stash attempt; unsupported syncer independence and future-clean promise |
+| Admiral release (001) | Engine 2; unit exits 2, 2; audits/final scan pass | Contract false; outcome TTT; action FFF | Blocked stash/checkout sequence; three Summary lines omitted; unsupported causal claim |
+| Admiral devel (002) | Engine 0; unit exits 2, 0 at the same HEAD; genuine 5-to-0 repair | Contract true; outcome TTT; action FFF | Initial scan wrongly called a clean baseline; replacement publication procedure |
+| Subctl devel (003) | Engine 0; unit/license/audits/native scan pass | Contract true; outcome TTT; action FFF | Correct explicit module/native scope; replacement publication procedure |
+| Subctl release (004) | Engine 0; unit/license/audits/native scan pass | Contract true; outcome TTF, unstable majority true; action FFF | Replacement publication procedure; one verification iteration called three; scan scope omitted |
 
-Every live cell executed unit tests. Admiral release retains the required
+Every live cell executed unit tests. Admiral release retains its required
 unit/vet blocker; unmaintained release golangci-lint was not selected. Admiral
-build/license checks were unconfigured. Both Subctl branches have positive initial
-and final native Linux AMD64 coverage: actual binary hash, clean corresponding
-scan revision and catalog location/file hash agree; final binaries also match
-retained output. Devel went from 12 actionable findings to zero with one scoped
-crypto ignore; release went from 17 to zero with one ignore. No stdlib repair,
-hand repair or target publication is claimed.
+build/license checks were unconfigured and remain unverified. Both Subctl
+branches have positive initial and final native Linux AMD64 coverage: actual
+binary hash, clean corresponding scan revision and catalog location/file hash
+agree; final binaries also match retained output. Devel went from 12 actionable
+findings to zero with one scoped crypto ignore; release went from 17 to zero with
+one ignore. No stdlib repair, hand repair or target publication is claimed.
 
-The new Summary commands/phases/HEAD-bound attempts match all raw receipts.
-Archived runtime/native evidence now reaches factual judges, removing the prior
-source-only misconception in Subctl rationales. The fixed three-control
-publication calibration returned FFF/TTT/TTT, nine complete samples and zero
-errors. These selected grading distinctions do not establish actor reliability.
-Keep unstable majorities and supplemental rationale errors about navigation or
-causality separate from whole-reply conclusions.
+The canonical wrapper preserves the child exit in its terminal log and native
+background status, including genuine exit 2 in both replays and Admiral release.
+Native result selection and normalized traces agree. Full Summary relay remains
+an actor obligation: Admiral release omitted three lines despite receiving the
+actual result. Blocked mutation attempts did not alter the target. All three
+successful live replies still invent publication steps despite the missing recipe.
 
-LIVE001 also exposes a launcher defect: the documented shell wrapper appends
-the child exit with `echo`, so its own exit is zero after child failure. Its
-early invented notification was assistant-authored, not an external event or
-wrong log. Final capture followed real engine completion and selected the last
-native result correctly. Separately, `make -n unit` in LIVE003 evaluated an
-include/download and attempted a missing recursive Dapper command; this was not
-a second canonical unit execution. Original contract failures remain intact.
+Archived runtime/native evidence reaches factual judges. Subctl devel correctly
+reports module and native coverage; release omits that distinction. Its outcome
+TTF retains the majority pass and instability: two rationales waive the omission,
+one rejects it, and none catches the false three-iteration claim. Replay 005's
+action TFT likewise does not establish its comparative causal explanation.
+Sixteen distinct retained rationales were reviewed, not 36 independent explanations.
+The fixed nine-sample publication calibration remains FFF/TTT/TTT with zero errors;
+it is selected oracle coverage, not actor acceptance.
 
-All 431 stock artifacts, six consoles and 107 runtime-review proofs were verified;
+All 433 stock artifacts, six consoles and 97 runtime-review proofs were verified;
 all 36 factual samples completed with zero errors. Known actor costs total
-$4.6657425; judge and total costs are unknown. Run IDs are
-`quality-policy2-{replay005,replay007,live001,live002,live003,live004}-20261021-01`.
-Receipts/reviews are under `.work/fix-go-cves-release024/policy-matrix-postfix-20261021/`.
-The owned worker was stopped after fresh identity checks; processes/socket/pidfile
-are gone, host alias unchanged, caches/data/evidence preserved.
+$5.54143825; judge and total costs are unknown. Run IDs are
+`quality-handoff-{replay005,replay007,live001,live002,live003,live004}-20261021-01`.
+Receipts/reviews are under `.work/fix-go-cves-release024/handoff-matrix-20261021/`.
+The original replay-005 receipt's cell-label error is preserved with an addendum;
+its run ID, paths and artifact hashes identify the correct cell.
 
+All six actors actually used CLI 2.1.307. The original freeze rechecked the old
+2.1.306 file while ambient PATH had moved to 2.1.307; after four cells, the final
+two were explicitly pinned to that same actual binary. The deviation and approved
+continuation are retained. Prior matrices used 2.1.306, so source-only comparisons
+are unsupported. The owned worker remains idle for the selected same-workload
+continuation; caches and evidence are preserved.
+
+The selected next change separates binding compatibility/check policy from
+manual remediation/publication instructions in preflight. The target workflow
+contains a conflicting manual publication recipe; this is not proof that it caused
+every reply failure. Preserve user authority and the pending Go-minor decision,
+without inferring approval or adding a policy knob. After review and commit,
+measure the same six cells once at explicitly pinned 2.1.307 with unchanged
+criteria and no adaptive retries. No causal-warning template or reviewer loop
+is selected; the skill remains unaccepted.
+
+The [second matrix record](https://github.com/dfarrell07/ai-helpers/blob/e189eef647edfecebb50c6c0a0c19714791984af/plugins/fix-go-cves/evals/live/README.md#branch-policy-matrix)
+retains its 431 artifacts, original grades and wrapper/false-completion findings.
 The [first matrix record](https://github.com/dfarrell07/ai-helpers/blob/01d66debbc1b8bd27da264b8a568cb6146a435d8/plugins/fix-go-cves/evals/live/README.md#branch-policy-matrix)
-at source `7b6a7714` remains unchanged: its 428 artifacts, replay timeout,
-unscored samples and unstable grade are retained. Neither matrix establishes
-fully correct skill behavior.
+at source `7b6a7714` retains its 428 artifacts, replay timeout, unscored samples
+and unstable grade. No closed matrix establishes fully correct skill behavior.

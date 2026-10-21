@@ -63,20 +63,24 @@ and scan timeouts. Two lint attempts failed, leaving unit tests unrun; audits, l
 and native final scanning passed. The invoking skill still fails literal Summary
 relay and factual diagnosis. The [live record](live/README.md#current-runtime-integration)
 retains both measurements, scores, coverage limits and costs. Those runs used
-our incorrect release lint override. Both subsequent [six-cell matrices](live/README.md#branch-policy-matrix)
-are closed. The latest at `01d66deb` completed all actors and 36 factual samples
+our incorrect release lint override. The subsequent [three six-cell matrices](live/README.md#branch-policy-matrix)
+are closed. The latest at `e189eef6` completed six actors and 36 factual samples
 with zero judge errors. Every live cell ran unit tests; Admiral release retained
-its blocker, and the other live cells passed configured gates. Both Subctl branches
-have positive native coverage. Whole-reply review still finds unsupported causality,
-false completion and invented publication; unstable majorities remain recorded.
+its blocker, Admiral devel passed
+on retry, and both Subctl branches passed with positive native coverage.
+Whole-reply review still finds unsupported causal advice, denied mutation
+attempts, incomplete relay and invented publication. Stock majorities and their
+instability remain unchanged.
 
-The Summary ledger, archived judge evidence and shared native identity checks
-are verified. The scoped publication criterion passed its fixed three-control,
-nine-sample calibration. The next bounded correction preserves child status in
-the documented logging wrapper and clarifies actual log retrieval, read-only
-preflight and conditional remaining remediation. Measure changed source through
-the same six stock pipelines after regression/review/commit; no new judge, runner,
-target repair or reviewer loop. Old results remain unchanged.
+The corrected logging wrapper propagates the observed child exit to native
+background status. All six actors actually used CLI 2.1.307, although the original
+freeze only rechecked a historical 2.1.306 file; the remaining two cells were
+explicitly pinned after the deviation was found. Comparisons with prior matrices
+therefore cannot isolate source effects. The selected next change clarifies
+repository policy versus manual workflow procedure in preflight. After review
+and commit, measure the same six cells once at pinned 2.1.307 with unchanged
+criteria, preserving all failures. The Go-minor policy question remains pending;
+no approval, policy knob, adaptive retry or reviewer loop is selected.
 
 ## Recorded cases
 
@@ -111,6 +115,9 @@ with a fresh case `HOME`. `CVE_EVAL_PYTHON` selects the driver only; it does not
 activate that environment for child commands. The isolated import above checks
 the required YAML backend without relying on user-site packages. Each run
 records the actual harness commit in `harness-revision.txt`.
+Resolve and hash the CLI selected by the actual launch PATH, recording its version.
+Pin the version-specific executable and compare the native init version with that
+frozen identity.
 
 Supply model authentication through the environment: each case gets a fresh
 `HOME`, so an existing interactive CLI login alone is insufficient. For Vertex,

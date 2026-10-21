@@ -200,35 +200,41 @@ or installing a natural-language policy parser.
 
 ### Verify the handoff across the packaged matrix
 
-Both declared six-cell matrices are closed. The latest at `01d66deb` completed
-all six actors and 36 factual samples without judge errors. All four live cells
-ran `make unit`; Admiral release failed both attempts, while the other live cells
-passed configured gates. Both Subctl branches have positive initial/final native
-coverage. The [matrix record](../evals/live/README.md#branch-policy-matrix)
-separates actual engine outcomes, stock grades and whole-reply failures.
-Explicit commands measure forwarding/execution, not inferred-command selection;
-conflicting inherited precedence retains its separate forward review.
+Three declared six-cell matrices are closed. The latest at `e189eef6` completed
+six actors and 36 factual samples without judge errors. All live cells ran
+`make unit`: Admiral release failed both
+attempts, Admiral devel passed its same-HEAD retry, and both Subctl branches passed
+with positive initial/final native evidence. Explicit commands test forwarding
+and execution, not conflicting inherited-command selection, which has separate
+forward-review coverage. The [matrix record](../evals/live/README.md#branch-policy-matrix)
+separates engine outcomes, original stock grades and whole-reply failures.
 
-The Summary ledger and compact archived judge evidence are implemented and
-verified. Shared native checks bind phase, clean embedded VCS, corresponding scan
-HEAD, positive catalog and retained output; observed scenarios gain no new gate.
-The publication criterion's three fixed controls returned FFF/TTT/TTT, all nine
-samples complete with zero errors. Original scores remain unchanged.
+The canonical wrapper now preserves child status in terminal logging and native
+background notifications. Its semantic regression executes the actual documented
+fence with child exits 0/1/2 and failed terminal writes. Shared native checks and
+compact judge evidence bind phase, clean embedded VCS, scan HEAD, positive catalog
+and retained output; observed scenarios gain no new gate. The publication
+criterion's fixed nine-sample calibration remains FFF/TTT/TTT with zero errors.
+These implementation checks do not establish reliable diagnosis or publication
+advice. The latest replies still fail those boundaries; one omits
+Summary lines, and two attempt forbidden mutations that are blocked.
 
-The second matrix exposes a concrete launch-wrapper status defect and continuing
-reply failures. Apply the reviewed child-status/terminal-write correction, verify
-the actual documented fence with stub child exits, and clarify native task-output
-log retrieval. Rephrase existing reporting so Remaining work covers actual
-flagged remediation, with evidence-established scan scope and unverified unknowns.
-Read policy/build files rather than evaluating Make for preflight inspection.
-Do not add an alternative tool API, schema, scanner call or reviewer workflow.
+The original freeze checked a historical CLI 2.1.306 file while ambient PATH had
+already selected 2.1.307. All six actors actually used 2.1.307; after four cells,
+the remaining two were explicitly pinned to that same binary. Preserve the
+binding deviation and continuation; cross-matrix effects are confounded by the
+CLI change.
 
-After regressions, critical review and commit, freeze the changed skill, pins,
-unchanged criteria and explicit environment for the same four live cells and
-replays 005/007. Run each once through the stock pipeline, serially. Preserve
-errors/skipped stages and compare whole replies against raw evidence without
-adaptive retries. The new mechanism is source-reviewed until that measurement;
-prior engine success and passing judge majorities do not accept it.
+The selected next experiment changes only the preflight policy/procedure boundary:
+retain repository compatibility restrictions and maintained checks while using
+this skill's remediation/publication procedure. Leave the pending Go-minor decision
+unresolved; this change adds no policy parser or knob. After review and
+commit, freeze that change, the actual CLI 2.1.307 binary, unchanged pins, models,
+caps, criteria and explicit environment. Run the same four live cells and replays 005/007 once,
+serially through stock pipelines. Preserve errors and whole-reply failures without
+adaptive retries, criteria relaxation or a new reviewer workflow. This tests the
+observed instruction conflict; it does not promise to cure causal claims or
+forbidden Git attempts.
 
 The prior native case 003 exhausted its $10 actor allowance after 2,605 seconds
 and $10.85163125, without a completed final reply. Use the existing live actor
@@ -258,8 +264,8 @@ Use the existing stock runner and scenario-specific runtime assertions:
 Mutable database misses remain missing coverage. Preserve source revisions,
 commands, evidence and costs; do not rerun a successful engine merely to seek
 accepted prose. Revalidate worker ownership/cancellation when recreating it and
-keep it stopped between selected runs. Do not expand to all repositories,
-per-run baseline testing, automated campaigns or target draft updates until the
+keep it stopped when no same-workload continuation is selected. Do not expand to
+all repositories, per-run baseline testing, automated campaigns or target draft updates until the
 relevant result is independently correct and produced by the skill.
 
 ## Runtime and behavioral acceptance
@@ -361,6 +367,9 @@ for the next implementation checks; revalidate integration before changing it.
 Record actual runtime/helper contents as well as staged wrapper hashes, case
 pins, CLI/model/harness settings, scanner path/version/hash or container digest,
 Grype database identity/status, and actual builder image/compiler identity.
+Resolve the CLI through the actual launch PATH and record that executable's
+version and hash. Pin its version-specific file, then compare the native init
+version with the frozen identity.
 The observed live scanner was v0.121.0 while the runtime fallback is v0.112.0;
 record what executed. Cache reuse does not freeze the database or builder. Keep
 identity metadata, not a vendored database or image archive.

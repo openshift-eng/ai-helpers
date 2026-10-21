@@ -22,10 +22,12 @@ naming anything missing.
 ## Run the scripts
 
 Before launch, read the target branch's instructions, CI and relevant build/config
-files for maintainer policy and required environment. User-supplied branch policy
-takes precedence over conflicting inherited check settings. Otherwise preserve a
-nonempty inherited `CVE_FIX_TEST_CMD` unchanged. If empty or unset, preserve the
-target branch's nonempty `.cve-fix.yaml`
+files for compatibility policy, maintained checks and required environment.
+Follow this skill's script workflow and publication rules when repository notes
+describe a manual procedure; keep their compatibility policy and maintained checks.
+User-supplied branch policy takes precedence over conflicting inherited check
+settings. Otherwise preserve a nonempty inherited `CVE_FIX_TEST_CMD` unchanged.
+If empty or unset, preserve the target branch's nonempty `.cve-fix.yaml`
 `test-command`. When neither is configured, set `CVE_FIX_TEST_CMD` for the inferred
 default plus local checks maintained and required for that branch. A CI job or
 Make target alone does not establish that requirement.
