@@ -20,6 +20,9 @@ frozen inventory would give HIGH 2 / ELEVATED 6 / LOW 7 (two permafails surface)
 `expected-backtest.json` records the asserted outcomes; `test_prepass.py` enforces them.
 
 Notes:
+- Evidence is as-of the observation time: job runs that started after `now` are dropped before clustering and
+  shaping (the replay fixtures contain later runs; e.g. the 09-24 HIGH cluster has 8 distinct jobs as-of, 11 with
+  later runs). Medians are over distinct runs.
 - The 09-20 precursor (18 regressions opened 2026-09-19T04Z) is only inside a 24 h window ending before 09-20T04Z;
   the test uses `now = 2026-09-20T00:00:00Z`.
 - Tripwire continuity matches a previous cluster by id, then by `(release, lane_family)`, because a rolling

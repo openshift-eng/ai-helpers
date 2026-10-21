@@ -25,6 +25,7 @@ LEVEL_ORDER = {'HIGH': 0, 'ELEVATED': 1, 'LOW': 2}
 REPO_ROOT = Path(__file__).resolve().parents[5]
 LIST_REGRESSIONS = REPO_ROOT / 'plugins/teams/skills/list-regressions/list_regressions.py'
 LABELS_URL = 'https://sippy.dptools.openshift.org/api/jobs/labels'
+ORACLE_TIMEOUT = 600   # seconds per cluster probe; a stalled batch must not eat the whole run
 REEVALUATE = REPO_ROOT / 'plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py'
 
 
@@ -63,13 +64,34 @@ def _default_fetch(raw_fetch=None):
     def fetch(view):
         release = mod.extract_release_from_view(view)
         if release not in cache:
-            cache[release] = raw_fetch(release)
+            data = raw_fetch(release)
+            # An empty or malformed release inventory is an outage, not a clean board (review C5).
+            if not isinstance(data, list) or not data:
+                raise RuntimeError('release %s inventory unavailable or malformed (%s)'
+                                   % (release, 'empty list' if isinstance(data, list) else type(data).__name__))
+            bad = [r for r in data if not isinstance(r, dict) or 'id' not in r]
+            if bad:
+                raise RuntimeError('release %s inventory malformed: %d of %d records have no id' % (release, len(bad), len(data)))
             # filter_by_view overwrites `opened` in place with the view's (re)activation date; keep the
             # regression-level date first so the shape can report the real age too.
-            for r in cache[release]:
+            for r in data:
                 r.setdefault('regression_opened', r.get('opened'))
-        return mod.filter_by_view(cache[release], view)
+            cache[release] = data
+        filtered = mod.filter_by_view(cache[release], view)
+        if not filtered:
+            # A real view always has history (closed regressions included); none means a wrong view name.
+            raise RuntimeError('no regressions reference view %s in the %s inventory (%d records)'
+                               % (view, release, len(cache[release])))
+        return filtered
     return fetch
+
+
+def closed_time(reg):
+    """ISO closure time for a closed regression: a plain string or a {Time, Valid} struct; None when open."""
+    closed = reg.get('closed')
+    if isinstance(closed, dict):
+        return closed.get('Time') if closed.get('Valid') else None
+    return closed if isinstance(closed, str) else None
 
 
 def view_status(view, regs, now):
@@ -81,8 +103,8 @@ def view_status(view, regs, now):
         'open': len(open_regs),
         'open_untriaged': sum(1 for r in open_regs if not r.get('triages')),
         'opened_7d': sum(1 for o in opened if week <= o <= now),
-        'closed_7d': sum(1 for r in regs if not is_open(r) and isinstance(r.get('closed'), str)
-                         and week <= clustering.parse_ts(r['closed']) <= now),
+        'closed_7d': sum(1 for r in regs if not is_open(r) and closed_time(r)
+                         and week <= clustering.parse_ts(closed_time(r)) <= now),
     }
 
 
@@ -171,7 +193,13 @@ def oracle(cluster, runner=None, token=None, labels_fetch=None):
     argv = [sys.executable, str(REEVALUATE), '--dry-run', '--format', 'json'] + ids
     if runner is None:
         def runner(argv):
-            p = subprocess.run(argv, capture_output=True, text=True, env=dict(os.environ, SIPPY_TOKEN=token))
+            try:
+                p = subprocess.run(argv, capture_output=True, text=True, timeout=ORACLE_TIMEOUT,
+                                   env=dict(os.environ, SIPPY_TOKEN=token))
+            except subprocess.TimeoutExpired:
+                return 1, '', 'reevaluate timed out after %ds' % ORACLE_TIMEOUT
+            except OSError as e:
+                return 1, '', 'reevaluate could not start: %s' % e
             return p.returncode, p.stdout, p.stderr
     out['runs_probed'] = len(ids)
     result = runner(argv)
@@ -193,9 +221,22 @@ def oracle(cluster, runner=None, token=None, labels_fetch=None):
         out['status'] = 'failed'
         out['error'] = ('no batch JSON in reevaluate output: ' + (stdout or '').strip())[:300]
         return out
+    problems = []
     try:
+        seen = {}
         for item in batch['items']:
+            seen[str(item['item_key'])] = item
+        for rid in ids:
+            item = seen.get(rid)
+            if item is None:
+                problems.append('%s: missing from the batch' % rid)
+                continue
             res = item.get('result') or {}
+            # Queue state is authoritative for progress; result.status for the evaluation itself.
+            if item.get('state') != 'completed' or res.get('status') not in (None, 'success'):
+                problems.append('%s: state=%s result=%s%s' % (rid, item.get('state'), res.get('status'),
+                                                              (' (%s)' % res.get('error')) if res.get('error') else ''))
+                continue
             found = list(res.get('labels_applied') or [])
             if found:
                 out['labels'][str(item['item_key'])] = found
@@ -204,14 +245,19 @@ def oracle(cluster, runner=None, token=None, labels_fetch=None):
         out['labels'] = {}
         out['error'] = ('unexpected batch item shape: %s' % e)[:300]
         return out
-    out['status'] = 'ok'
+    if problems:
+        # Partial positive evidence (labels that did fire) is kept; the probe as a whole is not a clean result.
+        out['status'] = 'failed'
+        out['error'] = ('reevaluate incomplete for %d/%d runs: %s' % (len(problems), len(ids), '; '.join(problems)))[:600]
+    else:
+        out['status'] = 'ok'
     wanted = {lab for ls in out['labels'].values() for lab in ls}
     if wanted:
         try:
             catalogue = (labels_fetch or fetch_labels)()
             out['label_bugs'] = {l['id']: list(l.get('bugs') or []) for l in catalogue if l.get('id') in wanted}
         except Exception as e:  # noqa: BLE001 - surfaced, never silently empty
-            out['label_bugs'] = {}
+            out['label_bugs'] = None   # unknown mapping — never "these labels have no bugs"
             out['label_bugs_error'] = str(e)
     return out
 
@@ -255,9 +301,18 @@ def diff_baseline(clusters, baseline, run_id='local'):
     return block
 
 
+def as_of(regs, now):
+    """Copies of the records with job runs after `now` removed: evidence is point-in-time (review I4)."""
+    out = []
+    for r in regs:
+        runs = [jr for jr in r.get('job_runs') or [] if clustering.parse_ts(jr['start_time']) <= now]
+        out.append(dict(r, job_runs=runs))
+    return out
+
+
 def build_clusters(regs, now):
     out = []
-    for members in clustering.cluster(regs):
+    for members in clustering.cluster(as_of(regs, now)):
         s = clustering.shape(members, now)
         fp = clustering.fingerprint(members)
         level, score, reasons = blast_radius.classify(s)
@@ -271,6 +326,17 @@ def build_clusters(regs, now):
             'blast_radius': {'level': level, 'score': score, 'reasons': reasons},
             '_members': members,
         })
+    # Distinct clusters can share a family fingerprint (e.g. "[a] same test" vs "[b] same test"); ids must
+    # stay unique because dispositions, actions and baselines are keyed by them (review I3). The cluster
+    # with the lowest member id keeps the bare id; the others get a deterministic ordinal suffix.
+    by_id = {}
+    for c in out:
+        by_id.setdefault(c['id'], []).append(c)
+    for cid, group in by_id.items():
+        if len(group) > 1:
+            group.sort(key=lambda c: min(c['members']['regression_ids']))
+            for n, c in enumerate(group[1:], start=2):
+                c['id'] = '%s-%d' % (cid, n)
     out.sort(key=lambda c: (LEVEL_ORDER[c['blast_radius']['level']], -c['blast_radius']['score'], c['id']))
     return out
 
@@ -314,19 +380,49 @@ def weekly(regs, now, baseline, oracle=None, run_id='local', view_status=None):
     }
 
 
-def tripwire(regs, now, window_hours, previous_status, view_status=None, run_id='local'):
+def _baseline_known(baseline):
+    """HIGH clusters of a compatible weekly document, keyed by id, for growth detection."""
+    ok = (isinstance(baseline, dict) and baseline.get('schema_version') == SCHEMA_VERSION
+          and (baseline.get('policy') or {}).get('name') == POLICY and isinstance(baseline.get('clusters'), list))
+    if not ok:
+        return {}
+    return {c['id']: c for c in baseline['clusters']
+            if isinstance(c, dict) and (c.get('blast_radius') or {}).get('level') == 'HIGH'}
+
+
+def _belongs_to_known(c, k):
+    fp, kfp = c['fingerprint'], k.get('fingerprint') or {}
+    if fp['release'] != kfp.get('release') or fp['lane_family'] != kfp.get('lane_family'):
+        return False
+    return fp['test_family'] == kfp.get('test_family') or bool(set(c['shape']['top_jobs']) & set((k.get('shape') or {}).get('top_jobs') or []))
+
+
+def tripwire(regs, now, window_hours, previous_status, view_status=None, run_id='local', baseline=None):
     start = now - timedelta(hours=window_hours)
     window = [r for r in regs if start <= clustering.parse_ts(r['opened']) < now]
     clusters = build_clusters(window, now)
-    prev, prev_fp = {}, {}
-    for c in (previous_status or {}).get('clusters', []):
+    # Only clusters that were NOTIFIED before count as known (review I1): a lane that merely carried an
+    # un-notified LOW cluster must not turn the first HIGH into a silent `continuing`.
+    prev_clusters = {c['id']: c for c in (previous_status or {}).get('clusters', []) if isinstance(c, dict)}
+    prev, prev_fp, prev_growth = {}, {}, {}
+    for t in (previous_status or {}).get('triggers', []):
+        if not isinstance(t, dict):
+            continue
+        if t.get('kind') == 'growth' or 'new_members' in t:
+            prev_growth[t['cluster_id']] = set(t.get('new_members') or [])
+            continue
+        c = prev_clusters.get(t.get('cluster_id'))
+        if not c:
+            continue
         n = len(c['members']['regression_ids'])
         prev[c['id']] = n
         fp = c.get('fingerprint') or {}
-        # a rolling window's test_family is unstable, so a same-release same-lane cluster is the same event
+        # a rolling window's test_family is unstable, so a same-release same-lane notified cluster is the same event
         k = (fp.get('release'), fp.get('lane_family'))
         prev_fp[k] = max(n, prev_fp.get(k, 0))
     triggers = []
+    known_high = _baseline_known(baseline)
+    growth_members = {}
     for c in clusters:
         level, s = c['blast_radius']['level'], c['shape']
         if level == 'HIGH' or (level == 'ELEVATED' and s['regressions'] >= 50 and s['distinct_jobs'] <= 3):
@@ -340,12 +436,31 @@ def tripwire(regs, now, window_hours, previous_status, view_status=None, run_id=
                 kind = 'continuing'
             triggers.append({'cluster_id': c['id'], 'kind': kind, 'level': level,
                              'reasons': c['blast_radius']['reasons']})
+            continue
+        # Growth of a known weekly HIGH cluster (spec §4 step 6): new members on its lane/test family.
+        for kid, k in known_high.items():
+            if _belongs_to_known(c, k):
+                new = sorted(set(c['members']['regression_ids']) - set(k['members']['regression_ids']))
+                if new:
+                    growth_members.setdefault(kid, set()).update(new)
+                break
+    for kid in sorted(growth_members):
+        new = sorted(growth_members[kid])
+        before = prev_growth.get(kid)
+        kind = 'continuing' if before is not None and set(new) <= before else 'growth'
+        k = known_high[kid]
+        triggers.append({'cluster_id': kid, 'kind': kind, 'level': 'HIGH', 'new_members': new,
+                         'reasons': ['known HIGH cluster %s (%d regressions in the weekly run) gained %d in the window'
+                                     % (kid, len(k['members']['regression_ids']), len(new))] + list(k['blast_radius'].get('reasons') or [])})
+    for c in clusters:
         del c['_members']
     status = view_status if view_status is not None else _statuses_from_records(window, now)
     return {
         'schema_version': SCHEMA_VERSION, 'mode': 'tripwire', 'policy': {'name': 'post-ga'},
         'source_run': {'run_id': run_id},
         'observation': {'time': iso(now), 'views': status, 'window_hours': window_hours},
+        'baseline_run': {'run_id': ((baseline or {}).get('source_run') or {}).get('run_id') if isinstance(baseline, dict) else None,
+                         'known_high_clusters': sorted(known_high)},
         'clusters': clusters,
         'triggers': triggers,
         'previous_status_run': ((previous_status or {}).get('observation') or {}).get('time'),
@@ -390,7 +505,8 @@ def main(argv=None):
         regs, status = fetch_inventory(args.views, now=now)
 
     if args.tripwire:
-        doc = tripwire(regs, now, args.window_hours, _load_optional(args.previous_status), status, args.run_id)
+        doc = tripwire(regs, now, args.window_hours, _load_optional(args.previous_status), status, args.run_id,
+                       baseline=_load_optional(args.baseline))
     else:
         runner_oracle = None
         if not args.no_oracle:

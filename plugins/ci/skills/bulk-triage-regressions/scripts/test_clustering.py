@@ -94,6 +94,15 @@ class ShapeTest(unittest.TestCase):
         s = c.shape([reg(1, runs=[run('1')])], NOW)  # no regression_opened → same as days_open
         self.assertEqual(s['regression_days_open'], s['days_open'])
 
+    def test_median_is_over_distinct_runs(self):
+        # the same run shared by several regressions must count once; conventional median for even samples
+        shared = run('1', tf=40)
+        s = c.shape([reg(1, 't1', runs=[shared, run('2', tf=2)]), reg(2, 't2', runs=[shared, run('3', tf=4)])], NOW)
+        self.assertEqual(s['median_test_failures_per_run'], 4)      # distinct runs: 40, 2, 4 → 4
+        self.assertFalse(s['mass_failure_marker'])
+        s = c.shape([reg(1, 't', runs=[run('1', tf=10), run('2', tf=30)])], NOW)
+        self.assertEqual(s['median_test_failures_per_run'], 20)     # even sample → mean of the middle two
+
     def test_shape_keys_and_recency(self):
         up = 'periodic-ci-x-nightly-4.22-upgrade-from-stable-4.21-e2e-aws'
         s = c.shape([reg(1, 'install should succeed', runs=[run('1', up, '2026-10-05T12:00:00Z'),

@@ -57,6 +57,15 @@ class BacktestTest(unittest.TestCase):
         self.assertTrue(c['shape']['mass_failure_marker'])
         self.assertEqual(find(doc, 46428)['blast_radius']['level'], 'ELEVATED')
         self.assertEqual(find(doc, 36206)['blast_radius']['level'], 'LOW')
+        # the complete expected outcome, from fixtures/expected-backtest.json (not just representatives)
+        with open(os.path.join(HERE, 'fixtures', 'expected-backtest.json')) as f:
+            exp = json.load(f)['frozen-2026-10-07']
+        levels = {}
+        for c in doc['clusters']:
+            levels[c['blast_radius']['level']] = levels.get(c['blast_radius']['level'], 0) + 1
+        self.assertEqual(levels, exp['distribution'])
+        self.assertEqual(sorted(c['id'] for c in doc['clusters'] if c['blast_radius']['level'] == 'HIGH'), exp['HIGH']['ids'])
+        self.assertEqual(sorted(c['id'] for c in doc['clusters'] if c['blast_radius']['level'] == 'ELEVATED'), exp['ELEVATED']['ids'])
         self.assertEqual(len(doc['observation']['views']), 7)
         self.assertTrue(all(v['fetch'] == 'complete' for v in doc['observation']['views']))
         self.assertEqual(doc['observation']['symptom_probe']['status'], 'skipped')
@@ -82,7 +91,7 @@ class TripwireTest(unittest.TestCase):
         self.assertEqual([t['level'] for t in doc['triggers']], ['HIGH'])
         s = [c for c in doc['clusters'] if c['id'] == doc['triggers'][0]['cluster_id']][0]['shape']
         self.assertGreaterEqual(s['regressions'], 100)
-        self.assertGreaterEqual(s['distinct_jobs'], 10)
+        self.assertGreaterEqual(s['distinct_jobs'], 8)   # as-of 09-24T12 evidence (11 with runs that happened later)
         doc = self.trip('2026-08-30T12:00:00Z', '4.20-main')
         self.assertTrue(doc['triggers'])
         self.assertNotIn('HIGH', [t['level'] for t in doc['triggers']])
@@ -252,8 +261,10 @@ class OracleTest(unittest.TestCase):
 
         def runner(argv):
             seen.append(argv)
-            return 0, json.dumps({'items': [{'item_key': '7', 'state': 'completed',
-                                             'result': {'symptoms_matched': ['S1'], 'labels_applied': ['L1']}}]})
+            items = [{'item_key': k, 'state': 'completed',
+                      'result': {'status': 'success', 'symptoms_matched': ['S1'] if k == '7' else [],
+                                 'labels_applied': ['L1'] if k == '7' else []}} for k in argv[-5:]]
+            return 0, json.dumps({'items': items})
 
         o = p.oracle(self.MEMBERS, runner=runner, token='t', labels_fetch=lambda: [])
         self.assertEqual(o['status'], 'ok')
@@ -262,7 +273,10 @@ class OracleTest(unittest.TestCase):
         self.assertEqual(seen[0][-5:], ['7', '6', '5', '4', '3'])
         self.assertIn('--dry-run', seen[0])
 
-    OK = json.dumps({'items': [{'item_key': '7', 'state': 'completed', 'result': {'labels_applied': ['L1']}}]})
+    # every probed run (the five newest: 7..3) must be reported by the batch, else the probe is incomplete
+    OK = json.dumps({'items': [{'item_key': str(i), 'state': 'completed',
+                                'result': {'status': 'success', 'labels_applied': ['L1'] if i == 7 else []}}
+                               for i in range(7, 2, -1)]})
 
     def test_label_bugs_from_catalogue(self):
         calls = []
@@ -282,12 +296,153 @@ class OracleTest(unittest.TestCase):
 
         o = p.oracle(self.MEMBERS, runner=lambda a: (0, self.OK), token='t', labels_fetch=lf)
         self.assertEqual(o['status'], 'ok')
-        self.assertEqual(o['label_bugs'], {})
+        self.assertIsNone(o['label_bugs'])            # unknown mapping, never "these labels have no bugs"
         self.assertIn('catalogue down', o['label_bugs_error'])
 
     def test_oracle_other_failure_and_skipped(self):
         self.assertEqual(p.oracle(self.MEMBERS, runner=lambda a: (2, 'oops'), token='t')['status'], 'failed')
         self.assertEqual(p.oracle(self.MEMBERS)['status'], 'skipped')
+
+
+class ReviewFixesTest(unittest.TestCase):
+    """Pre-merge review findings C4, C5, I1, I2, I4, I6 and the closed_7d struct minor."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.frozen = load('frozen-2026-10-07.json.gz')
+
+    # ---- I3: separate clusters never share an id ----
+    def test_distinct_clusters_get_distinct_ids(self):
+        now = ts('2026-10-07T12:00:00Z')
+        doc = p.weekly([reg(1, '[a] same test', [run('1')]), reg(2, '[b] same test', [run('2')]),
+                        reg(3, '[c] same test', [run('3')])], now, None)
+        ids = [c['id'] for c in doc['clusters']]
+        self.assertEqual(len(ids), 3)
+        self.assertEqual(len(set(ids)), 3, ids)
+        self.assertEqual(sorted(ids)[0], ids[0][:8])            # the first keeps the bare family id
+        # deterministic: same input → same ids
+        self.assertEqual(ids, [c['id'] for c in p.weekly([reg(1, '[a] same test', [run('1')]), reg(2, '[b] same test', [run('2')]),
+                                                          reg(3, '[c] same test', [run('3')])], now, None)['clusters']])
+
+    def test_backtest_ids_are_unique(self):
+        doc = p.weekly(self.frozen, ts('2026-10-07T12:00:00Z'), None)
+        ids = [c['id'] for c in doc['clusters']]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    # ---- C4: a failed/incomplete reevaluate result is never an empty success ----
+    def test_oracle_item_error_is_failed_and_keeps_partial_labels(self):
+        members = [reg(1, 't', [run('1', start='2026-10-06T12:00:00Z'), run('2', start='2026-10-05T12:00:00Z')])]
+        batch = {'batch_id': 'b', 'status': 'complete', 'items': [
+            {'item_key': '1', 'state': 'completed', 'result': {'status': 'success', 'labels_applied': ['L1']}},
+            {'item_key': '2', 'state': 'completed', 'result': {'status': 'eval_error', 'error': 'GCS timeout'}}]}
+        o = p.oracle(members, runner=lambda a: (0, json.dumps(batch), ''), token='t', labels_fetch=lambda: [])
+        self.assertEqual(o['status'], 'failed')
+        self.assertIn('eval_error', o['error'])
+        self.assertEqual(o['labels'], {'1': ['L1']})      # positive evidence retained
+        for bad in ({'items': []},
+                    {'items': [{'item_key': '1', 'state': 'completed', 'result': {'status': 'success', 'labels_applied': []}}]},  # run 2 missing
+                    {'items': [{'item_key': '1', 'state': 'failed'}, {'item_key': '2', 'state': 'discarded'}]}):
+            o = p.oracle(members, runner=lambda a, b=bad: (0, json.dumps(b), ''), token='t', labels_fetch=lambda: [])
+            self.assertEqual(o['status'], 'failed', bad)
+            self.assertTrue(o['error'], bad)
+
+    def test_oracle_all_completed_success_is_ok(self):
+        members = [reg(1, 't', [run('1')])]
+        batch = {'items': [{'item_key': '1', 'state': 'completed', 'result': {'status': 'success', 'labels_applied': []}}]}
+        o = p.oracle(members, runner=lambda a: (0, json.dumps(batch), ''), token='t', labels_fetch=lambda: [])
+        self.assertEqual((o['status'], o['labels']), ('ok', {}))
+
+    # ---- I6: the subprocess is bounded ----
+    def test_oracle_subprocess_timeout_is_failed_not_an_exception(self):
+        import subprocess
+        from unittest import mock
+        with mock.patch.object(p.subprocess, 'run', side_effect=subprocess.TimeoutExpired('reevaluate', 1)) as sr:
+            o = p.oracle([reg(1, 't', [run('1')])], token='t', labels_fetch=lambda: [])
+        self.assertEqual(o['status'], 'failed')
+        self.assertIn('timed out', o['error'])
+        self.assertIn('timeout', sr.call_args.kwargs)
+
+    # ---- C5: a malformed or empty release inventory is unavailable, not a clean board ----
+    def test_malformed_or_empty_release_inventory_is_partial(self):
+        for bad in ({}, [], None, 'nope', [{'no_id': 1}]):
+            fetch = p._default_fetch(raw_fetch=lambda release, b=bad: b)
+            _, status = p.fetch_inventory(['4.22-main'], fetch=fetch, now=ts('2026-10-12T12:00:00Z'))
+            self.assertEqual(status[0]['fetch'], 'partial', bad)
+            self.assertIsNone(status[0]['open'], bad)
+
+    def test_view_absent_from_populated_release_is_partial(self):
+        raw = [{'id': 1, 'release': '4.22', 'test_name': 't', 'component': 'c', 'variants': [], 'opened': '2026-10-01T00:00:00Z',
+                'closed': None, 'views': [{'view_name': '4.22-main', 'active': True, 'opened_at': '2026-10-01T00:00:00Z',
+                                            'closed_at': {'Time': '0001-01-01T00:00:00Z', 'Valid': False}}], 'job_runs': []}]
+        fetch = p._default_fetch(raw_fetch=lambda release: raw)
+        _, status = p.fetch_inventory(['4.22-main', '4.22-nope'], fetch=fetch, now=ts('2026-10-12T12:00:00Z'))
+        by = {s['view']: s for s in status}
+        self.assertEqual(by['4.22-main']['fetch'], 'complete')
+        self.assertEqual(by['4.22-nope']['fetch'], 'partial')
+        self.assertIn('no regressions reference view', by['4.22-nope']['error'])
+
+    # ---- closed_7d with the nullable struct shape ----
+    def test_closed_7d_counts_struct_closures(self):
+        now = ts('2026-10-12T12:00:00Z')
+        r = reg(1, 't', [run('1')]); r['closed'] = {'Time': '2026-10-10T00:00:00Z', 'Valid': True}
+        self.assertEqual(p.view_status('4.22-main', [r], now)['closed_7d'], 1)
+        r['closed'] = {'Time': '0001-01-01T00:00:00Z', 'Valid': False}
+        self.assertEqual(p.view_status('4.22-main', [r], now)['closed_7d'], 0)
+
+    # ---- I4: evidence is as-of the observation time ----
+    def test_future_runs_do_not_shape_or_cluster(self):
+        now = ts('2026-10-07T12:00:00Z')
+        future = 'periodic-ci-x-nightly-4.22-e2e-gcp-ovn'
+        regs = [reg(1, 't', [run('1', start='2026-10-06T12:00:00Z'), run('9', job=future, start='2026-10-08T12:00:00Z')]),
+                reg(2, 'other', [run('9', job=future, start='2026-10-08T12:00:00Z'), run('3', start='2026-10-06T13:00:00Z')])]
+        doc = p.weekly(regs, now, None)
+        self.assertEqual(len(doc['clusters']), 2)       # the shared run 9 is in the future → no merge
+        for c in doc['clusters']:
+            self.assertEqual(c['shape']['distinct_jobs'], 1)
+            self.assertNotIn(future, c['shape']['top_jobs'])
+            self.assertGreaterEqual(c['shape']['days_since_last_failure'], 0)
+
+    # ---- I1: the first HIGH on a lane that only had an un-notified LOW is `new`, not `continuing` ----
+    def test_first_high_after_unnotified_low_is_new(self):
+        base = 'periodic-ci-openshift-release-main-nightly-4.22-e2e-'
+        def regs(offset, opened, started, broad, n=8):
+            out = []
+            for i in range(n):
+                plat = 'gcp' if broad and i % 2 else 'aws'
+                suffix = '-runc' if broad and i % 4 < 2 else ''
+                r = reg(offset + i, 'same test', [run(str(offset + i), job=base + plat + '-ovn' + suffix, start=started)], opened=opened)
+                r['variants'] = ['Platform:' + plat]
+                out.append(r)
+            return out
+        low = regs(0, '2026-10-21T04:00:00Z', '2026-10-21T05:00:00Z', broad=False)
+        prev = p.tripwire(low, ts('2026-10-21T06:00:00Z'), 24, None)
+        self.assertEqual(prev['triggers'], [])
+        high = regs(20, '2026-10-21T10:00:00Z', '2026-10-21T11:00:00Z', broad=True)
+        cur = p.tripwire(high, ts('2026-10-21T12:00:00Z'), 24, prev)
+        self.assertEqual([(t['level'], t['kind']) for t in cur['triggers']], [('HIGH', 'new')])
+        again = p.tripwire(high, ts('2026-10-21T18:00:00Z'), 24, cur)      # same event, next pass
+        self.assertEqual([(t['level'], t['kind']) for t in again['triggers']], [('HIGH', 'continuing')])
+
+    # ---- I2: growth of a known weekly HIGH cluster (spec §4 step 6 / §11 "old broad cluster + one new failure") ----
+    def test_tripwire_reports_growth_of_known_weekly_high_cluster(self):
+        now = ts('2026-10-07T12:00:00Z')
+        newcomers = {51109, 51110, 51111, 51112, 51113}          # opened 10-06/07, i.e. after the "weekly run"
+        baseline = p.weekly([r for r in self.frozen if r['id'] not in newcomers], now, None)
+        high = {c['id']: c for c in baseline['clusters'] if c['blast_radius']['level'] == 'HIGH'}
+        self.assertIn('c-6f44f1', high)
+        doc = p.tripwire(self.frozen, now, 24, None, baseline=baseline)
+        growth = [t for t in doc['triggers'] if t['kind'] == 'growth']
+        self.assertTrue(growth, doc['triggers'])
+        g = [t for t in growth if t['cluster_id'] == 'c-6f44f1']
+        self.assertEqual(len(g), 1, growth)
+        self.assertEqual(g[0]['level'], 'HIGH')
+        self.assertEqual(sorted(g[0]['new_members']), [51109, 51110, 51111, 51112, 51113])
+        # the next pass with the same window content dedups to continuing
+        again = p.tripwire(self.frozen, now, 24, doc, baseline=baseline)
+        self.assertEqual([t['kind'] for t in again['triggers'] if t['cluster_id'] == 'c-6f44f1'], ['continuing'])
+        # an incompatible baseline contributes nothing (and does not raise)
+        self.assertEqual([t for t in p.tripwire(self.frozen, now, 24, None, baseline={'schema_version': '0.9'})['triggers']
+                          if t['kind'] == 'growth'], [])
 
 
 class CliTest(unittest.TestCase):

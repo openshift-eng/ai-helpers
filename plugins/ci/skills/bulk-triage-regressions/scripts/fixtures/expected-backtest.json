@@ -2,15 +2,62 @@
   "frozen-2026-10-07": {
     "now": "2026-10-07T12:00:00Z",
     "clusters": 15,
-    "HIGH": {"contains": [49531, 50051], "49531_regressions": 230},
-    "ELEVATED": {"contains": [50173, 46428], "50173_mass_failure_marker": true},
-    "LOW": {"contains": [36206]},
-    "views": 7
+    "HIGH": {
+      "contains": [
+        49531,
+        50051
+      ],
+      "49531_regressions": 230,
+      "ids": [
+        "c-6f44f1",
+        "c-d395ce"
+      ]
+    },
+    "ELEVATED": {
+      "contains": [
+        50173,
+        46428
+      ],
+      "50173_mass_failure_marker": true,
+      "ids": [
+        "c-43c124",
+        "c-45060c",
+        "c-76df21",
+        "c-ecb310"
+      ]
+    },
+    "LOW": {
+      "contains": [
+        36206
+      ]
+    },
+    "views": 7,
+    "distribution": {
+      "HIGH": 2,
+      "ELEVATED": 4,
+      "LOW": 9
+    },
+    "note": "evidence is as-of `now` (job runs after the observation time are ignored); medians are over distinct runs"
   },
   "replay": {
-    "2026-08-30T12:00:00Z 4.20-main": {"trigger_level": "ELEVATED", "min_regressions": 300, "max_distinct_jobs": 3},
-    "2026-09-20T00:00:00Z 4.22-main": {"trigger_level": "HIGH", "note": "18 regressions opened 09-19T04; a 24h window ending 09-20T12 would not contain them"},
-    "2026-09-24T12:00:00Z 4.22-main": {"trigger_level": "HIGH", "min_regressions": 100, "min_distinct_jobs": 10},
-    "2026-09-25T12:00:00Z 4.22-main": {"kind": "continuing", "note": "matched to the 09-24 cluster by release + lane_family"}
+    "2026-08-30T12:00:00Z 4.20-main": {
+      "trigger_level": "ELEVATED",
+      "min_regressions": 300,
+      "max_distinct_jobs": 3
+    },
+    "2026-09-20T00:00:00Z 4.22-main": {
+      "trigger_level": "HIGH",
+      "note": "18 regressions opened 09-19T04; a 24h window ending 09-20T12 would not contain them"
+    },
+    "2026-09-24T12:00:00Z 4.22-main": {
+      "trigger_level": "HIGH",
+      "min_regressions": 100,
+      "min_distinct_jobs": 8,
+      "note": "as-of evidence: runs after the observation time are excluded (11 jobs with later runs)"
+    },
+    "2026-09-25T12:00:00Z 4.22-main": {
+      "kind": "continuing",
+      "note": "matched to the 09-24 cluster by release + lane_family"
+    }
   }
 }

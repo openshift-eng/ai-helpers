@@ -6,6 +6,7 @@ the list-regressions script.
 """
 import hashlib
 import re
+import statistics
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
@@ -106,7 +107,7 @@ INSTALL_WRAPPER = re.compile(
 
 def shape(members, now):
     jobs = Counter()
-    run_tf = []
+    run_tf = {}   # run id -> test_failures (a run shared by several regressions counts once)
     all_runs = set()
     recent_runs = set()
     first = None
@@ -120,7 +121,7 @@ def shape(members, now):
             jobs[jr['prowjob_name']] += 1
             all_runs.add(jr['prowjob_run_id'])
             if jr.get('test_failures') is not None:
-                run_tf.append(jr['test_failures'])
+                run_tf[jr['prowjob_run_id']] = jr['test_failures']
             st = parse_ts(jr['start_time'])
             first = st if first is None or st < first else first
             last = st if last is None or st > last else last
@@ -135,7 +136,8 @@ def shape(members, now):
         reg_opened = ro if reg_opened is None or ro < reg_opened else reg_opened
     platforms.discard(None)
     arches.discard(None)
-    tf_med = sorted(run_tf)[len(run_tf) // 2] if run_tf else 0
+    tf_med = statistics.median(run_tf.values()) if run_tf else 0
+    tf_med = int(tf_med) if float(tf_med).is_integer() else tf_med
     return {
         'regressions': len(members),
         'distinct_jobs': len(jobs),
