@@ -73,84 +73,117 @@ caveats are retained in the [eval results](../evals/README.md#current-reporting-
 
 ## Next steps
 
-The bounded-report candidate at `487d0759` failed its first completed 005/007
-pair and the separately selected live successful-repair check. Its entire
-skill treatment was reverted, including the extra workflow-ownership sentence: unsupported
-claims moved inside the prescribed fields, retry coverage was lost, and the live
-reply still invented publication. Keep the prior smaller workflow as the chosen
-baseline, without claiming acceptance or comparative improvement. The declared
-three-execution comparison remains incomplete; no further wording trials are
-selected. [Detailed results](../evals/README.md#multi-failure-replay) preserve raw
-samples, native reviews, source revisions and costs.
+### Fix demonstrated engine gaps first
 
-The unresolved boundary is reliable generation of final advice. Script results,
-retained state and literal Summary are independently checkable; neither reducing
-the attribution task nor prescribing final report fields made generated advice
-reliable. A passing engine and a completed parent do not establish a passing
-skill. Existing factual criteria still apply throughout the reply. Further work
-needs evidence for a different mechanism, rather than another warning, format,
-reviewer loop or repeated trial. No new enforcement framework is selected.
+Implement the three [prioritized changes](README.md#next-changes) separately:
+validated single-scan reports, scanner deadlines, then preservation of inherited
+ignore policy with reliable read-only YAML parsing. Reproduce each defect in the
+existing shell suite before fixing it. Include passing controls and check exit
+status, retained HEAD/files and suppressed publication, not just diagnostic text.
+Historical replay uses historical scripts and cannot validate these fixes.
 
-Keep Admiral's checked-in `CLAUDE.md` and imported CVE workflow intact. The legacy
-workflow requests manual mutation/verification and a generated publication
-recipe. This is genuine competing procedure context, not answer leakage to
-remove. `project_hooks: false` does not disable that context; its presence does
-not prove it caused the failures. Repository constraints remain distinct from
-workflow routing; the Go-minor conflict stays in [decisions](README.md#decisions).
+Keep the source repair and final advice acceptance decisions separate. The latest
+case-004 follow-up preserves the canonical command and exit-2 result: two lint
+attempts failed with 43 issues across three linters; unit remained unrun because
+of `&&`. The retained commits change only dependency/policy files. Both base and
+result declare Go 1.26.0; Admiral's different Go-directive experiment does not
+attribute this failure. Independent archived-evidence review verifies the native
+scan and four audits; case 004's stock runtime check does not assert these.
+The reply overstates causal independence and miscounts linters. Contract
+passes, outcome is true 3/3 and action/owner is false/true/false. Neither a blocked
+run nor a passing factual sample establishes correct advice. The
+[live record](../evals/live/README.md#subctl-release-check) preserves both runs.
 
-The one live case-002 check now establishes actual source repair and invoking-
-agent completion under candidate `487d0759`: all 14 runtime conditions pass,
-but the response fails for invented publication. Its scores do not validate the
-reverted skill. Runtime script hashes are unchanged, so the engine evidence
-remains applicable. Do not rerun this scenario merely to seek acceptance. See
-[the live record](../evals/live/README.md#successful-repair-reporting-check).
+### Establish what the evaluator can distinguish
 
-A future positive-publication relay case would add a distinct decision. Historical
-Submariner case 002 still needs a complete sanitized log, verified bundle/archive,
-corrected command reference and negatives. Its builder decision needs applicable
-outcome/action-owner criteria and matching thresholds through stock configuration,
-not the Admiral-only backport criterion or a new judge. Prepare model-free and
-calibrate before any measurement; it is not automatically selected.
+Recorded tool observations now expose the real history citation and its `--all`
+query without agent prose or reasoning. All 13 stock-render checks pass. Keep this
+accurate context: omitting it caused a judge to call a real commit fabricated.
+The separate action/owner calibration still fails: the reviewed reference and
+the untouched actual negative are both accepted 3/3. More context is not evidence
+of reliable grading, and these are repeated judges on replies, not independent
+skill executions. Original scores remain unchanged.
 
-Native case 003 has separate parent-completion coverage missing after its
-43-minute engine success. A source-only repair cannot close it. Any later live
-run needs a changed mechanism or concrete current-engine question. Preserve
-mutable database misses and different outcomes as missing coverage. Revalidate
-ownership/cancellation when recreating the worker, retain supervised lifecycle
-management, and keep it stopped between selected runs.
+Two model-free controls are prepared from the reviewed reference: one changes
+only causal qualification, the other only whether `--all` proves default-branch
+membership. Local provenance is retained under
+`.work/fix-go-cves-release024/quality-plan-audit/oracle-controls/manifest.json`;
+these controls are not corrected actor results. The positive retains useful
+diagnosis, all three diagnostic classes, both attempts, owners and remaining verification. Independent review approves the
+causal false label under the existing criterion. Membership alone is outside its
+explicit causal rule; keep that control manual/exploratory rather than silently
+expanding the criterion or adding a judge.
 
-The first case-004 invocation omitted configured lint and failed contract;
-both factual judges passed 3/3 despite independently rejected publication advice.
-The changed-source follow-up preserved the command and correctly retained a
-blocked result: both lint attempts failed, leaving unit unrun. Contract passes,
-outcome is true 3/3 and action/owner is false/true/false. Independent review
-rejects unsupported causal exoneration and an incorrect linter count. The
-missing-remote diagnostic branch was not exercised. No target repair, further
-wording trial or actor retry is selected. [The live record](../evals/live/README.md#subctl-release-check)
-preserves both measurements and judge limitations.
+If a calibration is selected, freeze the positive/causal-only pair and run three
+samples each through the existing stock scorer, with unchanged criteria/model.
+Require all six expected labels, no errors and evidence-supported rationales;
+calling an observed commit fabricated is still a failure. Stop after that set,
+without adaptive retuning or retries. Passing this deliberately clear pair would
+show only that distinction. It would not resolve false acceptance of the actual
+reply or validate general grading, actor improvement or the skill. Preserve that
+actual negative as an acceptance check; independent whole-reply review remains
+necessary. No scoring campaign or additional model trial is selected by this audit.
 
-The follow-up also exposed omitted judge context: a real observed history
-commit was called fabricated because factual prompts lacked the investigation's
-tool results. Use existing normalized `outputs.events` to supply fenced tool
-inputs/results, preserving IDs, errors and truncation while excluding agent
-prose and reasoning. This needs no new collector, helper or judge. All 13 stock
-rendering checks pass. Separate action/owner calibration fails: the reference is
-accepted 3/3, but the untouched actual negative is also accepted 3/3. Retain the
-accurate context without claiming reliable semantic grading or improved agent
-behavior. Original grades remain unchanged. Further work needs a different
-mechanism; no retuning or additional trial is selected.
+### Select a different behavioral mechanism before another live run
 
-Frozen scoring uses copied inputs/configuration and exact selected cases,
-judges and complete samples. Extraction checks all collected case directories
-against the frozen selection, then validates outputs before factual scoring.
-Provenance, helper identity and case membership are checked before rewriting
-state/reply files; missing or extra cases stop the scoring hook.
-A changed helper requires a separately frozen derived record; preserve original
-outputs and scores. The tightened action/owner criterion passed seven
-three-sample checks (21 calls); the unchanged backport criterion passed six
-earlier reference/negative samples. All matched expected labels without errors;
-failed earlier calibrations remain evidence. Recalibrate if criteria or judge models
-change, rather than adding judges for the observed reporting failures.
+Literal Summary relay is implemented, followed by read-only diagnosis. The smaller
+workflow remains unaccepted. The bounded-report treatment at `487d0759` failed
+005/007 and a live successful-repair reporting check: unsupported claims moved
+inside its fields, retry coverage was lost and publication was invented. It was
+reverted. More warnings, prescribed fields or repetitions of that treatment have
+no demonstrated benefit. [Detailed results](../evals/README.md#multi-failure-replay)
+retain failed and incomplete trials, source revisions and costs.
+
+A candidate experiment is diagnosis in a fresh context over completed, frozen
+artifacts. Treat execution-context interference as a hypothesis, not an established
+cause: shorter replay contexts also failed. Before selecting it, verify the
+existing tool can evaluate this component. Predeclare the same diagnosis task,
+complete runtime/investigation inputs and repository instructions for treatment
+and comparator, and record added latency/cost and supported hosts. Preserve
+useful source/history analysis and prerequisite advice. Silently
+reducing the product to Summary-only reporting is not acceptance.
+
+Use case 005's supported repair, case 007's distinct failures/retry, and the latest
+Subctl case's unconfirmed attribution. Freeze witnesses and review the whole
+reply manually; the current judge cannot be the sole oracle. A component pass
+would justify a full invocation test, not acceptance by itself. Stop if the same
+errors persist. Do not add a permanent reviewer loop, new user command or context
+routing framework before showing a benefit. No production mechanism or new actor
+run is selected yet. The optional operational Summary handoff in the main plan
+has separate human value and does not solve unsupported causal prose.
+
+Keep checked-in repository instructions, including Admiral's `CLAUDE.md` and
+imported CVE workflow. They contain genuine competing procedure context, not
+answer leakage to remove. `project_hooks: false` does not disable that context;
+its presence does not prove causation. Resolve the Go-minor compatibility policy
+separately in [decisions](README.md#decisions), without removing repository policy
+or installing a natural-language policy parser.
+
+### Close distinct E2E coverage after relevant changes
+
+Use the existing stock runner and scenario-specific runtime assertions:
+
+- Validate changed engine paths with hermetic regressions first, then a real case
+  that actually reaches them. A clean scan does not exercise a repair or invalid
+  inherited-policy rejection. Resolve the Go-minor policy before measuring that
+  behavior. Do not hand-repair target repositories to obtain a passing result.
+- Admit historical case 002 only for the distinct positive-publication relay and
+  builder-owner decisions. Prepare the sanitized complete log, verified archive,
+  corrected reference and negatives model-free. Calibrate before behavioral
+  measurement using applicable stock criteria and thresholds, not Admiral-only
+  backport requirements or a new judge.
+- Close native case 003's missing invoking-agent completion after its recorded
+  engine success only with a changed mechanism or concrete current-engine
+  question. Likewise, exercise the missing-fork diagnostic on an actual success
+  path; the blocked Subctl follow-up never reached it. Local-only remotes can
+  legitimately withhold a PR recipe; do not invent a GitHub fork to force one.
+
+Mutable database misses remain missing coverage. Preserve source revisions,
+commands, evidence and costs; do not rerun a successful engine merely to seek
+accepted prose. Revalidate worker ownership/cancellation when recreating it and
+keep it stopped between selected runs. Do not expand to all repositories,
+per-run baseline testing, automated campaigns or target draft updates until the
+relevant result is independently correct and produced by the skill.
 
 ## Runtime and behavioral acceptance
 
@@ -271,7 +304,7 @@ Exercise timeout/cancellation and retention of partial evidence in that
 disposable environment before unattended runs. Parent time/budget limits do
 not account for all nested reviewers and judges. `CVE_FIX_SCAN_TIMEOUT` is not
 currently enforced uniformly across scanner and database calls; keep that
-runtime fix in the existing [operations plan](README.md#operations), rather
+runtime fix in the [prioritized changes](README.md#next-changes), rather
 than claim the configured value bounds every scan. Record environment failures,
 operator stops, elapsed time and available costs separately from model behavior;
 observed violations remain evidence even when a trial is stopped.

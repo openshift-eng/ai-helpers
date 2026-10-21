@@ -8,42 +8,52 @@ itself.
 
 ## Next changes
 
-Reporting quotes the observed terminal result, then identifies remaining work
-through read-only source and patch inspection. The smaller workflow remains
-unaccepted. The bounded-report treatment at `487d0759` failed its first replay
-pair and a real successful-repair reporting check. It was reverted to avoid retaining
-extra format and ownership instructions without demonstrated benefit.
+The skill remains unaccepted: real repairs and passing runtime assertions do
+not establish reliable final advice. The current factual judge also accepts a
+known unsupported explanation. Keep its scores advisory until calibration
+works; independent review must inspect the whole reply against the evidence.
+The [testing plan](testing.md#next-steps) separates these behavioral questions
+from deterministic engine fixes.
 
-Keep detailed trial histories and original scores in the
-[eval results](../evals/README.md#multi-failure-replay). The
-[testing plan](testing.md#next-steps) records the unresolved reporting boundary
-and genuine competing repository instructions. Current-engine source repair and
-parent completion are verified separately from failed publication advice. No
-further wording cohort, reviewer layer or automatic native retry is selected.
+Implement the following independently, with a focused regression for each:
 
-Bumps across a selected target's known major version now require review per
-in-scope module. Registry failures and unsuccessful updates keep their existing
-outcomes; local or unknown versions are not treated as major zero.
+1. **Validate report evidence.** `report.sh` takes the table-output path through
+   `scan.sh`, bypassing its JSON validator. Hermetic probes return exit 0 for
+   empty output, `{}` and multiple JSON documents, while the JSON path rejects
+   all three. Request one fresh JSON scan and render the human report from that
+   validated result. Preserve scanner failure/sentinel statuses and branch
+   cleanup; do not scan twice. Cover valid empty findings, findings and ignores,
+   malformed evidence and nonzero scanner outcomes. Assert exit status as well
+   as output; existing report fixtures mask it with `|| true`.
+2. **Bound shared scanner operations.** Enforce the existing timeout setting
+   around local version/scan calls and container database/scan operations.
+   A local scanner probe currently succeeds after exceeding its configured
+   limit. Reuse existing timeout handling, preserve diagnostics and caller
+   limits, and keep build deadlines separate. Specify whether the limit applies
+   per operation or to the complete fallback sequence; do not claim a total
+   deadline from several independent limits. Cover stalled operations, healthy
+   fallback without stale failure flags, and propagation to callers. Verify
+   timed-out container work terminates without broad container cleanup.
+3. **Preserve inherited ignore policy.** Implement the selected decision below
+   with a read-only structural check before `CLEAN_CMD`, build/scan and the
+   clean fast path.
+   Reuse that check in the YAML audit. The current awk checker misses flow-style
+   and quoted-key broad rules and rejects a valid quoted package name. Use a
+   real YAML parser; declare and verify PyYAML through existing prerequisites
+   rather than treating its absence as an empty policy. Parse failures and
+   unsupported structures must block. Cover block/flow styles, quoted keys,
+   aliases, malformed input and unavailable parser, plus absent/empty ignore
+   lists and valid neighboring rules. Require mappings for entries/packages
+   and string identities. On rejection, preserve policy bytes, create no repair
+   commit, restore the original ref/HEAD and remove the empty fix branch.
+   Keep legitimate complete unscoped-rule merging and introduced-rule repair working. This needs no
+   inherited-entry tracking or YAML serialization rewrite.
 
-Successful no-fix ignores now retain ignored credit without adding policy-review
-markers; existing decisions stay intact.
-
-The Kubernetes guard now preserves existing tracked-module/dependency identities
-after tidy and workspace sync, alongside its original global minor check. The
-unchanged-set regression rolls back; patch, disabled and absence controls pass.
-
-Test logging failures now block verification while preserving observed command
-results and successfully saved receipts.
-
-Package-fix and ignore commit subjects now fit 50 characters while retaining full
-identity in the body and preserving ignore reasons for existing summaries.
-
-Audit completeness and removal of model verification are implemented. All four
-audits gate verification and repair dispatch; shared helpers for `review.sh` and
-scanner retries remain. Fix report validation and scanner deadlines separately.
-Address inherited ignores separately. Keep these independent of the replay pilot:
-historical scripts cannot validate today's runtime fixes. Broader Go-minor
-policy needs a decision before changing its behavior.
+Resolve the Go-minor policy conflict before changing that behavior. The three
+engine fixes do not depend on another paid reporting trial. Existing major-
+version, Kubernetes-identity, no-fix-credit, audit and test-evidence guards remain
+implemented; keep their regressions rather than reopening them without a new
+failure.
 
 ## Decisions
 
@@ -54,19 +64,25 @@ policy needs a decision before changing its behavior.
   launch/retry/report machinery and their tests are deleted; `review.sh` retains
   AI analysis of flagged outcomes. Evidence-completeness checks, the bounded
   repair loop and independent final rescan remain.
-- **Flag, don't delete, pre-existing broad ignores.** Package-only entries on
-  the base branch (submariner-operator's `/tools` docker and containerd
-  exemptions) are removed, and scan-regression then re-ignores the findings
-  as "Regression from dependency update". Flagging keeps maintainer policy
-  but leaves such repositories NOT READY until `.grype.yaml` changes.
+- **Flag, don't delete, pre-existing broad ignores.** Inherited package-only
+  entries (including submariner-operator's `/tools` docker and containerd
+  exemptions) are currently removed and can be re-ignored as "Regression from
+  dependency update". The selected change is to stop with exit 2 before any
+  repair, preserving that policy until the maintainer changes `.grype.yaml`.
+  An early read-only check avoids introducing entry-provenance machinery.
 
 - **Plugin policy or repository notes on Go minor raises.**
   `fix-package.sh` accepts a Go directive raise the build image supports,
   and `SKILL.md` names a team decision only for Go above the build image.
   Submariner release branches carry `.agents/workflows/cve-fix.md`, which
   says to revert such a raise and consult the team for High or Critical
-  CVEs. Resolve how repository restrictions gate retained changes before
-  committing; a reviewer explanation after the run cannot enforce them.
+  CVEs. First distinguish obsolete workflow procedure from a binding repository
+  compatibility restriction and existing user authorization. Selecting this
+  skill supersedes an old manual procedure, not automatically that restriction.
+  If applicable, carry the decision through existing configuration/state to
+  both proposed-update and post-tidy guards, with rollback/exit 2 for a violation.
+  Preserve allowed patch updates and the existing default where unrestricted.
+  Do not add a natural-language policy parser or an unconditional global ban.
 
 ## Correctness
 
@@ -87,19 +103,20 @@ policy needs a decision before changing its behavior.
   publication; valid positive evidence still repairs and rechecks. The existing
   orchestration fixtures exercise missing directories/scripts and malformed
   counters, and the real Admiral audit archive remains compatible.
-- **YAML parsing.** Replace the awk heuristics that find ignore entries with
-  one parser using PyYAML node marks for entry boundaries. Preserve surrounding
-  comments and untouched text explicitly; node marks do not retain comments.
-  Declare PyYAML as a prerequisite if this makes its current optional use required.
+- **YAML parsing.** Start with the shared read-only structural check above.
+  Keep the small `.cve-fix.yaml` configuration grammar separate from Grype YAML.
+  Rewriting entry mutation, comment handling or serialization needs its own
+  demonstrated failure; it is not a prerequisite for preserving inherited rules.
 
 ## Operations
 
-- **Scanner deadlines.** Enforce `CVE_FIX_SCAN_TIMEOUT` at the shared scanner
-  boundary, including database updates. Several callers currently leave scans
-  unbounded. Keep build deadlines separate and preserve timeout diagnostics.
-- **Report completeness.** `report.sh` accepts empty scanner output with exit 0.
-  Use the same validated JSON evidence as remediation before declaring a report
-  complete; render the human output from that evidence.
+- **Operational handoff.** If needed after the engine fixes, expose effective
+  test command, reached phases, observed attempt results and available evidence
+  paths through the existing Summary/state. Share in-memory facts with optional
+  evidence writing: `run.json` is written after Summary in the exit trap, and
+  persisted attempt receipts require `CVE_FIX_EVIDENCE_DIR`. Do not make evidence
+  mandatory or claim missing attempts passed. A clearer handoff helps operators;
+  it does not establish causality or solve free-form diagnosis reliability.
 - **Temp space.** Host temporary directories and container storage can fill,
   producing test and build failures. Classify observed ENOSPC consistently in
   builds and test retries; tests currently recognize it only on the first
