@@ -66,7 +66,7 @@ def _evidence_items(c):
     d = c.get("disposition")
     an = d.get("analysis") if isinstance(d, dict) else None
     ev = an.get("evidence") if isinstance(an, dict) else None
-    return ev if isinstance(ev, list) else []
+    return [e for e in ev if isinstance(e, dict)] if isinstance(ev, list) else []
 
 
 def _rule_evidence(w, c):
@@ -138,6 +138,8 @@ def _rule_action_targets(p, c, a):
     ids = a.get("regression_ids")
     if not isinstance(ids, list) or not ids:
         return ["%s: regression_ids must be a non-empty list for a %s action" % (p, a.get("type"))]
+    if any(not isinstance(i, (int, str)) or isinstance(i, bool) for i in ids):
+        return ["%s: regression_ids must contain only integer or string ids" % p]
     members = _ids((c.get("members") or {}).get("regression_ids")) if isinstance(c.get("members"), dict) else set()
     errs = []
     outside = sorted(_ids(ids) - members, key=str)
@@ -186,7 +188,8 @@ def _cluster(c, idx):
     if not isinstance(c, dict):
         return ["cluster %d: expected object, got %s" % (idx, _t(c))]
     w = "cluster %s" % (c["id"] if isinstance(c.get("id"), str) else "#%d" % idx)
-    return [e for rule in CLUSTER_RULES for e in rule(w, c)]
+    errs = [] if isinstance(c.get("id"), str) and c["id"] else ["%s: id must be a non-empty string, got %s" % (w, _t(c.get("id")))]
+    return errs + [e for rule in CLUSTER_RULES for e in rule(w, c)]
 
 
 def _rule_probe(doc):
@@ -219,6 +222,29 @@ def _rule_catch_all(doc):
         rc = a.get("rule_checks")
         rc = rc if isinstance(rc, dict) else {}
         errs += ["%s: rule_checks.%s must be true" % (p, k) for k in RULE_CHECKS if rc.get(k) is not True]
+    return errs + _rule_catch_all_actions(doc, ca, adm)
+
+
+def _rule_catch_all_actions(doc, ca, adm):
+    """A catch_all action is only legitimate for members admitted under the four rule checks, and only
+    against the configured catch-all triage (review N5)."""
+    admitted = {a.get("regression_id") for a in adm if isinstance(a, dict) and isinstance(a.get("regression_id"), (int, str))
+                and isinstance(a.get("rule_checks"), dict) and all(a["rule_checks"].get(k) is True for k in RULE_CHECKS)}
+    target = ca.get("triage_id")
+    errs = []
+    clusters = doc.get("clusters") if isinstance(doc.get("clusters"), list) else []
+    for c in clusters:
+        if not isinstance(c, dict) or not isinstance(c.get("actions"), list):
+            continue
+        for j, a in enumerate(c["actions"]):
+            if not isinstance(a, dict) or a.get("type") != "catch_all":
+                continue
+            p = "cluster %s actions[%d]" % (c.get("id"), j)
+            if target is not None and str(a.get("triage_id")) != str(target):
+                errs.append("%s: catch_all action targets triage %s, not the catch-all triage %s" % (p, a.get("triage_id"), target))
+            not_admitted = sorted(_ids(a.get("regression_ids")) - admitted, key=str)
+            if not_admitted:
+                errs.append("%s: catch_all action for members without a valid catch_all.admitted entry %s" % (p, not_admitted))
     return errs
 
 
@@ -257,7 +283,7 @@ def validate(doc):
     for i, c in enumerate(cl):
         errs += _cluster(c, i)
         cid = c.get("id") if isinstance(c, dict) else None
-        if cid is not None:
+        if isinstance(cid, (str, int)):
             if cid in seen:
                 errs.append("cluster %s: duplicate cluster id (also at index %d)" % (cid, seen[cid]))
             seen.setdefault(cid, i)

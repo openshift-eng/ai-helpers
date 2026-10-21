@@ -359,6 +359,39 @@ class ManifestTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             m.merge(pp, {}, {})
 
+    def test_validate_never_raises_on_wave2_shapes(self):
+        shapes = []
+        x = example(); x['clusters'][0]['disposition']['analysis']['evidence'] = [None, 1, 'x']; shapes.append(x)
+        x = example(); x['clusters'][0]['id'] = []; shapes.append(x)
+        x = example(); x['clusters'][0]['id'] = {'a': 1}; x['clusters'].append(copy.deepcopy(x['clusters'][0])); shapes.append(x)
+        x = example(); x['clusters'][0]['actions'][0]['regression_ids'] = [[1], {'a': 2}]; shapes.append(x)
+        x = example(); x['clusters'][0]['members']['regression_ids'] = None; shapes.append(x)
+        x = example(); x['catch_all'] = {'admitted': [None, {'regression_id': [1]}]}; shapes.append(x)
+        for doc in shapes:
+            errs = m.validate(doc)            # must not raise
+            self.assertTrue(errs)
+
+    def _catch_all_doc(self, triage_id=851, admitted=True):
+        x = example(); c = x['clusters'][0]
+        member = c['members']['regression_ids'][0]
+        c['disposition']['state'] = 'UNEXPLAINED'
+        c['disposition']['proposed_action'] = {'type': 'none'}
+        c['actions'] = [{'type': 'catch_all', 'triage_id': triage_id, 'jira': 'OCPQUAL-88',
+                         'regression_ids': [member], 'status': 'skipped-report-mode'}]
+        x['catch_all'] = {'jira': 'OCPQUAL-88', 'triage_id': 851, 'admitted': []}
+        if admitted:
+            x['catch_all']['admitted'] = [{'regression_id': member, 'signature': 's', 'status': 'skipped-report-mode',
+                                           'rule_checks': {'examined': True, 'no_bug_meets_bar': True, 'not_in_cluster': True, 'pre_5_0': True}}]
+        return x, member
+
+    def test_catch_all_action_must_match_an_admission_and_the_catch_all_triage(self):
+        x, member = self._catch_all_doc()
+        self.assertEqual(m.validate(x), [])                                   # admitted + right triage → valid
+        x, member = self._catch_all_doc(admitted=False)
+        self.assertTrue(any('catch_all' in e and str(member) in e for e in m.validate(x)))
+        x, member = self._catch_all_doc(triage_id=810)
+        self.assertTrue(any('catch_all' in e and '810' in e for e in m.validate(x)))
+
     def test_cli_error_paths_and_merge_then_validate(self):
         cli = os.path.join(HERE, 'manifest.py')
         ex = example()
