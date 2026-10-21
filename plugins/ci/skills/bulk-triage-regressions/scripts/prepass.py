@@ -6,6 +6,7 @@ clustering.py and blast_radius.py.
 """
 import argparse
 import importlib.util
+import hashlib
 import json
 import os
 import subprocess
@@ -233,7 +234,7 @@ def oracle(cluster, runner=None, token=None, labels_fetch=None):
                 continue
             res = item.get('result') or {}
             # Queue state is authoritative for progress; result.status for the evaluation itself.
-            if item.get('state') != 'completed' or res.get('status') not in (None, 'success'):
+            if item.get('state') != 'completed' or not isinstance(res, dict) or res.get('status') != 'success':
                 problems.append('%s: state=%s result=%s%s' % (rid, item.get('state'), res.get('status'),
                                                               (' (%s)' % res.get('error')) if res.get('error') else ''))
                 continue
@@ -255,7 +256,9 @@ def oracle(cluster, runner=None, token=None, labels_fetch=None):
     if wanted:
         try:
             catalogue = (labels_fetch or fetch_labels)()
-            out['label_bugs'] = {l['id']: list(l.get('bugs') or []) for l in catalogue if l.get('id') in wanted}
+            known = {l['id']: list(l.get('bugs') or []) for l in catalogue if isinstance(l, dict) and l.get('id') in wanted}
+            # a label the catalogue does not list is unknown (None), not "observed with no bugs" ([])
+            out['label_bugs'] = {lab: known.get(lab) for lab in sorted(wanted)}
         except Exception as e:  # noqa: BLE001 - surfaced, never silently empty
             out['label_bugs'] = None   # unknown mapping — never "these labels have no bugs"
             out['label_bugs_error'] = str(e)
@@ -289,6 +292,8 @@ def diff_baseline(clusters, baseline, run_id='local'):
         sizes = {b['id']: len(b['members']['regression_ids']) for b in baseline['clusters']}
         c['lineage']['supersedes'] = sorted(b for b, n in counts.items() if n * 2 >= sizes[b])
         prev = base.get(c['id'])
+        if prev is None and len(c['lineage']['supersedes']) == 1:
+            prev = base[c['lineage']['supersedes'][0]]   # same cluster under a new id (collision came or went)
         if prev:
             c['lineage']['first_seen_run'] = (prev.get('lineage') or {}).get('first_seen_run') or block['run_id']
             c['lineage']['cycles_seen'] = ((prev.get('lineage') or {}).get('cycles_seen') or 1) + 1
@@ -327,16 +332,17 @@ def build_clusters(regs, now):
             '_members': members,
         })
     # Distinct clusters can share a family fingerprint (e.g. "[a] same test" vs "[b] same test"); ids must
-    # stay unique because dispositions, actions and baselines are keyed by them (review I3). The cluster
-    # with the lowest member id keeps the bare id; the others get a deterministic ordinal suffix.
+    # stay unique because dispositions, actions and baselines are keyed by them (review I3). On a collision
+    # EVERY colliding cluster gets a suffix derived from its own raw test names, so the id never depends on
+    # which neighbours happen to exist (review N8); lineage across an id change follows the majority successor.
     by_id = {}
     for c in out:
         by_id.setdefault(c['id'], []).append(c)
     for cid, group in by_id.items():
         if len(group) > 1:
-            group.sort(key=lambda c: min(c['members']['regression_ids']))
-            for n, c in enumerate(group[1:], start=2):
-                c['id'] = '%s-%d' % (cid, n)
+            for c in group:
+                names = '\n'.join(sorted({r['test_name'] for r in c['_members']}))
+                c['id'] = '%s-%s' % (cid, hashlib.sha1(names.encode('utf-8')).hexdigest()[:6])
     out.sort(key=lambda c: (LEVEL_ORDER[c['blast_radius']['level']], -c['blast_radius']['score'], c['id']))
     return out
 
@@ -390,68 +396,79 @@ def _baseline_known(baseline):
             if isinstance(c, dict) and (c.get('blast_radius') or {}).get('level') == 'HIGH'}
 
 
-def _belongs_to_known(c, k):
-    fp, kfp = c['fingerprint'], k.get('fingerprint') or {}
-    if fp['release'] != kfp.get('release') or fp['lane_family'] != kfp.get('lane_family'):
-        return False
-    return fp['test_family'] == kfp.get('test_family') or bool(set(c['shape']['top_jobs']) & set((k.get('shape') or {}).get('top_jobs') or []))
+def _public(c):
+    return {k: v for k, v in c.items() if k != '_members'}
 
 
 def tripwire(regs, now, window_hours, previous_status, view_status=None, run_id='local', baseline=None):
     start = now - timedelta(hours=window_hours)
     window = [r for r in regs if start <= clustering.parse_ts(r['opened']) < now]
+    window_ids = {r['id'] for r in window}
     clusters = build_clusters(window, now)
-    # Only clusters that were NOTIFIED before count as known (review I1): a lane that merely carried an
-    # un-notified LOW cluster must not turn the first HIGH into a silent `continuing`.
+    # Only clusters that were NOTIFIED before count as known (review I1), level-aware (review N6): an
+    # informational ELEVATED trigger is not HIGH notification history, so a promotion to HIGH is `new`.
     prev_clusters = {c['id']: c for c in (previous_status or {}).get('clusters', []) if isinstance(c, dict)}
-    prev, prev_fp, prev_growth = {}, {}, {}
+    prev, prev_fp, prev_member, prev_growth = {}, {}, {}, {}
     for t in (previous_status or {}).get('triggers', []):
         if not isinstance(t, dict):
             continue
-        if t.get('kind') == 'growth' or 'new_members' in t:
+        if 'new_members' in t:                      # weekly-growth trigger (dedicated shape)
             prev_growth[t['cluster_id']] = set(t.get('new_members') or [])
             continue
         c = prev_clusters.get(t.get('cluster_id'))
         if not c:
             continue
-        n = len(c['members']['regression_ids'])
-        prev[c['id']] = n
+        n, lvl = len(c['members']['regression_ids']), t.get('level')
+        prev[c['id']] = (lvl, n)
+        for rid in c['members']['regression_ids']:        # the same regressions = the same event, whatever the id
+            prev_member[rid] = (lvl, n)
         fp = c.get('fingerprint') or {}
         # a rolling window's test_family is unstable, so a same-release same-lane notified cluster is the same event
         k = (fp.get('release'), fp.get('lane_family'))
-        prev_fp[k] = max(n, prev_fp.get(k, 0))
+        old = prev_fp.get(k)
+        prev_fp[k] = (lvl, n) if old is None or LEVEL_ORDER.get(lvl, 9) < LEVEL_ORDER.get(old[0], 9) or n > old[1] else old
     triggers = []
-    known_high = _baseline_known(baseline)
-    growth_members = {}
     for c in clusters:
         level, s = c['blast_radius']['level'], c['shape']
         if level == 'HIGH' or (level == 'ELEVATED' and s['regressions'] >= 50 and s['distinct_jobs'] <= 3):
             fpk = (c['fingerprint']['release'], c['fingerprint']['lane_family'])
-            known = prev.get(c['id'], prev_fp.get(fpk))
+            known = prev.get(c['id'])
             if known is None:
+                shared = [prev_member[r] for r in c['members']['regression_ids'] if r in prev_member]
+                known = max(shared, key=lambda kn: (kn[0] == 'HIGH', kn[1])) if shared else prev_fp.get(fpk)
+            if known is None or (level == 'HIGH' and known[0] != 'HIGH'):
                 kind = 'new'
-            elif known < s['regressions']:
+            elif known[1] < s['regressions']:
                 kind = 'growth'
             else:
                 kind = 'continuing'
             triggers.append({'cluster_id': c['id'], 'kind': kind, 'level': level,
                              'reasons': c['blast_radius']['reasons']})
-            continue
-        # Growth of a known weekly HIGH cluster (spec §4 step 6): new members on its lane/test family.
+    # Growth of a known weekly HIGH cluster (spec §4 step 6): cluster the ACTIVE open inventory with the
+    # real clustering (shared runs / same test), then attach a new window member to a known cluster only when
+    # it landed in the same active cluster as that cluster's members (review N7) — never by lane or job name.
+    known_high = _baseline_known(baseline)
+    known_growth = []
+    if known_high:
+        active = build_clusters([r for r in regs if is_open(r)], now)
         for kid, k in known_high.items():
-            if _belongs_to_known(c, k):
-                new = sorted(set(c['members']['regression_ids']) - set(k['members']['regression_ids']))
+            kmembers = set(k['members']['regression_ids'])
+            for a in active:
+                members = set(a['members']['regression_ids'])
+                if not (members & kmembers):
+                    continue
+                new = sorted((members & window_ids) - kmembers)
                 if new:
-                    growth_members.setdefault(kid, set()).update(new)
-                break
-    for kid in sorted(growth_members):
-        new = sorted(growth_members[kid])
-        before = prev_growth.get(kid)
-        kind = 'continuing' if before is not None and set(new) <= before else 'growth'
-        k = known_high[kid]
-        triggers.append({'cluster_id': kid, 'kind': kind, 'level': 'HIGH', 'new_members': new,
-                         'reasons': ['known HIGH cluster %s (%d regressions in the weekly run) gained %d in the window'
-                                     % (kid, len(k['members']['regression_ids']), len(new))] + list(k['blast_radius'].get('reasons') or [])})
+                    before = prev_growth.get(kid)
+                    kind = 'continuing' if before is not None and set(new) <= before else 'growth'
+                    triggers.append({'cluster_id': kid, 'kind': kind, 'level': 'HIGH', 'new_members': new,
+                                     'active_cluster_id': a['id'],
+                                     'reasons': ['known HIGH cluster %s (%d regressions in the weekly run) gained %d in the window'
+                                                 % (kid, len(kmembers), len(new))] + list(k['blast_radius'].get('reasons') or [])})
+                    known_growth.append({'known_cluster_id': kid, 'known_level': 'HIGH', 'new_members': new,
+                                         'active_cluster': _public(a)})
+        for a in active:
+            del a['_members']
     for c in clusters:
         del c['_members']
     status = view_status if view_status is not None else _statuses_from_records(window, now)
@@ -463,6 +480,7 @@ def tripwire(regs, now, window_hours, previous_status, view_status=None, run_id=
                          'known_high_clusters': sorted(known_high)},
         'clusters': clusters,
         'triggers': triggers,
+        'known_growth': known_growth,
         'previous_status_run': ((previous_status or {}).get('observation') or {}).get('time'),
     }
 

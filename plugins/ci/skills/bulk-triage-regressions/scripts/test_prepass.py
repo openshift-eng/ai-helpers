@@ -185,8 +185,10 @@ class BaselineTest(unittest.TestCase):
         self.assertEqual(len(big['members']['regression_ids']), 4)
         self.assertIn('c-old', big['lineage']['supersedes'])
         self.assertNotIn('c-old', small['lineage']['supersedes'])
-        self.assertEqual(big['lineage']['first_seen_run'], 'r1')
-        self.assertEqual(big['lineage']['cycles_seen'], 1)
+        # the majority successor continues the superseded cluster's lineage (its id changed, not its identity)
+        self.assertEqual(big['lineage']['first_seen_run'], 'r0')
+        self.assertEqual(big['lineage']['cycles_seen'], 2)
+        self.assertEqual((small['lineage']['first_seen_run'], small['lineage']['cycles_seen']), ('r1', 1))
 
     def test_same_id_increments_cycles_and_counts_new(self):
         regs = [reg(1, 'a', [run('1')]), reg(2, 'a', [run('1')])]
@@ -221,8 +223,8 @@ class OracleTest(unittest.TestCase):
     def test_oracle_parses_json_despite_stderr_notice(self):
         # Real CLI shape in --format json mode: the submission notice goes to stderr, the batch JSON to stdout.
         batch = json.dumps({"batch_id": "b1", "status": "completed", "items": [
-            {"item_key": "2109437410046644224", "state": "completed", "result": {"labels_applied": ["QuayCDNImageConfigEOF"]}},
-            {"item_key": "2109075017747664896", "state": "completed", "result": {"labels_applied": []}}]}, indent=2)
+            {"item_key": "2109437410046644224", "state": "completed", "result": {"status": "success", "labels_applied": ["QuayCDNImageConfigEOF"]}},
+            {"item_key": "2109075017747664896", "state": "completed", "result": {"status": "success", "labels_applied": []}}]}, indent=2)
         notice = "Submitted reevaluation (DRY RUN) batch b1; status: https://sippy-auth/x (save this URL ...)\n"
         members = [{'id': 1, 'release': '4.22', 'test_name': 't', 'component': 'c', 'variants': [], 'opened': '2026-10-01T00:00:00Z',
                     'closed': None, 'duty_views': ['4.22-main'],
@@ -319,7 +321,7 @@ class ReviewFixesTest(unittest.TestCase):
         ids = [c['id'] for c in doc['clusters']]
         self.assertEqual(len(ids), 3)
         self.assertEqual(len(set(ids)), 3, ids)
-        self.assertEqual(sorted(ids)[0], ids[0][:8])            # the first keeps the bare family id
+        self.assertTrue(all(len(i.split('-')) == 3 for i in ids), ids)   # every colliding cluster is suffixed by its own test names
         # deterministic: same input → same ids
         self.assertEqual(ids, [c['id'] for c in p.weekly([reg(1, '[a] same test', [run('1')]), reg(2, '[b] same test', [run('2')]),
                                                           reg(3, '[c] same test', [run('3')])], now, None)['clusters']])
@@ -443,6 +445,114 @@ class ReviewFixesTest(unittest.TestCase):
         # an incompatible baseline contributes nothing (and does not raise)
         self.assertEqual([t for t in p.tripwire(self.frozen, now, 24, None, baseline={'schema_version': '0.9'})['triggers']
                           if t['kind'] == 'growth'], [])
+
+
+class ReviewWave2Test(unittest.TestCase):
+    """Review wave 2: N3 oracle strictness, N6 tripwire promotion/continuity, N7 growth association, N8 stable ids."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.frozen = load('frozen-2026-10-07.json.gz')
+
+    # ---- N3 ----
+    def test_oracle_requires_an_explicit_success_result(self):
+        members = [reg(1, 't', [run('1')])]
+        for res in ({'error': 'GCS timeout'}, {}, None, {'labels_applied': []}):
+            batch = {'items': [{'item_key': '1', 'state': 'completed', 'result': res}]}
+            o = p.oracle(members, runner=lambda a, b=batch: (0, json.dumps(b), ''), token='t', labels_fetch=lambda: [])
+            self.assertEqual(o['status'], 'failed', res)
+
+    def test_label_missing_from_catalogue_is_unknown_not_empty(self):
+        members = [reg(1, 't', [run('1')])]
+        batch = {'items': [{'item_key': '1', 'state': 'completed', 'result': {'status': 'success', 'labels_applied': ['L1', 'L2']}}]}
+        o = p.oracle(members, runner=lambda a: (0, json.dumps(batch), ''), token='t',
+                     labels_fetch=lambda: [{'id': 'L1', 'bugs': []}])
+        self.assertEqual(o['status'], 'ok')
+        self.assertEqual(o['label_bugs'], {'L1': [], 'L2': None})      # L1 observed with no bugs; L2 unknown
+
+    # ---- N6 ----
+    def _burst(self, offset, opened, started, broad, n=8):
+        base = 'periodic-ci-openshift-release-main-nightly-4.22-e2e-'
+        out = []
+        for i in range(n):
+            plat = 'gcp' if broad and i % 2 else 'aws'
+            suffix = '-runc' if broad and i % 4 < 2 else ''
+            r = reg(offset + i, 'same test', [run(str(offset + i), job=base + plat + '-ovn' + suffix, start=started)], opened=opened)
+            r['variants'] = ['Platform:' + plat]
+            out.append(r)
+        return out
+
+    def test_elevated_to_high_promotion_is_new(self):
+        # an informational ELEVATED mass-failure trigger is not HIGH notification history
+        lane = 'periodic-ci-openshift-release-main-nightly-4.22-e2e-aws-ovn'
+        mass = [reg(100 + i, 'same test', [run(str(100 + i), job=lane, start='2026-10-21T05:00:00Z')], opened='2026-10-21T04:00:00Z') for i in range(50)]
+        prev = p.tripwire(mass, ts('2026-10-21T06:00:00Z'), 24, None)
+        self.assertEqual([t['level'] for t in prev['triggers']], ['ELEVATED'])
+        cur = p.tripwire(self._burst(0, '2026-10-21T10:00:00Z', '2026-10-21T11:00:00Z', broad=True), ts('2026-10-21T12:00:00Z'), 24, prev)
+        self.assertEqual([(t['level'], t['kind']) for t in cur['triggers']], [('HIGH', 'new')])
+
+    def test_burst_growth_then_unchanged_is_continuing(self):
+        now = ts('2026-10-21T12:00:00Z')
+        eight = self._burst(0, '2026-10-21T10:00:00Z', '2026-10-21T11:00:00Z', broad=True)
+        first = p.tripwire(eight, now, 24, None)
+        nine = eight + self._burst(8, '2026-10-21T10:30:00Z', '2026-10-21T11:30:00Z', broad=True, n=1)
+        second = p.tripwire(nine, now, 24, first)
+        third = p.tripwire(nine, now, 24, second)
+        self.assertEqual([t['kind'] for t in first['triggers']], ['new'])
+        self.assertEqual([t['kind'] for t in second['triggers']], ['growth'])
+        self.assertEqual([t['kind'] for t in third['triggers']], ['continuing'])
+
+    # ---- N7 ----
+    def test_growth_on_a_non_dominant_lane_of_a_known_cluster(self):
+        old = self._burst(0, '2026-10-20T11:00:00Z', '2026-10-20T12:00:00Z', broad=True)
+        weekly = p.weekly(old, ts('2026-10-21T06:00:00Z'), None)
+        self.assertEqual(weekly['clusters'][0]['blast_radius']['level'], 'HIGH')
+        kid = weekly['clusters'][0]['id']
+        # one new member sharing a RUN with an existing member, on the cluster's minority lane
+        new = reg(50, 'same test', [run('50', job='periodic-ci-openshift-release-main-nightly-4.22-e2e-gcp-ovn-runc', start='2026-10-21T11:00:00Z'),
+                                   run('1', job=old[1]['job_runs'][0]['prowjob_name'], start='2026-10-20T12:00:00Z')],
+                  opened='2026-10-21T10:00:00Z')
+        new['variants'] = ['Platform:gcp']
+        doc = p.tripwire(old + [new], ts('2026-10-21T12:00:00Z'), 24, None, baseline=weekly)
+        g = [t for t in doc['triggers'] if t['kind'] == 'growth']
+        self.assertEqual(len(g), 1, doc['triggers'])
+        self.assertEqual((g[0]['cluster_id'], g[0]['new_members']), (kid, [50]))
+        self.assertTrue(doc['known_growth'] and doc['known_growth'][0]['active_cluster']['shape']['regressions'] == 9)
+
+    def test_unrelated_test_on_a_shared_job_name_is_not_growth(self):
+        old = self._burst(0, '2026-10-20T11:00:00Z', '2026-10-20T12:00:00Z', broad=True)
+        weekly = p.weekly(old, ts('2026-10-21T06:00:00Z'), None)
+        new = reg(50, 'an unrelated assertion', [run('50', job=old[0]['job_runs'][0]['prowjob_name'], start='2026-10-21T11:00:00Z')],
+                  opened='2026-10-21T10:00:00Z')
+        doc = p.tripwire(old + [new], ts('2026-10-21T12:00:00Z'), 24, None, baseline=weekly)
+        self.assertEqual([t for t in doc['triggers'] if t['kind'] == 'growth'], [])
+
+    # ---- N8 ----
+    def test_colliding_ids_are_stable_when_a_neighbour_disappears(self):
+        now = ts('2026-10-07T12:00:00Z')
+        a, b, c3 = (reg(1, '[a] same test', [run('1')]), reg(2, '[b] same test', [run('2')]), reg(3, '[c] same test', [run('3')]))
+        base = p.weekly([a, b], now, None)
+        base['source_run'] = {'run_id': 'r0'}
+        for cl in base['clusters']:
+            cl['lineage']['cycles_seen'] = 20 if 1 in cl['members']['regression_ids'] else 1
+            cl['lineage']['first_seen_run'] = 'hist-%d' % cl['members']['regression_ids'][0]
+        nxt = p.weekly([b, c3], now, base)
+        by_member = {cl['members']['regression_ids'][0]: cl for cl in nxt['clusters']}
+        self.assertEqual(by_member[2]['id'], [cl for cl in base['clusters'] if 2 in cl['members']['regression_ids']][0]['id'])
+        self.assertEqual(by_member[2]['lineage']['cycles_seen'], 2)          # b's own history continues
+        self.assertEqual(by_member[3]['lineage']['cycles_seen'], 1)          # c is new, inherits nothing
+        self.assertEqual(by_member[3]['lineage']['first_seen_run'], 'local')
+
+    def test_lineage_follows_a_majority_successor_when_the_id_changes(self):
+        now = ts('2026-10-07T12:00:00Z')
+        a, b = reg(1, '[a] same test', [run('1')]), reg(2, '[b] same test', [run('2')])
+        base = p.weekly([a, b], now, None); base['source_run'] = {'run_id': 'r0'}
+        for cl in base['clusters']:
+            cl['lineage']['cycles_seen'] = 3; cl['lineage']['first_seen_run'] = 'hist-%d' % cl['members']['regression_ids'][0]
+        nxt = p.weekly([b], now, base)                      # b alone: no collision any more → bare id
+        cl = nxt['clusters'][0]
+        self.assertEqual(cl['lineage']['cycles_seen'], 4)
+        self.assertEqual(cl['lineage']['first_seen_run'], 'hist-2')
 
 
 class CliTest(unittest.TestCase):
