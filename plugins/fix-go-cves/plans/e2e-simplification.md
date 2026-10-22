@@ -45,7 +45,7 @@ first-reference candidates failed; this is a recency hypothesis, not an establis
 remedy. Keep useful backport/image repair discovery while removing unsupported
 cause and future-result narratives. Authenticate reviewer suggestions against
 actual target configuration and command receipts before selecting an owner. The current entrypoint/reference total is
-about 160 lines versus the original 180; moving rules is not a vast total reduction.
+about 170 lines versus the original 180; moving rules is not a vast total reduction.
 
 Runtime output exposes available scan scope without duplicating the eval's full
 catalog-proof system. Reporting uncertainty remains separate from the blocking
@@ -75,28 +75,36 @@ runtime behavior opportunistically.
    own publication/builder profile and calibrated controls. Current immutable
    runtime, helper and focused results are recorded in the results page; they do
    not accept invoking-agent behavior.
-2. **Freeze a reviewable candidate before further measurement.** The handoff
-   and observed-evidence groups improve 005 but reject 007 on unsupported cause
-   and predictions. Optional prose still invents native proof or technical facts.
-   Use literal evidence cells, imperative action/owner/prerequisite rows and
-   script-emitted scope statements; passing retries retain an investigation.
-   Preserve every prior trial. Commit the candidate and run from
-   a detached worktree so later edits cannot change staging or scoring bytes.
-3. **Inspect changed-candidate pilots before expanding.** Declare blocked 005,
-   multi-attempt 007 and positive 002, source/helper/profile hashes, identities,
-   caps and expected criteria before launch. All must pass stock thresholds and
-   whole-reply review. Integration 005/007 are predestined repetition one of three.
-   A rejected pilot requires diagnosis before another treatment; never retry an
-   unchanged question merely to obtain a passing result.
-4. **Close the complete evidence set.** Measure the remaining declared replay
-   repetitions and four serial real live cases from the same frozen candidate.
-   Require all stock samples/HTML/completion/regression, corrected scenario proof
-   and whole-reply review. Runtime native proof from earlier source groups remains
-   valuable but cannot establish the new invoking-skill cohort. Documentation-only
-   edits need no new actors; do not pool source groups or select best runs.
+2. **Freeze the corrected handoff before measurement.** Literal pilots pass,
+   but repetition 007 attempts a denied stash and omits remote landing. Move
+   attribution uncertainty before immutable-ref repair discovery; move existing
+   origin/image/compatibility prerequisites beside the final table. Keep failed
+   retries visible even when the final run succeeds. Preserve every old worktree,
+   denial, failed grade and oracle disagreement.
+3. **Run three changed-source pilots before expanding.** Declare blocked 005,
+   two-attempt 007 and positive 002 with complete source/helper/profile identities.
+   Require stock completion/thresholds and independent whole replies. Accepted
+   005/007 pilots are predestined repetition one of three; no duplicate cohort.
+   Only accepted pilots admit the four remaining replay executions and two native
+   coverage measurements. Stop on a concrete disqualifying failure and diagnose
+   before another treatment; no unchanged retries seeking a pass.
+4. **Keep the real-repository prerequisite explicit.** Latest live002 clears the
+   five findings but both canonical test attempts detect a workqueue race. The
+   required successful-repair contract remains failed. One independent baseline
+   suite passes, which does not establish causality. Review and verify the narrow
+   [external fixture candidate](workqueue-race.md) separately; do not mutate the eval case, skip tests,
+   mask race detection or rerun until a favorable seed appears. Closing the full
+   cohort requires a reviewed upstream repair and declared fresh official pin.
+5. **Close evidence without pooling source groups.** Current pilots/repetitions
+   can establish their own milestones. Native 003/004 remain separate current-skill
+   coverage questions; earlier engine proof does not accept a new invoking skill.
+   A full uniform cohort must later include all four real cases. Preserve complete
+   samples, scenario proof, whole reviews, HTML and regression results. Documentation
+   changes need no new actors.
 
-Both historical cases three times, positive 002 and four live cases total eleven
-actors, or $115 in current actor caps; previous failed pilots are additional.
+The bounded follow-up is at most nine actors: three pilots, four remaining replay
+executions and two native cases ($75 actor caps). A future full uniform cohort is
+eleven actors ($115 caps); previous failed measurements are additional.
 Judge/nested costs are separate or unknown. Use existing deadlines, not undeclared
 retries or adaptive cap extensions. Compare current skill hashes across applicable
 cases and runtime hashes across live cases; historical archives keep their own

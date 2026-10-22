@@ -82,45 +82,55 @@ helper allowed **scoring/report/verification only**, with byte-identical actor
 artifacts and no actor retry. Both recovered stock passes above are false positives
 against whole-reply requirements. Retain the integrity failure alongside recovery.
 
-## Current candidate and evidence
+## Current treatment and remaining acceptance
 
-Runtime bytes remain those of the immutable suite. Actor/judge model is
-`claude-opus-4-6`, CLI `2.1.307`, harness
-`1a980e707909a23f8c143ce333d97f5203db34ab`; later candidate profiles explicitly
-select actor effort `max`. The complete current skill subtree is staged alongside
-the historical runtime, including reporting references and removal of obsolete
-reference files.
+The literal source group at `472270e9` was measured from an unchanged detached
+worktree. All three pilots passed stock thresholds and independent review. The
+second replay pair then exposed a denied `git stash` and omitted upstream-landing
+prerequisite in 007. Preserve the correct contract failure and the factual judge's
+false positive; final clean refs do not excuse an attempted forbidden operation.
 
-The handoff and observed-evidence groups improved blocked 005 but still failed
-007 and optional scope/technical explanations. Both real native runs independently establish initial/final
-binary catalog/hash/clean-VCS proof, unit tests, four audits and license checks.
-They retain partial repairs with one stdlib finding: the current database requires
-Go 1.26.10 while the builder supplies 1.26.9. This is valid blocked coverage, not
-stdlib remediation or accepted invoking-agent behavior.
+| Literal measurement | Stock result | Independent result |
+| --- | --- | --- |
+| `simplify-literal-replay-20261022-01` | 005/007 C/B/A pass | Both pass; minor format/reference-order deviations retained |
+| `simplify-literal-publication-20261022-01` | C/O/A pass | Pass; exact recipe and supported image prerequisite |
+| `simplify-literal-replay-20261022-02` | 005 C/B/A pass; 007 C fail, B/A pass | 005 passes; 007 denied stash and missing origin landing |
+| `simplify-literal-live001-20261022-01` | C/O/A pass | Runtime 21/21; whole reply passes; guarded exit 2, five findings, no commits, original ref restored |
+| `simplify-literal-live002-20261022-01` | C fail, O/A pass | x/net repair clears five findings, but both unit attempts fail on the same workqueue race; whole advice omits origin landing |
 
-The observed-evidence treatment was committed and measured from detached
-`5ace9fdb`. Its table still allowed unsupported rationale in action cells. The next
-treatment uses only literal evidence, imperative actions and owner/prerequisites;
-passing retries retain a maintainer investigation. Scope belongs to emitted script
-statements, with a fixed unverified fallback when absent. Task-completion messages
-and finding paths alone establish no catalog proof. Rejected alternatives and
-unobserved technical explanations are omitted. No runtime orchestration changes
-are required. Freeze the next complete candidate before measurement; preserve
-older worktrees and do not pool source groups.
+Live002 retains `ed36476d` with only go.mod/go.sum changes. Four audits and final
+scan pass; passing scans cannot override failed tests. Both race attempts retain
+paired logs/receipts. The failed successful-repair scenario remains failed; no
+extra retry or local patch is applied to its eval case. A separately declared
+single baseline `make unit` at `af20d0bf` passed. That control does not establish
+absence of the race or attribute the update's role. The test-fixture lifetime
+mechanism and a narrow external candidate are being verified separately.
 
-Scratch evidence is under `.work/fix-go-cves-implementation-20261022/`:
-`candidate-protocol.json`, `publication-v2-protocol.json`,
-`facts-candidate-protocol.json`, `reference-candidate-protocol.json`,
-`final-candidate-protocol.json`, `publication-02-launch-error.json`,
-`independent-replay-case-{005,007}-review.json`,
-`publication-whole-reply-review.json`, `publication03-whole-reply-review.json`,
-`reference-pilots-whole-reply-review.json`, `live001-oracle-correction-recheck.json`
-and `reference{005,-publication}-before-scoring-recovery/`.
-Per-run directories retain frozen inputs, replies, traces, grades and HTML reports.
-Initial model-free setup failures used incomplete promisor caches; corrected fresh
-public Git caches did not change user checkouts or execute actors.
+Current changes move existing remote/image prerequisites beside the reporting
+table and put attribution uncertainty before repair discovery. Immutable-ref
+reads use captured command/base/retained commits; a refreshed origin ref is not
+the executed base. Every failure or unresolved decision gets a row, including a
+failed-then-passed attempt; unknown repairs get an investigation instruction.
+Already quoted script scope gets no duplicate interpretation. Runtime/helper bytes
+remain those verified above. The new invoking skill is unmeasured until frozen.
 
-Native runtime coverage is demonstrated, but an accepted current-source cohort
-and three-execution 005/007 reliability remain incomplete. Earlier rejected source
-groups supply no current-source reliability credit; a full
-11-actor set has $115 actor caps, with judges/nested costs additional or unknown.
+The live action criterion now explicitly requires upstream repair landing before
+reruns and published images before consumer reruns. Its two controls match all
+6/6 samples and 2/2 majorities, preserving the prior false-positive grades. Full
+oracle details belong to the [native/live calibration record](live/calibration.md)
+and [publication calibration record](cases/case-002/calibration.md).
+
+Scratch evidence remains under `.work/fix-go-cves-implementation-20261022/`.
+Each `*-candidate-protocol.json` freezes its source group; run directories retain
+inputs, replies, traces, samples, HTML and completion/regression results. Independent
+`*-whole-reply-review.json` and `*-runtime-review.json` receipts keep disagreements
+separate. `literal-operation-state-audit.json` records the denied stash; the
+`workqueue-baseline-control/` protocol/log/exit preserves the single passing control.
+Prior scoring-only integrity recovery and failed calibrations remain unchanged.
+
+No complete current-source cohort or replay reliability is accepted. Do not rerun
+unchanged live002 merely to obtain a favorable race seed, weaken its repair
+contract, skip the package or silently inject a local patch. A reviewed upstream
+fixture repair and a declared fresh official pin are prerequisites to closing that
+successful-repair cell. Native engine coverage is demonstrated under earlier
+reporting variants; current invoking-agent/native acceptance remains distinct.

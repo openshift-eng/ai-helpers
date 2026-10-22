@@ -1,0 +1,16 @@
+--- a/pkg/workqueue/queue_test.go
++++ b/pkg/workqueue/queue_test.go
+@@ -225,11 +225,12 @@
+ 			}
+ 		})
+ 
+-		It("should adjust its position to the front of the queue", func() {
++		It("should adjust its position to the front of the queue", func(ctx SpecContext) {
+ 			wq.Enqueue(cache.ExplicitKey(firstKey))
+ 			Eventually(itemCh).Should(Receive(Equal(firstKey)))
+ 
+ 			Eventually(itemCh).Should(Receive(Equal(adjustedKey)))
++			Expect(wq.ShutDownWithDrain(ctx)).To(Succeed())
+ 		})
+ 	})
+ 

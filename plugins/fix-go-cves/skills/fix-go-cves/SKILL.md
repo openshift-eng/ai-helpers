@@ -94,17 +94,22 @@ grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIE
 
 ## 4. Investigate remaining work, then report
 
-After terminal completion, inspect only actual flagged failures/decisions. Read
-every test attempt's package summaries, including successful retries; the flagged
-lines above are only an index. Inspect failing source/config and default-branch
-history using `git show`, `git diff` and `git log origin/<default> -- <file>`.
-Find supported repairs or the investigation still needed, an owner and the next
-verification prerequisite. These inspections need no stash or checkout.
+After terminal completion, read every test attempt's package summaries, including
+successful retries; flagged lines are only an index. Without a captured comparable
+pre-update run, record attribution as unknown and continue with repair discovery.
+Read other refs directly in the existing checkout, using captured command/base/retained identities (unknown comparisons remain
+unconfirmed):
 
-A backport must land on `origin/<branch>` before requesting a rerun, since each
-fix starts there. For a builder-image repair, maintainers must publish the repaired
-image before rerunning consumers. Preserve branch compatibility restrictions;
-unsupported migrations need the applicable maintainer decision. An `IGNORED`
+- `git show <command-commit>:<file>` for the failing source.
+- `git log origin/<default> -- <file>` for repair history.
+- `git show <candidate> -- <file>` for a candidate patch.
+- `git diff <base-commit>..<retained-or-tested-commit> -- <file>` for the retained change.
+
+Find a supported repair or the investigation still needed, an owner and next
+verification prerequisite. Source history identifies available repairs; it does
+not establish an earlier test result.
+
+An `IGNORED`
 finding without a published fix needs no additional repair.
 
 Verify diagnoses in target source/config and command receipts before selecting

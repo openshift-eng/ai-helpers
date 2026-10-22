@@ -160,6 +160,10 @@ judges:
       failure-specific mechanism may suffice. Do not substitute a plausible
       explanation for evidence, or offset an unsupported attribution with correct
       actions and owners.
+      Do not infer a required upstream landing or image publication prerequisite
+      from branch mentions, local repairs, baseline comparisons or proposed tests.
+      The reply must state the applicable prerequisite before recommending a
+      CVE workflow or consumer rerun.
 
       Annotations:
       {{ annotations }}

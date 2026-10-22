@@ -8,16 +8,17 @@ The [testing strategy](testing.md) owns durable acceptance and environment rules
 
 ## Next changes
 
-The runtime/contract treatment is implemented and locally verified. Actor source
-variants still fail independent whole-reply review, including stock false positives.
-The handoff source group improves blocked 005 but still fails 007 and native
-coverage reporting. The next treatment relays only script-emitted scope and uses verbatim evidence
-with imperative action/owner rows, then measures a committed detached-worktree
-candidate. The
-[implementation results](../evals/implementation-results.md) own all source-group
-outcomes and local checks; the
-[acceptance sequence](e2e-simplification.md#ordered-work-and-execution-budget)
-defines remaining work. Pure cleanup remains separate.
+The runtime/contract treatment is locally verified. Literal pilots pass, but a
+repetition attempts a denied stash and misses upstream landing; real Admiral devel
+also exposes a workqueue race in both test attempts. The next handoff treatment
+uses immutable-ref repair discovery and places existing prerequisites beside the
+reporting table. Verify the [external test-fixture candidate](workqueue-race.md) separately; do not
+weaken the successful-repair contract or retry for a favorable seed.
+
+The [implementation results](../evals/implementation-results.md) own outcomes and
+checks; the [acceptance sequence](e2e-simplification.md#ordered-work-and-execution-budget)
+owns bounded next measurements and the official-upstream prerequisite. Pure cleanup
+remains separate.
 
 The skill remains unaccepted. Preserve the
 [fifth historical matrix](../evals/live/README.md#branch-policy-matrix) and every

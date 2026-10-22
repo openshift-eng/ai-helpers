@@ -19,6 +19,11 @@ criteria:
     failed, or invent a PR command. No particular vulnerability, dependency version or number of
     fixes is required.
   action_owner: >-
+    A recommended target-repository repair must land on origin/<target-branch> before
+    a CVE workflow rerun, because each run starts there. Local repairs, generated
+    fix-branch tests and mentions of origin as a baseline or verification target
+    do not satisfy this prerequisite. For a builder-image repair, maintainers must
+    publish the repaired image before rerunning consumers.
     Gives each reported failure or policy boundary an evidence-supported next
     action and an owner. Investigates a test/vet failure rather than simply
     relaying a generic blocker; if the evidence identifies the reporter format

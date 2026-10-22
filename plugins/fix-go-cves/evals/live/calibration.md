@@ -1,4 +1,4 @@
-# Native coverage and executed-builder controls
+# Live judge calibration
 
 The stock `simplify-handoff-live003-20261022-01` and
 `simplify-handoff-live004-20261022-01` runs passed their runtime contracts and
@@ -85,3 +85,31 @@ Frozen inputs, all samples and independent review remain in
 `.work/fix-go-cves-implementation-20261022/native-outcome-calibration-v2/`.
 V1 and the original live grades are preserved. This is grader calibration, not a
 new actor execution, a new live engine run or proof of general oracle reliability.
+
+## Action/owner: upstream repair prerequisite
+
+`simplify-literal-live002-20261022-01` at frozen revision `472270e9` passed
+stock action/owner with TTT. Independent review found accurate race evidence and
+causal uncertainty, but advice said fix the test then rerun without requiring the
+repair to land on `origin/devel`. A baseline/test mention of origin is insufficient:
+each CVE workflow starts there. Original grades and captured artifacts remain intact.
+
+All four live action/owner criteria now require applicable repair landing on
+`origin/<target-branch>` before CVE rerun, or repaired image publication before
+consumer rerun. The prompt forbids inferring this from branch/test mentions; all
+previous criteria remain. Outcome, helper and captured actor/runtime inputs are unchanged.
+
+| Control | Expected action/owner | Samples |
+| --- | --- | --- |
+| Actual completed live-002 reply | false | FFF |
+| Same reply, explicit origin/devel landing before CVE rerun | true | TTT |
+
+Declared and executed once: 2 controls × 3 action/owner samples = 6 judge calls,
+zero actors, same harness/model as above, full captured events/evidence unchanged.
+All 6/6 sample and 2/2 majority labels match; zero errors. Retained rationales
+identify the missing prerequisite and its correction without causal-criterion bleed.
+The 89.13-second run exited 1 because the negative correctly fails production
+thresholds; all six calls were unpriced. Frozen protocol, control hashes and results:
+`.work/fix-go-cves-implementation-20261022/live-action-prerequisite-calibration-v1/`.
+This narrow calibration does not test image-publication advice or prove general
+reliability. No original grade overwrite, actor retry or unchanged calibration retry.

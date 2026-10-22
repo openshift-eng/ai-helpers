@@ -16,16 +16,21 @@ The final reply has three parts, in this order:
    unconfirmed. Keep post-Summary branch removal. This block is the sole
    publication advice: do not repeat, reformat or supplement it with another
    publication section, command or procedure.
-3. Relay the script's scope statements without interpreting coverage. If no
-   scope statement was emitted, add `Native catalog coverage: unverified.`
+3. Only if no scan-scope statement was emitted, add
+   `Native catalog coverage: unverified.` Otherwise the quoted scope is sufficient.
    Cataloger task completion and vulnerability paths alone do not establish it.
    Gate claims require captured results; an absent status is unknown. Native
    coverage alone is not stdlib remediation.
 
 ## Unresolved work
 
-Do not restate fixed work in a second overview. A successful run needs no
-remediation narrative. For unresolved work, use one table:
+Do not restate fixed work in a second overview. Use one table for every observed
+failure or unresolved decision, including a failure followed by a passing retry.
+
+A backport must land on `origin/<branch>` before requesting a rerun, since each
+fix starts there. For a builder-image repair, maintainers must publish the repaired
+image before rerunning consumers. Preserve branch compatibility restrictions;
+unsupported migrations need the applicable maintainer decision.
 
 | Observed evidence (all attempts) | Supported next action | Owner and next verification |
 | --- | --- | --- |
@@ -35,10 +40,11 @@ file/command observations.
 
 The evidence cell contains only verbatim command/error, log or source excerpts
 with their paths, including relevant package-result lines; do not derive totals.
-Give each distinct failure or policy boundary a row, including failures whose
-retry passed: a passing retry leaves its cause for maintainer investigation.
-Use imperative instructions for one supported repair or investigation per row, its owner and prerequisite; leave future results unknown.
-Omit causal labels, predictions, rejected alternatives and technical explanations
-beyond the quoted observations.
+Give each distinct failure or policy boundary a row. For a failure without an
+established repair, including a passed retry, use
+`Investigate [observed failure/location]` with a maintainer owner; leave its cause
+unknown. Give one imperative repair or investigation per row, its owner and
+prerequisite; leave future results unknown. Omit predictions, rejected alternatives
+and technical explanations beyond the quoted observations.
 For tests without a comparable captured pre-update run, state once that the
 update's role is unestablished.
