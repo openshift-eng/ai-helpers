@@ -221,6 +221,19 @@ class ProjectionTest(unittest.TestCase):
         self.assertIs(s['unfinished'], True)
         self.assertIsNone(s['bug_search']['candidates'])
 
+    def test_observation_complete_is_judged_per_source_view(self):
+        other = source('c-b', [2])
+        other['members']['views'] = ['4.20-main']
+        base = baseline(source('c-a', [1]), other, views=('4.22-main',))
+        base['observation']['views'].append({'view': '4.20-main', 'fetch': 'partial', 'error': 'HTTP 429'})
+        a, b = attach([current('c-a', [1]), current('c-b', [2])], base)
+        self.assertIs(a['prior']['observation_complete'], True)
+        self.assertIs(b['prior']['observation_complete'], False)
+        merged = attach([current('c-a', [1, 2])], base)[0]
+        self.assertIs(merged['prior']['observation_complete'], False)
+        base['observation']['views'] = []
+        self.assertIs(attach([current('c-a', [1])], base)[0]['prior']['observation_complete'], False)
+
     def test_triage_only_low_has_no_basis_and_legacy_values_are_opaque(self):
         src = source('c-a', [1], state='UNEXPLAINED', depth='triage-only', confidence='low',
                      candidates=[{'key': 'OCPBUGS-9', 'bar_met': 'unknown', 'verdict': 'reject', 'note': 'title only'}],
