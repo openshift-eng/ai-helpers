@@ -12,6 +12,7 @@ execution:
 
 runner:
   type: claude-code
+  effort: max
   plugin_dirs:
     - plugins/fix-go-cves
   env:

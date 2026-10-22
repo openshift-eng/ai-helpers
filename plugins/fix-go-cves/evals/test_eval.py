@@ -33,13 +33,14 @@ class EvidenceTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
-    def archive(self, extra=None, manifest=None):
+    def archive(self, extra=None, manifest=None, files=None):
         archive = self.root / "plugin.tar.gz"
         entries = {
             ".claude-plugin/plugin.json": json.dumps(manifest or {
                 "name": "fix-go-cves", "description": "fixture", "version": "0.1.0",
                 "author": "github.com/openshift-eng"}),
             **{f"subagents/{name}.sh": "#!/bin/sh\n" for name in EVAL.AUDITS},
+            **(files or {}),
         }
         with tarfile.open(archive, "w:gz") as tar:
             for name, content in entries.items():
@@ -1060,6 +1061,35 @@ class EvidenceTests(unittest.TestCase):
         shutil.rmtree(root / "tests")
         self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
 
+    def test_observed_empty_branch_restoration_preserves_executed_head_provenance(self):
+        case, state, result, scan, initial = self.scenario("observed")
+        root = case / "output/runtime"
+        base, original = state["expected"]["base_commit"], "c" * 40
+        state["expected"].update(default_commit=original, original_branch="devel")
+        state.update(runtime_head=original, runtime_branch="devel", runtime_exit=2, changed_files=[])
+        result.update(head=original, branch="devel", exit_code=2, base_commit=base, tested_head=base)
+        EVAL.write_json(root / "run.json", result)
+        EVAL.write_json(root / "tests/1-1.json", {"head": base, "command": "make unit", "exit_code": 0})
+        EVAL.write_json(root / "final-gate-status.json", {**scan, "phase": "final-gate", "head": base})
+        EVAL.write_json(root / "final-gate.json", initial)
+        log = case / "output/run.log"
+        log.write_text("No commits; removed the empty fix branch.\n")
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        # Restoration cannot excuse an arbitrary receipt or an unretained repair.
+        for updates in ({"changed_files": ["go.mod"]}, {"runtime_branch": "other"},
+                        {"expected": {**state["expected"], "default_commit": "d" * 40}}):
+            self.assertFalse(all(EVAL.runtime_scenario(case, {**state, **updates}).values()))
+        for updates in ({"base_commit": "d" * 40}, {"branch": "other"}, {"head": base}):
+            EVAL.write_json(root / "run.json", {**result, **updates})
+            self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(root / "run.json", result)
+        for head in (original, "d" * 40):
+            EVAL.write_json(root / "final-gate-status.json", {**scan, "phase": "final-gate", "head": head})
+            self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(root / "final-gate-status.json", {**scan, "phase": "final-gate", "head": base})
+        log.write_text("")
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+
     def test_observed_orders_test_runs_numerically_and_checks_retry_logs(self):
         case, state, result, scan, initial = self.scenario("observed")
         root = case / "output/runtime"
@@ -1398,6 +1428,29 @@ class EvidenceTests(unittest.TestCase):
         (directory / "catalog.cdx.json").unlink()
         self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
 
+    def test_native_clean_fast_path_restores_original_without_rebinding_binary(self):
+        case, state, directory, record, catalog = self.binary_scenario(clean_initial=True)
+        root = case / "output/runtime"
+        base, original = state["expected"]["base_commit"], "c" * 40
+        state["expected"].update(default_commit=original, original_branch="devel")
+        state.update(runtime_head=original, runtime_branch="devel", changed_files=[])
+        result = EVAL.read_json(root / "run.json")
+        result.update(head=original, branch="devel", base_commit=base)
+        EVAL.write_json(root / "run.json", result)
+        log = case / "output/run.log"
+        log.write_text("No CVEs found. subctl/devel is clean.\n")
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        # Clean checkout restoration must not turn native proof into optional evidence.
+        (directory / "binaries.jsonl").write_text(json.dumps({**record, "build_info":
+            record["build_info"].replace(base, original)}) + "\n")
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        (directory / "binaries.jsonl").write_text(json.dumps(record) + "\n")
+        state["ignored_snapshot"][record["path"]] = "e" * 64
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        state["ignored_snapshot"][record["path"]] = record["sha256"]
+        log.write_text("")
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+
     def test_archiving_replaces_stale_outputs_and_detects_runtime_evidence_edits(self):
         workspace = self.root / "checkout"
         workspace.mkdir()
@@ -1634,6 +1687,32 @@ class EvidenceTests(unittest.TestCase):
         self.assertFalse((workspace / ".git").exists())
         self.assertFalse((workspace / ".replay/remotes/fork").exists())
         self.assertFalse((workspace / "go.mod").exists())
+
+    def test_replay_uses_complete_current_skill_and_historical_engine(self):
+        workspace, source, data, local_fetch = self.prepare_local_repository()
+        data.pop("mode")
+        (source / "input.yaml").write_text(yaml.safe_dump(data))
+        expected = {"result_commit": data["default_commit"], "fix_branch": "recorded-result", "exit_code": 2}
+        (source / "annotations.yaml").write_text(yaml.safe_dump(expected))
+        repository = self.root / "repository"
+        EVAL.git(repository, "branch", "recorded-result", data["default_commit"])
+        EVAL.git(repository, "bundle", "create", str(source / "result.bundle"), "recorded-result")
+        shutil.copy2(self.archive(files={
+            "scripts/fix-all.sh": "#!/bin/sh\n# Historical runtime witness\nexit 2\n",
+            "skills/fix-go-cves/SKILL.md": "historical instructions\n",
+            "skills/fix-go-cves/references/obsolete.md": "stale historical reference\n",
+        }), source / "plugin.tar.gz")
+        (source / "run.log.gz").write_bytes(gzip.compress(b"recorded partial outcome\n"))
+        with patch.object(EVAL, "run", side_effect=local_fetch), contextlib.redirect_stdout(io.StringIO()):
+            baseline = EVAL.prepare(workspace, source)
+        plugin = workspace / ".staged-plugins/fix-go-cves"
+        for path in (EVAL.EVAL_ROOT.parent / "skills/fix-go-cves").rglob("*"):
+            if path.is_file():
+                relative = path.relative_to(EVAL.EVAL_ROOT.parent)
+                self.assertEqual((plugin / relative).read_bytes(), path.read_bytes())
+                self.assertEqual(baseline["plugin_hashes"][str(relative)], EVAL.digest(path))
+        self.assertFalse((plugin / "skills/fix-go-cves/references/obsolete.md").exists())
+        self.assertIn("# Historical runtime witness", (plugin / "scripts/fix-all.sh").read_text())
 
     def test_prepare_clean_pinned_trees_preserves_settings_and_allowed_paths(self):
         workspace, source, data, local_fetch = self.prepare_local_repository()

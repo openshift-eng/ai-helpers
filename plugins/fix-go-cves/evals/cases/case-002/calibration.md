@@ -24,7 +24,7 @@ the recipe but omits the responsible owner and required update-before-rerun advi
 
 ## Judge calibration
 
-Both versions use harness `1a980e707909a23f8c143ce333d97f5203db34ab`, judge
+V1 and V2 use harness `1a980e707909a23f8c143ce333d97f5203db34ab`, judge
 `claude-opus-4-6`, four fixed controls and three samples per criterion: 24 judge
 calls and zero actor executions per version. Existing Admiral backport criteria
 do not apply to this recording. Expected labels are:
@@ -67,3 +67,108 @@ Frozen inputs, complete sampled results and the independent label review remain
 under `.work/fix-go-cves-implementation-20261022/publication-calibration-v2/`.
 Deterministic witness checks and whole-reply review remain necessary. These
 controls do not measure invoking-skill relay or accept the skill.
+
+## Logged-check evidence and V3
+
+The `simplify-reference-publication-20261022-01` actor reply falsely claimed that
+no checks beyond `make unit` were configured or run. Its original contract and
+both factual judges passed, each factual criterion with TTT samples. Independent
+whole-reply review rejects that reply: the full historical log records four
+verification audits and passing `make licensecheck`. Those facts were absent
+from the original judge annotations. Preserve the original grades as evidence
+of this oracle gap.
+
+The later `simplify-final-publication-20261022-01` pilot preserves one exact
+recipe, explicit native uncertainty and supported image ownership/prerequisites,
+without that false check claim. Its original contract and both factual judges
+pass with TTT samples, and independent whole-reply review accepts it under its
+frozen criteria. This is one accepted positive-relay pilot; blocked-case behavior,
+repeatability and current-engine acceptance remain separate requirements.
+
+V3 enriches only `recorded_evidence` with exact historical log observations:
+`existing-entries`, `fix-availability`, `scan-regression` and `yaml-integrity`
+report PASS with zero issues at lines 13120–13123, followed by `All subagents
+passed.` at 13124. The license command appears at 13449 and its passing result
+at 13674. These are historical log witnesses, not newly fabricated typed receipts.
+The criteria, judge prompts and first four control replies remain unchanged.
+The fifth control appends one false sentence to the clean reference:
+
+> No additional checks beyond `make unit` (which passed) were configured or run.
+
+V3 uses the same harness/model and three samples per criterion: exactly 30 judge
+calls and zero actor executions. Expected labels for the fifth control are false
+for both criteria. Results are:
+
+| Control | outcome samples | action_owner samples |
+| --- | --- | --- |
+| Reference | TTT | TTT |
+| Missing recipe | FFF | TTT |
+| Invented recipe base | FFF | FFF |
+| Missing builder owner | TTT | FFF |
+| False check scope | TTT | FFF |
+
+The outcome criterion still falsely accepts the new contradiction in all three
+samples. Its retained representative rationale recognizes the passing audits and
+license check, then discounts the false claim as minor while also evaluating
+the separate ownership criterion. Evidence enrichment closes the input gap but
+does not establish correct outcome grading. The action/owner criterion rejects
+that control, so the configured factual conjunction rejects the false reply.
+
+Only 27/30 sample labels and 9/10 majority labels match expectations, with zero
+sample errors. All labels are stable within this execution; stability does not
+make the erroneous outcome labels correct. The missing-owner outcome control
+passes TTT here, but the other scope error means earlier criterion bleed remains
+a known limitation. Representative rationale text does not explain every sample
+independently.
+
+V3 completed in 146.75 seconds; all 30 calls were unpriced. Stock scoring exited 1
+with intentionally failing negative controls. Frozen inputs, all sample labels
+and independent review remain in
+`.work/fix-go-cves-implementation-20261022/publication-calibration-v3/`.
+V1/V2 are preserved. No unchanged calibration was retried and no actor was rerun
+for this oracle correction. Further grader changes require a separately declared
+calibration; do not describe this version as passing every control.
+
+## V4: distinct factual and advice responsibilities
+
+V4 changes the publication-specific criterion ownership rather than repeating the
+V3 measurement. `outcome` owns the accuracy of every past/present factual claim
+throughout the reply, including extra claims about checks, scan scope and the
+literal Summary/recipe. `action_owner` owns supported future actions, owners,
+prerequisites and publication procedures, without the former broad historical
+factual-claim catchall. This does not require enumerating every observed check;
+it rejects claims that contradict those observations.
+
+The same five reply controls are preserved byte-for-byte. The false-check
+control's expected `action_owner` label changes to true because its proposed
+future actions are correct; `outcome` must reject its false historical claim.
+The wrong-base command still fails both criteria: it misstates the witnessed
+recipe and supplies a future publication procedure with the wrong target. Each
+known negative therefore retains conjunctive rejection. The evidence also gains
+the reference's true original ref, `devel`, matched to `input.yaml` and the
+prepared initial checkout. Earlier criteria, labels and grades remain preserved.
+
+V4 uses the same harness/model and three samples per criterion, with exactly
+30 judge calls and zero actor executions. All declared labels match:
+
+| Control | outcome samples | action_owner samples |
+| --- | --- | --- |
+| Reference | TTT | TTT |
+| Missing recipe | FFF | TTT |
+| Invented recipe base | FFF | FFF |
+| Missing builder owner | TTT | FFF |
+| False check scope | FFF | TTT |
+
+All 30/30 sample labels and 10/10 majority labels match, with zero sample errors.
+The retained representative explanations apply the intended ownership on the
+false-check and missing-owner controls and reject the wrong-base procedure.
+This is one successful control calibration, not proof that all possible errors
+or future criterion bleed are detected.
+
+The run completed in 126.41 seconds. All 30 calls were unpriced. Stock scoring
+exited 1 because negative controls fail production thresholds; their declared
+calibration labels are correct. Frozen inputs, all sample labels and independent
+review are under
+`.work/fix-go-cves-implementation-20261022/publication-calibration-v4/`.
+No unchanged retry or actor execution accompanied this correction. Calibration
+does not rescore earlier actor runs or establish whole-skill acceptance.

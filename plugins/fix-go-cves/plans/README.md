@@ -8,17 +8,19 @@ The [testing strategy](testing.md) owns durable acceptance and environment rules
 
 ## Next changes
 
-The finite treatment is implemented: simpler command/result ownership, explicit
-scan scope, logger/reviewer handoff fixes, repository guards and native-phase
-contracts. Positive-publication replay 002 is packaged and calibrated. Declared
-actor measurements are in progress; the [implementation results](../evals/implementation-results.md)
-own their outcomes. Complete the
+The runtime/contract treatment is implemented and locally verified. Actor source
+variants still fail independent whole-reply review, including stock false positives.
+The handoff source group improves blocked 005 but still fails 007 and native
+coverage reporting. The next treatment uses quoted failure evidence and explicit
+action/owner rows, then measures a committed candidate from a detached worktree. The
+[implementation results](../evals/implementation-results.md) own all source-group
+outcomes and local checks; the
 [acceptance sequence](e2e-simplification.md#ordered-work-and-execution-budget)
-without duplicate cohorts. Demonstrated cleanup remains a separate deliverable.
+defines remaining work. Pure cleanup remains separate.
 
-The skill remains unaccepted. The [fifth six-cell matrix](../evals/live/README.md#branch-policy-matrix)
-retains the measured failures; the [fresh baseline](e2e-simplification.md#open-boundary-and-current-evidence)
-records passing script/helper checks and model-free replay preparation.
+The skill remains unaccepted. Preserve the
+[fifth historical matrix](../evals/live/README.md#branch-policy-matrix) and every
+new failed source group; never pool them into current-source reliability.
 
 ## Decisions
 

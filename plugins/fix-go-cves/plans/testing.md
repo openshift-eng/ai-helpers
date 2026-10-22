@@ -4,7 +4,7 @@
 
 Three layers answer different questions:
 
-- **Hermetic scripts:** the pre-change baseline passed 3,046 checks for mutations,
+- **Hermetic scripts:** the current immutable suite passed 3,102 checks for mutations,
   rollback, gates and evidence. Runtime changes need focused regressions here.
   `make test` requires Go 1.24 or later and fails rather than skips with `CI` set.
 - **Historical replay:** packaged Admiral cases 005/007 test diagnosis,
@@ -16,10 +16,9 @@ Three layers answer different questions:
   with branch-maintained commands and real scans. Execution, engine evidence and the
   invoking agent's whole reply have separate acceptance decisions.
 
-The 70 passing eval helper checks cover witnessed publication, retained-state
-boundaries,
-completed-gate receipts, frozen inputs, native identity, evidence projection,
-native result extraction and the documented launch fence. An old-trace recheck
+The 73 passing eval helper checks cover witnessed publication, retained state,
+completed-gate receipts, frozen inputs, native identity/evidence projection,
+complete current-skill staging, cleanup-head provenance and native result extraction. An old-trace recheck
 proves detection, not revised actor behavior. A passing engine or factual majority
 alone does not accept the skill.
 
@@ -28,10 +27,10 @@ The [canonical matrix record](../evals/live/README.md#branch-policy-matrix)
 retains grades, costs, coverage gaps and independent whole-reply reviews.
 The [E2E and simplification plan](e2e-simplification.md) tracks implementation
 and scopes existing-cohort acceptance, replay reliability and positive-publication
-coverage separately. Its finite treatment is implemented; declared actor
-measurements and final script verification are in progress. The
-[implementation results](../evals/implementation-results.md) own current outcomes;
-no milestone is accepted yet.
+coverage separately. Its finite runtime treatment is locally verified; successive
+actor variants remain rejected, including replies that passed stock thresholds.
+The [implementation results](../evals/implementation-results.md) own source-group
+outcomes and current pilots. No milestone is accepted yet.
 
 [Eval setup and replay results](../evals/README.md) and the
 [live record](../evals/live/README.md) preserve prior successes, failures,
@@ -86,12 +85,12 @@ reviewer detail. License capture failure retains the command exit but marks the
 phase `capture_failed`; publication remains blocked. The
 [runtime prerequisites](e2e-simplification.md#concrete-runtime-prerequisites)
 preserve the distinction between proven lost detail and an unproven historical
-publication bypass. Final verification remains separate from implementation. Reporting-only unknown native scope
-must not set the existing blocking opaque-binary coverage marker.
+publication bypass. Real execution of a changed path remains separate from local
+verification. Reporting-only unknown native scope must not set the existing blocking opaque-binary coverage marker.
 
 The reply must retain the actual Summary, exits, attempts, fixed/ignored/remaining
-findings, observed original ref, coverage and publication availability. When no
-Summary is emitted, relay the terminal clean/error message; absent completion
+findings, observed original ref when available, coverage and publication
+availability. When no Summary is emitted, relay the terminal clean/error message; absent completion
 evidence remains unconfirmed. Skipped or unconfigured checks remain unverified.
 Unknown native coverage is not proof of a source-only scan; positive native
 coverage is not stdlib remediation unless a stdlib finding was actually repaired.
@@ -194,8 +193,12 @@ rule. Do not mechanically run three expensive live trials or another six-cell
 cohort for borderline scores. A further measurement needs a concrete changed
 question or environment condition, not another attempt to obtain accepted prose.
 Declare which unchanged-source executions satisfy both integration and repetition
-before launch; do not run separate cohorts for the same evidence. Compare current
-skill hashes across applicable cases and runtime hashes across live cases;
+before launch; do not run separate cohorts for the same evidence. Never pool
+repetitions across source groups. A scoring-only recovery is distinct from an
+actor rerun: retain the initial integrity failure, restore the exact frozen helper
+and verify unchanged actor artifacts. Keep original grades and independent oracle
+corrections separate, including the executed-scan versus cleanup-restored HEAD.
+Compare current skill hashes across applicable cases and runtime hashes across live cases;
 validate historical runtime archives against their own pins. Preparation copies
 current files per case rather than freezing their bytes with the YAML alone.
 
@@ -203,8 +206,9 @@ current files per case rather than freezing their bytes with the YAML alone.
 
 Original recordings 002/005 under `.work/fix-go-cves-evals/source/` are now
 packaged; 007 is a later live capture. Case 002's applicable publication/builder
-controls passed 8/8 majorities and 23/24 expected samples; retain the single
-criterion-bleed error. Admission and calibration do not establish actor acceptance.
+V4 controls passed 10/10 majorities and 30/30 expected samples. Preserve the
+earlier false-positive calibrations and criterion-bleed errors. Admission and
+calibration do not establish actor acceptance.
 Admit another only for a concrete new decision/regression. Prepare its complete
 artifacts model-free and calibrate applicable criteria before measurement.
 

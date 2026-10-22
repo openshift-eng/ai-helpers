@@ -9,8 +9,8 @@ allowed-tools: Bash, Read
 # Fix Go CVEs
 
 Scripts own every mutation, rollback, scan, build, test and verification gate.
-Run the requested operation, relay its result, then investigate remaining work
-read-only. Repository notes may describe a manual procedure; use this skill's
+Run the requested operation, inspect remaining work read-only, then relay the
+observed result. Repository notes may describe a manual procedure; use this skill's
 execution/publication procedure while preserving their compatibility policy.
 
 ## 1. Select the operation
@@ -92,57 +92,29 @@ grep -q '^--- Summary' "$LOG" && sed -n '/^--- Summary/,$p' "$LOG" || tail -40 "
 grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIEW|FAIL([[:space:]]|$)|--- FAIL:)' "$LOG"
 ```
 
-## 4. Relay the result unchanged
+## 4. Investigate remaining work, then report
 
-The final reply has three parts, in this order:
+After terminal completion, inspect only actual flagged failures/decisions. Read
+every test attempt's package summaries, including successful retries; the flagged
+lines above are only an index. Inspect failing source/config and default-branch
+history using `git show`, `git diff` and `git log origin/<default> -- <file>`.
+Find supported repairs or the investigation still needed, an owner and the next
+verification prerequisite. These inspections need no stash or checkout.
 
-1. Observed exit and the actual reported reason. An exit code alone does not
-   identify a failed prerequisite. For interruption, report observed checkout state.
-2. One unchanged text block containing the complete actual Summary through the
-   log's end, including fixes/hashes, counts, commands/attempts, scope and
-   publication. Without a Summary, quote the terminal clean/error message or
-   relevant tail; missing completion is unconfirmed. Keep post-Summary branch
-   removal. This block is the sole publication advice: do not repeat, reformat or
-   supplement it with another publication section, command or procedure.
-3. Scope absent from that block, then unresolved-work facts/actions from step 5.
-   Explicitly state native catalog coverage is unverified when positive catalog
-   proof is absent; recorded binary findings alone do not authenticate it.
-   Skipped/unconfigured checks remain unverified. Native coverage alone is not
-   stdlib remediation. Give return advice only from an observed original ref.
+A backport must land on `origin/<branch>` before requesting a rerun, since each
+fix starts there. For a builder-image repair, maintainers must publish the repaired
+image before rerunning consumers. Preserve branch compatibility restrictions;
+unsupported migrations need the applicable maintainer decision. An `IGNORED`
+finding without a published fix needs no additional repair.
 
-Do not restate fixed work in a second overview. Describe future work as
-verification to perform, leaving its outcome and PR availability unknown.
+Authenticate diagnoses against target source/config and actual command receipts.
+Nested reviewer prose or printed tool transcripts are hypotheses, not observed
+file reads; verify their claims before selecting a repair or owner.
 
-## 5. Investigate unresolved work read-only
+Keep this investigation read-only: do not edit source/dependencies/ignores, apply
+or test a candidate repair, rerun scripts, clean up, push or create a PR.
 
-For each actual flagged failure/decision, first record the observed attempts:
-command, error/package result and retry result, citing log lines. Read each
-attempt's package summaries, including successful retries; the flagged-line
-search above is only an index. Report observed outcomes before repair advice.
-
-Then inspect failing source/config and default-branch history with `git show`,
-`git diff` and `git log origin/<default> -- <file>`; these need no stash or checkout.
-Give the supported repair/investigation, owner and verification prerequisite.
-Cite a matching backport when available. It must land on `origin/<branch>` before
-requesting a rerun: the script starts each fix there. For a builder-image repair,
-the prerequisite is publishing the repaired image before rerunning its consumers.
-
-Causal attribution is optional and unestablished by default. Omit causal
-explanations unless captured comparative evidence or a failure-specific mechanism
-demonstrates them. Unchanged source does not show baseline test results; a passing
-retry is a different observed outcome. For dependency/tooling claims, compare this
-run's actual base and retained commits, including the Go directive.
-
-| Observed boundary | Supported next work |
-| --- | --- |
-| Selected check is outside maintained branch requirements | Correct command selection for a new run; do not require API edits or relaxed lint rules just for that check |
-| Breaking/incompatible update | Inspect release/API changes and estimate migration |
-| Kubernetes minor, Go above builder, or repository compatibility restriction | Name the applicable team decision/owner and what unblocks it |
-| Tests require sudo/prompts | Supply a noninteractive test command |
-| Wrong build command | Recommend `CVE_FIX_BUILD_CMD` or target `.cve-fix.yaml` configuration |
-| Network, timeout or degraded scanner | Recommend a rerun after the observed environment issue is resolved |
-| `IGNORED` with no published fix | No additional repair; the ignore expires once Grype records a fix |
-
-Leave repairs, backport application/testing, builds/tests, reruns, cleanup and
-publication to a new request. Never hand-edit dependencies, vendor trees or
-`.grype.yaml` to force a clean result, delete the fix branch, push or create a PR.
+After completing the evidence/history intake, (re)read
+[the reporting procedure](references/reporting.md) as the final tool read before
+composing the reply, even if you loaded it earlier. Use it for fixes and report-only
+requests, including successful, blocked, interrupted and incomplete outcomes.

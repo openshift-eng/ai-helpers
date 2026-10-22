@@ -1,108 +1,114 @@
 # Simplification implementation and verification
 
-The 2026-10-22 candidate implements the [audited plan](../plans/e2e-simplification.md).
-Acceptance is still open. Historical failures remain in the existing results;
-new runs below do not replace their grades.
+The skill remains **unaccepted**. Script correctness, stock grades and independent
+whole-reply acceptance are separate. The [plan](../plans/e2e-simplification.md)
+defines remaining work; the [historical matrix](live/README.md#branch-policy-matrix)
+retains earlier failures unchanged. Different source groups below are never pooled.
 
-The skill is shorter and ordered around policy, execution, literal relay and
-read-only diagnosis. Runtime changes retain both pipeline exits, preserve
-observed package reasons alongside reviewer detail, report phase-specific scan
-scope and enforce explicitly selected repository Go-minor restrictions without
-restricting toolchain-only fixes. Native evals now require initial proof for
-non-fast-path runs; release Subctl declares native coverage explicitly.
+## Implemented changes and checks
 
-The positive Submariner publication recording uses a separate compatible scoring
-profile sharing replay execution/contract configuration. Existing Admiral
-replay configuration remains semantically unchanged. Its [calibration](cases/case-002/calibration.md)
-records both the failed initial oracle and corrected independent witness.
+Detection owns default commands; the skill preserves target policy, launches once
+and investigates read-only. Runtime fixes preserve command/logger status and
+reviewer detail, report phase-specific scope and enforce explicit Go/Kubernetes
+minor restrictions. Reporting uncertainty does not trigger the blocking opaque-
+binary marker. Native contracts require initial/final proof outside clean fast
+paths; Subctl release now declares `binary` coverage.
 
-## Local verification
+Positive recording 002 uses an applicable publication/builder scoring profile
+sharing replay execution/contract configuration. Its [calibration](cases/case-002/calibration.md)
+retains the failed initial oracle and corrected independent Summary witness:
+V4: 10/10 expected majorities, 30/30 expected samples, zero sample errors.
+Earlier failed calibrations remain recorded; this control set does not prove all
+future factual errors will be detected.
 
-| Check | Result |
+| Local check | Result |
 | --- | --- |
-| Eval helper tests | 70 passed |
-| Focused evidence/relay/runtime checks | 349 passed |
-| Focused Go guard checks | 34 passed |
-| Reviewer scope/fact preservation checks | 14 passed |
-| Model-free replay 005/007 and publication 002 | Reproduced retained commits and exit 2 |
-| Strict site build | Passed |
-| Clean source snapshot `make lint` | Passed; zero errors/warnings |
-| Final immutable full shell suite | 3,102/3,102 passed; runtime/test bytes and modes match |
+| Immutable runtime shell suite | 3,102/3,102; runtime/test bytes and modes matched |
+| Eval helper suite | 73/73, including complete skill staging and corrected cleanup-head provenance |
+| Focused evidence / Go guards / reviewer checks | 349 / 34 / 14 passed |
+| Model-free 005/007/positive-002 replay | Expected retained commits and exit 2 reproduced |
+| Strict site build / clean-snapshot lint | Passed before this documentation update |
 
-An earlier preliminary shell run was invalidated by concurrent source edits;
-a subsequent snapshot exposed an obsolete assertion matching one physical source
-line after a harmless line split. That assertion was replaced with a check of
-`MAKEFLAGS` received by an actual scan build. The final suite runs an immutable
-copy, with production hashes compared at completion.
+Earlier shell runs were invalidated by concurrent edits or an obsolete physical-
+line assertion. A behavioral build test replaced that assertion; the immutable
+suite above is the final runtime result. Model-free worker checks exercised real
+Dapper ownership, timeout, caller cancellation and container cleanup. Runs used
+the disposable rootless daemon and inherited `make unit`; no target publication
+was executed. Missing native/build coverage remains explicit.
 
-Model-free readiness passed real Dapper file ownership on release/devel builders,
-operation timeout, caller cancellation and container cleanup. Real runs use the
-owned disposable rootless daemon, cached official builder images and inherited
-`make unit`. Release runs preserve explicit Go/Kubernetes minor restrictions.
-No target publication is executed.
+## Actor results by frozen source
 
-## Declared actor measurements
+Run IDs below live under `.work/fix-go-cves-evals/runs/fix-go-cves:fix-go-cves/`.
+`C`, `O`, `A`, `B` mean contract, outcome, action_owner and backport. Pass/fail
+refers to preserved stock results; the last column is independent whole-reply
+review. A passing majority does not erase a factual error.
 
-Question, source hashes, identities, caps and run membership were frozen in
-`.work/fix-go-cves-implementation-20261022/candidate-protocol.json` before launch.
-Actor and judge model: `claude-opus-4-6`; CLI: `2.1.307`; harness:
-`1a980e707909a23f8c143ce333d97f5203db34ab`. Per-run snapshots retain actual inputs;
-whole-reply review and observed identities supplement stock grades.
-
-| Measurement | Run ID | Status |
+| Source / run ID | Preserved stock result | Whole-reply result or coverage |
 | --- | --- | --- |
-| Initial replay 005/007 integration | `simplify-replay-20261022-01` | Both factual failures; 007 deterministic violation |
-| Positive publication 002 | `simplify-publication-20261022-01` | Contract/outcome pass; action_owner fails; whole-reply rejected |
-| Positive publication 002, clarified relay | `simplify-publication-20261022-03` | Duplicate rewritten recipe; deterministic/whole-reply failure |
-| Admiral release, explicit canonical checks/policy | `simplify-live001-20261022-01` | Running |
-| Admiral devel repair | `simplify-live002-20261022-01` | Not launched |
-| Subctl devel native | `simplify-live003-20261022-01` | Not launched |
-| Subctl release native | `simplify-live004-20261022-01` | Not launched |
+| Original: `simplify-replay-20261022-01` | 005: C/B pass, A fail; 007: B pass, C/A fail | Both reject causal claims; 007 misses actual retries and attempts denied `git stash` |
+| Original: `simplify-publication-20261022-01` | C/O pass, A fail | Reject invented prerequisite, guaranteed clean rerun and missing native uncertainty |
+| Operator error: `simplify-publication-20261022-02` | Incomplete; actor terminated | Wrong-directory edit failed while launch continued with unchanged source; no revised-candidate evidence |
+| Relay clarification: `simplify-publication-20261022-03` | A pass, C/O fail | Reject duplicate rewritten publication recipe; preserve qualified future wording separately |
+| Original live: `simplify-live001-20261022-01` | C fail, O/A pass; separate corrected-oracle recheck passes runtime conditions | Real exit 2: both guards enabled, five findings blocked, `make unit` passed, no commits, original ref restored. Reply rejects: unsupported low-risk assessment and guaranteed five-CVE repair |
+| Facts: `simplify-facts-replay-20261022-01` | 005: C/B/A fail; 007: C/B pass, A fail | 005 attempts denied source Edit and misses matching backport; 007 retains unsupported causality |
+| Facts: `simplify-facts-publication-20261022-01` | C/O pass, A fail | Exact recipe, but reject claim repaired image will produce a clean result |
+| Facts live: `simplify-facts-live002-20261022-01` | C/O pass, A fail | Real x/net repair `c426d81`, exit 0, unit/four audits/final scan pass. Build unconfigured/native unverified; reject claimed build pass and invented publication steps |
+| Reporting reference: `simplify-reference-replay005-20261022-01` | C/B/A pass after scoring-only recovery | Reject unsupported upgraded-Go cause and invented original ref. Reference read before launch, not near composition |
+| Reporting reference: `simplify-reference-publication-20261022-01` | C/O/A pass after scoring-only recovery | Reference read immediately before reply; exact recipe/scope/owner retained. Reject false “only unit” claim: four audits and license actually passed |
+| Final reference pilot: `simplify-final-replay005-20261022-01` | C/B pass, A fail | Reject unsupported attribution and binary-only scope label |
+| Final reference pilot: `simplify-final-publication-20261022-01` | C/O/A pass | Accept literal recipe, supported image owner/prerequisite and native uncertainty |
+| Handoff: `simplify-handoff-replay005-20261022-01` / `02` / `03` | C/B/A pass in all three | 01/02 accept; 03 miscounts 17 passing packages as 16, despite correct backport/prerequisite |
+| Handoff: `simplify-handoff-replay007-20261022-01` | C/B pass, A fail | Reject unsupported syncer cause and missing investigation owner/action despite accurate attempt outcomes |
+| Handoff native: `simplify-handoff-live003-20261022-01` | C/O/A pass | Runtime proof/gates pass; reject blanket native-unverified claim contradicting quoted positive scope |
+| Handoff native: `simplify-handoff-live004-20261022-01` | C/O/A pass | runtime proof/gates pass; reject wrong builder/owner imported from nested reviewer narrative |
 
-The two remaining declared replay repetitions depend on inspecting the integration
-results. Three judge samples are separate from three actor executions. Native
-success, truthful blocked outcomes and missing repair coverage remain distinct.
+Live 001 exposed an oracle defect: the final scan ran at the executed release
+HEAD, then empty-branch cleanup restored the original devel HEAD. The old helper
+compared the receipt with that restored HEAD. The corrected helper checks executed
+scan provenance; its model-free recheck preserves all original grades/artifacts.
+It does not accept the actor's reply.
 
-Raw artifacts are under `.work/fix-go-cves-evals/runs/fix-go-cves:fix-go-cves/`;
-verification logs, calibration inputs/reviews, complete Git caches and worker
-ownership receipts are under `.work/fix-go-cves-implementation-20261022/`.
-Failed initial model-free preparation used incomplete promisor Git caches; its
-artifacts are retained, and complete fresh public Git caches corrected setup
-without changing user checkouts. These setup failures did not execute actors.
+Reference pilots initially failed the scoring integrity fence because the helper
+changed concurrently. Initial artifacts were preserved; restoring the exact frozen
+helper allowed **scoring/report/verification only**, with byte-identical actor
+artifacts and no actor retry. Both recovered stock passes above are false positives
+against whole-reply requirements. Retain the integrity failure alongside recovery.
 
-## Initial integration findings
+## Current candidate and evidence
 
-Publication trial 01 relayed the Summary/recipe exactly and named the correct
-Shipyard owner and image-before-rerun prerequisite. Stock contract/outcome passed;
-action_owner failed all three samples. Independent review additionally found an
-invented publication-prerequisite failure, a guaranteed clean rerun and missing
-explicit native catalog uncertainty. These failures remain recorded. Trial 03
-clarifies those existing instructions without changing runtime or scoring criteria;
-its source and question are separately frozen in `publication-v2-protocol.json`.
-Trial 02 was an operator launch error: an edit failed in the wrong working
-directory while the shell continued launching unchanged source. The identified
-actor was terminated; incomplete artifacts and `publication-02-launch-error.json`
-are retained. It supplies no revised-candidate acceptance evidence.
+Runtime bytes remain those of the immutable suite. Actor/judge model is
+`claude-opus-4-6`, CLI `2.1.307`, harness
+`1a980e707909a23f8c143ce333d97f5203db34ab`; later candidate profiles explicitly
+select actor effort `max`. The complete current skill subtree is staged alongside
+the historical runtime, including reporting references and removal of obsolete
+reference files.
 
-The generic Codex skill validator rejects this repository's existing Claude
-`argument-hint`/`user-invocable` metadata. That metadata is preserved; the repository
-linter validates its supported format.
+The handoff source group improved blocked 005 but still failed 007 and native
+scope reporting. Both real native runs independently establish initial/final
+binary catalog/hash/clean-VCS proof, unit tests, four audits and license checks.
+They retain partial repairs with one stdlib finding: the current database requires
+Go 1.26.10 while the builder supplies 1.26.9. This is valid blocked coverage, not
+stdlib remediation or accepted invoking-agent behavior.
 
-The initial replay pair found the correct backport and remote-target prerequisite,
-but both made unsupported causal claims. Replay 007 also missed actual retry
-outcomes and attempted a denied `git stash`. Its deterministic contract failed;
-005's contract passed. Both action_owner judges failed all samples. No reliability
-repetitions of that failed candidate were launched.
+The next reporting treatment replaces diagnostic prose with observed excerpts,
+action and owner/prerequisite rows. Scope already printed in the terminal block
+gets no additional interpretation. This addresses measured errors without adding
+runtime orchestration. Freeze its complete source in a detached worktree before
+measurement; later documentation edits must not affect actor/helper inputs.
 
-Clarified publication trial 03 explicitly reported missing native proof and kept
-future outcomes qualified, but added a second rewritten publication block; exact
-Summary relay alone is insufficient. Independent review records the distinct
-failure without treating every qualified expectation as a categorical guarantee.
+Scratch evidence is under `.work/fix-go-cves-implementation-20261022/`:
+`candidate-protocol.json`, `publication-v2-protocol.json`,
+`facts-candidate-protocol.json`, `reference-candidate-protocol.json`,
+`final-candidate-protocol.json`, `publication-02-launch-error.json`,
+`independent-replay-case-{005,007}-review.json`,
+`publication-whole-reply-review.json`, `publication03-whole-reply-review.json`,
+`reference-pilots-whole-reply-review.json`, `live001-oracle-correction-recheck.json`
+and `reference{005,-publication}-before-scoring-recovery/`.
+Per-run directories retain frozen inputs, replies, traces, grades and HTML reports.
+Initial model-free setup failures used incomplete promisor caches; corrected fresh
+public Git caches did not change user checkouts or execute actors.
 
-The next instruction candidate replaces narrative freedom with one witnessed
-result, supported scope and an observed-attempt ledger before repair advice. It
-retains read-only history discovery and explicit image/remote-branch prerequisites.
-`facts-candidate-protocol.json` separately freezes this changed hypothesis and
-source. Its integration pair `simplify-facts-replay-20261022-01` is repetition 1/3;
-positive `simplify-facts-publication-20261022-01` is also running. Old source trials
-are retained separately and are not pooled into the new reliability comparison.
+Native runtime coverage is demonstrated, but an accepted current-source cohort
+and three-execution 005/007 reliability remain incomplete. Earlier rejected source
+groups supply no current-source reliability credit; a full
+11-actor set has $115 actor caps, with judges/nested costs additional or unknown.

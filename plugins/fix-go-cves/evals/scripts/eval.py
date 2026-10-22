@@ -266,8 +266,12 @@ def prepare(workspace, source):
         shutil.copy2(EVAL_ROOT.parent / 'README.md', plugin / 'README.md')
     else:
         unpack_plugin(source / 'plugin.tar.gz', plugin)
-    shutil.copy2(EVAL_ROOT.parent / 'skills/fix-go-cves/SKILL.md',
-                 plugin / 'skills/fix-go-cves/SKILL.md')
+    if not live:
+        # Replay the historical engine with the complete current invoking skill.
+        current_skill = plugin / 'skills/fix-go-cves'
+        if current_skill.exists():
+            shutil.rmtree(current_skill)
+        shutil.copytree(EVAL_ROOT.parent / 'skills/fix-go-cves', current_skill)
     shutil.copy2(__file__, private / 'driver.py')
     fix_all = plugin / 'scripts/fix-all.sh'
     original = fix_all.read_text()
@@ -498,6 +502,25 @@ def native_scan_proof(case, state, phase, head, retained=False):
     return proof
 
 
+def runtime_scan_head(case, state, result):
+    """Distinguish scanned source from a witnessed no-commit checkout restoration."""
+    expected = state['expected']
+    original = expected.get('default_commit')
+    branch = expected.get('original_branch')
+    if (original and branch and state['runtime_head'] == original
+            and state.get('runtime_branch') == result.get('branch') == branch
+            and result.get('head') == original and state.get('changed_files') == []
+            and result.get('base_commit') == expected.get('base_commit')
+            and type(result.get('exit_code')) is int and result['exit_code'] in (0, 2)):
+        log = case / 'output/run.log'
+        text = log.read_text() if log.is_file() else ''
+        if (re.search(r'(?m)^No commits; removed the empty fix branch\.$', text)
+                or (result['exit_code'] == 0
+                    and re.search(r'(?m)^No CVEs found\. [^\r\n]+ is clean\.$', text))):
+            return expected['base_commit']
+    return state['runtime_head']
+
+
 def runtime_evidence(case, state):
     """Project existing receipts into the factual judges' single evidence input."""
     root = case / 'output/runtime'
@@ -517,7 +540,7 @@ def runtime_evidence(case, state):
     if state['expected'].get('repository', '').rstrip('/').rsplit('/', 1)[-1] != 'subctl.git':
         return text + 'Subctl native proof: not applicable\n'
     for phase, name, head in (('initial', 'initial_scan', state['expected'].get('base_commit')),
-                              ('final-gate', 'final_gate', state['runtime_head'])):
+                              ('final-gate', 'final_gate', runtime_scan_head(case, state, result))):
         if phases.get(name) != 'completed':
             continue
         try:
@@ -550,6 +573,7 @@ def runtime_scenario(case, state):
             conditions[f'canonical {name} command used'] = result.get(name + '_command') == command
     try:
         phases = result.get('phases', {})
+        scan_head = runtime_scan_head(case, state, result)
         if phases.get('tests') == 'completed':
             attempts = test_attempts(root)
             conditions['canonical test receipts and logs retained'] = (bool(attempts)
@@ -576,7 +600,7 @@ def runtime_scenario(case, state):
         if phases.get('license') == 'completed':
             conditions['canonical license evidence retained'] = (root / 'license.log').is_file()
         for name, phase, head in (('initial-scan', 'initial', expected.get('base_commit')),
-                                  ('final-gate', 'final-gate', state['runtime_head'])):
+                                  ('final-gate', 'final-gate', scan_head)):
             if phases.get('initial_scan' if phase == 'initial' else 'final_gate') == 'completed':
                 status = read_json(root / f'{name}-status.json')
                 conditions[f'{name} receipt agrees with completed phase'] = (
@@ -593,7 +617,7 @@ def runtime_scenario(case, state):
             final = grype_document(root / 'final-gate.json')
             gate = read_json(root / 'final-gate-status.json')
         elif (expectation == 'binary' and state['runtime_exit'] == 0 and not initial['matches']
-              and state['runtime_head'] == expected['base_commit']):
+              and scan_head == expected['base_commit']):
             # A real clean fast path needs its initial native catalog, not an invented final gate.
             final, gate, phase = initial, initial_status, 'initial'
         else:
@@ -604,7 +628,7 @@ def runtime_scenario(case, state):
             phases = result.get('phases', {})
             conditions['canonical verification gates passed on retained tree'] = (
                 phases.get('tests') == 'completed' and result.get('test_exit_code') == 0
-                and result.get('tested_head') == state['runtime_head']
+                and result.get('tested_head') == scan_head
                 and phases.get('verification') == 'completed' and result.get('verification_exit_code') == 0
                 and ((phases.get('license') == 'not_configured'
                       and 'license' not in expected.get('canonical_commands', {}))
@@ -627,7 +651,7 @@ def runtime_scenario(case, state):
         if phase != 'initial':
             conditions.update({'initial ' + key: value for key, value in
                 native_scan_proof(case, state, 'initial', expected['base_commit'])['checks'].items()})
-        conditions.update(native_scan_proof(case, state, phase, state['runtime_head'],
+        conditions.update(native_scan_proof(case, state, phase, scan_head,
                                             retained=True)['checks'])
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         conditions['required runtime evidence valid'] = False
