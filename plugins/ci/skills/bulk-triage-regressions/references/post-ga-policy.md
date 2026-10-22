@@ -25,12 +25,12 @@ Clusters are hypotheses. You may split one when signatures differ; record it in 
 
 **Blast radius** (urgency; computed by the pre-pass, do not recompute):
 
-- `HIGH` (any): ≥8 regressions ∧ ≥4 distinct jobs ∧ ≥2 lane families ∧ (≥2 platforms ∨ ≥2 arches); or `upgrade-from-stable` lane ∧ ≥2 platforms ∧ ≥6 regressions ∧ ≥3 jobs; or persisting (open >7 d ∧ last failure ≤2 d ∧ ≥3 failing own runs in 7 d) ∧ ≥8 regressions ∧ (≥2 distinct jobs ∨ open >14 d).
+- `HIGH` (any): ≥8 regressions ∧ ≥4 distinct jobs ∧ ≥2 lane families ∧ (≥2 platforms ∨ ≥2 arches); or any upgrade lane (minor or micro) ∧ ≥2 platforms ∧ ≥6 regressions ∧ ≥3 jobs; or persisting (open >7 d ∧ last failure ≤2 d ∧ ≥3 failing own runs in 7 d) ∧ ≥8 regressions ∧ (≥2 distinct jobs ∨ open >14 d).
 - `ELEVATED` (any): ≥12 regressions; ≥3 distinct jobs; install/bootstrap wrapper on ≥2 platforms; permafail shape (≥30 failed runs over ≥14 d); single-job mass failure persisting >7 d.
 - `LOW`: everything else.
 - A single-job mass failure (`mass_failure_marker`) caps at `ELEVATED` unless the lane has been dead >14 d.
 
-`blast_radius.THRESHOLDS`: `{"persist_min_days_open": 7, "persist_max_days_since_last": 2, "persist_min_failing_runs_7d": 3, "persist_min_regressions": 8, "persist_high_min_jobs": 2, "persist_high_min_days_open": 14, "high_broad_min_regressions": 8, "high_broad_min_jobs": 4, "high_broad_min_lane_families": 2, "high_broad_min_spread": 2, "high_minor_min_platforms": 2, "high_minor_min_regressions": 6, "high_minor_min_jobs": 3, "elevated_min_regressions": 12, "elevated_min_jobs": 3, "elevated_install_min_platforms": 2, "elevated_min_runs": 30, "elevated_min_days_open": 14, "score_regressions_cap": 50, "score_jobs_cap": 10, "score_lane_families_cap": 5}`
+`blast_radius.THRESHOLDS`: `{"persist_min_days_open": 7, "persist_max_days_since_last": 2, "persist_min_failing_runs_7d": 3, "persist_min_regressions": 8, "persist_high_min_jobs": 2, "persist_high_min_days_open": 14, "high_broad_min_regressions": 8, "high_broad_min_jobs": 4, "high_broad_min_lane_families": 2, "high_broad_min_spread": 2, "high_upgrade_min_platforms": 2, "high_upgrade_min_regressions": 6, "high_upgrade_min_jobs": 3, "elevated_min_regressions": 12, "elevated_min_jobs": 3, "elevated_install_min_platforms": 2, "elevated_min_runs": 30, "elevated_min_days_open": 14, "score_regressions_cap": 50, "score_jobs_cap": 10, "score_lane_families_cap": 5}`
 
 **Disposition state** (cause; you assign it, one per cluster):
 

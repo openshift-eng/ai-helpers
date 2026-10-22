@@ -16,9 +16,9 @@ THRESHOLDS = {
     'high_broad_min_jobs': 4,
     'high_broad_min_lane_families': 2,
     'high_broad_min_spread': 2,
-    'high_minor_min_platforms': 2,
-    'high_minor_min_regressions': 6,
-    'high_minor_min_jobs': 3,
+    'high_upgrade_min_platforms': 2,
+    'high_upgrade_min_regressions': 6,
+    'high_upgrade_min_jobs': 3,
     'elevated_min_regressions': 12,
     'elevated_min_jobs': 3,
     'elevated_install_min_platforms': 2,
@@ -58,17 +58,19 @@ def classify(s):
 
     broad = (regs >= T['high_broad_min_regressions'] and jobs >= T['high_broad_min_jobs']
              and s['lane_families'] >= T['high_broad_min_lane_families'] and spread)
-    minor = (s['minor_upgrade_lane'] and n_plat >= T['high_minor_min_platforms']
-             and regs >= T['high_minor_min_regressions'] and jobs >= T['high_minor_min_jobs'])
+    # Every upgrade lane counts (minor and micro/z-stream): a regressed upgrade of any kind on several
+    # platforms is release-wide breakage; minor_upgrade_lane stays in the shape as information.
+    upgrade = (s['upgrade_lane'] and n_plat >= T['high_upgrade_min_platforms']
+               and regs >= T['high_upgrade_min_regressions'] and jobs >= T['high_upgrade_min_jobs'])
     persist_high = persisting and (jobs >= T['persist_high_min_jobs']
                                    or days_open > T['persist_high_min_days_open'])
     if broad:
         level = 'HIGH'
         reasons.append('%d regressions across %d jobs and %d lane families with platform/arch spread'
                        % (regs, jobs, s['lane_families']))
-    if minor:
+    if upgrade:
         level = 'HIGH'
-        reasons.append('minor-upgrade lane: %d regressions, %d jobs, %d platforms' % (regs, jobs, n_plat))
+        reasons.append('upgrade lane: %d regressions, %d jobs, %d platforms' % (regs, jobs, n_plat))
     if persist_high:
         level = 'HIGH'
         reasons.append('persisting %sd, last failure %sd ago, %d failing runs in 7d'

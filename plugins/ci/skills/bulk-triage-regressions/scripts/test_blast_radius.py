@@ -43,10 +43,26 @@ class ClassifyTest(unittest.TestCase):
     def test_dead_lane_over_14d_is_high(self):
         self.assertEqual(b.classify(self._mass(15))[0], 'HIGH')
 
-    def test_minor_upgrade_needs_6_regs_3_jobs_2_platforms(self):
-        kw = dict(minor_upgrade_lane=True, distinct_jobs=3, platforms=['aws', 'gcp'])
+    def test_upgrade_lane_needs_6_regs_3_jobs_2_platforms(self):
+        kw = dict(upgrade_lane=True, distinct_jobs=3, platforms=['aws', 'gcp'])
         self.assertNotEqual(b.classify(shape(regressions=5, **kw))[0], 'HIGH')
-        self.assertEqual(b.classify(shape(regressions=6, **kw))[0], 'HIGH')
+        level, _, reasons = b.classify(shape(regressions=6, **kw))
+        self.assertEqual(level, 'HIGH')
+        self.assertIn('upgrade lane: 6 regressions, 3 jobs, 2 platforms', reasons)
+
+    def test_every_upgrade_lane_counts_not_only_upgrade_from_stable(self):
+        # micro (z-stream) upgrade lanes are upgrade lanes too: minor_upgrade_lane is informational only
+        micro = shape(regressions=6, distinct_jobs=3, platforms=['aws', 'gcp'], upgrade_lane=True,
+                      minor_upgrade_lane=False)
+        self.assertEqual(b.classify(micro)[0], 'HIGH')
+        not_upgrade = shape(regressions=6, distinct_jobs=3, platforms=['aws', 'gcp'], upgrade_lane=False,
+                            minor_upgrade_lane=True)
+        self.assertNotEqual(b.classify(not_upgrade)[0], 'HIGH')
+
+    def test_threshold_names_follow_the_rule(self):
+        for key in ('high_upgrade_min_platforms', 'high_upgrade_min_regressions', 'high_upgrade_min_jobs'):
+            self.assertIn(key, b.THRESHOLDS)
+        self.assertFalse(any(k.startswith('high_minor_') for k in b.THRESHOLDS))
 
     def test_twelve_from_one_job_is_elevated_by_size(self):
         level, _, _ = b.classify(shape(regressions=12, distinct_jobs=1))
