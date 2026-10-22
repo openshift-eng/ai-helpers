@@ -5,7 +5,11 @@ expected:
       next_step: treat-as-new
       allowed_depths: [none, oracle, deep-dive]
       allowed_states: [CANDIDATE, UNANALYSED, UNEXPLAINED]
-      target: null
+      # the remembered family bug may be kept as a lead to follow (target records the bug under consideration,
+      # not write authorization); carried depth, KNOWN-CAUSE and link support stay forbidden
+      allowed_targets:
+        - null
+        - {jira: OCPBUGS-60546, triage_id: null}
       supported_member_ids: []
       would_write: false
       escalation_required: false
@@ -20,7 +24,7 @@ expected:
       would_write: false
       escalation_required: false
       required_locators:
-        - https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20created%3E%3D2026-10-13%20AND%20text~%22etcd%20leader%20changed%22&fields=key,summary,status,created
+        - https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20updated%3E%3D2026-10-13%20AND%20text~%22etcd%20leader%20changed%22&fields=key,summary,status,created,updated
         - https://issues.redhat.com/rest/api/2/issue/OCPBUGS-2?fields=summary,status,resolution,fixVersions,versions,updated
     c-high:
       next_step: reinvestigate
@@ -41,11 +45,14 @@ notes: >
   week's own testcase fails with a 300 s readiness timeout, the EOF text in the same junit belongs to a different
   testcase, and the label's own explanation excludes timeouts. A replacement population is a remembered family,
   not inherited coverage: treat as new (ordinary LOW-and-new handling), no carried depth, no KNOWN-CAUSE, no
-  target, no supported link. This is an observed mismatch, not owning-team-certified root-cause truth.
+  supported link; the family bug may remain a lead (target) but grants nothing. This is an observed mismatch, not owning-team-certified root-cause truth.
   c-new-bug: unchanged member/signature with a high-confidence negative finding, but the incremental search now
-  returns OCPBUGS-2; its excerpts cite a different lane and a different count, so the linking gate is not
-  established by the supplied observations: reinvestigate with OCPBUGS-2 as the lead, CANDIDATE, no supported
-  link. c-high: unchanged HIGH whose prior qualifies on every other count and whose one spot-checked own run
+  returns OCPBUGS-2. The bug states a discriminator (leader elections within 10 s of EtcdCertSignerController
+  rotating a peer certificate, visible in the etcd-operator log) that the supplied observations do not establish
+  for this regression's own runs - the operator/member logs were not read this run and last week's analysis
+  attributed the elections to node drains and teardown. The bug supplies the signature; own-run evidence for it
+  is missing, so the gate is not met: reinvestigate (read the operator logs) with OCPBUGS-2 as the lead,
+  CANDIDATE, no supported link. Not citing our runs is irrelevant to the gate. c-high: unchanged HIGH whose prior qualifies on every other count and whose one spot-checked own run
   matches, but the other own runs were not inspected: a HIGH cluster always gets a fresh deep-dive, so the
   honest state is UNANALYSED with OCPBUGS-1/17 as the lead, escalation required, no write, and it leads the
   investigation order. Report mode: nothing is written in this case.
