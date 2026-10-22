@@ -86,6 +86,9 @@ permissions:
     - "WebSearch"
     - "mcp__*"
     - "Read(**/annotations.yaml)"
+    # the installed plugin tree contains this config and the eval index, which describe the
+    # expected choices; the staged input lives outside the evals tree
+    - "Read(**/evals/**)"
 
 mlflow:
   experiment: bulk-triage-prior-eval
@@ -109,7 +112,8 @@ dataset:
         the only data available; nothing else was fetched.
     - annotations.yaml: Expected outcomes, not visible to the model:
       - 'expected.decisions' — map cluster_id -> {next_step, allowed_depths,
-        allowed_states, target, supported_member_ids, would_write,
+        allowed_states, target (or allowed_targets: a list of acceptable
+        target values), supported_member_ids, would_write,
         escalation_required, required_locators}
       - 'expected.investigation_order_prefix' — the ids investigation_order must
         start with, in order
@@ -142,7 +146,8 @@ judges:
     check: |
       import json
       files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
-      hits = {k: v for k, v in files.items() if k.endswith("prior-verdict.json") and isinstance(v, str)}
+      hits = {k: v for k, v in files.items()
+              if (k == "prior-verdict.json" or k.endswith("/prior-verdict.json")) and isinstance(v, str)}
       if not hits:
           return (False, "No prior-verdict.json found")
       try:
@@ -166,20 +171,26 @@ judges:
           cid = d.get("cluster_id")
           if not isinstance(cid, str) or not cid:
               problems.append(f"decisions[{i}].cluster_id must be a non-empty string")
+              cid = f"decisions[{i}]"
           elif cid in seen:
               problems.append(f"duplicate cluster_id {cid}")
-          seen.add(cid)
+          else:
+              seen.add(cid)
           for key, allowed in (("next_step", STEPS), ("depth", DEPTHS), ("state", STATES)):
-              if d.get(key) not in allowed:
-                  problems.append(f"{cid}: {key} {d.get(key)!r} not in {sorted(allowed)}")
-          t = d.get("target")
-          ok_target = t is None or (
-              isinstance(t, dict) and set(t) == {"jira", "triage_id"}
-              and isinstance(t.get("jira"), str) and t["jira"]
-              and (t.get("triage_id") is None
-                   or (isinstance(t["triage_id"], int) and not isinstance(t["triage_id"], bool))))
-          if not ok_target:
-              problems.append(f"{cid}: target must be null or an object with jira (non-empty string) and triage_id (integer|null)")
+              value = d.get(key)
+              if not isinstance(value, str) or value not in allowed:
+                  problems.append(f"{cid}: {key} {value!r} not in {sorted(allowed)}")
+          if "target" not in d:
+              problems.append(f"{cid}: target key missing (null or object required)")
+          else:
+              t = d["target"]
+              ok_target = t is None or (
+                  isinstance(t, dict) and set(t) == {"jira", "triage_id"}
+                  and isinstance(t.get("jira"), str) and t["jira"]
+                  and (t.get("triage_id") is None
+                       or (isinstance(t["triage_id"], int) and not isinstance(t["triage_id"], bool))))
+              if not ok_target:
+                  problems.append(f"{cid}: target must be null or an object with jira (non-empty string) and triage_id (integer|null)")
           ids = d.get("supported_member_ids")
           if (not isinstance(ids, list) or any(not isinstance(x, int) or isinstance(x, bool) for x in ids)
                   or len(set(ids)) != len(ids)):
@@ -191,9 +202,10 @@ judges:
           if not isinstance(locs, list) or any(not isinstance(x, str) for x in locs):
               problems.append(f"{cid}: check_locators must be a list of strings")
       order = data["investigation_order"]
-      if (not isinstance(order, list) or any(not isinstance(x, str) for x in order)
-              or len(set(order)) != len(order) or not set(order) <= seen):
-          problems.append("investigation_order must be a duplicate-free list of decision cluster ids")
+      if not isinstance(order, list) or any(not isinstance(x, str) for x in order):
+          problems.append("investigation_order must be a list of cluster id strings")
+      elif len(set(order)) != len(order) or not set(order) <= seen:
+          problems.append("investigation_order must be duplicate-free and name only decision cluster ids")
       if problems:
           return (False, "; ".join(problems[:8]))
       return (True, f"{len(decisions)} well-formed decisions")
@@ -203,7 +215,8 @@ judges:
     check: |
       import json
       files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
-      hits = {k: v for k, v in files.items() if k.endswith("prior-verdict.json") and isinstance(v, str)}
+      hits = {k: v for k, v in files.items()
+              if (k == "prior-verdict.json" or k.endswith("/prior-verdict.json")) and isinstance(v, str)}
       if not hits:
           return (False, "No prior-verdict.json found")
       try:
@@ -212,15 +225,19 @@ judges:
           return (False, f"Invalid JSON: {e}")
       if not isinstance(data, dict) or not isinstance(data.get("decisions"), list):
           return (False, "prior-verdict.json must be an object with a decisions list")
-      by_id = {d.get("cluster_id"): d for d in data["decisions"] if isinstance(d, dict)}
+      bad = [i for i, d in enumerate(data["decisions"])
+             if not isinstance(d, dict) or not isinstance(d.get("cluster_id"), str) or not d.get("cluster_id")]
+      if bad:
+          return (False, f"decisions {bad} lack a non-empty string cluster_id")
+      by_id = {d["cluster_id"]: d for d in data["decisions"]}
+      if len(by_id) != len(data["decisions"]):
+          return (False, "duplicate cluster_id in decisions")
       expected = outputs.get("annotations", {}).get("expected") or {}
       expected_by_id = expected.get("decisions") or {}
       if not expected_by_id:
           return (False, "annotations.expected.decisions missing")
-      if len(data["decisions"]) != len(by_id):
-          return (False, "decisions contain duplicate or malformed cluster ids")
       if set(by_id) != set(expected_by_id):
-          return (False, f"decision ids {sorted(map(str, by_id))} != expected {sorted(expected_by_id)}")
+          return (False, f"decision ids {sorted(by_id)} != expected {sorted(expected_by_id)}")
       problems = []
       for cid, exp in expected_by_id.items():
           got = by_id[cid]
@@ -247,7 +264,8 @@ judges:
     check: |
       import json
       files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
-      hits = {k: v for k, v in files.items() if k.endswith("prior-verdict.json") and isinstance(v, str)}
+      hits = {k: v for k, v in files.items()
+              if (k == "prior-verdict.json" or k.endswith("/prior-verdict.json")) and isinstance(v, str)}
       if not hits:
           return (False, "No prior-verdict.json found")
       try:
@@ -256,19 +274,30 @@ judges:
           return (False, f"Invalid JSON: {e}")
       if not isinstance(data, dict) or not isinstance(data.get("decisions"), list):
           return (False, "prior-verdict.json must be an object with a decisions list")
-      by_id = {d.get("cluster_id"): d for d in data["decisions"] if isinstance(d, dict)}
-      expected_by_id = (outputs.get("annotations", {}).get("expected") or {}).get("decisions") or {}
+      bad = [i for i, d in enumerate(data["decisions"])
+             if not isinstance(d, dict) or not isinstance(d.get("cluster_id"), str) or not d.get("cluster_id")]
+      if bad:
+          return (False, f"decisions {bad} lack a non-empty string cluster_id")
+      by_id = {d["cluster_id"]: d for d in data["decisions"]}
+      if len(by_id) != len(data["decisions"]):
+          return (False, "duplicate cluster_id in decisions")
+      expected = outputs.get("annotations", {}).get("expected") or {}
+      expected_by_id = expected.get("decisions") or {}
       if not expected_by_id:
           return (False, "annotations.expected.decisions missing")
       if set(by_id) != set(expected_by_id):
-          return (False, f"decision ids {sorted(map(str, by_id))} != expected {sorted(expected_by_id)}")
+          return (False, f"decision ids {sorted(by_id)} != expected {sorted(expected_by_id)}")
       problems = []
       for cid, exp in expected_by_id.items():
           got = by_id[cid]
-          if got.get("target") != exp["target"]:
-              problems.append(f"{cid}: target {got.get('target')!r} != {exp['target']!r}")
+          allowed = exp["allowed_targets"] if "allowed_targets" in exp else [exp.get("target")]
+          if "target" not in got:
+              problems.append(f"{cid}: target key missing")
+          elif got["target"] not in allowed:
+              problems.append(f"{cid}: target {got['target']!r} not in {allowed!r}")
           ids = got.get("supported_member_ids")
-          if not isinstance(ids, list) or sorted(ids, key=str) != sorted(exp["supported_member_ids"], key=str):
+          if (not isinstance(ids, list) or any(isinstance(x, bool) or not isinstance(x, int) for x in ids)
+                  or sorted(ids) != sorted(exp["supported_member_ids"])):
               problems.append(f"{cid}: supported_member_ids {ids!r} != {exp['supported_member_ids']!r}")
           for key in ("would_write", "escalation_required"):
               if got.get(key) is not exp[key]:
@@ -282,7 +311,8 @@ judges:
     check: |
       import json
       files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
-      hits = {k: v for k, v in files.items() if k.endswith("prior-verdict.json") and isinstance(v, str)}
+      hits = {k: v for k, v in files.items()
+              if (k == "prior-verdict.json" or k.endswith("/prior-verdict.json")) and isinstance(v, str)}
       if not hits:
           return (False, "No prior-verdict.json found")
       try:
@@ -291,19 +321,39 @@ judges:
           return (False, f"Invalid JSON: {e}")
       if not isinstance(data, dict) or not isinstance(data.get("decisions"), list):
           return (False, "prior-verdict.json must be an object with a decisions list")
-      by_id = {d.get("cluster_id"): d for d in data["decisions"] if isinstance(d, dict)}
-      expected_by_id = (outputs.get("annotations", {}).get("expected") or {}).get("decisions") or {}
+      bad = [i for i, d in enumerate(data["decisions"])
+             if not isinstance(d, dict) or not isinstance(d.get("cluster_id"), str) or not d.get("cluster_id")]
+      if bad:
+          return (False, f"decisions {bad} lack a non-empty string cluster_id")
+      by_id = {d["cluster_id"]: d for d in data["decisions"]}
+      if len(by_id) != len(data["decisions"]):
+          return (False, "duplicate cluster_id in decisions")
+      expected = outputs.get("annotations", {}).get("expected") or {}
+      expected_by_id = expected.get("decisions") or {}
       if not expected_by_id:
           return (False, "annotations.expected.decisions missing")
       if set(by_id) != set(expected_by_id):
-          return (False, f"decision ids {sorted(map(str, by_id))} != expected {sorted(expected_by_id)}")
+          return (False, f"decision ids {sorted(by_id)} != expected {sorted(expected_by_id)}")
       problems = []
       for cid, exp in expected_by_id.items():
           locs = by_id[cid].get("check_locators")
-          cited = set(locs) if isinstance(locs, list) else set()
-          missing = sorted(set(exp.get("required_locators") or []) - cited)
+          if not isinstance(locs, list) or any(not isinstance(x, str) for x in locs):
+              problems.append(f"{cid}: check_locators must be a list of strings")
+              continue
+          missing = sorted(set(exp.get("required_locators") or []) - set(locs))
           if missing:
               problems.append(f"{cid}: missing locators {missing}")
       if problems:
           return (False, "; ".join(problems))
       return (True, "required locators cited")
+
+# Every judge must pass on every case; a regression in any of them fails scoring.
+thresholds:
+  valid_output_shape:
+    min_pass_rate: 1.0
+  choices_and_priority:
+    min_pass_rate: 1.0
+  target_and_member_coverage:
+    min_pass_rate: 1.0
+  required_locators:
+    min_pass_rate: 1.0

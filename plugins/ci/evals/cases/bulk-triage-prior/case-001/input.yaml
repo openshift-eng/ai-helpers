@@ -50,6 +50,389 @@ input_json: |
       },
       "clusters": [
         {
+          "id": "c-candidate",
+          "lineage": {
+            "first_seen_run": "2111000000000000001",
+            "cycles_seen": 2,
+            "supersedes": [
+              "c-candidate"
+            ]
+          },
+          "fingerprint": {
+            "release": "4.21",
+            "test_family": "csi mock volume expansion should expand volume without restarting pod if nodeexpansion=off",
+            "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn",
+            "labels": []
+          },
+          "members": {
+            "regression_ids": [
+              201
+            ],
+            "new_since_baseline": [],
+            "views": [
+              "4.21-main"
+            ],
+            "components": [
+              "Storage / Kubernetes External Components"
+            ]
+          },
+          "shape": {
+            "regressions": 1,
+            "distinct_jobs": 1,
+            "lane_families": 1,
+            "platforms": [
+              "gcp"
+            ],
+            "arches": [],
+            "upgrade_lane": false,
+            "minor_upgrade_lane": false,
+            "install_wrapper": false,
+            "mass_failure_marker": false,
+            "median_test_failures_per_run": 1,
+            "distinct_runs": 2,
+            "failing_runs_7d": 1,
+            "first_failure": "2026-10-11T03:10:05+00:00",
+            "last_failure": "2026-10-18T03:02:17+00:00",
+            "days_open": 21,
+            "regression_days_open": 21,
+            "days_since_last_failure": 2,
+            "growth_since_baseline": 0,
+            "components": [
+              "Storage / Kubernetes External Components"
+            ],
+            "views": [
+              "4.21-main"
+            ],
+            "top_jobs": [
+              "periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn"
+            ]
+          },
+          "blast_radius": {
+            "level": "LOW",
+            "score": 0.07600000000000001,
+            "reasons": []
+          },
+          "oracle": {
+            "status": "ok",
+            "runs_probed": 2,
+            "labels": {},
+            "label_bugs": {}
+          },
+          "prior": {
+            "run_id": "2111000000000000001",
+            "observed_at": "2026-10-13T05:03:40Z",
+            "source_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga/2111000000000000001",
+            "write_mode": "report",
+            "observation_complete": true,
+            "relationship": "same-id",
+            "sources": [
+              {
+                "run_id": "2111000000000000001",
+                "observed_at": "2026-10-13T05:03:40Z",
+                "cluster_id": "c-candidate",
+                "history_only": false,
+                "unfinished": false,
+                "member_ids": [
+                  201
+                ],
+                "matched_member_ids": [
+                  201
+                ],
+                "fingerprint": {
+                  "release": "4.21",
+                  "test_family": "csi mock volume expansion should expand volume without restarting pod if nodeexpansion=off",
+                  "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn",
+                  "labels": []
+                },
+                "shape": {
+                  "regressions": 1,
+                  "distinct_jobs": 1,
+                  "lane_families": 1,
+                  "platforms": [
+                    "gcp"
+                  ],
+                  "arches": [],
+                  "upgrade_lane": false,
+                  "minor_upgrade_lane": false,
+                  "install_wrapper": false,
+                  "mass_failure_marker": false,
+                  "median_test_failures_per_run": 1,
+                  "distinct_runs": 1,
+                  "failing_runs_7d": 1,
+                  "first_failure": "2026-10-11T03:10:05+00:00",
+                  "last_failure": "2026-10-11T03:10:05+00:00",
+                  "days_open": 14,
+                  "regression_days_open": 14,
+                  "days_since_last_failure": 2,
+                  "growth_since_baseline": null,
+                  "components": [
+                    "Storage / Kubernetes External Components"
+                  ],
+                  "views": [
+                    "4.21-main"
+                  ],
+                  "top_jobs": [
+                    "periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn"
+                  ]
+                },
+                "blast_radius": {
+                  "level": "LOW",
+                  "score": 0.07600000000000001,
+                  "reasons": []
+                },
+                "oracle": {
+                  "status": "ok",
+                  "runs_probed": 1,
+                  "labels": {},
+                  "label_bugs": {}
+                },
+                "state": "CANDIDATE",
+                "analysis": {
+                  "depth": "deep-dive",
+                  "confidence": "high",
+                  "owning_component": "Storage / Kubernetes External Components",
+                  "triage_type": "product",
+                  "unverified_hypotheses": [
+                    "not proven: the external-resizer leader election restart seen in the GCP job of OCPBUGS-3 also happens here"
+                  ],
+                  "root_cause": "PVC resize on the CSI mock driver never reports FileSystemResizePending within the 5 min poll on gcp-ovn. OCPBUGS-3 describes a similar expansion stall but cites a different job and a different assertion; bar not met.",
+                  "root_cause_truncated": false,
+                  "evidence_refs": [
+                    {
+                      "prowjob_run_id": "2110800000000000201",
+                      "supports_regression_ids": [
+                        201
+                      ],
+                      "artifact": "gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn/2110800000000000201/artifacts/e2e-gcp-ovn/openshift-e2e-test/artifacts/junit/junit_e2e__20261011-031005.xml"
+                    }
+                  ],
+                  "basis": {
+                    "run_id": "2111000000000000001",
+                    "cluster_id": "c-candidate",
+                    "observed_at": "2026-10-13T05:03:40Z",
+                    "depth": "deep-dive"
+                  }
+                },
+                "bug_search": {
+                  "candidates": [
+                    {
+                      "key": "OCPBUGS-3",
+                      "status": "New",
+                      "release": "4.21",
+                      "cites_own_runs": false,
+                      "exact_assertion": false,
+                      "sibling_precedent": null,
+                      "bar_met": false,
+                      "verdict": "candidate",
+                      "caveat": "cites periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn-csi only; assertion differs (resizer restart)"
+                    }
+                  ],
+                  "newer_release_fix": null
+                },
+                "proposed_action": {
+                  "type": "none"
+                },
+                "actions": [],
+                "escalation": {
+                  "required": false,
+                  "reason": "not required",
+                  "re_notify": false,
+                  "re_notify_reasons": []
+                },
+                "unlinked": null,
+                "watch_list": [],
+                "unanalysed": []
+              }
+            ],
+            "member_delta": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "id": "c-deferred-partial",
+          "lineage": {
+            "first_seen_run": "2111000000000000001",
+            "cycles_seen": 2,
+            "supersedes": [
+              "c-deferred-partial"
+            ]
+          },
+          "fingerprint": {
+            "release": "4.20",
+            "test_family": "services should be able to update service type to nodeport listening on same port number but different protocols",
+            "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn",
+            "labels": []
+          },
+          "members": {
+            "regression_ids": [
+              302
+            ],
+            "new_since_baseline": [],
+            "views": [
+              "4.20-main"
+            ],
+            "components": [
+              "Networking / ovn-kubernetes"
+            ]
+          },
+          "shape": {
+            "regressions": 1,
+            "distinct_jobs": 1,
+            "lane_families": 1,
+            "platforms": [
+              "vsphere"
+            ],
+            "arches": [],
+            "upgrade_lane": false,
+            "minor_upgrade_lane": false,
+            "install_wrapper": false,
+            "mass_failure_marker": false,
+            "median_test_failures_per_run": 1,
+            "distinct_runs": 2,
+            "failing_runs_7d": 1,
+            "first_failure": "2026-10-12T02:05:40+00:00",
+            "last_failure": "2026-10-19T02:14:22+00:00",
+            "days_open": 0,
+            "regression_days_open": 9,
+            "days_since_last_failure": 1,
+            "growth_since_baseline": 0,
+            "components": [
+              "Networking / ovn-kubernetes"
+            ],
+            "views": [
+              "4.20-main"
+            ],
+            "top_jobs": [
+              "periodic-ci-openshift-release-main-nightly-4.20-e2e-vsphere-ovn"
+            ]
+          },
+          "blast_radius": {
+            "level": "LOW",
+            "score": 0.07600000000000001,
+            "reasons": []
+          },
+          "oracle": {
+            "status": "ok",
+            "runs_probed": 2,
+            "labels": {},
+            "label_bugs": {}
+          },
+          "prior": {
+            "run_id": "2111000000000000001",
+            "observed_at": "2026-10-13T05:03:40Z",
+            "source_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga/2111000000000000001",
+            "write_mode": "report",
+            "observation_complete": false,
+            "relationship": "same-id",
+            "sources": [
+              {
+                "run_id": "2111000000000000001",
+                "observed_at": "2026-10-13T05:03:40Z",
+                "cluster_id": "c-deferred-partial",
+                "history_only": false,
+                "unfinished": false,
+                "member_ids": [
+                  302
+                ],
+                "matched_member_ids": [
+                  302
+                ],
+                "fingerprint": {
+                  "release": "4.20",
+                  "test_family": "services should be able to update service type to nodeport listening on same port number but different protocols",
+                  "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn",
+                  "labels": []
+                },
+                "shape": {
+                  "regressions": 1,
+                  "distinct_jobs": 1,
+                  "lane_families": 1,
+                  "platforms": [
+                    "vsphere"
+                  ],
+                  "arches": [],
+                  "upgrade_lane": false,
+                  "minor_upgrade_lane": false,
+                  "install_wrapper": false,
+                  "mass_failure_marker": false,
+                  "median_test_failures_per_run": 1,
+                  "distinct_runs": 1,
+                  "failing_runs_7d": 1,
+                  "first_failure": "2026-10-12T02:05:40+00:00",
+                  "last_failure": "2026-10-12T02:05:40+00:00",
+                  "days_open": 2,
+                  "regression_days_open": 2,
+                  "days_since_last_failure": 1,
+                  "growth_since_baseline": null,
+                  "components": [
+                    "Networking / ovn-kubernetes"
+                  ],
+                  "views": [
+                    "4.20-main"
+                  ],
+                  "top_jobs": [
+                    "periodic-ci-openshift-release-main-nightly-4.20-e2e-vsphere-ovn"
+                  ]
+                },
+                "blast_radius": {
+                  "level": "LOW",
+                  "score": 0.07600000000000001,
+                  "reasons": []
+                },
+                "oracle": {
+                  "status": "ok",
+                  "runs_probed": 1,
+                  "labels": {},
+                  "label_bugs": {}
+                },
+                "state": "UNEXPLAINED",
+                "analysis": {
+                  "depth": "none",
+                  "confidence": "low",
+                  "owning_component": null,
+                  "triage_type": null,
+                  "unverified_hypotheses": [],
+                  "root_cause": null,
+                  "root_cause_truncated": false,
+                  "evidence_refs": [],
+                  "basis": null
+                },
+                "bug_search": {
+                  "candidates": [],
+                  "newer_release_fix": null
+                },
+                "proposed_action": {
+                  "type": "none"
+                },
+                "actions": [],
+                "escalation": {
+                  "required": false,
+                  "reason": "not required",
+                  "re_notify": false,
+                  "re_notify_reasons": []
+                },
+                "unlinked": null,
+                "watch_list": [
+                  {
+                    "regression_id": 302,
+                    "view": "4.20-main",
+                    "cluster_id": "c-deferred-partial",
+                    "reason": "LOW & new (<7d)",
+                    "revisit": "next cycle"
+                  }
+                ],
+                "unanalysed": []
+              }
+            ],
+            "member_delta": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
           "id": "c-known",
           "lineage": {
             "first_seen_run": "2111000000000000001",
@@ -464,389 +847,6 @@ input_json: |
               "removed": []
             }
           }
-        },
-        {
-          "id": "c-candidate",
-          "lineage": {
-            "first_seen_run": "2111000000000000001",
-            "cycles_seen": 2,
-            "supersedes": [
-              "c-candidate"
-            ]
-          },
-          "fingerprint": {
-            "release": "4.21",
-            "test_family": "csi mock volume expansion should expand volume without restarting pod if nodeexpansion=off",
-            "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn",
-            "labels": []
-          },
-          "members": {
-            "regression_ids": [
-              201
-            ],
-            "new_since_baseline": [],
-            "views": [
-              "4.21-main"
-            ],
-            "components": [
-              "Storage / Kubernetes External Components"
-            ]
-          },
-          "shape": {
-            "regressions": 1,
-            "distinct_jobs": 1,
-            "lane_families": 1,
-            "platforms": [
-              "gcp"
-            ],
-            "arches": [],
-            "upgrade_lane": false,
-            "minor_upgrade_lane": false,
-            "install_wrapper": false,
-            "mass_failure_marker": false,
-            "median_test_failures_per_run": 1,
-            "distinct_runs": 2,
-            "failing_runs_7d": 1,
-            "first_failure": "2026-10-11T03:10:05+00:00",
-            "last_failure": "2026-10-18T03:02:17+00:00",
-            "days_open": 21,
-            "regression_days_open": 21,
-            "days_since_last_failure": 2,
-            "growth_since_baseline": 0,
-            "components": [
-              "Storage / Kubernetes External Components"
-            ],
-            "views": [
-              "4.21-main"
-            ],
-            "top_jobs": [
-              "periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn"
-            ]
-          },
-          "blast_radius": {
-            "level": "LOW",
-            "score": 0.07600000000000001,
-            "reasons": []
-          },
-          "oracle": {
-            "status": "ok",
-            "runs_probed": 2,
-            "labels": {},
-            "label_bugs": {}
-          },
-          "prior": {
-            "run_id": "2111000000000000001",
-            "observed_at": "2026-10-13T05:03:40Z",
-            "source_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga/2111000000000000001",
-            "write_mode": "report",
-            "observation_complete": true,
-            "relationship": "same-id",
-            "sources": [
-              {
-                "run_id": "2111000000000000001",
-                "observed_at": "2026-10-13T05:03:40Z",
-                "cluster_id": "c-candidate",
-                "history_only": false,
-                "unfinished": false,
-                "member_ids": [
-                  201
-                ],
-                "matched_member_ids": [
-                  201
-                ],
-                "fingerprint": {
-                  "release": "4.21",
-                  "test_family": "csi mock volume expansion should expand volume without restarting pod if nodeexpansion=off",
-                  "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn",
-                  "labels": []
-                },
-                "shape": {
-                  "regressions": 1,
-                  "distinct_jobs": 1,
-                  "lane_families": 1,
-                  "platforms": [
-                    "gcp"
-                  ],
-                  "arches": [],
-                  "upgrade_lane": false,
-                  "minor_upgrade_lane": false,
-                  "install_wrapper": false,
-                  "mass_failure_marker": false,
-                  "median_test_failures_per_run": 1,
-                  "distinct_runs": 1,
-                  "failing_runs_7d": 1,
-                  "first_failure": "2026-10-11T03:10:05+00:00",
-                  "last_failure": "2026-10-11T03:10:05+00:00",
-                  "days_open": 14,
-                  "regression_days_open": 14,
-                  "days_since_last_failure": 2,
-                  "growth_since_baseline": null,
-                  "components": [
-                    "Storage / Kubernetes External Components"
-                  ],
-                  "views": [
-                    "4.21-main"
-                  ],
-                  "top_jobs": [
-                    "periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn"
-                  ]
-                },
-                "blast_radius": {
-                  "level": "LOW",
-                  "score": 0.07600000000000001,
-                  "reasons": []
-                },
-                "oracle": {
-                  "status": "ok",
-                  "runs_probed": 1,
-                  "labels": {},
-                  "label_bugs": {}
-                },
-                "state": "CANDIDATE",
-                "analysis": {
-                  "depth": "deep-dive",
-                  "confidence": "high",
-                  "owning_component": "Storage / Kubernetes External Components",
-                  "triage_type": "product",
-                  "unverified_hypotheses": [
-                    "not proven: the external-resizer leader election restart seen in the GCP job of OCPBUGS-3 also happens here"
-                  ],
-                  "root_cause": "PVC resize on the CSI mock driver never reports FileSystemResizePending within the 5 min poll on gcp-ovn. OCPBUGS-3 describes a similar expansion stall but cites a different job and a different assertion; bar not met.",
-                  "root_cause_truncated": false,
-                  "evidence_refs": [
-                    {
-                      "prowjob_run_id": "2110800000000000201",
-                      "supports_regression_ids": [
-                        201
-                      ],
-                      "artifact": "gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn/2110800000000000201/artifacts/e2e-gcp-ovn/openshift-e2e-test/artifacts/junit/junit_e2e__20261011-031005.xml"
-                    }
-                  ],
-                  "basis": {
-                    "run_id": "2111000000000000001",
-                    "cluster_id": "c-candidate",
-                    "observed_at": "2026-10-13T05:03:40Z",
-                    "depth": "deep-dive"
-                  }
-                },
-                "bug_search": {
-                  "candidates": [
-                    {
-                      "key": "OCPBUGS-3",
-                      "status": "New",
-                      "release": "4.21",
-                      "cites_own_runs": false,
-                      "exact_assertion": false,
-                      "sibling_precedent": null,
-                      "bar_met": false,
-                      "verdict": "candidate",
-                      "caveat": "cites periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn-csi only; assertion differs (resizer restart)"
-                    }
-                  ],
-                  "newer_release_fix": null
-                },
-                "proposed_action": {
-                  "type": "none"
-                },
-                "actions": [],
-                "escalation": {
-                  "required": false,
-                  "reason": "not required",
-                  "re_notify": false,
-                  "re_notify_reasons": []
-                },
-                "unlinked": null,
-                "watch_list": [],
-                "unanalysed": []
-              }
-            ],
-            "member_delta": {
-              "added": [],
-              "removed": []
-            }
-          }
-        },
-        {
-          "id": "c-deferred-partial",
-          "lineage": {
-            "first_seen_run": "2111000000000000001",
-            "cycles_seen": 2,
-            "supersedes": [
-              "c-deferred-partial"
-            ]
-          },
-          "fingerprint": {
-            "release": "4.20",
-            "test_family": "services should be able to update service type to nodeport listening on same port number but different protocols",
-            "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn",
-            "labels": []
-          },
-          "members": {
-            "regression_ids": [
-              302
-            ],
-            "new_since_baseline": [],
-            "views": [
-              "4.20-main"
-            ],
-            "components": [
-              "Networking / ovn-kubernetes"
-            ]
-          },
-          "shape": {
-            "regressions": 1,
-            "distinct_jobs": 1,
-            "lane_families": 1,
-            "platforms": [
-              "vsphere"
-            ],
-            "arches": [],
-            "upgrade_lane": false,
-            "minor_upgrade_lane": false,
-            "install_wrapper": false,
-            "mass_failure_marker": false,
-            "median_test_failures_per_run": 1,
-            "distinct_runs": 2,
-            "failing_runs_7d": 1,
-            "first_failure": "2026-10-12T02:05:40+00:00",
-            "last_failure": "2026-10-19T02:14:22+00:00",
-            "days_open": 0,
-            "regression_days_open": 0,
-            "days_since_last_failure": 1,
-            "growth_since_baseline": 0,
-            "components": [
-              "Networking / ovn-kubernetes"
-            ],
-            "views": [
-              "4.20-main"
-            ],
-            "top_jobs": [
-              "periodic-ci-openshift-release-main-nightly-4.20-e2e-vsphere-ovn"
-            ]
-          },
-          "blast_radius": {
-            "level": "LOW",
-            "score": 0.07600000000000001,
-            "reasons": []
-          },
-          "oracle": {
-            "status": "ok",
-            "runs_probed": 2,
-            "labels": {},
-            "label_bugs": {}
-          },
-          "prior": {
-            "run_id": "2111000000000000001",
-            "observed_at": "2026-10-13T05:03:40Z",
-            "source_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga/2111000000000000001",
-            "write_mode": "report",
-            "observation_complete": false,
-            "relationship": "same-id",
-            "sources": [
-              {
-                "run_id": "2111000000000000001",
-                "observed_at": "2026-10-13T05:03:40Z",
-                "cluster_id": "c-deferred-partial",
-                "history_only": false,
-                "unfinished": false,
-                "member_ids": [
-                  302
-                ],
-                "matched_member_ids": [
-                  302
-                ],
-                "fingerprint": {
-                  "release": "4.20",
-                  "test_family": "services should be able to update service type to nodeport listening on same port number but different protocols",
-                  "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn",
-                  "labels": []
-                },
-                "shape": {
-                  "regressions": 1,
-                  "distinct_jobs": 1,
-                  "lane_families": 1,
-                  "platforms": [
-                    "vsphere"
-                  ],
-                  "arches": [],
-                  "upgrade_lane": false,
-                  "minor_upgrade_lane": false,
-                  "install_wrapper": false,
-                  "mass_failure_marker": false,
-                  "median_test_failures_per_run": 1,
-                  "distinct_runs": 1,
-                  "failing_runs_7d": 1,
-                  "first_failure": "2026-10-12T02:05:40+00:00",
-                  "last_failure": "2026-10-12T02:05:40+00:00",
-                  "days_open": 2,
-                  "regression_days_open": 2,
-                  "days_since_last_failure": 1,
-                  "growth_since_baseline": null,
-                  "components": [
-                    "Networking / ovn-kubernetes"
-                  ],
-                  "views": [
-                    "4.20-main"
-                  ],
-                  "top_jobs": [
-                    "periodic-ci-openshift-release-main-nightly-4.20-e2e-vsphere-ovn"
-                  ]
-                },
-                "blast_radius": {
-                  "level": "LOW",
-                  "score": 0.07600000000000001,
-                  "reasons": []
-                },
-                "oracle": {
-                  "status": "ok",
-                  "runs_probed": 1,
-                  "labels": {},
-                  "label_bugs": {}
-                },
-                "state": "UNEXPLAINED",
-                "analysis": {
-                  "depth": "none",
-                  "confidence": "low",
-                  "owning_component": null,
-                  "triage_type": null,
-                  "unverified_hypotheses": [],
-                  "root_cause": null,
-                  "root_cause_truncated": false,
-                  "evidence_refs": [],
-                  "basis": null
-                },
-                "bug_search": {
-                  "candidates": [],
-                  "newer_release_fix": null
-                },
-                "proposed_action": {
-                  "type": "none"
-                },
-                "actions": [],
-                "escalation": {
-                  "required": false,
-                  "reason": "not required",
-                  "re_notify": false,
-                  "re_notify_reasons": []
-                },
-                "unlinked": null,
-                "watch_list": [
-                  {
-                    "regression_id": 302,
-                    "view": "4.20-main",
-                    "cluster_id": "c-deferred-partial",
-                    "reason": "LOW & new (<7d)",
-                    "revisit": "next cycle"
-                  }
-                ],
-                "unanalysed": []
-              }
-            ],
-            "member_delta": {
-              "added": [],
-              "removed": []
-            }
-          }
         }
       ],
       "watch_list_candidates": [
@@ -945,7 +945,7 @@ input_json: |
       {
         "cluster_id": "c-candidate",
         "kind": "jira-search",
-        "locator": "https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20created%3E%3D2026-10-13%20AND%20text~%22volume%20expansion%22&fields=key,summary,status,created",
+        "locator": "https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20updated%3E%3D2026-10-13%20AND%20text~%22volume%20expansion%22&fields=key,summary,status,created,updated",
         "reply": {
           "total": 0,
           "issues": []
@@ -962,7 +962,7 @@ input_json: |
       {
         "cluster_id": "c-needs-human",
         "kind": "jira-search",
-        "locator": "https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20created%3E%3D2026-10-13%20AND%20text~%22drowned%20out%22&fields=key,summary,status,created",
+        "locator": "https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20updated%3E%3D2026-10-13%20AND%20text~%22drowned%20out%22&fields=key,summary,status,created,updated",
         "reply": {
           "total": 0,
           "issues": []
