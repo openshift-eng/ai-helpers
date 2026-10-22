@@ -12,6 +12,7 @@ bigquery-ci-data:query
 /bigquery-ci-data:query which tests have the most retries in the last 7 days?
 /bigquery-ci-data:query show me operator degraded time trends for etcd this month
 /bigquery-ci-data:query what override decisions has the chain presubmit agent made recently?
+/bigquery-ci-data:query are singleton operator pods unevenly spread across masters this week?
 ```
 
 ## Description
@@ -20,7 +21,7 @@ General-purpose entry point for querying OpenShift CI data stored in BigQuery. U
 
 The command covers:
 - **Jobs and tests** (`ci_analysis_us`): Prow job pass rates, junit test failures/flakes, variant analysis
-- **Autodl data** (`ci_data_autodl`): Risk analysis, retry statistics, operator state, CPU metrics, audit logs, disruption
+- **Autodl data** (`ci_data_autodl`): Risk analysis, retry statistics, operator state, CPU metrics, audit logs, disruption, control plane singleton pod placement and memory
 - **Agent decisions** (`ci_analysis_us`): Chain presubmit override decisions
 
 ## Implementation
@@ -29,7 +30,7 @@ The command covers:
 
 1. **Parse the question**: Determine which domain(s) and table(s) are needed:
    - Job pass rates, test failures, variant breakdowns → use `jobs-and-tests` skill
-   - Risk analysis, retries, operator state, CPU, audit logs, disruption, instance types → use `autodl` skill
+   - Risk analysis, retries, operator state, CPU, audit logs, disruption, instance types, singleton pod placement on masters and their memory use → use `autodl` skill
    - Presubmit override decisions → use `chai-presubmit-override-decisions` skill
    - Always load the `foundations` skill for cost safety protocol
 
