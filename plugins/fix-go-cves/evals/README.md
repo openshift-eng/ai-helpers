@@ -63,22 +63,22 @@ and scan timeouts. Two lint attempts failed, leaving unit tests unrun; audits, l
 and native final scanning passed. The invoking skill still fails literal Summary
 relay and factual diagnosis. The [live record](live/README.md#current-runtime-integration)
 retains both measurements, scores, coverage limits and costs. Those runs used
-our incorrect release lint override. The subsequent [four six-cell matrices](live/README.md#branch-policy-matrix)
-are closed. The latest at `368e0e2b` completed six actors and 36 factual samples
-with zero judge errors, all at pinned CLI 2.1.307. Every live cell ran unit tests;
-Admiral release retained its blocker, while the other three passed configured
-gates. Both Subctl branches have positive native coverage. Full Summary relay
-and child-status handoff are observed; causal overclaims, replacement publication
-and an extra preflight build remain. Original grades and instability are preserved.
+our incorrect release lint override. The subsequent [five six-cell matrices](live/README.md#branch-policy-matrix)
+are closed. The latest at `7063ca5e` completed all actors and factual samples at
+pinned CLI 2.1.307; the skill remains unaccepted. Three live cells passed canonical
+unit checks, with positive native coverage on both Subctl branches. Admiral
+release replaced the inherited command with host build/tests; its real blocked
+result leaves canonical unit/Dapper coverage missing. Its quoted Summary also
+changes one line. Causal overclaims and replacement publication persist. Original
+grades and instability are retained alongside independent review and its notes
+on grader reasoning.
 
-The policy/procedure clause did not establish reliable publication behavior.
-The selected next change replaces only the global script-ownership sentence and
-causal-evidence bullet: scripts own scans/builds/tests in every phase, and version
-comparisons or retries alone do not establish cause. No new baseline test,
-publication warning, policy knob or reviewer workflow is selected. After review
-and commit, measure the same six cells once at pinned 2.1.307 with unchanged
-criteria, preserving all failures without adaptive repetition. The Go-minor
-policy question remains pending and grants no approval.
+The global ownership and causal-evidence clarifications are now measured, without
+establishing reliable behavior. No further source treatment or actor cohort is
+selected. Preserve useful diagnosis, current criteria and the unresolved Go-minor
+policy decision; no approval or new policy knob is inferred. The
+[testing strategy](../plans/testing.md) retains durable coverage and environment
+constraints; the canonical live record owns detailed results and costs.
 
 ## Recorded cases
 
@@ -134,7 +134,7 @@ build daemon; it does not isolate the invoking agent from host files or credenti
 For the tested rootless Shipyard worker, daemon user/mount namespace mapping
 was also necessary to preserve checkout ownership through Dapper. Revalidate
 that mapping and targeted cancellation cleanup when recreating the worker;
-see the [worker evidence and limits](../plans/testing.md#environment-evidence-and-deadlines).
+see the [worker evidence and limits](../plans/testing.md#environment-evidence-and-limits).
 
 For a controlled live run, set `CVE_FIX_GRYPE_VERSION` to the requested
 release (for example, the observed `v0.121.0`). The live runner forwards and

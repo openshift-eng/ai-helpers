@@ -8,58 +8,28 @@ itself.
 
 ## Next changes
 
-The skill remains unaccepted. The [fourth six-cell matrix](../evals/live/README.md#branch-policy-matrix)
-at `368e0e2b` completed six actors and 36 factual samples without judge errors,
-all at pinned CLI 2.1.307. All live cells ran `make unit`: Admiral release remained
-blocked, while the other three passed configured gates. Both Subctl branches
-have positive native evidence. Complete Summary relay and child-status handoff
-are observed, but unsupported causal claims and replacement publication remain;
-Admiral devel also executed an extra preflight build.
+The skill remains unaccepted after the [fifth six-cell matrix](../evals/live/README.md#branch-policy-matrix)
+at `7063ca5e`. The three successful live cells still supply replacement publication
+steps; causal advice also remains unsupported. Admiral release replaced the
+inherited test command, so its blocked host run does not establish canonical
+unit/Dapper coverage. Both Subctl branches have positive native evidence.
+No further actor cohort or source treatment is selected; preserve the failures
+and useful diagnosis requirements rather than relaxing acceptance.
 
-The selected next change replaces only two existing passages: explicitly assign
-all scans/builds/tests to scripts, and distinguish captured causal evidence from
-version comparisons, unchanged source or retries alone. These clarify a temporal
-scope gap and the evidence threshold; they do not establish reliable behavior.
-Preserve the existing policy/procedure boundary and the pending Go-minor decision,
-without inferring approval. After review and commit, measure the same six cells
-once at pinned 2.1.307 with unchanged criteria. No adaptive repetition, publication
-warning, new gate or reviewer workflow is selected.
+Report validation, scanner deadlines and inherited-ignore preservation are
+implemented and regressed. The read-only policy guard precedes cleanup/build/scan;
+its decision below preserves maintainer policy. The existing 3,046 runtime checks
+and 68 eval helper checks pass. See the [testing strategy](testing.md) and
+[real engine checks](../evals/live/README.md#runtime-quality-checks); engine
+validation is separate from invoking-agent acceptance.
 
-Three demonstrated engine gaps are now implemented, with focused regressions:
-
-- **Report evidence:** one fresh JSON scan uses the existing validator before
-  rendering findings and ignores. Invalid evidence and failed scans cannot
-  declare completion; incomplete coverage retains exit 2 and cleanup.
-- **Scanner deadlines:** shared per-operation limits cover executable version
-  probes, scans, container database updates, volume creation and image inspection.
-  Termination grace and targeted container cleanup are bounded separately.
-  Healthy fallback resets prior failure flags; shorter caller deadlines remain
-  effective. Installer downloads and generic daemon probes are outside this fix.
-- **Inherited ignore policy:** a shared read-only PyYAML `CSafeLoader` check runs before
-  `CLEAN_CMD`, build/scan and the clean fast path. It handles flow/quoted forms
-  and aliases, rejects malformed or broad selectors, and preserves valid empty
-  policies and complete unscoped rules. Rejection preserves policy bytes,
-  creates no repair commit, restores the original ref and removes the empty
-  branch. PyYAML is an explicit prerequisite; no serialization rewrite or
-  entry-provenance machinery was added.
-
-All 3,046 hermetic runtime checks and 68 eval helper checks pass. Two model-free
-real checks on frozen runtime `c916dfa9` also pass: Subctl release-0.24 report
-mode faithfully renders 17 findings, and operator devel rejects genuine inherited
-broad rules before cleanup/build/scan while preserving policy and instructions.
-These establish engine behavior, not remediation or skill acceptance. The
-[live record](../evals/live/README.md#runtime-quality-checks) retains failures,
-environment corrections and the independent reviews.
-
-A fresh-context diagnosis pilot failed its first case and stopped. No production
-subagent routing or reviewer loop was added. The full replay pipeline completed
-and preserved a failed skill verdict. Current-runtime integration and behavioral
-acceptance remain separate; see the
-[current E2E work](../evals/README.md#current-e2e-work). Keep branch policy and
-builder compatibility distinct when reviewing Go-minor changes. Existing
-major-version, Kubernetes-identity, no-fix-credit, audit and test-evidence guards
-remain implemented; keep their regressions rather than reopening them without
-a new failure.
+The Summary handoff uses observed in-memory commands, phases and attempts without
+requiring optional evidence files; missing/skipped results are not passes.
+[Current E2E work](../evals/README.md#current-e2e-work) preserves the measured
+behavioral failures. Keep branch policy separate from builder capability and
+leave the Go-minor decision unresolved. Existing major-version,
+Kubernetes-identity, no-fix-credit, audit and test-evidence guards remain
+implemented; retain their regressions unless a new failure justifies work.
 
 ## Decisions
 
@@ -102,26 +72,15 @@ a new failure.
   prove the exact patched compiler required by the existing gates. Keep
   that version unknown without sufficient evidence. Decide how toolchain
   edits should behave for ART builds without weakening the builder bound.
-- **Audit completeness is implemented.** Verification requires all four known
-  scripts and fresh evidence with complete, unique nonnegative integer counters.
-  Missing or malformed evidence blocks repair dispatch, verification and
-  publication; valid positive evidence still repairs and rechecks. The existing
-  orchestration fixtures exercise missing directories/scripts and malformed
-  counters, and the real Admiral audit archive remains compatible.
-- **YAML parsing.** Start with the shared read-only structural check above.
+- **Audit completeness is implemented.** Keep the four-audit evidence and bounded
+  repair-loop regressions in the [testing strategy](testing.md#runtime-and-behavioral-acceptance).
+- **YAML parsing.** Preserve the existing read-only `CSafeLoader` structural check.
   Keep the small `.cve-fix.yaml` configuration grammar separate from Grype YAML.
   Rewriting entry mutation, comment handling or serialization needs its own
   demonstrated failure; it is not a prerequisite for preserving inherited rules.
 
 ## Operations
 
-- **Operational handoff.** If needed after the engine fixes, expose effective
-  test command, reached phases, observed attempt results and available evidence
-  paths through the existing Summary/state. Share in-memory facts with optional
-  evidence writing: `run.json` is written after Summary in the exit trap, and
-  persisted attempt receipts require `CVE_FIX_EVIDENCE_DIR`. Do not make evidence
-  mandatory or claim missing attempts passed. A clearer handoff helps operators;
-  it does not establish causality or solve free-form diagnosis reliability.
 - **Temp space.** Host temporary directories and container storage can fill,
   producing test and build failures. Classify observed ENOSPC consistently in
   builds and test retries; tests currently recognize it only on the first
