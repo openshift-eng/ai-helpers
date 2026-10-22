@@ -375,11 +375,215 @@ def _rule_prior_context(doc):
                 if s.get(k) != pr.get(k):
                     errs.append("%s sources[%d]: immediate source %s %r differs from the prior's %r"
                                 % (w, i, k, s.get(k), pr.get(k)))
+    observed = doc.get("observation", {}).get("time") if isinstance(doc.get("observation"), dict) else None
+    observed_dt = _instant(observed)
+    for c in clusters:
+        if not isinstance(c, dict):
+            continue
+        _, rev = _reverification(c)
+        if not isinstance(rev, dict):
+            continue
+        checked = _instant(rev.get("checked_at"))
+        if observed_dt and checked and checked < observed_dt:
+            errs.append("cluster %s reverification: checked_at %r precedes this run's observation.time %r"
+                        % (c.get("id"), rev.get("checked_at"), observed))
+    return errs
+
+
+def _instant(value):
+    """A timezone-aware datetime for an ISO string, else None."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
+REVERIFICATION_OUTCOMES = ("carried", "reinvestigated", "incomplete")
+CARRIED_DEPTH = "carried-forward"
+CARRY_RELATIONSHIPS = ("same-id", "supersedes")
+LEVEL_RANK = {lvl: i for i, lvl in enumerate(LEVELS)}
+WRITE_TYPES = ("extend_triage", "create_triage", "catch_all")
+
+
+def _reverification(c):
+    """(analysis, record) when the cluster's analysis is an object; the record may be absent (None)."""
+    d = c.get("disposition")
+    an = d.get("analysis") if isinstance(d, dict) else None
+    if not isinstance(an, dict):
+        return None, None
+    return an, an.get("reverification")
+
+
+def _str_list(p, name, value):
+    if not isinstance(value, list) or any(not isinstance(x, str) or not x for x in value):
+        return ["%s: %s must be a list of non-empty strings" % (p, name)], []
+    return [], value
+
+
+def _keyed(cand, bar):
+    return isinstance(cand, dict) and isinstance(cand.get("key"), str) and cand.get("key") and cand.get("bar_met") is bar
+
+
+def _rule_carry_fact(p, source):
+    """The one historical fact a carry asserts, type-checked only here: the previous state's bug-search
+    verdict. Legacy or malformed values (e.g. bar_met "unknown") cannot establish a carry."""
+    state = source.get("state")
+    bs = source.get("bug_search") if isinstance(source.get("bug_search"), dict) else {}
+    cands = bs.get("candidates")
+    if state == "KNOWN-CAUSE":
+        if not isinstance(cands, list) or not any(_keyed(x, True) for x in cands):
+            return ["%s: KNOWN-CAUSE carry needs a source bug_search.candidates entry with a key and bar_met true" % p]
+    elif state == "CANDIDATE":
+        if not isinstance(cands, list) or not any(_keyed(x, False) for x in cands):
+            return ["%s: CANDIDATE carry needs a source bug_search.candidates entry with a key and bar_met false" % p]
+    elif state == "UNEXPLAINED":
+        if not isinstance(cands, list) or any(not _keyed(x, False) for x in cands):
+            return ["%s: UNEXPLAINED carry needs a known source bug_search.candidates list that is empty or holds only"
+                    " keyed bar_met-false records" % p]
+    else:
+        return ["%s: source state %r cannot be carried" % (p, state)]
+    return []
+
+
+def _rule_carry(w, p, c, an, rev, own, locators):
+    """Eligibility of a carried-forward analysis: one finished, overlapping immediate source of known identity
+    and time, complete observation, high confidence on both sides, same state, non-HIGH and not promoted,
+    a basis-backed untruncated source analysis, and current own-run evidence covering every write target
+    and (when members were added) at least one added member."""
+    errs = []
+    d = c.get("disposition") if isinstance(c.get("disposition"), dict) else {}
+    br = c.get("blast_radius") if isinstance(c.get("blast_radius"), dict) else {}
+    level = br.get("level")
+    if level == "HIGH":
+        errs.append("%s: a HIGH cluster is never carried; it needs a fresh deep-dive" % p)
+    if an.get("confidence") != "high":
+        errs.append("%s: carry requires current analysis.confidence high, got %r" % (p, an.get("confidence")))
+    if not own:
+        errs.append("%s: carry requires non-empty own_run_ids referencing current evidence" % p)
+    if not locators:
+        errs.append("%s: carry requires non-empty lookup_locators" % p)
+    if rev.get("checked_at") is None:
+        errs.append("%s: carry requires checked_at" % p)
+    pr = c.get("prior")
+    if not isinstance(pr, dict):
+        errs.append("%s: carry requires a non-null prior" % p)
+        return errs
+    if pr.get("relationship") not in CARRY_RELATIONSHIPS:
+        errs.append("%s: carry requires prior.relationship same-id or supersedes, got %r" % (p, pr.get("relationship")))
+    if pr.get("observation_complete") is not True:
+        errs.append("%s: carry requires prior.observation_complete true" % p)
+    if pr.get("run_id") is None:
+        errs.append("%s: carry requires a known prior.run_id" % p)
+    if pr.get("observed_at") is None:
+        errs.append("%s: carry requires a known prior.observed_at" % p)
+    sources = pr.get("sources") if isinstance(pr.get("sources"), list) else []
+    immediate = [s for s in sources if isinstance(s, dict) and s.get("history_only") is False]
+    if len(immediate) != 1:
+        errs.append("%s: carry requires exactly one immediate source, found %d (merge/split history is re-investigated)"
+                    % (p, len(immediate)))
+        return errs
+    s = immediate[0]
+    if rev.get("source_run_id") != pr.get("run_id"):
+        errs.append("%s: source_run_id %r must equal prior.run_id %r" % (p, rev.get("source_run_id"), pr.get("run_id")))
+    if rev.get("source_cluster_ids") != [s.get("cluster_id")]:
+        errs.append("%s: source_cluster_ids %r must name the immediate source %r"
+                    % (p, rev.get("source_cluster_ids"), [s.get("cluster_id")]))
+    if s.get("unfinished") is not False:
+        errs.append("%s: the immediate source is unfinished; nothing to carry" % p)
+    if not _ids(s.get("matched_member_ids")):
+        errs.append("%s: the immediate source has no matched_member_ids in common with this cluster" % p)
+    if s.get("state") != d.get("state"):
+        errs.append("%s: carry requires the source state %r, disposition.state is %r" % (p, s.get("state"), d.get("state")))
+    sbr = s.get("blast_radius") if isinstance(s.get("blast_radius"), dict) else {}
+    if level in LEVEL_RANK and sbr.get("level") in LEVEL_RANK and LEVEL_RANK[level] < LEVEL_RANK[sbr["level"]]:
+        errs.append("%s: blast_radius.level rose %s -> %s; a promoted cluster is re-investigated" % (p, sbr["level"], level))
+    san = s.get("analysis") if isinstance(s.get("analysis"), dict) else None
+    if san is None:
+        errs.append("%s: the immediate source has no readable analysis; basis unavailable" % p)
+        return errs
+    if san.get("confidence") != "high":
+        errs.append("%s: source analysis.confidence %r is not high" % (p, san.get("confidence")))
+    if san.get("root_cause_truncated") is not False:
+        errs.append("%s: source analysis.root_cause_truncated must be false for a carry" % p)
+    basis = san.get("basis")
+    if not isinstance(basis, dict):
+        errs.append("%s: the source analysis has no basis; carry not allowed" % p)
+    elif rev.get("basis") != basis:
+        errs.append("%s: basis %r must equal the source analysis basis %r" % (p, rev.get("basis"), basis))
+    errs += _rule_carry_fact(p, s)
+    checked = set()
+    for ev in _evidence_items(c):
+        if str(ev.get("prowjob_run_id")) in own:
+            checked |= _ids(ev.get("supports_regression_ids"))
+    targets = set()
+    pa = d.get("proposed_action") if isinstance(d.get("proposed_action"), dict) else {}
+    if pa.get("type") in WRITE_TYPES:
+        targets |= _ids(pa.get("regression_ids"))
+    for a in c.get("actions") if isinstance(c.get("actions"), list) else []:
+        if isinstance(a, dict) and a.get("type") in WRITE_TYPES:
+            targets |= _ids(a.get("regression_ids"))
+    uncovered = sorted(targets - checked, key=str)
+    if uncovered:
+        errs.append("%s: own-run evidence does not cover proposed/action targets %s" % (p, uncovered))
+    delta = pr.get("member_delta") if isinstance(pr.get("member_delta"), dict) else {}
+    added = _ids(delta.get("added"))
+    if added and not (added & checked):
+        errs.append("%s: members were added %s; carry requires a checked own run for at least one added member"
+                    % (p, sorted(added, key=str)))
+    return errs
+
+
+def _rule_reverification(w, c):
+    """The current re-verification record (analysis.reverification). Any record must be well-formed and
+    its own_run_ids must be current evidence; a carried-forward analysis additionally has to satisfy
+    the carry eligibility in _rule_carry. A deliberate watch or a plain fresh analysis needs no record."""
+    an, rev = _reverification(c)
+    if an is None:
+        return []
+    depth = an.get("depth")
+    if rev is None:
+        return ["%s: analysis.depth %s requires analysis.reverification" % (w, CARRIED_DEPTH)] if depth == CARRIED_DEPTH else []
+    p = "%s reverification" % w
+    if not isinstance(rev, dict):
+        return ["%s: expected object, got %s" % (p, _t(rev))]
+    errs = _enum(p, "outcome", rev.get("outcome"), REVERIFICATION_OUTCOMES)
+    if not isinstance(rev.get("reason"), str) or not rev.get("reason"):
+        errs.append("%s: reason must be a non-empty string" % p)
+    if rev.get("source_run_id") is not None and (not isinstance(rev.get("source_run_id"), str) or not rev["source_run_id"]):
+        errs.append("%s: source_run_id must be a non-empty string or null" % p)
+    e, _ = _str_list(p, "source_cluster_ids", rev.get("source_cluster_ids"))
+    errs += e
+    errs += _rule_basis(p, rev.get("basis"))
+    errs += _iso_or_null(p, "checked_at", rev.get("checked_at"))
+    e, own = _str_list(p, "own_run_ids", rev.get("own_run_ids"))
+    errs += e
+    e, locators = _str_list(p, "lookup_locators", rev.get("lookup_locators"))
+    errs += e
+    current_runs = {str(ev.get("prowjob_run_id")) for ev in _evidence_items(c) if ev.get("prowjob_run_id")}
+    missing = [r for r in own if r not in current_runs]
+    if missing:
+        errs.append("%s: own_run_ids not present in current evidence: %s" % (p, missing))
+    members = _ids(c["members"].get("regression_ids")) if isinstance(c.get("members"), dict) else set()
+    outside = set()
+    for ev in _evidence_items(c):
+        outside |= _ids(ev.get("supports_regression_ids")) - members
+    if outside:
+        errs.append("%s: current evidence supports non-members %s; prior references supply no coverage"
+                    % (w, sorted(outside, key=str)))
+    carried = rev.get("outcome") == "carried"
+    if carried != (depth == CARRIED_DEPTH):
+        errs.append("%s: outcome %r and analysis.depth %r must agree (carried <-> %s)"
+                    % (p, rev.get("outcome"), depth, CARRIED_DEPTH))
+    if carried or depth == CARRIED_DEPTH:
+        errs += _rule_carry(w, p, c, an, rev, own, locators)
     return errs
 
 
 CLUSTER_RULES = (_rule_missing, _rule_objects, _rule_level, _rule_disposition_state, _rule_evidence,
-                 _rule_action_subset_and_unlinked, _rule_actions, _rule_escalation, _rule_prior)
+                 _rule_action_subset_and_unlinked, _rule_actions, _rule_escalation, _rule_prior, _rule_reverification)
 
 
 def _cluster(c, idx):
