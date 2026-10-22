@@ -146,6 +146,12 @@ class ProjectionTest(unittest.TestCase):
         self.assertEqual(replacement['prior']['sources'][0]['matched_member_ids'], [])
         self.assertEqual(successor['prior']['relationship'], 'supersedes')
         self.assertEqual(successor['prior']['sources'][0]['matched_member_ids'], [1])
+        # beside two real split children the zero-overlap same-id cluster is still a replacement, not a child
+        base = baseline(source('c-a', [1, 2]))
+        clusters = attach([current('c-a', [3]), current('c-b', [1], supersedes=['c-a']),
+                           current('c-c', [2], supersedes=['c-a'])], base)
+        self.assertEqual([(c['prior']['relationship'], c['prior']['sources'][0]['matched_member_ids']) for c in clusters],
+                         [('same-id', []), ('split', [1]), ('split', [2])])
 
     def test_malformed_lineage_and_members_do_not_crash(self):
         base = baseline(source('c-a', [1]))
@@ -423,10 +429,8 @@ class RetentionTest(unittest.TestCase):
         finished = {'run_id': 'r0', 'observed_at': OBS, 'cluster_id': 'c-a', 'history_only': False, 'unfinished': False,
                     'member_ids': [1], 'analysis': {'depth': 'deep-dive', 'confidence': 'high', 'root_cause': 'ok',
                                                     'root_cause_truncated': False, 'evidence_refs': [], 'basis': None}}
-        for bad in ('x', {'sources': 'none'}, {'sources': [None, 3, {'history_only': 'yes'}]},
-                    {'sources': [dict(finished, run_id=[]), dict(finished, observed_at={'t': 1}), dict(finished, cluster_id=7),
-                                 dict(finished, analysis='prose'), dict(finished, analysis={'root_cause': 5}),
-                                 dict(finished, member_ids='1', analysis={'depth': 'none'})]}):
+        for bad in ('x', {'sources': 'none'}, {'sources': [None, 3, {'history_only': 'yes'}, dict(finished, cluster_id=7),
+                                                             dict(finished, analysis='prose'), dict(finished, analysis=None)]}):
             with self.subTest(bad=str(bad)[:60]):
                 c = current('c-a', [1])
                 c['disposition'] = copy.deepcopy(self.UNANALYSED)
@@ -436,6 +440,43 @@ class RetentionTest(unittest.TestCase):
                 r1 = baseline(c, run_id='r1')
                 c2 = attach([current('c-a', [1])], r1)[0]
                 self.assertEqual([s['history_only'] for s in c2['prior']['sources']], [False])
+        # unknown identity/time or unreadable metadata disqualify inheritance but do not make history useless:
+        # such snapshots are retained once (dedup on the normalised identity), never crash, and keep the contract shape
+        c = current('c-a', [1])
+        c['disposition'] = copy.deepcopy(self.UNANALYSED)
+        c['actions'] = []
+        c['escalation'] = {'required': False, 'reason': 'not required'}
+        c['prior'] = {'sources': [dict(finished, run_id=[]), dict(finished, observed_at={'t': 1}),
+                                  dict(finished, analysis={'root_cause': 5}),
+                                  dict(finished, member_ids='1', analysis={'depth': 'none'})]}
+        c2 = attach([current('c-a', [1])], baseline(c, run_id='r1'))[0]
+        retained = c2['prior']['sources'][1:]
+        self.assertEqual([(s['run_id'], s['observed_at']) for s in retained], [(None, OBS), ('r0', None), ('r0', OBS)])
+        for s in retained:
+            self.assertIs(s['history_only'], True)
+            self.assertEqual(sorted(s), sorted(prior.SOURCE_KEYS))
+            self.assertIsNone(s['analysis']['basis'])
+
+    def test_unknown_time_history_is_retained_but_not_carry_eligible(self):
+        """Review R2-1: a finished finding with no observation time survives an unreached attempt as context."""
+        r0 = baseline(self.r0_source(), run_id='r0')
+        del r0['observation']['time']
+        c1 = current('c-a', [1])
+        prior.attach_priors([c1], r0)
+        self.assertIsNone(c1['prior']['observed_at'])
+        self.assertIsNone(c1['prior']['sources'][0]['analysis']['basis'])     # no time -> no qualifying basis
+        self.assertEqual(c1['prior']['sources'][0]['bug_search']['candidates'][0]['caveat'], 'fix absent from 4.22')
+        c1['disposition'] = copy.deepcopy(self.UNANALYSED)
+        c1['actions'] = []
+        c1['escalation'] = {'required': False, 'reason': 'not required'}
+        r1 = baseline(c1, run_id='r1', observed='2026-10-13T12:00:00Z')
+        c2 = attach([current('c-a', [1])], r1)[0]
+        self.assertEqual([(s['run_id'], s['observed_at'], s['history_only']) for s in c2['prior']['sources']],
+                         [('r1', '2026-10-13T12:00:00Z', False), ('r0', None, True)])
+        kept = c2['prior']['sources'][1]
+        self.assertEqual(kept['bug_search']['candidates'][0]['caveat'], 'fix absent from 4.22')
+        self.assertEqual(kept['analysis']['evidence_refs'][0]['artifact'], LOCATOR)
+        self.assertIsNone(kept['analysis']['basis'])
 
     def test_retained_snapshot_is_renormalised_to_the_projection_contract(self):
         r0 = baseline(self.r0_source(), run_id='r0')

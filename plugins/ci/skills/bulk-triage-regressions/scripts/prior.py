@@ -213,9 +213,9 @@ def _retained_sources(source, current_ids):
     """Flat history-only context behind an unfinished immediate source (Decision 7).
 
     `source` is an already projected immediate source whose baseline cluster carried its own
-    ``prior``; the finished snapshots of that prior with a readable identity (run, time, cluster)
-    and analysis (depth, confidence) are re-projected once through the envelope contract, marked
-    ``history_only``, with their original run/time and basis. Nothing nested, nothing recursive.
+    ``prior``; the finished snapshots of that prior that have a cluster id and an analysis container
+    are re-projected once through the envelope contract, marked ``history_only``, with their original
+    run/time (null when unknown) and basis. Nothing nested, nothing recursive.
     """
     if not source.get('unfinished'):
         return []
@@ -230,10 +230,10 @@ def _retained_sources(source, current_ids):
             continue
         analysis = _dict(snap.get('analysis'))
         cid = _text(snap.get('cluster_id'))
-        key = (_text(snap.get('run_id')), _iso(snap.get('observed_at')), cid)
-        # readable identity and analysis only: context that cannot be cited by run/time is not retained
-        if not analysis or not all(key) or not (_text(analysis.get('depth')) and _text(analysis.get('confidence'))):
+        if analysis is None or not cid:
             continue
+        # unknown run/time or unreadable metadata disqualify inheritance (no basis) but not retention as context
+        key = (_text(snap.get('run_id')), _iso(snap.get('observed_at')), cid)
         if key in seen:
             continue
         seen.add(key)
@@ -324,7 +324,7 @@ def attach_priors(clusters, baseline):
         current_ids = member_ids(c)
         if len(source_ids) > 1:
             relationship = 'merge'
-        elif successors.get(source_ids[0], 0) > 1:
+        elif successors.get(source_ids[0], 0) > 1 and set(current_ids) & set(member_ids(base[source_ids[0]])):
             relationship = 'split'
         elif source_ids[0] == c['id']:
             relationship = 'same-id'

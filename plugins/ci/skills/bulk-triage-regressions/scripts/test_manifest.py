@@ -959,17 +959,36 @@ class CarriedAnalysisTest(unittest.TestCase):
         doc['clusters'][0]['disposition']['analysis']['evidence'][0]['prowjob_run_id'] = ['own-1']
         rev['own_run_ids'] = ["['own-1']"]
         self.assertTrue(_errors_mention(m.validate(doc), 'own_run_ids', 'prowjob_run_id'))
-        # a merge prior binds the record to every immediate source
-        doc, rev = fresh()
-        c = doc['clusters'][0]
-        extra = copy.deepcopy(c['prior']['sources'][0])
-        extra.update(cluster_id='c-other', member_ids=[49540], matched_member_ids=[])
-        c['prior']['sources'].append(extra)
-        c['prior']['relationship'] = 'merge'
-        c['prior']['member_delta'] = {'added': [], 'removed': [49540]}
-        self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
-        rev['source_cluster_ids'] = ['c-other', c['id']]
-        self.assertEqual(m.validate(doc), [])
+        # a non-carry record names the immediate sources it considered: a sorted, duplicate-free subset
+        def merged(outcome):
+            doc, rev = fresh()
+            c = doc['clusters'][0]
+            extra = copy.deepcopy(c['prior']['sources'][0])
+            extra.update(cluster_id='c-other', member_ids=[49540], matched_member_ids=[])
+            c['prior']['sources'].append(extra)
+            c['prior']['relationship'] = 'merge'
+            c['prior']['member_delta'] = {'added': [], 'removed': [49540]}
+            if outcome == 'incomplete':
+                an = c['disposition']['analysis']
+                an.update(depth='none', confidence='low')
+                rev.update(outcome='incomplete', own_run_ids=[], lookup_locators=[])
+                c['disposition']['state'] = 'UNANALYSED'
+                c['disposition']['proposed_action'] = {'type': 'none'}
+                c['actions'] = []
+            return doc, c, rev
+        for outcome in ('reinvestigated', 'incomplete'):
+            with self.subTest(outcome=outcome):
+                doc, c, rev = merged(outcome)
+                rev['source_cluster_ids'] = [c['id']]                     # considered one parent, timed out / fresh
+                self.assertEqual(m.validate(doc), [])
+                rev['source_cluster_ids'] = sorted([c['id'], 'c-other'])
+                self.assertEqual(m.validate(doc), [])
+                rev['source_cluster_ids'] = sorted([c['id'], 'c-other'])[::-1]
+                self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
+                rev['source_cluster_ids'] = [c['id'], c['id']]
+                self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
+                rev['source_cluster_ids'] = ['c-foreign']
+                self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
 
     def test_incomplete_reverification_requires_unanalysed_no_action(self):
         """Review I2: an explicitly incomplete verification cannot keep a completed diagnosis or a write."""
@@ -1002,6 +1021,25 @@ class CarriedAnalysisTest(unittest.TestCase):
         c['actions'] = [{'type': 'extend_triage', 'triage_id': 810, 'jira': 'OCPBUGS-129375', 'regression_ids': [49533],
                          'status': 'done', 'result_url': 'u', 'error': None}]
         self.assertTrue(_errors_mention(m.validate(doc), 'incomplete', 'action'))
+
+    def test_malformed_evidence_cannot_supply_carry_coverage(self):
+        """Review R2-4: coverage is computed from the same typed evidence population as the reference check."""
+        doc = carried_doc()
+        c = doc['clusters'][0]
+        c['members']['regression_ids'] = [49533, 49534]
+        c['members']['unlinked'] = []
+        c['prior']['member_delta']['added'] = [49534]
+        c['prior']['sources'][0]['member_ids'] = [49533]
+        an = c['disposition']['analysis']
+        an['evidence'] = [{'claim': 'c', 'artifact': OWN1, 'quote': 'q', 'prowjob_run_id': "['own-1']",
+                           'supports_regression_ids': [49533]},
+                          {'claim': 'c', 'artifact': OWN1, 'quote': 'q', 'prowjob_run_id': ['own-1'],
+                           'supports_regression_ids': [49534]}]
+        an['reverification']['own_run_ids'] = ["['own-1']"]
+        c['actions'][0]['regression_ids'] = [49533, 49534]
+        c['disposition']['proposed_action']['regression_ids'] = [49533, 49534]
+        errs = m.validate(doc)
+        self.assertTrue(_errors_mention(errs, '49534'), errs)
 
     def test_prior_matched_member_ids_are_exact_intersection(self):
         """Review M3: matched_member_ids is the intersection, not any subset of it."""
