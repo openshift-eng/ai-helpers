@@ -8,23 +8,22 @@ itself.
 
 ## Next changes
 
-The skill remains unaccepted. The [third six-cell matrix](../evals/live/README.md#branch-policy-matrix)
-at `e189eef6` completed six actors and 36 factual samples, with zero judge errors.
-All live cells ran `make unit`: Admiral release remained blocked, Admiral devel
-passed on retry, and both Subctl branches passed with positive native evidence.
-The launcher now preserves child status, but whole replies still contain
-unsupported causality, denied mutation attempts, incomplete relay and replacement
-publication procedures. All six actors actually used CLI 2.1.307; the incomplete original
-CLI freeze and later explicit pin limit comparisons with prior matrices.
+The skill remains unaccepted. The [fourth six-cell matrix](../evals/live/README.md#branch-policy-matrix)
+at `368e0e2b` completed six actors and 36 factual samples without judge errors,
+all at pinned CLI 2.1.307. All live cells ran `make unit`: Admiral release remained
+blocked, while the other three passed configured gates. Both Subctl branches
+have positive native evidence. Complete Summary relay and child-status handoff
+are observed, but unsupported causal claims and replacement publication remain;
+Admiral devel also executed an extra preflight build.
 
-The selected next change separates binding repository compatibility/check policy
-from manual remediation/publication procedure in the existing preflight guidance.
-The target workflow contains a conflicting manual publication recipe; its presence
-does not prove the cause of every failure. Preserve user authority and the pending
-Go-minor compatibility decision, without inferring approval or adding a policy knob.
-After review and commit, measure the same six cells once with CLI 2.1.307 explicitly
-pinned. Preserve every result and unchanged criteria; no adaptive retries,
-warning template, reviewer loop or capability reduction is selected.
+The selected next change replaces only two existing passages: explicitly assign
+all scans/builds/tests to scripts, and distinguish captured causal evidence from
+version comparisons, unchanged source or retries alone. These clarify a temporal
+scope gap and the evidence threshold; they do not establish reliable behavior.
+Preserve the existing policy/procedure boundary and the pending Go-minor decision,
+without inferring approval. After review and commit, measure the same six cells
+once at pinned 2.1.307 with unchanged criteria. No adaptive repetition, publication
+warning, new gate or reviewer workflow is selected.
 
 Three demonstrated engine gaps are now implemented, with focused regressions:
 

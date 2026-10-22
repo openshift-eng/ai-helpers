@@ -63,24 +63,22 @@ and scan timeouts. Two lint attempts failed, leaving unit tests unrun; audits, l
 and native final scanning passed. The invoking skill still fails literal Summary
 relay and factual diagnosis. The [live record](live/README.md#current-runtime-integration)
 retains both measurements, scores, coverage limits and costs. Those runs used
-our incorrect release lint override. The subsequent [three six-cell matrices](live/README.md#branch-policy-matrix)
-are closed. The latest at `e189eef6` completed six actors and 36 factual samples
-with zero judge errors. Every live cell ran unit tests; Admiral release retained
-its blocker, Admiral devel passed
-on retry, and both Subctl branches passed with positive native coverage.
-Whole-reply review still finds unsupported causal advice, denied mutation
-attempts, incomplete relay and invented publication. Stock majorities and their
-instability remain unchanged.
+our incorrect release lint override. The subsequent [four six-cell matrices](live/README.md#branch-policy-matrix)
+are closed. The latest at `368e0e2b` completed six actors and 36 factual samples
+with zero judge errors, all at pinned CLI 2.1.307. Every live cell ran unit tests;
+Admiral release retained its blocker, while the other three passed configured
+gates. Both Subctl branches have positive native coverage. Full Summary relay
+and child-status handoff are observed; causal overclaims, replacement publication
+and an extra preflight build remain. Original grades and instability are preserved.
 
-The corrected logging wrapper propagates the observed child exit to native
-background status. All six actors actually used CLI 2.1.307, although the original
-freeze only rechecked a historical 2.1.306 file; the remaining two cells were
-explicitly pinned after the deviation was found. Comparisons with prior matrices
-therefore cannot isolate source effects. The selected next change clarifies
-repository policy versus manual workflow procedure in preflight. After review
+The policy/procedure clause did not establish reliable publication behavior.
+The selected next change replaces only the global script-ownership sentence and
+causal-evidence bullet: scripts own scans/builds/tests in every phase, and version
+comparisons or retries alone do not establish cause. No new baseline test,
+publication warning, policy knob or reviewer workflow is selected. After review
 and commit, measure the same six cells once at pinned 2.1.307 with unchanged
-criteria, preserving all failures. The Go-minor policy question remains pending;
-no approval, policy knob, adaptive retry or reviewer loop is selected.
+criteria, preserving all failures without adaptive repetition. The Go-minor
+policy question remains pending and grants no approval.
 
 ## Recorded cases
 

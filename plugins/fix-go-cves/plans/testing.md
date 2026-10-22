@@ -200,41 +200,40 @@ or installing a natural-language policy parser.
 
 ### Verify the handoff across the packaged matrix
 
-Three declared six-cell matrices are closed. The latest at `e189eef6` completed
-six actors and 36 factual samples without judge errors. All live cells ran
-`make unit`: Admiral release failed both
-attempts, Admiral devel passed its same-HEAD retry, and both Subctl branches passed
-with positive initial/final native evidence. Explicit commands test forwarding
-and execution, not conflicting inherited-command selection, which has separate
-forward-review coverage. The [matrix record](../evals/live/README.md#branch-policy-matrix)
-separates engine outcomes, original stock grades and whole-reply failures.
+Four declared six-cell matrices are closed. The latest at `368e0e2b` completed
+six actors and 36 factual samples without judge errors at pinned CLI 2.1.307.
+All live cells ran `make unit`: Admiral release failed both attempts, and the
+other three passed one attempt. Both Subctl branches have positive initial/final
+native evidence. Explicit commands test forwarding and execution, not conflicting
+inherited-command selection, which has separate forward-review coverage. The
+[matrix record](../evals/live/README.md#branch-policy-matrix) preserves original
+stock grades, costs and whole-reply findings.
 
-The canonical wrapper now preserves child status in terminal logging and native
+The canonical wrapper preserves child status in terminal logging and native
 background notifications. Its semantic regression executes the actual documented
 fence with child exits 0/1/2 and failed terminal writes. Shared native checks and
 compact judge evidence bind phase, clean embedded VCS, scan HEAD, positive catalog
 and retained output; observed scenarios gain no new gate. The publication
 criterion's fixed nine-sample calibration remains FFF/TTT/TTT with zero errors.
-These implementation checks do not establish reliable diagnosis or publication
-advice. The latest replies still fail those boundaries; one omits
-Summary lines, and two attempt forbidden mutations that are blocked.
+All current Summaries are complete, but causal overclaims and replacement
+publication persist. Admiral devel also executed an extra preflight `go build`;
+its pipeline output does not establish the Go child's exit. Subctl outcome
+majorities fail unstably for omitted scan scope, despite genuine native success.
 
-The original freeze checked a historical CLI 2.1.306 file while ambient PATH had
-already selected 2.1.307. All six actors actually used 2.1.307; after four cells,
-the remaining two were explicitly pinned to that same binary. Preserve the
-binding deviation and continuation; cross-matrix effects are confounded by the
-CLI change.
+The selected next change replaces only the existing ownership sentence and
+causal bullet. Assign scans/builds/tests to scripts globally, preserving harmless
+preflight queries; require captured establishing evidence rather than treating
+a version delta, unchanged source or passing retry as cause. Comparable baseline
+and demonstrated failure-specific mechanism are examples, not a requirement to
+run a new baseline test. Leave the Go-minor decision unresolved; this change adds
+no policy parser or knob and makes no further publication-warning change.
 
-The selected next experiment changes only the preflight policy/procedure boundary:
-retain repository compatibility restrictions and maintained checks while using
-this skill's remediation/publication procedure. Leave the pending Go-minor decision
-unresolved; this change adds no policy parser or knob. After review and
-commit, freeze that change, the actual CLI 2.1.307 binary, unchanged pins, models,
-caps, criteria and explicit environment. Run the same four live cells and replays 005/007 once,
-serially through stock pipelines. Preserve errors and whole-reply failures without
-adaptive retries, criteria relaxation or a new reviewer workflow. This tests the
-observed instruction conflict; it does not promise to cure causal claims or
-forbidden Git attempts.
+After review and commit, freeze the two replacements, actual CLI 2.1.307 binary,
+unchanged pins, models, caps, criteria and explicit environment. Run the same four
+live cells and replays 005/007 once, serially through stock pipelines. Preserve
+all outcomes and judge instability without adaptive repetition or criteria
+relaxation. These are instruction clarifications; neither prior engine success
+nor a judge majority accepts the skill or proves an isolated treatment effect.
 
 The prior native case 003 exhausted its $10 actor allowance after 2,605 seconds
 and $10.85163125, without a completed final reply. Use the existing live actor

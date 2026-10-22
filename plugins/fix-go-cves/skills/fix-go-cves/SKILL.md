@@ -8,7 +8,8 @@ allowed-tools: Bash, Read
 
 # Fix Go CVEs
 
-Deterministic scripts own every mutation, rollback, and verification gate.
+Deterministic scripts own all mutations, rollbacks, scans, builds, tests and
+verification gates.
 Your job is to run them, report the observed results, and identify remaining work.
 
 ## Locate the scripts
@@ -165,9 +166,10 @@ Investigate flagged outcomes using these checks:
   The repair must reach `origin/<branch>` before rerunning: the script starts
   each fix branch there. Tests that need `sudo` or a prompt need a
   non-interactive test command.
-- Leave a failure's cause unresolved unless the evidence establishes it;
-  a passing retry establishes only a changed outcome. For dependency or tooling
-  change claims, compare this run's actual base and retained fix commits,
+- Leave a failure's cause unresolved without captured evidence, such as a
+  comparable baseline or a demonstrated failure-specific mechanism. A version
+  delta, unchanged source or passing retry alone is insufficient. For dependency
+  or tooling claims, compare this run's actual base and retained fix commits,
   including the Go directive.
 - Transient network, timeout, or degraded scanner: recommend a rerun.
 - Wrong build command: recommend `CVE_FIX_BUILD_CMD` for a rerun,
