@@ -1,0 +1,51 @@
+# Not visible to the model. Expected policy choices for case-002 (replacement, new lead, unchanged HIGH).
+expected:
+  decisions:
+    c-b17bd7:
+      next_step: treat-as-new
+      allowed_depths: [none, oracle, deep-dive]
+      allowed_states: [CANDIDATE, UNANALYSED, UNEXPLAINED]
+      target: null
+      supported_member_ids: []
+      would_write: false
+      escalation_required: false
+      required_locators:
+        - gs://test-platform-results-public/logs/periodic-ci-openshift-release-main-nightly-4.20-e2e-metal-ipi-ovn-ipv6-runc/2112316397370478592/artifacts/e2e-metal-ipi-ovn-ipv6-runc/baremetalds-e2e-test/artifacts/junit/junit_e2e__20261020-002926.xml
+    c-new-bug:
+      next_step: reinvestigate
+      allowed_depths: [oracle, deep-dive]
+      allowed_states: [CANDIDATE]
+      target: {jira: OCPBUGS-2, triage_id: null}
+      supported_member_ids: []
+      would_write: false
+      escalation_required: false
+      required_locators:
+        - https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20created%3E%3D2026-10-13%20AND%20text~%22etcd%20leader%20changed%22&fields=key,summary,status,created
+        - https://issues.redhat.com/rest/api/2/issue/OCPBUGS-2?fields=summary,status,resolution,fixVersions,versions,updated
+    c-high:
+      next_step: reinvestigate
+      allowed_depths: [deep-dive]
+      allowed_states: [UNANALYSED]
+      target: {jira: OCPBUGS-1, triage_id: 17}
+      supported_member_ids: []
+      would_write: false
+      escalation_required: true
+      required_locators:
+        - gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-upgrade-from-stable-4.20-e2e-aws-ovn-upgrade/2113700000000000501/artifacts/e2e-aws-ovn-upgrade/openshift-e2e-test/artifacts/junit/junit_e2e__20261018-040000.xml
+  investigation_order_prefix: [c-high]
+  investigation_order_exact: false
+notes: >
+  c-b17bd7 is the real Oct-12 -> Oct-21 replacement population (production runs 2109663938734985216 and
+  2112953014162558976): the same cluster id now holds member 51548 instead of 51255/51256 (matched_member_ids
+  empty). The remembered KNOWN-CAUSE analysis asserted runc's EOF/CreateContainerError on the 20Mi fixture; this
+  week's own testcase fails with a 300 s readiness timeout, the EOF text in the same junit belongs to a different
+  testcase, and the label's own explanation excludes timeouts. A replacement population is a remembered family,
+  not inherited coverage: treat as new (ordinary LOW-and-new handling), no carried depth, no KNOWN-CAUSE, no
+  target, no supported link. This is an observed mismatch, not owning-team-certified root-cause truth.
+  c-new-bug: unchanged member/signature with a high-confidence negative finding, but the incremental search now
+  returns OCPBUGS-2; its excerpts cite a different lane and a different count, so the linking gate is not
+  established by the supplied observations: reinvestigate with OCPBUGS-2 as the lead, CANDIDATE, no supported
+  link. c-high: unchanged HIGH whose prior qualifies on every other count and whose one spot-checked own run
+  matches, but the other own runs were not inspected: a HIGH cluster always gets a fresh deep-dive, so the
+  honest state is UNANALYSED with OCPBUGS-1/17 as the lead, escalation required, no write, and it leads the
+  investigation order. Report mode: nothing is written in this case.
