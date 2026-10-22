@@ -838,7 +838,7 @@ class CarriedAnalysisTest(unittest.TestCase):
         for name, mutate, _ in self._ineligible_cases():
             if name in ('added_without_check', 'wrong_source_ref', 'missing_own_run', 'checked_before_observation',
                         'wrong_basis'):
-                continue   # these break the record itself, not only carry eligibility
+                continue   # these break the record itself (binding, references, timing), not only carry eligibility
             with self.subTest(case=name):
                 doc = carried_doc()
                 mutate(doc['clusters'][0])
@@ -890,6 +890,133 @@ class CarriedAnalysisTest(unittest.TestCase):
         analysis['evidence'].append(added_evidence)
         analysis['reverification']['own_run_ids'].append('own-added')
         self.assertEqual(m.validate(doc), [])
+
+    def test_validate_never_raises_on_malformed_memory_fields(self):
+        """Review C1: unhashable or wrongly typed new fields are reported, never raised."""
+        def mutate(path, value):
+            doc = carried_doc()
+            target = doc['clusters'][0]
+            for key in path[:-1]:
+                target = target[key]
+            target[path[-1]] = value
+            return doc
+        docs = []
+        for field in ('run_id', 'observed_at', 'cluster_id', 'history_only', 'unfinished', 'state', 'member_ids'):
+            for value in ([], {'a': 1}):
+                docs.append(mutate(('prior', 'sources', 0, field), value))
+        for field in ('run_id', 'observed_at', 'relationship', 'write_mode', 'observation_complete', 'member_delta', 'sources'):
+            for value in ([], {'a': 1}, 5):
+                docs.append(mutate(('prior', field), value))
+        for value in ([], {'a': 1}, 5):
+            docs.append(mutate(('blast_radius', 'level'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'blast_radius', 'level'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'blast_radius'), value))
+            docs.append(mutate(('disposition', 'state'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'analysis', 'basis'), value))
+            docs.append(mutate(('disposition', 'analysis', 'reverification', 'basis'), value))
+            docs.append(mutate(('disposition', 'analysis', 'reverification', 'own_run_ids'), value))
+            docs.append(mutate(('disposition', 'analysis', 'reverification', 'source_cluster_ids'), value))
+            docs.append(mutate(('disposition', 'analysis', 'evidence', 0, 'prowjob_run_id'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'bug_search', 'candidates'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'bug_search', 'candidates', 0, 'key'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'bug_search', 'candidates', 0, 'bar_met'), value))
+        docs.append(mutate(('disposition', 'analysis', 'reverification', 'own_run_ids'), [[], {'a': 1}]))
+        docs.append(mutate(('disposition', 'analysis', 'reverification', 'source_cluster_ids'), [[], None]))
+        docs.append(mutate(('prior', 'sources', 0, 'member_ids'), [[], {'a': 1}, True]))
+        docs.append(mutate(('prior', 'member_delta'), {'added': [[1]], 'removed': {'x': 1}}))
+        doc = carried_doc(); doc['observation']['time'] = ['now']; docs.append(doc)
+        doc = carried_doc(); doc['baseline_run'] = {'run_id': [], 'compatible': True}; docs.append(doc)
+        for doc in docs:
+            errs = m.validate(doc)            # must not raise
+            self.assertTrue(errs)
+            self.assertTrue(all(isinstance(e, str) for e in errs))
+
+    def test_every_record_is_bound_to_its_prior(self):
+        """Review I1: binding and required provenance apply to reinvestigated/incomplete records too."""
+        def fresh():
+            doc = carried_doc()
+            an = doc['clusters'][0]['disposition']['analysis']
+            an['depth'] = 'deep-dive'
+            an['reverification']['outcome'] = 'reinvestigated'
+            self.assertEqual(m.validate(doc), [])
+            return doc, an['reverification']
+        doc, rev = fresh(); rev['source_run_id'] = 'not-r0'
+        self.assertTrue(_errors_mention(m.validate(doc), 'source_run_id'))
+        doc, rev = fresh(); rev['source_cluster_ids'] = ['c-elsewhere']
+        self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
+        doc, rev = fresh(); rev['source_cluster_ids'] = [doc['clusters'][0]['id'], doc['clusters'][0]['id']]
+        self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
+        doc, rev = fresh(); rev['checked_at'] = None
+        self.assertTrue(_errors_mention(m.validate(doc), 'checked_at'))
+        doc, rev = fresh(); rev['own_run_ids'] = ['own-1', 'own-1']
+        self.assertTrue(_errors_mention(m.validate(doc), 'own_run_ids'))
+        doc, rev = fresh(); doc['clusters'][0]['prior'] = None
+        self.assertTrue(_errors_mention(m.validate(doc), 'prior'))
+        doc, rev = fresh(); doc['observation']['time'] = 'later'
+        self.assertTrue(_errors_mention(m.validate(doc), 'observation.time'))
+        # an evidence run id must be an id before it can be referenced
+        doc, rev = fresh()
+        doc['clusters'][0]['disposition']['analysis']['evidence'][0]['prowjob_run_id'] = ['own-1']
+        rev['own_run_ids'] = ["['own-1']"]
+        self.assertTrue(_errors_mention(m.validate(doc), 'own_run_ids', 'prowjob_run_id'))
+        # a merge prior binds the record to every immediate source
+        doc, rev = fresh()
+        c = doc['clusters'][0]
+        extra = copy.deepcopy(c['prior']['sources'][0])
+        extra.update(cluster_id='c-other', member_ids=[49540], matched_member_ids=[])
+        c['prior']['sources'].append(extra)
+        c['prior']['relationship'] = 'merge'
+        c['prior']['member_delta'] = {'added': [], 'removed': [49540]}
+        self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
+        rev['source_cluster_ids'] = ['c-other', c['id']]
+        self.assertEqual(m.validate(doc), [])
+
+    def test_incomplete_reverification_requires_unanalysed_no_action(self):
+        """Review I2: an explicitly incomplete verification cannot keep a completed diagnosis or a write."""
+        def incomplete():
+            doc = carried_doc()
+            c = doc['clusters'][0]
+            an = c['disposition']['analysis']
+            an['depth'] = 'none'
+            an['confidence'] = 'low'
+            an['reverification'].update(outcome='incomplete', own_run_ids=[], lookup_locators=[])
+            c['disposition']['state'] = 'UNANALYSED'
+            c['disposition']['proposed_action'] = {'type': 'none'}
+            c['actions'] = []
+            c['members']['unlinked'] = []
+            self.assertEqual(m.validate(doc), [])
+            return doc, c
+        doc, c = incomplete(); c['disposition']['state'] = 'KNOWN-CAUSE'
+        self.assertTrue(_errors_mention(m.validate(doc), 'incomplete', 'state'))
+        doc, c = incomplete(); c['disposition']['analysis']['depth'] = 'deep-dive'
+        self.assertTrue(_errors_mention(m.validate(doc), 'incomplete', 'depth'))
+        doc, c = incomplete()
+        c['disposition']['proposed_action'] = {'type': 'extend_triage', 'triage_id': 810, 'jira': 'OCPBUGS-129375',
+                                               'regression_ids': [49533], 'description': 'd'}
+        c['disposition']['analysis']['evidence'] = [{'prowjob_run_id': 'own-1', 'supports_regression_ids': [49533],
+                                                     'artifact': OWN1, 'claim': 'c', 'quote': 'q'}]
+        self.assertTrue(_errors_mention(m.validate(doc), 'incomplete', 'proposed_action'))
+        doc, c = incomplete()
+        c['disposition']['analysis']['evidence'] = [{'prowjob_run_id': 'own-1', 'supports_regression_ids': [49533],
+                                                     'artifact': OWN1, 'claim': 'c', 'quote': 'q'}]
+        c['actions'] = [{'type': 'extend_triage', 'triage_id': 810, 'jira': 'OCPBUGS-129375', 'regression_ids': [49533],
+                         'status': 'done', 'result_url': 'u', 'error': None}]
+        self.assertTrue(_errors_mention(m.validate(doc), 'incomplete', 'action'))
+
+    def test_prior_matched_member_ids_are_exact_intersection(self):
+        """Review M3: matched_member_ids is the intersection, not any subset of it."""
+        doc = carried_doc()
+        c = doc['clusters'][0]
+        c['members']['regression_ids'] = [49533, 49534]
+        c['members']['unlinked'] = [{'id': 49534, 'reason': 'not checked'}]
+        s = c['prior']['sources'][0]
+        s['member_ids'] = [49533, 49534]
+        s['matched_member_ids'] = [49533]
+        errs = m.validate(doc)
+        self.assertTrue(_errors_mention(errs, 'matched_member_ids'), errs)
+        s['matched_member_ids'] = [49533, 49534]
+        errs = m.validate(doc)
+        self.assertFalse(_errors_mention(errs, 'matched_member_ids'), errs)
 
     def test_watched_replacement_with_prior_needs_no_reverification(self):
         doc = carried_doc()
