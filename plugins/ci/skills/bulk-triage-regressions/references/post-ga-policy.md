@@ -5,7 +5,7 @@ Rulebook for the weekly post-GA run. Read after SKILL.md; the deep-dive rules in
 ## 1. Purpose and scope
 
 - Views: the seven `-main` views `4.16-main` … `4.22-main`, in one run.
-- Goal: keep the board at zero untriaged without a weekly human sweep, and make sure a human hears quickly about release-wide breakage.
+- Goal: surface significant, widespread issues quickly (a `HIGH` cluster pages the duty rotation), link clusters to existing bugs only when the evidence bar is met, and keep everything else quiet but remembered across runs (lineage, watch list). Zero untriaged is **not** the goal: a small unexplained `LOW` cluster that stays untriaged but listed is a fine outcome.
 - Work per **cluster**, never per regression. Closed regressions are evidence only, never work items.
 - Existing-only: **never create a Jira issue.** Also no code-fix PRs, release-blocker flags, transitions, or Sippy label/symptom creation (recommend only).
 - Two independent axes: **evidence decides writes; blast radius decides notification.**
@@ -36,21 +36,21 @@ Clusters are hypotheses. You may split one when signatures differ; record it in 
 
 | state | meaning | path |
 |---|---|---|
-| `KNOWN-CAUSE` | a fired label names a bug, or a related triage has sibling-release precedent | verify on ≥1 own run → extend/link |
+| `KNOWN-CAUSE` | a fired label names a bug, or a related triage has sibling-release precedent | verify the bug's signature on ≥1 own run → extend/link |
 | `CANDIDATE` | a plausible bug exists, bar not yet met | deep-dive → link, or escalate/report |
-| `UNEXPLAINED` | no bug | `HIGH`/`ELEVATED` → escalate (mention only for `HIGH`); `LOW` ∧ new → watch one cycle; `LOW` ∧ singleton ∧ persisting ∧ examined → catch-all |
+| `UNEXPLAINED` | no bug | `HIGH`/`ELEVATED` → escalate (mention only for `HIGH`); `LOW` ∧ new → watch one cycle; `LOW` ∧ persisting → needs-human (low) in the watch list (catch-all admission is off by default, §4) |
 | `UNANALYSED` | budget exhausted | listed prominently with reason; no write |
 
-Every cell has a no-write fallback. A small persisting **cluster** with no bug is "needs-human (low)", never the catch-all.
+Every cell has a no-write fallback. Persisting unexplained `LOW` work — singleton or small cluster — is "needs-human (low)" in the watch list, not a write.
 
 ## 4. Write policy
 
-**Linking gate.** Write a triage only when the target bug cites the cluster's **own** prow run IDs and its text carries the **exact failing assertion**, *or* the mechanism matches exactly with **sibling-release precedent**. Titles and keyword matches are not enough. A label or sibling precedent only *identifies the target*; `KNOWN-CAUSE` needs the same gate per supported member (a validated symptom firing on a member's own run counts as that member's own-run evidence). Gate not met → `CANDIDATE`.
+**Linking gate.** Write a triage only when the target bug's stated failure signature — its **exact failing assertion** or discriminators — is **verified in ≥1 of the cluster's own runs**, *or* the mechanism matches exactly with **sibling-release precedent**. The bug supplies the signature; you establish the own-run evidence from the artifacts (a pre-existing bug cannot cite runs that happened after it was filed — a bug that does cite one of our runs is the strongest form of this evidence, not a precondition). Titles and keyword matches are not enough. A label or sibling precedent only *identifies the target*; `KNOWN-CAUSE` needs the same gate per supported member (a validated symptom firing on a member's own run counts as that member's own-run evidence). Gate not met → `CANDIDATE`.
 
 - **Evidence membership.** Each evidence item records `prowjob_run_id` and `supports_regression_ids[]`. `proposed_action.regression_ids` must be a subset of the union of those. Members not covered go to `members.unlinked[{id, reason}]`; split the cluster if signatures differ. Own-run evidence only (Case 10).
 - **Extend, don't duplicate.** Before proposing `create_triage` for a bug, look it up in the public triage catalogue (`GET https://sippy.dptools.openshift.org/api/component_readiness/triages`, no token; Phase 0's inventory restriction does not cover this) — a triage whose `url` carries the bug key is the target even when it is `resolved`: propose `extend_triage` with its id (resolution is preserved on PUT) and, if the fix never shipped to this release, add the `backport_candidates[]` entry. Several clusters linking the same bug share one triage. Additive. Re-read the triage immediately before every PUT; resend `url/type/description/resolved/resolution_reason` (full-record replacement) with `+00:00` timestamps; verify from both sides. Record the re-read in `precheck`.
 - **Sibling-release lookup.** Search triages in newer views (`4.(n+1)-main`, `5.0-main`) for the same test family or label → bug → its clone chain (`Blocks` links, `[release-x.y]` prefix). Link to the clone for this release if present; else link to the parent and add a `backport_candidates[]` entry.
-- **Catch-all** (`OCPQUAL-88`, triage 851): only `LOW` ∧ singleton ∧ persisting ≥2 cycles ∧ examined. Each `catch_all.admitted[].rule_checks` is `{examined, no_bug_meets_bar, not_in_cluster, pre_5_0}`, all true. List every admission in the digest.
+- **Catch-all** (`OCPQUAL-88`, triage 851): **off by default for post-GA** — never admit a regression; persisting unexplained `LOW` singletons stay listed in `watch_list` with reason `persisting singleton, unexplained; not written`, and `catch_all.admitted` stays `[]`. Re-enabling is one line here, with the former rule: only `LOW` ∧ singleton ∧ persisting ≥2 cycles ∧ examined, each admission carrying `rule_checks` `{examined, no_bug_meets_bar, not_in_cluster, pre_5_0}` all true and listed in the digest.
 
 ## 5. Notification policy
 
@@ -74,7 +74,7 @@ Only on **verified existing issues in approved projects** — `OCPBUGS` and `TRT
 This job is unattended: there is no user to confirm. `--write-mode` (default in SKILL.md Arguments) overrides Phase 4's per-bucket confirmation and the `--auto-triage` semantics.
 
 - `report`: no Sippy or Jira write of any kind, regardless of confidence. Record every intended action in `actions[]` with status `skipped-report-mode`; analysis is otherwise identical.
-- `auto`: every write that meets the linking gate (§4) or the catch-all rule is authorised and performed without confirmation; everything else is a recorded proposal.
+- `auto`: every write that meets the linking gate (§4) is authorised and performed without confirmation (the catch-all rule too, only if it is enabled); everything else is a recorded proposal.
 - In both modes, writes that Phase 4 gates on confirmation for other reasons (new Sippy labels/symptoms, release blockers, `manage-labels` updates) stay report recommendations.
 
 ## 8. Budget ordering
@@ -99,7 +99,7 @@ Write the per-cluster JSON files, then merge and validate (`manifest.py` is in `
          "prowjob_run_id": "2043...", "supports_regression_ids": [49531, 49532]}],
        "unverified_hypotheses": []},
      "bug_search": {"candidates": [{"key": "OCPBUGS-129375", "status": "POST", "release": "5.0",
-       "cites_own_runs": true, "exact_assertion": true, "sibling_precedent": {"view": "5.0-main", "triage_id": 652},
+       "cites_own_runs": false, "exact_assertion": true, "sibling_precedent": {"view": "5.0-main", "triage_id": 652},
        "bar_met": true, "verdict": "link"}], "newer_release_fix": null},
      "members_unlinked": [{"id": 49533, "reason": "different mechanism, no own-run evidence"}],
      "proposed_action": {"type": "extend_triage", "triage_id": 652, "jira": "OCPBUGS-129375",
@@ -116,16 +116,14 @@ Write the per-cluster JSON files, then merge and validate (`manifest.py` is in `
 
    ```json
    {"watch_list": [{"regression_id": 51210, "view": "4.21-main", "reason": "LOW & new (<7d)", "cluster_id": "c-1b22c0", "revisit": "next cycle"}],
-    "catch_all": {"jira": "OCPQUAL-88", "triage_id": 851, "admitted": [{"regression_id": 51180,
-      "rule_checks": {"examined": true, "no_bug_meets_bar": true, "not_in_cluster": true, "pre_5_0": true},
-      "signature": "<grep-able line>", "status": "done"}]},
+    "catch_all": {"jira": "OCPQUAL-88", "triage_id": 851, "admitted": []},
     "backport_candidates": [{"cluster_id": "c-2e1a40", "fixed_in": {"key": "OCPBUGS-113706", "fix_version": "5.1.0"}, "this_release": "4.22", "clone_exists": false}],
     "unanalysed": [{"cluster_id": "c-9c0b12", "reason": "budget exhausted after 3h12m", "blast_radius": "ELEVATED"}],
     "audit": {"jira_writes": [], "account_wide_creations": null, "sippy_catalog_diff": null, "jira_permissions": null, "receipt": null,
       "guards": {"existing_only_flag": null, "jql_audit": "unknown", "sippy_diff": "unknown", "junit_backstop": null}}}
    ```
 
-   `watch_list` items come from `prepass.json` `watch_list_candidates` plus `revisit`. `audit` is a placeholder the runner overwrites; `validate` rejects `{}` or a missing key, so keep this exact skeleton. Use empty lists/objects (`[]`, `"admitted": []`) when there is nothing to report.
+   `watch_list` items come from `prepass.json` `watch_list_candidates` plus `revisit`, and additionally every persisting unexplained `LOW` singleton (`needs-human (low)`). In `bug_search.candidates[]`, `exact_assertion` records that the bug's signature was verified in the cluster's own runs, `cites_own_runs` that the bug itself names one of those runs (rare; strongest evidence), `bar_met` the §4 gate. `catch_all.admitted` stays `[]` while admission is off (item shape when enabled: `{regression_id, rule_checks{examined, no_bug_meets_bar, not_in_cluster, pre_5_0}, signature, status}`). `audit` is a placeholder the runner overwrites; `validate` rejects `{}` or a missing key, so keep this exact skeleton. Use empty lists/objects (`[]`, `"admitted": []`) when there is nothing to report.
 5. `python3 scripts/manifest.py merge --prepass prepass.json --dispositions dispositions.json --actions actions.json --extra extra.json --out triage-manifest.json`
 6. `python3 scripts/manifest.py validate triage-manifest.json` (exit 0 required; errors on stderr). Fix and re-run on exit 1; never weaken the data to pass.
 
@@ -138,12 +136,12 @@ Then write `triage-duty-report-post-ga.md` following SKILL.md Phase 5 plus: clus
 | situation | evidence requirement | write (auto mode) | notification | fallback / no-write state |
 |---|---|---|---|---|
 | `KNOWN-CAUSE`, any urgency | label/precedent identifies the target only; same full linking gate per supported member | extend triage (or create one to the existing bug) for supported members; `add-jira-triage-link`; consolidated backport note | `HIGH` → escalate+mention; `ELEVATED` → digest line; `LOW` → count | gate not met → `CANDIDATE`; unverified members → `unlinked` |
-| `CANDIDATE`, `HIGH` | own run IDs + exact assertion, or exact mechanism + precedent | link if bar met (disclosed in escalation) + triage link (+ backport note) | escalate+mention (first; growth; change; overdue) | report-only escalation |
+| `CANDIDATE`, `HIGH` | bug's signature verified in own runs, or exact mechanism + precedent | link if bar met (disclosed in escalation) + triage link (+ backport note) | escalate+mention (first; growth; change; overdue) | report-only escalation |
 | `CANDIDATE`, `ELEVATED`/`LOW` | same | link if bar met | digest (+ non-pinging reply if `ELEVATED`) | listed as proposed link, no write |
 | `UNEXPLAINED`, `HIGH` | n/a | none | escalate+mention | escalation with "unknown" fields explicit |
 | `UNEXPLAINED`, `ELEVATED` | n/a | none | non-pinging reply | watch / needs-human (low) |
 | `UNEXPLAINED`, `LOW`, new (<7 d) | n/a | none | count | watch one cycle |
-| `UNEXPLAINED`, `LOW`, singleton, persisting ≥2 cycles, examined | all four `rule_checks` true | attach to catch-all triage 851 | digest line | stays untriaged, listed |
+| `UNEXPLAINED`, `LOW`, singleton, persisting ≥2 cycles, examined | n/a | none (catch-all admission off by default) | digest "needs-human (low)" | stays untriaged, listed |
 | `UNEXPLAINED`, `LOW`, small cluster, persisting | n/a | none (clusters never go to the catch-all) | digest "needs-human (low)" | stays untriaged, listed |
 | `UNANALYSED` (budget) | pre-pass shape only | none | `HIGH` → escalate+mention anyway, "diagnosis: unanalysed"; else digest, prominent | listed with reason; carried over `HIGH`-first |
 | any, `report` mode | as above | none (`skipped-report-mode`) | as above, marked "would have" | — |
