@@ -1,0 +1,59 @@
+# Not visible to the model. Expected policy choices for case-001 (stable recurrences + deferred work).
+expected:
+  decisions:
+    c-known:
+      next_step: carry
+      allowed_depths: [carried-forward]
+      allowed_states: [KNOWN-CAUSE]
+      target: {jira: OCPBUGS-1, triage_id: 17}
+      supported_member_ids: [101]
+      would_write: false
+      escalation_required: false
+      required_locators:
+        - gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn/2113500000000000101/artifacts/e2e-aws-ovn/openshift-e2e-test/artifacts/junit/junit_e2e__20261018-011950.xml
+        - https://issues.redhat.com/rest/api/2/issue/OCPBUGS-1?fields=summary,status,resolution,fixVersions,versions,updated
+    c-candidate:
+      next_step: carry
+      allowed_depths: [carried-forward]
+      allowed_states: [CANDIDATE]
+      target: {jira: OCPBUGS-3, triage_id: null}
+      supported_member_ids: []
+      would_write: false
+      escalation_required: false
+      required_locators:
+        - gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn/2113500000000000201/artifacts/e2e-gcp-ovn/openshift-e2e-test/artifacts/junit/junit_e2e__20261018-030217.xml
+        - https://issues.redhat.com/rest/api/2/issue/OCPBUGS-3?fields=summary,status,resolution,fixVersions,versions,updated
+    c-needs-human:
+      next_step: carry
+      allowed_depths: [carried-forward]
+      allowed_states: [UNEXPLAINED]
+      target: null
+      supported_member_ids: []
+      would_write: false
+      escalation_required: false
+      required_locators:
+        - gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-azure-ovn/2113500000000000301/artifacts/e2e-azure-ovn/openshift-e2e-test/artifacts/junit/junit_e2e__20261017-230109.xml
+        - https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20created%3E%3D2026-10-13%20AND%20text~%22drowned%20out%22&fields=key,summary,status,created
+    c-deferred-partial:
+      next_step: analyse-first
+      allowed_depths: [deep-dive]
+      allowed_states: [UNANALYSED]
+      target: null
+      supported_member_ids: []
+      would_write: false
+      escalation_required: false
+      required_locators: []
+  investigation_order_prefix: [c-deferred-partial]
+  investigation_order_exact: true
+notes: >
+  Three unchanged LOW recurrences whose immediate source is finished, high-confidence and basis-backed, with
+  this week's own failed run and lookups supplied: c-known (KNOWN-CAUSE, OCPBUGS-1 still ON_QA, triage 17
+  unresolved) carries and re-proposes the link for member 101 without writing (report mode); c-candidate
+  (CANDIDATE, OCPBUGS-3 unchanged, incremental search empty) carries with the same unmet bar; c-needs-human
+  (examined UNEXPLAINED with a needs-human watch entry, incremental search empty) carries its negative finding
+  and must not be sent to first analysis. c-deferred-partial was deferred last week as LOW-and-new (depth none,
+  low confidence, LOW & new watch entry); its member is retained but the baseline's 4.20-main observation was
+  partial (observation_complete false) and the view age was reset (days_open 0, so the deterministic watch
+  candidate list says LOW & new again). Policy: an incomplete prior observation disqualifies carry but does not
+  erase remembered deferred status - first analysis is due; neither carry nor another automatic watch. It is the
+  only investigation in this case. No writes, no escalations.
