@@ -15,6 +15,26 @@ mis-diagnosed duty-run regressions.
 | case-004 | OCPBUGS-100392 | security-penetration interference |
 | case-005 | OCPBUGS-99220 | CBO flap / duplicate-avoidance trap |
 
+## bulk-triage-prior (`cases/bulk-triage-prior`)
+
+Policy-choice cases for the post-GA weekly run's prior memory
+(`eval-bulk-triage-prior.yaml`): given a frozen pre-pass whose clusters carry
+`prior` blocks and the only observations of the current run, does the skill
+carry verified analysis forward, re-investigate what changed, treat a replaced
+population as new, and bring deferred work to first analysis? Expectations are
+policy choices with recorded provenance, not mechanism ground truth — unlike
+`bulk-triage-regressions` above, nothing here is owning-team-certified root
+cause. Inputs were produced by `prepass.weekly()` / `prior.attach_priors()`
+from synthetic two-week inventories and validated baseline manifests (case-002
+reuses the real Oct-12 → Oct-21 `c-b17bd7` members, runs and quotes). Authored
+and statically validated; model-backed execution is a development check run
+when a model session is available, not part of CI.
+
+| Case | Description |
+|------|-------------|
+| case-001 | Stable KNOWN-CAUSE / CANDIDATE / examined-UNEXPLAINED recurrences carry; deferred LOW with incomplete prior observation is analysed first, not re-watched |
+| case-002 | Replacement population (`c-b17bd7`) treated as new; newly surfaced bug lead re-investigated as CANDIDATE; unchanged HIGH always re-deep-dived |
+
 ## detect-permafail (`cases/detect-permafail`)
 
 Whether `ci:detect-permafail` correctly distinguishes permafails from
