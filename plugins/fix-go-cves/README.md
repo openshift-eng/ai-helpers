@@ -102,7 +102,10 @@ Absolute paths work without a registry.
 - **Kubernetes:** set `k8s-version-guard: true` to treat `k8s.io` minor bumps
   as breaking.
 - **Go directive:** a dependency may raise `go` only up to the detected build
-  image's Go version, or within the same minor when no image is known.
+  image's Go version, or within the same minor when no image is known. Set
+  `go-minor-guard: true` when repository policy forbids minor raises; builder
+  support does not override that restriction. Both proposed and post-tidy
+  requirements are checked, and rejected transactions roll back.
 - **Standard library:** a stdlib fix sets the `toolchain` directive, never
   `go`, so consumers are not forced to upgrade. It never lowers a module's
   effective Go. When the build image's Go is unknown, only same-minor patch
@@ -136,6 +139,9 @@ Absolute paths work without a registry.
 A `.cve-fix.yaml` committed in the target branch's root overrides detection;
 every field is optional. `CVE_FIX_BUILD_CMD`, `CVE_FIX_CLEAN_CMD`, `CVE_FIX_TEST_CMD`, and
 `CVE_FIX_BUILD_IMAGE` override the file for one run.
+`CVE_FIX_GO_MINOR_GUARD` and `CVE_FIX_K8S_VERSION_GUARD` similarly override their
+boolean policy fields. Use `true` for applicable repository restrictions; these
+settings do not supply authorization to relax repository policy.
 
 | Field | Default |
 | --- | --- |
@@ -144,6 +150,7 @@ every field is optional. `CVE_FIX_BUILD_CMD`, `CVE_FIX_CLEAN_CMD`, `CVE_FIX_TEST
 | `test-command` | First of `make unit`, `make test`, `make test-unit`, `go test ./...` |
 | `build-image` | None; its `go version` bounds Go directive and toolchain bumps |
 | `k8s-version-guard` | `false`; `true` treats Kubernetes minor bumps as breaking |
+| `go-minor-guard` | `false`; `true` rejects Go directive minor raises even when the builder supports them |
 | `upstream-org` | Owner of `origin`, used for the PR command |
 | `unset-env` | None; variable names removed from build, test, and reviewer environments |
 

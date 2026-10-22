@@ -128,6 +128,10 @@ check "Go directive unknown builder allows same minor" \
   go_directive_supported 1.25.0 1.25.9 ""
 check "Go directive unknown builder rejects cross minor" \
   ! go_directive_supported 1.25.0 1.26.0 ""
+check "repository guard rejects builder-supported minor raise" \
+  ! bash -c 'source "$1"; go_directive_supported 1.25.0 1.26.0 1.26.8 true' _ "$SCRIPT_DIR/lib.sh"
+check "repository guard preserves allowed patch raises" \
+  bash -c 'source "$1"; go_directive_supported 1.25.0 1.25.8 1.26.8 true' _ "$SCRIPT_DIR/lib.sh"
 _STATE_PATH=$(state_file_path /x/myrepo release-0.23)
 check "state_file_path" bash -c '[[ "$1" == '"${TMPDIR:-/tmp}"'/cve-fix-myrepo-release-0-23.*/state.env && -f "$1" && ! -L "$1" ]]' _ "$_STATE_PATH"
 check "state_file_path mode 0600" test "$(stat -c '%a' "$_STATE_PATH")" = 600
@@ -787,8 +791,6 @@ check "pristine Dapper wrapper uses standard in-container unit target" \
   test "$(state_value "$_PD_STATE" TEST_CMD)" = 'make unit'
 check "Dapper wrapper does not auto-run global clean graph" \
   test -z "$(state_value "$_PD_STATE" CLEAN_CMD)"
-check "post-scan builds force Make dependency rebuilds" \
-  grep -qF 'MAKEFLAGS=-B timeout --foreground' "$SCRIPT_DIR/scan.sh"
 
 echo "generated binary duplicate filtering"
 GBD_JSON="$TMPD/generated-binary-duplicates.json"
@@ -5545,6 +5547,7 @@ case "$1" in
   get)
     pkg=$(echo "$2" | cut -d@ -f1); ver=$(echo "$2" | cut -d@ -f2)
     [ "$FPX_MODE" = go-bump ] && sed -i 's/^go 1.24.0$/go 1.24.5/' "$dir/go.mod"
+    [ "$FPX_MODE" = go-minor-get ] && sed -i 's/^go 1.24.0$/go 1.25.0/' "$dir/go.mod"
     if [ "$FPX_MODE" = post-v ]; then
       echo "go: $2: invalid version: go.mod has post-v7 module path \"$pkg/v7\" at revision $ver" >&2
       exit 1
@@ -5553,6 +5556,9 @@ case "$1" in
       "$dir/go.mod" > "$dir/go.mod.tmp" && mv "$dir/go.mod.tmp" "$dir/go.mod"
     exit 0 ;;
   mod)
+    if [ "$2" = tidy ] && [ "$FPX_MODE" = go-minor-tidy ]; then
+      sed -i 's/^go 1.24.0$/go 1.25.0/' "$dir/go.mod"
+    fi
     [ "$2" = vendor ] && mkdir -p "$dir/vendor" && echo "# regenerated" > "$dir/vendor/modules.txt"
     exit 0 ;;
   work)
@@ -5636,6 +5642,25 @@ _fpx_run go-bump $'module x\n\ngo 1.24.0\n\nrequire example.com/cve-pkg v1.0.0' 
 check "a go directive change is fixed" test "$FPX_RC" -eq 0
 check "a go directive change is named in the commit" \
   bash -c 'git -C "$1" log -1 --format=%B | grep -qx "Raises go in go.mod from 1.24.0 to 1.24.5, as v1.1.0 requires."' _ "$FPX_DIR"
+FPX_STATE='BUILD_GO_VERSION="go version go1.26.8"' \
+  _fpx_run allowed-go-minor $'module x\ngo 1.24.0\nrequire example.com/cve-pkg v1.0.0' go-minor-get
+check "unrestricted builder-supported minor raise still succeeds" test "$FPX_RC" -eq 0
+FPX_STATE=$'BUILD_GO_VERSION="go version go1.26.8"\nGO_MINOR_GUARD=true' \
+  _fpx_run guarded-go-patch $'module x\ngo 1.24.0\nrequire example.com/cve-pkg v1.0.0' go-bump
+check "guarded same-minor patch raise still succeeds" test "$FPX_RC" -eq 0
+for _go_guard_phase in get tidy; do
+  FPX_STATE=$'BUILD_GO_VERSION="go version go1.26.8"\nGO_MINOR_GUARD=true' \
+    _fpx_run "guarded-go-$_go_guard_phase" $'module x\ngo 1.24.0\nrequire example.com/cve-pkg v1.0.0' "go-minor-$_go_guard_phase"
+  check "repository guard rejects minor raise from $_go_guard_phase" test "$FPX_RC" -eq 2
+  check "repository guard diagnoses $_go_guard_phase policy boundary" grep -q 'go-minor-guard=true' <<< "$FPX_OUT"
+  check "repository guard restores Go after $_go_guard_phase" grep -qx 'go 1.24.0' "$FPX_DIR/go.mod"
+  check "repository guard restores dependency after $_go_guard_phase" grep -qx 'require example.com/cve-pkg v1.0.0' "$FPX_DIR/go.mod"
+  check "repository guard creates no fix commit after $_go_guard_phase" test "$(git -C "$FPX_DIR" rev-parse HEAD)" = "$FPX_BEFORE"
+done
+FPX_STATE='GO_MINOR_GUARD=true' \
+  _fpx_run guarded-go-unknown $'module x\ngo 1.24.0\nrequire example.com/cve-pkg v1.0.0' go-minor-get
+check "unknown builder preserves repository restriction" test "$FPX_RC" -eq 2
+check "unknown builder names independent repository restriction" grep -q 'unknown (go-minor-guard=true)' <<< "$FPX_OUT"
 FPX_SCANS="$TMPD/fpx-scans"; mkdir -p "$FPX_SCANS"
 cat > "$FPX_SCANS/scan.sh" <<'SH'
 #!/usr/bin/env bash
@@ -7215,8 +7240,8 @@ check "fix-stdlib same-minor patch keeps go directive" \
 
 # Test 3: COMPILER_GO is in a higher minor than go.mod. go.mod = 1.25.0 but
 # COMPILER_GO = 1.26.8. REF_MINOR anchors to 1.26 (the compiler), so the
-# builder already supports the fix, so advancing go.mod from 1.25 to 1.26 is
-# allowed by policy and must commit.
+# builder supports a toolchain-only fix; the language directive remains 1.25
+# even when its minor guard is enabled.
 STDLIB_CM_REPO="$TMPD/stdlib-cm-repo"
 mkdir -p "$STDLIB_CM_REPO"
 git -C "$STDLIB_CM_REPO" init -q
@@ -7228,7 +7253,7 @@ git -C "$STDLIB_CM_REPO" add go.mod main.go
 git -C "$STDLIB_CM_REPO" commit -q -m "init"
 git -C "$STDLIB_CM_REPO" checkout -q -b devel
 # State: BUILD_GO_VERSION set to 1.26.8 → COMPILER_GO=1.26.8, REF_MINOR=1.26
-printf 'REPO=%q\nBRANCH=devel\nBUILD_GO_VERSION="go1.26.8"\nCVE_SCRIPTS=%q\n' \
+printf 'REPO=%q\nBRANCH=devel\nBUILD_GO_VERSION="go1.26.8"\nGO_MINOR_GUARD=true\nCVE_SCRIPTS=%q\n' \
   "$STDLIB_CM_REPO" "$SCRIPT_DIR" > "$TMPD/stdlib-cm-state.env"
 STDLIB_CM_RC=0
 STDLIB_CM_OUT=$(cd "$STDLIB_CM_REPO" && bash "$SCRIPT_DIR/fix-stdlib.sh" \
@@ -7238,6 +7263,8 @@ check "fix-stdlib builder-supported cross-minor reports FIXED" \
   grep -q 'FIXED: stdlib' <<< "$STDLIB_CM_OUT"
 check "fix-stdlib builder-supported cross-minor commits" \
   test "$(git -C "$STDLIB_CM_REPO" rev-list --count devel)" -eq 2
+check "guarded stdlib repair preserves language directive" grep -qx 'go 1.25.0' "$STDLIB_CM_REPO/go.mod"
+check "guarded stdlib repair updates only toolchain" grep -qx 'toolchain go1.26.7' "$STDLIB_CM_REPO/go.mod"
 
 # Test 4: Per-module loop cross-minor guard: a submodule whose go directive is in
 # a different minor stream than NEW_MINOR must be left unchanged. Create a repo
@@ -9483,7 +9510,7 @@ check "latest image override is rejected" test "$_CR_SCAN_RC" -ne 0
 _cr_scanner_run '{"version":"9.8.7"}' anchore/grype
 check "implicit mutable image override is rejected" test "$_CR_SCAN_RC" -ne 0
 
-echo "reviewer reasons replace deterministic reasons in every scope"
+echo "reviewer detail preserves deterministic reasons in every scope"
 FIX_LINES=('NEEDS_REVIEW: example.com/rev — baseline failure at /go.mod'
            'NEEDS_REVIEW: example.com/rev — tools failure at /tools/go.mod'
            'NEEDS_REVIEW: example.com/rev/extra — other package at /go.mod'
@@ -9491,17 +9518,28 @@ FIX_LINES=('NEEDS_REVIEW: example.com/rev — baseline failure at /go.mod'
 REVIEW_COUNT=2
 apply_review_outcome example.com/rev 'needs a newer builder (need team input)'
 _ar_lines=$(printf '%s\n' "${FIX_LINES[@]}")
-check "review outcome replaces the root reason" grep -qx 'NEEDS_REVIEW: example.com/rev — needs a newer builder (need team input) at /go.mod' <<< "$_ar_lines"
-check "review outcome keeps the tools scope" grep -qx 'NEEDS_REVIEW: example.com/rev — needs a newer builder (need team input) at /tools/go.mod' <<< "$_ar_lines"
-check "review outcome leaves no deterministic duplicate" ! grep -q 'baseline failure\|tools failure' <<< "$_ar_lines"
+check "review outcome retains the root reason and adds reviewer detail" grep -qx 'NEEDS_REVIEW: example.com/rev — baseline failure; reviewer: needs a newer builder (need team input) at /go.mod' <<< "$_ar_lines"
+check "review outcome retains the tools reason and scope" grep -qx 'NEEDS_REVIEW: example.com/rev — tools failure; reviewer: needs a newer builder (need team input) at /tools/go.mod' <<< "$_ar_lines"
+check "review outcome keeps one line per existing scope" test "$(grep -c '^NEEDS_REVIEW: example.com/rev ' <<< "$_ar_lines")" -eq 2
 check "review outcome preserves a package-prefix sibling" grep -q 'example.com/rev/extra — other package' <<< "$_ar_lines"
 check "review outcome preserves a fixed scope" grep -q '^FIXED: example.com/rev ' <<< "$_ar_lines"
 check "review outcome for reviewed packages is not recounted" test "$REVIEW_COUNT" -eq 2
+apply_review_outcome example.com/rev 'needs a newer builder (need team input)'
+check "repeated reviewer detail is not duplicated" test "$(printf '%s\n' "${FIX_LINES[@]}")" = "$_ar_lines"
 FIX_LINES=('NEEDS_REVIEW: example.com/both — scoped failure at /go.mod'
            'NEEDS_REVIEW: example.com/both — unscoped failure')
 apply_review_outcome example.com/both 'reviewed (need team input)'
 check "unscoped review line absorbs scoped duplicates" \
-  test "$(printf '%s\n' "${FIX_LINES[@]}")" = 'NEEDS_REVIEW: example.com/both — reviewed (need team input)'
+  test "$(printf '%s\n' "${FIX_LINES[@]}")" = 'NEEDS_REVIEW: example.com/both — scoped failure at /go.mod; unscoped failure; reviewer: reviewed (need team input)'
+check "absorbed scoped facts do not rescope the outcome" test "$(package_outcome_location "${FIX_LINES[0]}")" = ''
+FIX_LINES+=('NEEDS_REVIEW: example.com/duplicates — first failure at /go.mod'
+            'NEEDS_REVIEW: example.com/duplicates — first failure at /go.mod'
+            'NEEDS_REVIEW: example.com/duplicates — second failure at /go.mod')
+apply_review_outcome example.com/duplicates 'reviewed (need team input)'
+check "same-scope facts are retained once in one outcome" grep -qx 'NEEDS_REVIEW: example.com/duplicates — first failure; second failure; reviewer: reviewed (need team input) at /go.mod' <<< "$(printf '%s\n' "${FIX_LINES[@]}")"
+FIX_LINES+=('NEEDS_REVIEW: example.com/normalized — source failure at /src/go.mod')
+apply_review_outcome example.com/normalized 'reviewed (need team input)'
+check "retained facts use one normalized terminal scope" grep -qx 'NEEDS_REVIEW: example.com/normalized — source failure; reviewer: reviewed (need team input) at /go.mod' <<< "$(printf '%s\n' "${FIX_LINES[@]}")"
 apply_review_outcome example.com/new 'unseen policy decision (need team input)'
 check "review outcome adds an unseen package once" test "$(printf '%s\n' "${FIX_LINES[@]}" | grep -c '^NEEDS_REVIEW: example.com/new ')" -eq 1
 check "review outcome counts an unseen package" test "$REVIEW_COUNT" -eq 3
@@ -10620,7 +10658,7 @@ check "entries without a package are still removed" ! grep -q CVE-2023-3333 "$IG
 FIX_LINES=('NEEDS_REVIEW: example.com/sc — det at /sub/go.mod')
 apply_review_outcome example.com/sc 'needs k8s (need team input) at /sub/go.mod'
 check "review reason echoing its scope is not scoped twice" \
-  test "${FIX_LINES[*]}" = 'NEEDS_REVIEW: example.com/sc — needs k8s (need team input) at /sub/go.mod'
+  test "${FIX_LINES[*]}" = 'NEEDS_REVIEW: example.com/sc — det; reviewer: needs k8s (need team input) at /sub/go.mod'
 printf 'ignore:\n  - vulnerability: CVE-9\n    package:\n      name: a.b/c\n    # about the next entry\n  - vulnerability: CVE-10\n    package:\n      name: a.b/d\n' > "$IGY/comment.yaml"
 remove_grype_ignore "$IGY/comment.yaml" CVE-9 a.b/c >/dev/null
 check "removal keeps the next entry's indented comment" grep -q 'about the next entry' "$IGY/comment.yaml"
@@ -10706,6 +10744,23 @@ printf 'clean-command: null\n' > "$TMPD/null.yaml"
 check "null command is rejected" ! python3 "$SCRIPT_DIR/read-config.py" config-json "$TMPD/null.yaml"
 printf '\xef\xbb\xbftest-command: make unit\n' > "$TMPD/bom.yaml"
 check "BOM is accepted" python3 "$SCRIPT_DIR/read-config.py" config-json "$TMPD/bom.yaml"
+GOG_CONFIG="$TMPD/go-guard-config"
+make_test_repo "$GOG_CONFIG"
+printf 'module example.com/guard\ngo 1.24.0\n' > "$GOG_CONFIG/go.mod"
+printf 'go-minor-guard: true\n' > "$GOG_CONFIG/.cve-fix.yaml"
+_guard_state=$("$SCRIPT_DIR/detect.sh" "$GOG_CONFIG" devel 2>/dev/null | tail -1)
+check "target configuration carries Go restriction into state" grep -qx 'GO_MINOR_GUARD=true' "$_guard_state"
+_guard_state=$(CVE_FIX_GO_MINOR_GUARD=false "$SCRIPT_DIR/detect.sh" "$GOG_CONFIG" devel 2>/dev/null | tail -1)
+check "explicit Go restriction override takes precedence" grep -qx 'GO_MINOR_GUARD=false' "$_guard_state"
+check "invalid Go restriction override fails" ! env CVE_FIX_GO_MINOR_GUARD=maybe "$SCRIPT_DIR/detect.sh" "$GOG_CONFIG" devel
+printf 'k8s-version-guard: true\n' > "$GOG_CONFIG/.cve-fix.yaml"
+_guard_state=$(CVE_FIX_K8S_VERSION_GUARD=false "$SCRIPT_DIR/detect.sh" "$GOG_CONFIG" devel 2>/dev/null | tail -1)
+check "explicit Kubernetes restriction override takes precedence" grep -qx 'K8S_VERSION_GUARD=false' "$_guard_state"
+_guard_state=$(CVE_FIX_K8S_VERSION_GUARD=true "$SCRIPT_DIR/detect.sh" "$GOG_CONFIG" devel 2>/dev/null | tail -1)
+check "explicit Kubernetes restriction reaches state" grep -qx 'K8S_VERSION_GUARD=true' "$_guard_state"
+check "invalid Kubernetes restriction override fails" ! env CVE_FIX_K8S_VERSION_GUARD=maybe "$SCRIPT_DIR/detect.sh" "$GOG_CONFIG" devel
+printf 'go-minor-guard: "true"\n' > "$TMPD/invalid-go-guard.yaml"
+check "Go restriction requires a YAML boolean" ! python3 "$SCRIPT_DIR/read-config.py" config-json "$TMPD/invalid-go-guard.yaml"
 
 echo "report-only scans validate one scan and leave no branch, commit or state"
 RPT="$TMPD/report-only"
@@ -10969,6 +11024,10 @@ cat >> "$EVI_SCRIPTS/lib.sh" <<'SH'
 preflight_check() { return 0; }
 fetch_origin_branch() { return 0; }
 run_grype() {
+  if [[ "${EVI_STDLIB:-false}" == true ]]; then
+    printf '{"matches":[{"vulnerability":{"id":"GO-2099-0002","severity":"High","fix":{"versions":["1.24.1"],"state":"fixed"}},"artifact":{"type":"go-module","name":"stdlib","version":"go1.24.0","locations":[{"path":"/bin/app"}]}}],"ignoredMatches":[]}\n'
+    return
+  fi
   if [[ "${EVI_LATE_STAGE:-}" == before-final && -f "$EVI_ROOT/test-count" && ! -f "$EVI_ROOT/late-change" ]]; then
     bash "$EVI_ROOT/late-command.sh"
   fi
@@ -11031,7 +11090,18 @@ if [[ -n "${EVI_PRE_TEST_DIRT:-}" ]]; then
 fi
 printf 'FIXED: example.com/pkg v1.1.0 for GO-2099-0001\n'
 SH
-printf '#!/usr/bin/env bash\nexit 0\n' > "$EVI_SCRIPTS/review.sh"
+cat > "$EVI_SCRIPTS/fix-stdlib.sh" <<'SH'
+#!/usr/bin/env bash
+echo 'NEEDS_REVIEW: stdlib — selected patch needs compiler approval'
+exit 2
+SH
+cat > "$EVI_SCRIPTS/review.sh" <<'SH'
+#!/usr/bin/env bash
+if [[ "${EVI_STDLIB:-false}" == true ]]; then
+  printf 'UNRESOLVED: stdlib — maintainers must update the builder (need team input)\n' > "${1}.review-unresolved"
+fi
+exit 0
+SH
 cat > "$EVI_ROOT/late-command.sh" <<'SH'
 #!/usr/bin/env bash
 set -e
@@ -11132,6 +11202,17 @@ check "evidence run state records tested retained head and completed gates" jq -
   '.exit_code == 0 and .tested_head == .head and .phases.tests == "completed" and .phases.verification == "completed" and .phases.license == "completed" and .license_exit_code == 0 and .license_command == "make licensecheck"' "$EVI_ROOT/complete/run.json"
 check "evidence retains canonical build log" grep -q canonical-build "$(find "$EVI_ROOT/complete/scans" -name build.log -print -quit)"
 check "evidence retains license log" grep -q canonical-license "$EVI_ROOT/complete/license.log"
+check "Summary reports initial scope without inventing native proof" grep -qxF \
+  'Scan scope (initial): Go dependency scan; native-binary coverage unverified (no positive catalog evidence retained)' "$EVI_ROOT/default.log"
+check "Summary reports final scope without inventing native proof" grep -qxF \
+  'Scan scope (final): Go dependency scan; native-binary coverage unverified (no positive catalog evidence retained)' "$EVI_ROOT/complete.log"
+EVI_STDLIB=true evi_run stdlib-review "$EVI_ROOT/stdlib-review"
+check "stdlib reviewer handoff retains blocked outcome" test "$EVI_RC" -eq 2
+check "stdlib deterministic reason remains in the run log" \
+  grep -q 'NEEDS_REVIEW: stdlib — selected patch needs compiler approval' "$EVI_ROOT/stdlib-review.log"
+check "stdlib valid reviewer detail reaches the Summary" bash -c \
+  'sed -n "/^--- Summary/,$ p" "$1" | grep -q "NEEDS_REVIEW: stdlib — selected patch needs compiler approval; reviewer: maintainers must update the builder"' _ "$EVI_ROOT/stdlib-review.log"
+check "stdlib unresolved reviewer never enables publication" ! grep -q '^PR command:' "$EVI_ROOT/stdlib-review.log"
 for _audit in scan-regression yaml-integrity existing-entries fix-availability; do
   check "evidence retains $_audit result before cleanup" test -s "$EVI_ROOT/complete/audits/$_audit.evidence"
 done
@@ -11374,10 +11455,43 @@ case "${logfile##*/}" in
     "$EVI_REAL_TEE" "$@"
     [[ "${EVI_TEE_MODE:-}" != fail ]] || exit 19
     ;;
+  build.log|cve-fix-build.*|license.log)
+    "$EVI_REAL_TEE" "$@"
+    case "${EVI_TEE_TARGET:-}:${logfile##*/}" in
+      build:build.log|build:cve-fix-build.*|license:license.log) exit 19 ;;
+    esac
+    ;;
   *) exec "$EVI_REAL_TEE" "$@" ;;
 esac
 SH
 chmod +x "$EVI_ROOT/test-log-bin/tee"
+for _evidence in "" "$EVI_ROOT/build-log-failure"; do
+  evi_workspace_reset
+  PATH="$EVI_ROOT/test-log-bin:$PATH" EVI_TEE_TARGET=build \
+    evi_run build-log-failure "$_evidence"
+  check "build logger failure blocks with evidence='$_evidence'" test "$EVI_RC" -ne 0
+  check "build logger failure preserves command exit in diagnosis" \
+    grep -q 'Cannot capture build output (tee exited 19; build exited 0)' "$EVI_ROOT/build-log-failure.log"
+  check "build logger failure stops before tests" test ! -f "$EVI_ROOT/test-count"
+  check "build logger failure suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/build-log-failure.log"
+done
+check "build logger receipt retains successful command and failed scan" jq -e \
+  '.build_status == "completed" and .build_exit_code == 0 and .exit_code == 2' \
+  "$(find "$EVI_ROOT/build-log-failure/scans" -name status.json -print -quit)"
+for _child_rc in 0 7; do
+  evi_workspace_reset
+  _case="license-log-failure-$_child_rc"
+  PATH="$EVI_ROOT/test-log-bin:$PATH" EVI_TEE_TARGET=license EVI_LICENSE_RESULT="$_child_rc" \
+    evi_run "$_case" "$EVI_ROOT/$_case"
+  check "license logger failure after command $_child_rc blocks" test "$EVI_RC" -eq 2
+  if [[ $_child_rc -eq 0 ]]; then _expected_license_rc=0; else _expected_license_rc=2; fi
+  check "license logger preserves actual make exit for command $_child_rc" jq -e \
+    ".license_exit_code == $_expected_license_rc and .phases.license == \"capture_failed\"" "$EVI_ROOT/$_case/run.json"
+  check "license logger failure is diagnosed" grep -q 'Cannot capture license output (tee exited 19;' "$EVI_ROOT/$_case.log"
+  check "license logger failure never claims policy passed" ! grep -q '^License policy check passed' "$EVI_ROOT/$_case.log"
+  check "Summary distinguishes failed license capture" grep -q 'license: capture_failed (exit ' "$EVI_ROOT/$_case.log"
+  check "license logger failure suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/$_case.log"
+done
 for _child_rc in 0 7; do
   evi_workspace_reset
   _case="test-log-failure-$_child_rc"
@@ -11543,6 +11657,17 @@ check "Summary binds every test run to its actual HEAD and exit" grep -qxF \
   "Tests: completed (exit 0; failed=false); tested HEAD: $_evi_final_test_head; attempts: 1-1@$_evi_first_test_head=0 2-1@$_evi_final_test_head=0" "$EVI_ROOT/verification-retest.log"
 evi_workspace_reset
 git -C "$EVI_REPO" remote remove fork
+
+
+evi_workspace_reset
+cat > "$EVI_ROOT/build-env.sh" <<'SH'
+echo() {
+  if [[ "${1:-}" == canonical-build ]]; then printf '%s' "$MAKEFLAGS" > "$EVI_ROOT/build-makeflags"; fi
+  builtin echo "$@"
+}
+SH
+BASH_ENV="$EVI_ROOT/build-env.sh" evi_run forced-build "$EVI_ROOT/forced-build"
+check "actual scan build receives forced Make rebuild policy" test "$(cat "$EVI_ROOT/build-makeflags")" = -B
 
 # Exercise the real catalog-output wiring, including replacement of a failed
 # local scan's partial catalog by the container fallback.

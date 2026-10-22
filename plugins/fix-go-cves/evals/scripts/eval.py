@@ -71,7 +71,7 @@ def snapshot(config_path, run_dir, case_ids, model=None):
         str(resolve_plugin_dir(config, path)) for path in config.runner.plugin_dirs]
     # Freeze explicit nonsecret settings without copying provider credentials.
     environment = raw['runner'].get('env', {})
-    for name in ('DOCKER_HOST', 'GRYPE_DB_CACHE_DIR', 'GOMODCACHE', 'GOOGLE_APPLICATION_CREDENTIALS', 'GOMAXPROCS', 'DAPPER_ENV', 'DAPPER_ARGS', 'CVE_FIX_TEST_CMD', 'CVE_FIX_GRYPE_VERSION'):
+    for name in ('DOCKER_HOST', 'GRYPE_DB_CACHE_DIR', 'GOMODCACHE', 'GOOGLE_APPLICATION_CREDENTIALS', 'GOMAXPROCS', 'DAPPER_ENV', 'DAPPER_ARGS', 'CVE_FIX_TEST_CMD', 'CVE_FIX_GO_MINOR_GUARD', 'CVE_FIX_K8S_VERSION_GUARD', 'CVE_FIX_GRYPE_VERSION'):
         value = environment.get(name)
         if isinstance(value, str) and value.startswith('$'):
             environment[name] = os.environ.get(value[1:])
@@ -541,6 +541,10 @@ def runtime_scenario(case, state):
     same_head = result.get('head') == state['runtime_head']
     conditions = {'engine completion agrees with captured result': same_head and
                   result.get('exit_code') == state['runtime_exit']}
+    for guard in ('go_minor_guard', 'k8s_version_guard'):
+        if expected.get(guard) is True:
+            conditions[f'{guard} enabled'] = (root / 'state.env').is_file() and bool(re.search(
+                rf'(?m)^{guard.upper()}=true$', (root / 'state.env').read_text()))
     for name, command in expected.get('canonical_commands', {}).items():
         if name != 'license' or result.get('phases', {}).get('license') != 'not_reached':
             conditions[f'canonical {name} command used'] = result.get(name + '_command') == command
@@ -620,6 +624,9 @@ def runtime_scenario(case, state):
             conditions['runtime completed successfully'] = state['runtime_exit'] == 0
             conditions['authoritative scan has no actionable findings'] = not final['matches']
             return conditions
+        if phase != 'initial':
+            conditions.update({'initial ' + key: value for key, value in
+                native_scan_proof(case, state, 'initial', expected['base_commit'])['checks'].items()})
         conditions.update(native_scan_proof(case, state, phase, state['runtime_head'],
                                             retained=True)['checks'])
     except (OSError, ValueError, KeyError, TypeError, AttributeError):

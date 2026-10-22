@@ -8,7 +8,9 @@ branch: release-0.24
 arguments:
 - release-0.24
 original_branch: devel
-runtime_expectation: observed
+go_minor_guard: true
+k8s_version_guard: true
+runtime_expectation: binary
 canonical_commands:
   test: make unit
   build: DAPPER_ENV="${DAPPER_ENV:+$DAPPER_ENV }BUILD_UPX GOEXPERIMENT" BUILD_UPX=false GOEXPERIMENT="${GOEXPERIMENT-,}"

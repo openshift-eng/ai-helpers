@@ -141,7 +141,7 @@ def mapping_line(text: str, lineno: int):
 def parse_config(path: Path):
     allowed = {
         "build-image", "build-command", "clean-command", "test-command",
-        "unset-env", "k8s-version-guard", "upstream-org",
+        "unset-env", "k8s-version-guard", "go-minor-guard", "upstream-org",
     }
     result = {}
     for lineno, raw in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
@@ -156,9 +156,9 @@ def parse_config(path: Path):
             fail(f"line {lineno}: unknown configuration key {key!r}")
         if key in result:
             fail(f"line {lineno}: duplicate configuration key {key!r}")
-        if key == "k8s-version-guard" and not isinstance(value, bool):
-            fail(f"line {lineno}: k8s-version-guard must be true or false")
-        if key != "k8s-version-guard" and not isinstance(value, str):
+        if key in ("k8s-version-guard", "go-minor-guard") and not isinstance(value, bool):
+            fail(f"line {lineno}: {key} must be true or false")
+        if key not in ("k8s-version-guard", "go-minor-guard") and not isinstance(value, str):
             fail(f"line {lineno}: {key} must be a string")
         result[key] = value
     return result

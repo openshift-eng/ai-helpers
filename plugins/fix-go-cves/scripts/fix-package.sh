@@ -455,14 +455,14 @@ _go_get_and_check() {
   if [[ -n "$_go_was" && -n "$_go_now" && "$_go_was" != "$_go_now" ]]; then
     local _compiler_go
     _compiler_go=$(compiler_go_version)
-    if [[ -n "$_compiler_go" ]] && go_directive_supported "$_go_was" "$_go_now" "$_compiler_go"; then
+    if [[ -n "$_compiler_go" ]] && go_directive_supported "$_go_was" "$_go_now" "$_compiler_go" "${GO_MINOR_GUARD:-false}"; then
       echo "NOTE: go directive $_go_was -> $_go_now (safe: build image has Go $_compiler_go)"
     elif [[ -n "$_compiler_go" ]]; then
-      echo "NEEDS_REVIEW: $pkg — go get requires Go $_go_now but detected build image has Go $_compiler_go"
+      echo "NEEDS_REVIEW: $pkg — Go $_go_was -> $_go_now is outside repository/builder policy (builder $_compiler_go; go-minor-guard=${GO_MINOR_GUARD:-false})"
       git checkout -- . 2>/dev/null || true
       exit 2
-    elif ! go_directive_supported "$_go_was" "$_go_now" ""; then
-      echo "NEEDS_REVIEW: $pkg — go get upgraded Go directive $_go_was -> $_go_now but the build image Go version is unknown"
+    elif ! go_directive_supported "$_go_was" "$_go_now" "" "${GO_MINOR_GUARD:-false}"; then
+      echo "NEEDS_REVIEW: $pkg — go get upgraded Go directive $_go_was -> $_go_now but the build image Go version is unknown (go-minor-guard=${GO_MINOR_GUARD:-false})"
       git checkout -- . 2>/dev/null || true
       exit 2
     else
@@ -785,14 +785,14 @@ for GOMOD in "${!_GO_BEFORE[@]}"; do
   GO_AFTER=$(grep '^go ' "$GOMOD" 2>/dev/null | awk '{print $2}')
   [[ -z "$GO_AFTER" ]] && continue
   if [[ "$GO_WAS" != "$GO_AFTER" ]]; then
-    if go_directive_supported "$GO_WAS" "$GO_AFTER" "$COMPILER_GO"; then
+    if go_directive_supported "$GO_WAS" "$GO_AFTER" "$COMPILER_GO" "${GO_MINOR_GUARD:-false}"; then
       if [[ -n "$COMPILER_GO" ]]; then
       echo "NOTE: $GOMOD Go $GO_WAS -> $GO_AFTER (safe: build image has Go $COMPILER_GO)"
       else
         echo "NOTE: $GOMOD Go $GO_WAS -> $GO_AFTER (same minor; build image version unknown)"
       fi
     else
-      BREAKING="${BREAKING:+$BREAKING; }$GOMOD: Go $GO_WAS -> $GO_AFTER exceeds/has no detected builder support"
+      BREAKING="${BREAKING:+$BREAKING; }$GOMOD: Go $GO_WAS -> $GO_AFTER exceeds repository/builder policy (go-minor-guard=${GO_MINOR_GUARD:-false})"
     fi
   fi
 done

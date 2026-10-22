@@ -11,6 +11,7 @@ source "$SCRIPT_DIR/lib.sh"
 STATE_FILE="${1:?Usage: scan.sh STATE_FILE [--fresh] [--no-update] [--json] [--skip-build]}"
 shift
 load_state "$STATE_FILE"
+printf 'scan incomplete; native-binary coverage unverified\n' > "${STATE_FILE}.scan-scope"
 
 # Collect flags
 GRYPE_FLAGS=()
@@ -55,15 +56,25 @@ if [[ -n "${BUILD_CMD:-}" ]] && [[ "$SKIP_BUILD" != "true" ]]; then
   # targets. Force both the outer Make and any nested Dapper Make to rebuild so
   # Grype never evaluates binaries produced from the pre-fix module graph.
   build_rc=0
+  build_status=(0 0)
   BUILD_EVIDENCE_STATUS=running
   [[ -z "$SCAN_EVIDENCE_DIR" ]] || record_scan_status "$SCAN_EVIDENCE_DIR/status.json" null running
-  if [[ ${#ENV_SCRUB[@]} -gt 0 ]]; then
-    "${ENV_SCRUB[@]}" ${BUILD_REPO_NAME:+REPO="$BUILD_REPO_NAME"} MAKEFLAGS=-B timeout --foreground "${CVE_FIX_BUILD_TIMEOUT:-1800}" bash -c "$BUILD_CMD" 2>&1 | tee "$build_log" >&2 || build_rc=${PIPESTATUS[0]}
-  else
-    env ${BUILD_REPO_NAME:+REPO="$BUILD_REPO_NAME"} MAKEFLAGS=-B timeout --foreground "${CVE_FIX_BUILD_TIMEOUT:-1800}" bash -c "$BUILD_CMD" 2>&1 | tee "$build_log" >&2 || build_rc=${PIPESTATUS[0]}
-  fi
+  BUILD_ENV=(env)
+  [[ ${#ENV_SCRUB[@]} -eq 0 ]] || BUILD_ENV=("${ENV_SCRUB[@]}")
+  "${BUILD_ENV[@]}" ${BUILD_REPO_NAME:+REPO="$BUILD_REPO_NAME"} MAKEFLAGS=-B \
+    timeout --foreground "${CVE_FIX_BUILD_TIMEOUT:-1800}" bash -c "$BUILD_CMD" 2>&1 | \
+    tee "$build_log" >&2 || build_status=("${PIPESTATUS[@]}")
+  build_rc=${build_status[0]}
   BUILD_EVIDENCE_STATUS=completed
   BUILD_EVIDENCE_RC=$build_rc
+  if [[ ${build_status[1]} -ne 0 ]]; then
+    printf 'scan incomplete: build output capture failed (command %s, tee %s)\n' \
+      "$build_rc" "${build_status[1]}" > "${STATE_FILE}.scan-scope"
+    echo "ERROR: Cannot capture build output (tee exited ${build_status[1]}; build exited $build_rc); scan stopped." >&2
+    [[ -z "$SCAN_EVIDENCE_DIR" ]] || record_scan_status "$SCAN_EVIDENCE_DIR/status.json" 2 completed "$build_rc"
+    [[ -n "$SCAN_EVIDENCE_DIR" ]] || rm -f "$build_log"
+    exit 2
+  fi
   if [[ $build_rc -ne 0 ]]; then
     echo "WARNING: Build failed. Scanning source only (may miss stdlib CVEs in binaries)." >&2
     : > "${STATE_FILE}.build-failed"
@@ -134,4 +145,20 @@ fi
 if [[ -n "$SCAN_EVIDENCE_DIR" ]]; then
   record_scan_status "$SCAN_EVIDENCE_DIR/status.json" "$grype_rc" "$BUILD_EVIDENCE_STATUS" "$BUILD_EVIDENCE_RC"
 fi
+if [[ $grype_rc -eq 0 ]]; then
+  native_locations=""
+  if [[ -n "$SCAN_EVIDENCE_DIR" && -f "$SCAN_EVIDENCE_DIR/catalog.cdx.json" ]]; then
+    native_locations=$(jq -r '[.components[]? | select(.name == "stdlib") |
+      select(any(.properties[]?; .name == "syft:package:foundBy" and .value == "go-module-binary-cataloger")) |
+      .properties[]? | select(.name | test("^syft:location:[0-9]+:path$")) | .value] | unique | join(", ")' \
+      "$SCAN_EVIDENCE_DIR/catalog.cdx.json" 2>/dev/null) || native_locations=""
+  fi
+  if [[ -n "$native_locations" ]]; then
+    printf 'Go dependency scan; native Go binaries cataloged at %s; coverage of other binaries unverified\n' \
+      "$native_locations" > "${STATE_FILE}.scan-scope"
+  else
+    printf 'Go dependency scan; native-binary coverage unverified (no positive catalog evidence retained)\n' > "${STATE_FILE}.scan-scope"
+  fi
+fi
+printf 'Scan scope (%s): %s\n' "${CVE_FIX_EVIDENCE_PHASE:-scan}" "$(cat "${STATE_FILE}.scan-scope")" >&2
 exit "$grype_rc"

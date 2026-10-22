@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: evals/run.sh [--live] [--case ID ...] [--dry-run | --prepare-only] [--run-id ID] [--model MODEL]
+Usage: evals/run.sh [--live] [--config FILE] [--case ID ...] [--dry-run | --prepare-only] [--run-id ID] [--model MODEL]
 
 Without a mode flag, run the recorded admiral case and its judges.
 --dry-run (alias --no-model) prepares and replays without any model calls.
@@ -11,6 +11,7 @@ Without a mode flag, run the recorded admiral case and its judges.
 --live runs today's remediation scripts, real builds, tests and scanners.
 It supports --prepare-only, but cannot be combined with --dry-run.
 --case selects a case from that track; repeat it to select several cases.
+--config selects a scoring profile; positive case-002 uses eval-publication.yaml.
 
 HARNESS selects an agent-eval-harness checkout. EVAL_JUDGE_MODEL overrides
 the judge model; CVE_EVAL_PYTHON selects the Python interpreter. Results go
@@ -27,6 +28,7 @@ live=false
 run_id="fix-go-cves-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 model_args=()
 case_ids=()
+config_override=""
 while (($#)); do
   case "$1" in
     --live) live=true; shift ;;
@@ -35,12 +37,13 @@ while (($#)); do
       if [[ "$1" == --prepare-only ]]; then mode=prepare; else mode=dry-run; fi
       shift
       ;;
-    --case|--run-id|--model)
+    --case|--run-id|--model|--config)
       (($# >= 2)) || { echo "$1 needs a value." >&2; exit 2; }
       case "$1" in
         --case) case_ids+=("$2") ;;
         --run-id) run_id=$2 ;;
         --model) model_args=(--model "$2") ;;
+        --config) config_override=$2; [[ "$2" == /* ]] || config_override="$PWD/$2" ;;
       esac
       shift 2
       ;;
@@ -74,6 +77,7 @@ if [[ "$live" == true ]]; then
   default_case=case-001
   verify_args=(--live)
 fi
+[[ -z "$config_override" ]] || config="$config_override"
 if ((${#case_ids[@]} == 0)); then case_ids=("$default_case"); fi
 helper="$script_dir/scripts/eval.py"
 export AGENT_EVAL_RUNS_DIR=${AGENT_EVAL_RUNS_DIR:-$repo_root/.work/fix-go-cves-evals/runs}

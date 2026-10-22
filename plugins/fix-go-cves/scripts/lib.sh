@@ -1752,16 +1752,19 @@ filter_package_outcomes() {
   done
 }
 
-# Record a reviewer's UNRESOLVED reason for PKG. It replaces the deterministic
-# reason (the reviewer sees Go bumps and MVS constraints the scripts do not)
-# in every module scope already under review, keeping one line per scope; an
-# unscoped line already covers every module, so it absorbs the scoped ones.
+# Preserve observed reasons and append a reviewer's UNRESOLVED detail for PKG.
+# Keep one line per scope; an unscoped outcome absorbs scoped outcomes while
+# retaining their original locations inside the combined explanation.
 # FIX_LINES/REVIEW_COUNT are the orchestrator's output variables.
 apply_review_outcome() {
-  local pkg="$1" reason="${2% at /*go.mod}" line scope
-  local -a scopes=()
+  local pkg="$1" reason="${2% at /*go.mod}" line scope original_scope detail combined
+  local -a scopes=() original_lines=()
+  local -A seen=()
   for line in "${FIX_LINES[@]+"${FIX_LINES[@]}"}"; do
-    [[ "$line" == "NEEDS_REVIEW: $pkg "* ]] && scopes+=("$(package_outcome_location "$line")")
+    if [[ "$line" == "NEEDS_REVIEW: $pkg "* ]]; then
+      scopes+=("$(package_outcome_location "$line")")
+      original_lines+=("$line")
+    fi
   done
   if [[ ${#scopes[@]} -eq 0 ]]; then
     FIX_LINES+=("NEEDS_REVIEW: $pkg — $reason")
@@ -1774,7 +1777,22 @@ apply_review_outcome() {
     [[ -n "$scope" ]] || { scopes=(""); break; }
   done
   while IFS= read -r scope; do
-    FIX_LINES+=("NEEDS_REVIEW: $pkg — $reason${scope:+ at $scope}")
+    combined=""
+    seen=()
+    for line in "${original_lines[@]}"; do
+      original_scope=$(package_outcome_location "$line")
+      [[ -z "$scope" || "$scope" == "$original_scope" ]] || continue
+      detail="${line#"NEEDS_REVIEW: $pkg — "}"
+      [[ -z "$scope" ]] || detail="${detail% at /*go.mod}"
+      [[ -n "$detail" ]] || continue
+      [[ -z "${seen[$detail]+present}" ]] || continue
+      seen["$detail"]=1
+      combined+="${combined:+; }$detail"
+    done
+    if [[ "$combined" != "$reason" && "$combined" != *"; reviewer: $reason" ]]; then
+      combined+="${combined:+; }reviewer: $reason"
+    fi
+    FIX_LINES+=("NEEDS_REVIEW: $pkg — $combined${scope:+ at $scope}")
   done < <(printf '%s\n' "${scopes[@]}" | sort -u)
 }
 
@@ -2438,8 +2456,12 @@ compiler_go_version() {
 # builder is the exact upper bound (including patch). Without builder evidence,
 # only a same-minor directive change is automatically allowed.
 go_directive_supported() {
-  local current="${1#go}" required="${2#go}" builder="${3#go}"
+  local current="${1#go}" required="${2#go}" builder="${3#go}" minor_guard="${4:-false}"
   [[ -n "$current" && -n "$required" ]] || return 1
+  if [[ "$minor_guard" == true && \
+        "$(printf '%s' "$current" | cut -d. -f1-2)" != "$(printf '%s' "$required" | cut -d. -f1-2)" ]]; then
+    return 1
+  fi
   # Dependency remediation must never lower the repository's language/toolchain
   # floor, even when the builder could run the lower version.
   version_gte "$required" "$current" || return 1

@@ -244,7 +244,8 @@ if [[ "$USES_SHIPYARD_DAPPER" == "true" && -f "$REPO/Makefile.images" ]]; then
   BUILD_REPO_NAME="cve-fix-$(printf '%s' "$REPO_NAME" | tr '[:upper:]_' '[:lower:]-' | sed 's/[^a-z0-9.-]/-/g; s/--*/-/g; s/^[.-]*//; s/[.-]*$//')"
 fi
 ENV_UNSET=""
-K8S_VERSION_GUARD=false
+K8S_VERSION_GUARD="${CVE_FIX_K8S_VERSION_GUARD:-}"
+GO_MINOR_GUARD="${CVE_FIX_GO_MINOR_GUARD:-}"
 UPSTREAM_ORG=""
 _cve_config="$REPO/.cve-fix.yaml"
 if [[ -f "$_cve_config" ]]; then
@@ -255,12 +256,18 @@ if [[ -f "$_cve_config" ]]; then
   _v=$(jq -r '.["clean-command"] // empty' <<< "$_config_json"); [[ -n "$_v" && -z "$CLEAN_CMD" ]] && CLEAN_CMD="$_v"
   _v=$(jq -r '.["test-command"] // empty' <<< "$_config_json"); [[ -n "$_v" && -z "$TEST_CMD" ]] && TEST_CMD="$_v"
   ENV_UNSET=$(jq -r '.["unset-env"] // empty' <<< "$_config_json")
-  K8S_VERSION_GUARD=$(jq -r '.["k8s-version-guard"] // false' <<< "$_config_json")
+  [[ -n "$K8S_VERSION_GUARD" ]] || K8S_VERSION_GUARD=$(jq -r '.["k8s-version-guard"] // false' <<< "$_config_json")
+  [[ -n "$GO_MINOR_GUARD" ]] || GO_MINOR_GUARD=$(jq -r '.["go-minor-guard"] // false' <<< "$_config_json")
   UPSTREAM_ORG=$(jq -r '.["upstream-org"] // empty' <<< "$_config_json")
   for _var in $ENV_UNSET; do
     [[ "$_var" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "Invalid unset-env name in .cve-fix.yaml: $_var"
   done
 fi
+
+GO_MINOR_GUARD=${GO_MINOR_GUARD:-false}
+[[ "$GO_MINOR_GUARD" == true || "$GO_MINOR_GUARD" == false ]] || die "CVE_FIX_GO_MINOR_GUARD must be true or false"
+K8S_VERSION_GUARD=${K8S_VERSION_GUARD:-false}
+[[ "$K8S_VERSION_GUARD" == true || "$K8S_VERSION_GUARD" == false ]] || die "CVE_FIX_K8S_VERSION_GUARD must be true or false"
 
 # Auto-detect build/clean/test commands if not set by config
 if [[ -z "$BUILD_CMD" ]] && [[ "$NEEDS_BUILD_FOR_SCAN" == "true" ]]; then
@@ -341,6 +348,7 @@ write_state_var() { printf '%s=%q\n' "$1" "$2"; }
   write_state_var TEST_CMD "$TEST_CMD"
   write_state_var ENV_UNSET "$ENV_UNSET"
   write_state_var K8S_VERSION_GUARD "$K8S_VERSION_GUARD"
+  write_state_var GO_MINOR_GUARD "$GO_MINOR_GUARD"
   write_state_var UPSTREAM_ORG "$UPSTREAM_ORG"
   write_state_var FETCH_FAILED "$FETCH_FAILED"
   write_state_var BASE_SHA "$BASE_SHA"

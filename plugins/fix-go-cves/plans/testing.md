@@ -4,18 +4,20 @@
 
 Three layers answer different questions:
 
-- **Hermetic scripts:** `test/test-lib.sh` has 3,046 passing checks for mutations,
+- **Hermetic scripts:** the pre-change baseline passed 3,046 checks for mutations,
   rollback, gates and evidence. Runtime changes need focused regressions here.
   `make test` requires Go 1.24 or later and fails rather than skips with `CI` set.
-- **Historical replay:** packaged Admiral cases 005/007 run today's skill over
-  pinned history and recorded scripts/output. Calibrated references and negatives
-  test diagnosis, available backports, owners and verification prerequisites.
-  Replay cannot validate today's remediation engine.
+- **Historical replay:** packaged Admiral cases 005/007 test diagnosis,
+  backports, owners and verification prerequisites. Packaged Submariner 002
+  tests positive recipe relay and builder ownership under its applicable scoring
+  profile. All run today's skill over pinned history and recorded scripts/output;
+  replay cannot validate today's remediation engine.
 - **Live evaluation:** four packaged cases are designed to exercise real repairs
   with branch-maintained commands and real scans. Execution, engine evidence and the
   invoking agent's whole reply have separate acceptance decisions.
 
-The 68 eval helper checks cover witnessed publication, retained-state boundaries,
+The 70 passing eval helper checks cover witnessed publication, retained-state
+boundaries,
 completed-gate receipts, frozen inputs, native identity, evidence projection,
 native result extraction and the documented launch fence. An old-trace recheck
 proves detection, not revised actor behavior. A passing engine or factual majority
@@ -24,9 +26,12 @@ alone does not accept the skill.
 The skill remains unaccepted after the fifth six-cell matrix at `7063ca5e`.
 The [canonical matrix record](../evals/live/README.md#branch-policy-matrix)
 retains grades, costs, coverage gaps and independent whole-reply reviews.
-The [E2E and simplification plan](e2e-simplification.md) selects the next changes
+The [E2E and simplification plan](e2e-simplification.md) tracks implementation
 and scopes existing-cohort acceptance, replay reliability and positive-publication
-coverage separately. Its treatments remain unmeasured.
+coverage separately. Its finite treatment is implemented; declared actor
+measurements and final script verification are in progress. The
+[implementation results](../evals/implementation-results.md) own current outcomes;
+no milestone is accepted yet.
 
 [Eval setup and replay results](../evals/README.md) and the
 [live record](../evals/live/README.md) preserve prior successes, failures,
@@ -52,10 +57,10 @@ are retained.
 | Native binary | Initial proof bound to the pinned base and final proof bound to retained HEAD after remediation: fresh build, binary SHA/clean embedded VCS and positive catalog location/file hash; retained bytes match and canonical gates pass. A clean fast path needs only initial proof and does not count as repair |
 
 Native coverage can accompany a valid partial exit-2 result; it does not establish
-successful repair. The current binary contract enforces terminal proof, while
-initial native proof is only projected to judges. The
-[planned contract changes](e2e-simplification.md#exact-framework-scope) close that
-gap for future measurements while preserving historical grades.
+successful repair. The candidate binary contract now requires initial and final
+native proof outside clean fast paths, in addition to the judge projection.
+Preserve historical grades under their original contracts; the
+[framework scope](e2e-simplification.md#exact-framework-scope) defines new measurements.
 
 Keep these runtime boundaries covered:
 
@@ -76,11 +81,12 @@ Keep these runtime boundaries covered:
   before normalization can conceal a change. Add no automatic repair or commit to
   make these checks pass.
 
-The specialist audit identified build/license logger-status loss and dropped
-`stdlib` reviewer detail as concrete gaps; passing suite counts do not establish
-coverage of those cases. The [runtime prerequisites](e2e-simplification.md#concrete-runtime-prerequisites)
-require focused regressions and preserve the distinction between proven lost
-detail and an unproven publication bypass. Reporting-only unknown native scope
+The candidate addresses build/license logger-status loss and dropped `stdlib`
+reviewer detail. License capture failure retains the command exit but marks the
+phase `capture_failed`; publication remains blocked. The
+[runtime prerequisites](e2e-simplification.md#concrete-runtime-prerequisites)
+preserve the distinction between proven lost detail and an unproven historical
+publication bypass. Final verification remains separate from implementation. Reporting-only unknown native scope
 must not set the existing blocking opaque-binary coverage marker.
 
 The reply must retain the actual Summary, exits, attempts, fixed/ignored/remaining
@@ -90,8 +96,9 @@ evidence remains unconfirmed. Skipped or unconfigured checks remain unverified.
 Unknown native coverage is not proof of a source-only scan; positive native
 coverage is not stdlib remediation unless a stdlib finding was actually repaired.
 A no-findings fast path does not exercise repair. The positive historical
-publication fragment tests detection and exact witness relay, not actual
-invoking-agent relay. Local-only remotes can correctly
+publication fragment tests detection and exact witness relay. Packaged case 002
+now permits measuring actual invoking-agent relay; its calibration is not actor
+acceptance. Local-only remotes can correctly
 withhold a PR recipe; do not invent a fork or publication steps. No eval pushes
 changes or creates a PR.
 
@@ -111,8 +118,9 @@ Submariner release `golangci-lint` is not maintained for these repairs. Preserve
 historical lint runs as evidence of our incorrect override, rather than requiring API repairs
 or relaxed rules. Explicit live `make unit` settings measure forwarding/execution;
 conflicting inherited-command selection has separate forward-review coverage.
-Keep builder capability separate from the unresolved Go-minor compatibility
-[decision](README.md#decisions); no approval is inferred. Keep genuine repository
+Keep builder capability separate from repository compatibility
+[restrictions](README.md#decisions); the candidate's explicit guards carry those
+restrictions without inferring approval. Keep genuine repository
 instructions, including competing manual procedure, in the fixture.
 
 ## Environment, evidence and limits
@@ -191,25 +199,26 @@ skill hashes across applicable cases and runtime hashes across live cases;
 validate historical runtime archives against their own pins. Preparation copies
 current files per case rather than freezing their bytes with the YAML alone.
 
-## Deferred recording admission
+## Recording admission
 
-Of the original recordings under `.work/fix-go-cves-evals/source/`, only 005 is
-packaged; 007 is a later live capture. Admit another only for a concrete new
-decision/regression, using applicable criteria rather than Admiral-only backport
-requirements. Prepare logs, references, negatives, inputs, annotations, bundle
-commits and historical scripts model-free, then calibrate before measurement.
+Original recordings 002/005 under `.work/fix-go-cves-evals/source/` are now
+packaged; 007 is a later live capture. Case 002's applicable publication/builder
+controls passed 8/8 majorities and 23/24 expected samples; retain the single
+criterion-bleed error. Admission and calibration do not establish actor acceptance.
+Admit another only for a concrete new decision/regression. Prepare its complete
+artifacts model-free and calibrate applicable criteria before measurement.
 
 | Recording | Unique admission scope |
 | --- | --- |
 | 001 — Lighthouse license | Correct `cdc3003` backport advice: repair must reach the remote target before rerunning |
-| 002 — Submariner partial | Positive PR relay and the builder-image decision's owner |
+| 002 — Submariner partial | Packaged/calibrated; positive PR relay and the builder-image decision's owner |
 | 003 — Cloud-prepare clean | Flagged lines needing no action; heavier live-success alternative |
 | 004 — Subctl binary | Correct reference and empty binary contradicting the log; cover x/net, grpc and otel/sdk blocked bumps |
 | 005 — Admiral govet | Already packaged/calibrated; preserve its failed baseline |
 | 006 — Lighthouse x/crypto | No remaining x/crypto finding after GO-2026-5932 no-fix ignore; license repair needs remote-target backport advice |
 
 Do not invent additional x/crypto action, a Go raise or team decision for 006.
-Keep Go-raise policy scoring neutral until the policy conflict is resolved.
+Keep historical Go-raise scoring neutral where that recording did not resolve policy.
 Sanitize home paths and exclude unrelated connector/memory metadata; add binary
 or report evidence only where required. These recordings supported tuning and
 regression, not generalization. Defer fleet coverage, scheduled canaries,

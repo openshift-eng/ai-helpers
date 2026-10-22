@@ -33,6 +33,8 @@ _EVIDENCE_VERIFY_STATUS=not_reached
 _EVIDENCE_LICENSE_STATUS=not_reached
 _EVIDENCE_TEST_RUN=0
 _TEST_ATTEMPT_RESULTS=()
+INITIAL_SCAN_SCOPE="not established"
+FINAL_SCAN_SCOPE="not reached"
 
 # Check that commands preserved the expected commit and tracked files.
 _tracked_tree_unchanged() {
@@ -79,12 +81,12 @@ _record_run_evidence() {
     --arg license "$_EVIDENCE_LICENSE_STATUS" --argjson license_exit_code "${_EVIDENCE_LICENSE_RC:-null}" \
     '{exit_code:$exit_code,repo:$repo,base_branch:$base_branch,base_commit:$base_commit,head:$head,branch:$branch,
       build_command:$build_command,test_command:$test_command,clean_command:$clean_command,
-      license_command:(if $license == "running" or $license == "completed" then "make licensecheck" else "" end),
+      license_command:(if $license == "running" or $license == "completed" or $license == "capture_failed" then "make licensecheck" else "" end),
       build_image:$build_image,build_go_version:$build_go_version,tested_head:$tested_head,
       phases:{initial_scan:$initial_scan,final_gate:$final_gate,tests:$tests,verification:$verification,license:$license},
       test_exit_code:(if $tests == "completed" then $test_exit_code else null end),
       verification_exit_code:(if $verification == "completed" then $verification_exit_code else null end),
-      license_exit_code:(if $license == "completed" then $license_exit_code else null end)}' \
+      license_exit_code:(if $license == "completed" or $license == "capture_failed" then $license_exit_code else null end)}' \
       > "$CVE_FIX_EVIDENCE_DIR/run.json"
 }
 
@@ -121,7 +123,7 @@ cleanup() {
   fi
   _record_run_evidence "$exit_status" || echo "WARNING: durable runtime evidence is incomplete." >&2
   if [[ -n "${STATE_FILE:-}" ]]; then
-    rm -f "$STATE_FILE" "${STATE_FILE}.build-failed" "${STATE_FILE}.network-broken" "${STATE_FILE}.scanner-degraded" "${STATE_FILE}.scan-transient" "${STATE_FILE}.coverage-unknown" "${STATE_FILE}.review-unresolved" "${STATE_FILE}.review-resolved" "${STATE_FILE}.generated-artifacts" "${STATE_FILE}.built-artifacts" "${STATE_FILE}.baseline-artifacts" "${STATE_FILE}.generated-drift" 2>/dev/null || true
+    rm -f "$STATE_FILE" "${STATE_FILE}.scan-scope" "${STATE_FILE}.build-failed" "${STATE_FILE}.network-broken" "${STATE_FILE}.scanner-degraded" "${STATE_FILE}.scan-transient" "${STATE_FILE}.coverage-unknown" "${STATE_FILE}.review-unresolved" "${STATE_FILE}.review-resolved" "${STATE_FILE}.generated-artifacts" "${STATE_FILE}.built-artifacts" "${STATE_FILE}.baseline-artifacts" "${STATE_FILE}.generated-drift" 2>/dev/null || true
     rmdir "$(dirname "$STATE_FILE")/reviewer" "$(dirname "$STATE_FILE")" 2>/dev/null || true
   fi
   # Preserve subagent reports on verification failure so they can be debugged;
@@ -196,6 +198,7 @@ SCAN_JSON=$(CVE_FIX_EVIDENCE_PHASE=initial BUILD_UPX=false "$SCRIPT_DIR/scan.sh"
 INITIAL_TREE_UNCHANGED=true
 _tracked_tree_unchanged "$INITIAL_HEAD" || INITIAL_TREE_UNCHANGED=false
 _EVIDENCE_INITIAL_STATUS=completed
+INITIAL_SCAN_SCOPE=$(cat "${STATE_FILE}.scan-scope" 2>/dev/null) || INITIAL_SCAN_SCOPE="not established"
 if $_EVIDENCE_READY; then
   printf '%s\n' "$SCAN_JSON" > "$CVE_FIX_EVIDENCE_DIR/initial-scan.json"
   CVE_FIX_EVIDENCE_PHASE=initial record_scan_status "$CVE_FIX_EVIDENCE_DIR/initial-scan-status.json" "$SCAN_RC"
@@ -826,8 +829,9 @@ if [[ -f "${STATE_FILE}.review-unresolved" ]]; then
     fi
     _pkg=$(printf '%s' "$_line" | sed 's/^UNRESOLVED: \([^ (]*\).*/\1/')
 
-    # Skip lines that don't look like they contain a package name (no dot or slash)
-    if ! [[ "$_pkg" =~ \. || "$_pkg" =~ / ]]; then
+    # The reviewer admits exact requested keys, including the special stdlib key.
+    if ! printf '%s\n' "$_REVIEW_SUMMARY" | \
+        sed -nE 's/^(NEEDS_REVIEW|ERROR|TIMEOUT): ([^ ]+).*/\2/p' | grep -xF -- "$_pkg" >/dev/null; then
       continue
     fi
 
@@ -872,6 +876,8 @@ GATE_RC=0
 _EVIDENCE_FINAL_STATUS=running
 GATE_JSON=$(CVE_FIX_EVIDENCE_PHASE=final-gate BUILD_UPX=false "$SCRIPT_DIR/scan.sh" "$STATE_FILE" --no-update --json 2>/dev/null) || GATE_RC=$?
 _EVIDENCE_FINAL_STATUS=completed
+FINAL_SCAN_SCOPE=$(cat "${STATE_FILE}.scan-scope" 2>/dev/null) || FINAL_SCAN_SCOPE="not established"
+printf 'Scan scope (final): %s\n' "$FINAL_SCAN_SCOPE"
 if $_EVIDENCE_READY; then
   printf '%s\n' "$GATE_JSON" > "$CVE_FIX_EVIDENCE_DIR/final-gate.json"
   CVE_FIX_EVIDENCE_PHASE=final-gate record_scan_status "$CVE_FIX_EVIDENCE_DIR/final-gate-status.json" "$GATE_RC"
@@ -996,14 +1002,21 @@ if has_real_make_target licensecheck; then
   _LICENSE_BEFORE=$(_untracked_executables)
   _EVIDENCE_LICENSE_STATUS=running
   _EVIDENCE_LICENSE_RC=0
+  _license_status=(0 0)
   if $_EVIDENCE_READY; then
     "${LICENSE_ENV[@]}" timeout --foreground "$LICENSE_CHECK_TIMEOUT" make licensecheck 2>&1 | \
-      tee "$CVE_FIX_EVIDENCE_DIR/license.log" || _EVIDENCE_LICENSE_RC=${PIPESTATUS[0]}
+      tee "$CVE_FIX_EVIDENCE_DIR/license.log" || _license_status=("${PIPESTATUS[@]}")
+    _EVIDENCE_LICENSE_RC=${_license_status[0]}
   else
     "${LICENSE_ENV[@]}" timeout --foreground "$LICENSE_CHECK_TIMEOUT" make licensecheck || _EVIDENCE_LICENSE_RC=$?
   fi
   _EVIDENCE_LICENSE_STATUS=completed
-  if [[ $_EVIDENCE_LICENSE_RC -ne 0 ]]; then
+  if [[ ${_license_status[1]} -ne 0 ]]; then
+    _EVIDENCE_LICENSE_STATUS=capture_failed
+    POLICY_CHECK_FAILED=true
+    UNSEEN_NEEDS_REVIEW=true
+    echo "ERROR: Cannot capture license output (tee exited ${_license_status[1]}; command exited $_EVIDENCE_LICENSE_RC); PR generation suppressed."
+  elif [[ $_EVIDENCE_LICENSE_RC -ne 0 ]]; then
     POLICY_CHECK_FAILED=true
     UNSEEN_NEEDS_REVIEW=true
     echo "POLICY REVIEW REQUIRED: make licensecheck failed or timed out; PR generation suppressed."
@@ -1038,6 +1051,7 @@ if [[ "$_EVIDENCE_TEST_STATUS" == completed && ${#_TEST_ATTEMPT_RESULTS[@]} -gt 
 fi
 printf 'Scans: initial %s (exit %s); final %s (exit %s; confirmed=%s)\n' \
   "$_EVIDENCE_INITIAL_STATUS" "$SCAN_RC" "$_EVIDENCE_FINAL_STATUS" "$GATE_RC" "$GATE_CONFIRMED"
+printf 'Scan scope (initial): %s\nScan scope (final): %s\n' "$INITIAL_SCAN_SCOPE" "$FINAL_SCAN_SCOPE"
 printf 'Commands: build: %s; test: %s\n' "${BUILD_CMD:-not configured}" "${TEST_CMD:-not configured}"
 printf 'Tests: %s (exit %s; failed=%s); tested HEAD: %s; attempts: %s\n' \
   "$_EVIDENCE_TEST_STATUS" "${_EVIDENCE_TEST_RC:-not run}" "$TESTS_FAILED" \

@@ -13,6 +13,7 @@ STATE_FILE="${1:?Usage: review.sh STATE_FILE FIX_SUMMARY [SCAN_OUTPUT]}"
 FIX_SUMMARY="${2:-}"
 CURRENT_SCAN="${3:-}"
 load_state "$STATE_FILE"
+GO_MINOR_GUARD=${GO_MINOR_GUARD:-false}
 rm -f -- "${STATE_FILE}.review-unresolved"
 
 PROMPT_TEMPLATE="$SCRIPT_DIR/review-prompt.md"
@@ -46,7 +47,7 @@ fi
 
 # --- Build prompt ---
 PROMPT=$(render_template REPO BRANCH FIX_SUMMARY CURRENT_SCAN LOCATE_OUTPUT \
-  BUILD_GO_VERSION < "$PROMPT_TEMPLATE")
+  BUILD_GO_VERSION GO_MINOR_GUARD < "$PROMPT_TEMPLATE")
 
 # --- Invoke configured agent ---
 AGENT_PROVIDER=$(cve_fix_agent_provider)

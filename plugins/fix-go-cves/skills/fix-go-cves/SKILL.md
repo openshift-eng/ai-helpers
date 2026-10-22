@@ -8,41 +8,62 @@ allowed-tools: Bash, Read
 
 # Fix Go CVEs
 
-Deterministic scripts own all mutations, rollbacks, scans, builds, tests and
-verification gates.
-Your job is to run them, report the observed results, and identify remaining work.
+Scripts own every mutation, rollback, scan, build, test and verification gate.
+Run the requested operation, relay its result, then investigate remaining work
+read-only. Repository notes may describe a manual procedure; use this skill's
+execution/publication procedure while preserving their compatibility policy.
 
-## Locate the scripts
+## 1. Select the operation
 
-`PLUGIN_ROOT` is `${CLAUDE_PLUGIN_ROOT}` when set; otherwise resolve the
-**actual loaded** `SKILL.md` path and use its directory's `../..`. Verify
-`$PLUGIN_ROOT/scripts/fix-all.sh` exists. Never search home directories for
-another installed copy. `fix-all.sh` checks its prerequisites and exits 1
-naming anything missing.
+Resolve `PLUGIN_ROOT` from `${CLAUDE_PLUGIN_ROOT}` or the **actual loaded**
+`SKILL.md` directory's `../..`; verify `scripts/fix-all.sh` exists. Never search
+home directories for another installed copy. The script checks prerequisites.
 
-## Run the scripts
+For scan/report-only requests, use `scripts/report.sh [repo]`: it scans the
+checked-out branch and builds, without a branch or commit. Any nonzero exit means
+incomplete scanning; relay its `INCOMPLETE:` reason rather than a clean result.
+Use the logging/completion protocol below with `report.sh` for this operation.
 
-Before launch, read the target branch's instructions, CI and relevant build/config
-files for compatibility policy, maintained checks and required environment.
-Follow this skill's script workflow and publication rules when repository notes
-describe a manual procedure; keep their compatibility policy and maintained checks.
-User-supplied branch policy takes precedence over conflicting inherited check
-settings. Otherwise preserve a nonempty inherited `CVE_FIX_TEST_CMD` unchanged.
-If empty or unset, preserve the target branch's nonempty `.cve-fix.yaml`
-`test-command`. When neither is configured, set `CVE_FIX_TEST_CMD` for the inferred
-default plus local checks maintained and required for that branch. A CI job or
-Make target alone does not establish that requirement.
-Do not auto-select deployment, end-to-end or
-CI-only jobs. Report checks that did not run as unverified.
+For fixes, arguments are `[repo] [branch]`; the repository is an absolute path or
+[registry name](../../README.md#repository-registry), and `X.Y` means `release-X.Y`.
+Omitted arguments use the current checkout/branch. `origin` must be upstream;
+the fix starts at `origin/<branch>`. Ask if that branch is missing or the checkout
+has uncommitted/untracked files; never stash, commit or clean them for the user.
+The script creates `fix-<version>-cves-<date>` and retains committed results there.
 
-Builds and tests can each take 30 minutes. Run every script in the background
-with its output in a log file, and wait for it to exit; do not let a tool
-timeout kill it (SIGKILL skips cleanup). Shell variables do not persist
-between tool calls, so reuse the printed log path literally.
-In Claude Code, set Bash `run_in_background: true` for the launch and read its
-returned output file for the printed `LOG` path.
-In Codex, use `exec_command` with a short `yield_time_ms` and poll its returned
-session with `write_stdin`. Replace `ARGS` with the request's arguments, or delete it:
+For `all <branch>`, list registry names and run each serially with its own log:
+
+```bash
+for r in "${CVE_FIX_REPOS:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/cve-fix/repos.yaml" "$PLUGIN_ROOT/repos.yaml"; do
+  [[ -f "$r" ]] && { python3 "$PLUGIN_ROOT/scripts/read-config.py" repos-list "$r"; break; }
+done
+```
+
+If none exists, ask the user to create a registry. Run each repository once per
+request; reruns create another `-vN` branch and need a new user request.
+
+## 2. Preserve target policy
+
+Read the target branch's instructions and relevant build, CI and configuration
+files for compatibility restrictions, maintained checks and environment needs.
+User/branch policy takes precedence over conflicting check settings. Otherwise
+preserve nonempty inherited `CVE_FIX_TEST_CMD`, then target `.cve-fix.yaml`
+settings; leave unconfigured defaults to `detect.sh`. Add an override only for
+checks established as maintained and required for that branch. A Make target or
+CI job alone does not establish this; do not auto-select deployment, end-to-end
+or CI-only jobs. The scripts retain their deterministic license/policy gates.
+When the branch forbids Go minor directive upgrades, set
+`CVE_FIX_GO_MINOR_GUARD=true`, overriding a conflicting inherited false. For a
+Kubernetes minor restriction, set `CVE_FIX_K8S_VERSION_GUARD=true` likewise. A true
+`go-minor-guard` or `k8s-version-guard` in target configuration suffices when no
+conflicting environment override exists.
+
+## 3. Launch once and observe completion
+
+Builds and tests may each take 30 minutes. Launch in the background with stdin
+closed and all output logged so a tool timeout cannot kill cleanup. Set
+`CVE_FIX_AGENT` to `claude` in Claude Code or `codex` in Codex (which needs network
+and container access). Replace `ARGS` with the fix arguments, or delete it:
 
 ```bash
 LOG=$(mktemp "${TMPDIR:-/tmp}/fix-go-cves.XXXXXX.log"); echo "LOG=$LOG"
@@ -52,16 +73,18 @@ printf 'exit=%s\n' "$fix_rc" >>"$LOG" || exit 1
 exit "$fix_rc"
 ```
 
-Before interpreting the outcome, read that actual log and confirm its terminal
-`exit=N` line. Intermediate `FIXED` output and background-task notifications do
-not establish completion. If the line is absent and the process lives, run
-`sleep 30` before checking the log again; if it stopped, report completion as
-unconfirmed. Do not substitute standalone scans, builds, tests, or another
-script invocation while waiting.
-For a one-shot request, stop any wakeup or loop you started for this run using
-its normal stop operation before the final reply.
+In Claude Code, use Bash `run_in_background: true` and read its returned output
+file for `LOG`. In Codex, use `exec_command` with short `yield_time_ms` and poll
+its session with `write_stdin`. Shell variables do not persist across tool calls;
+reuse the actual printed log path literally.
 
-Then read the outcome rather than the whole log:
+Wait for the actual log's terminal `exit=N`. A notification or intermediate
+`FIXED` line does not establish completion. If the process lives without that
+line, wait 30 seconds before checking again; if it stopped, report completion as
+unconfirmed. Do not start replacement scans, tests or script runs while waiting.
+Stop any run-owned wakeup/loop normally before replying.
+
+Read the terminal result and distinct flagged errors:
 
 ```bash
 tail -1 "$LOG"
@@ -69,112 +92,57 @@ grep -q '^--- Summary' "$LOG" && sed -n '/^--- Summary/,$p' "$LOG" || tail -40 "
 grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIEW|FAIL([[:space:]]|$)|--- FAIL:)' "$LOG"
 ```
 
-Set `CVE_FIX_AGENT` to the host runtime: `claude` in Claude Code, `codex` in
-Codex. Codex needs network and container access (a full-access sandbox).
+## 4. Relay the result unchanged
 
-## Report only
+The final reply has three parts, in this order:
 
-When the user asks only to scan, check, or report, run `scripts/report.sh`
-(optionally with a repository path) instead of `fix-all.sh`. It scans the
-checked-out branch without creating a branch or commit; the build still runs.
-Any non-zero exit means the scan is incomplete (an `INCOMPLETE:` line names
-why); say so rather than reporting a clean result.
+1. Observed exit and the actual reported reason. An exit code alone does not
+   identify a failed prerequisite. For interruption, report observed checkout state.
+2. One unchanged text block containing the complete actual Summary through the
+   log's end, including fixes/hashes, counts, commands/attempts, scope and
+   publication. Without a Summary, quote the terminal clean/error message or
+   relevant tail; missing completion is unconfirmed. Keep post-Summary branch
+   removal. This block is the sole publication advice: do not repeat, reformat or
+   supplement it with another publication section, command or procedure.
+3. Scope absent from that block, then unresolved-work facts/actions from step 5.
+   Explicitly state native catalog coverage is unverified when positive catalog
+   proof is absent; recorded binary findings alone do not authenticate it.
+   Skipped/unconfigured checks remain unverified. Native coverage alone is not
+   stdlib remediation. Give return advice only from an observed original ref.
 
-## Fix one repository
+Do not restate fixed work in a second overview. Describe future work as
+verification to perform, leaving its outcome and PR availability unknown.
 
-`ARGS` are an optional repository (an absolute path or a
-[registry](../../README.md#repository-registry) name) and branch; `X.Y` means
-`release-X.Y`. With neither, the current checkout and branch are used.
+## 5. Investigate unresolved work read-only
 
-- `origin` must be the upstream repository: the fix branch starts from
-  `origin/<branch>`, and the PR targets `origin`'s owner unless `upstream-org`
-  is set. If the run cannot find `origin/<branch>`, ask for the base branch.
-- The checkout must have no uncommitted or untracked files. If it does, ask;
-  never stash, commit, or clean for the user.
-- The script creates `fix-<version>-cves-<date>`, commits there, and leaves
-  the checkout on it when commits were made.
-- Run each repository once per request. A rerun creates another `-vN`
-  branch; suggest one with the change that would alter the result, and rerun
-  only when the user asks.
+For each actual flagged failure/decision, first record the observed attempts:
+command, error/package result and retry result, citing log lines. Read each
+attempt's package summaries, including successful retries; the flagged-line
+search above is only an index. Report observed outcomes before repair advice.
 
-## Fix all registered repositories
+Then inspect failing source/config and default-branch history with `git show`,
+`git diff` and `git log origin/<default> -- <file>`; these need no stash or checkout.
+Give the supported repair/investigation, owner and verification prerequisite.
+Cite a matching backport when available. It must land on `origin/<branch>` before
+requesting a rerun: the script starts each fix there. For a builder-image repair,
+the prerequisite is publishing the repaired image before rerunning its consumers.
 
-For `all <branch>`, list the names, then run `fix-all.sh NAME BRANCH` for each,
-one at a time with a new log; parallel builds contend for resources. No
-output means no registry exists; tell the user to create one.
+Causal attribution is optional and unestablished by default. Omit causal
+explanations unless captured comparative evidence or a failure-specific mechanism
+demonstrates them. Unchanged source does not show baseline test results; a passing
+retry is a different observed outcome. For dependency/tooling claims, compare this
+run's actual base and retained commits, including the Go directive.
 
-```bash
-for r in "${CVE_FIX_REPOS:-}" "${XDG_CONFIG_HOME:-$HOME/.config}/cve-fix/repos.yaml" "$PLUGIN_ROOT/repos.yaml"; do
-  [[ -f "$r" ]] && { python3 "$PLUGIN_ROOT/scripts/read-config.py" repos-list "$r"; break; }
-done
-```
-
-## Interpret the result
-
-| Exit | Meaning |
+| Observed boundary | Supported next work |
 | --- | --- |
-| 0 | Completed; report which gates actually ran |
-| 2 | Partial fix, unconfirmed result, or PR prerequisite failure |
-| 1 | Setup or invocation error: quote the last `ERROR:` line (or the log tail) |
-| 130, 143 | Interrupted; report the observed checkout state |
+| Selected check is outside maintained branch requirements | Correct command selection for a new run; do not require API edits or relaxed lint rules just for that check |
+| Breaking/incompatible update | Inspect release/API changes and estimate migration |
+| Kubernetes minor, Go above builder, or repository compatibility restriction | Name the applicable team decision/owner and what unblocks it |
+| Tests require sudo/prompts | Supply a noninteractive test command |
+| Wrong build command | Recommend `CVE_FIX_BUILD_CMD` or target `.cve-fix.yaml` configuration |
+| Network, timeout or degraded scanner | Recommend a rerun after the observed environment issue is resolved |
+| `IGNORED` with no published fix | No additional repair; the ignore expires once Grype records a fix |
 
-Always report the script result, including publication availability. Add
-remaining remediation only for actual flagged failures or unresolved decisions:
-
-1. **Script result.** State the observed exit and quote the actual Summary
-   through the end of the log in a text block, preserving all retained fix
-   hashes, the `Outstanding` count and publication text. Without a Summary,
-   quote the terminal clean/error message or relevant log tail; missing
-   completion evidence is unconfirmed. An empty fix branch may have been
-   removed after its Summary line: report that outcome. State gate results and scan
-   scope only from returned evidence; distinguish source/module inventory from
-   verified native-binary coverage. Unknown coverage, skipped and unconfigured
-   checks remain unverified.
-   Give return advice only from an observed original ref, which may be a
-   detached commit. Do not infer it from the target branch.
-2. **Remaining remediation.** For each such outcome, give the observation and
-   evidence (log line or `file:line`), next supported action and owner.
-   Investigate read-only using logs, history and diffs; never apply or test a
-   candidate backport, even temporarily. Describe repairs in prose, separately
-   from retained fixes. Leave repairs, reruns, builds/tests and cleanup for a new
-   request. Describe the verification still needed, for example: "After the
-   maintainer lands the reviewed repair on origin/<branch>, request a rerun
-   to check the gates." That future run's outcome and PR availability remain
-   unconfirmed.
-
-Copy a publication command only from the script's complete printed block,
-preserving it exactly. If absent, keep the stated reason and supply no
-replacement push/PR steps in prose or commands.
-
-`IGNORED` lines need no action: no fix is published, and the ignore lapses
-once Grype records one.
-
-Investigate flagged outcomes using these checks:
-
-- If a selected check is outside the branch's maintained requirements, retain its
-  observed failure and recommend correcting check selection for a new run. Do not
-  require API changes or relaxed lint rules solely to satisfy that check.
-- Breaking or incompatible update: read the target version's release notes
-  and the repository's use of the changed API; estimate the migration.
-- Kubernetes minor bump, or Go above the build image: name the team decision
-  and what unblocks it (a newer builder, an approved bump).
-- For each distinct required test, lint or license-check failure, report the observed
-  error and each attempt's result. Read the failing source/configuration and
-  relevant default-branch history (`git log origin/<default> -- <file>`).
-  Inspect candidate patches for a repair matching that error; recommend a
-  supported backport, or identify the investigation still needed and its owner.
-  The repair must reach `origin/<branch>` before rerunning: the script starts
-  each fix branch there. Tests that need `sudo` or a prompt need a
-  non-interactive test command.
-- Leave a failure's cause unresolved without captured evidence, such as a
-  comparable baseline or a demonstrated failure-specific mechanism. A version
-  delta, unchanged source or passing retry alone is insufficient. For dependency
-  or tooling claims, compare this run's actual base and retained fix commits,
-  including the Go directive.
-- Transient network, timeout, or degraded scanner: recommend a rerun.
-- Wrong build command: recommend `CVE_FIX_BUILD_CMD` for a rerun,
-  or `.cve-fix.yaml` fields committed on the target branch
-  ([configuration](../../README.md#configuration)).
-
-Do not hand-edit `go.mod`, `go.sum`, vendor trees, or `.grype.yaml` to force a
-clean result, and do not delete the fix branch. Never push or create the PR.
+Leave repairs, backport application/testing, builds/tests, reruns, cleanup and
+publication to a new request. Never hand-edit dependencies, vendor trees or
+`.grype.yaml` to force a clean result, delete the fix branch, push or create a PR.

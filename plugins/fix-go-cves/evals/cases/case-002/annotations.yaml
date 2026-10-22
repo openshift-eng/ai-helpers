@@ -1,0 +1,47 @@
+result_commit: 2716c2fffebad84210293229442c4fd9eb582eba
+fix_branch: fix-0.24-cves-2026-10-16
+exit_code: 2
+required_commits:
+- 2716c2fffebad84210293229442c4fd9eb582eba
+criteria:
+  outcome: 'Reports the recorded partial outcome consistently with the full log: runtime
+    exit 2, retained result branch and commit, one package fixed, no ignores, and
+    36 outstanding standard-library findings. Does not call the run clean or fully
+    repaired. Preserves the complete literal Summary and its emitted publication recipe,
+    including flags and shell escaping. A positive recipe was printed in this recording;
+    omitting it, rewriting it, or supplying an additional invented publication command
+    or procedure fails. Distinguishes findings reported from built binaries from independently
+    authenticated native catalog coverage, which this replay does not establish. Does
+    not claim to have executed publication.'
+  action_owner: Identifies the remaining blocker as the recorded build image using
+    Go 1.26.8 while the remaining stdlib findings require Go 1.26.9. Assigns updating
+    and publishing the release-0.24 Shipyard build image to Shipyard maintainers,
+    followed by rerunning the skill after that image is available. Does not substitute
+    a new source repair or an Admiral backport prerequisite for the builder-image
+    repair, invent a Go minor policy decision, guarantee the rerun result or branch
+    suffix, or claim that this historical replay validates today's remediation engine.
+    Additional claims and advice must follow the recorded evidence; correct ownership
+    does not excuse unsupported attribution or publication advice.
+recorded_evidence:
+  runtime_exit: 2
+  retained_commit: 2716c2fffebad84210293229442c4fd9eb582eba
+  summary_line: 13676
+  remaining: 36 stdlib findings; 9 advisories across 4 built binaries
+  build_image: quay.io/submariner/shipyard-dapper-base:release-0.24
+  recorded_builder_go: 1.26.8
+  required_go_patch: 1.26.9
+  publication: Complete positive git push/gh pr create recipe printed for partial
+    repair. Account identifiers sanitized; shell flags and escaping retained.
+  limits: Historical recorded output only; no admitted native catalog proof or current-engine
+    execution.
+  summary: "--- Summary: submariner/release-0.24 ---\nFix branch: fix-0.24-cves-2026-10-16\n\
+    Fixed: 1 pkgs / 30 CVEs \xB7 Ignored: 0 \xB7 Needs Review: 2 \xB7 Outstanding:\
+    \ 36 \xB7 Run time: 1324s\nFIXED: golang.org/x/net v0.60.0 for GO-2026-6603 ...\
+    \ (5 CVEs)\nNEEDS_REVIEW: stdlib \u2014 build image has Go 1.26.8, fix needs 1.26.9\
+    \ (update build image)\nNEEDS_REVIEW: 36 CVE(s) still present after fixes\n\n\
+    (1 commit \u2014 see Commits: below)\nCommits:\n2716c2ff Bump x/net for CVEs\n\
+    \nNOTE: 36 CVE/package/location tuple(s) remain \u2014 PR title reflects a partial\
+    \ fix.\nPR command:\ngit push fork fix-0.24-cves-2026-10-16 && \\\ngh pr create\
+    \ \\\n  --title Partial\\ CVE\\ fix\\ in\\ release-0.24\\ \\(36\\ unresolved\\\
+    ) \\\n  --body See\\ commit\\ message\\ for\\ details. \\\n  --base release-0.24\
+    \ \\\n  --head example:fix-0.24-cves-2026-10-16 \\\n  --assignee \"@me\"\n"

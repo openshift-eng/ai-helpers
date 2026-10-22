@@ -8,5 +8,7 @@ branch: '0.24'
 arguments:
 - '0.24'
 original_branch: devel
+go_minor_guard: true
+k8s_version_guard: true
 canonical_commands:
   test: make unit

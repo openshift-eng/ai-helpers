@@ -1,8 +1,10 @@
 # E2E acceptance and simplification
 
 Implementation plan audited by runtime, eval and simplification specialists on
-2026-10-22 against `b0368cb8`. No revised runtime, actor or judge was executed.
-The [testing strategy](testing.md) owns durable requirements and environment
+2026-10-22 against `b0368cb8`. The finite treatment below is now implemented;
+acceptance measurements are in progress, not accepted. The
+[implementation results](../evals/implementation-results.md) retain measured
+outcomes; the [testing strategy](testing.md) owns durable requirements and environment
 rules; the [latest matrix](../evals/live/README.md#branch-policy-matrix) owns
 historical results. Preserve original artifacts and grades.
 
@@ -12,7 +14,7 @@ The stock pipeline completes execution, collection, extraction, judging,
 reporting and regression. Remaining failures concern behavior, evidence and
 scenario coverage. The finite treatment map is:
 
-| Boundary | Evidence and planned treatment | Verification |
+| Boundary | Failure and implemented treatment | Verification |
 | --- | --- | --- |
 | Command selection | Admiral release replaced inherited `make unit`; let `detect.sh` own defaults and preserve explicit settings unless higher-priority policy overrides them | Existing precedence tests and actual canonical-command receipts |
 | Result relay | Admiral release rewrote a Summary line; relay the witnessed terminal result literally | Existing Summary/terminal-exit contract |
@@ -22,17 +24,18 @@ scenario coverage. The finite treatment map is:
 | Grading | Some factual majorities accept known errors; check the relevant controls before trusting new labels | Unchanged requirements, calibrated changed grader inputs and whole-reply review |
 
 Track three explicit milestones. **Existing-cohort acceptance** requires both
-packaged replays and all four live cases to complete the stock pipeline, pass
+Admiral replays and all four live cases to complete the stock pipeline, pass
 configured thresholds and corrected scenario contracts, and pass whole-reply
 review. Live 001 may correctly report a blocked run; live 002 must demonstrate a
 successful repair; live 003/004 must demonstrate their declared native coverage.
 **Replay reliability** requires the existing three-execution comparison for
-005/007. **Publication coverage** requires an independently admitted and measured
-real positive-recipe replay. Existing-cohort acceptance alone does not establish
+005/007. **Publication coverage** requires the admitted real positive-recipe
+replay to complete the stock pipeline, pass configured thresholds and pass
+whole-reply review. Existing-cohort acceptance alone does not establish
 complete skill acceptance while reliability, publication or applicable policy
 boundaries remain unresolved. Pure cleanup is a separate deliverable.
 
-## Intended design
+## Implemented design
 
 | Owner | Responsibility |
 | --- | --- |
@@ -42,7 +45,7 @@ boundaries remain unresolved. Pure cleanup is a separate deliverable.
 | Eval helper | Independently check execution, retained state and declared scenario evidence |
 | Factual judges | Assess diagnosis and advice against captured facts throughout the reply |
 
-Shorten the skill into one ordered procedure. Detection already implements
+The skill now uses one ordered procedure. Detection implements
 inherited environment → target configuration → defaults (`detect.sh:235–295`).
 Retain explicit settings unless higher-priority user/branch policy requires an
 override, and retain genuine maintained additional checks. Do not reconstruct a
@@ -55,7 +58,7 @@ verification prerequisite. An available backport does not prove cause; it must
 reach the remote target before a requested rerun. A passing retry does not erase
 the first failure. Keep diagnosis useful without inventing attribution.
 
-Add a concise scan-scope statement to existing output using available evidence,
+Existing output now includes concise scan-scope statements using available evidence,
 including initial/final phases and terminal paths without a Summary. Normal runs
 do not retain the eval's full catalog proof: a build, readable binary or absent
 warning is insufficient proof of native catalog coverage. Report that coverage
@@ -72,15 +75,15 @@ post-Summary empty-branch removal.
 
 ## Concrete runtime prerequisites
 
-Address these narrow source findings with focused regressions, separately from
-instruction simplification. They are code findings, not observed causes of the
-latest actor failures.
+These narrow audit findings are addressed in the candidate, separately from
+instruction simplification. They were not observed causes of the latest actor
+failures; focused checks and live coverage remain distinct.
 
-| Finding | Required change/check |
+| Audited gap | Implemented treatment |
 | --- | --- |
-| Build and license pipelines retain only `PIPESTATUS[0]` (`scan.sh:61,63`; `fix-all.sh:1000–1001`), unlike test-attempt handling | Inject successful commands plus failing `tee`; preserve actual command exit separately and block downstream acceptance when logging/evidence fails. Verify evidence-enabled/disabled paths without adding a general logging framework |
-| `review.sh:129–159` accepts requested `stdlib` outcomes, but `fix-all.sh:829–831` drops unresolved keys without dot/slash | Test parent propagation of every admitted key, including `stdlib`; preserve deterministic reasons when attaching valid reviewer detail. Lost detail is proven; a false-clean/publication bypass is not established |
-| `review-prompt.md:31–36` permits Go directives at/below builder without repository restrictions in its supplied input | Resolve any applicable compatibility restriction before the affected treatment; carry it consistently through proposed-update/post-tidy guards and reviewer advice. Builder capability cannot override policy |
+| Build/license pipelines lost logger status | Preserve command exits separately, stop scanning after build capture failure and mark license `capture_failed` while blocking publication |
+| Parent dropped admitted `stdlib` reviewer detail | Accept exact requested keys and append valid reviewer detail while retaining deterministic reasons; no historical false-clean/publication bypass was established |
+| Builder permission could mask repository restrictions | Carry Go-minor policy through configuration/state, proposed-update/post-tidy checks and reviewer input; effective caller guards override conflicting inherited settings. Unknown-builder diagnostics retain the guard reason |
 
 Do not repair unrelated runtime behavior opportunistically. The existing hermetic
 suite is the first check for these changes; a real run must reach a changed path
@@ -88,29 +91,24 @@ before claiming live coverage.
 
 ## Ordered work and execution budget
 
-1. **Close admission and acceptance dependencies model-free.** Inspect original
-   recording 002 for complete logs, a trustworthy literal recipe, compatible pins,
-   retained tree/bundle and calibration controls. Record a concrete admission task
-   or the specific missing evidence. Its builder-image/recipe criteria do not fit
-   the global Admiral backport prompts in `eval-replay.yaml:89–118`: use a compatible
-   stock scoring configuration or make shared prompts criterion-conditional and
-   recalibrate affected 005/007 controls. Do not invent a backport requirement.
-   Failure to admit it leaves publication coverage open, without preventing work
-   on the existing cohort. Local-only live remotes cannot fill that positive gap.
-2. **Implement the finite treatment map and prerequisites.** Record the competing
-   instruction/evidence and exact edit for each boundary above. Map current rules
-   to retained requirements, duplicates or justified removals. Simplify command
-   ownership and result/diagnosis flow; add only the missing scope handoff.
-   Implement the native-phase contract and live-004 expectation changes below.
-   Resolve policy before executing an affected live treatment. Extra warning
-   paragraphs or another reviewer are not an established remedy.
-3. **Verify locally and check the oracle.** Run focused behavioral regressions,
-   the shell suite for runtime edits, helper tests and model-free replays. Check
-   existing reviewed positives/negatives for causality, publication and scope;
-   add a fixture only for a missing distinction. Calibrate changed prompts,
-   models or evidence inputs before actor scoring, preserving prior grades.
-   Stock majority reduction stays unchanged; three judge samples are not three
-   actor trials, and unstable labels remain visible.
+1. **Admission completed.** Recording 002 is packaged with its real log, pins,
+   bundle, reference and negatives. `eval-publication.yaml` supplies applicable
+   builder-image/recipe criteria without Admiral backport requirements; replay
+   profiles share `replay-base.yaml`. Calibration passed all eight control
+   majorities, with 23/24 expected sample labels and one criterion-bleed error.
+   Preserve that disagreement. Local-only live remotes cannot replace positive
+   recipe relay measurement.
+2. **Finite treatment implemented.** The skill now leaves defaults to detection,
+   instructs literal result relay and supported diagnosis, and exposes scope without
+   adding production proof machinery. Logger/reviewer fixes and effective policy
+   guards accompany the native-phase contract and live-004 expectation changes.
+   Pure normalization/fixture/reviewer cleanup remains separate.
+3. **Local checks and oracle review.** The helper suite passed 70 checks and
+   focused Go-guard checks passed 34/34. Final shell/evidence verification is
+   pending; preserve its actual outcome in the implementation results. Existing
+   reviewed controls remain the oracle; recalibrate changed prompts, models or
+   evidence inputs before scoring. Stock majority reduction stays unchanged:
+   three judge samples are not three actor trials.
 4. **Freeze one candidate and declare the executions.** Specify question, cases,
    criteria, source, CLI/model identities, caps and which executions count toward
    each milestone. Designate the integration execution in advance; do not select
@@ -140,13 +138,11 @@ repetitions, not undeclared retries or extended deadlines to obtain a pass.
 
 - **Native phases:** non-fast-path native remediation requires initial proof bound
   to the base and final proof bound to retained HEAD. Clean fast paths require
-  initial proof only and do not count as repair. The current contract enforces
-  native proof only at its selected terminal phase (`eval.py:623`); initial proof
-  is projected to judges (`eval.py:519–527`). Add missing/invalid-initial-proof
-  regressions, including the existing terminal-only passing fixture in
-  `test_eval.py:1170–1207`. Use the existing `binary` expectation for future live
-  004 runs, preserve original observed-contract grades, and retain observed
-  blocked-outcome coverage in live 001.
+  initial proof only and do not count as repair. The candidate now enforces both
+  phases for non-fast-path binary runs, with missing/invalid-initial-proof
+  regressions; judges retain their independent evidence projection. Live 004
+  now declares `binary`. Preserve original observed-contract grades and retain
+  observed blocked-outcome coverage in live 001.
 - **Coverage versus repair:** `binary` may establish coverage on an exit-2 run
   with remaining findings; it must not imply successful repair. Keep exit 0,
   cleared fixable findings, retained dependency changes and zero final actionable
@@ -175,13 +171,19 @@ Preserve rollback, receipt completeness, native coverage, scoped-ignore, no-fix-
 and child-exit regressions. Avoid broad parser rewrites, directory renames, a new
 reviewer campaign, event system, sandbox or fleet/scheduled eval expansion.
 
-## Open boundary and current evidence
+## Current evidence and remaining acceptance
 
-Go-minor compatibility policy remains unresolved. Preserve user/repository
-restrictions and allowed patch/unrestricted behavior without a global ban or
-inferred authorization. The former release lint override was incorrect.
+The original audit baseline at `038d0a33` passed 3,046 shell checks, 68 helper
+checks and model-free replays 005/007. Preserve those historical results;
+implemented policy guards do not establish live enforcement or skill acceptance.
+The former release lint override remains incorrect.
 
-Fresh checks at `038d0a33` passed: 3,046 shell checks, 68 helper tests and stock
-model-free replays 005/007 with expected commits/engine exit 2. No fresh actor,
-judge or live engine run accompanied the specialist audit. The worker remains
-stopped. These facts establish preparation, not acceptance.
+The declared candidate protocol is
+`.work/fix-go-cves-implementation-20261022/candidate-protocol.json`; it freezes
+source hashes, cases and caps. Replay 005/007 integration execution
+`simplify-replay-20261022-01` counts as execution 1/3 for each case. Positive replay
+`simplify-publication-20261022-01` and live 001
+`simplify-live001-20261022-01` are also launched. Their measurements are in progress;
+completion, thresholds, whole-reply review and remaining live/repetition coverage
+are not yet established. Keep the changing outcome table in the
+[implementation results](../evals/implementation-results.md).

@@ -19,6 +19,7 @@ ${LOCATE_OUTPUT}
 ## Build Environment
 
 Go version (build image, else unknown): ${BUILD_GO_VERSION}
+Repository forbids Go minor directive upgrades: ${GO_MINOR_GUARD}
 
 ## Task
 
@@ -29,8 +30,9 @@ Review ALL CVE outcomes:
 2. **Assess unfixed CVEs**: For each item not fixed, explain the exact evidence
    and what a maintainer should decide next. A Kubernetes minor upgrade, or a Go
    requirement newer than the detected builder, needs team approval. A Go
-   directive at or below the builder is permitted and must not be rejected merely
-   because it crosses a minor version.
+   directive at or below the builder is permitted. If the repository's Go-minor
+   guard is true, raising the directive's minor version requires maintainer
+   action; same-minor patch raises remain permitted.
    For stdlib fixes, assess the `toolchain` directive and the actual compiler used
    by the build. An older `go` language directive may intentionally preserve library
    compatibility; do not request raising it as a stdlib fix. A local-only build

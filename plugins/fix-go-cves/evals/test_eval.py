@@ -1200,7 +1200,38 @@ class EvidenceTests(unittest.TestCase):
                 {"name": "syft:location:0:path", "value": "/" + binary}]},
             {"type": "file", "name": str(case / binary), "hashes": [{"alg": "SHA-256", "content": identity}]}]}
         EVAL.write_json(directory / "catalog.cdx.json", catalog)
+        if not clean_initial:
+            first = directory.parent / "initial.example"
+            shutil.copytree(directory, first)
+            EVAL.write_json(first / "status.json", {**scan, "phase": "initial",
+                "head": state["expected"]["base_commit"], "build_status": "completed", "build_exit_code": 0})
+            (first / "binaries.jsonl").write_text(json.dumps({**record, "build_info":
+                record["build_info"].replace(state["runtime_head"], state["expected"]["base_commit"])}) + "\n")
         return case, state, directory, record, catalog
+
+    def test_declared_repository_guards_require_retained_enabled_state(self):
+        case, state, result, scan, initial = self.scenario("observed")
+        state["expected"].update(go_minor_guard=True, k8s_version_guard=True)
+        path = case / "output/runtime/state.env"
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        path.write_text("GO_MINOR_GUARD=true\nK8S_VERSION_GUARD=false\n")
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        path.write_text("GO_MINOR_GUARD=true\nK8S_VERSION_GUARD=true\n")
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+
+    def test_native_remediation_requires_initial_proof_at_base(self):
+        case, state, directory, record, catalog = self.binary_scenario()
+        first = directory.parent / "initial.example"
+        self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+        receipt = first / "status.json"
+        status = EVAL.read_json(receipt)
+        EVAL.write_json(receipt, {**status, "head": state["runtime_head"]})
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(receipt, status)
+        (first / "binaries.jsonl").write_text("")
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        shutil.rmtree(first)
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
 
     def test_native_binary_requires_one_matching_unmodified_vcs_witness(self):
         case, state, directory, record, catalog = self.binary_scenario()
@@ -1221,7 +1252,7 @@ class EvidenceTests(unittest.TestCase):
         record["build_info"] += "\tdep\texample.invalid/do-not-project\tv1.0.0\n"
         (directory / "binaries.jsonl").write_text(json.dumps(record) + "\n")
         initial = directory.parent / "initial.example"
-        shutil.copytree(directory, initial)
+        shutil.copytree(directory, initial, dirs_exist_ok=True)
         status = EVAL.read_json(initial / "status.json")
         EVAL.write_json(initial / "status.json", {**status, "phase": "initial",
                                                  "head": state["expected"]["base_commit"]})

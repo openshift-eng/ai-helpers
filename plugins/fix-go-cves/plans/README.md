@@ -3,17 +3,18 @@
 Follow-ups found while porting and reviewing the plugin.
 Fix the correctness issues before expanding supported workflows.
 
-The [E2E and simplification plan](e2e-simplification.md) selects the next work.
+The [E2E and simplification plan](e2e-simplification.md) tracks implementation and remaining acceptance work.
 The [testing strategy](testing.md) owns durable acceptance and environment rules.
 
 ## Next changes
 
-Close the concrete logger/reviewer handoff gaps, simplify command selection and
-result reporting, and enforce declared native phases. Check positive-publication
-replay admission and applicable scoring before paid execution. The
-[implementation sequence](e2e-simplification.md#ordered-work-and-execution-budget)
-combines acceptance measurements without duplicate cohorts. Demonstrated cleanup
-is a separate deliverable; no revised source or actor cohort has run yet.
+The finite treatment is implemented: simpler command/result ownership, explicit
+scan scope, logger/reviewer handoff fixes, repository guards and native-phase
+contracts. Positive-publication replay 002 is packaged and calibrated. Declared
+actor measurements are in progress; the [implementation results](../evals/implementation-results.md)
+own their outcomes. Complete the
+[acceptance sequence](e2e-simplification.md#ordered-work-and-execution-budget)
+without duplicate cohorts. Demonstrated cleanup remains a separate deliverable.
 
 The skill remains unaccepted. The [fifth six-cell matrix](../evals/live/README.md#branch-policy-matrix)
 retains the measured failures; the [fresh baseline](e2e-simplification.md#open-boundary-and-current-evidence)
@@ -34,18 +35,14 @@ records passing script/helper checks and model-free replay preparation.
   dependency update". The early read-only check now stops with exit 2 before
   repair, preserving policy until the maintainer changes `.grype.yaml`.
 
-- **Plugin policy or repository notes on Go minor raises.**
-  `fix-package.sh` accepts a Go directive raise the build image supports,
-  and `SKILL.md` names a team decision only for Go above the build image.
-  Submariner release branches carry `.agents/workflows/cve-fix.md`, which
-  says to revert such a raise and consult the team for High or Critical
-  CVEs. First distinguish obsolete workflow procedure from a binding repository
-  compatibility restriction and existing user authorization. Selecting this
-  skill supersedes an old manual procedure, not automatically that restriction.
-  If applicable, carry the decision through existing configuration/state to
-  both proposed-update and post-tidy guards, with rollback/exit 2 for a violation.
-  Preserve allowed patch updates and the existing default where unrestricted.
-  Do not add a natural-language policy parser or an unconditional global ban.
+- **Repository compatibility restrictions remain binding.** Selecting this
+  skill supersedes an old manual procedure, not its compatibility policy.
+  `go-minor-guard` now carries applicable restrictions through proposed-update
+  and post-tidy guards and reviewer advice; the skill requires an effective
+  guard even when inherited settings conflict. Builder support alone cannot
+  override that policy. Same-minor patch updates and unrestricted repositories
+  retain their existing behavior. Live acceptance still requires observed
+  execution of the relevant policy paths.
 
 ## Correctness
 

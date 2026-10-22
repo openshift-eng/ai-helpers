@@ -84,6 +84,7 @@ constraints; the canonical live record owns detailed results and costs.
 
 | Case | Repository | What it measures |
 | --- | --- | --- |
+| case-002 | submariner, release-0.24 | Relay the recorded partial repair's exact positive publication recipe and identify the builder-image update owner; use `eval-publication.yaml`. |
 | case-005 | admiral, release-0.24 | Diagnose the reporter vet failure, find the existing default-branch backport, and explain where it must land before rerunning. |
 | case-007 | admiral, release-0.24 | Distinguish a persistent reporter failure from a first-only syncer failure; qualify causality and give usable next steps. |
 
@@ -154,7 +155,14 @@ and coverage. These nonsecret settings are forwarded and frozen with the run.
 plugins/fix-go-cves/evals/run.sh --dry-run
 plugins/fix-go-cves/evals/run.sh
 plugins/fix-go-cves/evals/run.sh --live
+plugins/fix-go-cves/evals/run.sh --config plugins/fix-go-cves/evals/eval-publication.yaml --case case-002
 ```
+
+Replay profiles share `replay-base.yaml` for execution and the deterministic
+contract. The default profile retains Admiral's backport judges unchanged;
+the publication profile uses outcome and builder-owner criteria for case 002.
+Its full log, historical runtime and result bundle are recorded evidence. This
+case does not validate today's engine or establish authenticated native coverage.
 
 `--dry-run` fetches the real pinned history and replays the result without model
 calls, builds or scans. `--prepare-only` prepares the checkout without replaying.
