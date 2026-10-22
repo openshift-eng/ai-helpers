@@ -326,203 +326,6 @@ input_json: |
           }
         },
         {
-          "id": "c-new-bug",
-          "lineage": {
-            "first_seen_run": "2111000000000000001",
-            "cycles_seen": 2,
-            "supersedes": [
-              "c-new-bug"
-            ]
-          },
-          "fingerprint": {
-            "release": "4.21",
-            "test_family": "etcd leader changes are not excessive",
-            "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn-serial",
-            "labels": []
-          },
-          "members": {
-            "regression_ids": [
-              401
-            ],
-            "new_since_baseline": [],
-            "views": [
-              "4.21-main"
-            ],
-            "components": [
-              "Etcd"
-            ]
-          },
-          "shape": {
-            "regressions": 1,
-            "distinct_jobs": 1,
-            "lane_families": 1,
-            "platforms": [
-              "aws"
-            ],
-            "arches": [],
-            "upgrade_lane": false,
-            "minor_upgrade_lane": false,
-            "install_wrapper": false,
-            "mass_failure_marker": false,
-            "median_test_failures_per_run": 1,
-            "distinct_runs": 2,
-            "failing_runs_7d": 1,
-            "first_failure": "2026-10-11T07:33:20+00:00",
-            "last_failure": "2026-10-18T07:21:04+00:00",
-            "days_open": 22,
-            "regression_days_open": 22,
-            "days_since_last_failure": 1,
-            "growth_since_baseline": 0,
-            "components": [
-              "Etcd"
-            ],
-            "views": [
-              "4.21-main"
-            ],
-            "top_jobs": [
-              "periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn-serial"
-            ]
-          },
-          "blast_radius": {
-            "level": "LOW",
-            "score": 0.07600000000000001,
-            "reasons": []
-          },
-          "oracle": {
-            "status": "ok",
-            "runs_probed": 2,
-            "labels": {},
-            "label_bugs": {}
-          },
-          "prior": {
-            "run_id": "2111000000000000001",
-            "observed_at": "2026-10-13T05:03:40Z",
-            "source_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga/2111000000000000001",
-            "write_mode": "report",
-            "observation_complete": true,
-            "relationship": "same-id",
-            "sources": [
-              {
-                "run_id": "2111000000000000001",
-                "observed_at": "2026-10-13T05:03:40Z",
-                "cluster_id": "c-new-bug",
-                "history_only": false,
-                "unfinished": false,
-                "member_ids": [
-                  401
-                ],
-                "matched_member_ids": [
-                  401
-                ],
-                "fingerprint": {
-                  "release": "4.21",
-                  "test_family": "etcd leader changes are not excessive",
-                  "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn-serial",
-                  "labels": []
-                },
-                "shape": {
-                  "regressions": 1,
-                  "distinct_jobs": 1,
-                  "lane_families": 1,
-                  "platforms": [
-                    "aws"
-                  ],
-                  "arches": [],
-                  "upgrade_lane": false,
-                  "minor_upgrade_lane": false,
-                  "install_wrapper": false,
-                  "mass_failure_marker": false,
-                  "median_test_failures_per_run": 1,
-                  "distinct_runs": 1,
-                  "failing_runs_7d": 1,
-                  "first_failure": "2026-10-11T07:33:20+00:00",
-                  "last_failure": "2026-10-11T07:33:20+00:00",
-                  "days_open": 15,
-                  "regression_days_open": 15,
-                  "days_since_last_failure": 1,
-                  "growth_since_baseline": null,
-                  "components": [
-                    "Etcd"
-                  ],
-                  "views": [
-                    "4.21-main"
-                  ],
-                  "top_jobs": [
-                    "periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn-serial"
-                  ]
-                },
-                "blast_radius": {
-                  "level": "LOW",
-                  "score": 0.07600000000000001,
-                  "reasons": []
-                },
-                "oracle": {
-                  "status": "ok",
-                  "runs_probed": 1,
-                  "labels": {},
-                  "label_bugs": {}
-                },
-                "state": "UNEXPLAINED",
-                "analysis": {
-                  "depth": "deep-dive",
-                  "confidence": "high",
-                  "owning_component": "Etcd",
-                  "triage_type": "product",
-                  "unverified_hypotheses": [
-                    "not proven: the teardown elections are caused by the control-plane machine rotation test"
-                  ],
-                  "root_cause": "The serial suite on aws-ovn records four etcd leader changes against a budget of two; the etcd member logs show two leader elections during the [Serial] node-drain tests and two during the suite teardown, with no disk-latency warnings. No open or closed OCPBUGS issue references the leader-change assertion; persisting LOW singleton.",
-                  "root_cause_truncated": false,
-                  "evidence_refs": [
-                    {
-                      "prowjob_run_id": "2110800000000000401",
-                      "supports_regression_ids": [
-                        401
-                      ],
-                      "artifact": "gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn-serial/2110800000000000401/artifacts/e2e-aws-ovn-serial/openshift-e2e-test/artifacts/junit/junit_e2e__20261011-073320.xml"
-                    }
-                  ],
-                  "basis": {
-                    "run_id": "2111000000000000001",
-                    "cluster_id": "c-new-bug",
-                    "observed_at": "2026-10-13T05:03:40Z",
-                    "depth": "deep-dive"
-                  }
-                },
-                "bug_search": {
-                  "candidates": [],
-                  "newer_release_fix": null
-                },
-                "proposed_action": {
-                  "type": "none"
-                },
-                "actions": [],
-                "escalation": {
-                  "required": false,
-                  "reason": "not required",
-                  "re_notify": false,
-                  "re_notify_reasons": []
-                },
-                "unlinked": null,
-                "watch_list": [
-                  {
-                    "regression_id": 401,
-                    "view": "4.21-main",
-                    "cluster_id": "c-new-bug",
-                    "reason": "needs-human (low): persisting singleton, unexplained, examined 2 cycles",
-                    "revisit": "next cycle"
-                  }
-                ],
-                "unanalysed": []
-              }
-            ],
-            "member_delta": {
-              "added": [],
-              "removed": []
-            }
-          }
-        },
-        {
           "id": "c-b17bd7",
           "lineage": {
             "first_seen_run": "2111000000000000001",
@@ -786,6 +589,203 @@ input_json: |
               ]
             }
           }
+        },
+        {
+          "id": "c-new-bug",
+          "lineage": {
+            "first_seen_run": "2111000000000000001",
+            "cycles_seen": 2,
+            "supersedes": [
+              "c-new-bug"
+            ]
+          },
+          "fingerprint": {
+            "release": "4.21",
+            "test_family": "etcd leader changes are not excessive",
+            "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn-serial",
+            "labels": []
+          },
+          "members": {
+            "regression_ids": [
+              401
+            ],
+            "new_since_baseline": [],
+            "views": [
+              "4.21-main"
+            ],
+            "components": [
+              "Etcd"
+            ]
+          },
+          "shape": {
+            "regressions": 1,
+            "distinct_jobs": 1,
+            "lane_families": 1,
+            "platforms": [
+              "aws"
+            ],
+            "arches": [],
+            "upgrade_lane": false,
+            "minor_upgrade_lane": false,
+            "install_wrapper": false,
+            "mass_failure_marker": false,
+            "median_test_failures_per_run": 1,
+            "distinct_runs": 2,
+            "failing_runs_7d": 1,
+            "first_failure": "2026-10-11T07:33:20+00:00",
+            "last_failure": "2026-10-18T07:21:04+00:00",
+            "days_open": 22,
+            "regression_days_open": 22,
+            "days_since_last_failure": 1,
+            "growth_since_baseline": 0,
+            "components": [
+              "Etcd"
+            ],
+            "views": [
+              "4.21-main"
+            ],
+            "top_jobs": [
+              "periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn-serial"
+            ]
+          },
+          "blast_radius": {
+            "level": "LOW",
+            "score": 0.07600000000000001,
+            "reasons": []
+          },
+          "oracle": {
+            "status": "ok",
+            "runs_probed": 2,
+            "labels": {},
+            "label_bugs": {}
+          },
+          "prior": {
+            "run_id": "2111000000000000001",
+            "observed_at": "2026-10-13T05:03:40Z",
+            "source_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga/2111000000000000001",
+            "write_mode": "report",
+            "observation_complete": true,
+            "relationship": "same-id",
+            "sources": [
+              {
+                "run_id": "2111000000000000001",
+                "observed_at": "2026-10-13T05:03:40Z",
+                "cluster_id": "c-new-bug",
+                "history_only": false,
+                "unfinished": false,
+                "member_ids": [
+                  401
+                ],
+                "matched_member_ids": [
+                  401
+                ],
+                "fingerprint": {
+                  "release": "4.21",
+                  "test_family": "etcd leader changes are not excessive",
+                  "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn-serial",
+                  "labels": []
+                },
+                "shape": {
+                  "regressions": 1,
+                  "distinct_jobs": 1,
+                  "lane_families": 1,
+                  "platforms": [
+                    "aws"
+                  ],
+                  "arches": [],
+                  "upgrade_lane": false,
+                  "minor_upgrade_lane": false,
+                  "install_wrapper": false,
+                  "mass_failure_marker": false,
+                  "median_test_failures_per_run": 1,
+                  "distinct_runs": 1,
+                  "failing_runs_7d": 1,
+                  "first_failure": "2026-10-11T07:33:20+00:00",
+                  "last_failure": "2026-10-11T07:33:20+00:00",
+                  "days_open": 15,
+                  "regression_days_open": 15,
+                  "days_since_last_failure": 1,
+                  "growth_since_baseline": null,
+                  "components": [
+                    "Etcd"
+                  ],
+                  "views": [
+                    "4.21-main"
+                  ],
+                  "top_jobs": [
+                    "periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn-serial"
+                  ]
+                },
+                "blast_radius": {
+                  "level": "LOW",
+                  "score": 0.07600000000000001,
+                  "reasons": []
+                },
+                "oracle": {
+                  "status": "ok",
+                  "runs_probed": 1,
+                  "labels": {},
+                  "label_bugs": {}
+                },
+                "state": "UNEXPLAINED",
+                "analysis": {
+                  "depth": "deep-dive",
+                  "confidence": "high",
+                  "owning_component": "Etcd",
+                  "triage_type": "product",
+                  "unverified_hypotheses": [
+                    "not proven: the teardown elections are caused by the control-plane machine rotation test"
+                  ],
+                  "root_cause": "The serial suite on aws-ovn records four etcd leader changes against a budget of two; the etcd member logs show two leader elections during the [Serial] node-drain tests and two during the suite teardown, with no disk-latency warnings. No open or closed OCPBUGS issue references the leader-change assertion; persisting LOW singleton.",
+                  "root_cause_truncated": false,
+                  "evidence_refs": [
+                    {
+                      "prowjob_run_id": "2110800000000000401",
+                      "supports_regression_ids": [
+                        401
+                      ],
+                      "artifact": "gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn-serial/2110800000000000401/artifacts/e2e-aws-ovn-serial/openshift-e2e-test/artifacts/junit/junit_e2e__20261011-073320.xml"
+                    }
+                  ],
+                  "basis": {
+                    "run_id": "2111000000000000001",
+                    "cluster_id": "c-new-bug",
+                    "observed_at": "2026-10-13T05:03:40Z",
+                    "depth": "deep-dive"
+                  }
+                },
+                "bug_search": {
+                  "candidates": [],
+                  "newer_release_fix": null
+                },
+                "proposed_action": {
+                  "type": "none"
+                },
+                "actions": [],
+                "escalation": {
+                  "required": false,
+                  "reason": "not required",
+                  "re_notify": false,
+                  "re_notify_reasons": []
+                },
+                "unlinked": null,
+                "watch_list": [
+                  {
+                    "regression_id": 401,
+                    "view": "4.21-main",
+                    "cluster_id": "c-new-bug",
+                    "reason": "needs-human (low): persisting singleton, unexplained, examined 2 cycles",
+                    "revisit": "next cycle"
+                  }
+                ],
+                "unanalysed": []
+              }
+            ],
+            "member_delta": {
+              "added": [],
+              "removed": []
+            }
+          }
         }
       ],
       "watch_list_candidates": [
@@ -829,18 +829,19 @@ input_json: |
       {
         "cluster_id": "c-new-bug",
         "kind": "jira-search",
-        "locator": "https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20created%3E%3D2026-10-13%20AND%20text~%22etcd%20leader%20changed%22&fields=key,summary,status,created",
+        "locator": "https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20updated%3E%3D2026-10-13%20AND%20text~%22etcd%20leader%20changed%22&fields=key,summary,status,created,updated",
         "reply": {
           "total": 1,
           "issues": [
             {
               "key": "OCPBUGS-2",
               "fields": {
-                "summary": "etcd leader changes exceed the budget of 2 during the serial suite",
+                "summary": "etcd leader changes during the serial suite follow peer-certificate rotation by EtcdCertSignerController",
                 "status": {
                   "name": "New"
                 },
-                "created": "2026-10-16T09:12:44.000+0000"
+                "created": "2026-10-16T09:12:44.000+0000",
+                "updated": "2026-10-16T09:12:44.000+0000"
               }
             }
           ]
@@ -853,7 +854,7 @@ input_json: |
         "reply": {
           "key": "OCPBUGS-2",
           "fields": {
-            "summary": "etcd leader changes exceed the budget of 2 during the serial suite",
+            "summary": "etcd leader changes during the serial suite follow peer-certificate rotation by EtcdCertSignerController",
             "status": {
               "name": "New"
             },
@@ -867,7 +868,7 @@ input_json: |
             "updated": "2026-10-16T09:12:44.000+0000"
           }
         },
-        "note": "description cites periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn-serial run 2112800000000000777 and quotes 'etcd leader changed 3 times during the run, expected at most 2'; no aws-ovn-serial run and none of this regression's runs are referenced; no sibling-view triage exists"
+        "note": "description cites periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn-serial run 2112800000000000777, quotes 'etcd leader changed 3 times during the run, expected at most 2' and states the failure signature as: each leader election starts within 10 s of an etcd-operator log line 'EtcdCertSignerController: rotating peer certificate for <member>' (the operator rotates peer certs mid-suite). The etcd-operator and etcd member logs of this regression's own runs were not read in this run, so the rotation discriminator is unverified here; no sibling-view triage exists"
       },
       {
         "cluster_id": "c-high",

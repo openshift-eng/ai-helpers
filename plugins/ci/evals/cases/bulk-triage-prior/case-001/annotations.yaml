@@ -12,6 +12,7 @@ expected:
       required_locators:
         - gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn/2113500000000000101/artifacts/e2e-aws-ovn/openshift-e2e-test/artifacts/junit/junit_e2e__20261018-011950.xml
         - https://issues.redhat.com/rest/api/2/issue/OCPBUGS-1?fields=summary,status,resolution,fixVersions,versions,updated
+        - https://sippy.dptools.openshift.org/api/component_readiness/triages/17
     c-candidate:
       next_step: carry
       allowed_depths: [carried-forward]
@@ -23,6 +24,7 @@ expected:
       required_locators:
         - gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn/2113500000000000201/artifacts/e2e-gcp-ovn/openshift-e2e-test/artifacts/junit/junit_e2e__20261018-030217.xml
         - https://issues.redhat.com/rest/api/2/issue/OCPBUGS-3?fields=summary,status,resolution,fixVersions,versions,updated
+        - https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20updated%3E%3D2026-10-13%20AND%20text~%22volume%20expansion%22&fields=key,summary,status,created,updated
     c-needs-human:
       next_step: carry
       allowed_depths: [carried-forward]
@@ -33,7 +35,7 @@ expected:
       escalation_required: false
       required_locators:
         - gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-azure-ovn/2113500000000000301/artifacts/e2e-azure-ovn/openshift-e2e-test/artifacts/junit/junit_e2e__20261017-230109.xml
-        - https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20created%3E%3D2026-10-13%20AND%20text~%22drowned%20out%22&fields=key,summary,status,created
+        - https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20updated%3E%3D2026-10-13%20AND%20text~%22drowned%20out%22&fields=key,summary,status,created,updated
     c-deferred-partial:
       next_step: analyse-first
       allowed_depths: [deep-dive]
@@ -49,7 +51,7 @@ notes: >
   Three unchanged LOW recurrences whose immediate source is finished, high-confidence and basis-backed, with
   this week's own failed run and lookups supplied: c-known (KNOWN-CAUSE, OCPBUGS-1 still ON_QA, triage 17
   unresolved) carries and re-proposes the link for member 101 without writing (report mode); c-candidate
-  (CANDIDATE, OCPBUGS-3 unchanged, incremental search empty) carries with the same unmet bar; c-needs-human
+  (CANDIDATE, OCPBUGS-3 unchanged, incremental new/updated-bug search empty) carries with the same unmet bar; c-needs-human
   (examined UNEXPLAINED with a needs-human watch entry, incremental search empty) carries its negative finding
   and must not be sent to first analysis. c-deferred-partial was deferred last week as LOW-and-new (depth none,
   low confidence, LOW & new watch entry); its member is retained but the baseline's 4.20-main observation was
