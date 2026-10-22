@@ -96,7 +96,17 @@ def _complete_views(baseline):
     views = obs.get('views')
     if not isinstance(views, list) or not views:
         return None
-    return {v.get('view') for v in views if isinstance(v, dict) and v.get('fetch') == 'complete'}
+    return {v.get('view') for v in views
+            if isinstance(v, dict) and v.get('fetch') == 'complete' and isinstance(v.get('view'), str)}
+
+
+def _source_views(cluster):
+    """The views a source cluster's members were observed in; None when unknown or malformed."""
+    mem = _dict(cluster.get('members')) or {}
+    views = mem.get('views')
+    if not isinstance(views, list) or not views or any(not isinstance(v, str) or not v for v in views):
+        return None
+    return set(views)
 
 
 def _evidence_refs(analysis):
@@ -144,8 +154,9 @@ def _project_analysis(analysis, identity, cluster_id, unfinished):
             'root_cause_truncated': truncated, 'evidence_refs': refs, 'basis': basis}
 
 
-def _matching(items, cluster_id, ids):
-    """Top-level watch/unanalysed entries about this source; [] when the list has none, None when unreadable."""
+def _matching(items, cluster_id, ids=None):
+    """Top-level entries about this source: by cluster id, or (watch list only) by member id; [] when the list
+    has none, None when unreadable."""
     if not isinstance(items, list):
         return None
     out = []
@@ -166,7 +177,7 @@ def _project_source(source, baseline, matched_member_ids):
     analysis = _dict(disp.get('analysis')) if disp else None
     state = disp.get('state') if disp else None
     state = state if isinstance(state, str) else None
-    unanalysed = _matching(baseline.get('unanalysed'), cid, ids)
+    unanalysed = _matching(baseline.get('unanalysed'), cid)
     rev = _dict(analysis.get('reverification')) if analysis else None
     unfinished = (disp is None or analysis is None or state == UNFINISHED_STATE or bool(unanalysed)
                   or (rev or {}).get('outcome') == 'incomplete')
@@ -202,7 +213,8 @@ def _retained_sources(source, current_ids):
     """Flat history-only context behind an unfinished immediate source (Decision 7).
 
     `source` is an already projected immediate source whose baseline cluster carried its own
-    ``prior``; the finished, readable snapshots of that prior are copied once, marked
+    ``prior``; the finished snapshots of that prior with a readable identity (run, time, cluster)
+    and analysis (depth, confidence) are re-projected once through the envelope contract, marked
     ``history_only``, with their original run/time and basis. Nothing nested, nothing recursive.
     """
     if not source.get('unfinished'):
@@ -214,26 +226,55 @@ def _retained_sources(source, current_ids):
     out, seen = [], set()
     current = set(current_ids)
     for snap in snapshots:
-        if not isinstance(snap, dict) or snap.get('unfinished') is not False or not _dict(snap.get('analysis')):
+        if not isinstance(snap, dict) or snap.get('unfinished') is not False:
             continue
-        key = (snap.get('run_id'), snap.get('observed_at'), snap.get('cluster_id'))
-        if key in seen or not isinstance(snap.get('cluster_id'), str):
+        analysis = _dict(snap.get('analysis'))
+        cid = _text(snap.get('cluster_id'))
+        key = (_text(snap.get('run_id')), _iso(snap.get('observed_at')), cid)
+        # readable identity and analysis only: context that cannot be cited by run/time is not retained
+        if not analysis or not all(key) or not (_text(analysis.get('depth')) and _text(analysis.get('confidence'))):
+            continue
+        if key in seen:
             continue
         seen.add(key)
-        kept = {k: copy.deepcopy(snap.get(k)) for k in SOURCE_KEYS}
-        kept['run_id'] = _text(snap.get('run_id'))
-        kept['observed_at'] = _iso(snap.get('observed_at'))
-        kept['history_only'] = True
-        kept['unfinished'] = False
-        kept['member_ids'] = sort_ids(i for i in (snap.get('member_ids') or []) if is_id(i)) \
-            if isinstance(snap.get('member_ids'), list) else []
-        kept['matched_member_ids'] = sort_ids(i for i in kept['member_ids'] if i in current)
-        analysis = kept['analysis']
-        analysis['basis'] = _basis_from(analysis.get('basis'))
-        if not isinstance(analysis.get('evidence_refs'), list):
-            analysis['evidence_refs'] = []
+        kept = _normalize_snapshot(snap, analysis, cid, current)
+        kept['run_id'], kept['observed_at'] = key[0], key[1]
         out.append(kept)
     return out
+
+
+def _normalize_snapshot(snap, analysis, cid, current):
+    """Re-project a retained snapshot through the same envelope contract as an immediate source: only the
+    projection keys, bounded prose, well-shaped evidence locators, a validated basis, containers or null."""
+    root = analysis.get('root_cause')
+    truncated = analysis.get('root_cause_truncated') is True or (isinstance(root, str) and len(root) > ROOT_CAUSE_LIMIT)
+    refs = []
+    for r in analysis.get('evidence_refs') if isinstance(analysis.get('evidence_refs'), list) else []:
+        if not isinstance(r, dict) or not _text(r.get('prowjob_run_id')):
+            continue
+        sup = r.get('supports_regression_ids')
+        if not isinstance(sup, list) or not sup or not all(is_id(i) for i in sup):
+            continue
+        refs.append({'prowjob_run_id': r['prowjob_run_id'], 'supports_regression_ids': sort_ids(sup),
+                     'artifact': _text(r.get('artifact'))})
+    kept = {k: None for k in SOURCE_KEYS}
+    kept.update({
+        'cluster_id': cid, 'history_only': True, 'unfinished': False,
+        'member_ids': sort_ids(i for i in snap['member_ids'] if is_id(i)) if isinstance(snap.get('member_ids'), list) else [],
+        'state': snap.get('state') if isinstance(snap.get('state'), str) else None,
+        'analysis': {'depth': analysis.get('depth'), 'confidence': analysis.get('confidence'),
+                     'owning_component': analysis.get('owning_component'), 'triage_type': analysis.get('triage_type'),
+                     'unverified_hypotheses': copy.deepcopy(analysis.get('unverified_hypotheses')),
+                     'root_cause': root[:ROOT_CAUSE_LIMIT] if isinstance(root, str) else None,
+                     'root_cause_truncated': truncated, 'evidence_refs': refs,
+                     'basis': _basis_from(analysis.get('basis'))},
+    })
+    kept['matched_member_ids'] = sort_ids(i for i in kept['member_ids'] if i in current)
+    for k in ('fingerprint', 'shape', 'blast_radius', 'oracle', 'bug_search', 'proposed_action', 'escalation'):
+        kept[k] = copy.deepcopy(_dict(snap.get(k)))
+    for k in ('actions', 'unlinked', 'watch_list', 'unanalysed'):
+        kept[k] = copy.deepcopy(snap[k]) if isinstance(snap.get(k), list) else None
+    return kept
 
 
 def attach_priors(clusters, baseline):
@@ -250,12 +291,16 @@ def attach_priors(clusters, baseline):
     identity = _identity(baseline)
     complete = _complete_views(baseline)
 
+    def supersedes_of(c):
+        lineage = _dict(c.get('lineage')) or {}
+        sup = lineage.get('supersedes')
+        return [sid for sid in sup if isinstance(sid, str)] if isinstance(sup, list) else []
+
     def immediate_ids(c):
         found = set()
         if c['id'] in base:
             found.add(c['id'])
-        lineage = _dict(c.get('lineage')) or {}
-        for sid in lineage.get('supersedes') or []:
+        for sid in supersedes_of(c):
             if sid in base:
                 found.add(sid)
         for rid in member_ids(c):
@@ -263,24 +308,27 @@ def attach_priors(clusters, baseline):
         return sorted(found)
 
     plans = [(c, immediate_ids(c)) for c in clusters]
+    # a split needs several current clusters that actually share members with the source; an identity-only
+    # match (a same-id replacement population) is not one of its children
     successors = {}
     for c, ids in plans:
+        shared = set(member_ids(c))
         for sid in ids:
-            successors[sid] = successors.get(sid, 0) + 1
+            if shared & set(member_ids(base[sid])):
+                successors[sid] = successors.get(sid, 0) + 1
 
     for c, source_ids in plans:
         if not source_ids:
             c['prior'] = None
             continue
         current_ids = member_ids(c)
-        lineage = _dict(c.get('lineage')) or {}
         if len(source_ids) > 1:
             relationship = 'merge'
-        elif successors[source_ids[0]] > 1:
+        elif successors.get(source_ids[0], 0) > 1:
             relationship = 'split'
         elif source_ids[0] == c['id']:
             relationship = 'same-id'
-        elif source_ids[0] in (lineage.get('supersedes') or []):
+        elif source_ids[0] in supersedes_of(c):
             relationship = 'supersedes'
         else:
             relationship = 'overlap'
@@ -302,14 +350,11 @@ def attach_priors(clusters, baseline):
             if key in seen:
                 retained.remove(s)
             seen.add(key)
-        views = set()
-        for s in sources:
-            mem = _dict(base[s['cluster_id']].get('members')) or {}
-            views |= {v for v in (mem.get('views') or []) if isinstance(v, str)} if isinstance(mem.get('views'), list) else set()
+        scopes = [_source_views(base[s['cluster_id']]) for s in sources]
         c['prior'] = {
             'run_id': identity['run_id'], 'observed_at': identity['observed_at'],
             'source_url': identity['source_url'], 'write_mode': identity['write_mode'],
-            'observation_complete': complete is not None and views <= complete,
+            'observation_complete': (complete is not None and all(v is not None and v <= complete for v in scopes)),
             'relationship': relationship,
             'sources': sources + retained,
             'member_delta': {'added': sort_ids(i for i in current_ids if i not in union),
