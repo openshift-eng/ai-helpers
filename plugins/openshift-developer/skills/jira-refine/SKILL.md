@@ -103,6 +103,10 @@ reason to close.
 
 Start with the exact version/build reported, including platform, configuration,
 and upgrade conditions. Treat existing "Affects Version/s" values as claims.
+When the report includes a stack trace or a log with file:line frames, match
+the frames' functions and line numbers against release branches to find the
+release that produced it before relying on Affects Version/s or payload
+inference.
 For each relevant release record one of:
 
 - **Reported:** the version and its supporting report, logs, or CI failure.
@@ -128,7 +132,10 @@ Assess both yourself, citing evidence and uncertainty:
   and whether the impact justifies a change.
 - **Solution and risk:** compare the proposed fix with existing patterns and
   smaller alternatives. Check ownership, compatibility, rollout effects on
-  existing clusters, and meaningful validation.
+  existing clusters, and meaningful validation. Before removing a fallback or
+  turning a degraded path into an error, find out why it exists (commit
+  history, managed-policy permissions) and keep it working for the clusters
+  that rely on it.
 
 Missing logs or reproduction remain gaps, and a green fixture test does not
 prove the original workflow is fixed.
@@ -166,8 +173,9 @@ Writes happen only in `auto`, or in `confirm` after the user accepts them.
    priority/severity if relevant, one or two evidence links, next step (for
    `CLOSE`, the resolution being applied), and the marker below. No essays, no
    repeated issue text, no bullet inventories of every finding. A `SOLVE`
-   comment is one or two sentences pointing at the refined description. Leave
-   customer identifiers and support-case details out.
+   comment is one or two sentences naming the next step (target repository and
+   branch, plus backport branches) and pointing at the refined description.
+   Leave customer identifiers and support-case details out.
 3. **Close** (`CLOSE` only): after the comment is verified and before any
    labels, call
    `transition_jira_issue(issue_key, target_status=..., resolution="Won't Do")`
