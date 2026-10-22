@@ -48,7 +48,8 @@ def main():
     except ValueError:
         return 0
     tool = event.get("tool_name", "")
-    if tool.startswith("mcp__jira-stub__"):
+    # Codex reports MCP tools with the server name's hyphens as underscores.
+    if tool.replace("-", "_").startswith("mcp__jira_stub__"):
         return 0
     network = tool in NETWORK_TOOLS or tool.startswith("mcp__")
     tool_input = json.dumps(event.get("tool_input", {}))

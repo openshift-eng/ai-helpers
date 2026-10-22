@@ -8,8 +8,8 @@
     "/pulls(?![/\\d])",
     "pullRequests\\s*\\(",
     "\\bai-helpers\\b",
-    "\\bsearch\\b.*\\bOCPBUGS-132796\\b",
-    "\\bOCPBUGS-132796\\b.*\\bsearch\\b"
+    "\\bgh\\s+search\\s+\\w+[^|;&\\n]*\\bOCPBUGS-132796\\b",
+    "\\bsearch/\\w+\\b[^|;&\\n]*\\bOCPBUGS-132796\\b"
   ],
   "blocked_research_sha256": [
     "2ab4e55c7fdf332c78e4f36966a981f452ffb6758026085a4ad9df565a1df82d",
