@@ -90,13 +90,13 @@ def _identity(baseline):
 
 
 def _complete_views(baseline):
+    """The views the baseline run fetched completely (None when it recorded none): a partial fetch of one
+    view leaves the memory of clusters in other views complete."""
     obs = _dict(baseline.get('observation')) or {}
     views = obs.get('views')
     if not isinstance(views, list) or not views:
         return None
-    if any(not isinstance(v, dict) or v.get('fetch') != 'complete' for v in views):
-        return None
-    return {v.get('view') for v in views}
+    return {v.get('view') for v in views if isinstance(v, dict) and v.get('fetch') == 'complete'}
 
 
 def _evidence_refs(analysis):
