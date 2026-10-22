@@ -273,7 +273,10 @@ One row per master node per snapshot, aggregating the singleton pods placed on t
 | SingletonAvgMemoryUsageMB | FLOAT | Average use over the window |
 | SingletonPeakMemoryUsageMB | FLOAT | Peak use over the window |
 
-Masters with `SingletonPods = 0` have all-zero memory columns. Filter them out before averaging memory per master (about 22% of rows in the 7-day sample).
+Masters with `SingletonPods = 0` have all-zero memory columns (about 22% of rows in the 7-day sample). Whether to include them in an average depends on the question:
+
+- **Average per occupied master** ("how heavy is a master that hosts singletons"): filter with `SingletonPods > 0`.
+- **Average across all masters** ("how is singleton memory spread over the cluster"): keep the zero rows. Filtering them out shrinks the denominator and inflates the result.
 
 **Use case**: Detect singletons concentrated on one master, find masters with no singletons, compare per-master singleton memory to request.
 
@@ -287,7 +290,7 @@ One row per singleton pod per snapshot.
 | PodName | STRING | Pod name, includes the replicaset/pod hash |
 | NodeName | STRING | Master the pod ran on |
 | PodAgeSeconds | INTEGER | Pod age when the snapshot was taken. A pod rescheduled to another master gets a different `PodName` |
-| MemoryRequestMB | FLOAT | Memory request. **Can be 0** — guard divisions |
+| MemoryRequestMB | FLOAT | Memory request. **Can be 0** — use `SAFE_DIVIDE` for ratios rather than filtering the rows out |
 | StartMemoryUsageMB | FLOAT | Memory use at start |
 | EndMemoryUsageMB | FLOAT | Memory use at end |
 | AvgMemoryUsageMB | FLOAT | Average over the window |
@@ -386,10 +389,9 @@ SELECT
   Deployment,
   COUNT(*) AS samples,
   ROUND(AVG(EndMemoryUsageMB - StartMemoryUsageMB), 1) AS avg_growth_mb,
-  ROUND(AVG(PeakMemoryUsageMB / MemoryRequestMB), 2) AS avg_peak_to_request
+  ROUND(AVG(SAFE_DIVIDE(PeakMemoryUsageMB, MemoryRequestMB)), 2) AS avg_peak_to_request
 FROM `openshift-ci-data-analysis.ci_data_autodl.control_plane_singleton_pods`
 WHERE PartitionTime >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
-  AND MemoryRequestMB > 0
 GROUP BY Namespace, Deployment
 HAVING samples >= 5
 ORDER BY avg_growth_mb DESC
