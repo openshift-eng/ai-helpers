@@ -456,6 +456,13 @@ def _rule_carry_fact(p, source):
     return []
 
 
+def _typed_evidence(c):
+    """(prowjob_run_id as text, supported ids) for current evidence items whose run id is an id; the single
+    population used for own_run_ids references and for carry coverage."""
+    return [(str(ev.get("prowjob_run_id")), _ids(ev.get("supports_regression_ids")))
+            for ev in _evidence_items(c) if _is_id(ev.get("prowjob_run_id"))]
+
+
 def _rule_carry(w, p, c, an, rev, own, locators):
     """Eligibility of a carried-forward analysis: one finished, overlapping immediate source of known identity
     and time, complete observation, high confidence on both sides, same state, non-HIGH and not promoted,
@@ -493,6 +500,9 @@ def _rule_carry(w, p, c, an, rev, own, locators):
                     % (p, len(immediate)))
         return errs
     s = immediate[0]
+    if rev.get("source_cluster_ids") != [s.get("cluster_id")]:
+        errs.append("%s: carry source_cluster_ids %r must name exactly the sole immediate source %r"
+                    % (p, rev.get("source_cluster_ids"), [s.get("cluster_id")]))
     if s.get("unfinished") is not False:
         errs.append("%s: the immediate source is unfinished; nothing to carry" % p)
     if not _ids(s.get("matched_member_ids")):
@@ -520,9 +530,9 @@ def _rule_carry(w, p, c, an, rev, own, locators):
         errs.append("%s: basis %r must equal the source analysis basis %r" % (p, rev.get("basis"), basis))
     errs += _rule_carry_fact(p, s)
     checked = set()
-    for ev in _evidence_items(c):
-        if str(ev.get("prowjob_run_id")) in own:
-            checked |= _ids(ev.get("supports_regression_ids"))
+    for run_id, supported in _typed_evidence(c):
+        if run_id in own:
+            checked |= supported
     targets = set()
     pa = d.get("proposed_action") if isinstance(d.get("proposed_action"), dict) else {}
     if pa.get("type") in WRITE_TYPES:
@@ -588,7 +598,7 @@ def _rule_reverification(w, c):
         errs.append("%s: own_run_ids must not repeat" % p)
     if rev.get("checked_at") is None:
         errs.append("%s: checked_at is required for every record" % p)
-    current_runs = {str(ev.get("prowjob_run_id")) for ev in _evidence_items(c) if _is_id(ev.get("prowjob_run_id"))}
+    current_runs = {run_id for run_id, _ in _typed_evidence(c)}
     missing = [r for r in own if r not in current_runs]
     if missing:
         errs.append("%s: own_run_ids not present in current evidence (as string or integer prowjob_run_id): %s" % (p, missing))
@@ -601,10 +611,12 @@ def _rule_reverification(w, c):
         immediate = sorted(s.get("cluster_id") for s in (pr.get("sources") if isinstance(pr.get("sources"), list) else [])
                            if isinstance(s, dict) and s.get("history_only") is False and isinstance(s.get("cluster_id"), str))
         declared = rev.get("source_cluster_ids") if isinstance(rev.get("source_cluster_ids"), list) else None
-        if declared is not None and all(isinstance(x, str) for x in declared) \
-                and (sorted(declared) != immediate or len(set(declared)) != len(declared)):
-            errs.append("%s: source_cluster_ids %r must name the immediate sources %r exactly once each"
-                        % (p, declared, immediate))
+        if declared is not None and all(isinstance(x, str) for x in declared):
+            if declared != sorted(set(declared)):
+                errs.append("%s: source_cluster_ids %r must be sorted and duplicate-free" % (p, declared))
+            foreign = sorted(set(declared) - set(immediate))
+            if foreign:
+                errs.append("%s: source_cluster_ids %r are not immediate sources of this prior %r" % (p, foreign, immediate))
     if rev.get("outcome") == "incomplete":
         errs += _rule_incomplete(w, p, c, an)
     members = _ids(c["members"].get("regression_ids")) if isinstance(c.get("members"), dict) else set()
