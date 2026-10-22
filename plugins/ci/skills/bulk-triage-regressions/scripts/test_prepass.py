@@ -725,6 +725,17 @@ class PriorMemoryTest(unittest.TestCase):
             self.assertEqual(doc['clusters'][0]['lineage']['first_seen_run'], 'r0')
             self.assertEqual(doc['clusters'][0]['lineage']['cycles_seen'], 2)
             self.assertEqual(doc['clusters'][0]['members']['new_since_baseline'], [2])
+        for bad in (['unavailable'], {'run': 'x'}, True, ''):
+            with self.subTest(first_seen_run=bad):
+                base = json.loads(json.dumps(r0))
+                base['clusters'][0]['lineage']['first_seen_run'] = bad
+                doc = p.weekly(regs, self.NOW, base, run_id='r1')
+                self.assertEqual(doc['clusters'][0]['lineage']['first_seen_run'], 'r0')
+        with self.subTest(first_seen_run='kept when readable'):
+            base = json.loads(json.dumps(r0))
+            base['clusters'][0]['lineage']['first_seen_run'] = 'r-older'
+            doc = p.weekly(regs, self.NOW, base, run_id='r1')
+            self.assertEqual(doc['clusters'][0]['lineage']['first_seen_run'], 'r-older')
         for bad in ('3', True, 0, -1):
             with self.subTest(cycles=bad):
                 base = json.loads(json.dumps(r0))
@@ -781,7 +792,9 @@ class PriorMemoryTest(unittest.TestCase):
         self.assertNotIn('_members', c)
         no_baseline = p.weekly(regs, self.NOW, None, run_id='r1')
         self.assertTrue(all(x['prior'] is None for x in no_baseline['clusters']))
-        tripwire_doc = p.tripwire(regs, self.NOW, 24, None, run_id='t1')
+        recent = [reg(i, 'a', [run('9', start='2026-10-21T06:00:00Z')], opened='2026-10-21T04:00:00Z') for i in (1, 2)]
+        tripwire_doc = p.tripwire(recent, self.NOW, 24, r0, run_id='t1')
+        self.assertTrue(tripwire_doc['clusters'], 'the tripwire window must contain a cluster for this check to mean anything')
         self.assertTrue(all('prior' not in x for x in tripwire_doc['clusters']))
 
     def _three_clusters(self):

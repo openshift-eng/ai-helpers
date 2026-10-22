@@ -139,6 +139,25 @@ class ProjectionTest(unittest.TestCase):
         self.assertEqual(children[1]['prior']['member_delta']['removed'], [1, 2, 3, 4])
         self.assertEqual(children[0]['prior']['member_delta'], {'added': [], 'removed': [5, 6]})
 
+    def test_replacement_beside_a_real_successor_is_not_a_split(self):
+        base = baseline(source('c-a', [1]))
+        replacement, successor = attach([current('c-a', [2]), current('c-b', [1], supersedes=['c-a'])], base)
+        self.assertEqual(replacement['prior']['relationship'], 'same-id')
+        self.assertEqual(replacement['prior']['sources'][0]['matched_member_ids'], [])
+        self.assertEqual(successor['prior']['relationship'], 'supersedes')
+        self.assertEqual(successor['prior']['sources'][0]['matched_member_ids'], [1])
+
+    def test_malformed_lineage_and_members_do_not_crash(self):
+        base = baseline(source('c-a', [1]))
+        for sup in (5, 'c-a', {'c-a': 1}, None):
+            with self.subTest(supersedes=sup):
+                c = current('c-a', [1])
+                c['lineage']['supersedes'] = sup
+                self.assertEqual(attach([c], base)[0]['prior']['relationship'], 'same-id')
+        c = current('c-a', [1])
+        c['lineage'] = 'none'
+        self.assertEqual(attach([c], base)[0]['prior']['relationship'], 'same-id')
+
     def test_merge_keeps_all_sources(self):
         base = baseline(source('c-a', [1, 2]), source('c-b', [3, 4]))
         c = attach([current('c-a', [1, 2, 3])], base)[0]
@@ -188,6 +207,15 @@ class ProjectionTest(unittest.TestCase):
         self.assertEqual(s['watch_list'], base['watch_list'])
         self.assertEqual(s['unanalysed'], base['unanalysed'])
 
+    def test_unanalysed_entries_match_by_cluster_id_only(self):
+        base = baseline(source('c-a', [1]),
+                        unanalysed=[{'cluster_id': 'c-other', 'regression_id': 1, 'reason': 'budget', 'blast_radius': 'LOW'}])
+        s = attach([current('c-a', [1])], base)[0]['prior']['sources'][0]
+        self.assertEqual(s['unanalysed'], [])
+        self.assertIs(s['unfinished'], False)
+        base = baseline(source('c-a', [1]), watch_list=[{'regression_id': 1, 'view': '4.22-main', 'reason': 'LOW & new (<7d)'}])
+        self.assertEqual(len(attach([current('c-a', [1])], base)[0]['prior']['sources'][0]['watch_list']), 1)
+
     def test_action_status_is_not_promoted(self):
         base = baseline(source('c-a', [1], status='done'), source('c-b', [2]))
         c = attach([current('c-a', [1, 2])], base)[0]
@@ -233,6 +261,24 @@ class ProjectionTest(unittest.TestCase):
         self.assertIs(merged['prior']['observation_complete'], False)
         base['observation']['views'] = []
         self.assertIs(attach([current('c-a', [1])], base)[0]['prior']['observation_complete'], False)
+        # unknown source scope is never complete, even when every observed view is complete (review I3)
+        for views in (None, [], 'n/a', [3], [None]):
+            with self.subTest(source_views=views):
+                src = source('c-a', [1])
+                if views is None:
+                    del src['members']['views']
+                else:
+                    src['members']['views'] = views
+                self.assertIs(attach([current('c-a', [1])], baseline(src))[0]['prior']['observation_complete'], False)
+        src = source('c-a', [1])
+        del src['members']['views']
+        partial = baseline(src, views=())
+        partial['observation']['views'] = [{'view': '4.22-main', 'fetch': 'partial'}]
+        self.assertIs(attach([current('c-a', [1])], partial)[0]['prior']['observation_complete'], False)
+        # a malformed view name in the observation list is skipped, not a crash (review C2)
+        base = baseline(source('c-a', [1]))
+        base['observation']['views'].append({'view': [], 'fetch': 'complete'})
+        self.assertIs(attach([current('c-a', [1])], base)[0]['prior']['observation_complete'], True)
 
     def test_triage_only_low_has_no_basis_and_legacy_values_are_opaque(self):
         src = source('c-a', [1], state='UNEXPLAINED', depth='triage-only', confidence='low',
@@ -374,8 +420,14 @@ class RetentionTest(unittest.TestCase):
         self.assertEqual([(s['run_id'], s['history_only']) for s in c2['prior']['sources']], [('r1', False)])
 
     def test_malformed_embedded_prior_yields_no_retained_snapshots(self):
-        for bad in ('x', {'sources': 'none'}, {'sources': [None, 3, {'history_only': 'yes'}]}):
-            with self.subTest(bad=bad):
+        finished = {'run_id': 'r0', 'observed_at': OBS, 'cluster_id': 'c-a', 'history_only': False, 'unfinished': False,
+                    'member_ids': [1], 'analysis': {'depth': 'deep-dive', 'confidence': 'high', 'root_cause': 'ok',
+                                                    'root_cause_truncated': False, 'evidence_refs': [], 'basis': None}}
+        for bad in ('x', {'sources': 'none'}, {'sources': [None, 3, {'history_only': 'yes'}]},
+                    {'sources': [dict(finished, run_id=[]), dict(finished, observed_at={'t': 1}), dict(finished, cluster_id=7),
+                                 dict(finished, analysis='prose'), dict(finished, analysis={'root_cause': 5}),
+                                 dict(finished, member_ids='1', analysis={'depth': 'none'})]}):
+            with self.subTest(bad=str(bad)[:60]):
                 c = current('c-a', [1])
                 c['disposition'] = copy.deepcopy(self.UNANALYSED)
                 c['actions'] = []
@@ -384,6 +436,36 @@ class RetentionTest(unittest.TestCase):
                 r1 = baseline(c, run_id='r1')
                 c2 = attach([current('c-a', [1])], r1)[0]
                 self.assertEqual([s['history_only'] for s in c2['prior']['sources']], [False])
+
+    def test_retained_snapshot_is_renormalised_to_the_projection_contract(self):
+        r0 = baseline(self.r0_source(), run_id='r0')
+        c = current('c-a', [1])
+        prior.attach_priors([c], r0)
+        snap = c['prior']['sources'][0]
+        snap['analysis']['root_cause'] = 'y' * 2001          # oversize prose smuggled into history
+        snap['analysis']['extra'] = 'not part of the contract'
+        snap['analysis']['evidence_refs'].append({'prowjob_run_id': '', 'supports_regression_ids': []})
+        snap['analysis']['basis'] = {'run_id': 'r0', 'depth': 'guess'}
+        snap['oracle'] = 'broken'
+        snap['actions'] = 'none'
+        snap['state'] = 7
+        snap['stray'] = True
+        c['disposition'] = copy.deepcopy(self.UNANALYSED)
+        c['actions'] = []
+        c['escalation'] = {'required': False, 'reason': 'not required'}
+        r1 = baseline(c, run_id='r1', observed='2026-10-13T12:00:00Z')
+        kept = attach([current('c-a', [1])], r1)[0]['prior']['sources'][1]
+        self.assertIs(kept['history_only'], True)
+        self.assertEqual(kept['analysis']['root_cause'], 'y' * 2000)
+        self.assertIs(kept['analysis']['root_cause_truncated'], True)
+        self.assertNotIn('extra', kept['analysis'])
+        self.assertEqual(len(kept['analysis']['evidence_refs']), 1)
+        self.assertIsNone(kept['analysis']['basis'])
+        self.assertIsNone(kept['oracle'])
+        self.assertIsNone(kept['actions'])
+        self.assertIsNone(kept['state'])
+        self.assertNotIn('stray', kept)
+        self.assertEqual(sorted(kept), sorted(prior.SOURCE_KEYS))
 
 
 class GraphInternalsTest(unittest.TestCase):

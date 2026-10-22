@@ -307,7 +307,8 @@ def diff_baseline(clusters, baseline, run_id='local'):
             prev = base[c['lineage']['supersedes'][0]]   # same cluster under a new id (collision came or went)
         if prev:
             lineage = prev.get('lineage') if isinstance(prev.get('lineage'), dict) else {}
-            c['lineage']['first_seen_run'] = lineage.get('first_seen_run') or block['run_id']
+            first = lineage.get('first_seen_run')
+            c['lineage']['first_seen_run'] = first if prior.is_id(first) else block['run_id']
             c['lineage']['cycles_seen'] = _cycles(lineage) + 1
         else:
             c['lineage']['first_seen_run'] = run_id
