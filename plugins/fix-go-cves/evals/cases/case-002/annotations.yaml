@@ -40,6 +40,29 @@ recorded_evidence:
     repair. Account identifiers sanitized; shell flags and escaping retained.
   limits: Historical recorded output only; no admitted native catalog proof or current-engine
     execution.
+  native_catalog_observations:
+    cataloger_task_completion_log_lines: [240, 385, 648, 13083, 13356]
+    task_observation: go-module-binary-cataloger task completed.
+    finding_locations:
+    - /bin/linux/amd64/await-node-ready
+    - /bin/linux/amd64/submariner-gateway
+    - /bin/linux/amd64/submariner-globalnet
+    - /bin/linux/amd64/submariner-route-agent
+    final_finding_log_line_range: [13412, 13447]
+    proof_boundary: >-
+      Task-completion messages and finding locations are recorded, but no retained
+      catalog-location/file-hash/build-provenance proof authenticates native catalog
+      coverage of those four binaries. Such coverage remains unverified.
+  historical_toolchain_setting:
+    observed_GOTOOLCHAIN: unknown
+    reviewer_log_line: 13387
+    reviewer_observation: >-
+      Containerized builds typically run with GOTOOLCHAIN=local.
+    evidence_boundary: >-
+      This is a nested reviewer's generalization, not an observed setting for the
+      historical target build. No recorded target configuration establishes that
+      build's GOTOOLCHAIN setting. The current replay host environment does not
+      authenticate the historical container configuration.
   verification_audits:
     evidence_type: Historical run.log.gz observations, not typed runtime receipts.
     results:

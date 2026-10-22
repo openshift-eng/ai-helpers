@@ -206,9 +206,9 @@ current files per case rather than freezing their bytes with the YAML alone.
 
 Original recordings 002/005 under `.work/fix-go-cves-evals/source/` are now
 packaged; 007 is a later live capture. Case 002's applicable publication/builder
-V4 controls passed 10/10 majorities and 30/30 expected samples. Preserve the
-earlier false-positive calibrations and criterion-bleed errors. Admission and
-calibration do not establish actor acceptance.
+[calibrated controls](../evals/cases/case-002/calibration.md) preserve both corrected
+witness boundaries and earlier false positives/criterion-bleed errors. Admission
+and calibration do not establish actor acceptance.
 Admit another only for a concrete new decision/regression. Prepare its complete
 artifacts model-free and calibrate applicable criteria before measurement.
 

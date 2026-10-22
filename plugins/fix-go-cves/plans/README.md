@@ -11,8 +11,9 @@ The [testing strategy](testing.md) owns durable acceptance and environment rules
 The runtime/contract treatment is implemented and locally verified. Actor source
 variants still fail independent whole-reply review, including stock false positives.
 The handoff source group improves blocked 005 but still fails 007 and native
-coverage reporting. The next treatment uses quoted failure evidence and explicit
-action/owner rows, then measures a committed candidate from a detached worktree. The
+coverage reporting. The next treatment relays only script-emitted scope and uses verbatim evidence
+with imperative action/owner rows, then measures a committed detached-worktree
+candidate. The
 [implementation results](../evals/implementation-results.md) own all source-group
 outcomes and local checks; the
 [acceptance sequence](e2e-simplification.md#ordered-work-and-execution-budget)

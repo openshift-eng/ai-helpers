@@ -18,8 +18,9 @@ Positive recording 002 uses an applicable publication/builder scoring profile
 sharing replay execution/contract configuration. Its [calibration](cases/case-002/calibration.md)
 retains the failed initial oracle and corrected independent Summary witness:
 V4: 10/10 expected majorities, 30/30 expected samples, zero sample errors.
-Earlier failed calibrations remain recorded; this control set does not prove all
-future factual errors will be detected.
+V5 adds two actual/corrected scope/environment controls: 2/2 majorities and 6/6
+samples match. Preserve the actual actor false positive and unsound extra rationale
+criticisms. These bounded controls do not prove general factual reliability.
 
 | Local check | Result |
 | --- | --- |
@@ -28,6 +29,11 @@ future factual errors will be detected.
 | Focused evidence / Go guards / reviewer checks | 349 / 34 / 14 passed |
 | Model-free 005/007/positive-002 replay | Expected retained commits and exit 2 reproduced |
 | Strict site build / clean-snapshot lint | Passed before this documentation update |
+
+Native outcome [controls](live/calibration.md) now reject the two known native
+reply errors by majority (4/4 expected majorities, 11/12 expected samples), retaining
+one wrong-builder false-positive sample. The initial calibration accepted both
+known negatives; all original grades remain preserved.
 
 Earlier shell runs were invalidated by concurrent edits or an obsolete physical-
 line assertion. A behavioral build test replaced that assertion; the immutable
@@ -61,6 +67,8 @@ review. A passing majority does not erase a factual error.
 | Handoff: `simplify-handoff-replay007-20261022-01` | C/B pass, A fail | Reject unsupported syncer cause and missing investigation owner/action despite accurate attempt outcomes |
 | Handoff native: `simplify-handoff-live003-20261022-01` | C/O/A pass | Runtime proof/gates pass; reject blanket native-unverified claim contradicting quoted positive scope |
 | Handoff native: `simplify-handoff-live004-20261022-01` | C/O/A pass | runtime proof/gates pass; reject wrong builder/owner imported from nested reviewer narrative |
+| Observed evidence: `simplify-observed-replay-pilots-20261022-01` | 005 C/B/A pass; 007 C/B pass, A fail | 005 accepts; 007 rejects unsupported pre-existing/flaky label and rerun prediction despite correct attempts |
+| Observed positive: `simplify-observed-publication-20261022-01` | C/O/A pass | Reject inferred native proof and categorical toolchain setting; literal recipe, owner/prerequisite and read-only behavior pass |
 
 Live 001 exposed an oracle defect: the final scan ran at the executed release
 HEAD, then empty-branch cleanup restored the original devel HEAD. The old helper
@@ -83,18 +91,22 @@ select actor effort `max`. The complete current skill subtree is staged alongsid
 the historical runtime, including reporting references and removal of obsolete
 reference files.
 
-The handoff source group improved blocked 005 but still failed 007 and native
-scope reporting. Both real native runs independently establish initial/final
+The handoff and observed-evidence groups improved blocked 005 but still failed
+007 and optional scope/technical explanations. Both real native runs independently establish initial/final
 binary catalog/hash/clean-VCS proof, unit tests, four audits and license checks.
 They retain partial repairs with one stdlib finding: the current database requires
 Go 1.26.10 while the builder supplies 1.26.9. This is valid blocked coverage, not
 stdlib remediation or accepted invoking-agent behavior.
 
-The next reporting treatment replaces diagnostic prose with observed excerpts,
-action and owner/prerequisite rows. Scope already printed in the terminal block
-gets no additional interpretation. This addresses measured errors without adding
-runtime orchestration. Freeze its complete source in a detached worktree before
-measurement; later documentation edits must not affect actor/helper inputs.
+The observed-evidence treatment was committed and measured from detached
+`5ace9fdb`. Its table still allowed unsupported rationale in action cells. The next
+treatment uses only literal evidence, imperative actions and owner/prerequisites;
+passing retries retain a maintainer investigation. Scope belongs to emitted script
+statements, with a fixed unverified fallback when absent. Task-completion messages
+and finding paths alone establish no catalog proof. Rejected alternatives and
+unobserved technical explanations are omitted. No runtime orchestration changes
+are required. Freeze the next complete candidate before measurement; preserve
+older worktrees and do not pool source groups.
 
 Scratch evidence is under `.work/fix-go-cves-implementation-20261022/`:
 `candidate-protocol.json`, `publication-v2-protocol.json`,

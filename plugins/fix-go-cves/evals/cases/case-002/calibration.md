@@ -1,174 +1,93 @@
-# Positive publication recording
+# Positive publication recording and calibration
 
-This historical Submariner release-0.24 recording retains result
-`2716c2fffebad84210293229442c4fd9eb582eba`, whose sole parent is the pinned
-`e9b4dec4944cbbf8d630603904fb6e0f82a2b566` base. The original ref was `devel`,
-pinned at `fb518adb012b060e4e5ec252cc34b92cab99cac1`. Runtime exit 2 records a
-partial dependency repair with remaining standard-library findings and a real
-positive publication recipe. It does not establish current-engine or independently
-authenticated native catalog coverage.
+Submariner `release-0.24` exited 2 after a partial x/net repair, with 36 remaining
+stdlib findings (nine advisories across four binaries) and a real publication recipe.
+This historical replay does not establish current-engine or authenticated native coverage.
 
-The full raw log SHA-256 was
-`6e6d9465372c0c1792aafaec722ba0aca9999ce2670cde70147d9ca174e5070b`.
-The packaged log replaces the historical checkout path with `{{REPO}}` and home
-prefix with `{{HOME}}`; publication account identifiers become `fork` and
-`example`. Command flags and shell escaping remain intact. The plugin archive
-and result bundle retain their original bytes. Preparation substitutes today's
-skill using the existing replay mechanism; session metadata is not packaged.
+- Result: `2716c2fffebad84210293229442c4fd9eb582eba`.
+- Sole parent/base: `e9b4dec4944cbbf8d630603904fb6e0f82a2b566`.
+- Default/original ref: `devel` at `fb518adb012b060e4e5ec252cc34b92cab99cac1`.
+- Raw log SHA-256: `6e6d9465372c0c1792aafaec722ba0aca9999ce2670cde70147d9ca174e5070b`.
 
-The reference preserves the witnessed Summary and recipe, then assigns the build
-image patch update to Shipyard maintainers and verification after image publication.
-The publication negatives respectively remove the recipe and change only its
-`--base release-0.24` argument to `--base devel`. The ownership negative preserves
-the recipe but omits the responsible owner and required update-before-rerun advice.
+The packaged log replaces checkout/home paths with `{{REPO}}`/`{{HOME}}` and recipe
+accounts with `fork`/`example`, preserving flags and shell escaping. Plugin archive
+and bundle retain their bytes; preparation substitutes today's invoking skill.
+Session metadata is excluded. The reference retains the witnessed Summary/recipe,
+Shipyard image owner and image-publication-before-rerun prerequisite.
 
-## Judge calibration
+## Declared controls and ownership
 
-V1 and V2 use harness `1a980e707909a23f8c143ce333d97f5203db34ab`, judge
-`claude-opus-4-6`, four fixed controls and three samples per criterion: 24 judge
-calls and zero actor executions per version. Existing Admiral backport criteria
-do not apply to this recording. Expected labels are:
+O = outcome; A = action_owner. Each configured criterion has three samples.
 
-| Control | outcome | action_owner |
+| Control | Expected O/A |
+| --- | --- |
+| Reference | true / true |
+| Missing recipe (remove only the recipe) | false / true |
+| Invented recipe base (`release-0.24` → `devel`) | false / false |
+| Missing builder owner/prerequisite | true / false |
+| False check scope (reference + false “only make unit” claim) | V3: false/false; V4: false/true |
+| V5 actual proof/configuration negative | false / unscored |
+| V5 corrected proof/configuration reference | true / unscored |
+
+V1/V2 use the first four controls; V3/V4 use five; V5 admits only its final pair.
+V4 assigns all past/present facts to O and supported future actions/owners/prerequisites
+to A. A wrong-target publication command remains an invalid future procedure.
+Moving the false-check error to O preserves conjunctive rejection of every negative.
+Reporting every gate is not required; contradicting an observed gate fails O.
+The reference's true original ref was added to the independent evidence in V4.
+
+## Measurements and preserved failures
+
+All versions use harness `1a980e707909a23f8c143ce333d97f5203db34ab` and judge
+`claude-opus-4-6`, with zero actor executions and zero API/sample errors.
+
+| Version | Judge calls | Correct samples | Correct majorities | Seconds | Result/limitation |
+| --- | --- | --- | --- | --- | --- |
+| V1 | 24 | 17/24 | 6/8 | not recorded | Invented-base O/A both TTT; missing-owner O=TFT |
+| V2 | 24 | 23/24 | 8/8 | 141.86 | Invented-base O/A both FFF; missing-owner O=TFT |
+| V3 | 30 | 27/30 | 9/10 | 146.75 | False-check O=TTT/A=FFF; all samples stable |
+| V4 | 30 | 30/30 | 10/10 | 126.41 | All five controls match, each unanimous |
+| V5 | 6 | 6/6 | 2/2 | 117.85 | Actual negative FFF; corrected reference TTT |
+
+V1 lacked an independent Summary witness: judges authenticated the reply using its
+own block. V2 supplies `recorded_evidence.summary` and compares against it. V1/V2's
+false missing-owner O sample imports A requirements. V3 adds trusted audit/license
+facts but O acknowledges the false check claim and discounts it as minor while
+also judging A. A rejects that control, preserving the factual conjunction. V4
+separates responsibilities; its retained explanations apply the declared ownership.
+These calibration successes do not prove criterion bleed is eliminated generally.
+
+V3 witnesses are historical log observations, not fabricated typed receipts:
+four audit PASS/zero-issue lines 13120–13123, completion 13124, license command
+13449 and passing result 13674. V5 distinguishes cataloger-task completion
+(lines 240/385/648/13083/13356) and binary finding paths (13412–13447) from absent
+catalog-location/hash/build-provenance proof. The only historical `GOTOOLCHAIN`
+mention is nested reviewer “typically local” prose at 13387, not observed target
+configuration. Current replay-host settings do not authenticate that old container.
+V5 retains V4 prompts/criteria and changes only those witnesses and two observations
+in its corrected reply; every other action-table cell and the Summary stay intact.
+
+V5 labels match, but reasoning remains imperfect: a retained rationale wrongly
+calls full-log advisory IDs fabricated because compact annotations omit their list,
+and discusses the GOEXPERIMENT gloss as unsupported. Correct labels are not proof
+that every rationale is sound; representative explanations do not explain each sample.
+
+## Actor evidence and artifact locations
+
+| Actor run | Original stock contract/O/A | Independent whole-reply review |
 | --- | --- | --- |
-| Reference | true | true |
-| Missing recipe | false | true |
-| Invented recipe base | false | false |
-| Missing builder owner | true | false |
+| `simplify-reference-publication-20261022-01` | pass / TTT / TTT | Reject: false “only make unit” claim |
+| `simplify-final-publication-20261022-01` | pass / TTT / TTT | Accept under frozen criteria; one positive-relay pilot |
+| `simplify-observed-publication-20261022-01` | pass / TTT / TTT | Reject: unsupported native coverage and historical GOTOOLCHAIN assertion |
 
-V1 lacked the authoritative Summary in judge annotations. It accepted the
-invented recipe in all six relevant samples; judges treated the reply's own
-quoted block as its witness. One outcome sample also imported ownership
-requirements into the missing-owner control. Only 17/24 sample labels and 6/8
-majority labels matched expectations. Preserve this failed calibration under
-`.work/fix-go-cves-implementation-20261022/publication-calibration/`.
+Original scores remain unchanged. Calibration artifacts are under
+`.work/fix-go-cves-implementation-20261022/`: V1 `publication-calibration/`, then
+`publication-calibration-v2/` through `publication-calibration-v5/`. Each retains its
+declared protocol, frozen controls/configuration and complete sampled labels;
+independent result reviews are retained alongside the summaries where applicable.
 
-V2 supplies the witnessed Summary as `recorded_evidence.summary` and instructs both
-judges to compare against it rather than authenticate a reply using its own block.
-The four reply bytes and substantive criteria are unchanged. Results are:
-
-| Control | outcome samples | action_owner samples |
-| --- | --- | --- |
-| Reference | TTT | TTT |
-| Missing recipe | FFF | TTT |
-| Invented recipe base | FFF | FFF |
-| Missing builder owner | TFT | FFF |
-
-All eight majority labels match expectations; 23/24 individual labels match, with
-zero sample errors. The remaining false outcome sample explicitly applies the
-separate ownership criterion despite the prompt's scope. This is a semantic
-grader error, not a new requirement on the outcome criterion. Retain the
-disagreement; no unchanged calibration was retried to seek unanimity.
-
-V2 completed in 141.86 seconds. All 24 judge calls were unpriced, so total cost
-is unknown. Stock scoring exited 1 because negative controls fail production
-thresholds; calibration compares their labels with declared expectations.
-Frozen inputs, complete sampled results and the independent label review remain
-under `.work/fix-go-cves-implementation-20261022/publication-calibration-v2/`.
-Deterministic witness checks and whole-reply review remain necessary. These
-controls do not measure invoking-skill relay or accept the skill.
-
-## Logged-check evidence and V3
-
-The `simplify-reference-publication-20261022-01` actor reply falsely claimed that
-no checks beyond `make unit` were configured or run. Its original contract and
-both factual judges passed, each factual criterion with TTT samples. Independent
-whole-reply review rejects that reply: the full historical log records four
-verification audits and passing `make licensecheck`. Those facts were absent
-from the original judge annotations. Preserve the original grades as evidence
-of this oracle gap.
-
-The later `simplify-final-publication-20261022-01` pilot preserves one exact
-recipe, explicit native uncertainty and supported image ownership/prerequisites,
-without that false check claim. Its original contract and both factual judges
-pass with TTT samples, and independent whole-reply review accepts it under its
-frozen criteria. This is one accepted positive-relay pilot; blocked-case behavior,
-repeatability and current-engine acceptance remain separate requirements.
-
-V3 enriches only `recorded_evidence` with exact historical log observations:
-`existing-entries`, `fix-availability`, `scan-regression` and `yaml-integrity`
-report PASS with zero issues at lines 13120–13123, followed by `All subagents
-passed.` at 13124. The license command appears at 13449 and its passing result
-at 13674. These are historical log witnesses, not newly fabricated typed receipts.
-The criteria, judge prompts and first four control replies remain unchanged.
-The fifth control appends one false sentence to the clean reference:
-
-> No additional checks beyond `make unit` (which passed) were configured or run.
-
-V3 uses the same harness/model and three samples per criterion: exactly 30 judge
-calls and zero actor executions. Expected labels for the fifth control are false
-for both criteria. Results are:
-
-| Control | outcome samples | action_owner samples |
-| --- | --- | --- |
-| Reference | TTT | TTT |
-| Missing recipe | FFF | TTT |
-| Invented recipe base | FFF | FFF |
-| Missing builder owner | TTT | FFF |
-| False check scope | TTT | FFF |
-
-The outcome criterion still falsely accepts the new contradiction in all three
-samples. Its retained representative rationale recognizes the passing audits and
-license check, then discounts the false claim as minor while also evaluating
-the separate ownership criterion. Evidence enrichment closes the input gap but
-does not establish correct outcome grading. The action/owner criterion rejects
-that control, so the configured factual conjunction rejects the false reply.
-
-Only 27/30 sample labels and 9/10 majority labels match expectations, with zero
-sample errors. All labels are stable within this execution; stability does not
-make the erroneous outcome labels correct. The missing-owner outcome control
-passes TTT here, but the other scope error means earlier criterion bleed remains
-a known limitation. Representative rationale text does not explain every sample
-independently.
-
-V3 completed in 146.75 seconds; all 30 calls were unpriced. Stock scoring exited 1
-with intentionally failing negative controls. Frozen inputs, all sample labels
-and independent review remain in
-`.work/fix-go-cves-implementation-20261022/publication-calibration-v3/`.
-V1/V2 are preserved. No unchanged calibration was retried and no actor was rerun
-for this oracle correction. Further grader changes require a separately declared
-calibration; do not describe this version as passing every control.
-
-## V4: distinct factual and advice responsibilities
-
-V4 changes the publication-specific criterion ownership rather than repeating the
-V3 measurement. `outcome` owns the accuracy of every past/present factual claim
-throughout the reply, including extra claims about checks, scan scope and the
-literal Summary/recipe. `action_owner` owns supported future actions, owners,
-prerequisites and publication procedures, without the former broad historical
-factual-claim catchall. This does not require enumerating every observed check;
-it rejects claims that contradict those observations.
-
-The same five reply controls are preserved byte-for-byte. The false-check
-control's expected `action_owner` label changes to true because its proposed
-future actions are correct; `outcome` must reject its false historical claim.
-The wrong-base command still fails both criteria: it misstates the witnessed
-recipe and supplies a future publication procedure with the wrong target. Each
-known negative therefore retains conjunctive rejection. The evidence also gains
-the reference's true original ref, `devel`, matched to `input.yaml` and the
-prepared initial checkout. Earlier criteria, labels and grades remain preserved.
-
-V4 uses the same harness/model and three samples per criterion, with exactly
-30 judge calls and zero actor executions. All declared labels match:
-
-| Control | outcome samples | action_owner samples |
-| --- | --- | --- |
-| Reference | TTT | TTT |
-| Missing recipe | FFF | TTT |
-| Invented recipe base | FFF | FFF |
-| Missing builder owner | TTT | FFF |
-| False check scope | FFF | TTT |
-
-All 30/30 sample labels and 10/10 majority labels match, with zero sample errors.
-The retained representative explanations apply the intended ownership on the
-false-check and missing-owner controls and reject the wrong-base procedure.
-This is one successful control calibration, not proof that all possible errors
-or future criterion bleed are detected.
-
-The run completed in 126.41 seconds. All 30 calls were unpriced. Stock scoring
-exited 1 because negative controls fail production thresholds; their declared
-calibration labels are correct. Frozen inputs, all sample labels and independent
-review are under
-`.work/fix-go-cves-implementation-20261022/publication-calibration-v4/`.
-No unchanged retry or actor execution accompanied this correction. Calibration
-does not rescore earlier actor runs or establish whole-skill acceptance.
+All 114 judge calls were unpriced; total cost is unknown. Stock calibration exits
+are 1 because negative controls fail production thresholds; expected-label matching
+determines calibration success. No unchanged retry or actor rerun obtained these
+labels, and no calibration overwrites earlier actor grades. Repeatability, blocked
+cases, whole-skill acceptance and current remediation-engine acceptance remain open.

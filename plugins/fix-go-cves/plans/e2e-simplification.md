@@ -45,7 +45,7 @@ first-reference candidates failed; this is a recency hypothesis, not an establis
 remedy. Keep useful backport/image repair discovery while removing unsupported
 cause and future-result narratives. Authenticate reviewer suggestions against
 actual target configuration and command receipts before selecting an owner. The current entrypoint/reference total is
-159 lines versus the original 180; moving rules is not a vast total reduction.
+about 160 lines versus the original 180; moving rules is not a vast total reduction.
 
 Runtime output exposes available scan scope without duplicating the eval's full
 catalog-proof system. Reporting uncertainty remains separate from the blocking
@@ -76,10 +76,11 @@ runtime behavior opportunistically.
    runtime, helper and focused results are recorded in the results page; they do
    not accept invoking-agent behavior.
 2. **Freeze a reviewable candidate before further measurement.** The handoff
-   source group improves 005 but rejects 007 on cause/ownership and native 003
-   on contradictory coverage. Replace freeform diagnosis with observed excerpts,
-   action and owner/prerequisite rows; do not interpret coverage already printed
-   in the Summary. Preserve every prior trial. Commit the candidate and run from
+   and observed-evidence groups improve 005 but reject 007 on unsupported cause
+   and predictions. Optional prose still invents native proof or technical facts.
+   Use literal evidence cells, imperative action/owner/prerequisite rows and
+   script-emitted scope statements; passing retries retain an investigation.
+   Preserve every prior trial. Commit the candidate and run from
    a detached worktree so later edits cannot change staging or scoring bytes.
 3. **Inspect changed-candidate pilots before expanding.** Declare blocked 005,
    multi-attempt 007 and positive 002, source/helper/profile hashes, identities,

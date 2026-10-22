@@ -107,9 +107,8 @@ image before rerunning consumers. Preserve branch compatibility restrictions;
 unsupported migrations need the applicable maintainer decision. An `IGNORED`
 finding without a published fix needs no additional repair.
 
-Authenticate diagnoses against target source/config and actual command receipts.
-Nested reviewer prose or printed tool transcripts are hypotheses, not observed
-file reads; verify their claims before selecting a repair or owner.
+Verify diagnoses in target source/config and command receipts before selecting
+a repair or owner.
 
 Keep this investigation read-only: do not edit source/dependencies/ignores, apply
 or test a candidate repair, rerun scripts, clean up, push or create a PR.
