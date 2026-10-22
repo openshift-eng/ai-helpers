@@ -9,6 +9,7 @@ description: Use this skill for Component Readiness triage duty - holistically a
 
 ```
 bulk-triage-regressions <view> [--components comp1 comp2 ...] [--auto-triage] [--existing-only]
+bulk-triage-regressions --views <v1> <v2> ... --policy post-ga [--write-mode report|auto]
 ```
 
 Example: `bulk-triage-regressions 5.0-main --components Installer Unknown`
@@ -32,6 +33,10 @@ Use this skill when doing triage duty for a view, or whenever a user asks to "lo
 **Authentication**: Read steps (listing, fetching details, test runs, GCS artifacts) require no auth — Phases 1–3 and a read-only report must work without any credentials. Two Sippy hosts exist and the split matters: `https://sippy.dptools.openshift.org` is **public and read-only** (regressions, test details, and the full symptom/label catalog — see the `list-symptoms` skill), while **everything** on `https://sippy-auth.dptools.openshift.org` requires a DPCR Bearer token, including the `reevaluate` probe, which has no public equivalent (the route returns 404 on the public host). The only Phase 3 step that needs a token is therefore the *active* symptom probe. When it is unavailable (no token, or a `401`/`403`), treat the result as an **unknown — never as "no symptoms matched"**, the same error as reading a failed listing script as an empty inventory, and work down this fallback: (1) passive `label_summary` / `job_labels` from `fetch-regression-details`; (2) list the catalog from the public API with the `list-symptoms` skill and grep each plausible symptom's `match_string` against its `file_pattern` in the GCS artifacts you are already fetching — this reproduces the probe locally for the handful of symptoms related to the bucket's stage and platform; (3) only then the full evidence ladder, recording that the active probe was unavailable so the next shift knows the catalog was checked by hand. Write credentials are validated **only when writes are going to happen**: with `--auto-triage`, validate both up front (so an expired token surfaces before hours of analysis); otherwise validate at the start of Phase 4, before the first write. Sippy writes (creating/updating triage records) require a Bearer token from the DPCR cluster (`api.cr.j7t7.p1.openshiftapps.com:6443`) — see the `oc-auth` skill and the token-extraction snippet in `/ci:analyze-regression`; check with an authenticated GET against `https://sippy-auth.dptools.openshift.org/api/component_readiness/triages` (200 vs 401/403).
 
 JIRA writes (filing bugs, `set-release-blocker`, `add-jira-triage-link`) additionally require the `JIRA_USERNAME` and `JIRA_API_TOKEN` environment variables (API token from https://id.atlassian.com/manage-profile/security/api-tokens); verify with an authenticated GET against `https://redhat.atlassian.net/rest/api/3/myself` (Basic auth, 200 vs 401/403). If a required write credential is missing or invalid, pause before Phase 4 and ask the user to fix it — the analysis and report so far remain valid and must still be presented.
+
+### Phase 0: Run the pre-pass (post-ga only)
+
+With `--policy post-ga`, first run `scripts/prepass.py` with the given views. Treat the `prepass.json` clusters as the complete batch inventory: do not re-derive clusters, and do not call the list/details/related APIs for inventory. Analyse clusters in file order (HIGH first) within the time budget. A `symptom_probe.status` other than `ok` means unknown, never "no symptoms matched". Read and follow `references/post-ga-policy.md` for everything else in this mode, and skip Phase 1's collection steps.
 
 ### Phase 1: Collect the full batch
 
@@ -190,7 +195,7 @@ With `--auto-triage`, only act autonomously when confidence is high: consistent 
 
 #### Existing-only mode (`--existing-only`)
 
-This mode records matches to existing bugs but never files new JIRA issues. Analysis is unchanged. These rules apply to every write in any phase, including the Phase 1 stale-triage sweep:
+This mode records matches to existing bugs but never files new JIRA issues. Analysis is unchanged. `--policy post-ga` implies `--existing-only`. These rules apply to every write in any phase, including the Phase 1 stale-triage sweep:
 
 - **Allowed writes:** only for a verified match to an existing issue:
   - extend a triage, or create one for the existing issue;
@@ -307,9 +312,13 @@ Principles distilled from real mis-dispositions; full narratives in [case-notes.
 - `--auto-triage`: Allow high-confidence buckets to be triaged without per-bucket confirmation. New bug filing always requires confirmation.
 - `--existing-only`: Record matches to existing triages/JIRA issues but never file new JIRA issues; new-bug buckets become report proposals (see "Existing-only mode" in Phase 4).
 - `--audit-closed`: Read-only closed-set audit mode (see "Closed-set audit mode") — justifies why every closed untriaged regression closed. Mutually exclusive with normal duty triage and with `--auto-triage`; performs no writes.
+- `--views <v1> <v2> ...`: alternative to `<view>`; several views in one run.
+- `--policy pre-ga|post-ga`: default `pre-ga` — the daily pre-GA rules of this document (formerly called `duty`). `post-ga` is the weekly post-GA (`-main`) policy, defined in [post-ga-policy.md](references/post-ga-policy.md).
+- `--write-mode report|auto`: default `auto` for `pre-ga`, `report` for `post-ga`. `report` performs no Sippy or Jira writes.
 
 ## See Also
 
+- Reference: `references/post-ga-policy.md` — rulebook for `--policy post-ga` (pre-pass, write/notification policy, manifest)
 - Related Command: `/ci:analyze-regression` — single-regression deep dive; this skill orchestrates its techniques across a batch
 - Related Skill: `create` (jira plugin) — file new JIRA bugs via `/jira:create bug` (`plugins/jira/skills/create/SKILL.md`)
 - Related Skill: `list-regressions` (teams plugin) — batch listing (`plugins/teams/skills/list-regressions/SKILL.md`)
