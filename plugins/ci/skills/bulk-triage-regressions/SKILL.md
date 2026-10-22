@@ -313,8 +313,8 @@ Principles distilled from real mis-dispositions; full narratives in [case-notes.
 - `--existing-only`: Record matches to existing triages/JIRA issues but never file new JIRA issues; new-bug buckets become report proposals (see "Existing-only mode" in Phase 4).
 - `--audit-closed`: Read-only closed-set audit mode (see "Closed-set audit mode") — justifies why every closed untriaged regression closed. Mutually exclusive with normal duty triage and with `--auto-triage`; performs no writes.
 - `--views <v1> <v2> ...`: alternative to `<view>`; several views in one run.
-- `--policy duty|post-ga`: default `duty`. `post-ga` is the weekly post-GA (`-main`) policy, defined in [post-ga-policy.md](references/post-ga-policy.md).
-- `--write-mode report|auto`: default `auto` for `duty`, `report` for `post-ga`. `report` performs no Sippy or Jira writes.
+- `--policy pre-ga|post-ga`: default `pre-ga` — the daily pre-GA rules of this document (formerly called `duty`). `post-ga` is the weekly post-GA (`-main`) policy, defined in [post-ga-policy.md](references/post-ga-policy.md).
+- `--write-mode report|auto`: default `auto` for `pre-ga`, `report` for `post-ga`. `report` performs no Sippy or Jira writes.
 
 ## See Also
 
