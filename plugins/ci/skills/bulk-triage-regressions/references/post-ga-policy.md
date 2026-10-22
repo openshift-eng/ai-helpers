@@ -13,7 +13,7 @@ Rulebook for the weekly post-GA run. Read after SKILL.md. Phase 3's evidence and
 
 ## 2. Phase 0 inputs
 
-`prepass.py --views V... [--now ISO] [--baseline PATH|none] [--no-oracle] [--token-env DPCR_TOKEN] [--inventory PATH] [--run-id ID] --out prepass.json`. If `prepass.json` is absent or a view's `fetch` is not `complete`, say so in the report; an empty or failed fetch is never a clean board. Fields you use per cluster (clusters are sorted HIGH → ELEVATED → LOW, then score descending):
+`prepass.py --views V... [--now ISO] [--baseline PATH|none] [--no-oracle] [--token-env DPCR_TOKEN] [--inventory PATH] [--run-id ID] --out prepass.json`. If `prepass.json` is absent or a view's `fetch` is not `complete`, say so in the report; an empty or failed fetch is never a clean board. Fields you use per cluster (clusters are sorted HIGH → ELEVATED → LOW; within a level, clusters whose immediate prior source was left unfinished and still shares members come first, then score descending, then id):
 
 - `id`, `lineage`, `fingerprint`, `members` (regression ids, `new_since_baseline`, views, components), `shape`. In `shape`, `days_open` counts from the regression's (re)activation in the view — Sippy resets it when a test recovers briefly and regresses again — and is the rules' input; `regression_days_open` counts from Sippy's regression-level `opened` and is the age to quote in prose. Do not recompute either.
 - `blast_radius{level,score,reasons}`.
@@ -44,7 +44,7 @@ A null prior with an absent or incompatible baseline means this run starts witho
 | `KNOWN-CAUSE` | a fired label names a bug, or a related triage has sibling-release precedent | verify the bug's signature on ≥1 own run → extend/link |
 | `CANDIDATE` | a plausible bug exists, bar not yet met | deep-dive → link, or escalate/report |
 | `UNEXPLAINED` | no bug | `HIGH`/`ELEVATED` → escalate (mention only for `HIGH`); `LOW` ∧ new → watch one cycle; `LOW` ∧ persisting → needs-human (low) in the watch list (catch-all admission is off by default, §4) |
-| `UNANALYSED` | budget exhausted | listed prominently with reason; no write |
+| `UNANALYSED` | analysis or verification unfinished (budget, or a required §3a check that could not be completed) | listed prominently with reason; no write |
 
 Every cell has a no-write fallback. Persisting unexplained `LOW` work — singleton or small cluster — is "needs-human (low)" in the watch list, not a write.
 
@@ -64,8 +64,8 @@ Missing source run/time or incomplete prior observation disqualifies carry, but 
 |---|---|---|
 | any | current urgency is HIGH, including unchanged prior HIGH | fresh Phase 3 deep-dive; never `carried-forward`; keep escalation required |
 | no immediate source | baseline absent/incompatible, or no matching source | apply ordinary current urgency/watch rules; report missing memory, not zero change |
-| any | same ID but zero shared members | treat population as new; retain the family hypothesis and never transplant old member coverage |
-| any | split, merge, or overlap-only ancestry | re-investigate current signature groups; read all source decisions, choose no source by majority, keep conflicting targets separate |
+| any | `prior.relationship` is `same-id` and its sole immediate source has empty `matched_member_ids` | treat population as new; retain the family hypothesis (the old bug may stay a lead) and never transplant old member coverage |
+| any | `prior.relationship` is `split`, `merge` or `overlap` (a merge may include a same-id parent with no shared members beside an overlapping one) | re-investigate current signature groups; read all source decisions, choose no source by majority, keep conflicting targets separate |
 | unfinished immediate source | shared members still present, with or without retained useful history | analyse first within current urgency, starting from all useful context; no automatic carry |
 | LOW-and-new watch, not subsequently analysed | same members persist | first analysis is due; a view-age reset is not another automatic watch cycle |
 | analysed but ineligible history | missing source identity/time, incomplete prior observation, low/medium confidence, missing basis/evidence, unsupported depth, or truncated summary | re-investigate from the recorded leads; never upgrade incomplete history by inheritance |
@@ -200,7 +200,7 @@ Write the per-cluster JSON files, then merge and validate (`manifest.py` is in `
       "guards": {"existing_only_flag": null, "jql_audit": "unknown", "sippy_diff": "unknown", "junit_backstop": null}}}
    ```
 
-   `watch_list` items come from `prepass.json` `watch_list_candidates` plus `revisit`, and additionally every persisting unexplained `LOW` singleton (`needs-human (low)`). In `bug_search.candidates[]`, `exact_assertion` records that the bug's signature was verified in the cluster's own runs, `cites_own_runs` that the bug itself names one of those runs (rare; strongest evidence), `bar_met` the §4 gate. `catch_all.admitted` stays `[]` while admission is off (item shape when enabled: `{regression_id, rule_checks{examined, no_bug_meets_bar, not_in_cluster, pre_5_0}, signature, status}`). `audit` is a placeholder the runner overwrites; `validate` rejects `{}` or a missing key, so keep this exact skeleton. Use empty lists/objects (`[]`, `"admitted": []`) when there is nothing to report.
+   `watch_list` items come from `prepass.json` `watch_list_candidates` plus `revisit`, filtered through §3a/§8 — a candidate whose cluster is due for first analysis (previously deferred, members retained) or that you analysed this run is not listed as `LOW & new` — and additionally every persisting unexplained `LOW` singleton (`needs-human (low)`). In `bug_search.candidates[]`, `exact_assertion` records that the bug's signature was verified in the cluster's own runs, `cites_own_runs` that the bug itself names one of those runs (rare; strongest evidence), `bar_met` the §4 gate. `catch_all.admitted` stays `[]` while admission is off (item shape when enabled: `{regression_id, rule_checks{examined, no_bug_meets_bar, not_in_cluster, pre_5_0}, signature, status}`). `audit` is a placeholder the runner overwrites; `validate` rejects `{}` or a missing key, so keep this exact skeleton. Use empty lists/objects (`[]`, `"admitted": []`) when there is nothing to report.
 5. `python3 scripts/manifest.py merge --prepass prepass.json --dispositions dispositions.json --actions actions.json --extra extra.json --out triage-manifest.json`
 6. `python3 scripts/manifest.py validate triage-manifest.json` (exit 0 required; errors on stderr). Fix and re-run on exit 1; never weaken the data to pass.
 
