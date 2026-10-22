@@ -75,13 +75,22 @@ runtime behavior opportunistically.
    own publication/builder profile and calibrated controls. Current immutable
    runtime, helper and focused results are recorded in the results page; they do
    not accept invoking-agent behavior.
-2. **Freeze the corrected handoff before measurement.** Literal pilots pass,
-   but repetition 007 attempts a denied stash and omits remote landing. Move
-   attribution uncertainty before immutable-ref repair discovery; move existing
-   origin/image/compatibility prerequisites beside the final table. Keep failed
-   retries visible even when the final run succeeds. Preserve every old worktree,
-   denial, failed grade and oracle disagreement.
-3. **Run three changed-source pilots before expanding.** Declare blocked 005,
+2. **Resolve the next measured boundary before another source freeze.** The
+   `8788312f` pilots exercise immutable-ref discovery and adjacent prerequisites.
+   Publication attempts denied read-only `git stash list`; the earlier source
+   attempts a mutating stash. Preserve that distinction and every original grade.
+   Prefer an explicit minimal cleanliness command (`git status --porcelain`) over
+   adding another catalogue of forbidden examples. Audit the eval's blanket stash
+   boundary separately: any prospective distinction for read-only inspection must
+   retain mutation protection and have independent positive/negative controls;
+   never waive the current result retroactively. Keep failed retries visible and
+   preserve every old worktree, denial and oracle disagreement.
+3. **Run three changed-source pilots before expanding.** The current campaign
+   stops on its concrete disqualifier; do not expand it or retry unchanged actors.
+   Repair and identify the Python environment before a future campaign: the
+   Homebrew interpreter disappeared mid-run, requiring separately recorded
+   collection/scoring recovery and a different interpreter for one replay.
+   For a future concrete source treatment, declare blocked 005,
    two-attempt 007 and positive 002 with complete source/helper/profile identities.
    Require stock completion/thresholds and independent whole replies. Accepted
    005/007 pilots are predestined repetition one of three; no duplicate cohort.
@@ -91,11 +100,16 @@ runtime behavior opportunistically.
 4. **Keep the real-repository prerequisite explicit.** Latest live002 clears the
    five findings but both canonical test attempts detect a workqueue race. The
    required successful-repair contract remains failed. One independent baseline
-   suite passes, which does not establish causality. Review and verify the narrow
-   [external fixture candidate](workqueue-race.md) separately; do not mutate the eval case, skip tests,
+   suite passes, which does not establish causality. The completed bounded
+   comparisons did not establish candidate efficacy; review a
+   [fixture-owned cleanup source change](workqueue-race.md) separately. Do not mutate the eval case, skip tests,
    mask race detection or rerun until a favorable seed appears. Closing the full
    cohort requires a reviewed upstream repair and declared fresh official pin.
-5. **Close evidence without pooling source groups.** Current pilots/repetitions
+5. **Close evidence without pooling source groups.** Do not treat additional
+   warning prose or mandatory duplicate reads as a proven remedy: the tool can
+   suppress unchanged reference reads and current replies still add unsupported
+   labels. Any next source treatment needs a concrete hypothesis and independent
+   review before consuming its actor budget. Current pilots/repetitions
    can establish their own milestones. Native 003/004 remain separate current-skill
    coverage questions; earlier engine proof does not accept a new invoking skill.
    A full uniform cohort must later include all four real cases. Preserve complete

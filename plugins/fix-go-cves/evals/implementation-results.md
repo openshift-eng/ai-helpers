@@ -112,7 +112,8 @@ reads use captured command/base/retained commits; a refreshed origin ref is not
 the executed base. Every failure or unresolved decision gets a row, including a
 failed-then-passed attempt; unknown repairs get an investigation instruction.
 Already quoted script scope gets no duplicate interpretation. Runtime/helper bytes
-remain those verified above. The new invoking skill is unmeasured until frozen.
+remain those verified above. The invoking skill was frozen as `8788312f` for the
+separate pilot group below.
 
 The live action criterion now explicitly requires upstream repair landing before
 reruns and published images before consumer reruns. Its two controls match all
@@ -134,3 +135,49 @@ contract, skip the package or silently inject a local patch. A reviewed upstream
 fixture repair and a declared fresh official pin are prerequisites to closing that
 successful-repair cell. Native engine coverage is demonstrated under earlier
 reporting variants; current invoking-agent/native acceptance remains distinct.
+
+
+## Prerequisite pilot and final diagnostics
+
+The `8788312f` campaign contains only the three declared pilots:
+`simplify-prerequisite-replay-20261022-01` (005/007) and
+`simplify-prerequisite-publication-20261022-01` (002). It stops without expansion.
+Replay 005 has sound facts/backport prerequisites; 007 reports both attempts and
+remote landing but adds an unsupported flaky label and misidentifies a package
+failure's log line. Neither attempts a denied operation. Publication has sound
+facts, exact recipe and a published-image prerequisite, but attempts denied
+read-only `git stash list`. That differs from the earlier attempted mutating
+stash; the existing blanket permission/trace contract still rejects it. Preserve
+literal-evidence and reference-order deviations separately from factual invention.
+Publication's recovered contract fails; O/A both pass all three samples. All six
+judge calls complete without sample errors (168.40 seconds; all unpriced).
+Independent factual/advice review passes while operational whole acceptance fails.
+Recovered replay scoring passes both contracts, B=TTT and A=TTT for each case
+(12 judge calls, zero regressions). Those 007 factual labels are false positives
+against the independent citation/neutral-label review; retain both results.
+The compact oracle still omits finding IDs; full raw rows independently validate
+the accurate IDs rather than treating absence from that compact oracle as proof.
+
+Both original pipelines execute their declared actors, then collection fails 127:
+the old Homebrew Python 3.13 interpreter target disappears mid-campaign. Replay
+007's prepare hook falls back to system Python 3.14.8; do not claim one interpreter
+identity across these cases. Original failures and raw actor artifacts are retained.
+An isolated Python 3.12.15 environment reconstructs all 45 exact package versions;
+73 helper and 275 focused harness tests pass. Recovery executes only collection,
+previously unexecuted judging, reporting and verification against unchanged actor
+artifacts. This is scoring recovery, not an untouched successful E2E run.
+
+The external workqueue investigation also stops. All 20 focused diagnostic
+executions pass, including unpatched arms. A separately declared final canonical
+comparison runs each retained tree once: original exit 0 (81.424 seconds), patched
+exit 0 (80.237 seconds), all 19 packages with race detection and coverage. Neither
+comparison demonstrates patch efficacy; the original focused gate stays unmet and
+live002 stays failed. Independent receipts verify source/input/image hashes,
+clean trees, host ownership and empty worker containers. The
+[fixture-owned cleanup design](../plans/workqueue-race.md) is preferred for separate
+upstream review; it is not implemented or tested by the diagnostic candidate.
+
+Evidence is under `prerequisite-*-protocol.json`, `prerequisite-*-review.json`,
+`recovery-*.json` and `workqueue-full-context-comparison/` in the existing scratch
+root. Preserve the original 127 exits, interpreter differences, operation denials
+and all recovered grades. No current-source cohort or replay reliability is accepted.

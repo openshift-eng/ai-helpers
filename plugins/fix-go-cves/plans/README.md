@@ -8,13 +8,18 @@ The [testing strategy](testing.md) owns durable acceptance and environment rules
 
 ## Next changes
 
-The runtime/contract treatment is locally verified. Literal pilots pass, but a
-repetition attempts a denied stash and misses upstream landing; real Admiral devel
-also exposes a workqueue race in both test attempts. The next handoff treatment
-uses immutable-ref repair discovery and places existing prerequisites beside the
-reporting table. Verify the [external test-fixture candidate](workqueue-race.md) separately; do not
-weaken the successful-repair contract or retry for a favorable seed.
+The runtime/contract treatment is locally verified. The `8788312f` pilot
+campaign stops without expansion: publication attempts denied read-only
+`git stash list`, and two-attempt advice still calls an unexplained failure
+flaky. Preserve those distinctions and original grades. The current plan audits
+minimal cleanliness guidance and the eval's blanket stash boundary before any
+new source treatment; it does not add more unchanged actors or warning prose.
 
+The [external test-fixture investigation](workqueue-race.md) is complete and
+inconclusive: both original and diagnostic-patched full suites pass separately,
+while the real live run failed twice. Review fixture-owned awaited cleanup as a
+new source design. Keep the successful-repair contract and official-upstream
+prerequisite intact.
 The [implementation results](../evals/implementation-results.md) own outcomes and
 checks; the [acceptance sequence](e2e-simplification.md#ordered-work-and-execution-budget)
 owns bounded next measurements and the official-upstream prerequisite. Pure cleanup

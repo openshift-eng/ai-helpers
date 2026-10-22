@@ -33,15 +33,38 @@ same builder/compiler/cache configuration. All 20 passed. Thus it did not
 reproduce the race or establish the patch's effect; its predeclared gate for an
 additional canonical run was not met. No automatic extra samples were added.
 
+A separately declared final full-context comparison ran canonical `make unit`
+once on each retained tree, original first and patched second. Both passed all
+19 packages with race detection and coverage. It adds no discriminating repair
+evidence. The focused matrix's gate remains unmet, the live case stays failed,
+and unchanged-run diagnostics stop after these two executions.
+
 All executions use the owned rootless worker. Evidence is retained under
 `.work/fix-go-cves-implementation-20261022/`: `literal-live002-runtime-review.json`,
 `workqueue-baseline-control/`, `workqueue-validation-plan/` and
-`workqueue-drain-candidate-analysis.json`. No eval cell or original grade is changed.
+`workqueue-drain-candidate-analysis.json` and
+`workqueue-full-context-comparison/`. No eval cell or original grade is changed.
+
+## Preferred upstream design
+
+Keep the two-line patch as a diagnostic candidate. Prefer fixture-owned awaited
+cleanup registered when acquiring each queue, rather than a wait at the end of a
+single successful spec. Ginkgo's context/error-aware `DeferCleanup` can use the
+bound `wq.ShutDownWithDrain` method without another cleanup abstraction. Capture
+per-spec state and finish owned callbacks before the next fixture replaces it.
+
+Review deliberate blockers and failure paths before replacing cleanup: release
+owned gates before draining, make releases idempotent, and avoid blocking startup
+notifications. Preserve drain-timeout assertions and bounded cleanup. A drain
+wait alone cannot release a blocked callback. The existing helper also sends
+completion on an unbuffered channel after a possible timeout; review that separate
+lifecycle issue without claiming the diagnostic patch fixes it. This preferred
+design is read-only analysis, not an implemented or tested replacement.
 
 ## Closure prerequisite
 
-A focused pass is not full-suite acceptance. Review the bounded canonical-context
-comparison separately before any further execution. A validated target-repository
+A focused pass is not full-suite acceptance. Both bounded diagnostic designs are complete; neither demonstrated the repair
+effect. A validated target-repository
 repair must land upstream before selecting a new official case pin and declaring
 a fresh complete E2E measurement. Keep the current race and missing-origin advice
 failures in the [results record](../evals/implementation-results.md).
