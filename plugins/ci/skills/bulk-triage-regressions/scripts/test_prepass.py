@@ -675,5 +675,151 @@ class CliTest(unittest.TestCase):
             self.assertIn('absent from inventory', views['4.16-main']['error'])
 
 
+class PriorMemoryTest(unittest.TestCase):
+    """Weekly prepass attaches flat prior memory from the baseline manifest (plan 4, Task 1)."""
+    NOW = datetime(2026, 10, 21, 12, tzinfo=timezone.utc)
+    THEN = datetime(2026, 10, 12, 12, tzinfo=timezone.utc)
+
+    def _r0(self, regs, **extra):
+        doc = p.weekly(regs, self.THEN, None, run_id='r0', view_status=[{'view': '4.22-main', 'fetch': 'complete'}])
+        doc['policy']['write_mode'] = 'report'
+        doc.setdefault('watch_list', [])
+        doc.setdefault('unanalysed', [])
+        for c in doc['clusters']:
+            c.setdefault('disposition', {'state': 'KNOWN-CAUSE',
+                                         'analysis': {'depth': 'deep-dive', 'confidence': 'high',
+                                                      'owning_component': 'Node', 'triage_type': 'test',
+                                                      'root_cause': 'sig', 'unverified_hypotheses': [],
+                                                      'evidence': [{'prowjob_run_id': '1', 'artifact': 'a',
+                                                                    'supports_regression_ids': c['members']['regression_ids']}]},
+                                         'bug_search': {'candidates': [], 'newer_release_fix': None},
+                                         'proposed_action': {'type': 'none'}})
+            c.setdefault('actions', [])
+            c.setdefault('escalation', {'required': False, 'reason': 'not required'})
+        doc.update(extra)
+        return doc
+
+    def test_malformed_optional_metadata_does_not_crash_weekly(self):
+        regs = [reg(1, 'a', [run('1')]), reg(2, 'a', [run('1')])]
+        r0 = self._r0(regs[:1])
+        with self.subTest(part='policy'):
+            base = json.loads(json.dumps(r0))
+            base['policy'] = ['unavailable']
+            doc = p.weekly(regs, self.NOW, base, run_id='r1')
+            self.assertIs(doc['baseline_run']['compatible'], False)
+            self.assertTrue(all(c['prior'] is None for c in doc['clusters']))
+            self.assertIsNone(doc['clusters'][0]['members']['new_since_baseline'])
+        with self.subTest(part='source_run'):
+            base = json.loads(json.dumps(r0))
+            base['source_run'] = ['unavailable']
+            doc = p.weekly(regs, self.NOW, base, run_id='r1')
+            self.assertIs(doc['baseline_run']['compatible'], True)
+            self.assertIsNone(doc['baseline_run']['run_id'])
+            self.assertIsNone(doc['clusters'][0]['prior']['run_id'])
+            self.assertEqual(doc['clusters'][0]['members']['new_since_baseline'], [2])
+            self.assertEqual(doc['clusters'][0]['shape']['growth_since_baseline'], 1)
+        with self.subTest(part='lineage'):
+            base = json.loads(json.dumps(r0))
+            base['clusters'][0]['lineage'] = ['unavailable']
+            doc = p.weekly(regs, self.NOW, base, run_id='r1')
+            self.assertEqual(doc['clusters'][0]['lineage']['first_seen_run'], 'r0')
+            self.assertEqual(doc['clusters'][0]['lineage']['cycles_seen'], 2)
+            self.assertEqual(doc['clusters'][0]['members']['new_since_baseline'], [2])
+        for bad in ('3', True, 0, -1):
+            with self.subTest(cycles=bad):
+                base = json.loads(json.dumps(r0))
+                base['clusters'][0]['lineage']['cycles_seen'] = bad
+                doc = p.weekly(regs, self.NOW, base, run_id='r1')
+                self.assertEqual(doc['clusters'][0]['lineage']['cycles_seen'], 2)
+        with self.subTest(part='missing member ids stays an error'):
+            base = json.loads(json.dumps(r0))
+            del base['clusters'][0]['members']['regression_ids']
+            with self.assertRaises((KeyError, TypeError)):
+                p.weekly(regs, self.NOW, base, run_id='r1')
+
+    def test_deferred_status_survives_missing_prior_timestamp_and_view_age_reset(self):
+        old = reg(1, 'a', [run('1')], opened='2026-10-10T00:00:00Z')
+        r0 = self._r0([old])
+        r0['clusters'][0]['disposition'] = {'state': 'UNEXPLAINED',
+                                            'analysis': {'depth': 'none', 'confidence': 'low', 'owning_component': None,
+                                                         'triage_type': None, 'root_cause': None, 'evidence': [],
+                                                         'unverified_hypotheses': []},
+                                            'bug_search': {'candidates': [], 'newer_release_fix': None},
+                                            'proposed_action': {'type': 'none'}}
+        r0['watch_list'] = [{'regression_id': 1, 'view': '4.22-main', 'cluster_id': r0['clusters'][0]['id'],
+                             'reason': 'LOW & new (<7d)'}]
+        del r0['observation']['time']
+        fresh = reg(1, 'a', [run('1', start='2026-10-21T11:00:00Z')], opened='2026-10-21T12:00:00Z')
+        doc = p.weekly([fresh], self.NOW, r0, run_id='r1')
+        c = find(doc, 1)
+        s = c['prior']['sources'][0]
+        self.assertIs(doc['baseline_run']['compatible'], True)
+        self.assertIsNone(c['prior']['observed_at'])
+        self.assertIsNone(s['observed_at'])
+        self.assertEqual(s['matched_member_ids'], [1])
+        self.assertEqual(s['state'], 'UNEXPLAINED')
+        self.assertEqual(s['analysis']['depth'], 'none')
+        self.assertEqual(s['watch_list'][0]['reason'], 'LOW & new (<7d)')
+        self.assertEqual(c['shape']['days_open'], 0)
+        self.assertEqual(c['members']['new_since_baseline'], [])
+
+    def test_weekly_attaches_prior_and_keeps_current_oracle(self):
+        regs = [reg(1, 'a', [run('1')]), reg(2, 'a', [run('1')])]
+        old_oracle = {'status': 'ok', 'runs_probed': 1, 'labels': {'1': ['L0']}, 'label_bugs': {'L0': []}}
+        r0 = self._r0(regs[:1])
+        r0['clusters'][0]['oracle'] = dict(old_oracle, error=None)
+        current_oracle = {'status': 'ok', 'runs_probed': 2, 'labels': {'1': ['L1']}, 'label_bugs': {'L1': ['OCPBUGS-1']}}
+        doc = p.weekly(regs, self.NOW, r0, oracle=lambda members: dict(current_oracle), run_id='r1')
+        c = find(doc, 1)
+        self.assertEqual(c['prior']['run_id'], 'r0')
+        self.assertEqual(c['oracle'], current_oracle)
+        self.assertEqual(c['prior']['sources'][0]['oracle'], old_oracle)
+        self.assertEqual(c['members']['new_since_baseline'], [2])
+        self.assertEqual(c['shape']['growth_since_baseline'], 1)
+        self.assertEqual(doc['schema_version'], '1.0')
+        self.assertNotIn('analysis_budget', c)
+        self.assertNotIn('_members', c)
+        no_baseline = p.weekly(regs, self.NOW, None, run_id='r1')
+        self.assertTrue(all(x['prior'] is None for x in no_baseline['clusters']))
+        tripwire_doc = p.tripwire(regs, self.NOW, 24, None, run_id='t1')
+        self.assertTrue(all('prior' not in x for x in tripwire_doc['clusters']))
+
+    def _three_clusters(self):
+        upgrade_jobs = ['periodic-ci-x-nightly-4.22-upgrade-from-stable-4.21-e2e-%s-ovn' % plat
+                        for plat in ('aws', 'gcp', 'azure')]
+        high = []
+        for i in range(9):   # upgrade lanes on two platforms, >=6 regressions, 3 jobs -> HIGH
+            r = reg(100 + i, 'h', [run(str(100 + j), job=jb) for j, jb in enumerate(upgrade_jobs)])
+            r['variants'] = ['Platform:aws'] if i % 2 else ['Platform:gcp']
+            high.append(r)
+        low_big = [reg(1, 'a', [run('1'), run('2')]), reg(2, 'a', [run('1'), run('2')])]
+        low_small = [reg(3, 'b', [run('3')])]
+        return high, low_big, low_small
+
+    def test_backlog_priority_within_urgency(self):
+        high, low_big, low_small = self._three_clusters()
+        r0 = self._r0(low_big + low_small)
+        base_small = find(r0, 3)
+        base_small['disposition']['state'] = 'UNANALYSED'
+        base_small['disposition']['analysis'].update(depth='none', confidence='low', evidence=[])
+        r0['unanalysed'] = [{'cluster_id': base_small['id'], 'reason': 'budget', 'blast_radius': 'LOW'}]
+        doc = p.weekly(high + low_big + low_small, self.NOW, r0, run_id='r1')
+        levels = [c['blast_radius']['level'] for c in doc['clusters']]
+        self.assertEqual(levels[0], 'HIGH')
+        high_id, unfinished_low_id, other_low_id = doc['clusters'][0]['id'], find(doc, 3)['id'], find(doc, 1)['id']
+        self.assertGreater(find(doc, 1)['blast_radius']['score'], find(doc, 3)['blast_radius']['score'])
+        self.assertEqual([x['id'] for x in doc['clusters']], [high_id, unfinished_low_id, other_low_id])
+        # a same-ID but zero-overlap unfinished source must not outrank another LOW
+        replaced = reg(4, 'b', [run('3')])   # same test family as 3 -> same cluster id, different member
+        base_small['members']['regression_ids'] = [3]
+        replacement_doc = p.weekly(low_big + [replaced], self.NOW, r0, run_id='r1')
+        self.assertEqual(find(replacement_doc, 4)['prior']['sources'][0]['matched_member_ids'], [])
+        self.assertEqual([x['id'] for x in replacement_doc['clusters']],
+                         [find(replacement_doc, 1)['id'], find(replacement_doc, 4)['id']])
+        # without a baseline the ordinary order (level, score, id) is unchanged
+        plain = p.weekly(high + low_big + low_small, self.NOW, None, run_id='r1')
+        self.assertEqual([x['id'] for x in plain['clusters']], [high_id, other_low_id, unfinished_low_id])
+
+
 if __name__ == '__main__':
     unittest.main()
