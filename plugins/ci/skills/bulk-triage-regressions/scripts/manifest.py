@@ -8,6 +8,7 @@ import argparse
 import copy
 import json
 import sys
+from datetime import datetime
 
 SCHEMA_VERSION = "1.0"
 LEVELS = ("HIGH", "ELEVATED", "LOW")
@@ -187,8 +188,198 @@ def _rule_objects(w, c):
     return errs
 
 
+PRIOR_RELATIONSHIPS = ("same-id", "supersedes", "split", "merge", "overlap")
+PRIOR_WRITE_MODES = ("report", "auto")
+PRIOR_BASIS_DEPTHS = ("deep-dive", "oracle")
+PRIOR_ROOT_LIMIT = 2000
+PRIOR_SOURCE_LISTS = ("actions", "unlinked", "watch_list", "unanalysed")
+PRIOR_SOURCE_OBJECTS = ("fingerprint", "shape", "blast_radius", "oracle", "bug_search", "proposed_action",
+                        "escalation")
+
+
+def _is_id(x):
+    return (isinstance(x, int) and not isinstance(x, bool)) or (isinstance(x, str) and x != "")
+
+
+def _id_list(p, name, value):
+    if not isinstance(value, list) or any(not _is_id(i) for i in value):
+        return ["%s: %s must be a list of integer or string ids" % (p, name)]
+    return []
+
+
+def _iso_or_null(p, name, value):
+    if value is None:
+        return []
+    if not isinstance(value, str) or not value:
+        return ["%s: %s must be an ISO timestamp or null" % (p, name)]
+    text = value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return ["%s: %s must be an ISO timestamp or null" % (p, name)]
+    if parsed.tzinfo is None:
+        return ["%s: %s must carry a timezone" % (p, name)]
+    return []
+
+
+def _rule_basis(p, basis):
+    if basis is None:
+        return []
+    if not isinstance(basis, dict):
+        return ["%s: basis must be an object or null" % p]
+    errs = []
+    for k in ("run_id", "cluster_id"):
+        if not isinstance(basis.get(k), str) or not basis.get(k):
+            errs.append("%s: basis.%s must be a non-empty string" % (p, k))
+    errs += _iso_or_null(p, "basis.observed_at", basis.get("observed_at"))
+    if basis.get("observed_at") is None:
+        errs.append("%s: basis.observed_at must be an ISO timestamp" % p)
+    errs += _enum(p, "basis.depth", basis.get("depth"), PRIOR_BASIS_DEPTHS)
+    return errs
+
+
+def _rule_prior_source(p, s, current_members):
+    """The projected envelope of one source: identity, flags, ids, bounded analysis. Historical payloads
+    (state, candidates, actions, escalation, shape, oracle ...) are opaque: no enums, no target rules."""
+    if not isinstance(s, dict):
+        return ["%s: expected object, got %s" % (p, _t(s))]
+    errs = []
+    if not isinstance(s.get("cluster_id"), str) or not s.get("cluster_id"):
+        errs.append("%s: cluster_id must be a non-empty string" % p)
+    for k in ("history_only", "unfinished"):
+        if not isinstance(s.get(k), bool):
+            errs.append("%s: %s must be a boolean" % (p, k))
+    if s.get("run_id") is not None and (not isinstance(s.get("run_id"), str) or not s.get("run_id")):
+        errs.append("%s: run_id must be a non-empty string or null" % p)
+    errs += _iso_or_null(p, "observed_at", s.get("observed_at"))
+    errs += _id_list(p, "member_ids", s.get("member_ids"))
+    errs += _id_list(p, "matched_member_ids", s.get("matched_member_ids"))
+    if not errs[-2:]:
+        matched, members = _ids(s.get("matched_member_ids")), _ids(s.get("member_ids"))
+        stray = sorted((matched - members) | (matched - current_members), key=str)
+        if stray:
+            errs.append("%s: matched_member_ids not in both source and current members: %s" % (p, stray))
+    if s.get("state") is not None and not isinstance(s.get("state"), str):
+        errs.append("%s: state must be a string or null" % p)
+    for k in PRIOR_SOURCE_OBJECTS:
+        if s.get(k) is not None and not isinstance(s.get(k), dict):
+            errs.append("%s: %s must be an object or null" % (p, k))
+    for k in PRIOR_SOURCE_LISTS:
+        if s.get(k) is not None and not isinstance(s.get(k), list):
+            errs.append("%s: %s must be a list or null" % (p, k))
+    an = s.get("analysis")
+    if an is not None:
+        if not isinstance(an, dict):
+            errs.append("%s: analysis must be an object or null" % p)
+        else:
+            root = an.get("root_cause")
+            if root is not None and not isinstance(root, str):
+                errs.append("%s: analysis.root_cause must be a string or null" % p)
+            elif isinstance(root, str) and len(root) > PRIOR_ROOT_LIMIT:
+                errs.append("%s: analysis.root_cause exceeds %d characters" % (p, PRIOR_ROOT_LIMIT))
+            if not isinstance(an.get("root_cause_truncated"), bool):
+                errs.append("%s: analysis.root_cause_truncated must be a boolean" % p)
+            refs = an.get("evidence_refs")
+            if not isinstance(refs, list):
+                errs.append("%s: analysis.evidence_refs must be a list" % p)
+            else:
+                for i, r in enumerate(refs):
+                    q = "%s analysis.evidence_refs[%d]" % (p, i)
+                    if not isinstance(r, dict):
+                        errs.append("%s: expected object, got %s" % (q, _t(r)))
+                        continue
+                    if not isinstance(r.get("prowjob_run_id"), str) or not r.get("prowjob_run_id"):
+                        errs.append("%s: prowjob_run_id must be a non-empty string" % q)
+                    sup = r.get("supports_regression_ids")
+                    if not isinstance(sup, list) or not sup or any(not _is_id(i) for i in sup):
+                        errs.append("%s: supports_regression_ids must be a non-empty list of ids" % q)
+                    if r.get("artifact") is not None and not isinstance(r.get("artifact"), str):
+                        errs.append("%s: artifact must be a string or null" % q)
+            errs += _rule_basis(p + " analysis", an.get("basis"))
+    return errs
+
+
+def _rule_prior(w, c):
+    """Optional memory envelope (additive, schema 1.0). Absent or null is fine; a present object must be the
+    deterministic projection shape. Only the envelope is validated, never the old run's domain values."""
+    if "prior" not in c or c["prior"] is None:
+        return []
+    pr = c["prior"]
+    p = "%s prior" % w
+    if not isinstance(pr, dict):
+        return ["%s: expected object or null, got %s" % (p, _t(pr))]
+    errs = []
+    for k in ("run_id", "source_url"):
+        if pr.get(k) is not None and (not isinstance(pr.get(k), str) or not pr.get(k)):
+            errs.append("%s: %s must be a non-empty string or null" % (p, k))
+    errs += _iso_or_null(p, "observed_at", pr.get("observed_at"))
+    if pr.get("write_mode") is not None:
+        errs += _enum(p, "write_mode", pr.get("write_mode"), PRIOR_WRITE_MODES)
+    if not isinstance(pr.get("observation_complete"), bool):
+        errs.append("%s: observation_complete must be a boolean" % p)
+    errs += _enum(p, "relationship", pr.get("relationship"), PRIOR_RELATIONSHIPS)
+    mem = c.get("members")
+    current_members = _ids(mem.get("regression_ids")) if isinstance(mem, dict) else set()
+    sources = pr.get("sources")
+    if not isinstance(sources, list) or not sources:
+        errs.append("%s: sources must be a non-empty list" % p)
+        sources = []
+    seen, immediate_union, immediate = set(), set(), 0
+    for i, s in enumerate(sources):
+        q = "%s sources[%d]" % (p, i)
+        errs += _rule_prior_source(q, s, current_members)
+        if not isinstance(s, dict):
+            continue
+        key = (s.get("history_only"), s.get("run_id"), s.get("observed_at"), s.get("cluster_id"))
+        if key in seen:
+            errs.append("%s: duplicate source identity %r" % (q, key))
+        seen.add(key)
+        if s.get("history_only") is False:
+            immediate += 1
+            immediate_union |= _ids(s.get("member_ids"))
+    if sources and not immediate:
+        errs.append("%s: sources must include at least one immediate (history_only false) source" % p)
+    delta = pr.get("member_delta")
+    if not isinstance(delta, dict):
+        errs.append("%s: member_delta must be an object" % p)
+    else:
+        errs += _id_list(p, "member_delta.added", delta.get("added"))
+        errs += _id_list(p, "member_delta.removed", delta.get("removed"))
+        if immediate and isinstance(delta.get("added"), list) and isinstance(delta.get("removed"), list):
+            if _ids(delta["added"]) != current_members - immediate_union:
+                errs.append("%s: member_delta.added must be the current members absent from the immediate sources" % p)
+            if _ids(delta["removed"]) != immediate_union - current_members:
+                errs.append("%s: member_delta.removed must be the immediate sources' members absent now" % p)
+    return errs
+
+
+def _rule_prior_context(doc):
+    """Bind each prior's immediate sources to the latest attempt named in baseline_run; retained
+    (history_only) snapshots keep their own older identity. A non-null prior needs a compatible baseline."""
+    br = doc.get("baseline_run") if isinstance(doc.get("baseline_run"), dict) else {}
+    clusters = doc.get("clusters") if isinstance(doc.get("clusters"), list) else []
+    errs = []
+    for c in clusters:
+        if not isinstance(c, dict) or not isinstance(c.get("prior"), dict):
+            continue
+        pr = c["prior"]
+        w = "cluster %s prior" % c.get("id")
+        if br.get("compatible") is not True:
+            errs.append("%s: a prior requires baseline_run.compatible true" % w)
+        if br.get("run_id") is not None and pr.get("run_id") is not None and str(br["run_id"]) != str(pr["run_id"]):
+            errs.append("%s: run_id %r is not the baseline_run.run_id %r" % (w, pr["run_id"], br["run_id"]))
+        for i, s in enumerate(pr.get("sources") if isinstance(pr.get("sources"), list) else []):
+            if not isinstance(s, dict) or s.get("history_only") is not False:
+                continue
+            for k in ("run_id", "observed_at"):
+                if s.get(k) != pr.get(k):
+                    errs.append("%s sources[%d]: immediate source %s %r differs from the prior's %r"
+                                % (w, i, k, s.get(k), pr.get(k)))
+    return errs
+
+
 CLUSTER_RULES = (_rule_missing, _rule_objects, _rule_level, _rule_disposition_state, _rule_evidence,
-                 _rule_action_subset_and_unlinked, _rule_actions, _rule_escalation)
+                 _rule_action_subset_and_unlinked, _rule_actions, _rule_escalation, _rule_prior)
 
 
 def _cluster(c, idx):
@@ -296,7 +487,7 @@ def validate(doc):
             if cid in seen:
                 errs.append("cluster %s: duplicate cluster id (also at index %d)" % (cid, seen[cid]))
             seen.setdefault(cid, i)
-    return errs + _rule_catch_all(doc) + _rule_audit(doc)
+    return errs + _rule_catch_all(doc) + _rule_audit(doc) + _rule_prior_context(doc)
 
 
 TOP_SHAPES = {"policy": dict, "source_run": dict, "observation": dict, "baseline_run": dict, "clusters": list,
@@ -338,6 +529,8 @@ def merge(prepass, dispositions, actions):
         if cid not in dispositions:
             continue
         disp = copy.deepcopy(dispositions[cid])
+        if "prior" in disp:
+            raise ValueError("dispositions for cluster %s may not set prior: it is pre-pass memory" % cid)
         esc = disp.pop("escalation", None)
         unl = disp.pop("members_unlinked", None)
         if unl is not None:
@@ -453,6 +646,8 @@ def main(argv=None):
                 extra = _load(args.extra)
                 if not isinstance(extra, dict):
                     raise ValueError("--extra must contain a JSON object")
+                if "clusters" in extra:
+                    raise ValueError("--extra may not replace clusters (deterministic pre-pass data incl. prior)")
                 doc.update(extra)
             with open(args.out, "w") as f:
                 json.dump(doc, f, indent=2)

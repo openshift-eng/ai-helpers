@@ -15,6 +15,7 @@ sys.path.insert(0, HERE)
 import clustering  # noqa: E402
 import manifest as m  # noqa: E402
 import prepass  # noqa: E402
+import prior  # noqa: E402
 
 
 def example():
@@ -447,6 +448,188 @@ class ManifestTest(unittest.TestCase):
             self.assertNotIn('Traceback', miss.stderr)
             v = subprocess.run([sys.executable, cli, 'validate', out])
             self.assertEqual(v.returncode, 0)
+
+
+def _unanalysed_disposition():
+    return {'state': 'UNANALYSED',
+            'analysis': {'depth': 'none', 'confidence': 'low', 'owning_component': None, 'triage_type': None,
+                         'root_cause': None, 'evidence': [], 'unverified_hypotheses': []},
+            'bug_search': {'candidates': [], 'newer_release_fix': None},
+            'proposed_action': {'type': 'none'}}
+
+
+def with_prior(base_run='2105...', run_id='2108...'):
+    """A full current manifest (the example) whose cluster carries a Task-1 prior projected from a baseline
+    that is the same example one run earlier. Returns (current, baseline)."""
+    base = example()
+    base['source_run']['run_id'] = base_run
+    base['observation']['time'] = '2026-10-06T05:03:40Z'
+    base['observation']['views'] = [{'view': '4.22-main', 'fetch': 'complete'}]
+    cur = example()
+    cur['source_run']['run_id'] = run_id
+    cur['baseline_run'] = {'run_id': base_run, 'manifest_url': None, 'schema_version': '1.0', 'compatible': True}
+    for c in cur['clusters']:
+        c.pop('prior', None)
+    prior.attach_priors(cur['clusters'], base)
+    return cur, base
+
+
+class PriorEnvelopeTest(unittest.TestCase):
+    """Task 2: optional history is accepted without retrospective validation; only new envelopes are checked."""
+
+    def test_missing_and_null_prior_validate(self):
+        self.assertEqual(m.validate(example()), [])
+        doc = example()
+        doc['clusters'][0]['prior'] = None
+        self.assertEqual(m.validate(doc), [])
+
+    def test_projected_prior_validates_and_legacy_values_stay_opaque(self):
+        cur, base = with_prior()
+        self.assertEqual(cur['clusters'][0]['prior']['relationship'], 'same-id')
+        self.assertEqual(m.validate(cur), [])
+        # a legacy unknown bar in the *baseline* is preserved through projection and never invalidates the
+        # current manifest; the old validator has no candidate-domain rule either
+        base2 = copy.deepcopy(base)
+        base2['clusters'][0]['disposition']['bug_search']['candidates'][0]['bar_met'] = 'unknown'
+        self.assertEqual(m.validate(base2), [])
+        cur2 = example()
+        cur2['source_run']['run_id'] = '2108...'
+        cur2['baseline_run'] = dict(cur['baseline_run'])
+        prior.attach_priors(cur2['clusters'], base2)
+        self.assertEqual(cur2['clusters'][0]['prior']['sources'][0]['bug_search']['candidates'][0]['bar_met'], 'unknown')
+        self.assertEqual(m.validate(cur2), [])
+        cur2['clusters'][0]['prior']['sources'][0]['actions'] = [{'status': 'legacy', 'regression_ids': 'unknown'}]
+        cur2['clusters'][0]['prior']['sources'][0]['state'] = 'SOMETHING-OLD'
+        self.assertEqual(m.validate(cur2), [])
+
+    def test_malformed_new_envelopes_are_reported_by_field(self):
+        cur, _ = with_prior()
+        for bad in ([], 'r0', True, {}, {'sources': [None]}):
+            doc = copy.deepcopy(cur)
+            doc['clusters'][0]['prior'] = bad
+            errors = m.validate(doc)
+            self.assertTrue(errors, bad)
+            self.assertTrue(any('prior' in e for e in errors), errors)
+        cases = [
+            (lambda pr: pr['sources'][0].__setitem__('member_ids', [1.5]), 'member_ids'),
+            (lambda pr: pr['sources'][0].__setitem__('matched_member_ids', [999999]), 'matched_member_ids'),
+            (lambda pr: pr['sources'][0].__setitem__('history_only', 'no'), 'history_only'),
+            (lambda pr: pr['sources'][0].__setitem__('unfinished', 1), 'unfinished'),
+            (lambda pr: pr['sources'][0]['analysis'].__setitem__('evidence_refs', [{'prowjob_run_id': ''}]), 'evidence_refs'),
+            (lambda pr: pr['sources'][0]['analysis'].__setitem__('root_cause', 'x' * 2001), 'root_cause'),
+            (lambda pr: pr['sources'][0]['analysis'].__setitem__('basis', {'run_id': 'r', 'depth': 'guess'}), 'basis'),
+            (lambda pr: pr.__setitem__('relationship', 'cousin'), 'relationship'),
+            (lambda pr: pr.__setitem__('member_delta', {'added': [], 'removed': [49999]}), 'member_delta'),
+            (lambda pr: pr.__setitem__('observation_complete', 'yes'), 'observation_complete'),
+            (lambda pr: pr.__setitem__('write_mode', 'dry'), 'write_mode'),
+            (lambda pr: pr.__setitem__('observed_at', 'yesterday'), 'observed_at'),
+            (lambda pr: pr['sources'].append(copy.deepcopy(pr['sources'][0])), 'duplicate'),
+            (lambda pr: pr['sources'][0].__setitem__('history_only', True), 'immediate'),
+            (lambda pr: pr['sources'][0].__setitem__('cluster_id', ''), 'cluster_id'),
+            (lambda pr: pr['sources'][0].__setitem__('bug_search', 'none'), 'bug_search'),
+        ]
+        for mutate, field in cases:
+            doc = copy.deepcopy(cur)
+            mutate(doc['clusters'][0]['prior'])
+            errors = m.validate(doc)
+            self.assertTrue(any(field in e for e in errors), (field, errors))
+
+    def test_prior_context_binds_immediate_sources_to_the_baseline_run(self):
+        cur, _ = with_prior()
+        doc = copy.deepcopy(cur)
+        doc['baseline_run']['run_id'] = 'r-other'
+        self.assertTrue(any('baseline_run' in e for e in m.validate(doc)))
+        doc = copy.deepcopy(cur)
+        doc['clusters'][0]['prior']['sources'][0]['run_id'] = 'r-older'
+        self.assertTrue(any('run_id' in e for e in m.validate(doc)))
+        doc = copy.deepcopy(cur)
+        doc['baseline_run']['compatible'] = False
+        self.assertTrue(any('compatible' in e for e in m.validate(doc)))
+        # a retained history-only snapshot may legitimately be older than the latest attempt
+        doc = copy.deepcopy(cur)
+        retained = copy.deepcopy(doc['clusters'][0]['prior']['sources'][0])
+        retained.update(run_id='r-older', observed_at='2026-09-29T05:03:40Z', history_only=True, unfinished=False)
+        doc['clusters'][0]['prior']['sources'].append(retained)
+        self.assertEqual(m.validate(doc), [])
+
+    def test_unreached_attempt_history_validates_without_coverage(self):
+        """R1 immediate (UNANALYSED) + R0 history-only; the current cluster has no action and no coverage."""
+        cur, base = with_prior(base_run='r0', run_id='r1')
+        r1 = copy.deepcopy(cur)
+        r1['clusters'][0]['disposition'] = _unanalysed_disposition()
+        r1['clusters'][0]['actions'] = []
+        r1['clusters'][0]['escalation'] = {'required': True, 'reason': 'blast_radius HIGH'}
+        r1['unanalysed'] = [{'cluster_id': r1['clusters'][0]['id'], 'reason': 'budget', 'blast_radius': 'HIGH'}]
+        self.assertEqual(m.validate(r1), [])
+        r2 = example()
+        r2['source_run']['run_id'] = 'r2'
+        r2['baseline_run'] = {'run_id': 'r1', 'manifest_url': None, 'schema_version': '1.0', 'compatible': True}
+        r2['clusters'][0]['disposition'] = _unanalysed_disposition()
+        r2['clusters'][0]['actions'] = []
+        r2['clusters'][0]['members'].pop('unlinked', None)
+        prior.attach_priors(r2['clusters'], r1)
+        self.assertEqual([(s['run_id'], s['history_only']) for s in r2['clusters'][0]['prior']['sources']],
+                         [('r1', False), ('r0', True)])
+        self.assertEqual(m.validate(r2), [])
+
+
+class PriorMergeTest(unittest.TestCase):
+    def _one_cluster_prepass(self):
+        cur, _ = with_prior()
+        pre = {k: cur[k] for k in m.TOP_PREPASS}
+        pre['clusters'] = [{k: v for k, v in cur['clusters'][0].items() if k not in m.CLUSTER_LLM}]
+        return pre, cur
+
+    def test_merge_preserves_prior_and_never_replays_actions(self):
+        pre, cur = self._one_cluster_prepass()
+        cid = pre['clusters'][0]['id']
+        before = copy.deepcopy(pre)
+        disp = {cid: dict(cur['clusters'][0]['disposition'], escalation=cur['clusters'][0]['escalation'])}
+        merged = m.merge(pre, disp, {})
+        self.assertEqual(merged['clusters'][0]['prior'], pre['clusters'][0]['prior'])
+        self.assertEqual(merged['clusters'][0]['actions'], [])
+        self.assertEqual(merged['clusters'][0]['prior']['sources'][0]['actions'][0]['status'], 'planned')
+        self.assertEqual(pre, before)
+        final = m.finalize(merged, jira_creations={'status': 'ok', 'count': 0, 'window': []},
+                           sippy_diff={'status': 'match'}, permissions={'status': 'ok'},
+                           mode_requested='report', mode_effective='report', decision=('auto', '', ''),
+                           source_run={'job': 'j', 'run_id': '2108...', 'url': 'u', 'started': 's'},
+                           previous_run='2105...', existing_only=True)
+        self.assertEqual(final['clusters'][0]['prior'], pre['clusters'][0]['prior'])
+
+    def test_disposition_may_not_replace_prior(self):
+        pre, cur = self._one_cluster_prepass()
+        cid = pre['clusters'][0]['id']
+        with self.assertRaises(ValueError) as ctx:
+            m.merge(pre, {cid: {'state': 'UNANALYSED', 'prior': None}}, {})
+        self.assertIn('prior', str(ctx.exception))
+
+    def test_cli_extra_may_not_replace_clusters(self):
+        cli = os.path.join(HERE, 'manifest.py')
+        pre, cur = self._one_cluster_prepass()
+        cid = pre['clusters'][0]['id']
+        with tempfile.TemporaryDirectory() as t:
+            def w(name, obj):
+                path = os.path.join(t, name)
+                with open(path, 'w') as f:
+                    json.dump(obj, f)
+                return path
+            disp = {cid: dict(cur['clusters'][0]['disposition'], escalation=cur['clusters'][0]['escalation'])}
+            out = os.path.join(t, 'm.json')
+            base = [sys.executable, cli, 'merge', '--prepass', w('p.json', pre), '--dispositions', w('d.json', disp),
+                    '--actions', w('a.json', {cid: cur['clusters'][0]['actions']}), '--out', out]
+            extra = {k: cur[k] for k in m.TOP_LLM}
+            ok = subprocess.run(base + ['--extra', w('e.json', extra)], capture_output=True, text=True)
+            self.assertEqual((ok.returncode, ok.stderr), (0, ''))
+            with open(out) as f:
+                self.assertEqual(json.load(f)['clusters'][0]['prior'], pre['clusters'][0]['prior'])
+            bad = subprocess.run(base + ['--extra', w('e2.json', dict(extra, clusters=[]))],
+                                 capture_output=True, text=True)
+            self.assertEqual(bad.returncode, 1)
+            self.assertIn('clusters', bad.stderr)
+            unrelated = subprocess.run(base + ['--extra', w('e3.json', dict(extra, note='kept'))],
+                                       capture_output=True, text=True)
+            self.assertEqual(unrelated.returncode, 0)
 
 
 if __name__ == '__main__':
