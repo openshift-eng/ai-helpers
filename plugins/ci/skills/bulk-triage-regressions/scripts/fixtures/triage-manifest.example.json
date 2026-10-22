@@ -431,13 +431,13 @@
               "depth": "deep-dive"
             },
             "outcome": "carried",
-            "reason": "same own-test assertion on 2110...; no qualifying bug in the incremental search; LOW both weeks, no added members",
+            "reason": "same own-test assertion on 2110...; no new or updated qualifying bug since 2026-10-06; LOW both weeks, no added members",
             "checked_at": "2026-10-13T05:41:00Z",
             "own_run_ids": [
               "2110..."
             ],
             "lookup_locators": [
-              "https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20created%3E%3D2026-10-06%20AND%20text~%22snapshot%20restore%22"
+              "https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20updated%3E%3D2026-10-06%20AND%20text~%22snapshot%20restore%22"
             ]
           }
         },
