@@ -25,7 +25,8 @@ The skill remains unaccepted after the fifth six-cell matrix at `7063ca5e`.
 The [canonical matrix record](../evals/live/README.md#branch-policy-matrix)
 retains grades, costs, coverage gaps and independent whole-reply reviews.
 The [E2E and simplification plan](e2e-simplification.md) selects the next changes
-and defines the final integration cohort; its treatments remain unmeasured.
+and scopes existing-cohort acceptance, replay reliability and positive-publication
+coverage separately. Its treatments remain unmeasured.
 
 [Eval setup and replay results](../evals/README.md) and the
 [live record](../evals/live/README.md) preserve prior successes, failures,
@@ -48,7 +49,13 @@ are retained.
 | --- | --- |
 | Blocked or partial run | Real execution and authenticated terminal result; reached scans and gates retain their actual exits, attempted tests retain paired logs/receipts, and the reply accurately reports blockers without follow-up mutation |
 | Successful repair | Initial actionable finding, retained dependency repair, canonical tests and four typed audits passing, valid authoritative final scan with zero actionable findings, runtime exit 0 |
-| Native binary | Fresh build from the corresponding tree, binary SHA and clean embedded VCS bound to scan HEAD, positive catalog location/file-hash evidence even with zero findings, final binary bytes matching retained output, canonical gates after remediation and final rebuild/rescan after applicable changes |
+| Native binary | Initial proof bound to the pinned base and final proof bound to retained HEAD after remediation: fresh build, binary SHA/clean embedded VCS and positive catalog location/file hash; retained bytes match and canonical gates pass. A clean fast path needs only initial proof and does not count as repair |
+
+Native coverage can accompany a valid partial exit-2 result; it does not establish
+successful repair. The current binary contract enforces terminal proof, while
+initial native proof is only projected to judges. The
+[planned contract changes](e2e-simplification.md#exact-framework-scope) close that
+gap for future measurements while preserving historical grades.
 
 Keep these runtime boundaries covered:
 
@@ -68,6 +75,13 @@ Keep these runtime boundaries covered:
   HEAD and clean tracked state. The zero-finding fast path checks unchanged source
   before normalization can conceal a change. Add no automatic repair or commit to
   make these checks pass.
+
+The specialist audit identified build/license logger-status loss and dropped
+`stdlib` reviewer detail as concrete gaps; passing suite counts do not establish
+coverage of those cases. The [runtime prerequisites](e2e-simplification.md#concrete-runtime-prerequisites)
+require focused regressions and preserve the distinction between proven lost
+detail and an unproven publication bypass. Reporting-only unknown native scope
+must not set the existing blocking opaque-binary coverage marker.
 
 The reply must retain the actual Summary, exits, attempts, fixed/ignored/remaining
 findings, observed original ref, coverage and publication availability. When no
@@ -171,6 +185,11 @@ this is not a per-run threshold, statistical confidence or a live repetition
 rule. Do not mechanically run three expensive live trials or another six-cell
 cohort for borderline scores. A further measurement needs a concrete changed
 question or environment condition, not another attempt to obtain accepted prose.
+Declare which unchanged-source executions satisfy both integration and repetition
+before launch; do not run separate cohorts for the same evidence. Compare current
+skill hashes across applicable cases and runtime hashes across live cases;
+validate historical runtime archives against their own pins. Preparation copies
+current files per case rather than freezing their bytes with the YAML alone.
 
 ## Deferred recording admission
 

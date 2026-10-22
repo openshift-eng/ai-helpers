@@ -8,12 +8,12 @@ The [testing strategy](testing.md) owns durable acceptance and environment rules
 
 ## Next changes
 
-Simplify command selection and the script-to-skill handoff, then measure literal
-result relay, supported diagnosis and publication advice. Close declared native
-coverage and grader gaps before the final integration cohort. Remove demonstrated
-duplication in separate changes, preserving current behavioral requirements.
-The [implementation sequence](e2e-simplification.md#work-sequence-and-validation)
-defines scope and checks; no revised source or actor cohort has run yet.
+Close the concrete logger/reviewer handoff gaps, simplify command selection and
+result reporting, and enforce declared native phases. Check positive-publication
+replay admission and applicable scoring before paid execution. The
+[implementation sequence](e2e-simplification.md#ordered-work-and-execution-budget)
+combines acceptance measurements without duplicate cohorts. Demonstrated cleanup
+is a separate deliverable; no revised source or actor cohort has run yet.
 
 The skill remains unaccepted. The [fifth six-cell matrix](../evals/live/README.md#branch-policy-matrix)
 retains the measured failures; the [fresh baseline](e2e-simplification.md#open-boundary-and-current-evidence)
