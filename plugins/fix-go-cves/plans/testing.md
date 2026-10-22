@@ -21,14 +21,11 @@ native result extraction and the documented launch fence. An old-trace recheck
 proves detection, not revised actor behavior. A passing engine or factual majority
 alone does not accept the skill.
 
-The fifth six-cell matrix at `7063ca5e` is closed; the skill remains unaccepted.
-Three live cells passed their canonical unit checks, including positive native
-coverage on both Subctl branches. Admiral release instead replaced the inherited
-command and ran host build/tests, leaving canonical unit/Dapper coverage missing.
-Unsupported causal advice and replacement publication persist. No further actor
-cohort or source treatment is selected. The
-[canonical matrix record](../evals/live/README.md#branch-policy-matrix) retains
-original grades, costs, coverage gaps and independent whole-reply reviews.
+The skill remains unaccepted after the fifth six-cell matrix at `7063ca5e`.
+The [canonical matrix record](../evals/live/README.md#branch-policy-matrix)
+retains grades, costs, coverage gaps and independent whole-reply reviews.
+The [E2E and simplification plan](e2e-simplification.md) selects the next changes
+and defines the final integration cohort; its treatments remain unmeasured.
 
 [Eval setup and replay results](../evals/README.md) and the
 [live record](../evals/live/README.md) preserve prior successes, failures,

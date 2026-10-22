@@ -3,33 +3,21 @@
 Follow-ups found while porting and reviewing the plugin.
 Fix the correctness issues before expanding supported workflows.
 
-The [testing and evals plan](testing.md) covers how to measure the skill
-itself.
+The [E2E and simplification plan](e2e-simplification.md) selects the next work.
+The [testing strategy](testing.md) owns durable acceptance and environment rules.
 
 ## Next changes
 
-The skill remains unaccepted after the [fifth six-cell matrix](../evals/live/README.md#branch-policy-matrix)
-at `7063ca5e`. The three successful live cells still supply replacement publication
-steps; causal advice also remains unsupported. Admiral release replaced the
-inherited test command, so its blocked host run does not establish canonical
-unit/Dapper coverage. Both Subctl branches have positive native evidence.
-No further actor cohort or source treatment is selected; preserve the failures
-and useful diagnosis requirements rather than relaxing acceptance.
+Simplify command selection and the script-to-skill handoff, then measure literal
+result relay, supported diagnosis and publication advice. Close declared native
+coverage and grader gaps before the final integration cohort. Remove demonstrated
+duplication in separate changes, preserving current behavioral requirements.
+The [implementation sequence](e2e-simplification.md#work-sequence-and-validation)
+defines scope and checks; no revised source or actor cohort has run yet.
 
-Report validation, scanner deadlines and inherited-ignore preservation are
-implemented and regressed. The read-only policy guard precedes cleanup/build/scan;
-its decision below preserves maintainer policy. The existing 3,046 runtime checks
-and 68 eval helper checks pass. See the [testing strategy](testing.md) and
-[real engine checks](../evals/live/README.md#runtime-quality-checks); engine
-validation is separate from invoking-agent acceptance.
-
-The Summary handoff uses observed in-memory commands, phases and attempts without
-requiring optional evidence files; missing/skipped results are not passes.
-[Current E2E work](../evals/README.md#current-e2e-work) preserves the measured
-behavioral failures. Keep branch policy separate from builder capability and
-leave the Go-minor decision unresolved. Existing major-version,
-Kubernetes-identity, no-fix-credit, audit and test-evidence guards remain
-implemented; retain their regressions unless a new failure justifies work.
+The skill remains unaccepted. The [fifth six-cell matrix](../evals/live/README.md#branch-policy-matrix)
+retains the measured failures; the [fresh baseline](e2e-simplification.md#open-boundary-and-current-evidence)
+records passing script/helper checks and model-free replay preparation.
 
 ## Decisions
 
@@ -92,8 +80,9 @@ implemented; retain their regressions unless a new failure justifies work.
 
 - Share the repeated finding-tuple and `normloc` logic in `fix-all.sh` and
   `subagents/scan-regression.sh` without merging their different coverage rules.
-- Split `test/test-lib.sh` (about 10,000 lines) by script only when navigation
-  warrants it; this is independent of correctness fixes.
+- Remove redundant source probes and fixture setup where behavioral coverage
+  proves equivalence; see the [bloat audit](e2e-simplification.md#bloat-audit-remove-duplication-preserve-distinctions).
+  Split the shell suite only when navigation warrants it.
 
 ## Later
 
