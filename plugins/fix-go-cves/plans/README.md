@@ -4,8 +4,9 @@ The skill remains unaccepted. Start with the
 [E2E and simplification plan](e2e-simplification.md): it separates runner/oracle
 correctness, runtime policy gaps and the invoking skill's actual responsibilities.
 Next work separates measurement prerequisites, runtime safety obligations and
-optional deletions. The existing cohort can answer a bounded question without
-pretending to cover every release obligation. No new prompt campaign is selected.
+optional deletions, with one final canonical test phase and reuse of sufficient
+immutable evidence where only interpretation changes. The existing cohort can
+answer a bounded question without pretending to cover every release obligation. No new prompt campaign is selected.
 
 | Document | Owns |
 | --- | --- |

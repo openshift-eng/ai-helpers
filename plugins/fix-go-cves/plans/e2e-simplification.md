@@ -1,449 +1,329 @@
 # E2E acceptance and simplification
 
-This plan was re-audited in four fresh critical waves (twelve specialist passes)
-on 2026-10-23 against `b72bbb8e`, after the preceding four-wave review.
-It proposes changes; it does not accept the current skill or replace historical
-results. The [results record](../evals/implementation-results.md) owns measurements,
-[testing strategy](testing.md) owns durable requirements, and
-[workqueue investigation](workqueue-race.md) owns that external diagnostic.
+Re-audited on 2026-10-23 against `42eff37a`, including the third four-wave review.
+These are proposed changes, not acceptance or replacements for historical grades.
+The [results record](../evals/implementation-results.md) owns measurements,
+[testing strategy](testing.md) owns requirements, and
+[workqueue investigation](workqueue-race.md) owns the external diagnostic.
 
 ## What is actually preventing closure
 
-The stock stages already execute. Current gaps are measurement authority,
-execution identity and handoff semantics, plus independent runtime safety defects:
+Stock stages execute, but measurement authority/provenance and handoff semantics
+remain unreliable. Separate runtime findings also prevent general release claims.
 
-| Boundary | Evidence |
+| Boundary | Observed gap |
 | --- | --- |
-| Frozen source/interpreter | Preparation still copies current files; bare-Python hooks drifted during the recorded exit-127 incident |
-| Shared stage lifecycle | A model-free call to the pinned runner exceeds its timeout on an inherited child pipe; multi-case aggregation masks -1 beside 0, though later per-case checks reject it |
-| Frozen grading authority | A copied failed repair archive passes after only collected expectation downgrade; controlled phase/native contradictions also pass |
-| Artifact identity/preservation | Modes/links escape snapshot identity; actual helpers delete changed ignored output and an outside target through a parent link |
-| Checkout/publication ownership | An explicitly switched checkout is reset; recipe construction uses owner/first-URL inference |
-| Grading/handoff | Replay lacks a grounded outcome role; reporting rituals and nested speculative text add avoidable failure surfaces |
-| Other runtime findings | Tracked workspace synchronization changes outside members beyond rollback; YAML, report preservation and optional-archive diagnostics have separate scoped findings |
+| Frozen execution | Preparation copies current files; bare-Python hooks drifted in the exit-127 incident |
+| Shared lifecycle | Inherited child pipes exceed the pinned runner timeout; aggregation masks -1 beside 0 |
+| Grading authority | Collected expectation downgrade and phase/native contradictions can pass |
+| Runtime ownership | Actual helpers delete replaced artifacts/outside link targets, reset a switched checkout and write outside selected Go metadata |
+| State composition | Late policy commits skip retesting but the checker requires exact tested/retained HEAD |
+| Interpretation | YAML readers disagree; replay lacks grounded outcome grading; reporting/reviewer text adds unsupported claims |
 
-Controlled checker counterexamples are not observed actor exploits or malformed
-producer output. Function proofs are not full remediation executions. The linked
-results and scratch receipts retain those distinctions and original grades.
+Actual-function proofs, controlled checker counterexamples and full engine runs
+are different evidence. Neither a predicate proof nor an outside-write helper
+proves a full publication bypass or an observed actor exploit. Preserve those limits.
 
 ## Desired ownership
 
 | Component | Owns |
 | --- | --- |
-| Detection | Effective target configuration, canonical defaults and explicit compatibility restrictions |
-| Runtime | Every mutation/rollback, bounded test attempts, deterministic audits, authoritative final scan, license gate, actual receipts, scope and publication eligibility |
-| Invoking skill | Target/policy selection, one launch, completion, read-only investigation, useful supported next steps and exact emitted result |
-| Eval helper | Independent invocation/state/operation/scenario checks, immutable evidence identity and exact witnessed relay |
-| Semantic grading | Factual observations and future advice against supplied evidence, with independent review of known limitations |
+| Detection | Effective target configuration, defaults and explicit compatibility restrictions |
+| Runtime | Mutation/rollback, bounded tests, four audits, final scan/license gates, receipts and publication eligibility |
+| Invoking skill | Target/policy selection, one launch, completion, read-only diagnosis and supported handoff |
+| Eval helper | Independent operation/state/scenario checks, evidence identity and exact witnessed relay |
+| Semantic grading | Past/present facts and future advice against independent evidence, with whole-reply review |
 
-Keep the AI work: resolving target policy, identifying applicable repairs and
-owners, and deciding useful follow-up. Scripts need not perform speculative root
-cause analysis or ask a second model to repeat deterministic verification.
+Keep policy selection, repair discovery and useful advice as AI work. Retain Bash
+transaction orchestration and the existing Python structural-policy boundary.
+No wholesale orchestrator rewrite, result schema, transaction service or sandbox.
 
 ## Scope and order
 
-Distinguish three kinds of work below. **Measurement prerequisites** must be ready
-before interpreting a new actor run. **Runtime safety obligations** must be fixed
-or explicitly left open before claiming general release readiness; the existing
-fix-only cohort does not exercise every one. **Optional deletions** need their own
-proof but must not hold all E2E progress hostage. These are labels on work, not a
-new campaign framework.
+Fix measurement prerequisites before interpreting new actor results. Choose the
+bounded implementation and claim, complete changed-boundary controls, then freeze.
+Runtime obligations below remain release blockers if deferred; optional deletions
+do not hold unrelated E2E measurements hostage. The fix-only cohort cannot establish
+report-only safety or every YAML/publication path.
 
-Choose the implementation being measured, finish its relevant local controls,
-then freeze it. Do not require report-only repair, parser cleanup and reviewer
-elimination merely to test a corrected replay oracle. If runtime fixes are included,
-remeasure affected live paths; if deferred, keep the narrower cohort claim and
-release obligations visible. One all-pass cohort is not universal runtime safety.
-
-The preferred architecture remains Bash transaction orchestration, existing
-receipts and four independent audits, with the existing Python policy-loader
-boundary for semantic YAML. A wholesale Python orchestrator, new result schema,
-transaction service or plugin sandbox has no demonstrated advantage here.
+Use the [component reuse rules](testing.md#measuring-relevant-changes): changed
+oracles/validators can reinterpret sufficient archived facts separately; changed
+actor/runtime paths need affected execution. Missing new fields remain unknown.
+Preserve original manifests, helper-hash fences and grades. Only restoring the
+original frozen helper is scoring-only recovery; a corrected oracle is a separate
+interpretation. Neither is an untouched original E2E pass. Declare reuse and
+component identities in existing records, not a dependency resolver or new ledger.
 
 ## Ordered implementation
 
-### 1. Settle the measurement contract before changing the actor
+### 1. Settle the prospective contract
 
-Define product failures before another measurement. Wrong retained ref, coverage,
-builder, count, quoted error or repair; omitted persistent failure or failed retry;
-unsupported causal certainty; missing applicable owner/prerequisite; invented
-publication; and unsafe mutation are correctness failures. Keep precise citation
-errors recorded; a wrong line number prevents a claim of flawless accuracy, but
-does not automatically invalidate a separately scoped backport criterion.
-For the next cohort, retain the current outcome rule that a demonstrated factual
-contradiction fails, including a wrong precise citation. “Material” distinguishes
-truth/advice from presentation or harmless inspection; it is not permission to
-waive an inaccurate fact. Keep O/A annotations, prompts and independent review
-consistent with this prospective choice, preserving historical grades.
+Keep the next outcome rubric strict about demonstrated factual contradictions,
+including precise wrong citations, while distinguishing criterion scope: a wrong
+line does not itself invalidate separately correct backport advice. Wrong refs,
+coverage/builders/counts, omitted attempts/blockers, unsupported causality,
+invented publication, missing required handoff and unsafe mutations fail their
+applicable criteria. Preserve historical criteria and grades unchanged.
 
-A table versus prose, reference-read order, an accurate derived total, or a harmless
-denied inspection is not intrinsically a product failure. “Flaky” after a failed
-and passing attempt does not alone assert that a failure predates the update.
-Attribution needs evidence when asserted; it need not be a task or mandatory
-uncertainty paragraph. Preserve prior grades and their criteria. Record prospective
-criterion changes and review corrections alongside them, never overwrite them.
+Presentation, reference-read timing, accurate derived totals and harmless denied
+inspection are not intrinsic product failures. A failed/passing retry called
+“flaky” does not alone assert pre-existing failure. Attribution needs evidence
+when asserted; neither an attribution task nor an uncertainty paragraph is mandatory.
 
-Keep the broad preventive CLI deny if useful, but prospectively classify the
-actual proven read-only denied inventory form separately from mutation attempts.
-Keep the denial visible. Start narrowly rather than building a list/show option
-parser: mixed mutations, file-output redirects (`git stash list >go.mod`),
-substitutions and external-diff/textconv options must not inherit a benign verdict.
-Unknown forms remain conservative. An attempted source edit or mutating stash
-still fails even when denied or final state is clean. Cover the actual inventory,
-ordinary status/history, `git -C`, multiline/mixed commands and mutate-then-restore
-in existing operation tests. Do not turn trace heuristics into a shell sandbox.
+Keep the preventive deny if useful, but distinguish the proven read-only denied
+inventory form from attempted mutation. Unknown forms stay conservative; redirects,
+substitutions, external-diff/textconv and mixed mutations inherit no benign verdict.
+Cover ordinary history/status, `git -C`, multiline commands and mutate/restore in
+existing operation tests. Attempted source edits/mutating stash fail even if denied.
+Trace heuristics are observation, not a shell sandbox or generic option parser.
 
-### 2. Close measurement provenance and validator gaps
+### 2. Freeze execution and repair measurement authority
 
-In `evals/run.sh`, `snapshot`/`freeze_run`, `prepare` and YAML hooks:
+In `evals/run.sh`, snapshot/preparation, hooks and deterministic judges:
 
-- Freeze required current plugin files and helper once into run provenance;
-  stage from that snapshot. Rewrite both lifecycle-hook paths and embedded
-  deterministic-judge helper paths to it. Retain the `fix-go-cves` plugin basename
-  and normal relative layout: the shared harness reuses its prepared plugin by
-  basename, including the invocation shim. A generic `provenance/plugin` basename
-  can stage another plugin and bypass that shim. Replay combines the historical engine archive with
-  the complete frozen current skill; live uses the frozen current runtime. Keep
-  generated tools/caches outside the scanned checkout and answers outside actor
-  inputs. Do not copy the whole repository or require manual detached wrappers.
-  A model-free control must exercise the shared staging function, resolved CLI
-  plugin argument and intended shim, checking the same prepared plugin/skill bytes.
-  Confirm actual model skill intake in the existing pilot trace, without adding
-  an actor just to prove staging. Preserve existing distinct baselines for
-  intentionally generated shims, historical-engine/current-skill replay and the
-  unwrapped live runtime; do not compare every prepared byte to raw source.
-- Resolve one absolute virtual-environment interpreter; use it for hooks, staged
-  drivers, deterministic judges and stock stages. Preserve the venv entrypoint so
-  packages resolve; record its resolved executable/hash, version and package
-  identity. Validate child imports, including `CSafeLoader`, before actors.
-  Do not silently fall back to another interpreter. Environment ownership belongs
-  in the shared runner setup, without vendoring a Python distribution.
-- Retain case/helper/skill/runtime/config/CLI/model/harness/tool identities in the
-  existing manifest, including source file kind and relevant execution mode.
-  Reject unexpected source links rather than silently omitting them; intended
-  venv/tool links remain separately identified. Migrate baseline, completion,
-  capture and native-retained-SHA consumers together when snapshots gain kind/mode;
-  do not leave the current string-SHA lookup assuming the old shape. Do not freeze
-  UID/GID, timestamps, inodes or cache contents. Detect drift before the next stage.
-  Keep credentials out of snapshots. Stable bytes do not freeze live vulnerability
-  databases or builder tags; retain their observed identities separately.
-- Reject incompatible track/profile/case selection before preparing a real
-  checkout. Keep CLI options simple; do not infer live mode from a late failure.
-- Reconcile the actor deadline with serial build/test/scan limits and bounded
-  cleanup/collection time. Fix the pinned shared runner's demonstrated inherited-
-  pipe timeout defect with owned termination and bounded draining/reaping;
-  preserve partial traces/status. Process groups do not own detached containers.
-- Aggregate any nonzero case exit as stage failure while preserving raw values:
-  numeric `max(-1,0)` masks failure, although per-case extraction later rejects it.
-  Keep completeness verification separate from threshold acceptance.
-- Select a tested fixed harness revision or explicitly identified local patch;
-  record base revision, effective code/patch identity and dirty state, and verify
-  integration. Do not add a plugin supervisor or runner fork.
+- Freeze required plugin/helper files once and stage from them. Rewrite lifecycle
+  and embedded judge paths. Preserve the `fix-go-cves` basename/relative layout:
+  harness basename reuse must select the prepared invocation shim. Replay uses
+  historical runtime plus complete frozen current skill; live uses current runtime.
+  Keep generated tools/caches outside scanned trees and answers outside actor input.
+- Exercise shared staging, resolved CLI plugin argument and intended shim model-free;
+  confirm actual skill intake in a declared pilot. Preserve distinct generated-shim,
+  historical-runtime and unwrapped-live baselines rather than comparing every
+  prepared byte to source. Do not copy the entire repository.
+- Resolve one absolute venv interpreter for hooks, drivers, judges and stock stages.
+  Preserve its venv entrypoint; identify executable/hash, version and packages.
+  Check child imports including `CSafeLoader`; fail instead of falling back.
+- Identify cases, helper/skill/runtime/config, CLI/model/harness and tools in the
+  existing manifest. Add file kind/relevant execution mode; reject unexpected
+  source links and identify intentional tool/venv links separately. Migrate baseline,
+  completion/capture and native SHA consumers together. Exclude credentials,
+  ownership/timestamps/inodes/cache bytes; record observed database/builder identity.
+- Reject incompatible track/profile/case before preparing a checkout. Reconcile
+  serial operation limits and actor deadline with bounded cleanup/collection.
+- Fix inherited-pipe termination/draining/reaping in the shared runner, preserving
+  partial traces/raw exits. Any nonzero case exit fails aggregation; `max(-1,0)`
+  is wrong even though later per-case extraction rejects it. Completeness and
+  thresholds remain separate. Process-group control does not own detached containers.
+- Select a tested harness revision or identified local patch; record base/effective
+  code identity and dirty state. Do not introduce a supervisor or runner fork.
 
-Use frozen input/annotations as grading authority. `state.expected` currently can
-change `repair` to `observed` on a copied failed live002 archive and turn its full
-contract true without changing evidence or frozen input. Delete duplicated grading
-expectations from collected state where practical, or compare the complete relevant
-subset, including defaults and absent fields: scenario, pins, guards, canonical
-commands and replay result/branch/exit. Use one bound reader for arguments,
-scenario checks, scan-head selection and judge-evidence projection; fixing only
-the Boolean verdict leaves a second mutable advisory authority. Capture paths are operational data, not permission to change the declared scenario.
+Bind arguments, scenario checks, scan-head selection and semantic projection to
+frozen input/annotations. A copied failed live002 archive passes when only
+`state.expected` changes repair to observed. Remove duplicated collected expectations
+or compare the complete relevant subset including defaults/absence: scenario,
+pins, guards, canonical commands and replay result/branch/exit. Paths are operational.
 
-For required repair, require the initial phase to be completed and bind its receipt
-to the pinned base unconditionally. Current controlled fixtures pass with that
-phase unreached and a wrong initial HEAD. For native proof, reject duplicate
-canonical binary paths before building per-path checks; an invalid record followed
-by a valid duplicate currently overwrites the failure. Test both orders and `./`
-aliases. Preserve observed blocked-phase and initial-only binary fast-path rules.
-These are small checks in existing predicates, not a general evidence schema.
+Required repair must unconditionally prove completed initial scan at the pinned
+base. Reject duplicate canonical native paths before per-path checks, both orders
+and `./` aliases: a later good record must not overwrite a failed witness. Preserve
+observed blocked phases and initial-only native clean fast paths.
 
-Preserve original grades; corrected archive rechecks are separate records. Intact
-hashes cannot authorize contradictory evidence or a changed scenario.
+Repair-exercise credit also needs a usable advertised fix threshold: nonempty
+containers `['']` and prerelease-only lists currently pass. Independently apply a
+small release/pseudo-version specification with empty/prerelease/release/pseudo
+controls; dispatch's loose `validfix` is not complete version validation. Published
+availability is separate from compatibility permission and generic remediation by
+dependency removal. No resolver simulation or shared runtime/oracle implementation.
 
-Keep answer/control files outside the staged execution tree, but do not claim
-that an unrestricted shell cannot read them. Literal-path trace heuristics miss
-variable-based reads; the shared runner exposes the run root in its environment.
-Remove unnecessary exposure where possible and keep the observational limitation
-explicit. Moving the frozen helper must not change protected roots accidentally:
-record source/provenance/control roots rather than infer them from `EVAL_ROOT`'s
-old directory depth. Do not add more shell regexes as an isolation guarantee;
-strong isolation belongs to shared infrastructure if it becomes required.
+Keep source/provenance/control roots explicit when relocating helpers. Literal-path
+checks miss variable-based answer reads and run-root environment exposure; reduce
+exposure without claiming isolation. Shared infrastructure owns stronger isolation.
 
-Use model-free 005/007/002 plus the contradiction controls above. Mutate original
-source after freezing, change/remove the selected interpreter, vary child Python,
-backend imports and profile/track, and stall an owned child/container. Verify
-snapshot reuse, early failures and partial-evidence cleanup. Shared controls must
-cover inherited stdout/stderr/both, early leader exit, ignored TERM and
-cancellation, plus exit matrices [-1,0], [-1,-1], [1,0] and [0,0]. Inspect child
-termination, not just whether a short-lived child eventually closes its pipe. Scoring-only recovery
-preserves the original failure and actor hashes; it is not an untouched E2E pass.
-No campaign/resume service, plugin sandbox or generic preflight layer is needed.
+Use existing model-free 005/007/002 and contradiction controls. Vary frozen-source
+drift, selected/child Python, imports and track/profile. Shared lifecycle controls
+cover stdout/stderr/both, early leader exit, ignored TERM, cancellation and exit
+matrices [-1,0], [-1,-1], [1,0], [0,0]; inspect termination, not eventual pipe closure.
+Retain partial evidence and explicit container/resource disposition separately.
 
-### 3. Fix runtime safety independently of optional cleanup
+### 3. Close runtime ownership and state boundaries
 
-These are release obligations, not claims that each caused the current cohort's
-failures. Use focused actual-function/workflow controls; no new actor is needed
-for each predicate. The existing live cases still validate any changed runtime
-that is selected for the final cohort.
+**Artifacts and checkout.** Actual helpers delete a replaced ignored executable
+and, through a replaced parent-directory link, an outside target. Require current
+content/type ownership, still-untracked status and canonical containment through
+all parents before deleting prior/current-run outputs. Preserve changed, tracked,
+linked and unproven old/malformed claims; leave preserved output scan-visible.
 
-**Owned artifacts and checkout cleanup.** `artifact_manifest_prepare` deletes a
-user-replaced ignored executable if its path appears in the prior manifest. The
-sequential real-Git probe has clean status and uses the actual helpers; no race or
-scanner behavior is needed. Extend the existing manifest with content/type identity;
-delete only unchanged, still-untracked owned files within the canonical checkout, including parent components. A second clean-input
-probe replaces an ignored output directory with a link; the helper deletes the
-outside target. A leaf hash/type check alone does not establish containment.
-Preserve changed files, tracked promotion, links, scope escapes and old/malformed
-unproven claims, and leave preserved contents visible to scanning. Apply the rule
-to current-run rebuild cleanup too. No artifact registry or database is needed.
+Actual abort cleanup also resets a deliberately switched checkout with a user edit.
+Check latest run-owned branch/HEAD before destructive cleanup; preserve unknown
+checkout/index context and record recovery state. Cover owned empty abort, partial
+completion and unexpected context. This is a sequential interleaving proof, not
+general concurrent-edit/signal safety. Named retention of committed uncompleted
+repairs is a separate rollback-policy choice; reflog-recoverable objects are not erased.
 
-Abort cleanup also resets the current tracked tree without checking that it still
-owns the checkout. An explicit switch to another branch followed by a user edit
-is overwritten by the actual cleanup function. Guard the latest run-owned branch/HEAD before
-destructive cleanup, record actual state, and preserve unexpected context for
-manual recovery. If ownership cannot be established, preserve rather than add
-a transaction state machine. Do not promise general concurrent-edit safety or add a lock/lease service to solve
-a demonstrated branch-ownership check. Keep controls for owned empty abort, completed
-partial run and unexpected checkout/index preservation.
+**Effective Go metadata.** Real workspace sync modifies `../outside` beyond
+rollback. Validate effective workspace identity/use members before graph/update
+writes using canonical paths and a local-toolchain read-only JSON view; bind sync
+to that workspace. Mutable module files must be tracked/owned in the existing
+transaction set. Reject outside/untracked members, parent links and independent
+nested checkouts; preserve owned nested modules, internal sync, read-only local
+replacements and sibling/vendor/API rollback. Do not snapshot external projects.
 
-Deleting committed-but-uncompleted repairs on abort is currently documented
-transaction rollback, not proven irreversible data loss. Decide separately whether
-to retain a named unverified branch for inspection. Do not silently redefine that
-product contract or describe reflog-recoverable objects as erased. The branch-switch
-probe is a deterministic interleaving, not a tested signal/process-tree lifecycle.
+Workspace checks alone miss inherited `GOFLAGS=-modfile`: actual `fix-stdlib.sh`
+updates sibling outside.mod, leaves target unchanged/clean and emits FIXED. This
+proves an outside write and false helper result, not full fix-all publication.
+Reject `go env GOMOD` as the guard: actual controls return owned go.mod while
+`go mod edit` reads/writes outside.mod. `Dir` alone also misses the alternate file.
+The tested candidate is `GOWORK=off GOTOOLCHAIN=local go -C "$moddir" list -m -mod=readonly -json`.
+Require one main-module result with nonempty `GoMod`; resolve relative values
+against queried moddir. Bind selected path/type to exact tracked owned go.mod and
+its derived sum path to the transaction, recording existing or absent pre-state;
+reject alias/link selectors even if realpath equals owned go.mod. Sums derive
+lexically from the selected modfile; the alias query is confirmed, not an executed
+outside-sum write. Bound the query; mismatch, ambiguity, failure or timeout
+requires review before policy reads/writes.
 
-**Workspace synchronization.** The actual offline snapshot/sync/rollback control
-shows tracked `go.work` use `../outside` changes that member and leaves it changed
-after rejection while the target is clean. This proves out-of-scope mutation,
-not a full remediation/publication bypass. Before dependency graph/update commands
-can write metadata, validate workspace identity and every effective `use` member
-with canonical path resolution and Go's read-only JSON view using the local
-toolchain; parsing failure requires review. Bind sync to that validated workspace.
-Each mutable `go.mod` must be tracked/owned in the existing target transaction set.
-Reject relative/absolute outside members, parent-link escapes, untracked members
-and independent nested checkouts before writes. Preserve tracked nested modules,
-internal sync, read-only local replacements and sibling/vendor/API rollback
-controls. Do not extend snapshots into external projects. This release obligation
-is separate from deferred workspace vendoring and adds no actor to the cohort.
+Native overlay controls also return owned `GoMod` while `go list` reads replacement
+module bytes; `mod edit` reads/writes physical owned bytes in the same context.
+This is inconsistent metadata selection, not an outside repair-write exploit.
+Explicit native `-overlay=` restores owned query bytes; keep all internal reads
+and writes physical, applying that override where supported and validating each
+command rather than blindly adding a flag. Preserve caller build/test flags,
+effective GOFLAGS/GOENV and benign flags otherwise; no general flag parser or
+broad stripping.
+Current-host absolute/relative/stored/tag/query controls preserve input bytes.
+Cover nested modules, supported minimum/newer Go, overlay/alias/sum identity and
+query errors before adoption. Complete explicit file binding is an alternative
+only across graph/get/tidy/vendor/sums, not `mod edit` alone. These sequential
+controls establish no concurrent configuration guarantee.
 
-**Publication generation.** Exact relay can faithfully repeat an unsafe recipe.
-The renderer chooses by owner inequality/first remote and reads only the first
-push URL, while `git push <remote>` can send to multiple destinations. Bind both
-PR base repository and intended push destination; withhold ambiguous/unconfirmed
-recipes. A renamed fork can have a different basename, and an unrelated repository
-can share the same name: URL name equality is not fork authentication. Use an
-existing explicit/trusted destination where available; do not invent a new remote
-registry or mandatory online topology/authentication dependency. Do not rewrite
-remote URLs or print credentials to make a recipe possible.
+**One final test phase.** Actual YAML repair commits only .grype.yaml after early
+tests. Runtime skips retest while the checker requires exact tested/scan HEAD;
+the actual helper plus controlled predicate prove reachable contract disagreement,
+not an observed full-cohort failure. Move canonical `run_tests` and its subsequent
+`CLEAN_CMD` after bounded verification/outcome folding; delete the early invocation
+and policy-excluding conditional retest. Keep one final phase with existing bounded
+retry, per-attempt receipts and workspace/state checks. Bind `VERIFIED_HEAD` to
+`TESTED_HEAD` before cleanup; capture cleanup exit and block confirmation on failure,
+then check retained HEAD/tracked state after cleanup and all later gates. Exact
+commit tests remove ancestry/policy-equivalence exceptions.
+Failed verification remains failed despite passing tests; retain final-state partial
+diagnostics. This changes prospective ordering, not historical failures. Cover late
+policy/dependency commits, retries, mutating cleanup and workspace cleanup; execute
+the affected live path.
 
-Controls: unique confirmed target, unrelated backup first, ambiguous candidates,
-renamed fork under the chosen explicit policy, split fetch/push URLs, multiple
-push destinations, supported SSH and unavailable identity. Assert generated base,
-head and destination without executing push/PR. Historical positive replay proves
-relay of its archived recipe, not correctness of today's generation.
+**Publication.** Owner inequality/first-remote inference and first push URL are
+insufficient; a remote can push to multiple destinations. Bind confirmed PR base,
+head and all intended push destinations; withhold ambiguity. Basename equality
+does not authenticate forks, including renamed forks. Use existing trusted/explicit
+identity; no remote registry, mandatory online topology service, URL rewriting or
+credential output. Locally cover backup-first, ambiguous, renamed/same-name, split
+fetch/push, multiple destinations, SSH and unavailable identity without publishing.
+Historical positive recipe relay does not prove current generation correctness.
 
-**Policy interpretation and command status.**
+**Policy and evidence.** Extend the existing structural `PolicyLoader` for shared
+read-only preflight/audit identity: vulnerability/package/type/location/fix-state,
+including aliases/merges/inline/package-first and duplicate/schema checks. Actual
+equivalent-layout controls report one canonical issue versus zero for alternatives;
+that is an audit-reader gap, not a full bypass. Unsupported comment-preserving
+mutation layouts stop for review; do not generically serialize user policy.
+Cover actionable ignores, non-Go entries, sibling scope, mixed broad/scoped rules
+and missing evidence; retain four independent audits. Deduplicate only equivalent
+entry/location/tuple parsing after parity, not different gate semantics.
 
-Use one structural read-only Grype policy decoder, preferably extending the
-existing `PolicyLoader`, for preflight and audit entry identity. Equivalent valid
-YAML layouts must yield equivalent vulnerability/package/type/location/fix-state
-semantics. Alias, merge, inline and package-first policies must not silently
-produce zero audited entries. Retain duplicate-key/schema checks. For mutation
-layouts that the comment-preserving writer cannot safely change, stop with a
-specific review outcome; do not rewrite user policy with a generic serializer.
-Eight actual checker/audit fixtures accept equivalent policies but report one
-canonical issue versus zero for package-first/inline/alias forms. This proves an
-audit reader gap, not a full publication bypass; see `.work/fix-go-cves-design-audit-20261023/yaml-counterexample/receipt.json`.
+Preserve child and tee statuses in remaining fix-package build/fix-all dispatch
+pipelines; cover command 0/tee 1 and command 2/tee 1 with existing local patterns.
+Required capture failure blocks gates. Optional archive-copy failure instead keeps
+engineering exit, warns and preserves private diagnostics/recovery paths; actual
+cleanup currently deletes them after copy failure. No new archive store/exit gate.
+An eval missing required evidence still fails.
 
-Cover canonical/equivalent layouts with actionable ignored findings, unrelated
-non-Go entries, scoped sibling modules, mixed broad/scoped policy, missing scan
-evidence and unsupported mutation layouts. Keep all four independent audit gates.
-After semantic parity, remove duplicate entry and pure location/tuple parsing;
-do not merge distinct actionable/ignored/regression or multi-module rules.
+Report-only builds accept dirty input and ignore restore failures. Reject dirty
+input before mutating builds or choose an isolated build with defined output
+policy; never auto-stash. Add dirty-preservation/cleanup-failure controls, not actors
+to this fix-only cohort. Replace obsolete layout assertions with equivalent behavior
+controls; assertion count and test-directory churn are not coverage goals.
 
-Finish local command/logger-status parity: `fix-package.sh` still records only
-its build pipeline's command status, while several `fix-all.sh` dispatch pipelines
-use an aggregate status. Preserve both child and tee exits with the existing local
-capture pattern; failed logging must not imply successful evidence or replace the
-child's exit classification. Cover command 0/tee 1 and command 2/tee 1. Do not add
-a generic command execution framework or make optional native proof mandatory.
+**Unconfirmed source coverage.** Package-count/schema probes accept non-Go-only
+context or missing count wording; no real Grype Go-exclusion/full false-clean was
+reproduced. Test real healthy/suppressed/omitted Go, non-Go-only, dependency-free
+and native-only inventories before choosing a small source check. Keep the npm-type
+diagnosis narrow; no implicit campaign gate or mandatory optional native proof.
 
-Late failure of optional durable archiving is different from required gate capture.
-The actual extracted cleanup warns on a failed archive copy, retains original
-exit 0, then deletes temporary state/test/fix logs. Preserve those existing private
-diagnostics and print their recovery paths when copying fails. Do not add a
-second archive store, new exit category or publication prerequisite, or pretend
-completed engineering gates failed. An eval missing its required evidence still
-fails. This diagnostic-preservation fix need not block unrelated measurement.
+### 4. Simplify handoff and keep deletions conditional
 
-The advertised report-only mode also needs a separate preservation fix:
-`report.sh` builds with dirty input but only attempts restore for initially clean
-input, and ignores restore failures. Reject dirty input before a mutating build,
-or use an isolated build checkout with an explicitly defined output policy.
-Never auto-stash it. Add a dirty-input preservation and cleanup-failure regression;
-this is not exercised by the current fix-only cohort. Add no unrelated report
-actors to the eleven-cell measurement.
+Inline the compact reporting contract in `SKILL.md`, retaining target policy,
+one invocation, completion and immutable-ref read-only discovery. Relay emitted
+Summary/recipe/exit exactly; authenticate extra facts; give unresolved work a
+supported repair/investigation, owner and prerequisite. Preserve relevant attempts,
+but a recovered retry alone creates no maintainer task. Applicable remote repairs
+must land on starting origin; builder updates must be published. Unknown coverage
+stays unknown; positive artifact-specific evidence stays positive.
 
-Replace obsolete source/layout assertions with behavioral controls when equivalent;
-assertion count is not a coverage target. Deduplicate fixture setup without hiding
-different scoped-policy or rollback cases.
+Remove final-read timing, exact table/imperative grammar, verbatim-only evidence
+cells, universal no-count/causality-paragraph rules and universal failed-attempt
+investigation. Delete reporting.md if no conditional detail remains. Replace
+speculative retry warning with actual exits; investigate relevant failing packages.
+Keep exact Summary/recipe checks and historical runtime logs unchanged.
 
-**Unconfirmed follow-up: source catalog coverage.** The package-count function
-accepts nonzero/non-Go context or missing count wording without inspecting Go
-inventory; an extracted schema guard also mislabels an npm-only finding. No real
-Grype exclusion or full false-clean was reproduced. Test the actual scanner on
-healthy/suppressed/omitted Go modules, non-Go-only findings, dependency-free and
-native-only inventories before choosing a small machine-readable source check.
-Keep the narrow npm-type diagnosis separate. This investigation is not an implicit
-campaign prerequisite or a reason to require optional native proof for source scans.
+Reviewer removal is optional. Inventory NEEDS_REVIEW/publication effects, especially
+successful primary repair/failed indirect repin. Decide real compatibility/security
+blockers versus advisory caveats; absence/failure/malformed transport must not
+accidentally define policy. Use existing response fixtures and blocker/repin/sibling/
+poison-provider controls. Once semantics are complete, delete nested invocation,
+pre-review build/scan, retries and parser together. Otherwise retain only the
+independent decision and validated reasons with raw output. No temporary framework.
 
-**Optional deletions.** Repeated build/scan work is a later measured deletion, not a cache project. Trace
-which source/binary/ignore state each scan observes; remove the post-test presentation scan if the immediately following verifier
-already supplies its only needed result, and remove the pre-review scan with its
-owner. Preserve the authoritative final rebuilt scan after
-all mutating phases. Do not memoize by HEAD alone or remove gates to save time.
+Repeated scans are measured deletions: trace observed source/binary/policy state
+before removing presentation/pre-review scans. Keep the authoritative final rebuilt
+scan after mutation; do not cache by HEAD alone or remove needed audit inputs.
 
-### 4. Select a simpler handoff; keep larger deletions conditional
+### 5. Ground and calibrate the semantic oracle
 
-Retain target policy, one invocation, terminal completion, immutable-ref discovery
-and read-only follow-up. Put the short shared reporting contract in `SKILL.md`:
-relay actual exit and complete emitted Summary/recipe unchanged; authenticate
-additional facts; give each unresolved issue a supported repair or investigation,
-owner and next prerequisite. Include all relevant attempts, including passed
-retries. A recovered retry is an observed outcome, not automatically an unresolved
-maintainer task: remove the old universal failed-attempt investigation/owner rule
-from the reporting procedure and applicable criteria. Keep actions for persistent
-blockers or supported remaining risks. Remote repairs must reach the starting origin branch before rerun;
-updated builder images must be published before consumer reruns. Missing gate or
-native proof stays unknown; positive artifact-specific proof must not be negated.
+Replace replay backport with outcome; keep backport/remote landing under action_owner.
+Still two judges, three samples each. O owns past/present facts; A owns supported
+future repair/owner/prerequisites. Supply independent historical witnesses and
+captured observations through existing projection; reply Summary and nested review
+text do not authenticate themselves. Add trusted observed finding IDs rather than
+unbounded transcripts. Unobserved new history claims require independent review.
 
-Delete mandatory final-read timing, the exact three-part/table/imperative grammar,
-verbatim-only evidence cells, universal no-count rule and mandatory causality
-paragraph. Delete `references/reporting.md` if the compact contract fits inline;
-retain a reference only for genuinely conditional detail. Favor accurate concise
-prose, with a table when several issues benefit. Keep the deterministic exact
-Summary/publication checks; do not build a new report renderer or schema.
+Controls separate false past cause/valid action (O false/A true), missing owner
+(O true/A false) and wrong future target (A false). Cover recipe targets, package
+citations/retries, origin landing, builders/native scope, overview contradictions,
+counts and presentation. In 007's citation pair change only the wrong citation,
+keeping “flaky” constant. Model-free admission checks annotated Summary/literal
+log witnesses against recordings with only admitted wrapper substitutions removed.
 
-Replace the engine's speculative retry warning with actual first/retry exits.
-Investigate relevant failing packages, not a universal enumeration of all passing
-packages. Preserve original historical logs: new runtime wording does not change
-what recorded replay actors receive.
-
-Reviewer removal remains optional. Inventory each `NEEDS_REVIEW` origin and
-publication effect: a successful indirect-repin caveat can gain a reviewer-only
-`UNRESOLVED` veto without a deterministic blocker. Preserve real compatibility/
-security decisions as typed blockers; decide explicitly whether that caveat is
-advisory. Provider absence/failure permits continuation while malformed output can
-block: do not turn incidental parser/transport vetoes into permanent policy, or
-assume the audits subsume every review decision. Use existing response fixtures
-for this inventory, without new tests for a parser slated for deletion.
-
-Retain behavior controls for blockers, successful primary repair/failed repin,
-ignored/advisory siblings and a poison provider. Once semantics are complete,
-delete nested invocation, pre-review build/scan, retries and parser together; the
-outer agent owns advice. If an independent decision remains, retain only that
-scope, archive raw output and expose validated reasons rather than embedded tool
-transcripts. Add no temporary review framework.
-
-### 5. Repair the oracle's evidence boundary
-
-Replace replay's overlapping `backport` judge with `outcome`, retaining backport
-availability/remote landing under `action_owner`: still two semantic judges with
-three samples each. Reuse the existing extract/evidence projection to supply
-independent historical outcome witnesses and captured tool observations. Do not
-use the reply's own Summary as authentication or supply hidden expected answers
-to the actor. A raw nested-review transcript remains a claim, not a tool event.
-
-Define each field's scope: outcome owns past/present facts throughout the reply;
-action/owner owns supported future repair, ownership and prerequisites. Move
-past-causality/attempt/source-accuracy requirements out of A's current catchall
-annotations into O, while preserving usable backport semantics in A. Controls
-must separate false past cause with valid action (O false/A true), missing owner
-(O true/A false), and a wrong proposed repair target (A false). A judge
-cannot validate a new source/history claim absent the relevant observation; mark
-that limitation for independent review rather than assuming it true or false.
-Start with decisive observations, full relevant package attempts and independently
-captured target configuration. Publication's compact witness omits its finding
-IDs; add the trusted observed ID list and an invented-ID negative rather than accepting an unsupported
-extra claim as merely uncontradicted. Keep raw logs/traces available for review; do not
-add another lossy evidence store or dump unlimited transcripts into every prompt.
-
-Controls: exact recipe versus altered target; right/wrong package-result citation;
-all retry outcomes; correct origin landing; correct/wrong builder owner; positive
-native proof versus genuinely unknown scope; contradictory overview; accurately
-supported counts; optional presentation changes. In the actual 007/corrected
-pair, change only the wrong line citation and keep “flaky” constant; this tests
-factual grounding without reinstating adjective/style rejection. Keep some reviewed controls untouched while changing
-the rubric, and retain disagreements and sample errors. Selected controls cannot
-establish general grader reliability. Do not add more judges or rejudge to obtain
-a favorable majority. Model-free admission must also check duplicated annotated
-Summary and literal log witnesses against the packaged recording, stripping only
-the admitted wrapper marker/substitutions; frozen files can still contradict each
-other. Whole-reply review remains necessary.
+Use the [calibration rules](testing.md#measuring-relevant-changes): frozen expected
+criterion labels, raw samples/errors, strict-majority aggregation and retained
+disagreements. TTF is true with complete error-free samples; no unanimity gate.
+Negative controls correctly fail production thresholds, so stock exit zero is not
+calibration success. Name tuned controls development/regression controls, keeping
+reviewed pairs fixed without calling inspected controls unseen holdouts. Add no
+recordings/models/actors for terminology or unchanged judging retries for agreement.
 
 ## One acceptance campaign, after local closure
 
-No new actors are selected by this planning change. Replay can demonstrate
-policy intake/guard forwarding while its archived engine violates a newer guard;
-that does not prove today's enforcement fails or require retrospective repair of
-the historical result. Keep current enforcement checks local/live. No replay or
-cohort pass substitutes for the separate release obligations above. Complete local semantic,
-operation, staging/interpreter, validator and selected handoff/oracle controls,
-then freeze the chosen implementation and criteria. Complete included runtime
-changes' relevant controls; keep deferred safety obligations and optional deletions
-explicit rather than making every improvement an implicit pre-freeze gate. Select and record an official upstream pin
-with a real actionable dependency repair before the campaign. The existing
-Admiral pin may be retained under a concrete changed implementation/question, or
-a new justified official pin may be admitted; neither outcome is guaranteed.
-The [race evidence](workqueue-race.md) does not require one specific upstream patch
-to land before any new measurement. Never inject the local patch, remove race
-checks, change the scenario to observed-only, or retry for a favorable seed.
+This plan launches no actors. Freeze selected changes/criteria after relevant
+controls; select an official upstream pin with actual actionable dependency repair.
+The existing Admiral pin remains possible under a changed question; a justified
+new official pin is also possible. The race investigation requires no specific
+patch before measurement. Never inject local repair, remove race checks, downgrade
+repair to observed-only or retry a favorable seed. Replay guard forwarding can pass
+while its historical engine violates a newer guard; current enforcement is local/live.
 
-Use a single maximum eleven-actor campaign: 005 and 007 three executions each,
-positive 002 once, and the four live cases once. Initial 005/007/002 pilots count
-as the first three members, not an additional campaign. Existing caps total $115
-(seven replay actors at $5, four live at $20); nested/judge costs remain separate.
-Launch one actor per complete normal stock run. Complete its original stages,
-required samples, scenario checks and whole-reply review before launching the next
-declared cell. Repeated `--case` batching launches later actors before judging and
-cannot implement this stop rule. Model-free multi-case controls remain useful;
-this is an operator procedure, not a campaign manager.
+Retain eleven actors maximum: 005/007 three each, positive 002 once, four live once.
+Order seven distinct scenarios first (005, 007, 002, then four live), followed by
+four remaining replay repeats if eligible. Pilots count. Existing actor caps total
+$115 (seven at $5, four at $20); nested/judge costs remain separate. Finish each
+cell's original stages, required samples, scenario checks and whole-reply review
+before launching the next. Multi-case actor batching cannot enforce this stop rule;
+model-free batching remains useful. Declare applicable evidence reuse before launch.
 
-Compare component identities, not Git revision alone: documentation-only commits
-need no actors, while changed runtime/profile/case/environment invalidates its
-affected evidence. Compare source/criteria/settings identities while retaining
-intentional per-run path differences as operational metadata; do not force one
-multi-case invocation merely to keep rendered paths identical. Declare reuse and
-its scope before launch.
-
-For **full fixed-cohort E2E**, require original stock stages to complete, all
-configured thresholds and independent scenario checks to pass, every required
-sample to exist without errors, and whole-reply review to find no factual
-contradiction, unsupported substantive claim or missing required handoff. A false
-completed verdict remains valid input to completeness verification; thresholds
-and the original stage exits still decide failure. Live 001 can block correctly; 002
-must actually repair with canonical gates; 003/004 must prove declared native
-artifact/phase coverage. Preserve minor accuracy details explicitly; never call
-a flawed reply flawless. Harmless presentation drift is not a disqualifier.
-
-Stop on safety/integrity failure or any failed required gate, threshold or review
-that disqualifies the all-pass milestone. A predeclared two-of-three semantic
-comparison may continue only while its
-narrower question remains open; it cannot establish all-cells acceptance. Three
-executions are a fixed-fixture repeat check, not general reliability. Preserve
-every failed source group and original grade. No automatic
-next prompt variant, favorable-seed rerun or adaptive cap increase follows failure.
+Full fixed-cohort acceptance requires stock thresholds/stages and independent
+scenario/review requirements in [testing](testing.md): live001 can block correctly,
+002 must repair with canonical gates, 003/004 prove native phases/artifacts. A false
+completed verdict is complete evidence but can fail thresholds. Preserve accuracy
+details; presentation alone does not fail. Stop on safety/integrity or any failed
+required gate, aggregate threshold or review. Dissent alone does not fail a majority.
+A predeclared two-of-three comparison can continue only for its narrower question,
+not all-pass acceptance. Preserve failures; no adaptive prompt/seed/cap changes.
+Three fixture executions establish repetition, not general safety or reliability.
 
 ## Documentation and deferred work
 
-Keep commands in eval README, requirements in testing, decisions here, measurements
-in the results record and unique historical grades where recorded. Trim duplicate
-status without deleting evidence or creating another plan. Audit receipts remain
-under `.work/fix-go-cves-{design-audit,critical-waves,second-audit}-20261023/`;
-distinguish actual-function proofs, controlled predicates and untested producer
-reachability in conclusions.
-
-Defer a broad Bash/Python rewrite, directory/test-suite churn, general shell
-policy engine, fleet/scheduled evals, additional recordings, automated campaigns,
-publication execution and generic caching. Preserve rollback, scoped ignores,
-no-fix credit, compatibility policy, native identity and fail-closed evidence.
+Keep decisions here, requirements in testing, commands in eval README, measurements
+in results and unique calibration history beside cases. Audit receipts under
+`.work/fix-go-cves-{design-audit,critical-waves,second-audit,third-audit}-20261023/`
+retain detailed proofs and limits; replace superseded prescriptions, not append
+every audit's chronology. Defer broad rewrites, shell policy engines, fleet/scheduled
+evals, new recordings, campaigns, publication execution and generic caching.
