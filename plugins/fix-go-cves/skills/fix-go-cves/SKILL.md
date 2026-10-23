@@ -96,6 +96,9 @@ grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIE
 
 ## 4. Quote observations, then hand off next actions
 
+After completing the read-only investigation below, use a tool to reread this
+section from the actual loaded `SKILL.md` before composing the final reply.
+
 Quote the complete actual Summary through the log's end once, unchanged,
 including the terminal exit. Without a Summary, quote the terminal clean/error
 message; missing completion stays unconfirmed. Report the actual exit.

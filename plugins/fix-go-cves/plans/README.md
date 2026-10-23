@@ -1,13 +1,13 @@
 # Fix Go CVEs work plans
 
-Acceptance remains **open**. C10 stopped after three actors: 007/005 passed,
-positive publication 002 failed exact relay and native-coverage reporting. Earlier
-failed campaigns, original artifacts and grades remain intact. The current skill
-clarifies that the Summary owns the sole recipe and explicit scope lines own
-coverage. Existing component verification is reused only for unchanged bytes;
-no actor has measured this skill. C11 starts with publication 002, then 007/005,
-and requires complete stock stages and independent review per cell. The
-[results record](../evals/implementation-results.md) owns counts and identities.
+Acceptance remains **open**. C11 stopped after its first publication 002 actor:
+Summary, coverage uncertainty and measured facts verified, but a second rewritten
+recipe failed the strict relay rule. Earlier campaigns and original grades remain
+intact. C12 tests a tool reread of the loaded reporting section after diagnosis;
+efficacy is unproven, with no timing gate or new parser. No actor has measured it.
+Existing component verification applies only to unchanged bytes. C12 starts with
+publication 002, then 007/005, requiring complete stock stages and independent
+review per cell. The [results record](../evals/implementation-results.md) owns counts.
 
 | Document | Owns |
 | --- | --- |

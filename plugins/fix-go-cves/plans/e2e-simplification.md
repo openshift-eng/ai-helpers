@@ -1,10 +1,11 @@
 # E2E acceptance and simplification
 
-Acceptance remains **open**. C10 stopped after three actors: 007/005 passed,
-publication 002 failed exact relay and native-coverage reporting. Prior campaigns
-remain separate. Current skill clarifications have no actor measurement; unchanged
-component verification remains reusable. Preserve original sources, grades and
-disagreements; the [results record](../evals/implementation-results.md) owns counts.
+Acceptance remains **open**. C11 stopped after one publication 002 actor for a
+duplicate rewritten recipe despite an exact Summary, correct native uncertainty
+and verified facts. Prior campaigns remain separate. C12's stage-local reporting
+reread is unmeasured; unchanged component verification remains reusable. Preserve
+original sources, grades and disagreements; the [results record](../evals/implementation-results.md)
+owns counts.
 
 This plan owns current design choices and the remaining acceptance sequence. The
 [testing strategy](testing.md) owns durable requirements and calibration/reuse
@@ -153,12 +154,16 @@ builder repairs must be published before consumers rerun. A recovered retry alon
 creates no maintainer task. Unknown coverage stays unknown; positive artifact/phase
 proof stays positive. Nested-reviewer prose does not authenticate observations.
 
-Final-read timing, exact table/imperative grammar, verbatim-only evidence cells,
-universal no-count rules, mandatory causal/uncertainty paragraphs and universal
-failed-attempt investigation are removed. Wrong refs, citations, counts, coverage,
+Exact timing/last-tool gates, table/imperative grammar, verbatim-only evidence
+cells, universal no-count rules, mandatory causal/uncertainty paragraphs and
+universal failed-attempt investigation are removed. C12 adds one stage-local tool
+reread of the loaded reporting section after investigation and before composition;
+it adds no timing gate or separate reference. Its efficacy is unproven.
+Wrong refs, citations, counts, coverage,
 builders, command attribution, unsupported causes, omitted attempts/blockers,
 invented publication and missing required handoff still fail applicable criteria.
-Presentation alone does not fail; accurate derived facts remain allowed. A retry
+Other presentation choices do not fail; the strict recipe relay rule still
+applies when argument values agree. Accurate derived facts remain allowed. A retry
 called “flaky” does not alone assert pre-existing failure. Read-only denied
 inspection is distinct from attempted mutation; unknown/mixed shell forms stay
 conservative, and denied source edits or mutating stash still fail. Trace heuristics
@@ -176,18 +181,22 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C10 completed all original stages and stopped at publication 002 after passing
-007/005. Its failure does not erase those individual passes or permit continuation
-to live cells. The [results record](../evals/implementation-results.md) retains
-stock verdicts, dissent, independent reviews and earlier campaigns separately.
+C11 completed all original stages and stopped at its first publication 002 actor.
+Its duplicate rewritten recipe failed the unchanged strict relay guard; equivalent
+argv is not unsafe publication or an invented target. The
+[results record](../evals/implementation-results.md) retains sample/rationale limits,
+independent reviews and earlier campaigns separately. Semantic matching alone does
+not replace the automated literal guard.
 
-The current skill clarifies two existing ownership boundaries inline: the literal
-Summary recipe is the entire publication handoff, and explicit runtime scope lines
-own coverage. No code, helper, oracle, fixture or test changed. Reuse existing
-verification only for unchanged component bytes; no C10 actor is reused across the
-skill change. Freeze C11 prospectively, starting with publication 002 as the known
-regression, then continue only after complete stock stages and independent review
-pass. Keep the same caps, models, oracles and pins.
+C12 changes only two skill lines: use a tool to reread the existing reporting
+section from the actual loaded skill after diagnosis and before composition.
+The observed later manual Step 11 PR template motivates this recency trial; its
+causal role and the intervention's efficacy are unproven. Add no last-tool rule,
+timing gate, separate reference or parser. Discard the intervention if this trial
+fails. Reuse existing verification only for unchanged component bytes, with no
+C11 actor reuse across the skill change. Freeze C12 prospectively, starting with
+publication 002, then continue only after complete stock stages and independent
+review pass. Keep the same caps, models, oracles and pins.
 
 License cleanup reuses the existing artifact ownership helper with a private
 license prefix. Serialized path/event readers honor LF delimiters without splitting

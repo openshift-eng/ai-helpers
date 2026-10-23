@@ -1,10 +1,11 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C10 completed original stages and stopped
-after three actors: 007/005 passed, publication 002 failed. The current skill adds
-inline recipe/scope ownership clarifications and has no actor measurement. Existing
-component verification applies only to unchanged bytes. Script correctness, stock
-grades and independent review remain separate. The [plan](../plans/e2e-simplification.md)
+Full-cohort acceptance remains **open**. C11 completed original stages and stopped
+after one publication 002 actor for duplicate recipe relay. Its exact Summary,
+coverage uncertainty and measured facts verified. The current skill adds a
+stage-local reporting reread and has no actor measurement; efficacy is unproven.
+Existing component verification applies only to unchanged bytes. Script correctness,
+stock grades and independent review remain separate. The [plan](../plans/e2e-simplification.md)
 defines remaining work; the [historical matrix](live/README.md#branch-policy-matrix)
 retains earlier failures unchanged. Different source groups are never pooled.
 
@@ -53,9 +54,10 @@ fails is not guaranteed.
 | `e2e-observed-actions-replay007-20261023-01` | C true, O true (2/3), A TTT, zero sample errors; actor $0.75 | C10 individual pass: independent O/A and operations true; original dissent retained |
 | `e2e-observed-actions-replay005-20261023-01` | C true, O true (2/3), A TTT, zero sample errors; actor $0.50 | C10 individual pass: independent O/A and operations true; original dissent retained |
 | `e2e-observed-actions-publication002-20261023-01` | C false, O FFF, A TTT, zero sample errors; actor $0.70 | C10 stopped: independent O false, A/operations true; exact Summary followed by a duplicate rewritten recipe, missing native uncertainty and unsupported coverage |
+| `e2e-scope-recipe-publication002-20261023-01` | C false, O FFF, A TTT, zero sample errors; actor $0.79 | C11 stopped after one actor: independent O false, A/operations true; exact Summary/native uncertainty and 34 test measurements verify, but a second equivalent-argv rewritten recipe fails strict relay |
 
-Complete actual skill intake was confirmed for the prior pilots and all three
-C10 actors. Earlier campaigns and C10 remain separate; no failed actor is pooled
+Complete actual skill intake was confirmed for the prior pilots, all three C10
+actors and C11 publication 002. Earlier campaigns remain separate; no failed actor is pooled
 into a revised source. Current guidance quotes runtime
 observations and relevant attempt outcomes, then allows only supported future
 actions, owners and verification prerequisites. Default-branch repair-commit
@@ -99,24 +101,27 @@ The earlier model-free 005/007/002 smoke exited 0, exercised driver preflight an
 retained `aa5a4fc`/`aaaeea3`/`2716c2ff`, each with historical runtime exit 2.
 Original artifacts and grades remain immutable; that smoke supplied no actor credit.
 
-C10 publication 002 preserved the entire Summary through `exit=2`, but appended
-a rewritten recipe and omitted native-coverage uncertainty while asserting binary
-scope. The second recipe has equivalent argument values and target; no invented
-argument/semantic difference is adopted from judge reasoning. Shipyard ownership,
-published Go 1.26.9 image prerequisite and rerun with unverified outcome are sound.
-Operations passed; all original stages and samples completed without execution
-errors, and the original driver exited 1 for failed contract/outcome thresholds.
-Independent and stock receipts remain under
-`.work/fix-go-cves-e2e-20261023/observed-actions-publication002-pilot01-*.json`;
-the independent receipt retains its narrower process-exit observation boundary.
+C10 publication 002 omitted native uncertainty and asserted unsupported coverage.
+C11 corrected that distinction, preserved the full Summary through `exit=2`, and
+accurately quoted all 34 passing package measurements and nine advisory rows.
+Both added a second rewritten recipe with equivalent argv and target. The strict
+literal guard intentionally rejects that relay/instruction/bloat failure; no unsafe
+command, changed target or invented argument difference is asserted. Supported
+Shipyard ownership, published Go 1.26.9 image prerequisite and rerun with unverified
+outcome keep A true. Both original drivers exited 1 after all stages and six samples
+completed without errors. Original independent/stock receipts remain under
+`.work/fix-go-cves-e2e-20261023/{observed-actions,scope-recipe}-publication002-pilot01-*.json`;
+the independent receipts retain their narrower process-exit observation boundaries.
 
-The current unmeasured skill clarifies inline that the Summary's literal recipe
-is the entire publication handoff, while only explicit runtime scope lines establish
-coverage. No code, helper, oracle, fixture or test changed; the component evidence
-above is reused for unchanged bytes. C11 starts with positive 002, then 007/005,
-four live scenarios and eligible replay repeats under the unchanged eleven-actor
-maximum, caps, models, oracles and pins. Changed skill instructions require new
-actors; C10's individual passes are not reused across that boundary.
+C12 adds only a two-line tool reread of the existing loaded reporting section,
+after diagnosis and before composition. The later manual Step 11 publication
+template was observed in intake; causation and reread efficacy remain unproven.
+This is stage-local guidance, without a timing/last-tool gate, new reference or
+parser. Discard it if the trial fails. No code, helper, oracle, fixture or test
+changed, so existing component evidence remains applicable only to unchanged bytes.
+C12 starts with positive 002, then 007/005, four live scenarios and eligible replay
+repeats under the unchanged eleven-actor maximum, caps, models, oracles and pins.
+Changed skill instructions require new actors; no C11 actor is reused.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;
@@ -149,7 +154,7 @@ under `.work/fix-go-cves-e2e-20261023/`. V5 source identity is recorded in
 calibration semantics are unchanged; V9 controls retain their existing scope.
 This supplies no actor credit, scoring recovery or live acceptance of changed
 runtime. Component verification remains applicable to unchanged bytes;
-prospective C11 actor acceptance remains separate.
+prospective C12 actor acceptance remains separate.
 
 A separate model-free actual-engine diagnostic,
 `e2e-engine-readiness002-20261023-01`, repaired all five x/net findings on official
