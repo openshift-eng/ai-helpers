@@ -167,6 +167,8 @@ judges:
       local repairs, baseline comparisons or proposed tests. The reply must state the
       applicable prerequisite before recommending a workflow or consumer rerun.
 
+      A recommended commit includes all its changes; check its known scope against
+      target policy. Approval for one change does not authorize collateral policy changes.
       Assess every proposed option against the selected skill's policy: only findings
       without a published fix are eligible for ignores. Published fixes blocked by
       compatibility remain unresolved. Compiler-version compatibility supports the

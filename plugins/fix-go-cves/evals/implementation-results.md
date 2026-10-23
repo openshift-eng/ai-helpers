@@ -1,13 +1,13 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C14 at `2a3c1b27` stopped after its first
-live 001: runtime and facts passed, action/owner failed on an unsupported tentative
-compilation forecast despite a genuine same-result uncertainty caveat. Current
-skill changes only the compiler clause to prerequisites and verification steps;
-C15 remains prospective. Component/V5 evidence applies only to unchanged components
-and identical judge prompts/inputs. The [plan](../plans/e2e-simplification.md)
-defines remaining work; the [historical matrix](live/README.md#branch-policy-matrix)
-retains earlier failures. Source groups, stock grades and independent review stay separate.
+Full-cohort acceptance remains **open**. C15 completed all original stages with
+passing stock grades, but independent action/owner review rejects its bundled
+repair alternative. A valid standalone Go option does not make the full commit's
+additional Kubernetes approval unnecessary. No migration ran. C16 scope guidance
+passes fixed-control action calibration; fresh actors await the source freeze.
+The [plan](../plans/e2e-simplification.md) defines remaining work; the
+[historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
+Source groups, original false-positive grades and independent review stay separate.
 
 ## Current implementation, 2026-10-23
 
@@ -17,7 +17,7 @@ passes remain historical evidence. Historical actor grades are unchanged.
 
 | Changed boundary | Measured evidence |
 | --- | --- |
-| Frozen execution and authority | 85 eval tests pass in 61.141 seconds; current model-free 005/007/002 prepare/replay passes with expected historical results |
+| Frozen execution and authority | 85 eval tests pass in 49.587 seconds; current model-free 005/007/002 prepare/replay passes with expected historical results |
 | Shared lifecycle and aggregation | 362 lifecycle/configuration checks and 186 scoring/sample-retention checks passed on selected harness paths |
 | Physical Go metadata | Seven actual local-proxy transaction controls passed on Go 1.24 and 1.26 |
 | Artifact ownership and scan consumer | 19 focused tests pass in 4.699 seconds, including actual license producer and native Unicode consumer controls; original counterexamples preserved |
@@ -26,7 +26,7 @@ passes remain historical evidence. Historical actor grades are unchanged.
 | Dispatch / final evidence | 90 assertions across 14 capture cases; 473 final-evidence workflow checks |
 | Earlier combined integration | 3,207/3,207 frozen shell checks with all 28 runtime/subagent/test files matching that snapshot. Frozen Python suite: 66/66 before one additional publication control, separately verified. V4: 3,207 shell and 69 Python tests passed; later Unicode counterexamples prevent treating v4 as current closure. |
 | Current v5 integration | 3,207/3,207 frozen shell checks pass (exit 0); all 28 runtime/subagent/test files match current bytes/modes. Python: 70/70 in 23.062 seconds. Receipt: `combined-runtime-v5-verification.json`. |
-| Current action calibration | V5: 18/18 expected majorities, 54/54 samples, zero errors (8 live + 10 replay controls). Earlier V2/V3/V4 failures are preserved in the [calibration record](live/calibration.md). |
+| Action calibration evidence | V6: 20/20 expected majorities, 60/60 samples, zero errors. All 18 V5 inputs/labels remain unchanged; two added controls isolate the whole-commit alternative. Prior failures and limits: [calibration record](live/calibration.md). |
 
 Simplification removes the separate reporting reference/publication profile,
 replaces duplicate policy readers with the existing semantic loader, and uses one
@@ -62,9 +62,10 @@ fails is not guaranteed.
 | `e2e-stage-read-live001-20261023-01` | C true, O TTT, A FFT, zero sample errors; actor $0.62 | C12 stopped: runtime/O true, independent A false for fixable-finding ignore advice and promised compilation; original A majority rejects on an unsupported reporter-backport requirement |
 | `e2e-policy-boundary-live001-20261023-01` | C true, O FFF, A TTT, zero sample errors; actor $1.43 | C13 stopped: independent runtime 29/29 and A true, O false; quoted certificate 1.052s/57.5% contradicts actual 20.059s/89.1% |
 | `e2e-summary-tests-live001-20261023-01` | C true, O TTT, A FTF, zero sample errors; actor $1.44 | C14 stopped: independent runtime 27/27 and O true, A false for a tentative compilation forecast from version; same-result caveat genuine, dissent retained |
+| `e2e-prerequisite-only-live001-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.71 | C15 stopped: independent runtime 27/27 and O true, A false; full candidate adds a Kubernetes-minor migration without approval, while the standalone Go option is valid |
 
 Complete actual skill intake was confirmed for the prior pilots, all three C10
-actors, C11 publication 002, C12, C13 and C14. Earlier campaigns remain separate; no failed actor is pooled
+actors, C11 publication 002 and C12–C15. Earlier campaigns remain separate; no failed actor is pooled
 into a revised source. Current guidance quotes runtime
 observations and failed/later-attempt outcomes, then allows only supported future
 actions, owners and verification prerequisites. Default-branch repair-commit
@@ -174,13 +175,29 @@ executed-success claim or uncaveated prediction. The rejecting majority applies
 that exact boundary; the dissent waives the forecast because of the caveat.
 Original artifacts and reviews remain under `c14-live001*` in the scratch root.
 
-C15 replaces only the final compiler clause with prerequisites and verification
-steps, without build/test success predictions. C14 test reporting remains intact;
-all optional facts still require whole-reply accuracy. Runtime/helper, fixtures,
-O/A oracles and calibration inputs remain unchanged. Reuse V5 for identical judge
-prompts/inputs, without repeating its 54 calls. C15 remains prospective: live 001,
-publication 002, 007/005, live 002/003/004 and four eligible replay repeats, with
-the same 11-actor/$115 maximum, models and pins. No C15 freeze or actor exists.
+C15's original driver exited 0 after all stages and samples completed without
+errors. The actor took 261.8 seconds; its 147-second engine run remained blocked
+at exit 2, passed canonical tests/audits, retained no commits, and canceled its
+wakeup. Independent runtime and outcome pass; action/owner fails the alternative
+"cherry-picking `2d9f5fb` or a standalone go directive bump." The complete candidate
+raises Kubernetes dependencies from 0.35.5 to 0.36.2 against release 0.35.8; only
+Go approval was discussed. The standalone option is valid, but does not excuse
+the bundled migration's missing decision. Nothing was migrated and no API failure
+is asserted. The third passing A sample notices possible broader Kubernetes scope
+then excuses it because the standalone option is also offered. Preserve that
+false positive and all original rationales under `c15-live001*` in the scratch root.
+
+Prospective C16 changes only four existing files: skill candidate-scope checking,
+two shared action-prompt scope/approval sentences, and three pinned-scope facts in
+live-001 annotations. That evidence describes a candidate, not a mandatory repair.
+V6 calibration passes all 20 majorities and 60 samples with zero errors, retaining
+the old 18 input/label bytes plus the actual C15 negative and sole-option-removal
+positive. Full scope, source and rationale checks preserve the original false
+positive. Runtime/helper and O rubric remain unchanged; live-001 adds verified
+source facts, not new outcome requirements. After source freeze,
+start live 001, then publication 002, 007/005, live 002/003/004 and four eligible
+replay repeats under the same 11-actor/$115 maximum, models and pins. No C16 actor
+has run.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;

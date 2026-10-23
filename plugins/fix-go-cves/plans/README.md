@@ -1,13 +1,13 @@
 # Fix Go CVEs work plans
 
-Acceptance remains **open**. C14 at `2a3c1b27` stopped after its first live 001:
-runtime and facts passed, but advice inferred likely compilation from Go version.
-Its same-build uncertainty caveat was genuine; the forecast remained unsupported.
-Original results and dissent remain intact. C15 changes only the final compiler
-clause to prerequisites and verification steps without success predictions,
-retaining C14 test reporting. It remains prospective, with live 001 first. Existing
-component/V5 evidence applies only to unchanged components and identical judge
-prompts/inputs. The [results record](../evals/implementation-results.md) owns counts.
+Acceptance remains **open**. C15 completed original stock stages with passing
+grades, but independent review rejects its full-commit repair alternative because
+it also crosses Kubernetes policy without that approval. The standalone Go option
+is valid; nothing was applied. Original false-positive grades remain intact.
+C16 checks complete candidate scope; the changed action criterion passes its
+fixed controls. Fresh actors await the exact source freeze. Runtime controls
+remain intact; the [results record](../evals/implementation-results.md)
+owns counts and identities, and [calibration](../evals/live/calibration.md) owns controls.
 
 | Document | Owns |
 | --- | --- |

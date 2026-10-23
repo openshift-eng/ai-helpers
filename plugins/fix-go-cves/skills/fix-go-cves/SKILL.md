@@ -123,9 +123,10 @@ Eligible ignored findings and a passing retry alone need no new maintainer repai
 
 Select a matching repair by inspecting immutable source and default-branch history
 in the existing checkout: `git show <command-commit>:<file>`,
-`git log origin/<default> -- <file>` and `git show <candidate> -- <file>`.
-Identify an applicable existing repair by commit. Stop investigating once the
-supported next action, owner and prerequisite are established.
+`git log origin/<default> -- <file>` and `git show <candidate>`.
+Identify an applicable existing repair by commit after checking its full scope
+against target policy; otherwise describe the relevant standalone change. Stop once
+the supported next action, owner and prerequisite are established.
 
 Source repairs must land on `origin/<branch>` before rerunning `fix-all.sh`, which
 starts afresh there; repaired builder images must be published before consumers

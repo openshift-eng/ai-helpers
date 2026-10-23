@@ -187,3 +187,40 @@ Frozen protocols and all original samples remain in
 `.work/fix-go-cves-e2e-20261023/{live,replay}-actions-boundary-v5-prep/`;
 independent V4/V5 reviews retain rationale-level limitations. This development
 calibration supplies no holdout reliability claim or actor acceptance credit.
+
+## Action/owner: whole-commit applicability
+
+C15's `e2e-prerequisite-only-live001-20261023-01` passes original stock C/O/A,
+with TTT semantic samples and zero errors. Independent A rejects its full
+`2d9f5fb` cherry-pick option: that commit also raises Kubernetes dependencies
+across the target's restricted minor boundary, while the reply discusses only
+Go approval. A valid standalone alternative does not cure the unsupported option.
+One original rationale notices the broader change but excuses it because the
+standalone option exists. Preserve the original pass and independent disagreement.
+
+Prospective scope evidence records immutable `2d9f5fb5fafe303aff2775ea93e8a9bda01c4105`:
+Go 1.25.0 to 1.26.0 and core Kubernetes modules v0.35.5 to v0.36.2, against the
+pinned release's v0.35.8 baseline. These are candidate-applicability facts, not a
+required repair. Existing live-001 source metadata carries them; no helper or
+recording changes. The shared action rule checks a recommended commit's known
+scope against target policy, including collateral changes needing separate approval.
+
+V6 retains all 18 V5 inputs/labels unchanged and adds the actual C15 negative
+plus a positive removing only the whole-cherry-pick option. Both new controls use
+the same prospective production annotations and unchanged actual events/runtime
+evidence. This supplements judge evidence without altering the original run.
+Frozen before execution: 20 controls at three A samples each, 30 live then 30
+replay after the live label/error and paired-rationale gates passed. All 20/20
+majorities and 60/60 sample labels match, with zero errors and 60 distinct
+completion IDs. All production, harness and frozen input identities verify.
+Negative 111 rejects the bundled Kubernetes change; positive 112 accepts the
+standalone repair and treats the commit citation as history. Some positive
+rationales over-discuss "rerun to fix" as a possible forecast; independent review
+reads it as purpose, not a promised result. Retain that reasoning limitation.
+
+Stock exits 1 because negative controls correctly fail production thresholds.
+All calls are unpriced; physical SDK retry counts remain unknown. Original
+protocols and full samples remain in
+`.work/fix-go-cves-e2e-20261023/{live,replay}-actions-commit-scope-v6-prep/`.
+No actors or outcome calls ran. This development calibration does not supply
+holdout reliability or E2E acceptance credit.

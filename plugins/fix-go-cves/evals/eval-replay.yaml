@@ -70,6 +70,8 @@ judges:
       workflow rerun. Do not infer an unstated owner or remote landing from a
       commit/branch mention. A passing retry alone requires no new maintainer task.
 
+      A recommended commit includes all its changes; check its known scope against
+      target policy. Approval for one change does not authorize collateral policy changes.
       Assess every proposed option against the selected skill's policy: only findings
       without a published fix are eligible for ignores. Published fixes blocked by
       compatibility remain unresolved. Compiler-version compatibility supports the
