@@ -1,10 +1,10 @@
 # E2E acceptance and simplification
 
-Acceptance remains **open**. C12 at `52863d9d` passed publication 002 and replay
-007/005, then stopped at live 001 on unsupported advice. Runtime and factual
-reporting passed. Revised skill/action criteria pass fixed-control calibration;
-fresh actor acceptance awaits a source freeze. Preserve source groups,
-grades and disagreements; the [results record](../evals/implementation-results.md)
+Acceptance remains **open**. C13 at `975e0661` stopped after one live 001 actor:
+runtime and advice passed, but quoted test measurements contradicted the log.
+Current skill guidance removes redundant successful-package metrics while retaining
+failed-attempt evidence. C14 is prospective, without a freeze or actor. Preserve
+source groups, grades and disagreements; the [results record](../evals/implementation-results.md)
 owns counts.
 
 This plan owns current design choices and the remaining acceptance sequence. The
@@ -145,8 +145,9 @@ The skill carries the reporting contract directly: preserve target policy, launc
 once and observe actual completion. The reply starts with the exact emitted
 Summary through terminal exit, with its recipe exactly once. Only explicit
 runtime scope lines establish coverage; if none establish compiled Go binary
-coverage, add its uncertainty statement. Quote diagnostics and outcomes from every
-relevant attempt. Added prose gives only future actions, owners and verification
+coverage, add its uncertainty statement. Quote each failed attempt's diagnostics
+and outcome plus later attempt outcomes; for all-success tests, the Summary
+status suffices. Added prose gives only future actions, owners and verification
 prerequisites. Inspect `origin/<branch>` directly for target policy and search
 default-branch history for an existing repair commit. Stop once that handoff is
 supported. Applicable source repairs must land on the starting origin;
@@ -181,27 +182,24 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C12 completed three passing replays and stopped after live 001 failed action/owner.
-Its real blocked run passed tests/audits with both guards enabled and no commits;
-that runtime success does not certify advice to ignore published-fix findings or
-promise an unexecuted update compiles. Original grades and rationale disagreements
-remain separate in the [results record](../evals/implementation-results.md).
+C13 completed original stages and stopped at its first live 001 actor. Runtime
+passed every independent check and advice passed, but a quoted certificate result
+contained wrong time/coverage values. The [results record](../evals/implementation-results.md)
+retains the actual values, original grades and the unknown origin of the wrong ones.
+An accurate Summary cannot excuse an incorrect added measurement.
 
-Current guidance keeps branch-blocked published fixes unresolved and permits
-ignores only without a published fix. Compiler compatibility establishes a
-prerequisite, not successful compilation of a proposed update. Supported
-investigation advice is distinct from an asserted rerun prerequisite. The skill
-and action criteria change; runtime gates, models, thresholds and pins remain
-intact. Calibration V5 passes all fixed controls, including a paired negative
-that adds only an unsupported before-rerun obligation. Earlier calibration
-failures remain in the [calibration record](../evals/live/calibration.md).
-Do not infer general reliability or retry an unchanged judge for agreement.
+The only current intervention is compact test reporting: preserve each failed
+attempt's diagnostics/outcome and later attempt outcomes; when all tests succeed,
+the Summary status suffices. Optional added facts remain subject to whole-reply
+accuracy. Runtime/helper, outcome/action oracles and fixtures are unchanged. Reuse
+V5 calibration only with identical judge prompts and inputs; do not repeat its
+calls merely because the invoking skill changed. Fresh actors are still required.
 
-After a prospective source freeze, measure live 001 first, then
+C14 remains prospective. After source freeze, measure live 001 first, then
 publication 002, replay 007/005, live 002/003/004 and eligible replay repeats.
 Finish every cell's original stages, thresholds and independent review before
-continuing. Keep the existing caps, models, pins and runtime controls; affected
-skill actors need fresh execution. No next campaign is frozen or accepted yet.
+continuing. Preserve the existing eleven-actor/$115 maximum, models and pins.
+No C14 source is frozen and no C14 actor has run.
 
 License cleanup reuses the existing artifact ownership helper with a private
 license prefix. Serialized path/event readers honor LF delimiters without splitting
@@ -270,6 +268,10 @@ output. No temporary framework is needed.
 
 Optional deletions do not block this campaign:
 
+- After acceptance, trim duplicate eval README passages at lines 26–33, 70–91,
+  338–345, 350–353 and 567–576, linking existing testing, live-result and case-007
+  calibration owners. Preserve unique historical grades/limits and artifact paths
+  at 557–565; remove obsolete cohort-selection sentences at 387/400/470.
 - Trace the pre-verification `FINAL_SCAN`, which is only printed before the first
   audit independently rebuilds/rescans. Remove it only after accounting for artifact
   and sentinel effects; retain audit inputs and the authoritative final rebuilt scan.

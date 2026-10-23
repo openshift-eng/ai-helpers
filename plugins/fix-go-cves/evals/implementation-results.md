@@ -1,10 +1,11 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C12 at `52863d9d` passed three replays,
-then stopped at live 001: runtime and facts passed, action/owner failed. Current
-skill/action-criterion changes pass fixed-control calibration V5; fresh actor
-acceptance awaits a source freeze. Component evidence applies only to unchanged bytes. The
-[plan](../plans/e2e-simplification.md) defines remaining work; the
+Full-cohort acceptance remains **open**. C13 at `975e0661` stopped after its first
+live 001: runtime and action/owner passed, outcome failed on wrong quoted test
+measurements. Current skill guidance avoids redundant all-success package metrics;
+C14 remains prospective with no freeze or actor. Existing component and calibration
+evidence applies only to unchanged components and identical judge prompts/inputs.
+The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
 Different source groups, stock grades and independent review remain separate.
 
@@ -59,11 +60,12 @@ fails is not guaranteed.
 | `e2e-stage-read-replay007-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.78 | C12 replay pass; independent O/A true, both attempts and origin repair prerequisite retained |
 | `e2e-stage-read-replay005-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.61 | C12 replay pass; independent O/A true, single attempt and origin repair prerequisite retained |
 | `e2e-stage-read-live001-20261023-01` | C true, O TTT, A FFT, zero sample errors; actor $0.62 | C12 stopped: runtime/O true, independent A false for fixable-finding ignore advice and promised compilation; original A majority rejects on an unsupported reporter-backport requirement |
+| `e2e-policy-boundary-live001-20261023-01` | C true, O FFF, A TTT, zero sample errors; actor $1.43 | C13 stopped: independent runtime 29/29 and A true, O false; quoted certificate 1.052s/57.5% contradicts actual 20.059s/89.1% |
 
 Complete actual skill intake was confirmed for the prior pilots, all three C10
-actors, C11 publication 002 and C12. Earlier campaigns remain separate; no failed actor is pooled
+actors, C11 publication 002, C12 and C13. Earlier campaigns remain separate; no failed actor is pooled
 into a revised source. Current guidance quotes runtime
-observations and relevant attempt outcomes, then allows only supported future
+observations and failed/later-attempt outcomes, then allows only supported future
 actions, owners and verification prerequisites. Default-branch repair-commit
 search and direct target-origin policy reads remain required. The
 bounded archived-producer witness now exposes the known tidy error to judges;
@@ -136,7 +138,7 @@ two rejecting rationales wrongly demand a reporter backport despite passing test
 the passing sample misses the selected ignore policy and unsupported prediction.
 Receipts remain under `.work/fix-go-cves-e2e-20261023/stage-read*-{independent-review,stock-completion}.json`.
 
-Current changes affect only the skill and action criterion: preserve
+The C13 skill and action criteria preserve
 no-fix-only ignores and treat compiler compatibility as a prerequisite, with
 proposed build/test/rerun outcomes unverified. Policy V2 and method V3 calibration
 both falsely accept isolated prediction control 104 with TTT; neither starts its
@@ -149,9 +151,23 @@ unchanged. V5 shortens the method and distinguishes supported advice from an
 asserted prerequisite; all 54 samples match their 18 fixed labels, including the
 new paired blocker negative. Component checks above remain evidence only for
 unchanged bytes; no actor or historical rescoring credit follows from calibration.
-The next measurement remains prospective: live 001 first, then publication 002,
-007/005, live 002/003/004 and four eligible replay repeats, with the same
-11-actor/$115 maximum, models and pins. No next campaign is frozen or passed.
+C13 then stopped after its first live 001 at frozen `975e0661`. Its engine took
+155 seconds, exited 2 with five policy-blocked findings, passed canonical tests
+and all audits, and restored the original checkout without commits. Independent
+runtime checks pass, including both guards; advice keeps policy approval separate
+from future verification without promising its outcome. But the reply quotes certificate
+`1.052s`/`57.5%` instead of the actual `20.059s`/`89.1%`. The wrong values do not
+appear in any authenticated captured log; their origin remains unknown. This is
+a response accuracy failure, not a failed engineering gate. Original stages,
+samples and the independent review remain under `c13-live001*` in the scratch root.
+
+The current three-line skill change retains failed-attempt diagnostics and later
+attempt outcomes; all-success tests need only the Summary status. It removes
+redundant per-package measurements without relaxing whole-reply accuracy. Runtime,
+helper, fixtures and O/A oracles are unchanged. Reuse V5 for identical judge prompts
+and inputs rather than repeating its 54 calls. C14 remains prospective: live 001,
+publication 002, 007/005, live 002/003/004 and four eligible replay repeats, with
+the same 11-actor/$115 maximum, models and pins. No C14 freeze or actor exists.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;

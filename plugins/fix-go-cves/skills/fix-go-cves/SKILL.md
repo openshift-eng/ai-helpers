@@ -111,9 +111,9 @@ binary coverage, add: "Compiled Go binary coverage is unverified." Keep coverage
 within the reported artifacts and phases; it does not alone establish stdlib
 remediation.
 
-For relevant tests, quote the captured diagnostic and outcome lines from every
-attempt, including a failed attempt followed by a passing retry. Identify which
-attempt each excerpt belongs to. These quotations are the account of the run.
+For each failed test attempt, quote its captured diagnostics and outcome, plus
+outcomes of later attempts. Label the attempts. Otherwise the Summary's test
+status suffices.
 
 For unresolved work, follow these quotations with only next actions: an applicable
 existing repair or next investigation, its owner, the prerequisite for verification,

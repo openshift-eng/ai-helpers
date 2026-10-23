@@ -1,12 +1,13 @@
 # Fix Go CVEs work plans
 
-Acceptance remains **open**. C12 at `52863d9d` passed three replays, then stopped
-at live 001: runtime and facts passed, advice failed. The revised skill preserves
-no-fix-only ignores and unverified proposed build outcomes; action calibration V5
-passes its fixed controls. Fresh actor acceptance remains pending a source freeze.
-Earlier campaigns and original grades remain intact. Component evidence applies
-only to unchanged bytes. The [results record](../evals/implementation-results.md)
-owns counts; the [calibration record](../evals/live/calibration.md) owns controls.
+Acceptance remains **open**. C13 at `975e0661` stopped after its first live 001:
+runtime and advice passed, but quoted certificate test measurements were wrong.
+Original results and earlier campaigns remain intact. The current skill keeps
+failed-attempt diagnostics and later outcomes; for all-success tests, the Summary
+status suffices. C14 remains prospective, with live 001 first. Existing component
+and V5 calibration evidence applies only to unchanged components and identical
+judge prompts/inputs; no repeated calibration calls or actor credit is implied.
+The [results record](../evals/implementation-results.md) owns counts and identities.
 
 | Document | Owns |
 | --- | --- |
@@ -19,6 +20,9 @@ owns counts; the [calibration record](../evals/live/calibration.md) owns control
 
 ## Deferred work
 
+- **Eval README:** after acceptance, remove duplicate contract/calibration recaps
+  using existing canonical links; retain operational instructions and unique failed
+  grades, costs and limits. Exact ranges are in the E2E plan.
 - **Measured deletions:** remove reviewers/repeated scans only after their gate
   semantics and observed source/binary/policy states are accounted for. Deduplicate
   tuple/location parsing after semantic parity, preserving distinct gate meanings.
