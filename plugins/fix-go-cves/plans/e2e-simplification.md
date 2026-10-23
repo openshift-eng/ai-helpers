@@ -1,10 +1,10 @@
 # E2E acceptance and simplification
 
-Acceptance remains **open**. C11 stopped after one publication 002 actor for a
-duplicate rewritten recipe despite an exact Summary, correct native uncertainty
-and verified facts. Prior campaigns remain separate. C12's stage-local reporting
-reread is unmeasured; unchanged component verification remains reusable. Preserve
-original sources, grades and disagreements; the [results record](../evals/implementation-results.md)
+Acceptance remains **open**. C12 at `52863d9d` passed publication 002 and replay
+007/005, then stopped at live 001 on unsupported advice. Runtime and factual
+reporting passed. Revised skill/action criteria pass fixed-control calibration;
+fresh actor acceptance awaits a source freeze. Preserve source groups,
+grades and disagreements; the [results record](../evals/implementation-results.md)
 owns counts.
 
 This plan owns current design choices and the remaining acceptance sequence. The
@@ -156,9 +156,9 @@ proof stays positive. Nested-reviewer prose does not authenticate observations.
 
 Exact timing/last-tool gates, table/imperative grammar, verbatim-only evidence
 cells, universal no-count rules, mandatory causal/uncertainty paragraphs and
-universal failed-attempt investigation are removed. C12 adds one stage-local tool
-reread of the loaded reporting section after investigation and before composition;
-it adds no timing gate or separate reference. Its efficacy is unproven.
+universal failed-attempt investigation are removed. The stage-local loaded-section
+reread was observed in C12; it is no timing gate, last-tool rule or separate
+reference, and its efficacy remains unproven.
 Wrong refs, citations, counts, coverage,
 builders, command attribution, unsupported causes, omitted attempts/blockers,
 invented publication and missing required handoff still fail applicable criteria.
@@ -181,22 +181,27 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C11 completed all original stages and stopped at its first publication 002 actor.
-Its duplicate rewritten recipe failed the unchanged strict relay guard; equivalent
-argv is not unsafe publication or an invented target. The
-[results record](../evals/implementation-results.md) retains sample/rationale limits,
-independent reviews and earlier campaigns separately. Semantic matching alone does
-not replace the automated literal guard.
+C12 completed three passing replays and stopped after live 001 failed action/owner.
+Its real blocked run passed tests/audits with both guards enabled and no commits;
+that runtime success does not certify advice to ignore published-fix findings or
+promise an unexecuted update compiles. Original grades and rationale disagreements
+remain separate in the [results record](../evals/implementation-results.md).
 
-C12 changes only two skill lines: use a tool to reread the existing reporting
-section from the actual loaded skill after diagnosis and before composition.
-The observed later manual Step 11 PR template motivates this recency trial; its
-causal role and the intervention's efficacy are unproven. Add no last-tool rule,
-timing gate, separate reference or parser. Discard the intervention if this trial
-fails. Reuse existing verification only for unchanged component bytes, with no
-C11 actor reuse across the skill change. Freeze C12 prospectively, starting with
-publication 002, then continue only after complete stock stages and independent
-review pass. Keep the same caps, models, oracles and pins.
+Current guidance keeps branch-blocked published fixes unresolved and permits
+ignores only without a published fix. Compiler compatibility establishes a
+prerequisite, not successful compilation of a proposed update. Supported
+investigation advice is distinct from an asserted rerun prerequisite. The skill
+and action criteria change; runtime gates, models, thresholds and pins remain
+intact. Calibration V5 passes all fixed controls, including a paired negative
+that adds only an unsupported before-rerun obligation. Earlier calibration
+failures remain in the [calibration record](../evals/live/calibration.md).
+Do not infer general reliability or retry an unchanged judge for agreement.
+
+After a prospective source freeze, measure live 001 first, then
+publication 002, replay 007/005, live 002/003/004 and eligible replay repeats.
+Finish every cell's original stages, thresholds and independent review before
+continuing. Keep the existing caps, models, pins and runtime controls; affected
+skill actors need fresh execution. No next campaign is frozen or accepted yet.
 
 License cleanup reuses the existing artifact ownership helper with a private
 license prefix. Serialized path/event readers honor LF delimiters without splitting
@@ -232,7 +237,8 @@ forwarding while its historical engine lacks newer enforcement; current enforcem
 needs local/live evidence.
 
 Retain eleven actors maximum: 005/007 three each, positive 002 once and four live
-once. Run seven distinct scenarios first (positive 002, 007, 005, then four live), followed
+once. Run seven distinct scenarios first (live 001, positive 002, 007, 005, then
+live 002/003/004), followed
 by four remaining replay repeats if eligible. Pilots count within their declared
 source campaign; failed campaigns remain separate. Existing actor caps total $115
 (seven at $5, four at $20); nested/judge costs are separate. Do not adapt caps,

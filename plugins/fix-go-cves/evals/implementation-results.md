@@ -1,13 +1,12 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C11 completed original stages and stopped
-after one publication 002 actor for duplicate recipe relay. Its exact Summary,
-coverage uncertainty and measured facts verified. The current skill adds a
-stage-local reporting reread and has no actor measurement; efficacy is unproven.
-Existing component verification applies only to unchanged bytes. Script correctness,
-stock grades and independent review remain separate. The [plan](../plans/e2e-simplification.md)
-defines remaining work; the [historical matrix](live/README.md#branch-policy-matrix)
-retains earlier failures unchanged. Different source groups are never pooled.
+Full-cohort acceptance remains **open**. C12 at `52863d9d` passed three replays,
+then stopped at live 001: runtime and facts passed, action/owner failed. Current
+skill/action-criterion changes pass fixed-control calibration V5; fresh actor
+acceptance awaits a source freeze. Component evidence applies only to unchanged bytes. The
+[plan](../plans/e2e-simplification.md) defines remaining work; the
+[historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
+Different source groups, stock grades and independent review remain separate.
 
 ## Current implementation, 2026-10-23
 
@@ -17,7 +16,7 @@ passes remain historical evidence. Historical actor grades are unchanged.
 
 | Changed boundary | Measured evidence |
 | --- | --- |
-| Frozen execution and authority | 85 eval tests pass in 50.300 seconds; current model-free 005/007/002 prepare/replay passes with expected historical results |
+| Frozen execution and authority | 85 eval tests pass in 61.141 seconds; current model-free 005/007/002 prepare/replay passes with expected historical results |
 | Shared lifecycle and aggregation | 362 lifecycle/configuration checks and 186 scoring/sample-retention checks passed on selected harness paths |
 | Physical Go metadata | Seven actual local-proxy transaction controls passed on Go 1.24 and 1.26 |
 | Artifact ownership and scan consumer | 19 focused tests pass in 4.699 seconds, including actual license producer and native Unicode consumer controls; original counterexamples preserved |
@@ -26,6 +25,7 @@ passes remain historical evidence. Historical actor grades are unchanged.
 | Dispatch / final evidence | 90 assertions across 14 capture cases; 473 final-evidence workflow checks |
 | Earlier combined integration | 3,207/3,207 frozen shell checks with all 28 runtime/subagent/test files matching that snapshot. Frozen Python suite: 66/66 before one additional publication control, separately verified. V4: 3,207 shell and 69 Python tests passed; later Unicode counterexamples prevent treating v4 as current closure. |
 | Current v5 integration | 3,207/3,207 frozen shell checks pass (exit 0); all 28 runtime/subagent/test files match current bytes/modes. Python: 70/70 in 23.062 seconds. Receipt: `combined-runtime-v5-verification.json`. |
+| Current action calibration | V5: 18/18 expected majorities, 54/54 samples, zero errors (8 live + 10 replay controls). Earlier V2/V3/V4 failures are preserved in the [calibration record](live/calibration.md). |
 
 Simplification removes the separate reporting reference/publication profile,
 replaces duplicate policy readers with the existing semantic loader, and uses one
@@ -55,9 +55,13 @@ fails is not guaranteed.
 | `e2e-observed-actions-replay005-20261023-01` | C true, O true (2/3), A TTT, zero sample errors; actor $0.50 | C10 individual pass: independent O/A and operations true; original dissent retained |
 | `e2e-observed-actions-publication002-20261023-01` | C false, O FFF, A TTT, zero sample errors; actor $0.70 | C10 stopped: independent O false, A/operations true; exact Summary followed by a duplicate rewritten recipe, missing native uncertainty and unsupported coverage |
 | `e2e-scope-recipe-publication002-20261023-01` | C false, O FFF, A TTT, zero sample errors; actor $0.79 | C11 stopped after one actor: independent O false, A/operations true; exact Summary/native uncertainty and 34 test measurements verify, but a second equivalent-argv rewritten recipe fails strict relay |
+| `e2e-stage-read-publication002-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.74 | C12 replay pass; exact recipe once, native uncertainty, measured facts and image-publication prerequisite verify. Effective guard forwarding remains unverified, without inferring false guards. |
+| `e2e-stage-read-replay007-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.78 | C12 replay pass; independent O/A true, both attempts and origin repair prerequisite retained |
+| `e2e-stage-read-replay005-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.61 | C12 replay pass; independent O/A true, single attempt and origin repair prerequisite retained |
+| `e2e-stage-read-live001-20261023-01` | C true, O TTT, A FFT, zero sample errors; actor $0.62 | C12 stopped: runtime/O true, independent A false for fixable-finding ignore advice and promised compilation; original A majority rejects on an unsupported reporter-backport requirement |
 
 Complete actual skill intake was confirmed for the prior pilots, all three C10
-actors and C11 publication 002. Earlier campaigns remain separate; no failed actor is pooled
+actors, C11 publication 002 and C12. Earlier campaigns remain separate; no failed actor is pooled
 into a revised source. Current guidance quotes runtime
 observations and relevant attempt outcomes, then allows only supported future
 actions, owners and verification prerequisites. Default-branch repair-commit
@@ -113,15 +117,41 @@ completed without errors. Original independent/stock receipts remain under
 `.work/fix-go-cves-e2e-20261023/{observed-actions,scope-recipe}-publication002-pilot01-*.json`;
 the independent receipts retain their narrower process-exit observation boundaries.
 
-C12 adds only a two-line tool reread of the existing loaded reporting section,
-after diagnosis and before composition. The later manual Step 11 publication
-template was observed in intake; causation and reread efficacy remain unproven.
-This is stage-local guidance, without a timing/last-tool gate, new reference or
-parser. Discard it if the trial fails. No code, helper, oracle, fixture or test
-changed, so existing component evidence remains applicable only to unchanged bytes.
-C12 starts with positive 002, then 007/005, four live scenarios and eligible replay
-repeats under the unchanged eleven-actor maximum, caps, models, oracles and pins.
-Changed skill instructions require new actors; no C11 actor is reused.
+C12's three replays passed under frozen source `52863d9d`. Actual loaded-section
+rereads were observed with later read-only inspections; neither a last-tool gate
+nor reread efficacy is established. Publication's effective guard environment
+remains unverified: retained snapshot directories were empty, and omitted launch
+assignments do not prove false guards. Live 001 separately authenticated both
+guards true.
+
+The live 001 engine completed in 139 seconds with exit 2: five actionable findings
+remained blocked, one canonical `make unit` and all four audits passed, no build or
+license was configured, no commits remained, and original `devel` was restored.
+Archived runtime/evidence identities and quoted outcomes verify. Independent A
+rejects advice to ignore findings with published fixes and the promise that the
+proposed update "will compile" based only on builder version. The manual branch
+workflow does discuss compatibility ignores, but the invoked skill permits only
+no-fix ignores. No ignore was executed. Original A labels FFT are preserved: the
+two rejecting rationales wrongly demand a reporter backport despite passing tests;
+the passing sample misses the selected ignore policy and unsupported prediction.
+Receipts remain under `.work/fix-go-cves-e2e-20261023/stage-read*-{independent-review,stock-completion}.json`.
+
+Current changes affect only the skill and action criterion: preserve
+no-fix-only ignores and treat compiler compatibility as a prerequisite, with
+proposed build/test/rerun outcomes unverified. Policy V2 and method V3 calibration
+both falsely accept isolated prediction control 104 with TTT; neither starts its
+conditional replay arm. Their original failures remain in the
+[calibration record](live/calibration.md). Prediction V4 passed live controls but
+rejected replay positives 102/103 with FFF: rationales turned supported syncer
+investigation with a named owner into a required blocker from its table placement,
+without an actual verification prerequisite. No control was relabeled or retried
+unchanged. V5 shortens the method and distinguishes supported advice from an
+asserted prerequisite; all 54 samples match their 18 fixed labels, including the
+new paired blocker negative. Component checks above remain evidence only for
+unchanged bytes; no actor or historical rescoring credit follows from calibration.
+The next measurement remains prospective: live 001 first, then publication 002,
+007/005, live 002/003/004 and four eligible replay repeats, with the same
+11-actor/$115 maximum, models and pins. No next campaign is frozen or passed.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;
@@ -150,11 +180,12 @@ historical runtime exit 2. Original counterexamples and verification receipts,
 including `license-cleanup-{counterexample,fix-verification.json}` and
 `final-boundary-unicode-artifact/{receipt,actual-producer-receipt}.json`, remain
 under `.work/fix-go-cves-e2e-20261023/`. V5 source identity is recorded in
-`combined-snapshot-v5-source.json`. Oracle profiles, models, thresholds and
-calibration semantics are unchanged; V9 controls retain their existing scope.
+`combined-snapshot-v5-source.json`. Runtime, outcome criteria, models and thresholds
+remain unchanged. V9 outcome controls retain their scope; the changed action
+prompt and live-001 action annotation require the separate calibration above.
 This supplies no actor credit, scoring recovery or live acceptance of changed
 runtime. Component verification remains applicable to unchanged bytes;
-prospective C12 actor acceptance remains separate.
+future actor acceptance remains separate.
 
 A separate model-free actual-engine diagnostic,
 `e2e-engine-readiness002-20261023-01`, repaired all five x/net findings on official

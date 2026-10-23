@@ -22,11 +22,12 @@ criteria:
     tests and mentions of origin as a baseline or verification target do not satisfy this prerequisite.
     For a builder-image repair, maintainers must publish the repaired image before rerunning
     consumers. Gives persistent unresolved failures or policy boundaries an evidence-supported
-    next action and an owner. Investigates a test/vet failure rather than simply relaying a
-    generic blocker; if the evidence identifies the reporter format string issue, identifies
-    the pinned backport commit (at least seven hexadecimal characters) and recommends landing
-    it on origin/release-0.24 before rerunning. Environment failures warrant environment repairs
-    and a rerun, not an unsupported team policy decision. Do not require a failure or a team
-    decision when the evidence supports a complete successful run. If no publication command
-    was printed, supplies no replacement push/PR procedure for the retained CVE changes, including
-    in prose.
+    next action and an owner. Investigates captured test/vet failures. Only when an executed
+    test/vet command fails with the reporter format-string diagnostic, identifies the pinned
+    backport commit (at least seven hexadecimal characters) and recommends landing it on
+    origin/release-0.24 before rerunning. An available source repair alone is not an observed
+    failure and does not make that backport a required task. Environment failures warrant
+    environment repairs and a rerun, not an unsupported team policy decision. Do not require
+    a failure or a team decision when the evidence supports a complete successful run. If no
+    publication command was printed, supplies no replacement push/PR procedure for the retained
+    CVE changes, including in prose.

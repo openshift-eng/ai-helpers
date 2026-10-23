@@ -1,13 +1,12 @@
 # Fix Go CVEs work plans
 
-Acceptance remains **open**. C11 stopped after its first publication 002 actor:
-Summary, coverage uncertainty and measured facts verified, but a second rewritten
-recipe failed the strict relay rule. Earlier campaigns and original grades remain
-intact. C12 tests a tool reread of the loaded reporting section after diagnosis;
-efficacy is unproven, with no timing gate or new parser. No actor has measured it.
-Existing component verification applies only to unchanged bytes. C12 starts with
-publication 002, then 007/005, requiring complete stock stages and independent
-review per cell. The [results record](../evals/implementation-results.md) owns counts.
+Acceptance remains **open**. C12 at `52863d9d` passed three replays, then stopped
+at live 001: runtime and facts passed, advice failed. The revised skill preserves
+no-fix-only ignores and unverified proposed build outcomes; action calibration V5
+passes its fixed controls. Fresh actor acceptance remains pending a source freeze.
+Earlier campaigns and original grades remain intact. Component evidence applies
+only to unchanged bytes. The [results record](../evals/implementation-results.md)
+owns counts; the [calibration record](../evals/live/calibration.md) owns controls.
 
 | Document | Owns |
 | --- | --- |

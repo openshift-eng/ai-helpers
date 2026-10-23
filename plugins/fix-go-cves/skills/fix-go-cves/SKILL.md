@@ -117,8 +117,9 @@ attempt each excerpt belongs to. These quotations are the account of the run.
 
 For unresolved work, follow these quotations with only next actions: an applicable
 existing repair or next investigation, its owner, the prerequisite for verification,
-and verification still pending. An ignored finding without a published fix needs
-no additional repair; a passing retry alone creates no new maintainer task.
+and verification still pending. A published fix blocked by branch policy remains
+unresolved; only findings without a published fix are eligible for ignoring.
+Eligible ignored findings and a passing retry alone need no new maintainer repair.
 
 Select a matching repair by inspecting immutable source and default-branch history
 in the existing checkout: `git show <command-commit>:<file>`,
@@ -128,7 +129,8 @@ supported next action, owner and prerequisite are established.
 
 Source repairs must land on `origin/<branch>` before rerunning `fix-all.sh`, which
 starts afresh there; repaired builder images must be published before consumers
-rerun. Give the rerun as verification with its outcome still unverified.
+rerun. Treat compiler-version compatibility as a prerequisite; proposed build,
+test and rerun outcomes remain unverified.
 
 Keep this investigation read-only: do not edit source/dependencies/ignores, apply
 or test a repair, rerun scripts, clean up, push or create a PR. Missing or skipped

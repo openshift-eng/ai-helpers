@@ -113,3 +113,77 @@ thresholds; all six calls were unpriced. Frozen protocol, control hashes and res
 `.work/fix-go-cves-implementation-20261022/live-action-prerequisite-calibration-v1/`.
 This narrow calibration does not test image-publication advice or prove general
 reliability. No original grade overwrite, actor retry or unchanged calibration retry.
+
+## Action/owner: selected ignore policy and unbuilt updates
+
+C12's `e2e-stage-read-live001-20261023-01` correctly blocked a Go-directive
+upgrade, passed its actual tests/audits and restored the original branch without
+commits. Independent review rejects its advice to ignore published-fix findings
+and its unsupported compilation promise. The target's broader manual procedure
+allows considering compatibility ignores; this selected skill permits ignores
+only without a published fix. No ignore was actually applied. Original stock A
+samples were FFT, but the failing rationales incorrectly required a reporter
+backport despite passing tests. Preserve that grade and its disagreement.
+
+The live-001 annotation now requires that backport only for an actually executed
+failing reporter diagnostic. Shared action prompts enforce the selected ignore
+policy and distinguish compiler compatibility from successful compilation of a
+proposed update. These changes affect advice, not runtime gates or target pins.
+
+Eight fixed live controls retain complete recorded observations and runtime
+evidence: missing/corrected remote landing, two valid focused-test proposals,
+the actual C12 reply, a corrected reply, and separate ignore-only and
+compilation-promise-only negatives. Derived controls preserve the original
+observations and quoted Summary. Nine existing replay controls provide regression
+coverage. Labels are fixed before calls; only the production action prompt changes.
+All use Opus 4.6, three samples, unchanged majority thresholds and no actors.
+
+| Prospective calibration | Live majority labels | Individual labels | Errors | Replay |
+| --- | --- | --- | --- | --- |
+| Policy V2 | 7/8 | 18/24 | 0 | Not started |
+| Method V3 | 7/8 | 20/24 | 0 | Not started |
+
+Both failed the isolated compilation-promise negative with TTT. V3 rationales
+quote the prediction but treat compiler compatibility as sufficient, or let a
+separate test caveat excuse it. This is an oracle limitation, not evidence of a
+successful proposed build. No control was relabeled or retried unchanged. Each
+failed live calibration stopped before its conditional 27 replay samples.
+Frozen inputs, protocols, all rationales and completion IDs remain in
+`.work/fix-go-cves-e2e-20261023/{live,replay}-actions-policy-v2-prep/` and
+`{live,replay}-actions-method-v3-prep/`. Calls are unpriced; physical SDK retry
+counts are unknown. Neither calibration supplies actor acceptance credit.
+
+Prediction V4 replaces the ambiguous compiler clause with an explicit rejection
+of whole-update compilation predictions based only on compiler compatibility.
+The same 17 inputs and labels remain unchanged. Live passes 8/8 majorities and
+23/24 samples; replay passes only 7/9 majorities and 21/27 samples, with zero
+errors across all 51 calls. All three samples reject each isolated live negative
+for the correct reason. The retained live missing-remote-landing dissent infers
+an unstated prerequisite from context.
+
+Replay positives 102/103 instead receive FFF: their supported investigation of a
+transient syncer failure is treated as a mandatory blocker merely because the
+reply assigns an owner in a table. No rerun prerequisite is asserted for that
+investigation. Preserve this regression and the original positive labels; useful
+follow-up advice need not be marked optional. V4 supplies no actor credit and
+cannot close calibration. Its protocols and raw samples remain in
+`.work/fix-go-cves-e2e-20261023/{live,replay}-actions-prediction-v4-prep/`.
+
+
+Boundary V5 shortens the shared method and explicitly distinguishes supported
+investigations from claimed rerun prerequisites. The same 17 controls and labels
+remain byte-identical to V4. Replay 110 copies positive 102 and adds only
+"Complete this investigation before rerunning the CVE workflow" to the syncer
+investigation; evidence and annotations remain identical. Its predeclared label
+is false because a recovered failure supplies no such mandatory prerequisite.
+
+All 18/18 majorities and 54/54 individual sample labels match, with zero errors:
+24 live and 30 replay calls. Both supported investigation positives remain TTT;
+the paired mandatory-blocker negative is FFF. Existing ignore and compilation
+negatives remain FFF. All production, harness and frozen input identities verify.
+Calls are unpriced; physical SDK retry counts remain unknown. Stock exits 1
+because negative controls correctly fail production thresholds. No actors ran.
+Frozen protocols and all original samples remain in
+`.work/fix-go-cves-e2e-20261023/{live,replay}-actions-boundary-v5-prep/`;
+independent V4/V5 reviews retain rationale-level limitations. This development
+calibration supplies no holdout reliability claim or actor acceptance credit.
