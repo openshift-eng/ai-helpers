@@ -21,8 +21,9 @@ pretending to cover every release obligation. No new prompt campaign is selected
 - **Pure tuple/location deduplication:** follow semantic policy-reader parity;
   preserve actionable, ignored, regression and multi-module distinctions.
 - **Workspace support:** add `go work vendor` or stdlib repair through `go.work`
-  only for a concrete target need. Do not turn deliberate limitations into
-  implicit supported workflows.
+  only for a concrete target need. Ordinary tracked workspace synchronization
+  already exists and needs its own mutation-containment fix; deferred features
+  must not hide a current safety obligation.
 - **OpenShift/custom compilers:** require sufficient actual compiler evidence and
   repository policy; image tags or a Go minor alone do not prove a patched build.
 - **Operational classification:** check both test attempts for disk exhaustion;
