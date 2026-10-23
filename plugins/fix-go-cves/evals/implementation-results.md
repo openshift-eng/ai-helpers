@@ -1,10 +1,10 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C8 stopped after two actors; its 005
-passed individually. C9 stopped after one 007: operations and advice passed,
-facts failed. The current skill and ownership fixes have not had an actor
-measurement. Current component verification passes; counts are below.
-Script correctness, stock grades and independent review remain separate. The [plan](../plans/e2e-simplification.md)
+Full-cohort acceptance remains **open**. C10 completed original stages and stopped
+after three actors: 007/005 passed, publication 002 failed. The current skill adds
+inline recipe/scope ownership clarifications and has no actor measurement. Existing
+component verification applies only to unchanged bytes. Script correctness, stock
+grades and independent review remain separate. The [plan](../plans/e2e-simplification.md)
 defines remaining work; the [historical matrix](live/README.md#branch-policy-matrix)
 retains earlier failures unchanged. Different source groups are never pooled.
 
@@ -50,10 +50,13 @@ fails is not guaranteed.
 | `e2e-final-relay-replay005-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.67 | C8 first accepted 005: O/A true after primary-evidence adjudication; original null review and stock grades retained |
 | `e2e-final-relay-replay007-20261023-01` | C false (missing `8234df0`), O/A FFF, zero sample errors; actor $0.77 | O/A false: unsupported independence, wrong Go 1.25 explanation, missing existing repair commit and promised clean rerun/recipe; C8 stopped |
 | `e2e-compact-relay-replay007-20261023-01` | C true, O FFF, A TTT, zero sample errors; actor $0.72 | C9 stopped: operational/A true, O false for unsupported syncer independence and reporter-predates claims; existing repair commit and all attempt outcomes correct |
+| `e2e-observed-actions-replay007-20261023-01` | C true, O true (2/3), A TTT, zero sample errors; actor $0.75 | C10 individual pass: independent O/A and operations true; original dissent retained |
+| `e2e-observed-actions-replay005-20261023-01` | C true, O true (2/3), A TTT, zero sample errors; actor $0.50 | C10 individual pass: independent O/A and operations true; original dissent retained |
+| `e2e-observed-actions-publication002-20261023-01` | C false, O FFF, A TTT, zero sample errors; actor $0.70 | C10 stopped: independent O false, A/operations true; exact Summary followed by a duplicate rewritten recipe, missing native uncertainty and unsupported coverage |
 
-Complete actual skill intake was confirmed for all eight completed 005 pilots
-and C8/C9 007. The seven earlier pilots and C8/C9 are separate stopped campaigns;
-no failed actor is pooled into a revised source. Current guidance quotes runtime
+Complete actual skill intake was confirmed for the prior pilots and all three
+C10 actors. Earlier campaigns and C10 remain separate; no failed actor is pooled
+into a revised source. Current guidance quotes runtime
 observations and relevant attempt outcomes, then allows only supported future
 actions, owners and verification prerequisites. Default-branch repair-commit
 search and direct target-origin policy reads remain required. The
@@ -96,12 +99,24 @@ The earlier model-free 005/007/002 smoke exited 0, exercised driver preflight an
 retained `aa5a4fc`/`aaaeea3`/`2716c2ff`, each with historical runtime exit 2.
 Original artifacts and grades remain immutable; that smoke supplied no actor credit.
 
-The current unmeasured skill quotes observed results and relevant attempt lines,
-then permits only future actions. It preserves exact output/coverage,
-repair-commit discovery, owner and origin/image prerequisites, with no added
-schema, parser or blacklist. C10 starts with 007, then 005, positive 002, four live
-scenarios and eligible replay repeats under the unchanged eleven-actor maximum,
-caps, models, oracles and pins.
+C10 publication 002 preserved the entire Summary through `exit=2`, but appended
+a rewritten recipe and omitted native-coverage uncertainty while asserting binary
+scope. The second recipe has equivalent argument values and target; no invented
+argument/semantic difference is adopted from judge reasoning. Shipyard ownership,
+published Go 1.26.9 image prerequisite and rerun with unverified outcome are sound.
+Operations passed; all original stages and samples completed without execution
+errors, and the original driver exited 1 for failed contract/outcome thresholds.
+Independent and stock receipts remain under
+`.work/fix-go-cves-e2e-20261023/observed-actions-publication002-pilot01-*.json`;
+the independent receipt retains its narrower process-exit observation boundary.
+
+The current unmeasured skill clarifies inline that the Summary's literal recipe
+is the entire publication handoff, while only explicit runtime scope lines establish
+coverage. No code, helper, oracle, fixture or test changed; the component evidence
+above is reused for unchanged bytes. C11 starts with positive 002, then 007/005,
+four live scenarios and eligible replay repeats under the unchanged eleven-actor
+maximum, caps, models, oracles and pins. Changed skill instructions require new
+actors; C10's individual passes are not reused across that boundary.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;
@@ -133,8 +148,8 @@ under `.work/fix-go-cves-e2e-20261023/`. V5 source identity is recorded in
 `combined-snapshot-v5-source.json`. Oracle profiles, models, thresholds and
 calibration semantics are unchanged; V9 controls retain their existing scope.
 This supplies no actor credit, scoring recovery or live acceptance of changed
-runtime. Current component verification is complete; prospective C10 actor
-acceptance remains separate.
+runtime. Component verification remains applicable to unchanged bytes;
+prospective C11 actor acceptance remains separate.
 
 A separate model-free actual-engine diagnostic,
 `e2e-engine-readiness002-20261023-01`, repaired all five x/net findings on official

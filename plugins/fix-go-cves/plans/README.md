@@ -1,13 +1,13 @@
 # Fix Go CVEs work plans
 
-Acceptance remains **open**. Seven earlier pilots and C8/C9 remain separate
-stopped campaigns; C8's 005 passed individually, while C9's single 007 failed
-factual review despite correct operations and advice. Original artifacts and
-grades remain intact. The current skill quotes observations, then gives
-only future actions. Current component verification passes, including frozen
-shell/Python integration and focused Unicode boundary controls. The [results record](../evals/implementation-results.md)
-owns counts and source identities. No actor has measured this source. C10 starts
-with 007 and requires complete stock stages and independent review per cell.
+Acceptance remains **open**. C10 stopped after three actors: 007/005 passed,
+positive publication 002 failed exact relay and native-coverage reporting. Earlier
+failed campaigns, original artifacts and grades remain intact. The current skill
+clarifies that the Summary owns the sole recipe and explicit scope lines own
+coverage. Existing component verification is reused only for unchanged bytes;
+no actor has measured this skill. C11 starts with publication 002, then 007/005,
+and requires complete stock stages and independent review per cell. The
+[results record](../evals/implementation-results.md) owns counts and identities.
 
 | Document | Owns |
 | --- | --- |

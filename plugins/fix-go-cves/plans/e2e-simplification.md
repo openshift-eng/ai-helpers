@@ -1,9 +1,9 @@
 # E2E acceptance and simplification
 
-Acceptance remains **open**. Seven earlier pilots and C8/C9 are separate stopped
-campaigns; C8's 005 passed individually, C9's single 007 failed factual review.
-Current component verification passes; the skill and ownership fixes have not
-had an actor measurement. Preserve original sources, grades and
+Acceptance remains **open**. C10 stopped after three actors: 007/005 passed,
+publication 002 failed exact relay and native-coverage reporting. Prior campaigns
+remain separate. Current skill clarifications have no actor measurement; unchanged
+component verification remains reusable. Preserve original sources, grades and
 disagreements; the [results record](../evals/implementation-results.md) owns counts.
 
 This plan owns current design choices and the remaining acceptance sequence. The
@@ -142,7 +142,9 @@ correctness; evals never push or create a PR.
 
 The skill carries the reporting contract directly: preserve target policy, launch
 once and observe actual completion. The reply starts with the exact emitted
-Summary/recipe/exit and scope, then quoted diagnostics and outcomes from every
+Summary through terminal exit, with its recipe exactly once. Only explicit
+runtime scope lines establish coverage; if none establish compiled Go binary
+coverage, add its uncertainty statement. Quote diagnostics and outcomes from every
 relevant attempt. Added prose gives only future actions, owners and verification
 prerequisites. Inspect `origin/<branch>` directly for target policy and search
 default-branch history for an existing repair commit. Stop once that handoff is
@@ -174,21 +176,24 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C8 stopped after two actors; C9 completed all original stages and stopped after
-one 007. C9 passed operations and action ownership but failed outcome for added
-unsupported causal claims. The [results record](../evals/implementation-results.md)
-retains the exact grades, disagreements and source groups.
+C10 completed all original stages and stopped at publication 002 after passing
+007/005. Its failure does not erase those individual passes or permit continuation
+to live cells. The [results record](../evals/implementation-results.md) retains
+stock verdicts, dissent, independent reviews and earlier campaigns separately.
 
-The current skill quotes observations before allowing only future
-actions; it adds no schema, parser or blacklist. License cleanup reuses the
-existing artifact ownership helper with a private license prefix. Serialized path
-and event readers now honor LF delimiters without splitting embedded Unicode
-separators. Focused controls, frozen shell/Python integration and model-free
-replay pass. Partial helper I/O failure coverage is not claimed. Freeze the
-prospective C10 candidate,
-starting with 007 as the known regression, then continue only after complete
-stock stages and independent review pass. Keep the same caps, models, oracles and
-pins; this is a separate changed-source measurement.
+The current skill clarifies two existing ownership boundaries inline: the literal
+Summary recipe is the entire publication handoff, and explicit runtime scope lines
+own coverage. No code, helper, oracle, fixture or test changed. Reuse existing
+verification only for unchanged component bytes; no C10 actor is reused across the
+skill change. Freeze C11 prospectively, starting with publication 002 as the known
+regression, then continue only after complete stock stages and independent review
+pass. Keep the same caps, models, oracles and pins.
+
+License cleanup reuses the existing artifact ownership helper with a private
+license prefix. Serialized path/event readers honor LF delimiters without splitting
+embedded Unicode separators. Existing focused controls, frozen integration and
+model-free replay remain applicable to unchanged components; partial helper I/O
+failure coverage is not claimed.
 
 Apply the [calibration rules](testing.md#measuring-relevant-changes): preserve
 labels, witnesses, prompts, models, grades and dissent; require every sample
@@ -218,7 +223,7 @@ forwarding while its historical engine lacks newer enforcement; current enforcem
 needs local/live evidence.
 
 Retain eleven actors maximum: 005/007 three each, positive 002 once and four live
-once. Run seven distinct scenarios first (007, 005, positive 002, then four live), followed
+once. Run seven distinct scenarios first (positive 002, 007, 005, then four live), followed
 by four remaining replay repeats if eligible. Pilots count within their declared
 source campaign; failed campaigns remain separate. Existing actor caps total $115
 (seven at $5, four at $20); nested/judge costs are separate. Do not adapt caps,

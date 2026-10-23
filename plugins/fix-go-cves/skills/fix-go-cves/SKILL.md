@@ -96,14 +96,17 @@ grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIE
 
 ## 4. Quote observations, then hand off next actions
 
-Quote the complete actual Summary through the log's end unchanged, including any
-branch removal, publication recipe and terminal exit. Without a Summary, quote
-the terminal clean/error message; missing completion stays unconfirmed. Relay the
-emitted scan scope and report the actual exit. If the scope does not establish
-compiled Go binary coverage, add:
-"Compiled Go binary coverage is unverified." Established coverage applies only to
-its reported artifacts and phases and does not alone establish stdlib remediation.
-The quoted recipe is the publication procedure; add no publication steps.
+Quote the complete actual Summary through the log's end once, unchanged,
+including the terminal exit. Without a Summary, quote the terminal clean/error
+message; missing completion stays unconfirmed. Report the actual exit.
+The Summary's literal recipe is the entire publication handoff; include it there
+once, unchanged.
+
+Use only the runtime's explicit `Scan scope (...)` lines for coverage. Quote any
+relevant scope lines not already in the Summary. If none establish compiled Go
+binary coverage, add: "Compiled Go binary coverage is unverified." Keep coverage
+within the reported artifacts and phases; it does not alone establish stdlib
+remediation.
 
 For relevant tests, quote the captured diagnostic and outcome lines from every
 attempt, including a failed attempt followed by a passing retry. Identify which
