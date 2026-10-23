@@ -6,7 +6,11 @@ correctness, runtime policy gaps and the invoking skill's actual responsibilitie
 Next work separates measurement prerequisites, runtime safety obligations and
 optional deletions, with one final canonical test phase and reuse of sufficient
 immutable evidence where only interpretation changes. The existing cohort can
-answer a bounded question without pretending to cover every release obligation. No new prompt campaign is selected.
+answer a bounded question without pretending to cover every release obligation.
+Implementation and component controls are in progress; the first replay pilot
+failed independent review despite confirmed full skill intake. Its frozen source
+campaign is stopped; a focused report-contract simplification is next. Full
+acceptance remains open.
 
 | Document | Owns |
 | --- | --- |

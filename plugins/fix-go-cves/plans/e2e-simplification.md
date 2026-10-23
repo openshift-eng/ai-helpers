@@ -1,28 +1,33 @@
 # E2E acceptance and simplification
 
-Re-audited on 2026-10-23 against `42eff37a`, including the third four-wave review.
-These are proposed changes, not acceptance or replacements for historical grades.
-The [results record](../evals/implementation-results.md) owns measurements,
+Implementation in progress on 2026-10-23 from `8c88928b`. Component controls
+pass where listed below; full acceptance remains open until the original stock
+E2E stages and independent factual review pass for the declared cohort. The
+[results record](../evals/implementation-results.md) owns measurements,
 [testing strategy](testing.md) owns requirements, and
 [workqueue investigation](workqueue-race.md) owns the external diagnostic.
 
-## What is actually preventing closure
+## Current closure work
 
-Stock stages execute, but measurement authority/provenance and handoff semantics
-remain unreliable. Separate runtime findings also prevent general release claims.
+| Boundary | Implemented direction | Remaining evidence |
+| --- | --- | --- |
+| Frozen execution | Frozen plugin/helper, one absolute venv interpreter, typed source identities | Actual actor intake and complete stock stages |
+| Shared lifecycle | Identified patch for bounded pipe drain/reap and nonzero aggregation | Patched runner in complete E2E runs |
+| Grading authority | Frozen annotations, phase/native contradiction rejection, grounded outcome/action criteria | Independent factual review of every new reply |
+| Runtime ownership | Content-owned artifacts, physical Go metadata binding, checkout-aware cleanup | Fresh combined shell suite and real repository runs |
+| State composition | One final canonical test phase after late repair/audit commits | Live required-repair case with exact tested/retained HEAD |
+| Policy/publication | One semantic reader, conservative writer, explicit confirmed publication route | Final critical review and combined fixture migration |
 
-| Boundary | Observed gap |
-| --- | --- |
-| Frozen execution | Preparation copies current files; bare-Python hooks drifted in the exit-127 incident |
-| Shared lifecycle | Inherited child pipes exceed the pinned runner timeout; aggregation masks -1 beside 0 |
-| Grading authority | Collected expectation downgrade and phase/native contradictions can pass |
-| Runtime ownership | Actual helpers delete replaced artifacts/outside link targets, reset a switched checkout and write outside selected Go metadata |
-| State composition | Late policy commits skip retesting but the checker requires exact tested/retained HEAD |
-| Interpretation | YAML readers disagree; replay lacks grounded outcome grading; reporting/reviewer text adds unsupported claims |
+Local controls include 80 eval tests, 302 focused harness tests, actual Go metadata
+transactions on Go 1.24 and 1.26, actual Git/artifact/report preservation and
+capture-failure controls. These are component evidence, not cohort acceptance.
+Read-only policy and publication checks are finishing before the live source freeze.
+Replay pilots use historical runtime and may proceed under their separately
+frozen component identity while unused live runtime changes finish.
 
-Actual-function proofs, controlled checker counterexamples and full engine runs
-are different evidence. Neither a predicate proof nor an outside-write helper
-proves a full publication bypass or an observed actor exploit. Preserve those limits.
+Keep actual-function proofs, checker counterexamples and full engine runs distinct.
+Neither helper-level outside writes nor predicate proofs establish an observed
+full publication bypass. Preserve failed runs, calibration disagreements and limits.
 
 ## Desired ownership
 
@@ -163,28 +168,19 @@ updates sibling outside.mod, leaves target unchanged/clean and emits FIXED. This
 proves an outside write and false helper result, not full fix-all publication.
 Reject `go env GOMOD` as the guard: actual controls return owned go.mod while
 `go mod edit` reads/writes outside.mod. `Dir` alone also misses the alternate file.
-The tested candidate is `GOWORK=off GOTOOLCHAIN=local go -C "$moddir" list -m -mod=readonly -json`.
-Require one main-module result with nonempty `GoMod`; resolve relative values
-against queried moddir. Bind selected path/type to exact tracked owned go.mod and
-its derived sum path to the transaction, recording existing or absent pre-state;
-reject alias/link selectors even if realpath equals owned go.mod. Sums derive
-lexically from the selected modfile; the alias query is confirmed, not an executed
-outside-sum write. Bound the query; mismatch, ambiguity, failure or timeout
-requires review before policy reads/writes.
+The selected design explicitly binds internal module commands to the owned physical
+`go.mod` with native `-modfile` and clears overlays where supported. Bind graph,
+get, tidy, vendor, edit and derived sums together, not only `mod edit`. Keep native
+Go parsing; do not add a flag parser or a second effective-path discovery system.
+Caller build/test flags remain intact. Validate tracked regular single-link module,
+sum and workspace files, canonical parents, workspace members and nested-checkout
+boundaries before writes. Read-only local replacements remain supported.
 
-Native overlay controls also return owned `GoMod` while `go list` reads replacement
-module bytes; `mod edit` reads/writes physical owned bytes in the same context.
-This is inconsistent metadata selection, not an outside repair-write exploit.
-Explicit native `-overlay=` restores owned query bytes; keep all internal reads
-and writes physical, applying that override where supported and validating each
-command rather than blindly adding a flag. Preserve caller build/test flags,
-effective GOFLAGS/GOENV and benign flags otherwise; no general flag parser or
-broad stripping.
-Current-host absolute/relative/stored/tag/query controls preserve input bytes.
-Cover nested modules, supported minimum/newer Go, overlay/alias/sum identity and
-query errors before adoption. Complete explicit file binding is an alternative
-only across graph/get/tidy/vendor/sums, not `mod edit` alone. These sequential
-controls establish no concurrent configuration guarantee.
+Actual local-proxy get/tidy/vendor/build/rollback controls cover absolute, relative,
+stored and quoted selectors, overlays, aliases, hardlinks, nested modules and owned
+workspace sync on current Go 1.26 and minimum Go 1.24. These sequential controls
+establish no concurrent configuration guarantee. Final live tests must still prove
+the retained real repository state and canonical command outcomes.
 
 **One final test phase.** Actual YAML repair commits only .grype.yaml after early
 tests. Runtime skips retest while the checker requires exact tested/scan HEAD;
@@ -205,8 +201,12 @@ the affected live path.
 insufficient; a remote can push to multiple destinations. Bind confirmed PR base,
 head and all intended push destinations; withhold ambiguity. Basename equality
 does not authenticate forks, including renamed forks. Use existing trusted/explicit
-identity; no remote registry, mandatory online topology service, URL rewriting or
-credential output. Locally cover backup-first, ambiguous, renamed/same-name, split
+identity: use a configured `branch.<name>.pushRemote` or `remote.pushDefault`,
+one effective GitHub push destination, and an independently confirmed base.
+Same-base routes can be confirmed offline; a user fork needs optional bounded
+read-only metadata confirming its network. Otherwise withhold the optional recipe
+without changing completed engineering gates. No remote registry, mandatory online
+topology service, URL rewriting or credential output. Locally cover backup-first, ambiguous, renamed/same-name, split
 fetch/push, multiple destinations, SSH and unavailable identity without publishing.
 Historical positive recipe relay does not prove current generation correctness.
 
@@ -293,8 +293,14 @@ recordings/models/actors for terminology or unchanged judging retries for agreem
 
 ## One acceptance campaign, after local closure
 
-This plan launches no actors. Freeze selected changes/criteria after relevant
-controls; select an official upstream pin with actual actionable dependency repair.
+The first replay pilot failed independent whole-reply review under the prospective
+component freeze in `.work/fix-go-cves-e2e-20261023/pilot-protocol.json`. Full skill
+intake was confirmed. Preserve its original protocol, model erratum and raw stock
+stages; the all-pass source campaign stops at this actor. Consolidate the report
+contract around evidence-backed attribution, native uncertainty and remote landing
+before declaring another changed-source measurement. Freeze all live settings
+after relevant controls;
+use an official upstream pin with actual actionable dependency repair.
 The existing Admiral pin remains possible under a changed question; a justified
 new official pin is also possible. The race investigation requires no specific
 patch before measurement. Never inject local repair, remove race checks, downgrade

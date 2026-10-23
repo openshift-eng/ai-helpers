@@ -5,7 +5,59 @@ whole-reply acceptance are separate. The [plan](../plans/e2e-simplification.md)
 defines remaining work; the [historical matrix](live/README.md#branch-policy-matrix)
 retains earlier failures unchanged. Different source groups below are never pooled.
 
-## Implemented changes and checks
+## Current implementation, 2026-10-23
+
+The implementation from `8c88928b` is still being verified. These measurements
+supersede component claims only; all actor grades below remain historical.
+
+| Changed boundary | Measured evidence |
+| --- | --- |
+| Frozen execution and independent authority | 80 eval tests passed; model-free stock 005/007/002 preparation/replay passed |
+| Shared process lifecycle and exit aggregation | 302 focused harness tests plus three actual result-field/aggregation tests passed; reproducible patch checked in |
+| Physical Go metadata binding | Seven actual local-proxy transaction controls passed on Go 1.26 and Go 1.24 |
+| Generated output ownership and scan consumer | 16 real-Git/actual-scan controls passed; reverting the consumer reproduces failure |
+| Checkout cleanup and archive failure | Six actual cleanup controls passed |
+| Report-only preservation | Seven actual-producer controls passed; reverting the producer reproduces dirty-input/restore-diagnostic failures |
+| Dispatch capture | 90 assertions across 14 controlled producer/logger cases passed |
+| Full runtime integration | Fresh combined run exposed fixture migrations for conservative ownership/policy handling; final combined run pending |
+
+Production simplification removes the separate reporting reference and publication
+profile, replaces duplicate policy readers with the existing semantic loader, and
+uses one final test phase. Metadata uses explicit native physical-file binding,
+not an additional effective-path query system. The identified harness patch is
+applied to the pinned checkout; no supervisor or new harness service was added.
+
+Replay oracle development retained 126 judge calls and all failures. The current
+fixed controls use the V2 publication pair, V4 case-007 citation pair and V5 three
+case-005 controls: 14/14 expected criterion majorities, 41/42 matching individual
+samples, zero sample errors. Restoring whole-reply accuracy in the authoritative
+criterion fixed a scope regression; adding typed result fields did not fix it and
+was removed. These inspected controls are development/regression evidence, not
+unseen holdouts or a reliability estimate. Judge costs are not fully priced.
+
+The first replay pilot, `e2e-simplified-replay005-20261023-01`, completed all stock
+stages ($0.69 reported actor cost; six judge calls unpriced). Contract passed;
+outcome passed TTT despite independent failure; action_owner failed FFF. Independent
+review rejects unsupported causal exoneration, missing native uncertainty and a
+repair confined to the generated branch before a promised clean rerun. Actual
+Claude session evidence confirms complete current skill intake; this is a behavior
+failure, not a staging omission. The all-pass source campaign stopped after this
+one actor; all original stock stages and raw results are preserved. No later actor
+may be pooled into it. Live source/settings still require their final freeze.
+
+The live oracle controls separately matched 8/8 expected criterion majorities and
+24/24 samples without errors. Existing actual/corrected landing advice and bounded
+causal-experiment pairs were copied unchanged; scoped diagnostic units earn no
+full-runtime credit. All 24 calls are unpriced. A new nine-control replay regression
+check is running after explicit causal-support/native-disclosure clarification;
+no later actor has started.
+
+The fresh combined Python snapshot passed 66/66 metadata, artifact, policy,
+cleanup, report and publication controls. Subsequent shell-fixture-only migration
+adds a preserved legacy publication case; the final shell snapshot remains pending.
+
+
+## Earlier implemented changes and checks
 
 Detection owns default commands; the skill preserves target policy, launches once
 and investigates read-only. Runtime fixes preserve command/logger status and
