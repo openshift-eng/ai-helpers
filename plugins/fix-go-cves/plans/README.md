@@ -3,7 +3,9 @@
 The skill remains unaccepted. Start with the
 [E2E and simplification plan](e2e-simplification.md): it separates runner/oracle
 correctness, runtime policy gaps and the invoking skill's actual responsibilities.
-The next work is local implementation and controls, not another prompt campaign.
+Next work separates measurement prerequisites, runtime safety obligations and
+optional deletions. The existing cohort can answer a bounded question without
+pretending to cover every release obligation. No new prompt campaign is selected.
 
 | Document | Owns |
 | --- | --- |

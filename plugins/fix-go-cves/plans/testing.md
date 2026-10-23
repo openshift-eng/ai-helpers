@@ -38,14 +38,23 @@ are retained.
 | Scenario | Required runtime evidence |
 | --- | --- |
 | Blocked or partial run | Real execution and authenticated terminal result; reached scans and gates retain their actual exits, attempted tests retain paired logs/receipts, and the reply accurately reports blockers without follow-up mutation |
-| Successful repair | Initial actionable finding, retained dependency repair, canonical tests and four typed audits passing, valid authoritative final scan with zero actionable findings, runtime exit 0 |
-| Native binary | Initial proof bound to the pinned base and final proof bound to retained HEAD after remediation: fresh build, binary SHA/clean embedded VCS and positive catalog location/file hash; retained bytes match and canonical gates pass. A clean fast path needs only initial proof and does not count as repair |
+| Successful repair | Completed initial scan/receipt at the pinned base with an actionable finding, retained dependency repair, canonical tests and four typed audits passing, valid authoritative final scan with zero actionable findings, runtime exit 0 |
+| Native binary | Unique canonical artifact witnesses: initial proof bound to the pinned base and final proof bound to retained HEAD after remediation: fresh build, binary SHA/clean embedded VCS and positive catalog location/file hash; retained bytes match and canonical gates pass. A clean fast path needs only initial proof and does not count as repair |
 
 Native coverage can accompany a valid partial exit-2 result; it does not establish
 successful repair. The candidate binary contract now requires initial and final
 native proof outside clean fast paths, in addition to the judge projection.
 Preserve historical grades under their original contracts; the
 [acceptance plan](e2e-simplification.md#one-acceptance-campaign-after-local-closure) defines new measurements.
+
+Frozen input/annotations govern scenario, pins, guards, commands and replay
+outcomes. Collected paths/state cannot downgrade that authority. Required scan
+phase/HEAD checks are unconditional for required scenarios, while genuinely
+unreached phases remain valid for observed blocked runs. Reject duplicate canonical
+native paths rather than allowing later records to overwrite failed evidence.
+Track the entry kind, content and relevant executable mode actually promised by
+unchanged-source/native-output claims; do not freeze unrelated UID/timestamp data.
+These requirements have known checker gaps tracked in the implementation plan.
 
 Keep these runtime boundaries covered:
 
@@ -61,6 +70,11 @@ Keep these runtime boundaries covered:
   Missing/malformed evidence blocks; positive findings enter the bounded repair
   loop. Poison-provider controls verify that deterministic verification invokes
   neither model CLI.
+- Artifact deletion requires current content/type ownership and canonical
+  containment through every path component. A pathname from a previous run is
+  insufficient. Preserve changed, linked, tracked or otherwise unowned outputs.
+  Abort cleanup must preserve an unexpectedly moved checkout/index rather than
+  reset another branch. Committed-abort rollback policy is a separate decision.
 - Final rebuild/scan and license checks preserve the post-verification retained
   HEAD and clean tracked state. The zero-finding fast path checks unchanged source
   before normalization can conceal a change. Add no automatic repair or commit to
@@ -80,8 +94,10 @@ coverage is not stdlib remediation unless a stdlib finding was actually repaired
 A no-findings fast path does not exercise repair. The positive historical
 publication fragment tests detection and exact witness relay. Packaged case 002
 now permits measuring actual invoking-agent relay; its calibration is not actor
-acceptance. Local-only remotes can correctly
-withhold a PR recipe; do not invent a fork or publication steps. No eval pushes
+acceptance. Local-only or ambiguous remotes can correctly
+withhold a PR recipe; generation must bind base/head and all push destinations.
+A renamed fork or same-named repository cannot be authenticated by basename.
+Exact historical recipe relay is distinct from current generation correctness; do not invent a fork or publication steps. No eval pushes
 changes or creates a PR.
 
 Diagnosis must retain useful repair/backport advice, owner and next verification
@@ -109,7 +125,8 @@ instructions, including competing manual procedure, in the fixture.
 
 Use the tested shared harness revision
 [`1a980e707909a23f8c143ce333d97f5203db34ab`](https://github.com/opendatahub-io/agent-eval-harness/tree/1a980e707909a23f8c143ce333d97f5203db34ab);
-revalidate integration before changing it. Follow the existing
+revalidate integration before changing it. Preserve the prepared plugin basename
+and prove the loaded skill/invocation shim refer to that prepared copy. Follow the existing
 [setup instructions](../evals/README.md#setup), including fresh-HOME authentication
 and the active Python environment with PyYAML `CSafeLoader`. The current driver Python
 setting does not activate dependencies for child commands. The planned runner
@@ -129,7 +146,9 @@ metadata/environment, not an inferred dependency-graph change.
 Keep package-bearing tools, caches, logs and evidence outside the scanned tree;
 `.git` does not exclude them from Grype. The source-only staged plugin and driver
 retain stock layout. Fresh HOME, local remotes and trace/permission checks are
-not host isolation. Use disposable build resources through the shared environment
+not host isolation. Literal-path trace checks do not prove answers inaccessible
+through shell variables; minimize answer-root exposure without claiming a sandbox.
+Use disposable build resources through the shared environment
 before unattended work; a container with the host Docker socket can still affect
 host resources through repository cleanup. Do not add a plugin-specific sandbox.
 
@@ -154,8 +173,11 @@ extend or retry a cell adaptively after a budget or timeout failure.
 
 ## Measuring relevant changes
 
-Validate a changed engine path with hermetic regressions, then a real case that
-actually reaches it. A clean scan does not exercise repair, inherited-policy
+Validate a changed engine path with meaningful hermetic regressions. Require a
+real case reaching it when claiming live/E2E coverage of that path; isolated
+predicate/preservation fixes do not each require another paid actor. The declared
+fix-only cohort does not validate report-only, every YAML layout or publication
+generation on a positive remote. A clean scan does not exercise repair, inherited-policy
 rejection or stalled-scanner termination. Feed engine defects into script tests
 and interpretation defects into relevant existing replays. Do not hand-repair
 targets, fake findings, stub native tools, skip canonical gates or add broad
@@ -182,9 +204,10 @@ Declare which unchanged-source executions satisfy both integration and repetitio
 before launch; do not run separate cohorts for the same evidence. Never pool
 repetitions across behaviorally different source groups; a documentation-only
 commit does not change identical execution components. A scoring-only recovery
-is distinct from an
-actor rerun: retain the initial integrity failure, restore the exact frozen helper
-and verify unchanged actor artifacts. Keep original grades and independent oracle
+is distinct from an actor rerun: retain the initial failure and interpreter/source identities, restore
+the exact frozen helper and verify unchanged actor artifacts. Do not overwrite
+completed failed samples under the name of recovery; skipped, partial and newly
+executed judging remain distinguishable. Keep original grades and independent oracle
 corrections separate, including the executed-scan versus cleanup-restored HEAD.
 Compare current skill hashes across applicable cases and runtime hashes across live cases;
 validate historical runtime archives against their own pins. Preparation copies
