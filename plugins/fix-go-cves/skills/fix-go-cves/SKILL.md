@@ -44,9 +44,10 @@ request; reruns create another `-vN` branch and need a new user request.
 
 ## 2. Preserve target policy
 
-Read target instructions and relevant build, CI and configuration files to select
-compatibility restrictions, maintained checks and environment needs; use section 4
-for the result and handoff.
+Read the target branch's instructions and relevant build, CI and configuration
+files to select compatibility restrictions, maintained checks and environment
+needs. For fixes, inspect `origin/<branch>` with `git show`; the current checkout
+may be a different branch. Use section 4 for the result and handoff.
 User/branch policy takes precedence over conflicting check settings. Otherwise
 preserve nonempty inherited `CVE_FIX_TEST_CMD`, then target `.cve-fix.yaml`
 settings; leave unconfigured defaults to `detect.sh`. Add an override only for
@@ -93,36 +94,35 @@ grep -q '^--- Summary' "$LOG" && sed -n '/^--- Summary/,$p' "$LOG" || tail -40 "
 grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIEW|FAIL([[:space:]]|$)|--- FAIL:)' "$LOG"
 ```
 
-## 4. Relay the result and hand off unresolved work
+## 4. Quote observations, then hand off next actions
 
-Your reply consists of the runtime's quoted result followed by a short handoff.
 Quote the complete actual Summary through the log's end unchanged, including any
 branch removal, publication recipe and terminal exit. Without a Summary, quote
-the terminal clean/error message and emitted scan scope; missing completion stays
-unconfirmed. Report the actual exit and relay the emitted scan scope. The quoted
-recipe is the publication procedure; relay it without adding publication steps.
+the terminal clean/error message; missing completion stays unconfirmed. Relay the
+emitted scan scope and report the actual exit. If the scope does not establish
+compiled Go binary coverage, add:
+"Compiled Go binary coverage is unverified." Established coverage applies only to
+its reported artifacts and phases and does not alone establish stdlib remediation.
+The quoted recipe is the publication procedure; add no publication steps.
 
-If the emitted scope does not establish compiled Go binary coverage, add:
-"Compiled Go binary coverage is unverified." Keep established coverage within its
-reported artifacts and phases; it does not alone establish stdlib remediation.
+For relevant tests, quote the captured diagnostic and outcome lines from every
+attempt, including a failed attempt followed by a passing retry. Identify which
+attempt each excerpt belongs to. These quotations are the account of the run.
 
-Inspect relevant package output from every test attempt, including failed attempts
-followed by passing retries, and report each relevant attempt's observed outcome.
-For each unresolved check, give the captured diagnostic,
-a matching available repair or next investigation, its owner and the prerequisite
-for verification. A passing retry alone creates no new maintainer task; an ignored
-finding without a published fix needs no additional repair.
+For unresolved work, follow these quotations with only next actions: an applicable
+existing repair or next investigation, its owner, the prerequisite for verification,
+and verification still pending. An ignored finding without a published fix needs
+no additional repair; a passing retry alone creates no new maintainer task.
 
-Find matching repairs in immutable source and default-branch history in the existing
-checkout: `git show <command-commit>:<file>`, `git log origin/<default> -- <file>` and
-`git show <candidate> -- <file>`. Identify an applicable existing repair by commit.
-Ground source/history claims in the inspected immutable refs. This investigation
-selects the next action; establishing the failure's cause is separate work.
+Select a matching repair by inspecting immutable source and default-branch history
+in the existing checkout: `git show <command-commit>:<file>`,
+`git log origin/<default> -- <file>` and `git show <candidate> -- <file>`.
+Identify an applicable existing repair by commit. Stop investigating once the
+supported next action, owner and prerequisite are established.
 
 Source repairs must land on `origin/<branch>` before rerunning `fix-all.sh`, which
 starts afresh there; repaired builder images must be published before consumers
-rerun. Give verification as the next step, with its outcome still unverified.
-Stop investigating when the diagnostic and supported handoff are complete.
+rerun. Give the rerun as verification with its outcome still unverified.
 
 Keep this investigation read-only: do not edit source/dependencies/ignores, apply
 or test a repair, rerun scripts, clean up, push or create a PR. Missing or skipped

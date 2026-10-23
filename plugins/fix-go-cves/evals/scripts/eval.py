@@ -918,7 +918,7 @@ def capture(workspace):
 
 def events(path):
     result = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text().split('\n'):
         if line.strip():
             value = json.loads(line)
             if isinstance(value, dict):

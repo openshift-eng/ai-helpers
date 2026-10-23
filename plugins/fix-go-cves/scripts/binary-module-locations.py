@@ -50,7 +50,7 @@ def binary_locations(repo, manifest, scan):
         for location in match["artifact"].get("locations", [])
     }
     mapped = {}
-    for entry in manifest.read_text().splitlines():
+    for entry in filter(None, manifest.read_text().split('\n')):
         binary = Path(entry).resolve()
         if not binary.is_relative_to(repo) or not binary.is_file():
             continue

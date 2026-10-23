@@ -144,6 +144,7 @@ cleanup() {
   fi
   if [[ -n "${STATE_FILE:-}" ]]; then
     rm -f "$STATE_FILE" "${STATE_FILE}.scan-scope" "${STATE_FILE}.build-failed" "${STATE_FILE}.network-broken" "${STATE_FILE}.scanner-degraded" "${STATE_FILE}.scan-transient" "${STATE_FILE}.coverage-unknown" "${STATE_FILE}.review-unresolved" "${STATE_FILE}.review-resolved" "${STATE_FILE}.generated-artifacts" "${STATE_FILE}.built-artifacts" "${STATE_FILE}.baseline-artifacts" "${STATE_FILE}.generated-drift" 2>/dev/null || true
+    rm -f "${STATE_FILE}.license.baseline-artifacts" "${STATE_FILE}.license.generated-artifacts" "${STATE_FILE}.license.built-artifacts" 2>/dev/null || true
     rmdir "$(dirname "$STATE_FILE")/reviewer" "$(dirname "$STATE_FILE")" 2>/dev/null || true
   fi
   # Preserve subagent reports on verification failure so they can be debugged;
@@ -1037,15 +1038,10 @@ if has_real_make_target licensecheck; then
   _license_makeflags=""
   [[ ! -e licensecheck ]] || _license_makeflags=-B
   LICENSE_ENV+=("MAKEFLAGS=$_license_makeflags")
-  # The check may build its own tool (Submariner's bin/lichen, with a
-  # GOEXPERIMENT marker Grype cannot match); a leftover would block the
-  # next run's scans, so remove untracked executables it adds.
-  _untracked_executables() {
-    git ls-files -z --others | while IFS= read -r -d '' _f; do
-      if [[ -f "$_f" && -x "$_f" ]]; then printf '%s\n' "$_f"; fi
-    done | sort
-  }
-  _LICENSE_BEFORE=$(_untracked_executables)
+  # Track license tools separately so gate-built and pre-existing files remain.
+  _license_artifact_failure=""
+  python3 "$SCRIPT_DIR/generated-artifacts.py" prepare "$REPO" "${STATE_FILE}.license" "" || \
+    _license_artifact_failure=prepare
   _EVIDENCE_LICENSE_STATUS=running
   _EVIDENCE_LICENSE_RC=0
   _license_status=(0 0)
@@ -1069,9 +1065,19 @@ if has_real_make_target licensecheck; then
   else
     echo "License policy check passed."
   fi
-  while IFS= read -r _f; do
-    [[ -n "$_f" ]] && rm -f -- "$_f"
-  done < <(comm -13 <(printf '%s\n' "$_LICENSE_BEFORE") <(_untracked_executables))
+  if [[ -z "$_license_artifact_failure" ]]; then
+    python3 "$SCRIPT_DIR/generated-artifacts.py" record "$REPO" "${STATE_FILE}.license" "" || \
+      _license_artifact_failure=record
+    if [[ -z "$_license_artifact_failure" ]]; then
+      python3 "$SCRIPT_DIR/generated-artifacts.py" prepare "$REPO" "${STATE_FILE}.license" "" || \
+        _license_artifact_failure=cleanup
+    fi
+  fi
+  if [[ -n "$_license_artifact_failure" ]]; then
+    POLICY_CHECK_FAILED=true
+    UNSEEN_NEEDS_REVIEW=true
+    echo "ERROR: License-tool cleanup unconfirmed (artifact $_license_artifact_failure failed); PR generation suppressed."
+  fi
 fi
 
 if ! _tracked_tree_unchanged "$VERIFIED_HEAD"; then

@@ -84,6 +84,14 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             EVAL.unpack_plugin(self.archive(manifest=manifest), self.root / "plugin")
 
+    def test_jsonl_unicode_separators_are_data(self):
+        records = [{'path': 'bin/fresh\u2028output', 'compiler': 'go\u0085version'},
+                   {'type': 'result', 'result': 'completed\u2029reply'}]
+        path = self.root / 'events.jsonl'
+        path.write_text('\n' + '\n\n'.join(json.dumps(row, ensure_ascii=False)
+                                            for row in records) + '\n')
+        self.assertEqual(EVAL.events(path), records)
+
     def test_final_reply_excludes_progress_and_uses_completed_result(self):
         stream = [{"type": "assistant", "message": {"content": [
             {"type": "text", "text": "Progress with an incorrect diagnosis"}]}},

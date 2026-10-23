@@ -1,12 +1,13 @@
 # Fix Go CVEs work plans
 
-Acceptance remains **open**. Engine, harness and evidence changes pass component
-integration, and a separate real-engine diagnostic demonstrates repair feasibility.
-Seven earlier pilots remain unaccepted; C8 stopped after two actors: 005 accepted
-individually, 007 failed. Original artifacts and grades remain intact. The compact
-reporting skill has not yet had an actor measurement; its 84-test helper suite
-and model-free 005/007/002 smoke pass. The next declared campaign starts with
-007 and requires full stock stages and independent review per cell.
+Acceptance remains **open**. Seven earlier pilots and C8/C9 remain separate
+stopped campaigns; C8's 005 passed individually, while C9's single 007 failed
+factual review despite correct operations and advice. Original artifacts and
+grades remain intact. The current skill quotes observations, then gives
+only future actions. Current component verification passes, including frozen
+shell/Python integration and focused Unicode boundary controls. The [results record](../evals/implementation-results.md)
+owns counts and source identities. No actor has measured this source. C10 starts
+with 007 and requires complete stock stages and independent review per cell.
 
 | Document | Owns |
 | --- | --- |

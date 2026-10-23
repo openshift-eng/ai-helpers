@@ -124,7 +124,7 @@ def main(operation, repo, state, previous):
         raise ValueError(f'Unowned artifact metadata: {baseline}')
     if operation == 'prepare':
         first = not baseline.exists()
-        old_paths = set(baseline.read_text().splitlines()) if not first else set()
+        old_paths = set(filter(None, baseline.read_text().split('\n'))) if not first else set()
         stamp = baseline.stat().st_mtime_ns if not first else None
         if first:
             cleanup(repo, claims(previous), tracked)
@@ -138,7 +138,7 @@ def main(operation, repo, state, previous):
             os.utime(baseline, ns=(baseline.stat().st_atime_ns, stamp))
         write_claims(manifest, {})
     elif operation == 'record':
-        old_paths = set(baseline.read_text().splitlines())
+        old_paths = set(filter(None, baseline.read_text().split('\n')))
         _, executable = inventory(repo)
         records = {}
         for path in executable:

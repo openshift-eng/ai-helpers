@@ -58,6 +58,140 @@ class ArtifactOwnership(unittest.TestCase):
         self.helper('record')
         return path
 
+    def license_gate(self, body, fail_helper=0, command_exit=0, fail_logger=False):
+        producer = (PLUGIN / 'scripts/fix-all.sh').read_text()
+        start = producer.index('# Run an existing repository license policy gate')
+        end = producer.index('\nif ! _tracked_tree_unchanged "$VERIFIED_HEAD";', start)
+        block = self.root / 'license-gate.sh'
+        block.write_text(producer[start:end])
+        (self.repo / 'license-tool.py').write_text(body + f'\nraise SystemExit({command_exit})\n')
+        (self.repo / 'Makefile').write_text('.PHONY: licensecheck\nlicensecheck:\n\tpython3 license-tool.py\n')
+        self.git('add', 'Makefile', 'license-tool.py')
+        self.git('commit', '--allow-empty', '-qm', 'license fixture')
+        runner = r'''
+set -euo pipefail
+SCRIPT_DIR=$1 REPO=$PWD STATE_FILE=$2
+_EVIDENCE_READY=$CAPTURE_LICENSE POLICY_CHECK_FAILED=false UNSEEN_NEEDS_REVIEW=false
+CVE_FIX_EVIDENCE_DIR=$(dirname "$STATE_FILE")
+ENV_SCRUB=()
+has_real_make_target() { [[ "$1" == licensecheck ]]; }
+build_env_scrub() { ENV_SCRUB=(); }
+if $CAPTURE_LICENSE; then tee() { command tee "$@"; return 9; }; fi
+python3() {
+  if [[ "$1" == "$SCRIPT_DIR/generated-artifacts.py" ]]; then
+    printf '%s\n' "$2" >> "$STATE_FILE.calls"
+    if [[ $(wc -l < "$STATE_FILE.calls") -eq "$FAIL_HELPER" ]]; then return 71; fi
+  fi
+  command python3 "$@"
+}
+source "$3"
+printf 'RESULT %s %s %s %s\n' "$_EVIDENCE_LICENSE_RC" "$_EVIDENCE_LICENSE_STATUS" "$POLICY_CHECK_FAILED" "$UNSEEN_NEEDS_REVIEW"
+'''
+        result = subprocess.run(['bash', '-c', runner, 'license-fixture',
+                                 str(PLUGIN / 'scripts'), str(self.state), str(block)],
+                                cwd=self.repo, env={**self.env, 'FAIL_HELPER': str(fail_helper),
+                                                   'CAPTURE_LICENSE': str(fail_logger).lower()},
+                                text=True, capture_output=True, check=True, timeout=30)
+        return result, Path(str(self.state) + '.calls').read_text().splitlines()
+
+    @unittest.skipUnless(shutil.which('make'), 'Make is required')
+    def test_license_cleanup_preserves_caller_and_gate_artifacts(self):
+        native = self.executable('bin/native', 'gate-built native')
+        caller = self.repo / 'bin/caller'
+        caller.write_text('caller non-executable')
+        caller.chmod(0o644)
+        victim = self.repo / 'bin/victim'
+        victim.write_text('caller victim')
+        victim.chmod(0o644)
+        tracked = self.executable('tracked-tool', 'tracked native')
+        self.git('add', 'tracked-tool')
+        outside = self.root / 'outside'
+        outside.write_text('outside bytes')
+        outside.chmod(0o755)
+        result, calls = self.license_gate('''from pathlib import Path
+import os, subprocess
+for name in ('bin/ordinary', 'bin/victim\\nsuffix', 'bin/nested/tool'):
+    path = Path(name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('new executable')
+    path.chmod(0o755)
+Path('bin/caller').chmod(0o755)
+Path('bin/link').symlink_to(Path.cwd().parent / 'outside')
+os.link(Path.cwd().parent / 'outside', 'bin/hardlink')
+subprocess.run(['git', 'init', '-q', 'bin/nested'], check=True)
+''')
+        self.assertIn('RESULT 0 completed false false', result.stdout)
+        self.assertEqual(calls, ['prepare', 'record', 'prepare'])
+        self.assertFalse((self.repo / 'bin/ordinary').exists())
+        self.assertEqual(victim.read_text(), 'caller victim')
+        self.assertTrue((self.repo / 'bin/victim\nsuffix').exists())
+        self.assertEqual(caller.read_text(), 'caller non-executable')
+        self.assertEqual(caller.stat().st_mode & 0o777, 0o755)
+        self.assertEqual(native.read_text(), 'gate-built native')
+        self.assertEqual(tracked.read_text(), 'tracked native')
+        self.assertTrue((self.repo / 'bin/link').is_symlink())
+        self.assertTrue((self.repo / 'bin/hardlink').exists())
+        self.assertEqual(outside.read_text(), 'outside bytes')
+        self.assertTrue((self.repo / 'bin/nested/tool').exists())
+        self.assertEqual(self.git('diff', '--stat'), '')
+        self.assertFalse(self.previous.exists())
+        producer = (PLUGIN / 'scripts/fix-all.sh').read_text()
+        cleanup = self.root / 'cleanup.sh'
+        cleanup.write_text(producer[producer.index('cleanup() {'):producer.index('\nRUN_COMPLETED=false')])
+        subprocess.run(['bash', '-euc',
+                        '_record_run_evidence() { return 0; }; STATE_FILE=$1; '
+                        'FIX_BRANCH= REPO= SUBAGENT_REPORT_DIR= FIX_LOG= TEST_LOG=; source "$2"; cleanup 0',
+                        'cleanup-fixture', str(self.state), str(cleanup)],
+                       env=self.env, capture_output=True, text=True, check=True, timeout=30)
+        self.assertFalse(list(self.root.glob(self.state.name + '.license.*')))
+        self.assertEqual(victim.read_text(), 'caller victim')
+        self.assertEqual(native.read_text(), 'gate-built native')
+
+    @unittest.skipUnless(shutil.which('make'), 'Make is required')
+    def test_license_cleanup_preserves_unicode_baseline_paths(self):
+        callers = []
+        for separator in ('\v', '\f', '\x1c', '\x1d', '\x1e', '\x85', '\u2028', '\u2029'):
+            for mode in (0o644, 0o755):
+                path = self.executable(f'bin/caller-{mode:o}{separator}owned', 'caller bytes')
+                path.chmod(mode)
+                callers.append(path)
+        result, _ = self.license_gate('''from pathlib import Path
+for path in Path('bin').iterdir():
+    path.chmod(0o755)
+''')
+        self.assertIn('RESULT 0 completed false false', result.stdout)
+        for path in callers:
+            with self.subTest(path=path.name):
+                self.assertEqual(path.read_text(), 'caller bytes')
+                self.assertEqual(path.stat().st_mode & 0o777, 0o755)
+
+    @unittest.skipUnless(shutil.which('make'), 'Make is required')
+    def test_license_helper_failure_preserves_command_result_and_unproven_output(self):
+        for fail_helper, expected_calls in ((1, ['prepare']),
+                                            (2, ['prepare', 'record']),
+                                            (3, ['prepare', 'record', 'prepare'])):
+            for command_exit in (0, 7):
+                with self.subTest(fail_helper=fail_helper, command_exit=command_exit):
+                    self.state = self.root / f'license-{fail_helper}-{command_exit}.env'
+                    result, calls = self.license_gate('''from pathlib import Path
+path = Path('bin/unproven')
+path.parent.mkdir(exist_ok=True)
+path.write_text('license output')
+path.chmod(0o755)
+''', fail_helper=fail_helper, command_exit=command_exit)
+                    self.assertEqual(calls, expected_calls)
+                    expected_exit = 2 if command_exit else 0  # GNU Make's command failure.
+                    self.assertIn(f'RESULT {expected_exit} completed true true', result.stdout)
+                    self.assertIn('License-tool cleanup unconfirmed', result.stdout)
+                    self.assertEqual((self.repo / 'bin/unproven').read_text(), 'license output')
+                    (self.repo / 'bin/unproven').unlink()
+        self.state = self.root / 'license-logger.env'
+        result, calls = self.license_gate('', fail_helper=2, command_exit=7, fail_logger=True)
+        self.assertEqual(calls, ['prepare', 'record'])
+        self.assertIn('RESULT 2 capture_failed true true', result.stdout)
+        self.assertIn('tee exited 9; command exited 2', result.stdout)
+        self.assertIn('License-tool cleanup unconfirmed', result.stdout)
+
     def test_unchanged_outputs_removed_but_preexisting_and_tracked_files_remain(self):
         user = self.executable('bin/user')
         tracked = self.executable('bin/tracked')
@@ -254,6 +388,7 @@ class ArtifactOwnership(unittest.TestCase):
                          'Go, jq and timeout are required')
     def test_actual_scan_uses_fresh_built_paths_for_duplicate_filter_and_alias_proof(self):
         # Real builds/readers; only scanner findings are controlled fixture input.
+        fresh = 'bin/fresh\u2028output'
         (self.repo / 'go.mod').write_text('module example.invalid/artifact\n\ngo 1.24.0\n')
         main = self.repo / 'main.go'
         main.write_text('package main\nfunc main() {}\n')
@@ -273,8 +408,8 @@ class ArtifactOwnership(unittest.TestCase):
                     'vulnerability': {'id': 'CVE-fixable' if fixed else 'CVE-nofix',
                                       'fix': {'versions': ['v1.1.0'] if fixed else [],
                                               'state': 'fixed' if fixed else 'unknown'}}}
-        raw = {'matches': [finding('/bin/fresh'), finding('/bin/inplace'),
-                           finding('/bin/unproven'), finding('/bin/fresh', True)],
+        raw = {'matches': [finding('/' + fresh), finding('/bin/inplace'),
+                           finding('/bin/unproven'), finding('/' + fresh, True)],
                'ignoredMatches': [finding('/go.mod')]}
         scan = self.root / 'scanner.json'
         scan.write_text(json.dumps(raw))
@@ -287,7 +422,7 @@ class ArtifactOwnership(unittest.TestCase):
         alias.symlink_to(self.repo, target_is_directory=True)
         values = {'REPO': str(alias), 'BRANCH': 'fixture', 'HAS_LOCAL_GRYPE': 'true',
                   'CONTAINER_CMD': '', 'ENV_UNSET': '', 'BUILD_REPO_NAME': '',
-                  'BUILD_CMD': 'go build -o bin/fresh . && go build -o bin/inplace .'}
+                  'BUILD_CMD': f'go build -o {shlex.quote(fresh)} . && go build -o bin/inplace .'}
         self.state.write_text(''.join(key + '=' + shlex.quote(value) + '\n' for key, value in values.items()))
         evidence = self.root / 'evidence'
         result = subprocess.run(['bash', str(PLUGIN / 'scripts/scan.sh'), str(self.state),
@@ -302,10 +437,10 @@ class ArtifactOwnership(unittest.TestCase):
         self.assertEqual(filtered['ignoredMatches'], raw['ignoredMatches'])
         ledger, = evidence.glob('scans/*/binaries.jsonl')
         recorded = {item['path']: item['recorded_build_artifact']
-                    for item in map(json.loads, ledger.read_text().splitlines())}
-        self.assertEqual(recorded, {'bin/fresh': True, 'bin/inplace': True, 'bin/unproven': False})
+                    for item in map(json.loads, filter(None, ledger.read_text().split('\n')))}
+        self.assertEqual(recorded, {fresh: True, 'bin/inplace': True, 'bin/unproven': False})
         generated = json.loads(Path(str(self.state) + '.generated-artifacts').read_text())
-        self.assertEqual(set(generated), {str(self.repo / 'bin/fresh')})
+        self.assertEqual(set(generated), {str(self.repo / fresh)})
 
 
 if __name__ == '__main__':

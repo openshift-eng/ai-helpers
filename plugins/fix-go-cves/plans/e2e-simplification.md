@@ -1,11 +1,10 @@
 # E2E acceptance and simplification
 
-Acceptance remains **open**. The implemented engine, harness and evidence changes
-pass component integration; they do not establish a complete current-source actor
-cohort. Seven earlier pilots remain unaccepted, including stock false positives.
-C8 stopped after two actors: 005 accepted individually, 007 failed. The compact
-reporting revision has not yet been measured. Preserve original sources,
-grades and disagreements.
+Acceptance remains **open**. Seven earlier pilots and C8/C9 are separate stopped
+campaigns; C8's 005 passed individually, C9's single 007 failed factual review.
+Current component verification passes; the skill and ownership fixes have not
+had an actor measurement. Preserve original sources, grades and
+disagreements; the [results record](../evals/implementation-results.md) owns counts.
 
 This plan owns current design choices and the remaining acceptance sequence. The
 [testing strategy](testing.md) owns durable requirements and calibration/reuse
@@ -143,11 +142,11 @@ correctness; evals never push or create a PR.
 
 The skill carries the reporting contract directly: preserve target policy, launch
 once and observe actual completion. The reply starts with the exact emitted
-Summary/recipe/exit and scope, then a short handoff. Inspect and report relevant
-attempt outcomes read-only; search default-branch history for an existing repair
-commit. Establishing the failure cause is separate work. Stop when the captured failing
-diagnostic, supported next action, owner and verification prerequisite make the
-handoff actionable. Applicable source repairs must land on the starting origin;
+Summary/recipe/exit and scope, then quoted diagnostics and outcomes from every
+relevant attempt. Added prose gives only future actions, owners and verification
+prerequisites. Inspect `origin/<branch>` directly for target policy and search
+default-branch history for an existing repair commit. Stop once that handoff is
+supported. Applicable source repairs must land on the starting origin;
 builder repairs must be published before consumers rerun. A recovered retry alone
 creates no maintainer task. Unknown coverage stays unknown; positive artifact/phase
 proof stays positive. Nested-reviewer prose does not authenticate observations.
@@ -175,18 +174,21 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C8 completed original stock stages and independent review, then stopped after
-two actors. Its 005 passes the contract and all six O/A samples; primary-evidence
-adjudication accepts O/A while preserving the original null review and addendum.
-007 fails contract and O/A. The [results record](../evals/implementation-results.md)
-retains all original artifacts, grades and failure evidence.
+C8 stopped after two actors; C9 completed all original stages and stopped after
+one 007. C9 passed operations and action ownership but failed outcome for added
+unsupported causal claims. The [results record](../evals/implementation-results.md)
+retains the exact grades, disagreements and source groups.
 
-The compact reporting revision passes the 84-test helper suite and model-free
-005/007/002 smoke; no actor has launched. The existing CommonMark parser now uses
-matching CR/LF source indices, with positive and invented-push regression controls.
-Freeze the candidate prospectively after local closure; measure 007 first as the known regression, then continue only
-after its complete stock stages and independent review pass. Keep the same caps,
-models, oracles and pins; this is a separate changed-source measurement.
+The current skill quotes observations before allowing only future
+actions; it adds no schema, parser or blacklist. License cleanup reuses the
+existing artifact ownership helper with a private license prefix. Serialized path
+and event readers now honor LF delimiters without splitting embedded Unicode
+separators. Focused controls, frozen shell/Python integration and model-free
+replay pass. Partial helper I/O failure coverage is not claimed. Freeze the
+prospective C10 candidate,
+starting with 007 as the known regression, then continue only after complete
+stock stages and independent review pass. Keep the same caps, models, oracles and
+pins; this is a separate changed-source measurement.
 
 Apply the [calibration rules](testing.md#measuring-relevant-changes): preserve
 labels, witnesses, prompts, models, grades and dissent; require every sample
@@ -246,10 +248,17 @@ Only then remove nested invocation, pre-review build/scan, retries and parser
 together; otherwise retain the independent decision with validated reasons and raw
 output. No temporary framework is needed.
 
-Remove repeated scans only after tracing the source/binary/policy state they
-observe. Keep the authoritative final rebuilt scan and required audit inputs;
-HEAD alone is not a sufficient cache key. Pure tuple/location parsing deduplication
-follows semantic-reader parity and preserves distinct gate meanings.
+Optional deletions do not block this campaign:
+
+- Trace the pre-verification `FINAL_SCAN`, which is only printed before the first
+  audit independently rebuilds/rescans. Remove it only after accounting for artifact
+  and sentinel effects; retain audit inputs and the authoritative final rebuilt scan.
+- Remove duplicate full frozen-source validation and the duplicate PATH Grype
+  identity probe only after confirming their callers share the same boundary;
+  retain actual per-scan scanner identity and the integrity fence.
+
+HEAD alone is not a scan cache key. Pure tuple/location parsing deduplication
+preserves distinct gate meanings.
 
 Source-coverage probes have not reproduced a real Go-exclusion/full false-clean.
 Before adding a source check, compare real healthy/suppressed/omitted Go, non-Go-only,

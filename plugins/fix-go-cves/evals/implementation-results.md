@@ -1,27 +1,30 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C8 stopped after two actors: 005 passes
-stock and independent review; 007 fails both. The compact reporting
-revision has not launched. Script correctness, stock grades and independent
-whole-reply acceptance are separate. The [plan](../plans/e2e-simplification.md)
+Full-cohort acceptance remains **open**. C8 stopped after two actors; its 005
+passed individually. C9 stopped after one 007: operations and advice passed,
+facts failed. The current skill and ownership fixes have not had an actor
+measurement. Current component verification passes; counts are below.
+Script correctness, stock grades and independent review remain separate. The [plan](../plans/e2e-simplification.md)
 defines remaining work; the [historical matrix](live/README.md#branch-policy-matrix)
-retains earlier failures unchanged. Different source groups below are never pooled.
+retains earlier failures unchanged. Different source groups are never pooled.
 
 ## Current implementation, 2026-10-23
 
-Implementation from `8c88928b` passes component integration; full E2E acceptance
-remains open. Historical actor grades are unchanged.
+Earlier implementation from `8c88928b` passed component integration. Current v5
+verification incorporates the license ownership and LF-reader fixes below; v4
+passes remain historical evidence. Historical actor grades are unchanged.
 
 | Changed boundary | Measured evidence |
 | --- | --- |
-| Frozen execution and authority | 84 eval tests; current model-free 005/007/002 smoke passed with driver preflight and expected historical results |
+| Frozen execution and authority | 85 eval tests pass in 50.300 seconds; current model-free 005/007/002 prepare/replay passes with expected historical results |
 | Shared lifecycle and aggregation | 362 lifecycle/configuration checks and 186 scoring/sample-retention checks passed on selected harness paths |
 | Physical Go metadata | Seven actual local-proxy transaction controls passed on Go 1.24 and 1.26 |
-| Artifact ownership and scan consumer | 16 controls; old consumer reproduces failure |
+| Artifact ownership and scan consumer | 19 focused tests pass in 4.699 seconds, including actual license producer and native Unicode consumer controls; original counterexamples preserved |
 | Cleanup / report preservation | Six / seven actual-producer controls; old report producer reproduces failures |
 | Policy / publication | 15 semantic reader controls; 16 real-Git recipe controls; 182 workflow checks |
 | Dispatch / final evidence | 90 assertions across 14 capture cases; 473 final-evidence workflow checks |
-| Combined integration | 3,207/3,207 frozen shell checks; all 28 runtime/subagent/test files match current bytes/modes. Frozen Python suite: 66/66 before one additional publication control, separately verified. |
+| Earlier combined integration | 3,207/3,207 frozen shell checks with all 28 runtime/subagent/test files matching that snapshot. Frozen Python suite: 66/66 before one additional publication control, separately verified. V4: 3,207 shell and 69 Python tests passed; later Unicode counterexamples prevent treating v4 as current closure. |
+| Current v5 integration | 3,207/3,207 frozen shell checks pass (exit 0); all 28 runtime/subagent/test files match current bytes/modes. Python: 70/70 in 23.062 seconds. Receipt: `combined-runtime-v5-verification.json`. |
 
 Simplification removes the separate reporting reference/publication profile,
 replaces duplicate policy readers with the existing semantic loader, and uses one
@@ -46,13 +49,14 @@ fails is not guaranteed.
 | `e2e-relay-replay005-20261023-01` | C false (literal Summary), O/A TTT; actor $0.74 | Exact Summary was blockquoted; separate unsupported vet/transitive-dependency explanation prevents acceptance. A true. |
 | `e2e-final-relay-replay005-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.67 | C8 first accepted 005: O/A true after primary-evidence adjudication; original null review and stock grades retained |
 | `e2e-final-relay-replay007-20261023-01` | C false (missing `8234df0`), O/A FFF, zero sample errors; actor $0.77 | O/A false: unsupported independence, wrong Go 1.25 explanation, missing existing repair commit and promised clean rerun/recipe; C8 stopped |
+| `e2e-compact-relay-replay007-20261023-01` | C true, O FFF, A TTT, zero sample errors; actor $0.72 | C9 stopped: operational/A true, O false for unsupported syncer independence and reporter-predates claims; existing repair commit and all attempt outcomes correct |
 
 Complete actual skill intake was confirmed for all eight completed 005 pilots
-and C8 007. The seven earlier pilots and C8 are separate stopped campaigns; no
-failed actor is pooled into a revised source. Current guidance quotes the runtime
-result first, then limits added prose to the diagnostic and supported handoff.
-It retains each relevant attempt outcome and default-branch repair-commit search;
-establishing the failure cause is separate work. The
+and C8/C9 007. The seven earlier pilots and C8/C9 are separate stopped campaigns;
+no failed actor is pooled into a revised source. Current guidance quotes runtime
+observations and relevant attempt outcomes, then allows only supported future
+actions, owners and verification prerequisites. Default-branch repair-commit
+search and direct target-origin policy reads remain required. The
 bounded archived-producer witness now exposes the known tidy error to judges;
 original recordings, prompts, thresholds and old grades remain unchanged. V7/V8 preserved false positives despite the producer witness and a named-command
 criterion. A request-boundary audit verified complete serialized input, expected
@@ -86,19 +90,51 @@ preflight. A three-line correction now aligns source indices with CommonMark
 CR/LF normalization instead of Python Unicode `splitlines`, using the same parser.
 Before correction, all three LF/CRLF/CR positive controls failed; afterward all
 accept and reject an appended invented push. One 12-line regression covers both
-boundaries; the complete 84-test suite passes in 49.570 seconds. Helper SHA-256:
+boundaries; that 84-test snapshot passed in 49.570 seconds. Snapshot helper SHA-256:
 `c41e6916cc7cdb076ca634408be0c59b21b7a80fe65e50f8320817337519c001`.
-The current model-free 005/007/002 smoke exits 0, exercises driver preflight and
-retains `aa5a4fc`/`aaaeea3`/`2716c2ff`, each with historical runtime exit 2.
-Original artifacts and grades remain immutable; no new actor ran.
+The earlier model-free 005/007/002 smoke exited 0, exercised driver preflight and
+retained `aa5a4fc`/`aaaeea3`/`2716c2ff`, each with historical runtime exit 2.
+Original artifacts and grades remain immutable; that smoke supplied no actor credit.
 
-The unmeasured compact revision reduces the skill to
-129 lines, clarifies policy intake, and keeps exact output/coverage, attempt
-outcomes, repair ownership and origin/image prerequisites. It removes redundant
-findings recount and optional causal explanation; verification remains a future
-step, not a promised pass or recipe. Its separate measurement starts with 007,
-then 005, positive 002, four live scenarios and eligible replay repeats under the
-unchanged eleven-actor maximum, caps, models, oracles and pins.
+The current unmeasured skill quotes observed results and relevant attempt lines,
+then permits only future actions. It preserves exact output/coverage,
+repair-commit discovery, owner and origin/image prerequisites, with no added
+schema, parser or blacklist. C10 starts with 007, then 005, positive 002, four live
+scenarios and eligible replay repeats under the unchanged eleven-actor maximum,
+caps, models, oracles and pins.
+
+A sandbox actual-license-block counterexample deleted a pre-existing ignored,
+non-executable caller file when a generated executable's name contained a newline;
+tracked files stayed clean. Ordinary-name control preserved the caller file.
+The reviewed fix replaces pathname deletion with the existing artifact helper,
+using a separate license prefix and no previous-run claims. Make/logger exits
+remain separate from ownership failure, which blocks publication. Actual producer,
+logger and trap controls preserve native baselines, caller files, links and nested
+checkouts. Partial helper I/O failure coverage is not claimed.
+
+A subsequent actual-license-producer counterexample exposed Unicode separators
+being split in the helper's serialized baseline. Two LF-only baseline reads now
+preserve all 16 pre-existing-path controls (eight separators × two modes) that the
+old producer could delete. A third runtime reader fix preserves the same path
+identity in native scan consumption: actual Unicode-fresh/ASCII-in-place scan
+controls fail with the old consumer and pass with the correction. One eval JSONL
+reader likewise now splits only LF; its raw-Unicode event regression previously
+raised `JSONDecodeError` and now passes. These retain existing formats and parsers;
+no human-log rewrite or new framework was added. Thirty-three retained machine
+files containing 2,462 rows parse unchanged, recorded in
+`jsonl-parser-compatible-recordings.json`.
+
+Current model-free `e2e-owned-unicode-dry-20261023-01` completes 005/007/002
+prepare/replay with exit 0, retaining `aa5a4fc`/`aaaeea3`/`2716c2ff` and each
+historical runtime exit 2. Original counterexamples and verification receipts,
+including `license-cleanup-{counterexample,fix-verification.json}` and
+`final-boundary-unicode-artifact/{receipt,actual-producer-receipt}.json`, remain
+under `.work/fix-go-cves-e2e-20261023/`. V5 source identity is recorded in
+`combined-snapshot-v5-source.json`. Oracle profiles, models, thresholds and
+calibration semantics are unchanged; V9 controls retain their existing scope.
+This supplies no actor credit, scoring recovery or live acceptance of changed
+runtime. Current component verification is complete; prospective C10 actor
+acceptance remains separate.
 
 A separate model-free actual-engine diagnostic,
 `e2e-engine-readiness002-20261023-01`, repaired all five x/net findings on official
