@@ -54,7 +54,7 @@ Repeat steps 1-3 until the PR is approved and CI is green or non-actionable fail
 ### Skills
 
 - **preassessment** — Read-only classification of Jira work as implementation-ready, planning-required, decomposition-required, or needing clarification.
-- **jira-refine** — Refine a Jira bug into an evidence-backed disposition (CLOSE, SOLVE, NEEDS_INFO, or NEED_HUMAN_ANALYSIS) and apply it to the ticket.
+- **jira-refine** — Refine a Jira bug into an evidence-backed disposition (CLOSE, SOLVE, NEEDS_INFO, or NEED_HUMAN_ANALYSIS) and apply it to the ticket; a SOLVE also sets the Target Backport Versions the fix should reach.
 - **jira-solve** — Central Jira workflow orchestrator that chooses implementation, review, gate, and delivery skills based on ticket complexity.
 - **implement** — Implement Jira requirements or apply local pre-commit review findings.
 - **address-review-precommit** — Deprecated compatibility alias for `implement`; retained temporarily for existing Chai callers.

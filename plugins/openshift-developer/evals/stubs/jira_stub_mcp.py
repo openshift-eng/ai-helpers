@@ -125,6 +125,8 @@ UPDATABLE_FIELDS = {
     "summary", "description", "labels", "priority", "assignee", "severity",
     "versions", "fixVersions", "components", "target_backport_versions",
 }
+# Real Jira custom field ids the skill writes, mapped to the fixture's field names.
+FIELD_ALIASES = {"customfield_10878": "target_backport_versions"}
 
 
 class StubError(Exception):
@@ -247,6 +249,7 @@ class Jira:
     def jira_update_issue(self, issue_key, fields, additional_fields=None, **_):
         issue = self.issue(issue_key)
         changes = {**parse_object(fields, "fields"), **parse_object(additional_fields, "additional_fields")}
+        changes = {FIELD_ALIASES.get(name, name): value for name, value in changes.items()}
         unknown = sorted(set(changes) - UPDATABLE_FIELDS)
         if unknown:
             raise StubError(f"Unsupported fields for the stub: {unknown}")
