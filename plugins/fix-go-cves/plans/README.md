@@ -1,13 +1,13 @@
 # Fix Go CVEs work plans
 
-Acceptance remains **open**. C13 at `975e0661` stopped after its first live 001:
-runtime and advice passed, but quoted certificate test measurements were wrong.
-Original results and earlier campaigns remain intact. The current skill keeps
-failed-attempt diagnostics and later outcomes; for all-success tests, the Summary
-status suffices. C14 remains prospective, with live 001 first. Existing component
-and V5 calibration evidence applies only to unchanged components and identical
-judge prompts/inputs; no repeated calibration calls or actor credit is implied.
-The [results record](../evals/implementation-results.md) owns counts and identities.
+Acceptance remains **open**. C14 at `2a3c1b27` stopped after its first live 001:
+runtime and facts passed, but advice inferred likely compilation from Go version.
+Its same-build uncertainty caveat was genuine; the forecast remained unsupported.
+Original results and dissent remain intact. C15 changes only the final compiler
+clause to prerequisites and verification steps without success predictions,
+retaining C14 test reporting. It remains prospective, with live 001 first. Existing
+component/V5 evidence applies only to unchanged components and identical judge
+prompts/inputs. The [results record](../evals/implementation-results.md) owns counts.
 
 | Document | Owns |
 | --- | --- |

@@ -1,13 +1,13 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C13 at `975e0661` stopped after its first
-live 001: runtime and action/owner passed, outcome failed on wrong quoted test
-measurements. Current skill guidance avoids redundant all-success package metrics;
-C14 remains prospective with no freeze or actor. Existing component and calibration
-evidence applies only to unchanged components and identical judge prompts/inputs.
-The [plan](../plans/e2e-simplification.md) defines remaining work; the
-[historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
-Different source groups, stock grades and independent review remain separate.
+Full-cohort acceptance remains **open**. C14 at `2a3c1b27` stopped after its first
+live 001: runtime and facts passed, action/owner failed on an unsupported tentative
+compilation forecast despite a genuine same-result uncertainty caveat. Current
+skill changes only the compiler clause to prerequisites and verification steps;
+C15 remains prospective. Component/V5 evidence applies only to unchanged components
+and identical judge prompts/inputs. The [plan](../plans/e2e-simplification.md)
+defines remaining work; the [historical matrix](live/README.md#branch-policy-matrix)
+retains earlier failures. Source groups, stock grades and independent review stay separate.
 
 ## Current implementation, 2026-10-23
 
@@ -61,9 +61,10 @@ fails is not guaranteed.
 | `e2e-stage-read-replay005-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.61 | C12 replay pass; independent O/A true, single attempt and origin repair prerequisite retained |
 | `e2e-stage-read-live001-20261023-01` | C true, O TTT, A FFT, zero sample errors; actor $0.62 | C12 stopped: runtime/O true, independent A false for fixable-finding ignore advice and promised compilation; original A majority rejects on an unsupported reporter-backport requirement |
 | `e2e-policy-boundary-live001-20261023-01` | C true, O FFF, A TTT, zero sample errors; actor $1.43 | C13 stopped: independent runtime 29/29 and A true, O false; quoted certificate 1.052s/57.5% contradicts actual 20.059s/89.1% |
+| `e2e-summary-tests-live001-20261023-01` | C true, O TTT, A FTF, zero sample errors; actor $1.44 | C14 stopped: independent runtime 27/27 and O true, A false for a tentative compilation forecast from version; same-result caveat genuine, dissent retained |
 
 Complete actual skill intake was confirmed for the prior pilots, all three C10
-actors, C11 publication 002, C12 and C13. Earlier campaigns remain separate; no failed actor is pooled
+actors, C11 publication 002, C12, C13 and C14. Earlier campaigns remain separate; no failed actor is pooled
 into a revised source. Current guidance quotes runtime
 observations and failed/later-attempt outcomes, then allows only supported future
 actions, owners and verification prerequisites. Default-branch repair-commit
@@ -161,13 +162,25 @@ appear in any authenticated captured log; their origin remains unknown. This is
 a response accuracy failure, not a failed engineering gate. Original stages,
 samples and the independent review remain under `c13-live001*` in the scratch root.
 
-The current three-line skill change retains failed-attempt diagnostics and later
-attempt outcomes; all-success tests need only the Summary status. It removes
-redundant per-package measurements without relaxing whole-reply accuracy. Runtime,
-helper, fixtures and O/A oracles are unchanged. Reuse V5 for identical judge prompts
-and inputs rather than repeating its 54 calls. C14 remains prospective: live 001,
+C14 at frozen `2a3c1b27` omitted redundant successful-package measurements;
+its factual reporting passed in this cell. The actor took 268 seconds; the engine
+completed a 143-second blocked exit 2 with canonical tests/audits passing, both
+guards enabled and no commits. Original contract/outcome pass, A samples are FTF,
+and the driver exits 1. Independent runtime and outcome
+pass, A fails for "Go 1.26.9, so compilation is expected to succeed." A genuine
+caveat leaves the same build/test/scan outcome uncertain; it does not establish
+support for the version-to-compilation forecast. This was not a guarantee,
+executed-success claim or uncaveated prediction. The rejecting majority applies
+that exact boundary; the dissent waives the forecast because of the caveat.
+Original artifacts and reviews remain under `c14-live001*` in the scratch root.
+
+C15 replaces only the final compiler clause with prerequisites and verification
+steps, without build/test success predictions. C14 test reporting remains intact;
+all optional facts still require whole-reply accuracy. Runtime/helper, fixtures,
+O/A oracles and calibration inputs remain unchanged. Reuse V5 for identical judge
+prompts/inputs, without repeating its 54 calls. C15 remains prospective: live 001,
 publication 002, 007/005, live 002/003/004 and four eligible replay repeats, with
-the same 11-actor/$115 maximum, models and pins. No C14 freeze or actor exists.
+the same 11-actor/$115 maximum, models and pins. No C15 freeze or actor exists.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;

@@ -129,8 +129,8 @@ supported next action, owner and prerequisite are established.
 
 Source repairs must land on `origin/<branch>` before rerunning `fix-all.sh`, which
 starts afresh there; repaired builder images must be published before consumers
-rerun. Treat compiler-version compatibility as a prerequisite; proposed build,
-test and rerun outcomes remain unverified.
+rerun. Report compiler-version compatibility only as a prerequisite; give
+verification steps without predicting build or test success.
 
 Keep this investigation read-only: do not edit source/dependencies/ignores, apply
 or test a repair, rerun scripts, clean up, push or create a PR. Missing or skipped

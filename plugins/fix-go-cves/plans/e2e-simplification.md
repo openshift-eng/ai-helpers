@@ -1,11 +1,11 @@
 # E2E acceptance and simplification
 
-Acceptance remains **open**. C13 at `975e0661` stopped after one live 001 actor:
-runtime and advice passed, but quoted test measurements contradicted the log.
-Current skill guidance removes redundant successful-package metrics while retaining
-failed-attempt evidence. C14 is prospective, without a freeze or actor. Preserve
-source groups, grades and disagreements; the [results record](../evals/implementation-results.md)
-owns counts.
+Acceptance remains **open**. C14 at `2a3c1b27` stopped after one live 001 actor:
+runtime and factual reporting passed, but advice forecast likely compilation from
+version compatibility despite a genuine uncertainty caveat. C15 changes only that
+compiler clause to prerequisites and verification steps; no freeze or actor exists.
+Preserve source groups, grades and dissent; the
+[results record](../evals/implementation-results.md) owns counts.
 
 This plan owns current design choices and the remaining acceptance sequence. The
 [testing strategy](testing.md) owns durable requirements and calibration/reuse
@@ -151,8 +151,9 @@ status suffices. Added prose gives only future actions, owners and verification
 prerequisites. Inspect `origin/<branch>` directly for target policy and search
 default-branch history for an existing repair commit. Stop once that handoff is
 supported. Applicable source repairs must land on the starting origin;
-builder repairs must be published before consumers rerun. A recovered retry alone
-creates no maintainer task. Unknown coverage stays unknown; positive artifact/phase
+builder repairs must be published before consumers rerun. Compiler version is a
+prerequisite; give build/test verification steps without predicting success. A
+recovered retry alone creates no maintainer task. Unknown coverage stays unknown; positive artifact/phase
 proof stays positive. Nested-reviewer prose does not authenticate observations.
 
 Exact timing/last-tool gates, table/imperative grammar, verbatim-only evidence
@@ -182,24 +183,25 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C13 completed original stages and stopped at its first live 001 actor. Runtime
-passed every independent check and advice passed, but a quoted certificate result
-contained wrong time/coverage values. The [results record](../evals/implementation-results.md)
-retains the actual values, original grades and the unknown origin of the wrong ones.
-An accurate Summary cannot excuse an incorrect added measurement.
+C14 completed original stages and stopped at its first live 001 actor. Runtime
+and outcome passed; action/owner failed for a version-based successful-compilation
+forecast. The caveat addressed the same future build/test/scan result, so this was
+neither an executed-success claim nor an unconditional guarantee. The unsupported
+forecast still failed the frozen criterion. The
+[results record](../evals/implementation-results.md) preserves the dissent and
+prior C13 measurement error separately.
 
-The only current intervention is compact test reporting: preserve each failed
-attempt's diagnostics/outcome and later attempt outcomes; when all tests succeed,
-the Summary status suffices. Optional added facts remain subject to whole-reply
-accuracy. Runtime/helper, outcome/action oracles and fixtures are unchanged. Reuse
-V5 calibration only with identical judge prompts and inputs; do not repeat its
-calls merely because the invoking skill changed. Fresh actors are still required.
+C15 changes only the final compiler clause: state prerequisites and verification
+steps without predicting build/test success. Retain C14 failed/later-attempt
+reporting and use the Summary for test status when all tests succeed. Runtime/helper, fixtures
+and O/A oracles are unchanged; reuse V5 only with identical judge prompts/inputs,
+without repeating its calls. Fresh actors remain required across the skill change.
 
-C14 remains prospective. After source freeze, measure live 001 first, then
+C15 remains prospective. After source freeze, measure live 001 first, then
 publication 002, replay 007/005, live 002/003/004 and eligible replay repeats.
-Finish every cell's original stages, thresholds and independent review before
-continuing. Preserve the existing eleven-actor/$115 maximum, models and pins.
-No C14 source is frozen and no C14 actor has run.
+Finish each cell's original stages, thresholds and independent review before
+continuing. Preserve the eleven-actor/$115 maximum, models and pins. No C15 source
+is frozen and no C15 actor has run.
 
 License cleanup reuses the existing artifact ownership helper with a private
 license prefix. Serialized path/event readers honor LF delimiters without splitting
