@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-REPO_URL="https://github.com/stbenjam/historical-payload-data.git"
+REPO_URL="https://github.com/openshift-eng/historical-payload-data.git"
 REPO_ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 BASE_DIR="$REPO_ROOT/.work/eval-payload-snapshots"
 
