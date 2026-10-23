@@ -4,38 +4,24 @@
 
 Three layers answer different questions:
 
-- **Hermetic scripts:** the current immutable suite passed 3,102 checks for mutations,
-  rollback, gates and evidence. Runtime changes need focused regressions here.
-  `make test` requires Go 1.24 or later and fails rather than skips with `CI` set.
-- **Historical replay:** packaged Admiral cases 005/007 test diagnosis,
-  backports, owners and verification prerequisites. Packaged Submariner 002
-  tests positive recipe relay and builder ownership under its applicable scoring
-  profile. All run today's skill over pinned history and recorded scripts/output;
-  replay cannot validate today's remediation engine.
-- **Live evaluation:** four packaged cases are designed to exercise real repairs
-  with branch-maintained commands and real scans. Execution, engine evidence and the
-  invoking agent's whole reply have separate acceptance decisions.
+- **Hermetic scripts:** mutations, rollback, gates, policy and evidence.
+  Runtime changes need focused behavioral regressions. `make test` requires
+  Go 1.24 or later and fails rather than skips with `CI` set.
+- **Historical replay:** Admiral 005/007 cover diagnosis/backports/retries;
+  Submariner 002 covers positive recipe relay and builder ownership. Today's
+  invoking skill sees pinned history and recorded engine output; this cannot
+  validate today's remediation engine.
+- **Live evaluation:** four packaged scenarios exercise the real engine with
+  canonical commands/scans. Engine evidence and the invoking reply have separate
+  acceptance decisions.
 
-The 73 passing eval helper checks cover witnessed publication, retained state,
-completed-gate receipts, frozen inputs, native identity/evidence projection,
-complete current-skill staging, cleanup-head provenance and native result extraction. An old-trace recheck
-proves detection, not revised actor behavior. A passing engine or factual majority
-alone does not accept the skill.
-
-The skill remains unaccepted after the fifth six-cell matrix at `7063ca5e`.
-The [canonical matrix record](../evals/live/README.md#branch-policy-matrix)
-retains grades, costs, coverage gaps and independent whole-reply reviews.
-The [E2E and simplification plan](e2e-simplification.md) tracks implementation
-and scopes existing-cohort acceptance, replay reliability and positive-publication
-coverage separately. Its finite runtime treatment is locally verified; successive
-actor variants remain rejected, including replies that passed stock thresholds.
-The [implementation results](../evals/implementation-results.md) own source-group
-outcomes and current pilots. No milestone is accepted yet.
-
-[Eval setup and replay results](../evals/README.md) and the
-[live record](../evals/live/README.md) preserve prior successes, failures,
-incomplete trials and calibration results. Preserve their original grades;
-corrections and model-free rechecks receive separate records.
+The skill remains unaccepted. The [results record](../evals/implementation-results.md)
+owns current counts, source groups and original/recovered grades. The
+[E2E plan](e2e-simplification.md) owns prospective contract/design changes and the
+single bounded campaign; those changes are not implemented by editing these plans.
+Setup belongs in the [eval README](../evals/README.md), unique historical outcomes
+in the [live record](../evals/live/README.md). A script pass, stock majority or
+old-trace recheck alone does not establish revised actor behavior.
 
 ## Runtime and behavioral acceptance
 
@@ -59,7 +45,7 @@ Native coverage can accompany a valid partial exit-2 result; it does not establi
 successful repair. The candidate binary contract now requires initial and final
 native proof outside clean fast paths, in addition to the judge projection.
 Preserve historical grades under their original contracts; the
-[framework scope](e2e-simplification.md#exact-framework-scope) defines new measurements.
+[acceptance plan](e2e-simplification.md#one-acceptance-campaign-after-local-closure) defines new measurements.
 
 Keep these runtime boundaries covered:
 
@@ -80,13 +66,10 @@ Keep these runtime boundaries covered:
   before normalization can conceal a change. Add no automatic repair or commit to
   make these checks pass.
 
-The candidate addresses build/license logger-status loss and dropped `stdlib`
-reviewer detail. License capture failure retains the command exit but marks the
-phase `capture_failed`; publication remains blocked. The
-[runtime prerequisites](e2e-simplification.md#concrete-runtime-prerequisites)
-preserve the distinction between proven lost detail and an unproven historical
-publication bypass. Real execution of a changed path remains separate from local
-verification. Reporting-only unknown native scope must not set the existing blocking opaque-binary coverage marker.
+Real execution of a changed path remains separate from hermetic verification.
+Reporting-only unknown native scope must not set the blocking opaque-binary
+coverage marker. Required capture failures stay distinct from optional reporting
+proof; publication cannot rely on missing required evidence.
 
 The reply must retain the actual Summary, exits, attempts, fixed/ignored/remaining
 findings, observed original ref when available, coverage and publication
@@ -118,7 +101,7 @@ historical lint runs as evidence of our incorrect override, rather than requirin
 or relaxed rules. Explicit live `make unit` settings measure forwarding/execution;
 conflicting inherited-command selection has separate forward-review coverage.
 Keep builder capability separate from repository compatibility
-[restrictions](README.md#decisions); the candidate's explicit guards carry those
+[restrictions](e2e-simplification.md#desired-ownership); the candidate's explicit guards carry those
 restrictions without inferring approval. Keep genuine repository
 instructions, including competing manual procedure, in the fixture.
 
@@ -128,8 +111,10 @@ Use the tested shared harness revision
 [`1a980e707909a23f8c143ce333d97f5203db34ab`](https://github.com/opendatahub-io/agent-eval-harness/tree/1a980e707909a23f8c143ce333d97f5203db34ab);
 revalidate integration before changing it. Follow the existing
 [setup instructions](../evals/README.md#setup), including fresh-HOME authentication
-and the active Python environment with PyYAML `CSafeLoader`. The driver Python
-setting does not activate dependencies for child commands.
+and the active Python environment with PyYAML `CSafeLoader`. The current driver Python
+setting does not activate dependencies for child commands. The planned runner
+change must make hook/driver/judge interpreter identity explicit rather than
+relying on shell activation or silently accepting fallback Python.
 
 Record actual runtime/helper and staged-wrapper hashes, case pins, CLI/model and
 harness identities, scanner path/version/hash or image digest, database status and
@@ -185,16 +170,19 @@ verdicts are not passing evidence. Retained representative rationales are not
 independent explanations for every sampled label. Whole-reply review preserves
 factual errors and judge reasoning limits separately from original grades.
 
-The existing declared **replay comparison** protocol requires the deterministic
+The historical **fixed-fixture replay comparison** protocol requires the deterministic
 contract in all three independent actor executions, with all factual criteria
 together in at least two. An individual failed execution still exits nonzero;
 this is not a per-run threshold, statistical confidence or a live repetition
-rule. Do not mechanically run three expensive live trials or another six-cell
+rule. The new all-pass E2E milestone is a separate, stricter question. Do not
+mechanically run three expensive live trials or another six-cell
 cohort for borderline scores. A further measurement needs a concrete changed
 question or environment condition, not another attempt to obtain accepted prose.
 Declare which unchanged-source executions satisfy both integration and repetition
 before launch; do not run separate cohorts for the same evidence. Never pool
-repetitions across source groups. A scoring-only recovery is distinct from an
+repetitions across behaviorally different source groups; a documentation-only
+commit does not change identical execution components. A scoring-only recovery
+is distinct from an
 actor rerun: retain the initial integrity failure, restore the exact frozen helper
 and verify unchanged actor artifacts. Keep original grades and independent oracle
 corrections separate, including the executed-scan versus cleanup-restored HEAD.

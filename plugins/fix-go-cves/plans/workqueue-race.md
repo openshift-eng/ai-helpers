@@ -16,7 +16,8 @@ the update played in these executions.
 
 The priority spec enqueues 50 extra items, checks the first and adjusted items,
 then cleanup calls nonwaiting `ShutDown()`. The next fixture can start before the
-previous callback completes. The available fetched history contains no repair.
+previous callback completes. The history fetched for the 2026-10-22 investigation contained no repair; that
+is not a claim about subsequent upstream history.
 
 ## Candidate and bounded verification
 
@@ -61,10 +62,24 @@ completion on an unbuffered channel after a possible timeout; review that separa
 lifecycle issue without claiming the diagnostic patch fixes it. This preferred
 design is read-only analysis, not an implemented or tested replacement.
 
-## Closure prerequisite
+## Future measurement and upstream work
 
-A focused pass is not full-suite acceptance. Both bounded diagnostic designs are complete; neither demonstrated the repair
-effect. A validated target-repository
-repair must land upstream before selecting a new official case pin and declaring
-a fresh complete E2E measurement. Keep the current race and missing-origin advice
-failures in the [results record](../evals/implementation-results.md).
+Both bounded diagnostics are complete and inconclusive. Preserve the failed live
+cell, original grades and the unvalidated candidate; do not inject this patch into
+its checkout or rerun unchanged merely to obtain a passing seed.
+
+A specific upstream patch is not a universal prerequisite for another declared
+E2E measurement. After a concrete implementation/question change, retain the
+existing official pin or deliberately select another official pin with the same
+real actionable-repair requirements. Record the choice and admission before
+actors. Canonical tests, race detection and the successful-repair expectation
+remain binding; a blocked report does not substitute for repair coverage. Passing
+unpatched controls do not prove that this failure cannot recur.
+
+If pursuing the fixture repair, first check official history again, review the
+fixture-owned cleanup design and its assertion-failure/blocker/timeout paths, and
+validate it separately in the target repository. Landing that source change is
+required before claiming an official pin includes it. Local design approval or
+one passing run is not efficacy evidence. No upstream publication or further
+unchanged diagnostics are selected by this plan. Keep the original race and
+handoff failures in the [results record](../evals/implementation-results.md).
