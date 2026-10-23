@@ -1,0 +1,131 @@
+issue_key: OCPBUGS-129314
+expected_disposition: NEED_HUMAN_ANALYSIS
+acceptable_dispositions: [NEED_HUMAN_ANALYSIS]
+acceptable_resolutions: []
+expected_final_status: New
+required_labels: [refined-by-agent, need-human-analysis]
+preserved_labels: []
+removed_labels: []
+max_comment_chars: 1500
+difficulty: complex
+category: bug-refinement
+ground_truth: |
+  First assessment: no saved refine:v1 marker or refined-by-agent label. The
+  reported management-side update-check failure is a real product integration
+  defect. Expected disposition: NEED_HUMAN_ANALYSIS, because restoring proxy
+  support requires coordinated HyperShift and Cluster Version Operator (CVO)
+  changes and agreement on management-side proxy/trust handling. The skill
+  explicitly routes cross-component work to this disposition. A missing
+  customer Deployment dump does not prevent proving the shipped code defect.
+
+  Report. Baremetal HCP 4.22.9 needs a proxy for internet access. The hosted
+  CVO runs on the management cluster. Its update-graph request to
+  https://api.openshift.com/api/upgrades_info/v1/graph times out on a direct
+  TCP connection. The report establishes update-discovery failure; it does
+  not establish that an explicitly requested upgrade cannot execute.
+
+  Two independent gaps. The CPO's v2/cvo/deployment.go adapter and the CVO
+  Deployment asset do not inject management HTTP_PROXY, HTTPS_PROXY, NO_PROXY.
+  However, adding those variables alone cannot fix graph retrieval. In CVO
+  pkg/cvo/egress.go, getTransport creates &http.Transport{}; getProxyConfig
+  returns (nil, nil) immediately when optr.hypershift is true. getTransport
+  only installs transport.Proxy when proxyConfig is non-nil, leaving
+  transport.Proxy nil. Go interprets that as direct connections. An explicit
+  zero-value Transport does not inherit http.DefaultTransport's
+  ProxyFromEnvironment behavior. availableupdates.go passes this transport
+  into Cincinnati's client, which assigns it to http.Client.Transport.
+  There is no later environment-proxy fallback.
+
+  A diagnostic against the shipped getTransport/getProxyConfig/getTLSConfig
+  methods confirms the distinction: with HyperShift enabled, proxy env set,
+  and direct egress blocked, HTTP and HTTPS attempt direct connections and
+  never reach a local proxy. Ordinary CVO using Proxy status reaches the
+  proxy for HTTP and HTTPS CONNECT. HyperShift direct HTTP still works when
+  direct egress is allowed. Independent environment-aware proxy selection
+  chooses the proxy and honors NO_PROXY. This proves the transport behavior,
+  not a complete customer-cluster reproduction or completed TLS tunnel.
+  Equivalent focused experiments are valid; do not require these exact seven
+  cases or a specific test implementation from the subject.
+
+  Intentional guest-proxy isolation. CVO PR 1438 (release-4.22), cherry-picking
+  PR 1357, deliberately stops reading the guest Proxy resource in HyperShift
+  mode. The guest proxy can be unreachable from the management cluster.
+  Reverting this or copying HostedCluster spec.configuration.proxy into the
+  CVO would reintroduce OCPBUGS-104545/OCPBUGS-79358. The HostedCluster API
+  explicitly scopes that field to data-plane traffic and warns of NodePool
+  rollouts. Use management-side settings; an established HyperShift pattern
+  is support/proxy.SetEnvVars, also used by the CPO Deployment adapter.
+
+  Version evidence. oc adm release info for
+  quay.io/openshift-release-dev/ocp-release:4.22.9-x86_64 identifies payload
+  digest sha256:fe1fae8677554f0091de1df21d612d33163b23479880a9c7c88e9fe066348266,
+  CVO source 6ac86dc99c02366314381b720ab1d4a38d38f1c2, and HyperShift/CPO source
+  41cbcdfa522b70a29fcc10a5036f17760652aedf. The guard is present in that exact
+  CVO source and proxy injection is absent in that exact CPO source. 4.22.9 is
+  Reported; its shipped transport defect can be Confirmed by a diagnostic,
+  or Inferred from the payload's exact source if no reproduction is run.
+  Do not claim a customer-cluster reproduction from a local harness.
+
+  The inspected 4.22.8 payload uses CVO
+  9b55234a27cfd62921270073f2464ec294132b2d and 4.22.0 uses
+  e9c1c39e21ec353ff5993d386c42bc1b15063dbf. Both lack the HyperShift early
+  return and still read guest Proxy status. That historical behavior does
+  not prove correct management proxy support. These comparisons are useful
+  but optional. The exact introducing change is PR 1438, merge commit
+  6ac86dc99c02366314381b720ab1d4a38d38f1c2; its first-inclusion notification
+  names 4.22.0-0.nightly-2026-08-05-104816. Earliest affected and first fixed
+  builds remain unknown. Do not extrapolate released versions from a branch
+  alone. Keep the existing Jira Affects Version/s entry 4.22.z; no fix-version
+  or version-field edit is authorized.
+
+  Decision and candidate direction. Coordinate CVO and HyperShift owners on
+  management-side proxy selection and trust. A candidate is CPO injection
+  from its own management environment plus environment-aware proxy selection
+  in CVO's HyperShift branch (for example httpproxy.FromEnvironment).
+  Preserve ordinary CVO's Proxy behavior, guest-proxy isolation, NO_PROXY,
+  and direct access when no applicable management proxy is configured.
+  The current CVO TLS code reads the guest trusted-ca-bundle, so management
+  CA handling for HTTPS or intercepting proxies needs an explicit decision;
+  do not assume deployment env injection also configures trust. Evaluate main
+  and paired release-4.22 backports. The environment/transport approach should
+  affect CVO pods without changing worker ignition or NodePool config hashes.
+
+  Follow-on validation should exercise actual graph retrieval with direct
+  egress denied, NO_PROXY/internal API access, unset management proxy,
+  different or invalid guest proxy, non-HyperShift behavior, and the agreed
+  trust requirements. A green environment-list fixture alone is insufficient.
+
+  Writes. Post one short comment naming NEED_HUMAN_ANALYSIS, the transport
+  gap, and the owner decision needed, with one or two evidence links and
+  [refine:v1] outcome=NEED_HUMAN_ANALYSIS. Then add refined-by-agent and
+  need-human-analysis and verify. No description, status, priority, severity,
+  assignee, or version edits. No readiness check for this disposition.
+
+  Material errors: a Deployment-only fix; claiming &http.Transport{} reads
+  proxy env automatically; restoring the guest Proxy as management egress;
+  unsupported fixed/affected-version claims; or claiming the diagnostic
+  reproduces a complete customer cluster. SOLVE is wrong for the requested
+  autonomous handoff because this is cross-component work requiring an owner
+  decision. NEEDS_INFO ignores locally provable evidence; CLOSE dismisses a
+  valid, worthwhile management-side egress defect.
+
+  Evidence:
+  - https://github.com/openshift/cluster-version-operator/blob/6ac86dc99c02366314381b720ab1d4a38d38f1c2/pkg/cvo/egress.go
+  - https://github.com/openshift/cluster-version-operator/blob/6ac86dc99c02366314381b720ab1d4a38d38f1c2/pkg/cvo/availableupdates.go
+  - https://github.com/openshift/cluster-version-operator/blob/6ac86dc99c02366314381b720ab1d4a38d38f1c2/pkg/cincinnati/cincinnati.go
+  - https://github.com/openshift/hypershift/blob/41cbcdfa522b70a29fcc10a5036f17760652aedf/control-plane-operator/controllers/hostedcontrolplane/v2/cvo/deployment.go
+  - https://github.com/openshift/cluster-version-operator/pull/1438
+  - https://github.com/openshift/cluster-version-operator/pull/1357
+notes: |
+  The fixture preserves the reporter's proposed HyperShift-only fix and the
+  maintainer's environment-injection suggestion, without adding the transport
+  diagnosis. People are anonymized. The related guest-proxy-isolation issues
+  are available through the stub as context. The report is recent, so it
+  cannot be closed as stale. The customer-portal article may require access;
+  public source and release metadata suffice to investigate the defect.
+
+  The case's optional research guard blocks the ai-helpers repository and
+  GitHub searches for this issue key, preventing its published expected answer
+  from becoming research input. It permits the cited source and original CVO
+  PRs. Revisit the case if coordinated fixes ship: current branch contents are
+  not a substitute for the pinned 4.22.9 payload evidence.

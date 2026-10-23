@@ -428,8 +428,8 @@ judges:
                main risks, and no overclaiming of affected or fixed releases.
 
 thresholds:
-  # Cases 001 and 002 expect CLOSE; case-003 expects SOLVE. The conditional
-  # SOLVE-only judges skip the CLOSE cases and score case-003.
+  # Cases 001 and 002 expect CLOSE; case-003 expects SOLVE; case-004 expects
+  # NEED_HUMAN_ANALYSIS. SOLVE-only judges score case-003.
   result_json_valid:
     min_pass_rate: 1.0
   disposition_correct:
