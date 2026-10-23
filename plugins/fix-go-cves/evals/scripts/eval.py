@@ -1140,15 +1140,27 @@ def printed_pr_recipe(log):
     return '\n'.join(block)
 
 
+def markdown_code_blocks(reply):
+    """Decode CommonMark code containers and exclude their source from prose checks."""
+    from markdown_it import MarkdownIt
+
+    lines = reply.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+    blocks = []
+    for token in MarkdownIt('commonmark').parse(reply):
+        if token.type in ('fence', 'code_block'):
+            blocks.append(token.content)
+            start, end = token.map
+            lines[start:end] = [''] * (end - start)
+    return blocks, '\n'.join(lines)
+
+
 def publication_relay_allowed(reply, log, exit_code):
     """Check fenced, inline argument-bearing and command-leading publication.
 
     This recognizes command syntax, not the meaning of free-form advice.
     """
-    fenced = re.compile(r'(?ms)^[ \t]*```[^\n]*\n(.*?)^[ \t]*```')
     command = r'(?:gh\s+pr\s+create|git\s+push)\b'
-    blocks = [match[1] for match in fenced.finditer(reply)]
-    outside = fenced.sub('\n', reply)
+    blocks, outside = markdown_code_blocks(reply)
     inline = re.compile(r'`([^`\n]+)`')
     # Inline bare command names are also ordinary mentions (for example, no
     # `gh pr create` command was printed). Arguments distinguish these spans.
@@ -1210,7 +1222,7 @@ def check(case_dir, live=False):
     data = yaml.safe_load((source / 'input.yaml').read_text())
     if (data.get('mode') == 'live') != live:
         raise ValueError(f'{case.name}: wrong evaluation track')
-    blocks = re.findall(r'(?ms)^[ \t]*```[^\n]*\n(.*?)^[ \t]*```', reply)
+    blocks, _ = markdown_code_blocks(reply)
     log = None
     try:
         if live:

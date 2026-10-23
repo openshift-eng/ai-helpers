@@ -1,20 +1,17 @@
 # Fix Go CVEs work plans
 
-The skill remains unaccepted. Start with the
-[E2E and simplification plan](e2e-simplification.md): it separates runner/oracle
-correctness, runtime policy gaps and the invoking skill's actual responsibilities.
-Next work separates measurement prerequisites, runtime safety obligations and
-optional deletions, with one final canonical test phase and reuse of sufficient
-immutable evidence where only interpretation changes. The existing cohort can
-answer a bounded question without pretending to cover every release obligation.
-Component integration passes; two case-005 pilots failed independent review despite
-confirmed full skill intake. The third frozen pilot tests the existing native-scope
-rule beside the main report instruction. Full cohort acceptance remains open.
+Acceptance remains **open**. Engine, harness and evidence changes pass component
+integration, and a separate real-engine diagnostic demonstrates repair feasibility.
+Seven earlier pilots remain unaccepted; C8 stopped after two actors: 005 accepted
+individually, 007 failed. Original artifacts and grades remain intact. The compact
+reporting skill has not yet had an actor measurement; its 84-test helper suite
+and model-free 005/007/002 smoke pass. The next declared campaign starts with
+007 and requires full stock stages and independent review per cell.
 
 | Document | Owns |
 | --- | --- |
-| [E2E plan](e2e-simplification.md) | Design decisions, ordered changes, removals and one bounded acceptance campaign |
-| [Testing strategy](testing.md) | Durable runtime, behavioral and evidence requirements |
+| [E2E plan](e2e-simplification.md) | Implemented design, remaining acceptance sequence and conditional simplifications |
+| [Testing strategy](testing.md) | Durable runtime, behavioral, calibration and evidence-reuse requirements |
 | [Implementation results](../evals/implementation-results.md) | Measured outcomes, source groups and grader disagreements |
 | [Workqueue investigation](workqueue-race.md) | External race evidence, inconclusive diagnostic patch and preferred cleanup design |
 | [Eval README](../evals/README.md) | Setup, commands and case map |
@@ -22,20 +19,20 @@ rule beside the main report instruction. Full cohort acceptance remains open.
 
 ## Deferred work
 
-- **Pure tuple/location deduplication:** follow semantic policy-reader parity;
-  preserve actionable, ignored, regression and multi-module distinctions.
-- **Workspace support:** add `go work vendor` or stdlib repair through `go.work`
-  only for a concrete target need. Ordinary tracked workspace synchronization
-  already exists and needs its own mutation-containment fix; deferred features
-  must not hide a current safety obligation.
-- **OpenShift/custom compilers:** require sufficient actual compiler evidence and
-  repository policy; image tags or a Go minor alone do not prove a patched build.
+- **Measured deletions:** remove reviewers/repeated scans only after their gate
+  semantics and observed source/binary/policy states are accounted for. Deduplicate
+  tuple/location parsing after semantic parity, preserving distinct gate meanings.
+- **Workspace features:** add `go work vendor` or stdlib repair through `go.work`
+  for a concrete target need. Existing workspace synchronization remains confined
+  to owned transaction members.
+- **OpenShift/custom compilers:** require actual compiler evidence and repository
+  policy; image tags or a Go minor alone do not prove a patched build.
 - **Operational classification:** check both test attempts for disk exhaustion;
   distinguish noninteractive authentication failures using the existing test
-  command remedy. No generic shell-prompt detector or predictive disk monitor.
-- **Shipyard synchronization:** after acceptance, port the relevant changes or
-  point its CVE workflow at this plugin. Avoid maintaining divergent copies.
+  command remedy. No generic prompt detector or predictive disk monitor.
+- **Shipyard synchronization:** after acceptance, port relevant changes or point
+  its CVE workflow at this plugin rather than maintaining divergent copies.
 
-Keep historical decisions and unique evidence where already recorded. Removing
-duplicate documentation is separate from deleting failed trials or weakening
-rollback, compatibility, ignore-policy, native-coverage or publication gates.
+The E2E plan retains the bounded source-coverage question and broader exclusions.
+Keep unique historical evidence where recorded; documentation simplification must
+preserve failures and all runtime, policy, native and publication requirements.

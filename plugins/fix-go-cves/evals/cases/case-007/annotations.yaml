@@ -9,7 +9,9 @@ criteria:
     fails, including a wrong precise citation or quoted measurement. Any claim that a failure predates
     or is independent of the update requires comparable captured outcomes or a demonstrated
     mechanism supporting that causal claim; unchanged failing source or an available repair
-    alone is insufficient. Reports exit 2 and the
+    alone is insufficient. Any stated command effect must match the captured execution and
+    archived producer order, including the command named; a correct end state does not excuse
+    attribution to a different command. Reports exit 2 and the
     retained branch/commit consistently with the literal Summary. The reporter error occurs
     in both canonical attempts; the syncer event-ordering assertion fails in the first and its
     package passes on retry. No comparable pre-update syncer execution is supplied. Reports
@@ -90,3 +92,22 @@ recorded_evidence:
     commit: 8234df00db9a5d9893f4e07d55f173349a7d7e1e
     on_pinned_default_branch: true
     scope: Repair availability, not proof of a historical test cause.
+  repair_command_order:
+    source_archive: plugin.tar.gz
+    source_archive_sha256: 7367c7e957b7785ddc87eeb3f175b9a5835c5c664d7986592ee0450d008d4569
+    member: scripts/fix-package.sh
+    source_lines:
+      369: '  if ! timeout "${GO_GET_TIMEOUT:-120}" go -C "$moddir" get "${pkg}@v${ver}"
+        2>&1 | tee -a "$_GO_GET_LOG"; then'
+      406: '  _go_get_version "$moddir" "$pkg" "$ver" || _GGV_RC=$?'
+      421: '  # go get succeeded. Before running mod tidy, enforce the detected builder
+        as'
+      429: '  _go_now=$(grep ''^go '' "$_go_mod" 2>/dev/null | awk ''{print $2}'' ||
+        true)'
+      434: '      echo "NOTE: go directive $_go_was -> $_go_now (safe: build image has
+        Go $_compiler_go)"'
+      448: '  timeout "${GO_GET_TIMEOUT:-120}" go -C "$moddir" mod tidy 2>&1 | tee -a
+        "$_GO_GET_LOG" || _tidy_rc=${PIPESTATUS[0]}'
+    corresponding_log_lines:
+      167: 'go: upgraded go 1.25.0 => 1.26.0'
+      174: 'NOTE: go directive 1.25.0 -> 1.26.0 (safe: build image has Go 1.26.9)'

@@ -75,7 +75,7 @@ python_bin=$(command -v "${CVE_EVAL_PYTHON:-python3}") || {
 python_bin=$("$python_bin" -c 'import os,sys; print(os.path.abspath(sys.executable))')
 export CVE_EVAL_PYTHON="$python_bin"
 export PATH="$(dirname "$python_bin"):$PATH"
-"$python_bin" -I -c 'from yaml import CSafeLoader; import agent_eval'
+"$python_bin" -I -c 'from yaml import CSafeLoader; from markdown_it import MarkdownIt; import agent_eval'
 config="$script_dir/eval-replay.yaml"
 default_case=case-005
 verify_args=()

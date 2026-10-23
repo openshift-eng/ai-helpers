@@ -459,6 +459,85 @@ class EvidenceTests(unittest.TestCase):
         self.assertFalse(EVAL.summary_relay_allowed([tail], 'No CVEs found.\n', 0))
         self.assertFalse(EVAL.summary_relay_allowed([], None, 0))
 
+    def test_recorded_summary_accepts_markdown_containers_without_changing_content(self):
+        case, reference = self.recorded_case('case-007')
+        reply = case / 'output/reply.md'
+        blocks, _ = EVAL.markdown_code_blocks(reference)
+        summary = blocks[0].rstrip('\n')
+        for rendered in ('```text\n' + summary + '\n```',
+                         '> ```\n' + '\n'.join('> ' + line if line else '>'
+                                                for line in summary.splitlines()) + '\n> ```',
+                         '1. Recorded result:\n\n   ```text\n' + '\n'.join(
+                             '   ' + line for line in summary.splitlines()) + '\n   ```',
+                         '\n'.join('    ' + line for line in summary.splitlines())):
+            with self.subTest(rendered=rendered[:40]):
+                accepted = reference[:reference.index('```')] + rendered + '\n' + reference.split('```', 2)[2]
+                reply.write_text(accepted)
+                self.assertTrue(EVAL.check(case)['passed'])
+                for changed in (accepted.replace('Outstanding: 0', 'Outstanding: 1'),
+                                accepted.replace('tests failed after applying fixes', 'tests passed'),
+                                accepted.replace('no PR command emitted.', 'no PR command.'),
+                                accepted.replace('no PR command emitted.', 'no PR command emitted.\n' +
+                                                 ('> ' if rendered.startswith('>') else
+                                                  '    ' if rendered.startswith('    ') else
+                                                  '   ' if rendered.startswith('1.') else '') + 'exit=0'),
+                                accepted + '\n' + rendered):
+                    with self.subTest(changed=changed[:40]):
+                        reply.write_text(changed)
+                        self.assertFalse(EVAL.check(case)['passed'])
+
+    def test_markdown_code_blocks_preserve_literal_bytes_and_remove_source_ranges(self):
+        literal = 'git push fork branch > output\n> quote-looking code\n  --body "a > b"\n'
+        for rendered in ('```sh\n' + literal + '```',
+                         '> ~~~sh\n' + ''.join('> ' + line for line in literal.splitlines(keepends=True)) + '> ~~~',
+                         '1. Recipe:\n\n   ```sh\n' + ''.join(
+                             '   ' + line for line in literal.splitlines(keepends=True)) + '   ```',
+                         ''.join('    ' + line for line in literal.splitlines(keepends=True))):
+            with self.subTest(rendered=rendered[:30]):
+                blocks, outside = EVAL.markdown_code_blocks('Before.\n\n' + rendered + '\n\nAfter.\n')
+                self.assertEqual(blocks, [literal])
+                self.assertNotIn('git push', outside)
+                self.assertNotIn('quote-looking', outside)
+                self.assertIn('Before.', outside)
+                self.assertIn('After.', outside)
+
+    def test_publication_containers_relay_exact_recipe_once(self):
+        log = self.pr_log()
+        recipe = EVAL.printed_pr_recipe(log)
+        for rendered in ('```sh\n' + recipe + '\n```',
+                         '> ```sh\n' + '\n'.join('> ' + line for line in recipe.splitlines()) + '\n> ```',
+                         '1. Recipe:\n\n   ```sh\n' + '\n'.join(
+                             '   ' + line for line in recipe.splitlines()) + '\n   ```',
+                         '\n'.join('    ' + line for line in recipe.splitlines())):
+            with self.subTest(rendered=rendered[:30]):
+                self.assertTrue(EVAL.publication_relay_allowed(rendered, log, 2))
+                for changed in (rendered + '\n\n' + rendered,
+                                rendered + '\n\ngit push fork invented\n',
+                                rendered + '\n\n> ```sh\n> gh pr create --title invented\n> ```',
+                                rendered.replace('--base release-0.24', '--base devel'),
+                                rendered.replace('See\\ commit\\ message', 'Changed\\ body'),
+                                rendered.replace('git push fork ', 'git push origin ')):
+                    with self.subTest(changed=changed[:30]):
+                        self.assertFalse(EVAL.publication_relay_allowed(changed, log, 2))
+        # Literal shell redirection and quote-looking text are code, not containers.
+        literal_log = log.replace('See\\ commit\\ message\\ for\\ details.', '"literal > and > quote"')
+        literal_recipe = EVAL.printed_pr_recipe(literal_log)
+        quoted = '> ```sh\n' + '\n'.join('> ' + line for line in literal_recipe.splitlines()) + '\n> ```'
+        self.assertTrue(EVAL.publication_relay_allowed(quoted, literal_log, 2))
+        self.assertFalse(EVAL.publication_relay_allowed(quoted.replace('literal >', 'literal'), literal_log, 2))
+
+    def test_publication_masking_uses_commonmark_source_lines(self):
+        log = self.pr_log()
+        recipe = EVAL.printed_pr_recipe(log)
+        prefix = ('intro\u2028' * 8) + 'end\n\n'
+        reply = prefix + '```sh\n' + recipe + '\n```\n'
+        for newline in ('\n', '\r\n', '\r'):
+            with self.subTest(newline=repr(newline)):
+                rendered = reply.replace('\n', newline)
+                self.assertTrue(EVAL.publication_relay_allowed(rendered, log, 2))
+                invented = rendered + newline + 'git push origin invented' + newline
+                self.assertFalse(EVAL.publication_relay_allowed(invented, log, 2))
+
     def test_replay_requires_a_frozen_log_without_publication_commands(self):
         case, _ = self.case()
         self.assertTrue(EVAL.check(case)['passed'])  # Legitimate no-Summary clean path.

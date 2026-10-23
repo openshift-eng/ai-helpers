@@ -242,6 +242,38 @@ index 257ef20..3e9fb43 100644
      # Ensure exit code reflects repo verification failure
      if repo_verification_failed:
          worst_exit = max(worst_exit, 1)
+diff --git a/skills/eval-run/scripts/score.py b/skills/eval-run/scripts/score.py
+index 0fac730..83855ed 100644
+--- a/skills/eval-run/scripts/score.py
++++ b/skills/eval-run/scripts/score.py
+@@ -2763,15 +2763,27 @@ def score_cases(judges, case_dirs, config, run_id=None, samples_override=None):
+             try:
+                 if n > 1:
+                     runs = []
++                    sample_results = []
+                     for _ in range(n):
++                        sample = {"value": None, "rationale": ""}
++                        usage_start = len(usages)
+                         try:
+                             v, rat = _run_scorer()
++                            sample.update(value=v, rationale=rat)
+                             v = _enforce_bounds(v, bounds, name)
+                             runs.append({"value": v, "rationale": rat})
+                         except Exception as e:
+                             _log_judge_error(case_id, e)
+                             runs.append({"value": None, "error": str(e)})
++                            sample["error"] = str(e)
++                        finally:
++                            if len(usages) > usage_start:
++                                sample["usage"] = usages[-1]
++                            sample_results.append(sample)
+                     case_results[name] = _aggregate_samples(runs, judge_type)
++                    # Keep raw sample metadata, including billed parse/range errors,
++                    # without changing the aggregate or duplicating API responses.
++                    case_results[name]["sample_results"] = sample_results
+                 else:
+                     v, rat = _run_scorer()
+                     v = _enforce_bounds(v, bounds, name)
 diff --git a/tests/test_claude_cli_direct.py b/tests/test_claude_cli_direct.py
 index 0a02ade..4f2f874 100644
 --- a/tests/test_claude_cli_direct.py
@@ -502,3 +534,74 @@ index 8c2298a..0b59187 100644
 +        assert [recorded['per_case'][case]['exit_code'] for case in ('case-001', 'case-002')] == list(statuses)
 +        assert (stopped.value.code == 0) == all(status == 0 for status in statuses)
 +        assert (recorded['exit_code'] == 0) == all(status == 0 for status in statuses)
+diff --git a/tests/test_sample_metadata.py b/tests/test_sample_metadata.py
+new file mode 100644
+index 0000000..98f7872
+--- /dev/null
++++ b/tests/test_sample_metadata.py
+@@ -0,0 +1,65 @@
++"""Sample audit metadata survives aggregation without affecting scoring."""
++import json
++
++import pytest
++import yaml
++
++import score
++from agent_eval.config import EvalConfig, JudgeConfig
++
++
++@pytest.mark.parametrize('values,expected,errors', [
++    ([True, True, True], True, 0),
++    ([True, False, True], True, 0),
++    ([True, 'error', True], True, 1),
++    ([True, 'error', False], False, 1),
++    (['error', 'error', 'error'], None, 3),
++    ([1, 99, 2], 1, 1),
++])
++def test_sample_metadata_preserves_associations_and_aggregate(tmp_path, values, expected, errors):
++    config = EvalConfig(name='t', skill='t')
++    numeric = values == [1, 99, 2]
++    config.judges = [JudgeConfig(name='j', samples=3,
++                                feedback_type='int' if numeric else 'bool',
++                                score_range=[0, 2] if numeric else None)]
++    case = tmp_path / 'case-001'
++    case.mkdir()
++    calls = []
++    usages = []
++
++    def scorer(outputs=None):
++        idx = len(calls)
++        calls.append(idx)
++        # A custom scorer can report multiple requests in one usage dict.
++        usage = {'id': f'gen-{idx}', 'model': 'mock', 'provider': 'mock',
++                 'requests': 2 if idx == 0 else 1,
++                 'prompt_tokens': 10 + idx, 'completion_tokens': idx + 1,
++                 'cost_usd': None, 'cost_source': 'none'}
++        usages.append(usage)
++        if values[idx] == 'error':
++            score._record_judge_usage(usage)
++            raise ValueError(f'parse error {idx}')
++        return score.JudgeOutcome(values[idx], f'rationale {idx}', usage=usage)
++
++    result = score.score_cases([('j', scorer, '', 'llm', 3)], [case], config)
++    entry = result['per_case']['case-001']['j']
++    assert calls == [0, 1, 2]
++    assert entry['value'] == expected
++    assert entry['stability']['error_count'] == errors
++    samples = entry['sample_results']
++    assert len(samples) == 3
++    for idx, sample in enumerate(samples):
++        assert sample['usage'] == usages[idx]
++        assert sample['value'] == (None if values[idx] == 'error' else values[idx])
++        assert sample['rationale'] == ('' if values[idx] == 'error' else f'rationale {idx}')
++        assert ('error' in sample) == (values[idx] == 'error' or numeric and idx == 1)
++    assert entry['usage']['requests'] == 4
++    assert entry['usage']['prompt_tokens'] == 33
++    assert result['judge_usage']['requests'] == 4
++    assert result['judge_usage']['prompt_tokens'] == 33
++    if expected is not None:
++        expected_rationale = 'rationale 2' if expected is False else 'rationale 0'
++        assert entry['rationale'] == expected_rationale
++    # Summary serialization preserves the associated metadata without custom types.
++    assert yaml.safe_load(yaml.safe_dump(entry)) == entry
++    assert json.loads(json.dumps(entry)) == entry

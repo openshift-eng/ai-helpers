@@ -114,7 +114,7 @@ git -C "$HARNESS" checkout 1a980e707909a23f8c143ce333d97f5203db34ab
 git -C "$HARNESS" apply "$PWD/plugins/fix-go-cves/evals/harness.patch"
 python3 -m venv .work/fix-go-cves-evals/venv
 . .work/fix-go-cves-evals/venv/bin/activate
-python -m pip install -e "$HARNESS[anthropic]"
+python -m pip install -e "$HARNESS[anthropic]" markdown-it-py
 export CVE_EVAL_PYTHON="$VIRTUAL_ENV/bin/python"
 python3 -I -c 'from yaml import CSafeLoader'
 ```

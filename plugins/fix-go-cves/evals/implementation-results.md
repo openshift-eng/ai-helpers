@@ -1,6 +1,8 @@
 # Simplification implementation and verification
 
-The skill remains **unaccepted**. Script correctness, stock grades and independent
+Full-cohort acceptance remains **open**. C8 stopped after two actors: 005 passes
+stock and independent review; 007 fails both. The compact reporting
+revision has not launched. Script correctness, stock grades and independent
 whole-reply acceptance are separate. The [plan](../plans/e2e-simplification.md)
 defines remaining work; the [historical matrix](live/README.md#branch-policy-matrix)
 retains earlier failures unchanged. Different source groups below are never pooled.
@@ -12,8 +14,8 @@ remains open. Historical actor grades are unchanged.
 
 | Changed boundary | Measured evidence |
 | --- | --- |
-| Frozen execution and authority | 80 eval tests; model-free stock 005/007/002 preparation/replay passed |
-| Shared lifecycle and aggregation | 362 focused selected-harness tests passed; reproducible patch retained |
+| Frozen execution and authority | 84 eval tests; current model-free 005/007/002 smoke passed with driver preflight and expected historical results |
+| Shared lifecycle and aggregation | 362 lifecycle/configuration checks and 186 scoring/sample-retention checks passed on selected harness paths |
 | Physical Go metadata | Seven actual local-proxy transaction controls passed on Go 1.24 and 1.26 |
 | Artifact ownership and scan consumer | 16 controls; old consumer reproduces failure |
 | Cleanup / report preservation | Six / seven actual-producer controls; old report producer reproduces failures |
@@ -37,23 +39,101 @@ fails is not guaranteed.
 | --- | --- | --- |
 | `e2e-simplified-replay005-20261023-01` | C true, O TTT false positive, A FFF; actor $0.69 | O/A false: unsupported independence, missing native uncertainty, fix-branch-only repair and promised clean rerun |
 | `e2e-inference-replay005-20261023-01` | C true, O FFF, A TTT; actor $0.83 | O false solely missing native uncertainty; A true. All other factual claims independently verified. |
-| `e2e-scope-replay005-20261023-01` | Running | Pending |
+| `e2e-scope-replay005-20261023-01` | C true, O FFF, A TTT; actor $0.87 | O false: 16 other passing packages claimed versus 17 recorded, plus wrong tidy attribution. Separate rerun-owner ambiguity retained. |
+| `e2e-handoff-replay005-20261023-01` | C/O/A true, O/A TTT; actor $0.75 | O false: directive upgrade attributed to tidy despite the producer observing it before tidy. A true. |
+| `e2e-actionable-replay005-20261023-01` | C true, O FFF, A TTT; actor $0.81 | O false: wrong tidy attribution and missing compiled-binary coverage limitation. A true. |
+| `e2e-concrete-replay005-20261023-01` | C/O/A true, O/A TTT; actor $0.82 | A true; O not fully certified because added no-scan/no-compilation claims exceed the receipts. No opposite unknown facts invented. |
+| `e2e-relay-replay005-20261023-01` | C false (literal Summary), O/A TTT; actor $0.74 | Exact Summary was blockquoted; separate unsupported vet/transitive-dependency explanation prevents acceptance. A true. |
+| `e2e-final-relay-replay005-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.67 | C8 first accepted 005: O/A true after primary-evidence adjudication; original null review and stock grades retained |
+| `e2e-final-relay-replay007-20261023-01` | C false (missing `8234df0`), O/A FFF, zero sample errors; actor $0.77 | O/A false: unsupported independence, wrong Go 1.25 explanation, missing existing repair commit and promised clean rerun/recipe; C8 stopped |
 
-Complete actual skill intake was confirmed for both failed pilots. Each stopped
-its all-pass source campaign; neither is pooled into the new source freeze. The
-third pilot moves the existing native-scope rule beside the main report instruction
-and selects the tested runner fallback. Its prospective protocol and all earlier
-source identities remain under `.work/fix-go-cves-e2e-20261023/`.
+Complete actual skill intake was confirmed for all eight completed 005 pilots
+and C8 007. The seven earlier pilots and C8 are separate stopped campaigns; no
+failed actor is pooled into a revised source. Current guidance quotes the runtime
+result first, then limits added prose to the diagnostic and supported handoff.
+It retains each relevant attempt outcome and default-branch repair-commit search;
+establishing the failure cause is separate work. The
+bounded archived-producer witness now exposes the known tidy error to judges;
+original recordings, prompts, thresholds and old grades remain unchanged. V7/V8 preserved false positives despite the producer witness and a named-command
+criterion. A request-boundary audit verified complete serialized input, expected
+model and absence of local cache/truncation. V9 replaces holistic assessment with
+a factual-error audit of complete claim/evidence relationships: 18/18 expected
+majorities across 54 calls, zero execution errors, one citation dissent. Original
+failed grades remain unchanged. The current actor source clarifies compiled Go
+binary coverage and defaults to reporting observed state without guessing an
+uncaptured producing command.
 
-Replay oracle V6 matched 18/18 fixed criterion labels across 54 complete error-free
-samples, with one wrong-citation dissent. This follows 126 earlier development
-calls whose failures remain preserved; the unsuccessful typed-result expansion
-was removed. The live oracle separately matched 8/8 labels and 24/24 samples using
-existing landing-prerequisite and bounded causal-experiment pairs. These are
-inspected development controls, not unseen holdouts or reliability estimates.
-Judge rationale is not independent evidence: an unproven opposite-cause assertion
-was rejected even where the negative label was correct. All judge calls remain
-unpriced; actor costs above exclude them.
+C8's first 005 initially retained a null independent outcome for the phrase
+"pulled in Go 1.26 toolchain." Separate primary verification supports the minimum
+Go requirement reading: x/net v0.60.0 requires Go 1.26, the captured update raises
+the directive, and Go 1.26's interface-method printf inference is gated on that
+directive. This matches the failing `Basic.Failure` call even with the same
+installed builder. Actual compiler installation/selection history stays unknown;
+the reply does not claim a download or switch. Primary verification and the
+resolution addendum accept O/A without new judging or changed criteria. The
+original null review and stock sample rationales, including their unsupported
+tidy attribution, remain unchanged. Receipts are
+`final-relay005-pilot01-{independent-review,c8-primary-adjudication,adjudication-addendum,stock-completion}.json`
+under `.work/fix-go-cves-e2e-20261023/`. This accepts one replay cell, not the full
+cohort or general reliability.
+
+A valid Markdown quote envelope exposed a separate checker defect. A shared
+CommonMark extractor now decodes quote/list/indented code containers for Summary
+and recipe checks while preserving literal content, including `>` operators.
+Counts, exits, recipe values and duplicate/invented commands still reject. The
+earlier 83-test suite passed; parser version 4.2.0 remains explicit in setup and
+preflight. A three-line correction now aligns source indices with CommonMark
+CR/LF normalization instead of Python Unicode `splitlines`, using the same parser.
+Before correction, all three LF/CRLF/CR positive controls failed; afterward all
+accept and reject an appended invented push. One 12-line regression covers both
+boundaries; the complete 84-test suite passes in 49.570 seconds. Helper SHA-256:
+`c41e6916cc7cdb076ca634408be0c59b21b7a80fe65e50f8320817337519c001`.
+The current model-free 005/007/002 smoke exits 0, exercises driver preflight and
+retains `aa5a4fc`/`aaaeea3`/`2716c2ff`, each with historical runtime exit 2.
+Original artifacts and grades remain immutable; no new actor ran.
+
+The unmeasured compact revision reduces the skill to
+129 lines, clarifies policy intake, and keeps exact output/coverage, attempt
+outcomes, repair ownership and origin/image prerequisites. It removes redundant
+findings recount and optional causal explanation; verification remains a future
+step, not a promised pass or recipe. Its separate measurement starts with 007,
+then 005, positive 002, four live scenarios and eligible replay repeats under the
+unchanged eleven-actor maximum, caps, models, oracles and pins.
+
+A separate model-free actual-engine diagnostic,
+`e2e-engine-readiness002-20261023-01`, repaired all five x/net findings on official
+Admiral `af20d0b` in 240.08 seconds (exit 0). Its single canonical `make unit`,
+including race detection, passed on exact retained commit `6e660e1`; all four
+audits passed and final scan matches were zero. License/native build were not
+configured. The checkout was clean, all 22 frozen runtime files unchanged, and
+no owned containers remained. Standard frozen capture passed; its actual repair
+scenario passed 18/18 predicates and 10/10 capture/provenance checks. The full
+contract correctly rejected the missing actor reply. This verifies producer/
+consumer compatibility and one engineering outcome, not live actor acceptance,
+general reliability, or a causal explanation for earlier race failures. Cost is
+unknown. No engine/actor rerun, target patch or pin change was used.
+
+A separate native Subctl diagnostic at official `50243ac` completed once in
+295.57 seconds, exit 2 confirmed partial. Tests, four audits and license passed
+on retained `c9932ef`; initial/final unpacked native artifacts had exact clean VCS,
+positive catalog locations and matching retained hashes. One stdlib finding,
+GO-2026-6809, remains in the custom Go 1.26.9 compiler; a vendor-supported patched
+image must be published before consumers rerun. Frozen capture passed and the
+actual binary scenario accepted 24/24 predicates plus 10/10 integrity checks.
+No owned containers remained. The full checker rejected absent actor output;
+this supplies no actor/cohort credit or claim of stdlib remediation.
+
+The live oracle's existing landing/causal controls matched 8/8 labels and 24/24
+samples. Oracle controls are inspected development evidence, not unseen holdouts
+or reliability estimates. All judge costs remain unpriced. Judge rationale is not
+independent evidence; overreaching incidental reasoning remains documented.
+
+Sample aggregation now retains each raw value, rationale, error and supplied
+usage/response ID in the existing result file (+12 production lines). It preserves
+requests and verdicts: 84 mocked serialized requests are byte-identical; the first
+real run retained six complete rationales and six distinct response IDs. Older
+samples retain their representative-rationale limitation. Upstream physical retry
+usage overwritten before aggregation remains outside this metadata fix.
 
 ## Earlier implemented changes and checks
 
@@ -154,16 +234,17 @@ paired logs/receipts. The failed successful-repair scenario remains failed; no
 extra retry or local patch is applied to its eval case. A separately declared
 single baseline `make unit` at `af20d0bf` passed. That control does not establish
 absence of the race or attribute the update's role. The test-fixture lifetime
-mechanism and a narrow external candidate are being verified separately.
+mechanism and narrow external candidate were investigated separately; the final
+diagnostics below retain the inconclusive result.
 
-Current changes move existing remote/image prerequisites beside the reporting
-table and put attribution uncertainty before repair discovery. Immutable-ref
+The historical `8788312f` source placed remote/image prerequisites beside its
+reporting table and attribution uncertainty before repair discovery. Immutable-ref
 reads use captured command/base/retained commits; a refreshed origin ref is not
-the executed base. Every failure or unresolved decision gets a row, including a
-failed-then-passed attempt; unknown repairs get an investigation instruction.
-Already quoted script scope gets no duplicate interpretation. Runtime/helper bytes
-remain those verified above. The invoking skill was frozen as `8788312f` for the
-separate pilot group below.
+the executed base. That source required a row for each failure or unresolved
+decision, including a failed-then-passed attempt, and an investigation instruction
+for unknown repairs. Current compact guidance retains relevant attempts and
+actionable unresolved work without requiring that table or a task for a recovered
+retry. The separate pilot group below preserves the historical source and results.
 
 The live action criterion now explicitly requires upstream repair landing before
 reruns and published images before consumer reruns. Its two controls match all
@@ -181,10 +262,11 @@ Prior scoring-only integrity recovery and failed calibrations remain unchanged.
 
 No complete current-source cohort or replay reliability is accepted. Do not rerun
 unchanged live002 merely to obtain a favorable race seed, weaken its repair
-contract, skip the package or silently inject a local patch. A reviewed upstream
-fixture repair and a declared fresh official pin are prerequisites to closing that
-successful-repair cell. Native engine coverage is demonstrated under earlier
-reporting variants; current invoking-agent/native acceptance remains distinct.
+contract, skip the package or silently inject a local patch. That historical
+successful-repair cell remains failed. The separate official-pin readiness
+diagnostic above demonstrates feasibility without proving a race repair or
+requiring a new pin. Native engine coverage under earlier reporting variants
+remains distinct from current invoking-agent/native acceptance.
 
 
 ## Prerequisite pilot and final diagnostics
