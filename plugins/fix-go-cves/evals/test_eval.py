@@ -140,7 +140,7 @@ class EvidenceTests(unittest.TestCase):
         case = self.root / "cases/case-005"
         (case / "output").mkdir(parents=True)
         expected = {"result_commit": "a" * 40, "fix_branch": "fix-recorded",
-                    "arguments": ["0.24"], "base_branch": "release-0.24"}
+                    "arguments": ["0.24"], "base_branch": "release-0.24", "exit_code": 0}
         state = {"head": "a" * 40, "branch": "fix-recorded", "dirty": "", "unexpected_ignored": [],
                  "invocations": [{"arguments": ["0.24"]}], "refs_unchanged": True,
                  "plugin_unchanged": True, "gh_calls": "", "trace_violations": [],
@@ -156,10 +156,25 @@ class EvidenceTests(unittest.TestCase):
         source = self.root / "fixtures"
         for case in cases:
             (source / case).mkdir(parents=True, exist_ok=True)
-            (source / case / "input.yaml").write_text(yaml.safe_dump(
-                {"mode": "live"} if live else {}))
-            (source / case / "annotations.yaml").write_text(yaml.safe_dump(
-                {"required_commits": ["a" * 40, "b" * 40]} if annotation is None else annotation))
+            state_path = self.root / "cases" / case / "output/state.json"
+            baseline = self.root / "control" / case / "baseline.json"
+            collected = (EVAL.read_json(state_path)["expected"] if state_path.exists() else
+                         EVAL.read_json(baseline)["meta"] if baseline.exists() else {})
+            data = {key: value for key, value in collected.items() if key != "runtime_dir"}
+            labels = dict({"required_commits": ["a" * 40, "b" * 40]}
+                          if annotation is None else annotation)
+            if live:
+                data["mode"] = "live"
+                if state_path.exists():
+                    state = EVAL.read_json(state_path)
+                    state["expected"]["mode"] = "live"
+                    EVAL.write_json(state_path, state)
+            else:
+                for key, default in (("result_commit", "a" * 40),
+                                     ("fix_branch", "fix-recorded"), ("exit_code", 0)):
+                    labels.setdefault(key, data.pop(key, default))
+            (source / case / "input.yaml").write_text(yaml.safe_dump(data))
+            (source / case / "annotations.yaml").write_text(yaml.safe_dump(labels))
             log = source / case / 'run.log.gz'
             if not live and not log.exists():
                 log.write_bytes(gzip.compress(b'No CVEs found.\n'))
@@ -173,6 +188,15 @@ class EvidenceTests(unittest.TestCase):
               for name in (factual, "action_owner"))]}
         return EVAL.freeze_run(raw, source, self.root, cases, self.root)
 
+    def capture(self, workspace):
+        path = self.root / "control" / workspace.name / "baseline.json"
+        baseline = EVAL.read_json(path)
+        if not (self.root / "provenance").exists():
+            self.freeze(cases=(workspace.name,), live=baseline["meta"].get("mode") == "live", annotation={})
+        baseline.setdefault("source", str(self.root / "provenance/cases" / workspace.name))
+        EVAL.write_json(path, baseline)
+        return EVAL.capture(workspace)
+
     def test_legitimate_contract_failure_is_false_not_an_error(self):
         case, state = self.case()
         state["dirty"] = " M go.mod"
@@ -181,6 +205,21 @@ class EvidenceTests(unittest.TestCase):
             verdict = EVAL.check(case)
         self.assertIs(verdict["passed"], False)
         self.assertIn("clean checkout", verdict["reason"])
+
+    def test_collected_expectations_cannot_change_frozen_grading(self):
+        case, state = self.case()
+        for changes in ({"result_commit": "c" * 40}, {"arguments": ["wrong"]},
+                        {"runtime_expectation": "observed"}, {"go_minor_guard": False},
+                        {"canonical_commands": {"test": "true"}}, {"base_branch": "wrong"}):
+            with self.subTest(changes=changes):
+                EVAL.write_json(case / "output/state.json", {
+                    **state, "expected": {**state["expected"], **changes}})
+                verdict = EVAL.check(case)
+                self.assertFalse(verdict["passed"])
+                self.assertIn("frozen expectations unchanged", verdict["reason"])
+        EVAL.write_json(case / "output/state.json", {
+            **state, "expected": {**state["expected"], "runtime_dir": "/operational/path"}})
+        self.assertTrue(EVAL.check(case)["passed"])
 
     def test_missing_or_malformed_state_is_an_error(self):
         case, _ = self.case()
@@ -283,6 +322,26 @@ class EvidenceTests(unittest.TestCase):
                         neighbor.rmdir()
                     for name, content in outputs.items():
                         (case / "output" / name).write_bytes(content)
+
+    def test_only_proven_inventory_denials_are_benign(self):
+        case, state = self.case()
+        good = ('git stash list', 'git stash list 2>&1',
+                'git status --short && echo "---" && git stash list 2>&1')
+        bad = ('git stash push', 'git stash list >go.mod', 'git stash list 2>/dev/null',
+               'git stash list\ngit status', 'git stash list && git reset --hard',
+               'git stash list $(touch go.mod)', 'git stash list `touch go.mod`',
+               "git stash list '2>' & '1'", 'git stash list; git checkout -- go.mod',
+               'git -c diff.external=tool stash list')
+        for command in good + bad:
+            with self.subTest(command=command):
+                denial = {"tool_name": "Bash", "tool_input": {"command": command}}
+                current = {**state, "permission_denials": [denial],
+                           "trace_violations": self.trace(command)}
+                EVAL.write_json(case / "output/state.json", current)
+                self.assertEqual(EVAL.check(case)["passed"], command in good)
+                self.assertEqual(EVAL.read_json(case / "output/state.json")["permission_denials"], [denial])
+        for denial in ("git stash list", {"tool_name": "Agent", "tool_input": {"command": good[0]}}):
+            self.assertFalse(EVAL.benign_inventory_denial(denial))
 
     def test_native_string_permission_event_preserves_denial_and_false_contract(self):
         case, state = self.case()
@@ -407,13 +466,13 @@ class EvidenceTests(unittest.TestCase):
         manifest = EVAL.read_json(manifest_path)
         del manifest['files']['cases/case-005/run.log.gz']
         EVAL.write_json(manifest_path, manifest)
-        # An unlisted file is not a frozen witness; its absence is not an exemption.
-        for remove in (False, True):
-            if remove:
-                (self.root / 'provenance/cases/case-005/run.log.gz').unlink()
-            verdict = EVAL.check(case)
-            self.assertFalse(verdict['passed'])
-            self.assertIn('literal runtime Summary', verdict['reason'])
+        # Unlisted source is an integrity error; its absence cannot authorize a reply.
+        with self.assertRaisesRegex(ValueError, 'Frozen input changed'):
+            EVAL.check(case)
+        (self.root / 'provenance/cases/case-005/run.log.gz').unlink()
+        verdict = EVAL.check(case)
+        self.assertFalse(verdict['passed'])
+        self.assertIn('literal runtime Summary', verdict['reason'])
 
     def test_recorded_exit_removes_only_one_matching_terminal_line(self):
         for recorded, expected in (
@@ -530,17 +589,16 @@ class EvidenceTests(unittest.TestCase):
             'meta': {'mode': 'live', 'repository': 'https://github.com/example/repo.git',
                      'base_commit': head, 'default_commit': head, 'original_branch': branch,
                      'arguments': ['devel'], 'base_branch': 'devel'}})
-        EVAL.capture(workspace)
+        self.capture(workspace)
         output = workspace / 'output'
         self.assertIn(EVAL.printed_pr_recipe(log), (output / 'evidence.txt').read_text())
         self.assertEqual((output / 'run.log').read_text(), log)
         self.assertEqual(EVAL.read_json(output / 'runtime-identity.json')['run_log_sha256'],
                          EVAL.digest(runtime / 'run.log'))
-        self.freeze(cases=('case-001',), live=True, annotation={})
         for changed in (False, True):
             if changed:
                 (runtime / 'run.log').write_text(log.replace('--base release-0.24', '--base devel'))
-                EVAL.capture(workspace)
+                self.capture(workspace)
             state = EVAL.read_json(output / 'state.json')
             state.update(trace_violations=[], permission_denials=[], runtime_exit_observed=True)
             EVAL.write_json(output / 'state.json', state)
@@ -593,7 +651,7 @@ class EvidenceTests(unittest.TestCase):
     def test_git_directory_and_config_options_cannot_hide_disallowed_operations(self):
         for command in ("git -C /tmp/checkout push origin HEAD",
                         "git -c advice.detachedHead=false -C /tmp/checkout push origin HEAD",
-                        "git --git-dir=/tmp/repo.git push origin HEAD", "git stash list"):
+                        "git --git-dir=/tmp/repo.git push origin HEAD", "git stash push"):
             with self.subTest(command=command):
                 self.assertIn("Attempted publication or disallowed git operation", self.trace(command))
         self.assertEqual(self.trace("git -C /tmp/checkout log --oneline"), [])
@@ -601,7 +659,7 @@ class EvidenceTests(unittest.TestCase):
     def test_workspace_path_cannot_hide_a_source_checkout_read(self):
         project = self.root / "project"
         command = f"cat {project}/plugins/fix-go-cves/evals/cases/case-005/reply.md {self.root}/checkout/source.txt"
-        self.assertIn("Command accesses the source checkout", self.trace(command, project))
+        self.assertIn("Command accesses protected source or eval control files", self.trace(command, project))
 
     def test_explicit_checkout_argument_is_scored_in_case_context(self):
         workspace = self.root / "checkout"
@@ -648,7 +706,7 @@ class EvidenceTests(unittest.TestCase):
             "exit_code": 2, "evidence_hashes": EVAL.file_hashes(runtime / "evidence"), "head": EVAL.git(workspace, "rev-parse", "HEAD"),
             "run_log_sha256": EVAL.digest(runtime / "run.log"),
             "branch": EVAL.git(workspace, "branch", "--show-current"),
-            "ignored_snapshot": {"unit.coverprofile": EVAL.digest(workspace / "unit.coverprofile")}})
+            "ignored_snapshot": {"unit.coverprofile": EVAL.file_identity(workspace / "unit.coverprofile")}})
 
     def test_cleanup_preserves_live_witnesses_and_fails_contract_without_capture_error(self):
         # Exercise the copied driver and a local stub, then simulate destructive
@@ -687,7 +745,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         shutil.rmtree(private)
         shutil.rmtree(staged.parent)
-        EVAL.capture(workspace)
+        self.capture(workspace)
         state = EVAL.read_json(workspace / "output/state.json")
         self.assertEqual(state["runtime_exit"], 2)
         self.assertEqual(state["runtime_head"], head)
@@ -698,7 +756,6 @@ class EvidenceTests(unittest.TestCase):
         state.update(trace_violations=[], permission_denials=[])
         EVAL.write_json(workspace / "output/state.json", state)
         (workspace / "output/reply.md").write_text("The runtime reported a partial result.\n")
-        self.freeze(cases=("case-001",), live=True, annotation={})
         with patch.object(EVAL, "EVAL_ROOT", self.root):
             verdict = EVAL.check(workspace, live=True)
         self.assertIs(verdict["passed"], False)
@@ -706,6 +763,7 @@ class EvidenceTests(unittest.TestCase):
 
     def test_live_contract_uses_live_annotations_and_retains_runtime_result(self):
         case, state = self.case()
+        state["expected"]["mode"] = "live"
         state.update(runtime_exit=2, changed_files=["go.mod"],
                      runtime_exit_observed=True,
                      runtime_head=state["head"], runtime_branch=state["branch"],
@@ -855,7 +913,7 @@ class EvidenceTests(unittest.TestCase):
                 'branch': EVAL.git(workspace, 'branch', '--show-current'),
                 'evidence_hashes': EVAL.file_hashes(runtime / 'evidence'),
                 'run_log_sha256': EVAL.digest(runtime / 'run.log'), 'ignored_snapshot': {}})
-            EVAL.capture(workspace)
+            self.capture(workspace)
             output = workspace / 'output'
             state = EVAL.read_json(output / 'state.json')
             patch_text = (output / 'change.patch').read_text()
@@ -898,12 +956,12 @@ class EvidenceTests(unittest.TestCase):
                      "default_commit": head, "base_commit": head, "repository": "https://github.com/example/test.git"},
             "refs": {}, "plugin_hashes": {}, "runtime_plugin_hashes": {},
             "runtime_dir": str(self.root / "control/case-001/runtime")})
-        EVAL.capture(workspace)
+        self.capture(workspace)
         state = EVAL.read_json(workspace / "output/state.json")
         self.assertEqual(set(state["unexpected_ignored"]), {"bin/app", "bin/data", "bin/link", "bin/other"})
         self.assertEqual(set(state["ignored_snapshot"]), {"bin/app", "bin/data", "bin/link", "bin/other"})
-        self.assertEqual(state["ignored_snapshot"]["bin/data"], EVAL.digest(workspace / "bin/data"))
-        self.assertEqual(state["ignored_snapshot"]["bin/link"], "symlink:" + str(outside))
+        self.assertEqual(state["ignored_snapshot"]["bin/data"], EVAL.file_identity(workspace / "bin/data"))
+        self.assertEqual(state["ignored_snapshot"]["bin/link"], {"kind": "symlink", "target": str(outside)})
         self.assertIsNone(state["runtime_ignored_snapshot"])
 
     def test_runtime_read_allowance_excludes_baseline_and_neighbors(self):
@@ -1181,6 +1239,41 @@ class EvidenceTests(unittest.TestCase):
             (root / "audits/fix-availability.evidence").write_text(contents)
             self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
 
+    def test_repair_always_requires_initial_phase_at_pinned_base(self):
+        case, state, result, scan, initial = self.scenario()
+        root = case / "output/runtime"
+        for phase in ("not_reached", "failed", None):
+            EVAL.write_json(root / "run.json", {**result, "phases": {
+                **result["phases"], "initial_scan": phase}})
+            self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+        EVAL.write_json(root / "run.json", result)
+        EVAL.write_json(root / "initial-scan-status.json", {**scan, "phase": "initial"})
+        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+
+    def test_advertised_fix_coverage_requires_usable_versions(self):
+        case, state, result, scan, initial = self.scenario()
+        finding = initial["matches"][0]
+        controls = [([], False), ([""], False), ([None, 1], False), (["junk"], False),
+                    (["v1.2.0-rc.1"], False), (["go1.26rc1"], False),
+                    (["v1.2.3"], True), (["v2.3.4+incompatible"], True),
+                    (["v0.0.0-20231012123456-abcdef123456"], True),
+                    (["v0.21.1-0.20240508182429-e35e4ccd0d2d"], True),
+                    (["v1.2.3-pre.0.20240508182429-e35e4ccd0d2d"], True),
+                    (["v1.2.0-rc.1", "v1.2.0"], True)]
+        for versions, expected in controls:
+            with self.subTest(versions=versions):
+                finding["vulnerability"]["fix"]["versions"] = versions
+                EVAL.write_json(case / "output/runtime/initial-scan.json", initial)
+                self.assertEqual(EVAL.runtime_scenario(case, state)[
+                    "initial fixable finding actually cleared"], expected)
+        finding["artifact"]["name"] = "stdlib"
+        for version, expected in (("1.26.1", True), ("go1.26.1", False),
+                                  ("1.26rc1", False), ("v1.26.1", True),
+                                  ("v0.0.0-20231012123456-abcdef123456", False)):
+            with self.subTest(stdlib=version):
+                finding["vulnerability"]["fix"]["versions"] = [version]
+                self.assertEqual(EVAL.usable_fix(finding), expected)
+
     def test_repair_rejects_invalid_or_unreached_scan_and_no_op(self):
         case, state, result, scan, initial = self.scenario()
         root = case / "output/runtime"
@@ -1217,7 +1310,7 @@ class EvidenceTests(unittest.TestCase):
         directory = root / "scans" / (phase + ".example")
         binary = "cmd/bin/subctl-v0.26.0-linux-amd64"
         identity = "d" * 64
-        state["ignored_snapshot"][binary] = identity
+        state["ignored_snapshot"][binary] = {"kind": "file", "sha256": identity, "mode": 0o755}
         EVAL.write_json(directory / "status.json", {**scan, "phase": phase,
                                                   "build_status": "completed", "build_exit_code": 0})
         record = {"path": binary, "sha256": identity, "recorded_build_artifact": True,
@@ -1262,6 +1355,20 @@ class EvidenceTests(unittest.TestCase):
         self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
         shutil.rmtree(first)
         self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+
+    def test_native_duplicate_paths_cannot_overwrite_a_failed_witness(self):
+        case, state, directory, record, catalog = self.binary_scenario()
+        bad = {**record, "build_info": record["build_info"].replace(
+            "vcs.modified=false", "vcs.modified=true")}
+        for records in ((bad, record), (record, bad),
+                        ({**bad, "path": "./" + bad["path"]}, record),
+                        ({**bad, "path": bad["path"].replace("/bin/", "/bin/./")}, record)):
+            with self.subTest(paths=[record["path"] for record in records]):
+                (directory / "binaries.jsonl").write_text(
+                    "".join(json.dumps(record) + "\n" for record in records))
+                proof = EVAL.native_scan_proof(case, state, "final-gate", state["runtime_head"], retained=True)
+                self.assertFalse(proof["checks"]["native binary paths unique"])
+                self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
 
     def test_native_binary_requires_one_matching_unmodified_vcs_witness(self):
         case, state, directory, record, catalog = self.binary_scenario()
@@ -1445,9 +1552,9 @@ class EvidenceTests(unittest.TestCase):
             record["build_info"].replace(base, original)}) + "\n")
         self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
         (directory / "binaries.jsonl").write_text(json.dumps(record) + "\n")
-        state["ignored_snapshot"][record["path"]] = "e" * 64
+        state["ignored_snapshot"][record["path"]] = {"kind": "file", "sha256": "e" * 64, "mode": 0o755}
         self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
-        state["ignored_snapshot"][record["path"]] = record["sha256"]
+        state["ignored_snapshot"][record["path"]] = {"kind": "file", "sha256": record["sha256"], "mode": 0o755}
         log.write_text("")
         self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
 
@@ -1551,18 +1658,18 @@ class EvidenceTests(unittest.TestCase):
 
     def test_snapshot_freezes_explicit_runtime_settings(self):
         self.freeze(cases=("case-004",), live=True, annotation={})
-        raw = {"dataset": {"path": "fixtures"}, "runner": {"env": {
+        raw = {"dataset": {"path": "fixtures"}, "judges": [{"name": "live_contract"}], "runner": {"env": {
             "CVE_FIX_TEST_CMD": "$CVE_FIX_TEST_CMD", "DAPPER_ARGS": "$DAPPER_ARGS",
             "CVE_FIX_GRYPE_VERSION": "$CVE_FIX_GRYPE_VERSION"}}}
         live = yaml.safe_load((Path(__file__).parent / "eval-live.yaml").read_text())
         self.assertEqual(live["runner"]["env"].get("CVE_FIX_GRYPE_VERSION"), "$CVE_FIX_GRYPE_VERSION")
         config = SimpleNamespace(
-            runner=SimpleNamespace(plugin_dirs=[]), models=SimpleNamespace(judge=None),
+            runner=SimpleNamespace(plugin_dirs=[EVAL.EVAL_ROOT.parent]), models=SimpleNamespace(judge=None),
             dataset=SimpleNamespace(path="fixtures"),
             resolve_path=lambda _: self.root / "fixtures", project_root=self.root)
         loader = SimpleNamespace(
             EvalConfig=SimpleNamespace(from_yaml=lambda _: config),
-            load_raw=lambda _: (copy.deepcopy(raw), None), resolve_plugin_dir=lambda *_: None)
+            load_raw=lambda _: (copy.deepcopy(raw), None), resolve_plugin_dir=lambda _, path: path)
         for version in ("v0.121.0", None):
             with self.subTest(version=version):
                 selected = {"CVE_FIX_TEST_CMD": "make golangci-lint && make unit",
@@ -1575,10 +1682,46 @@ class EvidenceTests(unittest.TestCase):
                                      "a" * 40 if command == "rev-parse" else ""):
                     if version is None:
                         os.environ.pop("CVE_FIX_GRYPE_VERSION", None)
-                    EVAL.snapshot(self.root / "eval.yaml", directory, ["case-004"])
+                    with self.assertRaisesRegex(ValueError, "profile"):
+                        EVAL.snapshot(self.root / "eval.yaml", self.root / "wrong-track", ["case-004"])
+                    input_path = self.root / "fixtures/case-004/input.yaml"
+                    original = input_path.read_bytes()
+                    input_path.write_text("{}\n")
+                    with self.assertRaisesRegex(ValueError, "case does not match"):
+                        EVAL.snapshot(self.root / "eval.yaml", self.root / "wrong-case", ["case-004"], live=True)
+                    input_path.write_bytes(original)
+                    EVAL.snapshot(self.root / "eval.yaml", directory, ["case-004"], live=True)
                 with patch.dict(os.environ, {key: "changed after snapshot" for key in selected}):
                     _, _, frozen = EVAL.frozen_inputs(directory)
                     self.assertEqual(frozen["runner"]["env"], selected)
+
+    def test_source_and_artifact_identity_include_mode_and_reject_plugin_links(self):
+        plugin = self.root / "plugin"
+        plugin.mkdir()
+        script = plugin / "script.sh"
+        script.write_text("#!/bin/sh\n")
+        script.chmod(0o755)
+        original = EVAL.plugin_hashes(plugin)
+        cache = plugin / "__pycache__/generated.pyc"
+        cache.parent.mkdir(exist_ok=True)
+        cache.write_bytes(b"generated cache")
+        self.assertEqual(EVAL.plugin_hashes(plugin), original)
+        script.chmod(0o644)
+        self.assertNotEqual(EVAL.plugin_hashes(plugin), original)
+        (plugin / "linked.sh").symlink_to(script)
+        with self.assertRaisesRegex(ValueError, "Linked plugin source"):
+            EVAL.plugin_hashes(plugin)
+        self.freeze()
+        provenance = self.root / "provenance"
+        added = provenance / "fix-go-cves/scripts/new-source.py"
+        added.write_text("print('unfrozen source')\n")
+        with self.assertRaisesRegex(ValueError, "Frozen input changed"):
+            EVAL.frozen_inputs(self.root)
+        added.unlink()
+        frozen_script = provenance / "fix-go-cves/scripts/fix-all.sh"
+        frozen_script.chmod(frozen_script.stat().st_mode ^ 0o100)
+        with self.assertRaisesRegex(ValueError, "Frozen input changed"):
+            EVAL.frozen_inputs(self.root)
 
     def test_snapshot_selection_does_not_copy_neighbors_or_replace_old_inputs(self):
         self.freeze(cases=("case-005",))
@@ -1653,7 +1796,7 @@ class EvidenceTests(unittest.TestCase):
                 "default_commit": default}
         (source / "input.yaml").write_text(yaml.safe_dump(data))
         (source / "annotations.yaml").write_text("{}\n")
-        workspace = self.root / "cases/case-local"
+        workspace = self.root / "cases/case-005"
         settings = workspace / ".claude/settings.json"
         settings.parent.mkdir(parents=True)
         settings.write_bytes(b'{"permissions": {"defaultMode": "dontAsk"}}\n')
@@ -1669,6 +1812,15 @@ class EvidenceTests(unittest.TestCase):
 
         return workspace, source, data, local_fetch
 
+    def prepare(self, workspace, source):
+        if source.parent.parent.name != "provenance":
+            dataset = self.root / "prepare-fixtures"
+            shutil.copytree(source, dataset / workspace.name)
+            EVAL.freeze_run({"dataset": {"path": str(dataset)}}, dataset, self.root,
+                            [workspace.name], self.root)
+            source = self.root / "provenance/cases" / workspace.name
+        return EVAL.prepare(workspace, source)
+
     def test_prepare_rejects_reserved_default_tree_before_checkout(self):
         self.assert_prepare_rejects_reserved_tree("default")
 
@@ -1682,7 +1834,7 @@ class EvidenceTests(unittest.TestCase):
         pin = data[f"{collision}_commit"]
         with patch.object(EVAL, "run", side_effect=local_fetch):
             with self.assertRaisesRegex(ValueError, rf"reserved eval paths at {pin}:.*\.claude"):
-                EVAL.prepare(workspace, source)
+                self.prepare(workspace, source)
         self.assertEqual(settings.read_bytes(), original_settings)
         self.assertFalse((workspace / ".git").exists())
         self.assertFalse((workspace / ".replay/remotes/fork").exists())
@@ -1704,15 +1856,49 @@ class EvidenceTests(unittest.TestCase):
         }), source / "plugin.tar.gz")
         (source / "run.log.gz").write_bytes(gzip.compress(b"recorded partial outcome\n"))
         with patch.object(EVAL, "run", side_effect=local_fetch), contextlib.redirect_stdout(io.StringIO()):
-            baseline = EVAL.prepare(workspace, source)
+            baseline = self.prepare(workspace, source)
         plugin = workspace / ".staged-plugins/fix-go-cves"
         for path in (EVAL.EVAL_ROOT.parent / "skills/fix-go-cves").rglob("*"):
             if path.is_file():
                 relative = path.relative_to(EVAL.EVAL_ROOT.parent)
                 self.assertEqual((plugin / relative).read_bytes(), path.read_bytes())
-                self.assertEqual(baseline["plugin_hashes"][str(relative)], EVAL.digest(path))
+                self.assertEqual(baseline["plugin_hashes"][str(relative)], EVAL.file_identity(path))
         self.assertFalse((plugin / "skills/fix-go-cves/references/obsolete.md").exists())
         self.assertIn("# Historical runtime witness", (plugin / "scripts/fix-all.sh").read_text())
+
+    def test_preparation_uses_frozen_plugin_after_current_source_changes(self):
+        workspace, source, data, local_fetch = self.prepare_local_repository()
+        # Stock workspace trees and collected/provenance runs have different roots.
+        separate = self.root / "workspaces/run/cases/case-005"
+        separate.parent.mkdir(parents=True)
+        workspace.rename(separate)
+        workspace = separate
+        dataset = self.root / "frozen-fixtures"
+        shutil.copytree(source, dataset / "case-005")
+        current = self.root / "current-plugin"
+        for name in (".claude-plugin", "skills", "scripts", "subagents"):
+            shutil.copytree(EVAL.EVAL_ROOT.parent / name, current / name)
+        shutil.copy2(EVAL.EVAL_ROOT.parent / "README.md", current / "README.md")
+        skill = current / "skills/fix-go-cves/SKILL.md"
+        frozen_skill = skill.read_bytes()
+        cache = current / "scripts/__pycache__/generated.pyc"
+        cache.parent.mkdir(exist_ok=True)
+        cache.write_bytes(b"generated cache")
+        raw = {"dataset": {"path": str(dataset)}}
+        with patch.object(EVAL, "EVAL_ROOT", current / "evals"):
+            EVAL.freeze_run(raw, dataset, self.root, ["case-005"], self.root)
+        self.assertFalse((self.root / "provenance/fix-go-cves/scripts/__pycache__").exists())
+        skill.write_text("changed after snapshot\n")
+        frozen_source = self.root / "provenance/cases/case-005"
+        with patch.object(EVAL, "run", side_effect=local_fetch), contextlib.redirect_stdout(io.StringIO()):
+            self.prepare(workspace, frozen_source)
+        self.assertEqual((workspace / ".staged-plugins/fix-go-cves/skills/fix-go-cves/SKILL.md").read_bytes(), frozen_skill)
+        runtime = workspace.parent.parent / "control/case-005/runtime/plugin"
+        self.assertEqual((runtime / "skills/fix-go-cves/SKILL.md").read_bytes(), frozen_skill)
+        EVAL.capture(workspace)
+        state = EVAL.read_json(workspace / "output/state.json")
+        self.assertTrue(EVAL.expectations_match(state["expected"], data))
+        self.assertIn(".replay/driver.py", (workspace / ".staged-plugins/fix-go-cves/scripts/fix-all.sh").read_text())
 
     def test_prepare_clean_pinned_trees_preserves_settings_and_allowed_paths(self):
         workspace, source, data, local_fetch = self.prepare_local_repository()
@@ -1720,7 +1906,7 @@ class EvidenceTests(unittest.TestCase):
         original_settings = settings.read_bytes()
         with patch.object(EVAL, "run", side_effect=local_fetch), \
                 contextlib.redirect_stdout(io.StringIO()):
-            EVAL.prepare(workspace, source)
+            self.prepare(workspace, source)
         self.assertEqual(settings.read_bytes(), original_settings)
         self.assertEqual(EVAL.git(workspace, "rev-parse", "HEAD"), data["default_commit"])
         self.assertEqual(EVAL.git(workspace, "branch", "--show-current"), "operator-start")
@@ -1796,8 +1982,12 @@ class RunnerFailureTests(unittest.TestCase):
 import json, os, pathlib, shutil, sys
 root = pathlib.Path(os.environ['RUNNER_TEST_ROOT'])
 args = sys.argv[1:]
-if args[0] == '-c':
-    print(root / 'workspaces' if 'tempfile' in args[1] else 'fixture-eval')
+if '-c' in args:
+    code = args[args.index('-c') + 1]
+    if 'sys.executable' in code:
+        print(pathlib.Path(__file__).resolve())
+    elif 'tempfile' in code:
+        print(root / 'workspaces')
     sys.exit(0)
 name = pathlib.Path(args[0]).name
 stage = args[1] if name in ('eval.py', 'score.py') else name

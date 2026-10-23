@@ -7,55 +7,53 @@ retains earlier failures unchanged. Different source groups below are never pool
 
 ## Current implementation, 2026-10-23
 
-The implementation from `8c88928b` is still being verified. These measurements
-supersede component claims only; all actor grades below remain historical.
+Implementation from `8c88928b` passes component integration; full E2E acceptance
+remains open. Historical actor grades are unchanged.
 
 | Changed boundary | Measured evidence |
 | --- | --- |
-| Frozen execution and independent authority | 80 eval tests passed; model-free stock 005/007/002 preparation/replay passed |
-| Shared process lifecycle and exit aggregation | 302 focused harness tests plus three actual result-field/aggregation tests passed; reproducible patch checked in |
-| Physical Go metadata binding | Seven actual local-proxy transaction controls passed on Go 1.26 and Go 1.24 |
-| Generated output ownership and scan consumer | 16 real-Git/actual-scan controls passed; reverting the consumer reproduces failure |
-| Checkout cleanup and archive failure | Six actual cleanup controls passed |
-| Report-only preservation | Seven actual-producer controls passed; reverting the producer reproduces dirty-input/restore-diagnostic failures |
-| Dispatch capture | 90 assertions across 14 controlled producer/logger cases passed |
-| Full runtime integration | Fresh combined run exposed fixture migrations for conservative ownership/policy handling; final combined run pending |
+| Frozen execution and authority | 80 eval tests; model-free stock 005/007/002 preparation/replay passed |
+| Shared lifecycle and aggregation | 362 focused selected-harness tests passed; reproducible patch retained |
+| Physical Go metadata | Seven actual local-proxy transaction controls passed on Go 1.24 and 1.26 |
+| Artifact ownership and scan consumer | 16 controls; old consumer reproduces failure |
+| Cleanup / report preservation | Six / seven actual-producer controls; old report producer reproduces failures |
+| Policy / publication | 15 semantic reader controls; 16 real-Git recipe controls; 182 workflow checks |
+| Dispatch / final evidence | 90 assertions across 14 capture cases; 473 final-evidence workflow checks |
+| Combined integration | 3,207/3,207 frozen shell checks; all 28 runtime/subagent/test files match current bytes/modes. Frozen Python suite: 66/66 before one additional publication control, separately verified. |
 
-Production simplification removes the separate reporting reference and publication
-profile, replaces duplicate policy readers with the existing semantic loader, and
-uses one final test phase. Metadata uses explicit native physical-file binding,
-not an additional effective-path query system. The identified harness patch is
-applied to the pinned checkout; no supervisor or new harness service was added.
+Simplification removes the separate reporting reference/publication profile,
+replaces duplicate policy readers with the existing semantic loader, and uses one
+final canonical test phase. Native Go file binding replaces the proposed effective-
+path query system. Publication uses an explicit confirmed Git route. No supervisor,
+transaction service, generic flag/shell parser or new policy serializer was added.
 
-Replay oracle development retained 126 judge calls and all failures. The current
-fixed controls use the V2 publication pair, V4 case-007 citation pair and V5 three
-case-005 controls: 14/14 expected criterion majorities, 41/42 matching individual
-samples, zero sample errors. Restoring whole-reply accuracy in the authoritative
-criterion fixed a scope regression; adding typed result fields did not fix it and
-was removed. These inspected controls are development/regression evidence, not
-unseen holdouts or a reliability estimate. Judge costs are not fully priced.
+A fresh critical review reproduced a surviving owned CLI when group signaling
+raises an OS error. The small direct-child fallback passes the new stalled-leader
+control; removing it reproduces failure. Partial output/settings cleanup and an
+unrelated sentinel remain checked. Descendant termination when group signaling
+fails is not guaranteed.
 
-The first replay pilot, `e2e-simplified-replay005-20261023-01`, completed all stock
-stages ($0.69 reported actor cost; six judge calls unpriced). Contract passed;
-outcome passed TTT despite independent failure; action_owner failed FFF. Independent
-review rejects unsupported causal exoneration, missing native uncertainty and a
-repair confined to the generated branch before a promised clean rerun. Actual
-Claude session evidence confirms complete current skill intake; this is a behavior
-failure, not a staging omission. The all-pass source campaign stopped after this
-one actor; all original stock stages and raw results are preserved. No later actor
-may be pooled into it. Live source/settings still require their final freeze.
+| New pilot | Original stock result | Independent result |
+| --- | --- | --- |
+| `e2e-simplified-replay005-20261023-01` | C true, O TTT false positive, A FFF; actor $0.69 | O/A false: unsupported independence, missing native uncertainty, fix-branch-only repair and promised clean rerun |
+| `e2e-inference-replay005-20261023-01` | C true, O FFF, A TTT; actor $0.83 | O false solely missing native uncertainty; A true. All other factual claims independently verified. |
+| `e2e-scope-replay005-20261023-01` | Running | Pending |
 
-The live oracle controls separately matched 8/8 expected criterion majorities and
-24/24 samples without errors. Existing actual/corrected landing advice and bounded
-causal-experiment pairs were copied unchanged; scoped diagnostic units earn no
-full-runtime credit. All 24 calls are unpriced. A new nine-control replay regression
-check is running after explicit causal-support/native-disclosure clarification;
-no later actor has started.
+Complete actual skill intake was confirmed for both failed pilots. Each stopped
+its all-pass source campaign; neither is pooled into the new source freeze. The
+third pilot moves the existing native-scope rule beside the main report instruction
+and selects the tested runner fallback. Its prospective protocol and all earlier
+source identities remain under `.work/fix-go-cves-e2e-20261023/`.
 
-The fresh combined Python snapshot passed 66/66 metadata, artifact, policy,
-cleanup, report and publication controls. Subsequent shell-fixture-only migration
-adds a preserved legacy publication case; the final shell snapshot remains pending.
-
+Replay oracle V6 matched 18/18 fixed criterion labels across 54 complete error-free
+samples, with one wrong-citation dissent. This follows 126 earlier development
+calls whose failures remain preserved; the unsuccessful typed-result expansion
+was removed. The live oracle separately matched 8/8 labels and 24/24 samples using
+existing landing-prerequisite and bounded causal-experiment pairs. These are
+inspected development controls, not unseen holdouts or reliability estimates.
+Judge rationale is not independent evidence: an unproven opposite-cause assertion
+was rejected even where the negative label was correct. All judge calls remain
+unpriced; actor costs above exclude them.
 
 ## Earlier implemented changes and checks
 

@@ -151,7 +151,7 @@ settings do not supply authorization to relax repository policy.
 | `build-image` | None; its `go version` bounds Go directive and toolchain bumps |
 | `k8s-version-guard` | `false`; `true` treats Kubernetes minor bumps as breaking |
 | `go-minor-guard` | `false`; `true` rejects Go directive minor raises even when the builder supports them |
-| `upstream-org` | Owner of `origin`, used for the PR command |
+| `upstream-org` | Legacy owner hint, accepted for configuration compatibility; does not confirm publication identity |
 | `unset-env` | None; variable names removed from build, test, and reviewer environments |
 
 Repositories using Shipyard's Dapper wrapper build with `make build` inside
@@ -168,6 +168,14 @@ base branch moved or could not be fetched, a commit lacks `Signed-off-by:`,
 `make licensecheck` (when present) fails, or the branch touches files other
 than `go.mod`, `go.sum`, `go.work*`, `vendor/`, and `.grype.yaml`. The
 scripts never rebase, push, or change licensing policy.
+
+A recipe also needs an explicit Git push route: `branch.<name>.pushRemote` or
+`remote.pushDefault`, with one effective GitHub push URL and a confirmed base.
+A destination matching the base can be confirmed offline. A user fork needs
+optional bounded read-only GitHub metadata confirming the fork network; ambiguous
+or unavailable identity withholds the recipe without changing completed gates.
+Configure the route in Git before the run; the scripts do not select a remote
+from owner names or rewrite URLs.
 
 The Summary reports configured commands, scan confirmation, test attempts with
 their exits and tested commits, and verification/license status. Unconfigured or

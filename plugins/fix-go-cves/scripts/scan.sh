@@ -126,7 +126,7 @@ if [[ " ${GRYPE_FLAGS[*]} " == *" --json "* ]]; then
   # missing arrays into an empty result and accidentally manufacture a clean scan.
   if grype_scan_json_valid <<< "$scan_output"; then
     filtered_output=$(printf '%s\n' "$scan_output" | \
-      filter_generated_binary_duplicates "$REPO" "${STATE_FILE}.generated-artifacts" 2>/dev/null) || filtered_output="$scan_output"
+      filter_generated_binary_duplicates "$REPO" "${STATE_FILE}.built-artifacts" 2>/dev/null) || filtered_output="$scan_output"
     printf '%s\n' "$filtered_output"
   else
     echo "ERROR: scanner produced invalid Grype JSON evidence." >&2

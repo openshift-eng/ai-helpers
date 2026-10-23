@@ -13,6 +13,16 @@ when the skill correctly reports a blocked or partial remediation outcome.
 
 ## Current E2E work
 
+The implementation now freezes the plugin/helper and interpreter used by every
+stage, binds grading to frozen case expectations, and tests the final retained
+commit after deterministic verification. Replay cases share one outcome/action
+profile. The shared harness pin uses the reviewed [lifecycle patch](harness.patch)
+for bounded pipe/process cleanup and nonzero exit aggregation. Focused controls
+pass; current-source actor acceptance remains open. Detailed measurements and
+historical grades belong to [implementation results](implementation-results.md).
+
+The records below describe preceding implementations and their limits.
+
 Live scenarios now check receipts for declared completed gates, including blocked
 runs: paired test logs/receipts agree with the last tested HEAD, command and exit;
 successful verification retains all four clean audits; reached scans retain
@@ -84,7 +94,7 @@ constraints; the canonical live record owns detailed results and costs.
 
 | Case | Repository | What it measures |
 | --- | --- | --- |
-| case-002 | submariner, release-0.24 | Relay the recorded partial repair's exact positive publication recipe and identify the builder-image update owner; use `eval-publication.yaml`. |
+| case-002 | submariner, release-0.24 | Relay the recorded partial repair's exact positive publication recipe and identify the builder-image update owner. |
 | case-005 | admiral, release-0.24 | Diagnose the reporter vet failure, find the existing default-branch backport, and explain where it must land before rerunning. |
 | case-007 | admiral, release-0.24 | Distinguish a persistent reporter failure from a first-only syncer failure; qualify causality and give usable next steps. |
 
@@ -101,6 +111,7 @@ Claude Code CLI installed. Use a local environment for the harness and judges:
 export HARNESS="$PWD/.work/fix-go-cves-evals/harness"
 git clone https://github.com/opendatahub-io/agent-eval-harness.git "$HARNESS"
 git -C "$HARNESS" checkout 1a980e707909a23f8c143ce333d97f5203db34ab
+git -C "$HARNESS" apply "$PWD/plugins/fix-go-cves/evals/harness.patch"
 python3 -m venv .work/fix-go-cves-evals/venv
 . .work/fix-go-cves-evals/venv/bin/activate
 python -m pip install -e "$HARNESS[anthropic]"
@@ -108,12 +119,12 @@ export CVE_EVAL_PYTHON="$VIRTUAL_ENV/bin/python"
 python3 -I -c 'from yaml import CSafeLoader'
 ```
 
-The pin is the harness revision used for the pilot. Keep the environment active
-so hooks and live runtime commands using `python3` find its dependencies even
-with a fresh case `HOME`. `CVE_EVAL_PYTHON` selects the driver only; it does not
-activate that environment for child commands. The isolated import above checks
-the required YAML backend without relying on user-site packages. Each run
-records the actual harness commit in `harness-revision.txt`.
+The pin plus the small local patch is the tested shared runner. The runner records
+its base revision, effective source identities and dirty state. `run.sh` resolves
+one absolute Python environment, checks its YAML backend, and uses that entrypoint
+for hooks, drivers and judges; it also places its bin directory first in child
+PATH. Interpreter/package drift fails validation rather than selecting a fallback.
+Keep the venv entrypoint instead of resolving its executable symlink.
 Resolve and hash the CLI selected by the actual launch PATH, recording its version.
 Pin the version-specific executable and compare the native init version with that
 frozen identity.
@@ -155,14 +166,15 @@ and coverage. These nonsecret settings are forwarded and frozen with the run.
 plugins/fix-go-cves/evals/run.sh --dry-run
 plugins/fix-go-cves/evals/run.sh
 plugins/fix-go-cves/evals/run.sh --live
-plugins/fix-go-cves/evals/run.sh --config plugins/fix-go-cves/evals/eval-publication.yaml --case case-002
+plugins/fix-go-cves/evals/run.sh --case case-002
 ```
 
-Replay profiles share `replay-base.yaml` for execution and the deterministic
-contract. The default profile retains Admiral's backport judges unchanged;
-the publication profile uses outcome and builder-owner criteria for case 002.
-Its full log, historical runtime and result bundle are recorded evidence. This
-case does not validate today's engine or establish authenticated native coverage.
+All recorded cases use `eval-replay.yaml` over `replay-base.yaml`: one deterministic
+contract and two semantic roles, outcome and action/owner, with three samples each.
+Case-specific facts and prerequisites live in annotations. Case 002 retains its
+positive recipe and builder-owner witnesses; its historical runtime does not
+validate today's engine or authenticate native coverage. Original profiles and
+scores remain in their run provenance.
 
 `--dry-run` fetches the real pinned history and replays the result without model
 calls, builds or scans. `--prepare-only` prepares the checkout without replaying.
@@ -191,7 +203,7 @@ Use a new frozen result record for deliberate rescoring; preserve prior scores.
 The replay contract checks one invocation, exact result commit and branch,
 clean state, unchanged staged skill/scripts and remote refs, required commit citations,
 complete literal Summary relay from the trusted log, and publication or destructive
-operations. Clean runs without a Summary retain their existing outcome checks. Fact judges score the backport and
+operations. Clean runs without a Summary retain their existing outcome checks. Fact judges score outcome and
 action/owner criteria using three samples each. Missing verdicts or incomplete
 samples are errors; a completed factual failure is retained as a failure.
 

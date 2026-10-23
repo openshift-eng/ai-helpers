@@ -94,31 +94,50 @@ grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIE
 
 ## 4. Investigate remaining work, then report
 
-After terminal completion, read every test attempt's package summaries, including
-successful retries; flagged lines are only an index. Without a captured comparable
-pre-update run, record attribution as unknown and continue with repair discovery.
-Read other refs directly in the existing checkout, using captured command/base/retained identities (unknown comparisons remain
-unconfirmed):
+Inspect relevant package results from every test attempt, including a failed
+attempt followed by a passing retry; flagged lines are an index.
+
+Use two rules when investigating and recommending the next run:
+
+- Attribute a failure only from comparable captured outcomes or a demonstrated
+  mechanism supporting that causal claim. Unchanged failing source alone does not show that
+  failure was independent of dependency, Go directive or compiler changes.
+  Inspect those retained changes as well as the failing source; otherwise leave
+  causality unconfirmed.
+- Plan verification from its actual starting state: `fix-all.sh` starts afresh
+  from `origin/<branch>`. Applicable source repairs must land there before rerun;
+  repaired builder images must be published before consumers rerun. A repair
+  confined to the generated fix branch will not reach that next run. Recommend
+  verification after these prerequisites, without promising its outcome.
+
+Read immutable refs in the existing checkout to identify a supported repair or
+the investigation still needed:
 
 - `git show <command-commit>:<file>` for the failing source.
 - `git log origin/<default> -- <file>` for repair history.
 - `git show <candidate> -- <file>` for a candidate patch.
-- `git diff <base-commit>..<retained-or-tested-commit> -- <file>` for the retained change.
+- `git diff <base-commit>..<retained-or-tested-commit>` for relevant source,
+  dependency, Go directive and build/configuration changes.
 
-Find a supported repair or the investigation still needed, an owner and next
-verification prerequisite. Source history identifies available repairs; it does
-not establish an earlier test result.
-
-An `IGNORED`
-finding without a published fix needs no additional repair.
-
-Verify diagnoses in target source/config and command receipts before selecting
-a repair or owner.
+An `IGNORED` finding without a published fix needs no additional repair.
 
 Keep this investigation read-only: do not edit source/dependencies/ignores, apply
 or test a candidate repair, rerun scripts, clean up, push or create a PR.
 
-After completing the evidence/history intake, (re)read
-[the reporting procedure](references/reporting.md) as the final tool read before
-composing the reply, even if you loaded it earlier. Use it for fixes and report-only
-requests, including successful, blocked, interrupted and incomplete outcomes.
+Report the observed exit and native scan scope. When no native scope was
+reported, state that native coverage is unverified. Positive native proof applies
+only to its named artifacts/phases and does not alone establish stdlib remediation.
+Quote the complete actual Summary through the log's end unchanged, including any
+branch removal and publication recipe. Without a Summary, quote the terminal
+clean/error message and emitted scan scope; missing completion stays unconfirmed.
+The quoted recipe is the publication procedure; do not supplement it with
+invented or replacement publication steps.
+
+Keep findings, counts, retained refs, attempts, coverage and gate outcomes
+consistent with their captured evidence. Missing or skipped checks are unverified.
+Nested-reviewer prose is advice, not an independent tool observation. Ground any additional source/history claim in the inspected
+immutable ref; do not invent an original checkout ref or precise citation.
+
+For unresolved work, give the supported repair or investigation, its owner and
+the next verification prerequisite. A passing retry alone creates no new maintainer
+task. Use concise prose or a table when useful.

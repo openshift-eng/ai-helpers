@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -49,26 +50,77 @@ def freeze_run(raw, dataset_root, run_dir, case_ids, project_root):
     provenance.mkdir(parents=True)  # Never replace the inputs of an existing run.
     for name in case_ids:
         shutil.copytree(dataset_root / name, provenance / 'cases' / name)
+    plugin = provenance / 'fix-go-cves'
+    for name in ('.claude-plugin', 'skills', 'scripts', 'subagents'):
+        source = EVAL_ROOT.parent / name
+        # Copies must not silently follow a changed source link.
+        if source.is_symlink() or any(path.is_symlink() for path in source.rglob('*') if not source_cache(path.relative_to(source))):
+            raise ValueError(f'Linked plugin source: {source}')
+        shutil.copytree(source, plugin / name, ignore=shutil.ignore_patterns('__pycache__', '.pytest_cache', '*.pyc'))
+    if (EVAL_ROOT.parent / 'README.md').is_symlink():
+        raise ValueError('Linked plugin README')
+    shutil.copy2(EVAL_ROOT.parent / 'README.md', plugin / 'README.md')
+    helper = plugin / 'evals/scripts/eval.py'
+    helper.parent.mkdir(parents=True)
+    shutil.copy2(__file__, helper)
+    interpreter = os.environ.get('CVE_EVAL_PYTHON', sys.executable)
+    if not Path(interpreter).is_absolute() or not os.access(interpreter, os.X_OK):
+        raise ValueError('CVE_EVAL_PYTHON must name an absolute executable interpreter')
+    # Keep the venv entrypoint: resolving its symlink would lose its packages.
+    interpreter = str(Path(interpreter).absolute())
+    for hooks in raw.get('hooks', {}).values():
+        for hook in hooks:
+            command = hook['command']
+            match = re.search(r'python3\s+[^\n]+?/evals/scripts/eval[.]py[\"\']?', command)
+            if not match:
+                raise ValueError('Unrecognized eval lifecycle hook')
+            hook['command'] = command[:match.start()] + shlex.join([interpreter, str(helper)]) + command[match.end():]
+    for judge in raw.get('judges', []):
+        if 'check' in judge:
+            judge['check'], replacements = re.subn(
+                r'helper = pathlib[.]Path[.]cwd\(\) / [\"\']plugins/fix-go-cves/evals/scripts/eval[.]py[\"\']',
+                'helper = pathlib.Path(' + repr(str(helper)) + ')', judge['check'])
+            if 'eval.py' in judge['check'] and replacements != 1:
+                raise ValueError('Unrecognized deterministic eval helper')
+            judge['check'] = judge['check'].replace('[sys.executable, str(helper)',
+                                                  '[' + repr(interpreter) + ', str(helper)')
+    if 'runner' in raw:
+        raw['runner']['plugin_dirs'] = [str(plugin)]
     raw['dataset']['path'] = 'cases'
     config = provenance / 'eval.yaml'
     config.write_text(yaml.safe_dump(raw, sort_keys=False))
-    files = {str(path.relative_to(provenance)): digest(path)
-             for path in sorted(provenance.rglob('*')) if path.is_file()}
+    files = {str(path.relative_to(provenance)): file_identity(path)
+             for path in sorted(provenance.rglob('*')) if path.is_file() and not source_cache(path.relative_to(provenance))}
     write_json(provenance / 'manifest.json', {
         'selected_cases': case_ids, 'project_root': str(Path(project_root).resolve()),
         'helper_sha256': digest(Path(__file__)),
+        'interpreter': interpreter_identity(interpreter),
         'files': files})
     return config
 
 
-def snapshot(config_path, run_dir, case_ids, model=None):
+def snapshot(config_path, run_dir, case_ids, model=None, live=False):
     # Use the harness's loader and path rules, including any config overlays.
     from agent_eval.config import EvalConfig, load_raw, resolve_plugin_dir
+    from agent_eval import config as harness_config
 
     config = EvalConfig.from_yaml(config_path)
     raw, _ = load_raw(Path(config_path))
-    raw.setdefault('runner', {})['plugin_dirs'] = [
-        str(resolve_plugin_dir(config, path)) for path in config.runner.plugin_dirs]
+    contract = 'live_contract' if live else 'replay_contract'
+    if contract not in {judge.get('name') for judge in raw.get('judges', [])}:
+        raise ValueError('Selected profile does not match the evaluation track')
+    import yaml
+    for name in case_ids:
+        if not re.fullmatch(r'case-[0-9]{3}', name):
+            raise ValueError('Select case-NNN identifiers')
+        data = yaml.safe_load((config.resolve_path(config.dataset.path) / name / 'input.yaml').read_text())
+        if (data.get('mode') == 'live') != live:
+            raise ValueError(f'{name}: case does not match the evaluation track')
+    plugins = [Path(resolve_plugin_dir(config, path)).resolve()
+               for path in config.runner.plugin_dirs]
+    if plugins != [EVAL_ROOT.parent.resolve()]:
+        raise ValueError('The eval requires exactly the current fix-go-cves plugin')
+    raw.setdefault('runner', {})['plugin_dirs'] = list(map(str, plugins))
     # Freeze explicit nonsecret settings without copying provider credentials.
     environment = raw['runner'].get('env', {})
     for name in ('DOCKER_HOST', 'GRYPE_DB_CACHE_DIR', 'GOMODCACHE', 'GOOGLE_APPLICATION_CREDENTIALS', 'GOMAXPROCS', 'DAPPER_ENV', 'DAPPER_ARGS', 'CVE_FIX_TEST_CMD', 'CVE_FIX_GO_MINOR_GUARD', 'CVE_FIX_K8S_VERSION_GUARD', 'CVE_FIX_GRYPE_VERSION'):
@@ -85,6 +137,13 @@ def snapshot(config_path, run_dir, case_ids, model=None):
     manifest = read_json(frozen.parent / 'manifest.json')
     manifest['source_revision'] = git(config.project_root, 'rev-parse', 'HEAD')
     manifest['source_status'] = git(config.project_root, 'status', '--porcelain')
+    if getattr(harness_config, '__file__', None):
+        harness = Path(git(Path(harness_config.__file__).parent, 'rev-parse', '--show-toplevel'))
+        manifest['harness'] = {
+            'root': str(harness), 'revision': git(harness, 'rev-parse', 'HEAD'),
+            'status': git(harness, 'status', '--porcelain'),
+            'diff_sha256': hashlib.sha256(git(harness, 'diff', '--binary', 'HEAD').encode()).hexdigest(),
+            'code': harness_files(harness)}
     write_json(frozen.parent / 'manifest.json', manifest)
     return frozen
 
@@ -93,6 +152,8 @@ def frozen_inputs(run_dir):
     import yaml
 
     provenance = Path(run_dir).resolve() / 'provenance'
+    if provenance.is_symlink() or (provenance / 'manifest.json').is_symlink():
+        raise ValueError('Linked frozen inputs')
     manifest = read_json(provenance / 'manifest.json')
     cases = manifest['selected_cases']
     if (not isinstance(cases, list) or not cases or len(set(cases)) != len(cases)
@@ -101,18 +162,54 @@ def frozen_inputs(run_dir):
         raise ValueError('Invalid frozen case selection')
     if manifest.get('helper_sha256') != digest(__file__):
         raise ValueError('Scoring helper changed since inputs were frozen')
+    if manifest.get('interpreter') != interpreter_identity(manifest['interpreter']['entrypoint']):
+        raise ValueError('Selected interpreter changed since inputs were frozen')
+    if 'harness' in manifest:
+        harness = manifest['harness']
+        if harness_files(Path(harness['root'])) != harness['code']:
+            raise ValueError('Selected harness changed since inputs were frozen')
     files = manifest['files']
     required = {'eval.yaml', *(f'cases/{case}/{name}' for case in cases
                               for name in ('input.yaml', 'annotations.yaml'))}
     if not isinstance(files, dict) or not required.issubset(files):
         raise ValueError('Incomplete frozen inputs')
-    for name, expected in files.items():
-        path = provenance / name
-        if (path.is_symlink() or not path.resolve().is_relative_to(provenance)
-                or digest(path) != expected):
-            raise ValueError(f'Frozen input changed: {name}')
+    current = {}
+    for path in sorted(provenance.rglob('*')):
+        if path == provenance / 'manifest.json' or source_cache(path.relative_to(provenance)):
+            continue
+        if path.is_symlink():
+            raise ValueError(f'Frozen input changed: {path.relative_to(provenance)}')
+        if path.is_file():
+            current[str(path.relative_to(provenance))] = file_identity(path)
+    if current != files:
+        changed = next(name for name in sorted(current.keys() | files.keys())
+                       if current.get(name) != files.get(name))
+        raise ValueError(f'Frozen input changed: {changed}')
     config = yaml.safe_load((provenance / 'eval.yaml').read_text())
     return provenance, manifest, config
+
+
+def frozen_expectations(case, source=None):
+    """Use the original case, never collected runtime state, as grading authority."""
+    import yaml
+
+    case = Path(case)
+    run_dir = Path(source).parent.parent.parent if source is not None else case.parent.parent
+    provenance, manifest, _ = frozen_inputs(run_dir)
+    if case.name not in manifest['selected_cases']:
+        raise ValueError(f'Unselected case: {case.name}')
+    source = provenance / 'cases' / case.name
+    expected = yaml.safe_load((source / 'input.yaml').read_text())
+    if expected.get('mode') != 'live':
+        annotations = yaml.safe_load((source / 'annotations.yaml').read_text())
+        expected.update({key: annotations[key] for key in ('result_commit', 'fix_branch', 'exit_code')})
+    return expected
+
+
+def expectations_match(collected, expected):
+    # Runtime paths describe where to collect facts, not what those facts must mean.
+    return (isinstance(collected, dict)
+            and {key: value for key, value in collected.items() if key != 'runtime_dir'} == expected)
 
 
 def check_reserved_paths(workspace, ref=None):
@@ -149,9 +246,44 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def harness_files(root):
+    return {str(path.relative_to(root)): file_identity(path)
+            for base in ('agent_eval', 'skills/eval-run/scripts')
+            for path in sorted((root / base).rglob('*.py'))}
+
+
+def interpreter_identity(path):
+    script = ('import importlib.metadata,json,platform; import yaml; '
+              'assert yaml.CSafeLoader; '
+              'print(json.dumps({"version":platform.python_version(),"packages":'
+              'sorted(set((d.metadata["Name"],d.version) for d in importlib.metadata.distributions()))}))')
+    return {'entrypoint': str(path), 'executable': str(Path(path).resolve()),
+            'sha256': digest(path), **json.loads(run(str(path), '-c', script))}
+
+
+def file_identity(path):
+    path = Path(path)
+    if path.is_symlink():
+        return {'kind': 'symlink', 'target': os.readlink(path)}
+    if not path.is_file():
+        raise ValueError(f'Not a regular file: {path}')
+    return {'kind': 'file', 'sha256': digest(path), 'mode': stat.S_IMODE(path.stat().st_mode)}
+
+
+def source_cache(path):
+    return bool({'__pycache__', '.pytest_cache'}.intersection(Path(path).parts)) or Path(path).suffix == '.pyc'
+
+
 def plugin_hashes(plugin):
-    return {str(p.relative_to(plugin)): digest(p) for p in sorted(plugin.rglob('*'))
-            if p.is_file() and not p.is_symlink() and p.relative_to(plugin).parts[0] != 'bin'}
+    result = {}
+    for path in sorted(Path(plugin).rglob('*')):
+        if path.relative_to(plugin).parts[0] == 'bin' or source_cache(path.relative_to(plugin)):
+            continue
+        if path.is_symlink():
+            raise ValueError(f'Linked plugin source: {path}')
+        if path.is_file():
+            result[str(path.relative_to(plugin))] = file_identity(path)
+    return result
 
 
 def unpack_plugin(archive, destination):
@@ -195,6 +327,11 @@ def case_data(source):
 def prepare(workspace, source):
     """Called by before_each, before the agent sees any fixture answers."""
     workspace, source = Path(workspace).resolve(), Path(source).resolve()
+    provenance, manifest, _ = frozen_inputs(source.parent.parent.parent)
+    if (source != provenance / 'cases' / source.name
+            or source.name not in manifest['selected_cases'] or workspace.name != source.name):
+        raise ValueError('Preparation must use the selected frozen case')
+    frozen_plugin = provenance / 'fix-go-cves'
     if (workspace / 'go.mod').exists() or (workspace / '.replay').exists():
         raise ValueError('Refusing to overwrite an existing or already prepared checkout')
     data, expected = case_data(source)
@@ -262,8 +399,8 @@ def prepare(workspace, source):
     plugin.mkdir(parents=True)
     if live:
         for name in ('.claude-plugin', 'skills', 'scripts', 'subagents'):
-            shutil.copytree(EVAL_ROOT.parent / name, plugin / name)
-        shutil.copy2(EVAL_ROOT.parent / 'README.md', plugin / 'README.md')
+            shutil.copytree(frozen_plugin / name, plugin / name)
+        shutil.copy2(frozen_plugin / 'README.md', plugin / 'README.md')
     else:
         unpack_plugin(source / 'plugin.tar.gz', plugin)
     if not live:
@@ -271,7 +408,7 @@ def prepare(workspace, source):
         current_skill = plugin / 'skills/fix-go-cves'
         if current_skill.exists():
             shutil.rmtree(current_skill)
-        shutil.copytree(EVAL_ROOT.parent / 'skills/fix-go-cves', current_skill)
+        shutil.copytree(frozen_plugin / 'skills/fix-go-cves', current_skill)
     shutil.copy2(__file__, private / 'driver.py')
     fix_all = plugin / 'scripts/fix-all.sh'
     original = fix_all.read_text()
@@ -466,12 +603,16 @@ def native_scan_proof(case, state, phase, head, retained=False):
     scan = read_json(directory / 'status.json')
     catalog = read_json(directory / 'catalog.cdx.json')
     native = [record for record in events(directory / 'binaries.jsonl') if re.fullmatch(
-        r'cmd/bin/subctl-.+-linux-amd64', record.get('path', '').removeprefix('./'))]
+        r'cmd/bin/subctl-.+-linux-amd64', os.path.normpath(record.get('path', '')))]
+    paths = [os.path.normpath(record['path']) for record in native]
+    checks['native binary paths unique'] = len(paths) == len(set(paths))
+    if not checks['native binary paths unique']:
+        return proof
     checks['native build from scan tree completed'] = (bool(head) and scan.get('head') == head
         and scan.get('phase') == phase
         and scan_usable(scan) and scan.get('build_status') == 'completed' and bool(native))
     for binary in native:
-        path = binary['path'].removeprefix('./')
+        path = os.path.normpath(binary['path'])
         info = binary.get('build_info', '')
         revisions = re.findall(r'(?m)^[ \t]*build[ \t]+vcs\.revision=([^\s]+)[ \t]*$', info)
         modified = re.findall(r'(?m)^[ \t]*build[ \t]+vcs\.modified=([^\s]+)[ \t]*$', info)
@@ -490,7 +631,7 @@ def native_scan_proof(case, state, phase, head, retained=False):
         checks[f'native binary {path} positively cataloged' + (' and retained' if retained else '')] = (
             binary.get('recorded_build_artifact') is True and revisions == [head] and modified == ['false']
             and covered and catalog_hash
-            and (not retained or state['ignored_snapshot'].get(path) == binary.get('sha256')))
+            and (not retained or state['ignored_snapshot'].get(path, {}).get('sha256') == binary.get('sha256')))
         # Full build_info includes every dependency; only these existing lines are useful here.
         lines = info.splitlines()
         proof['binaries'].append({
@@ -612,6 +753,12 @@ def runtime_scenario(case, state):
             return conditions
         initial = grype_document(root / 'initial-scan.json')
         initial_status = read_json(root / 'initial-scan-status.json')
+        conditions['required initial scan completed at pinned base'] = (
+            phases.get('initial_scan') == 'completed'
+            and initial_status.get('phase') == 'initial'
+            and initial_status.get('head') == expected.get('base_commit')
+            and type(initial_status.get('exit_code')) is int
+            and initial_status['exit_code'] == 0)
         phase = 'final-gate'
         if result.get('phases', {}).get('final_gate') == 'completed':
             final = grype_document(root / 'final-gate.json')
@@ -637,7 +784,7 @@ def runtime_scenario(case, state):
             conditions['initial scan coverage confirmed'] = scan_usable(initial_status)
             repairable = {(m['vulnerability']['id'], m['artifact']['name'])
                           for m in initial['matches'] if m['artifact']['type'] == 'go-module'
-                          and m['vulnerability'].get('fix', {}).get('versions')}
+                          and usable_fix(m)}
             remaining = {(m['vulnerability']['id'], m['artifact']['name'])
                          for m in final['matches'] + final.get('ignoredMatches', [])
                          + final.get('generatedBinaryDuplicates', [])
@@ -658,6 +805,26 @@ def runtime_scenario(case, state):
     return conditions
 
 
+def usable_fix(match):
+    """A published usable threshold is coverage, not upgrade-policy approval."""
+    versions = match['vulnerability'].get('fix', {}).get('versions', [])
+    if not isinstance(versions, list):
+        return False
+    stdlib = match['artifact']['name'] == 'stdlib'
+    for version in versions:
+        if not isinstance(version, str):
+            continue
+        if stdlib:
+            if re.fullmatch(r'v?(?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)', version):
+                return True
+        elif re.fullmatch(
+                r'v?(?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)'
+                r'(?:-(?:0[.]|[0-9A-Za-z-]+(?:[.][0-9A-Za-z-]+)*[.]0[.])?'
+                r'[0-9]{14}-[0-9a-f]{12})?(?:[+]incompatible)?', version):
+            return True
+    return False
+
+
 def requested_arguments(arguments, meta, workspace):
     arguments = list(arguments)
     for index, value in enumerate(arguments):
@@ -675,10 +842,8 @@ def ignored_snapshot(workspace):
         if not name or PurePosixPath(name).parts[0] in INFRA:
             continue
         path = workspace / name
-        if path.is_symlink():
-            snapshot[name] = 'symlink:' + os.readlink(path)
-        elif path.is_file():
-            snapshot[name] = digest(path)
+        if path.is_symlink() or path.is_file():
+            snapshot[name] = file_identity(path)
         else:
             raise ValueError(f'Cannot fingerprint ignored output: {name}')
     return snapshot
@@ -687,6 +852,9 @@ def ignored_snapshot(workspace):
 def capture(workspace):
     workspace = Path(workspace).resolve()
     baseline = read_json(workspace.parent.parent / 'control' / workspace.name / 'baseline.json')
+    expected = frozen_expectations(workspace, baseline['source'])
+    if not expectations_match(baseline['meta'], expected):
+        raise ValueError('Prepared expectations differ from frozen case')
     private = workspace / '.replay'
     witnesses = Path(baseline['runtime_dir']) if baseline['meta'].get('mode') == 'live' else private
     calls = witnesses / 'invocations.jsonl'
@@ -851,7 +1019,20 @@ def independent_runtime_commands(tokens):
     return False
 
 
-def trace_violations(stream, workspace):
+def benign_inventory(command):
+    # Raw forms preserve shell quoting/redirection semantics that shlex discards.
+    return isinstance(command, str) and command.strip(' \t') in (
+        'git stash list', 'git stash list 2>&1',
+        'git status --short && echo "---" && git stash list 2>&1')
+
+
+def benign_inventory_denial(denial):
+    return (isinstance(denial, dict) and denial.get('tool_name') == 'Bash'
+            and isinstance(denial.get('tool_input'), dict)
+            and benign_inventory(denial['tool_input'].get('command')))
+
+
+def trace_violations(stream, workspace, protected_roots=None):
     # Only case-owned runtime files are readable outside the checkout. The
     # trusted baseline and neighboring cases remain outside this allowance.
     runtime = workspace.parent.parent / 'control' / workspace.name / 'runtime'
@@ -884,7 +1065,7 @@ def trace_violations(stream, workspace):
                 if index >= len(tokens):
                     continue
                 subcommand = tokens[index]
-                if subcommand in ('push', 'stash', 'clean'):
+                if subcommand in ('push', 'clean') or (subcommand == 'stash' and not benign_inventory(command)):
                     forbidden = True
                 arguments = []
                 for argument in tokens[index + 1:]:
@@ -908,9 +1089,9 @@ def trace_violations(stream, workspace):
                     violations.append('Read outside the case workspace')
             # Detect ordinary direct reads of the answer-bearing checkout and
             # trusted eval controls, even when another argument is permitted.
-            for prefix, reason in (
-                    (str(EVAL_ROOT.parents[2]), 'Command accesses the source checkout'),
-                    (str(runtime.parent.parent), 'Command accesses protected eval control files')):
+            roots = protected_roots or (EVAL_ROOT.parents[2], runtime.parent.parent)
+            for prefix in map(str, roots):
+                reason = 'Command accesses protected source or eval control files'
                 for path in re.findall(re.escape(prefix) + r'''[^\s'";|<>]*''', command):
                     if not any(Path(path).resolve().is_relative_to(root) for root in allowed):
                         violations.append(reason)
@@ -918,7 +1099,7 @@ def trace_violations(stream, workspace):
 
 
 def extract(run_dir):
-    _, manifest, _ = frozen_inputs(run_dir)
+    provenance, manifest, _ = frozen_inputs(run_dir)
     cases = sorted(path for path in (Path(run_dir) / 'cases').iterdir() if path.is_dir())
     if {path.name for path in cases} != set(manifest['selected_cases']):
         raise ValueError('Case outputs do not match the selected cases')
@@ -929,9 +1110,13 @@ def extract(run_dir):
         result = read_json(case / 'run_result.json')
         if result.get('error') or result.get('exit_code') != 0:
             raise ValueError(f'{case.name}: agent did not complete successfully')
-        state['trace_violations'] = trace_violations(stream, Path(state['workspace']))
+        expected = frozen_expectations(case)
+        if not expectations_match(state.get('expected'), expected):
+            raise ValueError(f'{case.name}: collected expectations differ from frozen case')
+        state['trace_violations'] = trace_violations(stream, Path(state['workspace']),
+            (manifest['project_root'], provenance, Path(state['workspace']).parent.parent / 'control'))
         state['permission_denials'] = result.get('permission_denials', [])
-        if state['expected'].get('mode') == 'live':
+        if expected.get('mode') == 'live':
             state['runtime_exit_observed'] = terminal_exit_observed(stream, state['runtime_exit'])
         write_json(output / 'state.json', state)
         (output / 'reply.md').write_text(final_reply(stream) + '\n')
@@ -1015,7 +1200,9 @@ def check(case_dir, live=False):
     case = Path(case_dir)
     state = read_json(case / 'output/state.json')
     reply = (case / 'output/reply.md').read_text()
-    expected = state['expected']
+    expected = frozen_expectations(case)
+    expectations_unchanged = expectations_match(state.get('expected'), expected)
+    state = {**state, 'expected': expected}
     provenance, manifest, _ = frozen_inputs(case.parent.parent)
     if case.name not in manifest['selected_cases']:
         raise ValueError(f'Unselected case: {case.name}')
@@ -1038,13 +1225,14 @@ def check(case_dir, live=False):
         pass  # Missing or invalid completion witnesses cannot authorize a reply.
     exit_code = state.get('runtime_exit') if live else expected.get('exit_code')
     conditions = {
+        'frozen expectations unchanged': expectations_unchanged,
         'clean checkout': not state['dirty'] and not state['unexpected_ignored'],
         'one requested invocation': len(state['invocations']) == 1 and
             requested_arguments(state['invocations'][0]['arguments'], expected,
                                 Path(state.get('workspace', '/unused-workspace'))),
         'remotes and plugin unchanged': state['refs_unchanged'] and state['plugin_unchanged'],
         'no forbidden operations': not state['gh_calls'] and not state['trace_violations']
-                                   and not state['permission_denials'],
+                                   and all(benign_inventory_denial(denial) for denial in state['permission_denials']),
         'no invented publication command': publication_relay_allowed(
             reply, log, exit_code),
         'literal runtime Summary': summary_relay_allowed(blocks, log, exit_code),
@@ -1140,7 +1328,7 @@ def main():
     if extra:
         parser.error(f'Unexpected arguments: {extra}')
     if args.command == 'snapshot':
-        print(snapshot(args.config, args.run_dir, args.cases or [], args.model))
+        print(snapshot(args.config, args.run_dir, args.cases or [], args.model, args.live))
     elif args.command == 'prepare':
         prepare(os.environ['CASE_WORKSPACE'], os.environ['CASE_SOURCE_DIR'])
     elif args.command == 'capture':
@@ -1155,8 +1343,13 @@ def main():
         if not args.prepare_only and case_data(args.case_source)[0].get('mode') == 'live':
             raise ValueError('A model-free dry-run may replay recordings only; use --prepare-only for live cases')
         workspace = args.workspace.resolve()
-        case = workspace / 'cases' / args.case_source.name
-        prepare(case, args.case_source)
+        source = args.case_source.resolve()
+        if source.parent.parent.name != 'provenance':
+            freeze_run({'dataset': {'path': str(source.parent)}}, source.parent,
+                       workspace, [source.name], EVAL_ROOT.parents[2])
+            source = workspace / 'provenance/cases' / source.name
+        case = workspace / 'cases' / source.name
+        prepare(case, source)
         if not args.prepare_only:
             hook_env = read_json(case / '.hook-outputs.json')['env']
             (case / '.hook-outputs.json').unlink()

@@ -73,20 +73,10 @@ _committed_yaml=$(git show HEAD:.grype.yaml 2>/dev/null || true)
 _all_already_present=true
 _semantic_entry_present() {
   local content="$1" cve="$2"
-  awk -v want_cve="$cve" -v want_pkg="$PACKAGE" -v want_state="$FIX_STATE" -v want_loc="$LOCATION" '
-    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-    function normloc(s) { s=trim(s); sub(/^\/src\//, "/", s); if (s != "" && s !~ /^\//) s="/" s; return s }
-    function flush() {
-      if (vuln==want_cve && pkg==want_pkg && state==want_state && normloc(loc)==want_loc) found=1
-      vuln=pkg=state=loc=""
-    }
-    /^[[:space:]]*-[[:space:]]/ { if (active) flush(); active=1 }
-    active && /vulnerability:/ { x=$0; sub(/.*vulnerability:[[:space:]]*/, "", x); vuln=trim(x) }
-    active && /fix-state:/ { x=$0; sub(/.*fix-state:[[:space:]]*/, "", x); state=trim(x) }
-    active && /^[[:space:]]*name:/ { x=$0; sub(/.*name:[[:space:]]*/, "", x); pkg=trim(x) }
-    active && /^[[:space:]]*location:/ { x=$0; sub(/.*location:[[:space:]]*/, "", x); loc=trim(x) }
-    END { if (active) flush(); exit !found }
-  ' <<< "$content"
+  printf '%s\n' "$content" | grype_policy_entries /dev/stdin | jq -e \
+    --arg v "$cve" --arg p "$PACKAGE" --arg s "$FIX_STATE" --arg l "$LOCATION" '
+      any(.[]; .vulnerability == $v and .package == $p and .fix_state == $s and .location == $l and (.type | IN("", "go-module")))' >/dev/null
+
 }
 for _cve in "${CVE_IDS[@]}"; do
   # Identity includes fix-state and normalized module location. A CVE/package

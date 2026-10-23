@@ -41,16 +41,57 @@ load_state() {
   [[ -n "${REPO:-}" ]] || die "Corrupt state file: missing REPO — re-run detect.sh to regenerate"
   [[ -n "${BRANCH:-}" ]] || die "Corrupt state file: missing BRANCH — re-run detect.sh to regenerate"
   cd "$REPO" || return 1
+  REPO=$(pwd -P)
   [[ -f go.mod ]] || die "REPO '$REPO' has no go.mod — state file may be corrupt"
+  if ! validate_go_metadata; then
+    echo "NEEDS_REVIEW: Go metadata is outside the owned transaction" >&2
+    return 2
+  fi
 }
 
-github_remote_owner() {
-  local url="${1:-}"
-  # Match GitHub, including its ssh.github.com endpoint for port 443.
-  # A non-match emits nothing, never the URL or its embedded credentials.
-  local re='^((https?|ssh)://([^/@]+@)?(ssh[.])?github[.]com(:[0-9]+)?/|([^/@]+@)?(ssh[.])?github[.]com:)([A-Za-z0-9][A-Za-z0-9-]*)/.+'
-  [[ "${url,,}" =~ $re ]] || return 0
-  printf '%s\n' "${BASH_REMATCH[8]}"
+github_repository() {
+  local url="${1,,}" repository
+  # Accept only credential-free GitHub transports and complete repository paths.
+  local re='^(https://github[.]com/|git@github[.]com:|ssh://git@(ssh[.])?github[.]com(:[0-9]+)?/)([a-z0-9][a-z0-9-]*)/([a-z0-9_.-]+)/?$'
+  [[ "$url" =~ $re ]] || return 1
+  repository="${BASH_REMATCH[4]}/${BASH_REMATCH[5]%.git}"
+  [[ "${repository#*/}" != "" && "${repository#*/}" != . && "${repository#*/}" != .. ]] || return 1
+  printf '%s\n' "$repository"
+}
+
+# An optional recipe needs an explicit Git push route. Identity equality can be
+# established offline; a different repository needs confirmed fork-network data.
+# Missing authentication or ambiguous routing only withholds this convenience.
+publication_target() {
+  PR_REPOSITORY="" PR_PUSH_REMOTE="" PR_HEAD=""
+  local branch="$1" route base head base_metadata head_metadata
+  local -a urls=()
+  mapfile -t urls < <(git remote get-url --all origin 2>/dev/null)
+  [[ ${#urls[@]} -eq 1 ]] || return 1
+  base=$(github_repository "${urls[0]}") || return 1
+  if ! route=$(git config --get "branch.$branch.pushRemote" 2>/dev/null); then
+    route=$(git config --get remote.pushDefault 2>/dev/null) || return 1
+  fi
+  [[ -n "$route" ]] || return 1
+  mapfile -t urls < <(git remote get-url --push --all "$route" 2>/dev/null)
+  [[ ${#urls[@]} -eq 1 ]] || return 1
+  head=$(github_repository "${urls[0]}") || return 1
+  [[ "$(git config --bool --get "remote.$route.mirror" 2>/dev/null)" != true ]] || return 1
+  if [[ "$head" == "$base" ]]; then
+    PR_HEAD="$branch"
+  else
+    command -v gh >/dev/null 2>&1 || return 1
+    base_metadata=$(GH_PROMPT_DISABLED=1 timeout --kill-after=1 5 gh api --hostname github.com "repos/$base" 2>/dev/null) || return 1
+    head_metadata=$(GH_PROMPT_DISABLED=1 timeout --kill-after=1 5 gh api --hostname github.com "repos/$head" 2>/dev/null) || return 1
+    jq -en --arg base "$base" --arg head "$head" --argjson b "$base_metadata" --argjson h "$head_metadata" '
+      ($b.full_name | ascii_downcase) == $base and ($h.full_name | ascii_downcase) == $head
+      and $h.owner.type == "User"
+      and (($b.source.id // $b.id) | type == "number" and . > 0)
+      and (($b.source.id // $b.id) == ($h.source.id // $h.id))
+    ' >/dev/null 2>&1 || return 1
+    PR_HEAD="${head%%/*}:$branch"
+  fi
+  PR_REPOSITORY="$base" PR_PUSH_REMOTE="$route"
 }
 
 # Fetch BRANCH from origin into its remote-tracking ref, using exactly the URL
@@ -73,6 +114,88 @@ fetch_origin_branch() {
 }
 
 
+# Go rewrites metadata in place. Multiple hard links would mutate another path
+# even when the selected pathname is tracked and contained in this checkout.
+regular_metadata_file() {
+  local file="$1"
+  [[ "$file" == /* ]] || file="./$file"
+  [[ -f "$file" && ! -L "$file" && -n "$(find "$file" -prune -type f -links 1 -print)" ]]
+}
+
+# Internal Go commands operate on physical metadata, never an inherited
+# -modfile or overlay. Keep caller flags for native builds/tests unchanged.
+# Existing Go deadlines still bound both reads and mutation commands.
+module_go() {
+  local moddir="${1:?module_go MODDIR COMMAND...}" command="${2:?}" gomod limit
+  shift 2
+  gomod="$(cd "$moddir" && pwd -P)/go.mod" || return 1
+  if ! regular_metadata_file "$gomod" ||
+      { [[ -e "${gomod%.mod}.sum" || -L "${gomod%.mod}.sum" ]] && ! regular_metadata_file "${gomod%.mod}.sum"; }; then
+    echo "ERROR: Go module metadata must be regular files with one link: $moddir" >&2
+    return 1
+  fi
+  local -a operation=("$command")
+  limit="${GO_LIST_TIMEOUT:-120}"
+  if [[ "$command" == mod ]]; then
+    operation+=("${1:?missing go mod operation}"); shift
+    [[ "${operation[1]}" == edit || "${operation[1]}" == graph ]] || limit="${GO_GET_TIMEOUT:-120}"
+  elif [[ "$command" == get ]]; then
+    limit="${GO_GET_TIMEOUT:-120}"
+  fi
+  GOWORK=off timeout "$limit" go -C "$moddir" "${operation[@]}" \
+    -modfile="$gomod" -overlay= "$@"
+}
+
+# All mutable module/workspace members must already belong to this checkout.
+# Validate before snapshots or Go graph queries can write dependency metadata.
+validate_go_metadata() (
+  local root gomod path parent workspace member selected json
+  root=$(git rev-parse --show-toplevel) || return 1
+  cd "$root" || return 1
+  root=$(pwd -P)
+  while IFS= read -r gomod; do
+    regular_metadata_file "$gomod" || {
+      echo "ERROR: module is not a regular tracked file with one link: $gomod" >&2; return 1;
+    }
+    path="$gomod"
+    while [[ "$path" != . ]]; do
+      [[ ! -L "$path" ]] || {
+        echo "ERROR: linked module path is not owned: $gomod" >&2; return 1;
+      }
+      path=$(dirname "$path")
+    done
+    parent=$(dirname "$gomod")
+    [[ "$(git -C "$parent" rev-parse --show-toplevel)" == "$root" ]] || {
+      echo "ERROR: module belongs to another checkout: $gomod" >&2; return 1;
+    }
+    path="${gomod%.mod}.sum"
+    { [[ ! -e "$path" && ! -L "$path" ]] || regular_metadata_file "$path"; } || {
+      echo "ERROR: module sums are not regular owned metadata with one link: $path" >&2; return 1;
+    }
+  done < <(find_gomods)
+  git ls-files --error-unmatch go.mod >/dev/null 2>&1 || return 1
+  if git ls-files --error-unmatch go.work >/dev/null 2>&1; then
+    { regular_metadata_file go.work &&
+      { [[ ! -e go.work.sum && ! -L go.work.sum ]] || regular_metadata_file go.work.sum; }; } || {
+      echo "ERROR: workspace metadata must be regular owned files with one link" >&2; return 1;
+    }
+    workspace="$root/go.work"
+    json=$(GOTOOLCHAIN=local timeout "${GO_LIST_TIMEOUT:-120}" go work edit -json "$workspace") || return 1
+    jq -e 'type == "object" and ((.Use // []) | type == "array") and all(.Use[]?; .DiskPath | type == "string")' \
+      >/dev/null <<< "$json" || return 1
+    while IFS= read -r member; do
+      selected=$(cd "$member" && pwd -P) || return 1
+      [[ "$selected" == "$root" || "$selected" == "$root/"* ]] || {
+        echo "ERROR: workspace member is outside the checkout: $member" >&2; return 1;
+      }
+      [[ "$selected" == "$root" ]] && selected=go.mod || selected="${selected#"$root/"}/go.mod"
+      find_gomods | grep -qxF "$selected" || {
+        echo "ERROR: workspace member is not a tracked transaction module: $member" >&2; return 1;
+      }
+    done < <(jq -r '.Use[]?.DiskPath' <<< "$json")
+  fi
+)
+
 # A successful scan can still inspect nothing: Syft skips virtual filesystems
 # such as /dev/shm. Its JSON contains matches, not the package inventory. Request
 # informational diagnostics and reject an empty catalog when tracked modules
@@ -84,7 +207,7 @@ grype_catalog_usable() {
   fi
   while IFS= read -r modfile; do
     [[ -n "$modfile" ]] || continue
-    if ! mod_json=$(GOTOOLCHAIN=local go -C "$(dirname "$modfile")" mod edit -json 2>/dev/null) ||
+    if ! mod_json=$(GOTOOLCHAIN=local module_go "$(dirname "$modfile")" mod edit -json 2>/dev/null) ||
         ! jq -e '(.Require // []) | length == 0' <<< "$mod_json" >/dev/null; then
       echo "ERROR: Grype cataloged zero packages despite declared Go dependencies in $modfile; scan coverage is unconfirmed. Move the checkout out of scanner-excluded filesystems or check cataloger exclusions." >&2
       return 1
@@ -527,11 +650,11 @@ squeeze_blank_lines() {
 # version (the false-FIXED bug). Guarded so 'set -e'/ERR traps don't trip.
 get_installed_version() {
   local moddir="$1" pkg="$2" raw="" norm=""
-  raw=$(go -C "$moddir" list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' "$pkg" 2>/dev/null) || raw=""
+  raw=$(module_go "$moddir" list -mod=readonly -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' "$pkg" 2>/dev/null) || raw=""
   # A local-path replacement has no Replace.Version; retain the required module
   # version so callers can still detect the unverifiable local replacement.
   if [[ -z "$raw" ]]; then
-    raw=$(go -C "$moddir" list -m -f '{{.Version}}' "$pkg" 2>/dev/null) || raw=""
+    raw=$(module_go "$moddir" list -mod=readonly -m -f '{{.Version}}' "$pkg" 2>/dev/null) || raw=""
   fi
   if [[ -z "$raw" ]]; then
     local gomod="$moddir/go.mod"
@@ -639,8 +762,7 @@ resolve_module_dependency() {
   err_file=$(mktemp "${TMPDIR:-/tmp}/cve-fix-graph.XXXXXX") || return 2
   # Graph inspection must not add checksum entries. Mutation commands in
   # fix-package use -mod=mod separately after this read-only decision point.
-  if ! graph=$(GOWORK=off GOFLAGS="${GOFLAGS:+$GOFLAGS }-mod=readonly" \
-      timeout "${GO_LIST_TIMEOUT:-120}" go -C "$moddir" list -m -json all 2>"$err_file"); then
+  if ! graph=$(module_go "$moddir" list -mod=readonly -m -json all 2>"$err_file"); then
     RESOLVE_ERROR=$(cat "$err_file" 2>/dev/null || true)
     rm -f "$err_file"
     return 2
@@ -1049,129 +1171,58 @@ review_scan_file() {
   printf '%s\n' "$scan_file"
 }
 
-grype_fix_states() {
-  # Read actual scalar fields, not reason comments. YAML only starts an inline
-  # comment after whitespace; unknown#literal must remain an invalid state.
-  awk '/^[[:space:]]*fix-state:/ {
-    sub(/^[[:space:]]*fix-state:[[:space:]]*/, "")
-    sub(/[[:space:]]+#.*$/, "")
-    if ($0 ~ /^#/) $0=""
-    sub(/^[[:space:]]+/, ""); sub(/[[:space:]]+$/, "")
-    # Keep quoted enum scalars supported by the other ignore auditors.
-    quote=substr($0, 1, 1)
-    if ((quote == "\"" || quote == "\047") && substr($0, length($0), 1) == quote)
-      $0=substr($0, 2, length($0)-2)
-    print
-  }'
+# One structural reader owns selector identity for preflight, audits and repairs.
+grype_policy_entries() {
+  python3 "$(dirname "${BASH_SOURCE[0]}")/check-grype-ignores.py" --entries "$1"
 }
 
-# Return 0 when FILE contains the exact CVE/package/location ignore entry.
-# Empty LOCATION means an unscoped entry, not "any scope".
+_grype_policy_writable() {
+  if [[ -L "$1" ]] || { [[ -e "$1" ]] && ! regular_metadata_file "$1"; }; then
+    echo "UNSUPPORTED_IGNORE_LAYOUT: mutation requires a regular, unlinked policy file" >&2
+    return 1
+  fi
+  [[ -f "$1" ]] || return 0
+  python3 "$(dirname "${BASH_SOURCE[0]}")/check-grype-ignores.py" --writable "$1" >&2
+}
+
+# Empty LOCATION selects an unscoped entry, not any scope. Non-Go selectors
+# cannot satisfy a Go remediation request for the same advisory/package name.
 grype_ignore_entry_exists() {
-  local file="$1" want_cve="$2" want_pkg="$3" want_loc="${4:-}"
+  local file="$1" cve="$2" package="$3" location
   [[ -f "$file" ]] || return 1
-  want_loc=$(normalize_scan_location "$want_loc")
-  awk -v want_cve="$want_cve" -v want_pkg="$want_pkg" -v want_loc="$want_loc" '
-    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-    function normloc(s) { s=trim(s); sub(/^\/src\//, "/", s); if (s != "" && s !~ /^\//) s="/" s; return s }
-    function flush() {
-      if (vuln==want_cve && pkg==want_pkg && normloc(loc)==want_loc) found=1
-      vuln=pkg=loc=""
-    }
-    /^ignore:[[:space:]]*(#.*)?$/ { in_ignore=1; next }
-    /^[^[:space:]#]/ && !/^-([[:space:]]|$)/ { if (in_ignore && active) flush(); in_ignore=0; active=0 }
-    in_ignore && /^[[:space:]]*-([[:space:]]|$)/ { if (active) flush(); active=1 }
-    in_ignore && /vulnerability:/ { x=$0; sub(/.*vulnerability:[[:space:]]*/, "", x); vuln=trim(x) }
-    in_ignore && /^[[:space:]]*name:/ { x=$0; sub(/.*name:[[:space:]]*/, "", x); pkg=trim(x) }
-    in_ignore && /^[[:space:]]*location:/ { x=$0; sub(/.*location:[[:space:]]*/, "", x); loc=trim(x) }
-    END { if (active) flush(); exit !found }
-  ' "$file"
-}
-
-# Report policy conflicts where a repository-wide ignore shadows one or more
-# module-scoped ignores for the same vulnerability/package.  Different scoped
-# locations are independent and are therefore not conflicts.
-# Output is stable enough for companion evidence and human review.
-grype_ignore_scope_conflicts() {
-  local file="${1:?grype_ignore_scope_conflicts FILE}"
-  [[ -f "$file" ]] || return 0
-  awk '
-    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-    function normloc(s) { s=trim(s); sub(/^\/src\//, "/", s); if (s != "" && s !~ /^\//) s="/" s; return s }
-    function flush() {
-      if (vuln != "" && pkg != "") {
-        key=vuln SUBSEP pkg
-        if (loc == "") broad[key]=1
-        else scoped[key SUBSEP normloc(loc)]=1
-      }
-      vuln=pkg=loc=""
-    }
-    /^ignore:[[:space:]]*(#.*)?$/ { in_ignore=1; next }
-    /^[^[:space:]#]/ && !/^-([[:space:]]|$)/ { if (in_ignore && active) flush(); in_ignore=0; active=0 }
-    in_ignore && /^[[:space:]]*-([[:space:]]|$)/ { if (active) flush(); active=1 }
-    in_ignore && /vulnerability:/ { x=$0; sub(/.*vulnerability:[[:space:]]*/, "", x); vuln=trim(x) }
-    in_ignore && /^[[:space:]]*name:/ { x=$0; sub(/.*name:[[:space:]]*/, "", x); pkg=trim(x) }
-    in_ignore && /^[[:space:]]*location:/ { x=$0; sub(/.*location:[[:space:]]*/, "", x); loc=trim(x) }
-    END {
-      if (active) flush()
-      for (key in broad) {
-        split(key, pair, SUBSEP)
-        for (entry in scoped) {
-          split(entry, fields, SUBSEP)
-          if (fields[1] == pair[1] && fields[2] == pair[2])
-            print "SCOPE_CONFLICT: " pair[1] " (" pair[2] ") has unscoped and scoped ignore at " fields[3]
-        }
-      }
-    }
-  ' "$file" | sort -u
-}
-
-# Return 0 when FILE has any scoped entry for CVE_ID/PACKAGE.
-grype_ignore_scoped_entry_exists() {
-  local file="$1" cve_id="$2" package="$3"
-  [[ -f "$file" ]] || return 1
-  awk -v want_cve="$cve_id" -v want_pkg="$package" '
-    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-    function flush() { if (vuln==want_cve && pkg==want_pkg && loc!="") found=1; vuln=pkg=loc="" }
-    /^[[:space:]]*-([[:space:]]|$)/ { if (active) flush(); active=1 }
-    active && /vulnerability:/ { x=$0; sub(/.*vulnerability:[[:space:]]*/, "", x); vuln=trim(x) }
-    active && /^[[:space:]]*name:/ { x=$0; sub(/.*name:[[:space:]]*/, "", x); pkg=trim(x) }
-    active && /^[[:space:]]*location:/ { x=$0; sub(/.*location:[[:space:]]*/, "", x); loc=trim(x) }
-    END { if (active) flush(); exit !found }
-  ' "$file"
-}
-
-# Narrow an existing auto-expiring unscoped entry to an exact scanner-reported
-# module. The caller must have established that this is the sole matching scan
-# location; dependency-graph presence elsewhere is not a scanner finding and
-# must not block narrowing. Permanent ignores are human policy and never get
-# narrowed automatically.
-# Print "FIX_STATE<TAB>COMMENT" for the first ignore of VULN/PKG at LOCATION
-# ("" means unscoped). COMMENT joins the comment lines above the item.
-grype_ignore_entry_info() {
-  local file="$1" cve_id="$2" package="$3" location
   location=$(normalize_scan_location "${4:-}")
-  awk -v want_cve="$cve_id" -v want_pkg="$package" -v want_loc="$location" '
-    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-    function normloc(s) { s = trim(s); sub(/^\/src\//, "/", s); if (s != "" && s !~ /^\//) s = "/" s; return s }
-    function flush() {
-      if (vuln == want_cve && pkg == want_pkg && normloc(loc) == want_loc) { print state "\t" comment; exit }
-      vuln = pkg = loc = state = comment = ""
-    }
-    /^ignore:[[:space:]]*(#.*)?$/ { in_ignore = 1; next }
-    /^[^[:space:]#]/ && !/^-([[:space:]]|$)/ { if (in_ignore && active) flush(); in_ignore = 0; active = 0 }
-    in_ignore && /^[[:space:]]*-([[:space:]]|$)/ { if (active) flush(); active = 1; comment = pending; pending = "" }
-    in_ignore && /^[[:space:]]*#/ { x = $0; sub(/^[[:space:]]*#[[:space:]]?/, "", x); pending = (pending == "" ? "" : pending " ") trim(x); next }
-    in_ignore && /vulnerability:/ { x = $0; sub(/.*vulnerability:[[:space:]]*/, "", x); vuln = trim(x) }
-    in_ignore && /fix-state:/ { x = $0; sub(/.*fix-state:[[:space:]]*/, "", x); state = trim(x) }
-    in_ignore && /^[[:space:]]*name:/ { x = $0; sub(/.*name:[[:space:]]*/, "", x); pkg = trim(x) }
-    in_ignore && /^[[:space:]]*location:/ { x = $0; sub(/.*location:[[:space:]]*/, "", x); loc = trim(x) }
-    END { if (active) flush() }
-  ' "$file"
+  grype_policy_entries "$file" | jq -e --arg v "$cve" --arg p "$package" --arg l "$location" '
+    any(.[]; .vulnerability == $v and .package == $p and .location == $l and (.type | IN("", "go-module")))' >/dev/null
+}
+
+grype_ignore_scope_conflicts() {
+  [[ -f "$1" ]] || return 0
+  grype_policy_entries "$1" | jq -r '
+    map(select(.type | IN("", "go-module"))) | group_by([.vulnerability,.package])[] |
+    select(any(.[]; .location == "")) | .[] | select(.location != "") |
+    "SCOPE_CONFLICT: \(.vulnerability) (\(.package)) has unscoped and scoped ignore at \(.location)"' | sort -u
+}
+
+grype_ignore_scoped_entry_exists() {
+  local file="$1" cve="$2" package="$3"
+  [[ -f "$file" ]] || return 1
+  grype_policy_entries "$file" | jq -e --arg v "$cve" --arg p "$package" '
+    any(.[]; .vulnerability == $v and .package == $p and .location != "" and (.type | IN("", "go-module")))' >/dev/null
+}
+
+# Print FIX_STATE<TAB>COMMENT for the first exact selector.
+grype_ignore_entry_info() {
+  local file="$1" cve="$2" package="$3" location
+  [[ -f "$file" ]] || return 0
+  location=$(normalize_scan_location "${4:-}")
+  grype_policy_entries "$file" | jq -r --arg v "$cve" --arg p "$package" --arg l "$location" '
+    first(.[] | select(.vulnerability == $v and .package == $p and .location == $l and (.type | IN("", "go-module")))) // empty |
+    .fix_state + "\t" + .comment'
 }
 
 migrate_grype_ignore_scope() {
   local file="$1" cve_id="$2" package="$3" requested_location="$4" requested_state="${5:-}"
+  _grype_policy_writable "$file" || return 2
   local state reason actual_location
   requested_location=$(normalize_scan_location "$requested_location")
   [[ -n "$requested_location" ]] || return 1
@@ -1202,7 +1253,7 @@ migrate_grype_ignore_scope() {
 # names, which fails offline and is never wanted here.
 gomod_toolchain() {
   local moddir="${1:?gomod_toolchain MODDIR}" json
-  json=$(GOTOOLCHAIN=local go -C "$moddir" mod edit -json) || return 1
+  json=$(GOTOOLCHAIN=local module_go "$moddir" mod edit -json) || return 1
   jq -r '.Toolchain // empty' <<< "$json"
 }
 
@@ -1213,7 +1264,7 @@ set_gomod_toolchain() {
     echo "ERROR: invalid toolchain directive '$name'" >&2
     return 1
   }
-  GOTOOLCHAIN=local go -C "$moddir" mod edit -toolchain="$name"
+  GOTOOLCHAIN=local module_go "$moddir" mod edit -toolchain="$name"
 }
 
 # Restore MODDIR's toolchain directive to a value read earlier with
@@ -1286,6 +1337,7 @@ insert_grype_ignore() {
   [[ "$cve_id" =~ ^(CVE|GHSA|GO)-[A-Za-z0-9] ]] || \
     { echo "ERROR: insert_grype_ignore: invalid CVE ID (got: $cve_id). Check argument order." >&2; return 1; }
 
+  _grype_policy_writable "$file" || return 2
   reason="${reason//$'\n'/ }"
   [[ -n "$location" ]] && location=$(normalize_scan_location "$location")
   # Never leave a broad rule shadowing a module-scoped rule. A scoped request
@@ -1372,8 +1424,8 @@ ${padding}    name: $package"
 remove_grype_ignore() {
   local file="$1" cve_id="$2" package="$3" requested_location="${4:-}"
   requested_location=$(normalize_scan_location "$requested_location")
+  _grype_policy_writable "$file" || return 2
   [[ -f "$file" ]] || return 0
-
   # Escape '.' — the only ERE metacharacter that appears in Go module paths and
   # CVE/GHSA/GO ids — so it matches literally (and identically on GNU/BSD grep).
   local cve_re
@@ -1391,7 +1443,7 @@ remove_grype_ignore() {
   # (including the initial no-match case) or when all matching entries have been
   # processed by the inner for-loop without finding a package match.
   local -a vuln_lines=()
-  local vuln_line end_line start_line _found_and_deleted actual_location item_name
+  local vuln_line end_line start_line _found_and_deleted block
   while true; do
     mapfile -t vuln_lines < <(grep -nE "vulnerability:[[:space:]]*${cve_re}[[:space:]]*\$" "$file" 2>/dev/null | cut -d: -f1)
     [[ ${#vuln_lines[@]} -gt 0 ]] || return 0
@@ -1405,16 +1457,12 @@ remove_grype_ignore() {
         NR > start && /^[[:space:]]*(#.*)?$/ { next }
         NR > start { match($0, /^[[:space:]]*/); if (RLENGTH <= dash) exit; last = NR }
         END { print last }' "$file")
-      item_name=$(sed -n "${vuln_line},${end_line}p" "$file" | \
-        sed -n 's/^[[:space:]]*name:[[:space:]]*//p' | head -1 | xargs)
-      # Only delete when THIS block's package matches (whole value). Otherwise skip
-      # to the next entry sharing the CVE — deleting the wrong block would silently
-      # un-ignore a still-valid entry.
-      [[ "$item_name" == "$package" ]] || continue
-      actual_location=$(sed -n "${vuln_line},${end_line}p" "$file" | \
-        sed -n 's/^[[:space:]]*location:[[:space:]]*//p' | head -1 | xargs)
-      actual_location=$(normalize_scan_location "$actual_location")
-      [[ "$actual_location" == "$requested_location" ]] || continue
+      # Decode this supported block through the same reader as every audit.
+      # Quoted values/comments and non-Go selectors must retain their identity.
+      block=$(printf 'ignore:\n'; sed -n "${vuln_line},${end_line}p" "$file")
+      printf '%s\n' "$block" | grype_policy_entries /dev/stdin | jq -e \
+        --arg v "$cve_id" --arg p "$package" --arg l "$requested_location" '
+          any(.[]; .vulnerability == $v and .package == $p and .location == $l and (.type | IN("", "go-module")))' >/dev/null || continue
 
       # Block start: walk backwards over this entry's comment lines.
       start_line=$vuln_line
@@ -1447,6 +1495,7 @@ remove_grype_ignore() {
 # and prints one line per removed entry; callers decide whether to commit.
 remove_invalid_grype_ignores() {
   local file="${1:?remove_invalid_grype_ignores FILE}" range start end
+  _grype_policy_writable "$file" || return 2
   [[ -f "$file" ]] || return 0
   while true; do
     range=$(awk '
@@ -1499,8 +1548,21 @@ banner() {
 # FIX_BRANCH/ORIGINAL_REF from the loaded state; a no-op when no branch was set up.
 remove_fix_branch() {
   [[ -n "${FIX_BRANCH:-}" ]] || return 0
-  git checkout "${ORIGINAL_REF:-}" 2>/dev/null || true
-  git branch -D "$FIX_BRANCH" 2>/dev/null || true
+  local current
+  current=$(git symbolic-ref --quiet HEAD) || current=""
+  if [[ "$current" != "refs/heads/$FIX_BRANCH" ]]; then
+    echo "WARNING: checkout moved from the fix branch; preserving it for recovery." >&2
+    return 0
+  fi
+  if ! git checkout "${ORIGINAL_REF:-}" 2>/dev/null; then
+    echo "WARNING: original checkout could not be restored; preserving the fix branch." >&2
+    return 0
+  fi
+  if git branch -D "$FIX_BRANCH" 2>/dev/null; then
+    FIX_BRANCH=""
+  else
+    echo "WARNING: fix branch could not be removed; preserving its name for recovery." >&2
+  fi
 }
 
 # Fail fast, before any change is committed, when scan.sh recorded that the
@@ -2503,37 +2565,17 @@ artifact_manifest_previous() {
   git -C "$REPO" rev-parse --path-format=absolute --git-path fix-go-cves-artifacts 2>/dev/null
 }
 artifact_manifest_prepare() {
-  local manifest="${STATE_FILE}.generated-artifacts" baseline="${STATE_FILE}.baseline-artifacts"
-  local previous artifact
-  if [[ ! -f "$baseline" ]]; then
-    previous=$(artifact_manifest_previous) || previous=""
-    if [[ -n "$previous" && -f "$previous" ]]; then
-      while IFS= read -r artifact; do
-        [[ "$artifact" == "$REPO"/* && -f "$artifact" ]] || continue
-        git -C "$REPO" ls-files --error-unmatch -- "$artifact" &>/dev/null || rm -f -- "$artifact"
-      done < "$previous"
-    fi
-    find "$REPO" -path "$REPO/.git" -prune -o -type f -perm -u+x -print | sort > "$baseline"
-  fi
-  if [[ -f "$manifest" ]]; then
-    while IFS= read -r artifact; do
-      [[ -z "$artifact" || ! -f "$artifact" ]] || rm -f -- "$artifact"
-    done < "$manifest"
-  fi
+  local script_dir previous
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  previous=$(artifact_manifest_previous) || previous=""
+  python3 "$script_dir/generated-artifacts.py" prepare "$REPO" "$STATE_FILE" "$previous"
 }
 
 artifact_manifest_record() {
-  local manifest="${STATE_FILE}.generated-artifacts" baseline="${STATE_FILE}.baseline-artifacts" current
-  current=$(mktemp "${TMPDIR:-/tmp}/cve-fix-artifacts.XXXXXX")
-  find "$REPO" -path "$REPO/.git" -prune -o -type f -perm -u+x -print | sort > "$current"
-  comm -23 "$current" "$baseline" > "$manifest"
-  rm -f "$current"
-  local previous
-  previous=$(artifact_manifest_previous) && [[ -n "$previous" ]] && cp "$manifest" "$previous" 2>/dev/null || true
-  # Binaries this run built, including in-place rebuilds of earlier outputs,
-  # are proven to come from the current tree and may be mapped to their module.
-  find "$REPO" -path "$REPO/.git" -prune -o -type f -perm -u+x -newer "$baseline" -print |
-    sort > "${STATE_FILE}.built-artifacts"
+  local script_dir previous
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  previous=$(artifact_manifest_previous) || previous=""
+  python3 "$script_dir/generated-artifacts.py" record "$REPO" "$STATE_FILE" "$previous"
 }
 
 # Return the DETAILS: body of a subagent report, stripping the header line.
@@ -2647,17 +2689,9 @@ verify_fix_loop() {
 # locations that have scoped ignores. Anything else stays for team review.
 unscoped_ignore_redundant() {
   local file="$1" vuln="$2" pkg="$3" scan="$4" entries reported
-  entries=$(awk -v want_cve="$vuln" -v want_pkg="$pkg" '
-    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-    function flush() { if (v == want_cve && p == want_pkg) print (l == "" ? "UNSCOPED " st : "SCOPED " l); v = p = l = st = "" }
-    /^ignore:[[:space:]]*(#.*)?$/ { in_ignore = 1; next }
-    /^[^[:space:]#]/ && !/^-([[:space:]]|$)/ { if (in_ignore && active) flush(); in_ignore = 0; active = 0 }
-    in_ignore && /^[[:space:]]*-([[:space:]]|$)/ { if (active) flush(); active = 1 }
-    in_ignore && /vulnerability:/ { x = $0; sub(/.*vulnerability:[[:space:]]*/, "", x); v = trim(x) }
-    in_ignore && /fix-state:/ { x = $0; sub(/.*fix-state:[[:space:]]*/, "", x); st = trim(x) }
-    in_ignore && /^[[:space:]]*name:/ { x = $0; sub(/.*name:[[:space:]]*/, "", x); p = trim(x) }
-    in_ignore && /^[[:space:]]*location:/ { x = $0; sub(/.*location:[[:space:]]*/, "", x); l = trim(x) }
-    END { if (active) flush() }' "$file")
+  entries=$(grype_policy_entries "$file" | jq -r --arg v "$vuln" --arg p "$pkg" '
+    .[] | select(.vulnerability == $v and .package == $p and (.type | IN("", "go-module"))) |
+    if .location == "" then "UNSCOPED " + .fix_state else "SCOPED " + .location end') || return 1
   grep -qE '^UNSCOPED [^ ]' <<< "$entries" || return 1
   reported=$(jq -r --arg v "$vuln" --arg p "$pkg" '
     def normloc: sub("^/src/"; "/") | if startswith("/") then . else "/" + . end;
@@ -2677,6 +2711,7 @@ unscoped_ignore_redundant() {
 # rewritten with the reported state, keeping its comment.
 merge_unscoped_ignore() {
   local file="$1" vuln="$2" pkg="$3" scan="$4" loc state info old_state comment
+  _grype_policy_writable "$file" || return 2
   # Remove the unscoped entry first; insert_grype_ignore would migrate it.
   remove_grype_ignore "$file" "$vuln" "$pkg" ""
   while IFS=$'\t' read -r loc state; do
@@ -2702,7 +2737,8 @@ subagent_fix_yaml_integrity() {
   # permanent ignores. Only unsafe broad selectors have a deterministic repair;
   # other formatting findings remain unresolved and fail closed.
   if [[ -f "$REPO/.grype.yaml" ]]; then
-    remove_invalid_grype_ignores "$REPO/.grype.yaml"
+    _grype_policy_writable "$REPO/.grype.yaml" || return 2
+    remove_invalid_grype_ignores "$REPO/.grype.yaml" || return 2
     if ! git -C "$REPO" diff --quiet -- .grype.yaml 2>/dev/null; then
       git -C "$REPO" add .grype.yaml
       git -C "$REPO" commit -s -m "Remove unsafe broad CVE ignores"

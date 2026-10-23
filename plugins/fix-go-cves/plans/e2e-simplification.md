@@ -14,16 +14,16 @@ E2E stages and independent factual review pass for the declared cohort. The
 | Frozen execution | Frozen plugin/helper, one absolute venv interpreter, typed source identities | Actual actor intake and complete stock stages |
 | Shared lifecycle | Identified patch for bounded pipe drain/reap and nonzero aggregation | Patched runner in complete E2E runs |
 | Grading authority | Frozen annotations, phase/native contradiction rejection, grounded outcome/action criteria | Independent factual review of every new reply |
-| Runtime ownership | Content-owned artifacts, physical Go metadata binding, checkout-aware cleanup | Fresh combined shell suite and real repository runs |
+| Runtime ownership | Content-owned artifacts, physical Go metadata binding, checkout-aware cleanup | Real repository runs |
 | State composition | One final canonical test phase after late repair/audit commits | Live required-repair case with exact tested/retained HEAD |
-| Policy/publication | One semantic reader, conservative writer, explicit confirmed publication route | Final critical review and combined fixture migration |
+| Policy/publication | One semantic reader, conservative writer, explicit confirmed publication route | Real repository runs |
 
-Local controls include 80 eval tests, 302 focused harness tests, actual Go metadata
-transactions on Go 1.24 and 1.26, actual Git/artifact/report preservation and
-capture-failure controls. These are component evidence, not cohort acceptance.
-Read-only policy and publication checks are finishing before the live source freeze.
-Replay pilots use historical runtime and may proceed under their separately
-frozen component identity while unused live runtime changes finish.
+Local controls include 80 eval tests, 362 focused harness tests and a frozen
+3,207/3,207 shell suite, with actual metadata transactions on Go 1.24 and 1.26.
+Policy/publication critical reviews and combined fixture migration are complete.
+These are component evidence, not cohort acceptance. Replay uses historical
+runtime under a separate component identity; freeze all live source/settings
+before the first live actor.
 
 Keep actual-function proofs, checker counterexamples and full engine runs distinct.
 Neither helper-level outside writes nor predicate proofs establish an observed
@@ -172,9 +172,11 @@ The selected design explicitly binds internal module commands to the owned physi
 `go.mod` with native `-modfile` and clears overlays where supported. Bind graph,
 get, tidy, vendor, edit and derived sums together, not only `mod edit`. Keep native
 Go parsing; do not add a flag parser or a second effective-path discovery system.
-Caller build/test flags remain intact. Validate tracked regular single-link module,
-sum and workspace files, canonical parents, workspace members and nested-checkout
-boundaries before writes. Read-only local replacements remain supported.
+Caller build/test flags remain intact. Validate tracked regular single-link module
+and workspace selectors, canonical parents, workspace members and nested-checkout
+boundaries before writes. Existing regular checksum files may be tracked, untracked
+or ignored: the existing transaction captures/restores their pre-state and adds
+only previously absent files. Preserve this behavior and read-only local replacements.
 
 Actual local-proxy get/tidy/vendor/build/rollback controls cover absolute, relative,
 stored and quoted selectors, overlays, aliases, hardlinks, nested modules and owned
@@ -293,14 +295,15 @@ recordings/models/actors for terminology or unchanged judging retries for agreem
 
 ## One acceptance campaign, after local closure
 
-The first replay pilot failed independent whole-reply review under the prospective
-component freeze in `.work/fix-go-cves-e2e-20261023/pilot-protocol.json`. Full skill
-intake was confirmed. Preserve its original protocol, model erratum and raw stock
-stages; the all-pass source campaign stops at this actor. Consolidate the report
-contract around evidence-backed attribution, native uncertainty and remote landing
-before declaring another changed-source measurement. Freeze all live settings
-after relevant controls;
-use an official upstream pin with actual actionable dependency repair.
+Two case-005 pilots failed independent review despite confirmed full skill intake:
+the first omitted native uncertainty and supplied unsupported cause/repair advice;
+the second fixed the handoff but still omitted native uncertainty. Both stopped
+their source campaigns, preserving original stock stages and grades. The third
+pilot uses `.work/fix-go-cves-e2e-20261023/campaign-v3-protocol.json`: move the
+existing native-scope instruction beside the main reporting instruction, with no
+new rubric, and select the controlled runner cleanup fallback. Acceptance remains
+open. Freeze live settings before real engine measurements and use an official
+upstream pin with actual actionable dependency repair.
 The existing Admiral pin remains possible under a changed question; a justified
 new official pin is also possible. The race investigation requires no specific
 patch before measurement. Never inject local repair, remove race checks, downgrade

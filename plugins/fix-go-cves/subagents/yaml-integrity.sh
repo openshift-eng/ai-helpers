@@ -14,7 +14,9 @@ load_state "$STATE_FILE"
 ISSUES=()
 
 # Get diff of .grype.yaml against the branch base
-DIFF=$(git diff "origin/$BRANCH" -- .grype.yaml 2>/dev/null || echo "")
+if ! DIFF=$(git diff "origin/$BRANCH" -- .grype.yaml 2>/dev/null); then
+  ISSUES+=("GIT_POLICY_DIFF_ERROR: cannot compare ignore policy with the branch base")
+fi
 
 # Extract added lines with context (line numbers in new file)
 # Process added blocks: look for entries starting with "- vulnerability:"
@@ -30,73 +32,22 @@ if [[ "$TRAILING_WS" -gt 0 ]]; then
   ISSUES+=("TRAILING_WHITESPACE: $TRAILING_WS blank line(s) with trailing whitespace in added content")
 fi
 
-# Check each vulnerability entry in added lines
-VULN_IDS=$(echo "$ADDED_LINES" | grep 'vulnerability:' | sed 's/.*vulnerability:[[:space:]]*//' || true)
-
-while IFS= read -r vuln_id; do
-  [[ -z "$vuln_id" ]] && continue
-
-  # Check vulnerability ID format
-  if ! [[ "$vuln_id" =~ ^(CVE-|GHSA-|GO-) ]]; then
-    ISSUES+=("BAD_VULN_FORMAT: '$vuln_id' does not match CVE-/GHSA-/GO- pattern")
-  fi
-done <<< "$VULN_IDS"
-
-# Check fix-state values
-FIX_STATES=$(printf '%s\n' "$ADDED_LINES" | grype_fix_states)
-
-while IFS= read -r fix_state; do
-  [[ -z "$fix_state" ]] && continue
-  if [[ "$fix_state" != "not-fixed" && "$fix_state" != "unknown" && "$fix_state" != "wont-fix" ]]; then
-    ISSUES+=("BAD_FIX_STATE: fix-state '$fix_state' is not 'not-fixed', 'unknown', or 'wont-fix'")
-  fi
-done <<< "$FIX_STATES"
-
-# Check that each vulnerability entry has a preceding comment
-# Parse the full new-file content of .grype.yaml to check context
-# The working-tree file is authoritative. Reading HEAD first hides an unsafe
-# uncommitted/staged edit and can let verification report a false PASS.
-FULL_GRYPE=""
-if [[ -e .grype.yaml || -L .grype.yaml ]]; then
-  FULL_GRYPE=$(cat .grype.yaml)
-fi
-
-# Audit the complete current ignore list, not only additions. A pre-existing
-# vulnerability-only entry suppresses that CVE for every package and must never
-# be grandfathered in merely because this branch did not add it.
+# One structural reader handles aliases, merges and field ordering. Semantic
+# added-rule checks preserve inherited and non-Go policy rather than grading layout.
 if [[ -e .grype.yaml || -L .grype.yaml ]]; then
   STRUCTURAL_ISSUES=""
-  if ! STRUCTURAL_ISSUES=$(python3 "$SCRIPT_DIR/check-grype-ignores.py" .grype.yaml 2>&1); then
+  STRUCTURAL_ISSUES=$(python3 "$SCRIPT_DIR/check-grype-ignores.py" --audit .grype.yaml "origin/$BRANCH" 2>&1) || {
     [[ -n "$STRUCTURAL_ISSUES" ]] || STRUCTURAL_ISSUES="YAML_PARSE_ERROR: structural check failed without diagnostics"
-  fi
-  while IFS= read -r structural_issue; do
-    [[ -n "$structural_issue" ]] && ISSUES+=("$structural_issue")
+  }
+  while IFS= read -r issue; do
+    [[ -n "$issue" ]] && ISSUES+=("$issue")
   done <<< "$STRUCTURAL_ISSUES"
-fi
-
-if [[ -n "$FULL_GRYPE" ]]; then
-  # A repository-wide ignore must not shadow a module-scoped ignore for the
-  # same CVE/package. Grype may still report the desired clean scan, but the
-  # policy is misleading and unsafe to ship.
-  while IFS= read -r scope_issue; do
-    [[ -n "$scope_issue" ]] && ISSUES+=("$scope_issue")
-  done < <(grype_ignore_scope_conflicts .grype.yaml)
-fi
-PREV_LINE=""
-while IFS= read -r line; do
-  if echo "$line" | grep -q '^[[:space:]]*- vulnerability:'; then
-    # Check if the previous line is a comment
-    if ! echo "$PREV_LINE" | grep -q '^[[:space:]]*#'; then
-      VULN="${line##*vulnerability:}"
-      VULN="${VULN#"${VULN%%[![:space:]]*}"}"
-      # Only flag if this is a newly added entry
-      if echo "$ADDED_LINES" | grep -qF "vulnerability: $VULN"; then
-        ISSUES+=("MISSING_COMMENT: no comment line before entry for $VULN")
-      fi
-    fi
+  if POLICY=$(grype_policy_entries .grype.yaml 2>/dev/null); then
+    while IFS= read -r issue; do
+      [[ -n "$issue" ]] && ISSUES+=("$issue")
+    done < <(grype_ignore_scope_conflicts .grype.yaml)
   fi
-  PREV_LINE="$line"
-done <<< "$FULL_GRYPE"
+fi
 
 # Output structured results
 echo "NEW_ISSUES=${#ISSUES[@]}"

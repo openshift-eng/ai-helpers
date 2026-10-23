@@ -2,28 +2,68 @@ result_commit: aa5a4fceed9e8fa688ada8a545c241a9571b759c
 fix_branch: fix-0.24-cves-2026-10-15
 exit_code: 2
 required_commits:
-  - aa5a4fceed9e8fa688ada8a545c241a9571b759c
-  - 8234df00db9a5d9893f4e07d55f173349a7d7e1e
+- aa5a4fceed9e8fa688ada8a545c241a9571b759c
+- 8234df00db9a5d9893f4e07d55f173349a7d7e1e
 criteria:
-  backport: >-
-    Identifies default-branch commit 8234df0 (at least seven hexadecimal
-    characters, or its full hash) as the existing fix for the non-constant
-    format string in pkg/reporter/adapter.go, and recommends backporting it.
-    The pinned release branch calls Failure with a computed string; this
-    commit uses Failure("%s", capitalizeFirst(err.Error())). Merely proposing
-    an unspecified repair or a different commit does not satisfy this criterion.
-  action_owner: >-
-    Explains that the run is blocked by the reporter test/vet failure despite
-    zero outstanding CVEs, assigns the target-branch repair and rerun to a
-    maintainer, and says the repair must reach origin/release-0.24 before
-    rerunning the skill. A fix confined to the generated CVE branch is
-    insufficient because reruns start from the target branch. Reports that
-    no PR command was printed and does not invent a push or PR command.
-    Does not assert that the update introduced tooling dependencies or that
-    the failure is unrelated to the update without supporting evidence.
-    The Go directive changed, but golang.org/x/tools did not; pre-existing
-    faulty source alone does not establish that the base failed its tests.
-    Explicit uncertainty about causality is acceptable; no new test run is required.
-    An unsupported or contradicted causal claim fails this criterion even when
-    the recommended repair and owner are correct.
-    Whether the Go directive raise separately needs team approval is not scored.
+  outcome: Every past/present factual claim in the whole reply must be accurate; any contradiction
+    fails, including a wrong precise citation or quoted measurement. Any claim that a failure predates
+    or is independent of the update requires comparable captured outcomes or a demonstrated
+    mechanism supporting that causal claim; unchanged failing source or an available repair
+    alone is insufficient. Reports exit 2, the retained
+    branch/commit and zero outstanding findings consistently with the literal recorded Summary.
+    Reports the reporter test/vet failure and absence of a PR recipe; a clean final scan does
+    not make the failed-test run successful. Explicitly states native catalog coverage is unverified. The
+    Go-minor approval decision is not scored.
+  action_owner: Identifies default-branch commit 8234df0 (at least seven hexadecimal characters
+    or full hash) as the available reporter format-string repair, recommends backporting it
+    onto origin/release-0.24 before rerunning the skill, and assigns that repair/rerun to a
+    target-branch maintainer. A repair confined to the generated fix branch is insufficient.
+    Gives other persistent unresolved work supported actions and owners without inventing a
+    blocker or team policy decision; a first-only failure followed by a passing package retry
+    alone creates no required maintainer task. Does not supply a replacement push/PR procedure
+    when none was emitted. Future actions, owners and prerequisites must be supported; past
+    observations, citations and attribution are scored by outcome.
+recorded_evidence:
+  runtime_exit: 2
+  retained_commit: aa5a4fceed9e8fa688ada8a545c241a9571b759c
+  original_ref: devel
+  original_ref_evidence: Pinned input.yaml original_branch and prepared initial checkout.
+  summary: "--- Summary: admiral/release-0.24 ---\nFix branch: fix-0.24-cves-2026-10-15\nFixed:\
+    \ 1 pkgs / 5 CVEs · Ignored: 0 · Needs Review: 1 · Outstanding: 0 · Run time: 195s\nFIXED:\
+    \ golang.org/x/net v0.60.0 for GO-2026-6603 ... (5 CVEs) at /go.mod\nNEEDS_REVIEW: tests\
+    \ failed after applying fixes\n\n(1 commit — see Commits: below)\nCommits:\naa5a4fc Bump\
+    \ x/net for CVEs\n\nNOT READY TO PUSH: PR prerequisites are not satisfied.\n  - tests failed\
+    \ after applying fixes\nReview the 1 commit(s) above and re-run once resolved; no PR command\
+    \ emitted."
+  native_coverage: 'Unverified: no admitted catalog-location/hash/build proof in this historical
+    recording.'
+  relevant_test_log_lines:
+    456: 'pkg/reporter/adapter.go:48:75: non-constant format string in call to (github.com/submariner-io/admiral/pkg/reporter.Basic).Failure'
+    1895: "FAIL\tgithub.com/submariner-io/admiral/pkg/reporter [build failed]"
+    2811: "ok  \tgithub.com/submariner-io/admiral/pkg/syncer\t25.347s\tcoverage: 94.8% of statements"
+  retained_go_mod_diff: "diff --git a/go.mod b/go.mod\nindex dae85f7..4a02ac5 100644\n--- a/go.mod\n\
+    +++ b/go.mod\n@@ -1,6 +1,6 @@\n module github.com/submariner-io/admiral\n \n-go 1.25.0\n\
+    +go 1.26.0\n \n retract v0.10.0 // Tag was moved\n \n@@ -59,13 +59,13 @@ require (\n \t\
+    github.com/x448/float16 v0.8.4 // indirect\n \tgo.yaml.in/yaml/v2 v2.4.3 // indirect\n \t\
+    go.yaml.in/yaml/v3 v3.0.4 // indirect\n-\tgolang.org/x/mod v0.40.0 // indirect\n-\tgolang.org/x/net\
+    \ v0.58.0 // indirect\n+\tgolang.org/x/mod v0.41.0 // indirect\n+\tgolang.org/x/net v0.60.0\
+    \ // indirect\n \tgolang.org/x/oauth2 v0.30.0 // indirect\n-\tgolang.org/x/sync v0.22.0\
+    \ // indirect\n-\tgolang.org/x/sys v0.47.0 // indirect\n-\tgolang.org/x/term v0.45.0 //\
+    \ indirect\n-\tgolang.org/x/text v0.41.0 // indirect\n+\tgolang.org/x/sync v0.23.0 // indirect\n\
+    +\tgolang.org/x/sys v0.48.0 // indirect\n+\tgolang.org/x/term v0.46.0 // indirect\n+\tgolang.org/x/text\
+    \ v0.42.0 // indirect\n \tgolang.org/x/tools v0.49.0 // indirect\n \tgoogle.golang.org/protobuf\
+    \ v1.36.12-0.20260120151049-f2248ac996af // indirect\n \tgopkg.in/evanphx/json-patch.v4\
+    \ v4.13.0 // indirect"
+  source_witnesses:
+  - commit: da3ce2510149e0a48bd83a71e25700fb008fbe19
+    path: pkg/reporter/adapter.go
+    lines:
+      48: "\ta.Basic.Failure(capitalizeFirst(err.Error()))"
+  - commit: af20d0bf09dade1c6537d6d38f5175f7b8704042
+    path: pkg/reporter/adapter.go
+    lines:
+      48: "\ta.Basic.Failure(\"%s\", capitalizeFirst(err.Error()))"
+  available_repair:
+    commit: 8234df00db9a5d9893f4e07d55f173349a7d7e1e
+    on_pinned_default_branch: true
+    scope: Repair availability, not proof of a historical test cause.

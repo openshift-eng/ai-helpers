@@ -7,10 +7,9 @@ Next work separates measurement prerequisites, runtime safety obligations and
 optional deletions, with one final canonical test phase and reuse of sufficient
 immutable evidence where only interpretation changes. The existing cohort can
 answer a bounded question without pretending to cover every release obligation.
-Implementation and component controls are in progress; the first replay pilot
-failed independent review despite confirmed full skill intake. Its frozen source
-campaign is stopped; a focused report-contract simplification is next. Full
-acceptance remains open.
+Component integration passes; two case-005 pilots failed independent review despite
+confirmed full skill intake. The third frozen pilot tests the existing native-scope
+rule beside the main report instruction. Full cohort acceptance remains open.
 
 | Document | Owns |
 | --- | --- |

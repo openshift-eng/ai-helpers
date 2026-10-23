@@ -22,60 +22,21 @@ if [[ -z "$ORIGINAL" ]]; then
   exit 0
 fi
 
-# Parse entries from pre-existing content
-# Track: vulnerability ID, package name, fix-state, location. Entries for other
-# ecosystems (rpm, apk, ...) govern image scans this source scan never sees, so
-# only Go entries are audited.
-ENTRIES=()
-CURRENT_VULN=""
-CURRENT_PKG=""
-CURRENT_FIX_STATE=""
-CURRENT_LOCATION=""
-CURRENT_TYPE=""
-_save_entry() {
-  [[ -n "$CURRENT_VULN" && -n "$CURRENT_PKG" ]] || return 0
-  [[ -z "$CURRENT_TYPE" || "$CURRENT_TYPE" == go-module ]] || return 0
-  [[ "$CURRENT_PKG" == stdlib || ( "$CURRENT_PKG" == */* && "${CURRENT_PKG%%/*}" == *.* ) ]] || return 0
-  ENTRIES+=("$CURRENT_VULN|$CURRENT_PKG|$CURRENT_FIX_STATE|$CURRENT_LOCATION")
-}
-
-while IFS= read -r line; do
-  # Skip comment lines
-  if [[ "$line" =~ ^[[:space:]]*# ]]; then
-    continue
-  fi
-
-  if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*vulnerability: ]]; then
-    _save_entry
-    CURRENT_VULN=$(echo "$line" | sed 's/.*vulnerability:[[:space:]]*//' | xargs)
-    CURRENT_PKG=""
-    CURRENT_FIX_STATE=""
-    CURRENT_LOCATION=""
-    CURRENT_TYPE=""
-  fi
-
-  if [[ "$line" =~ ^[[:space:]]*type: ]]; then
-    CURRENT_TYPE=$(echo "$line" | sed 's/.*type:[[:space:]]*//' | xargs)
-  fi
-
-  if [[ "$line" =~ ^[[:space:]]*fix-state: ]]; then
-    CURRENT_FIX_STATE=$(grype_fix_states <<< "$line")
-  fi
-
-  if [[ "$line" =~ ^[[:space:]]*name: ]]; then
-    CURRENT_PKG=$(echo "$line" | sed 's/.*name:[[:space:]]*//; s/[[:space:]]#.*//' | xargs)
-  fi
-
-  if [[ "$line" =~ ^[[:space:]]*location: ]]; then
-    CURRENT_LOCATION=$(echo "$line" | sed 's/.*location:[[:space:]]*//' | xargs)
-  fi
-done <<< "$ORIGINAL"
-
-_save_entry
+# Decode selector identity structurally; order, aliases and flow layouts do not
+# change which Go entries are audited. Keep other ecosystems' policy untouched.
+if ! POLICY=$(printf '%s\n' "$ORIGINAL" | grype_policy_entries /dev/stdin); then
+  echo "NEW_ISSUES=0"
+  echo "SKIP: Grype ignore policy could not be decoded"
+  exit 1
+fi
+mapfile -t ENTRIES < <(jq -r '
+  .[] | select(.type == "go-module" or (.type == "" and
+    (.package == "stdlib" or (.package | test("^[^/]*[.][^/]*/"))))) |
+  [.vulnerability,.package,.fix_state,.location] | join("|")' <<< "$POLICY")
 
 SCAN_FILE=""
 if (( ${#ENTRIES[@]} > 0 )); then
-  if ! SCAN_FILE=$(review_scan_file "$REPORT_DIR"); then
+  if ! SCAN_FILE=$(review_scan_file "$REPORT_DIR") || [[ -z "$SCAN_FILE" ]]; then
     echo "NEW_ISSUES=0"
     echo "SCAN_FAILED=1"
     echo "SKIP: Current Grype scan evidence unavailable or invalid"

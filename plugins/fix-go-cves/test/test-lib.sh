@@ -25,6 +25,8 @@ source "$SCRIPT_DIR/lib.sh"
 # A nonempty list of empty experiment names selects upstream defaults, including
 # on distro Go installations whose go.env sets experiments when the value is empty.
 export GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOEXPERIMENT=,
+export CVE_FIX_TEST_GO_ARGS="$(dirname "$TEST_SCRIPT")/go-stub-args.sh"
+export CVE_FIX_TEST_REAL_GO="$(command -v go)"
 
 PASS=0 FAIL=0
 check() {
@@ -429,7 +431,7 @@ check "blank-line squeeze" test "$(wc -l < "$TMPD/go.mod")" -eq 3
 # === load_state ===
 echo "load_state"
 check "load_state missing fails" ! load_state "$TMPD/nonexistent-cve-test.env"
-printf 'REPO="%s"\nBRANCH="devel"\n' "$TMPD" > "$TMPD/s.env"
+printf 'REPO="%s"\nBRANCH="devel"\n' "$GO_FIXTURE" > "$TMPD/s.env"
 touch "$TMPD/go.mod"
 check "loads vars" bash -c "source '$SCRIPT_DIR/lib.sh'; load_state '$TMPD/s.env' && [[ \$BRANCH = devel ]]"
 # Corrupt-state die() paths (R125): load_state must die on empty REPO and on
@@ -975,7 +977,7 @@ check "no-key: existing content preserved" grep -q 'existing comment' "$TMPD/no-
 
 # === ignore.sh validation ===
 echo "ignore.sh validation"
-printf 'REPO="%s"\nBRANCH="devel"\nCVE_SCRIPTS="%s"\n' "$TMPD" "$SCRIPT_DIR" > "$TMPD/ign.env"
+printf 'REPO="%s"\nBRANCH="devel"\nCVE_SCRIPTS="%s"\n' "$GO_FIXTURE" "$SCRIPT_DIR" > "$TMPD/ign.env"
 check "bad severity" ! bash "$SCRIPT_DIR/ignore.sh" "$TMPD/ign.env" pkg "invalid" "reason" --permanent GHSA-xxxx
 check "bad CVE format" ! bash "$SCRIPT_DIR/ignore.sh" "$TMPD/ign.env" pkg "High" "reason" --permanent "not-a-cve"
 check "implicit permanent ignore rejected" \
@@ -1453,8 +1455,9 @@ rm -rf "$_RRUP_TMPD"
 # === fix-package.sh env var warnings (GOPROXY=off, GONOSUMDB wildcard) ===
 # Verify warning is emitted when GONOSUMDB=* is set; fix-package.sh exits non-zero, grep exits 0 on match.
 echo "fix-package.sh env var warnings"
+make_go_state "$TMPD/warning.env" "$GO_FIXTURE"
 check "GONOSUMDB=* warning emitted at runtime" \
-  bash -c "GONOSUMDB='*' '$SCRIPT_DIR/fix-package.sh' '$TMPD/s.env' some/pkg v1.0.0 GHSA-fake 2>&1 | grep -q 'WARNING: GONOSUMDB'"
+  bash -c "GONOSUMDB='*' '$SCRIPT_DIR/fix-package.sh' '$TMPD/warning.env' some/pkg v1.0.0 GHSA-fake 2>&1 | grep -q 'WARNING: GONOSUMDB'"
 
 # === fix-package.sh transient error → exit 5 ===
 # Bug fix: timeout (exit 124) and network errors from _go_get_version must exit
@@ -1545,7 +1548,9 @@ git -C "$RFB_REPO" branch fix-tmp
 check "remove_fix_branch deletes empty branch" bash -c "
   cd '$RFB_REPO'
   source '$SCRIPT_DIR/lib.sh'
-  FIX_BRANCH=fix-tmp ORIGINAL_REF=\$(git rev-parse --abbrev-ref HEAD) remove_fix_branch
+  original_ref=\$(git rev-parse --abbrev-ref HEAD)
+  git checkout -q fix-tmp
+  FIX_BRANCH=fix-tmp ORIGINAL_REF=\$original_ref remove_fix_branch
   ! git show-ref --verify --quiet refs/heads/fix-tmp"
 check "remove_fix_branch no-op without FIX_BRANCH" bash -c "
   cd '$RFB_REPO'
@@ -1559,7 +1564,7 @@ check "remove_fix_branch no-op without FIX_BRANCH" bash -c "
 # Real invocation: scan-regression.sh must exit non-zero and emit SCAN_FAILED=1 when
 # initial-scan.json is absent (missing-file branch, lines 25-30 of scan-regression.sh).
 # A static grep cannot verify this code path is reachable — only a live run can.
-SR2_REPO="$TMPD/sr2-repo"; mkdir -p "$SR2_REPO"
+SR2_REPO="$TMPD/sr2-repo"; make_test_repo "$SR2_REPO" ""
 touch "$SR2_REPO/go.mod"
 SR2_RDIR="$TMPD/sr2-rdir"; mkdir -p "$SR2_RDIR"
 printf 'REPO=%q\nBRANCH=devel\nCVE_SCRIPTS=%q\nHAS_LOCAL_GRYPE=false\nCONTAINER_CMD=\n' \
@@ -1574,11 +1579,11 @@ check "scan-regression missing initial-scan emits SCAN_FAILED" grep -q 'SCAN_FAI
 # the final scan produces no valid JSON (failed-final-scan branch, lines 56-62 of
 # scan-regression.sh). A static grep cannot verify this code path either.
 SR3_DIR="$TMPD/sr3"; mkdir -p "$SR3_DIR"
-SR3_REPO="$SR3_DIR/repo"; mkdir -p "$SR3_REPO"
+SR3_REPO="$SR3_DIR/repo"; make_test_repo "$SR3_REPO" ""
 touch "$SR3_REPO/go.mod"
 SR3_RDIR="$SR3_DIR/report"; mkdir -p "$SR3_RDIR"
 SR3_SCRIPTS="$SR3_DIR/scripts"; mkdir -p "$SR3_SCRIPTS"
-cp "$SCRIPT_DIR/lib.sh" "$SR3_SCRIPTS/"
+cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$SR3_SCRIPTS/"
 printf '#!/usr/bin/env bash\nexit 1\n' > "$SR3_SCRIPTS/scan.sh"
 chmod +x "$SR3_SCRIPTS/scan.sh"
 printf '{"matches":[],"ignoredMatches":[]}\n' > "$SR3_RDIR/initial-scan.json"
@@ -1613,7 +1618,7 @@ git -C "$SRR/repo" commit -q --allow-empty -m fix
 SRR_HEAD=$(git -C "$SRR/repo" rev-parse --short=12 HEAD)
 _srr_scan() { printf '{"matches":[{"vulnerability":{"id":"GO-1","fix":{"versions":["1.26.9"]}},"artifact":{"type":"go-module","name":"stdlib","version":"go1.26.8","locations":[{"path":"/cmd/bin/tool-%s-linux-amd64"}]}}],"ignoredMatches":[]}\n' "$1"; }
 _srr_scan "$SRR_BASE" > "$SRR/report/initial-scan.json"
-cp "$SCRIPT_DIR/lib.sh" "$SRR/scripts/"
+cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$SRR/scripts/"
 printf '#!/usr/bin/env bash\ncat %q\n' "$SRR/final.json" > "$SRR/scripts/scan.sh"
 _srr_scan "$SRR_HEAD" > "$SRR/final.json"
 printf 'stdlib\n' > "$SRR/report/needs-review-pkgs"
@@ -1658,11 +1663,11 @@ done
 # Real invocation: scan-regression.sh detects NEW_CVES when a CVE appears in the
 # final scan but not the initial scan (zero-CVE initial scan, one-CVE final scan).
 SR4_DIR="$TMPD/sr4"; mkdir -p "$SR4_DIR"
-SR4_REPO="$SR4_DIR/repo"; mkdir -p "$SR4_REPO"
+SR4_REPO="$SR4_DIR/repo"; make_test_repo "$SR4_REPO" ""
 touch "$SR4_REPO/go.mod"
 SR4_RDIR="$SR4_DIR/report"; mkdir -p "$SR4_RDIR"
 SR4_SCRIPTS="$SR4_DIR/scripts"; mkdir -p "$SR4_SCRIPTS"
-cp "$SCRIPT_DIR/lib.sh" "$SR4_SCRIPTS/"
+cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$SR4_SCRIPTS/"
 printf '{"matches":[],"ignoredMatches":[]}\n' > "$SR4_RDIR/initial-scan.json"
 cat > "$SR4_SCRIPTS/scan.sh" << 'SCANEOF'
 #!/usr/bin/env bash
@@ -1682,11 +1687,11 @@ check "scan-regression publishes valid final evidence" \
 # Real invocation: scan-regression.sh detects UNRESOLVED when a CVE appears in both
 # the initial and final scans and is not exempted in needs-review-pkgs.
 SR5_DIR="$TMPD/sr5"; mkdir -p "$SR5_DIR"
-SR5_REPO="$SR5_DIR/repo"; mkdir -p "$SR5_REPO"
+SR5_REPO="$SR5_DIR/repo"; make_test_repo "$SR5_REPO" ""
 touch "$SR5_REPO/go.mod"
 SR5_RDIR="$SR5_DIR/report"; mkdir -p "$SR5_RDIR"
 SR5_SCRIPTS="$SR5_DIR/scripts"; mkdir -p "$SR5_SCRIPTS"
-cp "$SCRIPT_DIR/lib.sh" "$SR5_SCRIPTS/"
+cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$SR5_SCRIPTS/"
 printf '{"matches":[{"vulnerability":{"id":"GHSA-sr05-unre-solv","severity":"High","fix":{"versions":["v2.0.0"]}},"artifact":{"name":"example/pkg","version":"v1.0.0","type":"go-module"}}],"ignoredMatches":[]}\n' > "$SR5_RDIR/initial-scan.json"
 cat > "$SR5_SCRIPTS/scan.sh" << 'SCANEOF'
 #!/usr/bin/env bash
@@ -1706,7 +1711,7 @@ check "scan-regression UNRESOLVED=1 reported" grep -q 'UNRESOLVED=1' "$SR5_OUT_F
 # instead of committing an unverifiable fix. Behavioural: fake a build that fails
 # with a transient network error and confirm the sentinel is written; a plain
 # compile error must NOT set it (only .build-failed).
-NB_REPO="$TMPD/nb-repo"; mkdir -p "$NB_REPO"
+NB_REPO="$TMPD/nb-repo"; make_test_repo "$NB_REPO" ""
 touch "$NB_REPO/go.mod"
 NB_STATE="$TMPD/nb-state.env"
 cat > "$NB_STATE" <<EOF
@@ -1754,7 +1759,7 @@ done
 # graceful degradation — and confirm the sentinel is set on a fetch-attempting
 # scan, but not with --no-update (which suppresses the fetch) or a healthy grype.
 SD_BIN="$TMPD/sd-bin"; mkdir -p "$SD_BIN"
-SD_REPO="$TMPD/sd-repo"; mkdir -p "$SD_REPO"
+SD_REPO="$TMPD/sd-repo"; make_test_repo "$SD_REPO" ""
 touch "$SD_REPO/go.mod"
 SD_STATE="$TMPD/sd-state.env"
 cat > "$SD_STATE" <<EOF
@@ -2085,6 +2090,7 @@ aeb_run() {  # $1 = sentinel suffix to plant ("" for none)
     source "$SCRIPT_DIR/lib.sh"
     FIX_BRANCH=fix-tmp
     ORIGINAL_REF=$(git rev-parse --abbrev-ref HEAD)
+    git checkout -q fix-tmp
     abort_if_environment_broken "$AEB_STATE" 2>&1
     printf '__FELL_THROUGH__'
   ) || rc=$?
@@ -2879,7 +2885,9 @@ check "yi: initial scoped" grep -q "location: /tools/go.mod" "$YI_REPO/.grype.ya
 # Corrupt the working tree. The handler must not reset the whole file from Git
 # history or silently recreate a vulnerability ignore.
 printf -- '---\nignore:\n  BROKEN\n' > "$YI_REPO/.grype.yaml"
-( cd "$YI_REPO" && subagent_fix_yaml_integrity "$TMPD/yi.env" /dev/null "$SCRIPT_DIR" >/dev/null 2>&1 )
+YI_REVIEW_RC=0
+( cd "$YI_REPO" && subagent_fix_yaml_integrity "$TMPD/yi.env" /dev/null "$SCRIPT_DIR" >/dev/null 2>&1 ) || YI_REVIEW_RC=$?
+check "yi: unsupported policy requires review" test "$YI_REVIEW_RC" -eq 2
 check "yi: old entry not resurrected" ! grep -q GHSA-yi-0001 "$YI_REPO/.grype.yaml"
 check "yi: no old location resurrected" ! grep -q "location: /tools/go.mod" "$YI_REPO/.grype.yaml"
 check "yi: no old fix-state resurrected" ! grep -q "fix-state: not-fixed" "$YI_REPO/.grype.yaml"
@@ -2907,7 +2915,9 @@ YI_IP_RFILE="$YI_IP_RDIR/yaml-integrity.report"
 touch "$YI_IP_RFILE"
 # Corrupt .grype.yaml and re-apply via yaml-integrity
 printf -- '---\nignore:\n  BROKEN\n' > "$YI_IP_REPO/.grype.yaml"
-( cd "$YI_IP_REPO" && subagent_fix_yaml_integrity "$TMPD/yi-ip.env" "$YI_IP_RFILE" "$SCRIPT_DIR" >/dev/null 2>&1 )
+YI_IP_REVIEW_RC=0
+( cd "$YI_IP_REPO" && subagent_fix_yaml_integrity "$TMPD/yi-ip.env" "$YI_IP_RFILE" "$SCRIPT_DIR" >/dev/null 2>&1 ) || YI_IP_REVIEW_RC=$?
+check "yi_ip: unsupported policy requires review" test "$YI_IP_REVIEW_RC" -eq 2
 check "yi-ip: entry not resurrected" ! grep -q GHSA-ip-0001 "$YI_IP_REPO/.grype.yaml"
 check "yi-ip: no ignored-pkgs credit" ! test -f "$YI_IP_RDIR/ignored-pkgs"
 
@@ -2934,7 +2944,9 @@ YI_UP_RFILE="$YI_UP_RDIR/yaml-integrity.report"
 touch "$YI_UP_RFILE"
 # Corrupt .grype.yaml and re-apply; package in ff_file → fix-state should be dropped
 printf -- '---\nignore:\n  BROKEN\n' > "$YI_UP_REPO/.grype.yaml"
-( cd "$YI_UP_REPO" && subagent_fix_yaml_integrity "$TMPD/yi-up.env" "$YI_UP_RFILE" "$SCRIPT_DIR" >/dev/null 2>&1 )
+YI_UP_REVIEW_RC=0
+( cd "$YI_UP_REPO" && subagent_fix_yaml_integrity "$TMPD/yi-up.env" "$YI_UP_RFILE" "$SCRIPT_DIR" >/dev/null 2>&1 ) || YI_UP_REVIEW_RC=$?
+check "yi_up: unsupported policy requires review" test "$YI_UP_REVIEW_RC" -eq 2
 check "yi-up: failed-fix entry not resurrected" ! grep -q GHSA-up-0001 "$YI_UP_REPO/.grype.yaml"
 check "yi-up: no permanent ignore created" ! grep -q "vulnerability:" "$YI_UP_REPO/.grype.yaml"
 
@@ -2986,7 +2998,9 @@ bash "$SCRIPT_DIR/ignore.sh" "$TMPD/yi-dup.env" example.com/dup-pkg "High" "Firs
 bash "$SCRIPT_DIR/ignore.sh" "$TMPD/yi-dup.env" example.com/dup-pkg "High" "Second ignore for dup-pkg" --no-fix GHSA-dup-bb00 >/dev/null 2>&1
 # Corrupt .grype.yaml to force re-apply path
 printf -- '---\nignore:\n  BROKEN\n' > "$YI_DUP_REPO/.grype.yaml"
-( cd "$YI_DUP_REPO" && subagent_fix_yaml_integrity "$TMPD/yi-dup.env" /dev/null "$SCRIPT_DIR" >/dev/null 2>&1 )
+YI_DUP_REVIEW_RC=0
+( cd "$YI_DUP_REPO" && subagent_fix_yaml_integrity "$TMPD/yi-dup.env" /dev/null "$SCRIPT_DIR" >/dev/null 2>&1 ) || YI_DUP_REVIEW_RC=$?
+check "yi_dup: unsupported policy requires review" test "$YI_DUP_REVIEW_RC" -eq 2
 # Both CVEs are different; insert_grype_ignore's own dedup (CVE+package) allows both.
 # Expect two "name: example.com/dup-pkg" lines — one per CVE entry.
 YI_DUP_COUNT=$(grep -c "name: example.com/dup-pkg" "$YI_DUP_REPO/.grype.yaml" 2>/dev/null || true)
@@ -3015,7 +3029,7 @@ git -C "$YI_EB_REPO" commit -q -m "Ignore example.com/eb-pkg CVEs (no fix availa
 printf -- '---\nignore:\n  BROKEN\n' > "$YI_EB_REPO/.grype.yaml"
 YI_EB_RC=0
 ( cd "$YI_EB_REPO" && subagent_fix_yaml_integrity "$TMPD/yi-eb.env" /dev/null "$SCRIPT_DIR" >/dev/null 2>&1 ) || YI_EB_RC=$?
-check "yaml_integrity empty body: exits 0" test "$YI_EB_RC" -eq 0
+check "yaml_integrity malformed policy requires review" test "$YI_EB_RC" -eq 2
 check "yaml_integrity empty body: entry not resurrected" ! grep -q GHSA-eb-0001 "$YI_EB_REPO/.grype.yaml"
 
 # === subagent_fix_scan_regression groups CVEs by package ===
@@ -3049,7 +3063,7 @@ printf 'REPO="%s"\nBRANCH="release-0.23"\nCVE_SCRIPTS="%s"\n' "$SREG_REPO" "$SCR
 MOCK_DIR="$TMPD/mock-scripts"
 mkdir -p "$MOCK_DIR"
 # Copy real lib.sh for the mock scripts to source
-cp "$SCRIPT_DIR/lib.sh" "$MOCK_DIR/lib.sh"
+cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$MOCK_DIR/"
 cat > "$MOCK_DIR/ignore.sh" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
@@ -3271,7 +3285,7 @@ printf 'go.etcd.io/etcd/client/pkg/v3\n' > "$SREG_SH_DIR/needs-review-pkgs"
 # Mock scan.sh that outputs the same JSON (CVE still present in final scan)
 SREG_SCRIPTS_DIR="$TMPD/sreg-scripts"
 mkdir -p "$SREG_SCRIPTS_DIR"
-cp "$SCRIPT_DIR/lib.sh" "$SREG_SCRIPTS_DIR/lib.sh"
+cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$SREG_SCRIPTS_DIR/"
 cat > "$SREG_SCRIPTS_DIR/scan.sh" <<SCANMOCK
 #!/bin/bash
 printf '%s\n' '$SCAN_JSON'
@@ -3420,7 +3434,7 @@ REPORT
 
   # Mock fix-package.sh: records CVE_FIX_ALL_VERSIONS and exits 0 (in-stream succeeds)
   SAFS_SCRIPTS="$TMPD/safs-scripts"; mkdir -p "$SAFS_SCRIPTS"
-  cp "$SCRIPT_DIR/lib.sh" "$SAFS_SCRIPTS/lib.sh"
+  cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$SAFS_SCRIPTS/"
   cat > "$SAFS_SCRIPTS/fix-package.sh" <<'MOCK'
 #!/usr/bin/env bash
 shift  # STATE_FILE
@@ -3564,7 +3578,7 @@ GI_ROOT="$TMPD/grype-install"
 GI_FIXTURES="$TMPD/grype-fixtures"
 GI_CURL_BIN="$TMPD/grype-curl-bin"
 mkdir -p "$GI_ROOT/scripts" "$GI_FIXTURES/payload" "$GI_CURL_BIN"
-cp "$SCRIPT_DIR/lib.sh" "$GI_ROOT/scripts/lib.sh"
+cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$GI_ROOT/scripts/"
 cat > "$GI_FIXTURES/payload/grype" <<'SH'
 #!/usr/bin/env bash
 [[ "${1:-}" == version ]] && echo 'Version: 9.8.7'
@@ -3630,7 +3644,7 @@ echo "preflight_check behavioral"
 # binary cannot leak into the no-scanner and no-curl cases.
 PF_ROOT="$TMPD/preflight-root"
 mkdir -p "$PF_ROOT/scripts" "$PF_ROOT/bin"
-cp "$SCRIPT_DIR/lib.sh" "$PF_ROOT/scripts/lib.sh"
+cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$PF_ROOT/scripts/"
 
 # Fake-bin setup: all required tools, but no curl/grype/docker/podman.
 PF_BIN="$TMPD/pf-bin"
@@ -3705,7 +3719,7 @@ _envsubst_command_present() {
     | grep -qvE '^[[:space:]]*#'
 }
 check "no envsubst command" ! _envsubst_command_present
-check "no literal backslash-s" ! grep -rIq --exclude=test-lib.sh '\\s' "$SCRIPT_DIR" "$SCRIPT_DIR/../subagents"
+check "no shell literal backslash-s" ! grep -rIq --include='*.sh' --exclude=test-lib.sh '\\s' "$SCRIPT_DIR" "$SCRIPT_DIR/../subagents"
 check "no sed -i" ! grep -rq --exclude=test-lib.sh 'sed -i' "$SCRIPT_DIR" "$SCRIPT_DIR/../subagents"
 # xargs -r is a GNU extension; on BSD/macOS it errors and (with || true) silently
 # stages nothing, so a real fix can be reported FIXED with no commit.
@@ -3757,7 +3771,7 @@ check "find_gomods 3-module skips vendor" ! grep -q 'vendor/' <<< "$FG_LH_OUT"
 # so it must assert exit 2 and no commit: the selection greps alone pass on a
 # false-FIXED regression (a "FIXED: stdlib go 1.23.9" line also matches them).
 echo "fix-stdlib highest-in-stream selection"
-FSL="$TMPD/fsl"; mkdir -p "$FSL"
+FSL="$TMPD/fsl"; make_test_repo "$FSL" ""
 printf 'module x\ngo 1.20.0\n' > "$FSL/go.mod"
 cat > "$FSL/st.env" <<EOF
 REPO="$FSL"
@@ -3777,7 +3791,7 @@ check "stdlib build-image-older no commit" ! grep -qi 'FIXED: stdlib' <<< "$FSL_
 # stable 1.26.6 that matches the compiler. Drive the real loop with both and a
 # build image one patch behind so it exits echoing the chosen version.
 echo "fix-stdlib skips in-stream prerelease"
-FSL2="$TMPD/fsl2"; mkdir -p "$FSL2"
+FSL2="$TMPD/fsl2"; make_test_repo "$FSL2" ""
 printf 'module x\ngo 1.26.0\n' > "$FSL2/go.mod"
 cat > "$FSL2/st.env" <<EOF
 REPO="$FSL2"
@@ -3795,7 +3809,7 @@ check "stdlib skips prerelease rc"    ! grep -q 'rc' <<< "$FSL2_OUT"
 # go mod edit -go=1.26.6rc1 fails and the ERR trap reverts changes, leaving
 # the stdlib CVE unresolved. The explicit [0-9]rc[0-9] filter must block it.
 echo "fix-stdlib skips Go-native RC (no-hyphen)"
-FSL2B="$TMPD/fsl2b"; mkdir -p "$FSL2B"
+FSL2B="$TMPD/fsl2b"; make_test_repo "$FSL2B" ""
 printf 'module x\ngo 1.26.0\n' > "$FSL2B/go.mod"
 cat > "$FSL2B/st.env" <<EOF
 REPO="$FSL2B"
@@ -3812,7 +3826,7 @@ check "stdlib skips Go-native rc (no-hyphen)"   ! grep -q 'rc' <<< "$FSL2B_OUT"
 # so the *-* filter passes them through; sort -V ranks them above a stable patch.
 # The [0-9](rc|beta|alpha)[0-9] guard must block all three prerelease flavours.
 echo "fix-stdlib skips Go-native beta (no-hyphen)"
-FSL2C="$TMPD/fsl2c"; mkdir -p "$FSL2C"
+FSL2C="$TMPD/fsl2c"; make_test_repo "$FSL2C" ""
 printf 'module x\ngo 1.26.0\n' > "$FSL2C/go.mod"
 cat > "$FSL2C/st.env" <<EOF
 REPO="$FSL2C"
@@ -3826,7 +3840,7 @@ check "stdlib selects stable over Go-native beta" grep -q '1\.26\.5' <<< "$FSL2C
 check "stdlib skips Go-native beta (no-hyphen)"   ! grep -q 'beta' <<< "$FSL2C_OUT"
 
 echo "fix-stdlib skips Go-native alpha (no-hyphen)"
-FSL2D="$TMPD/fsl2d"; mkdir -p "$FSL2D"
+FSL2D="$TMPD/fsl2d"; make_test_repo "$FSL2D" ""
 printf 'module x\ngo 1.26.0\n' > "$FSL2D/go.mod"
 cat > "$FSL2D/st.env" <<EOF
 REPO="$FSL2D"
@@ -3843,7 +3857,7 @@ check "stdlib skips Go-native alpha (no-hyphen)"   ! grep -q 'alpha' <<< "$FSL2D
 # cross-minor fix falls back to the go.mod version and must route to an honest
 # NEEDS_REVIEW ("minor version change") rather than silently bumping the compiler.
 echo "fix-stdlib unknown compiler -> cross-minor needs review"
-FSL3="$TMPD/fsl3"; mkdir -p "$FSL3"
+FSL3="$TMPD/fsl3"; make_test_repo "$FSL3" ""
 printf 'module x\ngo 1.25.0\n' > "$FSL3/go.mod"
 cat > "$FSL3/st.env" <<EOF
 REPO="$FSL3"
@@ -3918,7 +3932,7 @@ check "stdlib happy path: commit created" \
 # in-stream fix (fix lives in a higher minor), the cross-minor gate must route to
 # an honest NEEDS_REVIEW naming the compiler stream — never bump the compiler.
 echo "fix-stdlib known compiler -> no in-stream fix needs review"
-FSL4="$TMPD/fsl4"; mkdir -p "$FSL4"
+FSL4="$TMPD/fsl4"; make_test_repo "$FSL4" ""
 printf 'module x\ngo 1.20.0\n' > "$FSL4/go.mod"
 cat > "$FSL4/st.env" <<EOF
 REPO="$FSL4"
@@ -3943,6 +3957,7 @@ printf 'module x\ngo 1.25.0\n\nrequire example.com/foo v1.0.0\n' > "$FP1/go.mod"
 # version and go.mod's awk-scanned version drives the persist check.
 cat > "$FP1/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 exit 0
 STUB
 chmod +x "$FP1/gostub/go"
@@ -4002,6 +4017,7 @@ printf 'module x\ngo 1.25.0\n\nrequire example.com/foo v1.0.0\n' > "$FP2/go.mod"
 # cross-minor jump is unverifiable, so fix-package must exit 2 and roll back.
 cat > "$FP2/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir=.
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -4043,6 +4059,7 @@ GOMOD
 # go stub: all `go list` calls return "" (simulates no version info available).
 cat > "$FP_LP/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ] || [ "$1" = "mod" ]; then exit 0; fi
@@ -4080,6 +4097,7 @@ GOMOD
 ( cd "$FP_SS" && git add go.mod && git commit -qm init )
 cat > "$FP_SS/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ] || [ "$1" = "mod" ]; then exit 0; fi
@@ -4123,6 +4141,7 @@ GOMOD
 # returns v1.0.0 (driving the STILL_VULNERABLE branch at fix-package.sh lines 174-176).
 cat > "$FP_REP/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -4189,6 +4208,7 @@ GOMOD
 # Replace.Dir="../local" drives the _LOCAL_REPLACE unverifiable path.
 cat > "$FP_VRL/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ] || [ "$1" = "mod" ]; then exit 0; fi
@@ -4238,6 +4258,7 @@ printf 'module x\ngo 1.25.0\n\nrequire (\n\texample.com/etcd v3.6.8\n)\n' > "$FP
 # go stub: `go get pkg@vVER` updates go.mod to the requested version; all else no-op
 cat > "$FP3/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -4280,6 +4301,7 @@ printf 'module x\ngo 1.25.0\n\nrequire (\n\texample.com/etcd v3.6.8\n)\n' > "$FP
 # go stub: same pattern as FP3 — `go get pkg@vVER` rewrites go.mod
 cat > "$FP3X/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -4319,6 +4341,7 @@ echo "packed-binary blindness sentinel"
 OB="$TMPD/opaque"; mkdir -p "$OB/gostub"
 cat > "$OB/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 # `go version -m FILE` succeeds only for a readable (non-packed) binary
 if [ "$1" = "version" ] && [ "$2" = "-m" ]; then
   case "$3" in
@@ -4348,6 +4371,7 @@ echo "stale readable binary detection"
 OB4="$TMPD/stale-readable"; mkdir -p "$OB4/gostub"
 cat > "$OB4/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 # `go version` (no -m) reports host Go version
 if [ "$1" = "version" ] && [ "$2" != "-m" ]; then
   echo "go version go1.24.0 linux/amd64"; exit 0
@@ -4371,6 +4395,7 @@ check "stale readable binary flagged" test "$OB4_RC" -eq 0
 OB5="$TMPD/stale-readable2"; mkdir -p "$OB5/gostub"
 cat > "$OB5/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 if [ "$1" = "version" ] && [ "$2" != "-m" ]; then
   echo "go version go1.24.0 linux/amd64"; exit 0
 fi
@@ -4393,6 +4418,7 @@ check "current-version readable binary not flagged" test "$OB5_RC" -eq 1
 OB6="$TMPD/stale-readable3"; mkdir -p "$OB6/gostub"
 cat > "$OB6/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 # `go version -m FILE` succeeds (readable binary with old version)
 if [ "$1" = "version" ] && [ "$2" = "-m" ]; then
   printf '%s: go1.22.3\n' "$3"; exit 0
@@ -4918,7 +4944,7 @@ check "dedup: STALE emitted for pkg-b (still in HEAD .grype.yaml)" \
 # packed/stale binaries in the repo tree don't go undetected.
 echo "detect_opaque_binaries source-only scan"
 
-OPQ_REPO="$TMPD/opq-repo"; mkdir -p "$OPQ_REPO"
+OPQ_REPO="$TMPD/opq-repo"; make_test_repo "$OPQ_REPO" ""
 touch "$OPQ_REPO/go.mod"
 OPQ_STATE="$TMPD/opq-state.env"
 cat > "$OPQ_STATE" <<EOF
@@ -4961,7 +4987,7 @@ check "scan.sh wires detect_opaque_binaries for source-only repos" \
 #   elif [[ -z "${BUILD_CMD:-}" ]] || [[ "$SKIP_BUILD" == "true" ]]; then
 echo "SKIP_BUILD sentinel lifecycle"
 
-SB_REPO="$TMPD/sb-repo"; mkdir -p "$SB_REPO"
+SB_REPO="$TMPD/sb-repo"; make_test_repo "$SB_REPO" ""
 touch "$SB_REPO/go.mod"
 SB_STATE="$TMPD/sb-state.env"
 cat > "$SB_STATE" <<EOF
@@ -5369,6 +5395,7 @@ git -C "$FP_VERGU_REPO" commit -q -m "init"
 # go stub: returns "(devel)" for go list -m -f '{{.Version}}'; exits 0 for all other invocations.
 cat > "$FP_VERGU_REPO/bin/go" <<'FPGOSTUB'
 #!/usr/bin/env bash
+. "$CVE_FIX_TEST_GO_ARGS"
 if [[ "$*" == *"-f"* && "$*" == *"{{.Version}}"* ]]; then echo "(devel)"; fi
 exit 0
 FPGOSTUB
@@ -5411,6 +5438,7 @@ GOMOD
 # "go list -m" returns version from go.mod; replace queries return "".
 cat > "$FP_DD/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -5493,6 +5521,7 @@ echo "fix-package module layout regressions"
 _fpx_stub() {
   cat > "$1/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 [ -z "$FPX_CALLS" ] || echo "$*" >> "$FPX_CALLS"
@@ -5526,7 +5555,9 @@ case "$FPX_MODE" in
       if [ -n "$local_dir" ]; then
         # A normal local replace falls back to the raw require version. Keep
         # the separate synthetic-zero fixture when both graph getters are empty.
-        [ "$FPX_MODE" = major-local ] || [ "${4:-}" != '{{.Version}}' ] || echo "$version"
+        if [ "$FPX_MODE" != major-local ]; then
+          case "$*" in *'{{.Version}}'*) echo "$version" ;; esac
+        fi
         exit 0
       fi
       [ -z "$replace" ] || version="$replace"
@@ -5795,6 +5826,7 @@ GOMOD
 # go stub: go get cve-pkg leaves the pseudo-version dep unchanged.
 cat > "$FP_PV/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -5876,6 +5908,7 @@ GOMOD
 # (simulating go mod tidy dropping it as now purely transitive at a lower ver)
 cat > "$FP_DDR/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -5958,6 +5991,7 @@ GOMOD
 # go list -m returns nothing (truly gone from module graph, no importers remain).
 cat > "$FP_GONE/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -6031,6 +6065,7 @@ GOMOD
     make_go_state "$_mod_case/state.env" "$_mod_case"
     cat > "$_mod_case/bin/go" <<'STUB'
 #!/usr/bin/env bash
+. "$CVE_FIX_TEST_GO_ARGS"
 set -euo pipefail
 dir=.
 if [[ "${1:-}" == -C ]]; then dir="$2"; shift 2; fi
@@ -6127,6 +6162,7 @@ GOMOD
 # go stub: cve-pkg update downgrades x/mod; re-pin go get writes sentinel toolchain then exits 1.
 cat > "$FP_RPF/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -6211,6 +6247,7 @@ GOMOD
 
 cat > "$FP_RPC/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -6290,6 +6327,7 @@ GOMOD
 # go stub: "go get docker/docker@v29.3.1" emits the canonical proxy error.
 cat > "$FP_NIP/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -6342,6 +6380,7 @@ GOMOD
 ( cd "$FP_NIP2" && git add go.mod && git commit -qm init )
 cat > "$FP_NIP2/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -6386,6 +6425,7 @@ GOMOD
 ( cd "$FP_SAME" && git add go.mod && git commit -qm init )
 cat > "$FP_SAME/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -6465,11 +6505,11 @@ done
 # CVE_FIX_RETRY_BASE=0 keeps sleep at 0s so the suite stays instant.
 echo "scan-regression retry loop"
 SR_RETRY_DIR="$TMPD/sr-retry"; mkdir -p "$SR_RETRY_DIR"
-SR_RETRY_REPO="$SR_RETRY_DIR/repo"; mkdir -p "$SR_RETRY_REPO"
+SR_RETRY_REPO="$SR_RETRY_DIR/repo"; make_test_repo "$SR_RETRY_REPO" ""
 touch "$SR_RETRY_REPO/go.mod"
 SR_RETRY_RDIR="$SR_RETRY_DIR/report"; mkdir -p "$SR_RETRY_RDIR"
 SR_RETRY_SCRIPTS="$SR_RETRY_DIR/scripts"; mkdir -p "$SR_RETRY_SCRIPTS"
-cp "$SCRIPT_DIR/lib.sh" "$SR_RETRY_SCRIPTS/"
+cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$SR_RETRY_SCRIPTS/"
 printf 'REPO=%q\nBRANCH=devel\nCVE_SCRIPTS=%q\nHAS_LOCAL_GRYPE=false\nCONTAINER_CMD=\n' \
   "$SR_RETRY_REPO" "$SR_RETRY_SCRIPTS" > "$SR_RETRY_DIR/state.env"
 printf '{"matches":[],"ignoredMatches":[]}\n' > "$SR_RETRY_RDIR/initial-scan.json"
@@ -6525,6 +6565,7 @@ printf 'module x\ngo 1.25.0\n\nrequire example.com/vendtest v1.0.0\n' > "$FP_VND
 # go stub: go get updates the require line; all else no-op
 cat > "$FP_VND/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -6566,6 +6607,7 @@ git -C "$FP_VND" add .gitignore
 git -C "$FP_VND" commit -qm 'ignore generated notes'
 cat > "$FP_VND/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir=.
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = get ]; then
@@ -6644,6 +6686,7 @@ fp_tc_repo() {  # NAME GOMOD — repo whose stub go bumps the dep and drifts the
   git -C "$d" add go.mod; git -C "$d" commit -qm init
   cat > "$d/gostub/go" <<STUB
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "\$1" = "-C" ]; do dir="\$2"; shift 2; done
 if [ "\$1" = "get" ]; then
@@ -6704,6 +6747,7 @@ FSL_REAL_GO=$(command -v go)
 # Logging wrapper: record every go invocation, then run the real go.
 cat > "$FSL_VND/gostub/go" <<STUB
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 printf '%s\n' "\$*" >> "$FSL_VND/go-calls.log"
 exec "$FSL_REAL_GO" "\$@"
 STUB
@@ -6923,6 +6967,7 @@ printf 'module x/tools\ngo 1.25.0\n\nrequire k8s.io/client-go v0.30.0\n' > "$FP_
 # all other verbs no-op. `go list -m` for transitive dep check returns empty.
 cat > "$FP_K8SM/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -7303,6 +7348,7 @@ printf 'module x\ngo 1.25.0\n\nrequire example.com/foo v1.0.0\n' > "$FP_NG/go.mo
 # go stub: `go get` exits 1 with a network error; other verbs are no-ops.
 cat > "$FP_NG/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 while [ "$1" = "-C" ]; do shift 2; done
 if [ "$1" = "get" ]; then
   echo "dial tcp: connection refused" >&2
@@ -7381,7 +7427,7 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$MC0_REPO" commit -qm "init"
 
   # lib.sh is sourced by fix-all.sh via SCRIPT_DIR.
-  cp "$SCRIPT_DIR/"{lib.sh,check-grype-ignores.py} "$MC0_SCRIPTS/"
+  cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$MC0_SCRIPTS/"
   printf '\npreflight_check() { return 0; }\n' >> "$MC0_SCRIPTS/lib.sh"
 
   # Helper: (re-)write the state file before each invocation.
@@ -7814,10 +7860,9 @@ printf 'metadata:\n  annotations:\n    controller-genXkubebuilderXio/version: v0
 gf_commit "$GF_WRONG_MARK"
 check "generated discovery requires the literal controller-gen annotation" test -z "$(gf_detect "$GF_WRONG_MARK")"
 
-# === fix-all.sh PR command generation (fork detection, plural, no-fork, partial fix) ===
-# Exercises fix-all.sh lines 648-682: fork-remote detection, UPSTREAM_ORG
-# resolution, FORK_USER extraction, placeholder fallback, partial-fix PR title,
-# PLURAL logic, and NOT READY TO PUSH suppression — with real commits present.
+# === fix-all.sh publication readiness with real commits ===
+# Local transports exercise the engineering gates and conservative withholding;
+# confirmed GitHub destinations and recipe arguments have focused real-Git tests.
 echo "fix-all.sh PR command generation"
 if command -v jq >/dev/null 2>&1; then
   PRT_DIR="$TMPD/prt"
@@ -7846,7 +7891,7 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$PRT_REPO" remote add myfork "https://github.com/testforkuser/testrepo.git"
 
   # Copy scripts (fix-all.sh uses SCRIPT_DIR = its own directory)
-  cp "$SCRIPT_DIR/"{lib.sh,check-grype-ignores.py} "$PRT_SCRIPTS/"
+  cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py} "$PRT_SCRIPTS/"
   printf '\npreflight_check() { return 0; }\n' >> "$PRT_SCRIPTS/lib.sh"
   cp "$SCRIPT_DIR/fix-all.sh" "$PRT_SCRIPTS/"
   cp "$SCRIPT_DIR/binary-module-locations.py" "$PRT_SCRIPTS/"
@@ -7876,8 +7921,7 @@ if command -v jq >/dev/null 2>&1; then
     printf 'CONTAINER_CMD=""\nHAS_LOCAL_GRYPE=false\nBUILD_IMAGE=""\n' >> "$PRT_STATE"
     printf 'BUILD_GO_VERSION="unknown"\nBUILD_CMD=""\nCLEAN_CMD=""\n' >> "$PRT_STATE"
     printf 'TEST_CMD="%s"\n' "$test_cmd" >> "$PRT_STATE"
-    # The real upstream transport is local; explicitly supply its GitHub org
-    # instead of relying on an unmatched URL being mistaken for an owner.
+    # An owner hint cannot authenticate this local transport as a GitHub base.
     printf 'ENV_UNSET=""\nK8S_VERSION_GUARD=false\nUPSTREAM_ORG="testupstream"\n' >> "$PRT_STATE"
     printf 'FETCH_FAILED=false\nCVE_SCRIPTS=%q\n' "$PRT_SCRIPTS" >> "$PRT_STATE"
   }
@@ -7923,15 +7967,14 @@ printf 'FIXED: %s v%s for %s\n' "$PKG" "$VER" "$*"
 FPEOF
   chmod +x "$PRT_SCRIPTS/fix-package.sh"
 
-  # --- Sub-case A: fork remote detected -> full PR command with fork push ---
+  # Local upstream transport cannot authenticate a GitHub base, even with a
+  # plausible fork URL. Confirmed recipe targets are covered separately.
   prt_write_state; prt_write_scan
   PRT_A_RC=0
   PRT_A_OUT=$(bash "$PRT_SCRIPTS/fix-all.sh" "$PRT_REPO" devel 2>&1) || PRT_A_RC=$?
   check "PR cmd A: clean readiness exits zero" test "$PRT_A_RC" -eq 0
-  check "PR cmd A: git push uses fork remote"  grep -q "git push myfork" <<< "$PRT_A_OUT"
-  check "PR cmd A: --head uses fork user"      grep -q -- "--head testforkuser:devel" <<< "$PRT_A_OUT"
-  check "PR cmd A: --base is branch"           grep -q -- "--base devel" <<< "$PRT_A_OUT"
-  check "PR cmd A: single-CVE title"           grep -qF -- "--title Fix\\ CVE\\ in\\ devel" <<< "$PRT_A_OUT"
+  check "PR cmd A: confirmed gates withhold an unconfirmed destination" \
+    grep -q '^PR command unavailable: .*could not be confirmed' <<< "$PRT_A_OUT"
   check "PR cmd A: Summary reports the observed original ref" grep -qx 'Original ref: operator-start' <<< "$PRT_A_OUT"
   check "PR cmd A: target remains distinct from original ref" grep -qx 'Fix branch: devel' <<< "$PRT_A_OUT"
   check "PR cmd A: retained commit is reported" grep -q "^$(git -C "$PRT_REPO" rev-parse --short HEAD) " <<< "$PRT_A_OUT"
@@ -8033,7 +8076,8 @@ LICENSEMAKE
       else
         check "$_license_label: sanitized policy evaluation succeeds" test "$PRT_LICENSE_RC" -eq 0
         check "$_license_label: successful policy evaluation is reported" grep -q 'License policy check passed' <<< "$PRT_LICENSE_OUT"
-        check "$_license_label: successful policy gate permits PR" grep -q 'gh pr create' <<< "$PRT_LICENSE_OUT"
+        check "$_license_label: successful policy gate reaches optional publication" \
+          grep -q '^PR command unavailable: .*could not be confirmed' <<< "$PRT_LICENSE_OUT"
       fi
     done
   done
@@ -8068,7 +8112,8 @@ LICENSEMAKE
     check "mapping $_prt_mapping_mode: original source scope is retained" grep -q '^FIXED: example.com/prpkg .* at /go.mod$' <<< "$PRT_MAPPING_OUT"
     check "mapping $_prt_mapping_mode: repair is committed" grep -q 'bumped' "$PRT_REPO/go.mod"
     check "mapping $_prt_mapping_mode: final scan remains authoritative" grep -q 'Outstanding: 0' <<< "$PRT_MAPPING_OUT"
-    check "mapping $_prt_mapping_mode: PR command remains available" grep -q 'gh pr create' <<< "$PRT_MAPPING_OUT"
+    check "mapping $_prt_mapping_mode: confirmed gates reach optional publication" \
+      grep -q '^PR command unavailable: .*could not be confirmed' <<< "$PRT_MAPPING_OUT"
   done
   mv "$PRT_DIR/binary-module-locations.saved" "$PRT_SCRIPTS/binary-module-locations.py"
 
@@ -8127,7 +8172,7 @@ LICENSEMAKE
   PRT_B_OUT=$(bash "$PRT_SCRIPTS/fix-all.sh" "$PRT_REPO" devel 2>&1) || true
   check "PR cmd B: absent original-ref evidence is omitted" ! grep -q '^Original ref:' <<< "$PRT_B_OUT"
   check "PR cmd B: no placeholder remote shown" ! grep -q "<fork-remote>" <<< "$PRT_B_OUT"
-  check "PR cmd B: explains detection limit" grep -qx "PR command unavailable: no GitHub fork push remote was detected." <<< "$PRT_B_OUT"
+  check "PR cmd B: explains detection limit" grep -q '^PR command unavailable: .*could not be confirmed' <<< "$PRT_B_OUT"
   check "PR cmd B: no unusable gh command"    ! grep -q "gh pr create" <<< "$PRT_B_OUT"
   git -C "$PRT_REPO" remote add myfork "https://github.com/testforkuser/testrepo.git"
 
@@ -8137,7 +8182,8 @@ LICENSEMAKE
   PRT_C_RC=0
   PRT_C_OUT=$(bash "$PRT_SCRIPTS/fix-all.sh" "$PRT_REPO" devel 2>&1) || PRT_C_RC=$?
   check "PR cmd C: confirmed partial readiness exits two" test "$PRT_C_RC" -eq 2
-  check "PR cmd C: Partial CVE fix in title"   grep -qF "Partial\\ CVE\\ fix\\ in\\ devel" <<< "$PRT_C_OUT"
+  check "PR cmd C: counted partial result reaches optional publication" \
+    grep -q '^PR command unavailable: .*could not be confirmed' <<< "$PRT_C_OUT"
   check "PR cmd C: not NOT READY TO PUSH"      ! grep -q "NOT READY TO PUSH" <<< "$PRT_C_OUT"
 
   # Counted partial repairs still have to pass repository policy gates. These
@@ -8192,8 +8238,9 @@ LICENSEMAKE
   check "policy partial: final gate counts existing CVE" grep -q 'Outstanding: 1' <<< "$PRT_POLICY_OUT"
   check "policy partial: existing finding remains documented" grep -q '^NEEDS_REVIEW: example.com/prpkg .* approval at /go.mod' <<< "$PRT_POLICY_OUT"
   check "policy partial: deterministic verification succeeds" grep -q 'Verified deterministically' <<< "$PRT_POLICY_OUT"
-  check "policy partial: signed repair can be submitted" grep -q 'gh pr create' <<< "$PRT_POLICY_OUT"
-  check "policy partial: PR title signals remaining CVE" grep -qF 'Partial\ CVE\ fix\ in\ devel' <<< "$PRT_POLICY_OUT"
+  check "policy partial: signed repair reaches optional publication" \
+    grep -q '^PR command unavailable: .*could not be confirmed' <<< "$PRT_POLICY_OUT"
+  check "policy partial: remaining finding stays explicit" grep -q '^NOTE: 1 finding(s) remain' <<< "$PRT_POLICY_OUT"
   check "policy partial: verification does not suppress PR" ! grep -q 'NOT READY TO PUSH' <<< "$PRT_POLICY_OUT"
   mv "$PRT_DIR/fix-package.saved" "$PRT_SCRIPTS/fix-package.sh"
   rm -rf "$PRT_DIR/subagents"
@@ -8242,8 +8289,9 @@ LICENSEMAKE
   git -C "$PRT_REPO" -c user.email=t@t.com -c user.name=T commit -qm "Pre-existing bump" -s 2>/dev/null
   prt_write_state; prt_write_scan
   PRT_E_OUT=$(bash "$PRT_SCRIPTS/fix-all.sh" "$PRT_REPO" devel 2>&1) || true
-  check "PR cmd E: plural CVEs title"          grep -qF -- "--title Fix\\ CVEs\\ in\\ devel" <<< "$PRT_E_OUT"
-  check "PR cmd E: plural commit messages body" grep -qF -- "--body See\\ commit\\ messages" <<< "$PRT_E_OUT"
+  check "PR cmd E: both actual commits are reported" grep -q '(2 commits — see Commits: below)' <<< "$PRT_E_OUT"
+  check "PR cmd E: confirmed multi-commit gates reach optional publication" \
+    grep -q '^PR command unavailable: .*could not be confirmed' <<< "$PRT_E_OUT"
   # A counted result from a failed final process must suppress publication.
   git -C "$PRT_REPO" reset --hard origin/devel -q
   prt_write_state; prt_write_scan
@@ -8369,6 +8417,7 @@ chmod +x "$FP_IL/.git/hooks/pre-commit"
 # no replace directives so the STILL_VULNERABLE check passes.
 cat > "$FP_IL/gostub/go" <<'STUB'
 #!/bin/sh
+. "$CVE_FIX_TEST_GO_ARGS"
 dir="."
 while [ "$1" = "-C" ]; do dir="$2"; shift 2; done
 if [ "$1" = "get" ]; then
@@ -8564,6 +8613,7 @@ git -C "$MMSEL_REPO" add go.mod coredns/go.mod tools/go.mod
 git -C "$MMSEL_REPO" commit -qm init
 cat > "$MMSEL_REPO/bin/go" <<'STUB'
 #!/usr/bin/env bash
+. "$CVE_FIX_TEST_GO_ARGS"
 dir=.
 if [[ "${1:-}" == -C ]]; then dir="$2"; shift 2; fi
 case "${1:-}" in
@@ -8642,7 +8692,9 @@ rm "$YIA_REPO/.grype.yaml"
 YIA_OUT=$(bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$YIA_STATE")
 check "yaml audit does not resurrect deleted invalid ignores from HEAD" grep -qx 'NEW_ISSUES=0' <<< "$YIA_OUT"
 ln -s missing-grype.yaml "$YIA_REPO/.grype.yaml"
-check "yaml audit rejects an unreadable current ignore file" ! bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$YIA_STATE"
+YIA_OUT=$(bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$YIA_STATE")
+check "yaml audit blocks an unreadable current ignore file" grep -qE '^NEW_ISSUES=[1-9][0-9]*$' <<< "$YIA_OUT"
+check "yaml audit names the unreadable policy failure" grep -q '^YAML_PARSE_ERROR:' <<< "$YIA_OUT"
 rm "$YIA_REPO/.grype.yaml"
 
 # Failed local scanner stdout must never prefix the successful fallback JSON.
@@ -9650,8 +9702,8 @@ for _cr_audit in existing-entries fix-availability yaml-integrity; do
   check "two-module native workflow retains clean $_cr_audit counters" \
     grep -qx 'NEW_ISSUES=0' "$CR_WORKFLOW/evidence/audits/$_cr_audit.evidence"
 done
-check "two-module native workflow explains the missing fork" \
-  grep -q 'PR command unavailable: no GitHub fork push remote was detected' "$CR_WORKFLOW/workflow.log"
+check "two-module native workflow explains the unconfirmed destination" \
+  grep -q '^PR command unavailable: .*could not be confirmed' "$CR_WORKFLOW/workflow.log"
 check "two-module native workflow prints no unwitnessed publication command" \
   ! grep -q '^PR command:' "$CR_WORKFLOW/workflow.log"
 check "two-module native workflow leaves tracked metadata clean" git -C "$CR_WORKFLOW/repo" diff --quiet
@@ -9720,7 +9772,7 @@ _review_worker_fixture() {
   git -C "$original" config user.email fixture@example.com
   git -C "$original" config user.name Fixture
   printf 'module example.com/review\ngo 1.24.0\n' > "$original/go.mod"
-  cp "$SCRIPT_DIR/"{lib.sh,fix-all.sh,binary-module-locations.py} "$original/scripts/"
+  cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,check-grype-ignores.py,fix-all.sh,binary-module-locations.py} "$original/scripts/"
   printf '\npreflight_check() { return 0; }\n' >> "$original/scripts/lib.sh"
   git -C "$original" add go.mod
   git -C "$original" commit -qm init
@@ -9792,6 +9844,7 @@ git -C "$_yaml_repo" update-ref refs/remotes/origin/devel HEAD
 mkdir -p "$RREV/yaml-bin" "$RREV/yaml-reports"
 cat > "$RREV/yaml-bin/go" <<'SH'
 #!/usr/bin/env bash
+. "$CVE_FIX_TEST_GO_ARGS"
 if [[ "$*" == *-json* ]]; then
   printf '{"Path":"example.com/not-fixed","Version":"v1.0.0"}\n'
 else
@@ -9818,7 +9871,7 @@ for _quote in "'" '"'; do
   _yaml_out=$(PATH="$RREV/yaml-bin:$PATH" bash "$SCRIPT_DIR/../subagents/existing-entries.sh" "$RREV/yaml.env" "$RREV/yaml-reports")
   check "quoted $_quote state remains auto-expiring" grep -q '^FIX-NOW-AVAILABLE: CVE-REVIEW-not-fixed' <<< "$_yaml_out"
 done
-printf '    fix-state: unknown#literal\n' >> "$_yaml_repo/.grype.yaml"
+sed_inplace 's/fix-state:.*$/fix-state: unknown#literal/' "$_yaml_repo/.grype.yaml"
 _yaml_out=$(bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$RREV/yaml.env")
 check "YAML companion does not strip a literal attached hash" grep -q 'BAD_FIX_STATE' <<< "$_yaml_out"
 
@@ -9843,78 +9896,8 @@ check "long advisory detail preserves module paths with spaces" \
 check "ignored advisory detail also preserves count and scope" \
   test "$(format_fix_detail "$_scoped_ignored")" = 'IGNORED: example.com/many (no fix available) for GO-ONE ... (4 CVEs) at /nested/go.mod'
 
-# Execute the production PR-report block with real Git remote configurations.
-# Fetching and applying repairs are covered above; these checks never push.
-_pr_repo="$RREV/pr-remotes"; make_test_repo "$_pr_repo"
-git -C "$_pr_repo" remote add origin https://github.com/openshift/repo.git
-printf '#!/usr/bin/env bash\nset -euo pipefail\nsource %q\nBRANCH=devel\nCURRENT_BRANCH=fix-review\nCOMMIT_COUNT=1\nGATE_REMAINING=0\n' \
-  "$SCRIPT_DIR/lib.sh" > "$RREV/pr-block.sh"
-python3 - "$SCRIPT_DIR/fix-all.sh" >> "$RREV/pr-block.sh" <<'PY'
-from pathlib import Path
-import sys
-source = Path(sys.argv[1]).read_text()
-start = source.index('    # Generate PR command')
-end = source.index('\n  fi\nelse\n  # Nothing to keep', start)
-print(source[start:end])
-PY
-_pr_remotes() {
-  git -C "$_pr_repo" remote set-url origin "$1"
-  git -C "$_pr_repo" remote remove myfork 2>/dev/null || true
-  git -C "$_pr_repo" remote remove backup 2>/dev/null || true
-  [[ -z "${2:-}" ]] || git -C "$_pr_repo" remote add myfork "$2"
-}
-_pr_run() {
-  _pr_rc=0
-  _pr_out=$(cd "$_pr_repo"; UPSTREAM_ORG="${1:-}" bash "$RREV/pr-block.sh") || _pr_rc=$?
-}
-for _remote_pair in \
-  'https://github.com/openshift/repo.git|https://github.com/bob/repo.git' \
-  'git@github.com:openshift/repo.git|git@github.com:bob/repo.git' \
-  'ssh://git@github.com:443/openshift/repo.git|ssh://git@github.com:443/bob/repo.git' \
-  'ssh://git@ssh.github.com:443/openshift/repo.git|ssh://git@ssh.github.com:443/bob/repo.git' \
-  'https://github.com/openshift/repo.git|ssh://git@github.com:443/bob/repo.git'; do
-  _pr_remotes "${_remote_pair%|*}" "${_remote_pair#*|}"
-  _pr_run
-  check "GitHub URL pair $_remote_pair derives the fork owner" grep -q -- '--head bob:fix-review' <<< "$_pr_out"
-  check "GitHub URL pair $_remote_pair uses the fork remote" grep -q 'git push myfork fix-review' <<< "$_pr_out"
-done
-git init --bare -q "$RREV/local-fork.git"
-for _remote_pair in \
-  'git@gitlab.example.com:team/repo.git|https://github.com/bob/repo.git' \
-  'https://github.com/openshift/repo.git|git@gitlab.example.com:bob/repo.git' \
-  'https://github.com/openshift/repo.git|https://notgithub.com/bob/repo.git' \
-  "https://github.com/openshift/repo.git|$RREV/local-fork.git"; do
-  _pr_remotes "${_remote_pair%|*}" "${_remote_pair#*|}"
-  _pr_run
-  check "non-GitHub pair $_remote_pair still reports successfully" test "$_pr_rc" -eq 0
-  check "non-GitHub pair $_remote_pair emits no executable PR command" ! grep -q 'gh pr create' <<< "$_pr_out"
-  check "non-GitHub pair $_remote_pair explains detection limit" grep -qx 'PR command unavailable: no GitHub fork push remote was detected.' <<< "$_pr_out"
-done
-_pr_remotes https://github.com/openshift/repo.git https://github.com/bob/repo.git
-git -C "$_pr_repo" remote add backup https://gitlab.example.com/bob/repo.git
-_pr_run
-check "non-GitHub backup does not hide a valid fork" grep -q -- '--head bob:fix-review' <<< "$_pr_out"
-check "non-GitHub backup is never selected for pushing" ! grep -q 'git push backup' <<< "$_pr_out"
-_pr_remotes https://github.com/openshift/repo.git https://github.com/openshift/repo.git
-git -C "$_pr_repo" remote set-url --push myfork https://github.com/bob/repo.git
-_pr_run
-check "fork owner comes from push URL rather than fetch URL" grep -q -- '--head bob:fix-review' <<< "$_pr_out"
-check "split fetch/push remote is retained for pushing" grep -q 'git push myfork fix-review' <<< "$_pr_out"
-_pr_remotes https://github.com/openshift/repo.git
-git -C "$_pr_repo" remote set-url --push origin https://github.com/bob/repo.git
-_pr_run
-check "origin may legitimately push to the caller's GitHub fork" grep -q -- '--head bob:fix-review' <<< "$_pr_out"
-check "configured origin push URL uses the origin remote" grep -q 'git push origin fix-review' <<< "$_pr_out"
-git -C "$_pr_repo" config --unset-all remote.origin.pushurl
-_pr_remotes https://github.com/openshift/repo.git https://github.com/bobopenshift/repo.git
-_pr_run
-check "fork usernames containing the upstream name remain distinct" grep -q -- '--head bobopenshift:fix-review' <<< "$_pr_out"
-_pr_remotes /local/upstream.git https://github.com/bob/repo.git
-_pr_run openshift
-check "explicit upstream org supports configured transport aliases" grep -q -- '--head bob:fix-review' <<< "$_pr_out"
-_pr_remotes https://GitHub.COM/OpenShift/repo.git
-_pr_run openshift
-check "GitHub host and owner casing cannot turn upstream into a fork" ! grep -q 'gh pr create' <<< "$_pr_out"
+# Real Git publication routing and renderer controls live in
+# test_publication_recipe.py; workflow readiness above keeps real local origins.
 
 # === Full-review UTF-8, timeout retry and YAML section regressions ===
 echo "UTF-8 config and registry input under an ASCII locale"
@@ -10021,10 +10004,10 @@ done
   printf 'ignore:\n%s- vulnerability: CVE-SCOPE\n%s  fix-state: not-fixed\n%s  package:\n%s    name: example.com/scoped\n%s- vulnerability: CVE-SCOPE\n%s  fix-state: not-fixed\n%s  package:\n%s    name: example.com/scoped\n%s    location: /tools/go.mod\n%s- vulnerability: CVE-BROAD\n%s- vulnerability: CVE-NEIGHBOR\n%s  package:\n%s    name: example.com/neighbor\nonly-fixed: true\nexclude:\n  - "**/node_modules/**"\n' \
     "$_yaml_pad" "$_yaml_pad" "$_yaml_pad" "$_yaml_pad" "$_yaml_pad" "$_yaml_pad" "$_yaml_pad" "$_yaml_pad" "$_yaml_pad" "$_yaml_pad" "$_yaml_pad" "$_yaml_pad" "$_yaml_pad" \
     > "$YAML_SECTION_REPO/.grype.yaml"
-  check "YAML indent $_yaml_indent finds scoped entries" grype_ignore_entry_exists "$YAML_SECTION_REPO/.grype.yaml" CVE-SCOPE example.com/scoped /tools/go.mod
-  check "YAML indent $_yaml_indent finds scope conflicts" grep -q '^SCOPE_CONFLICT:' <<< "$(grype_ignore_scope_conflicts "$YAML_SECTION_REPO/.grype.yaml")"
   remove_invalid_grype_ignores "$YAML_SECTION_REPO/.grype.yaml" >/dev/null
   check "YAML indent $_yaml_indent removes broad selectors" ! grep -q CVE-BROAD "$YAML_SECTION_REPO/.grype.yaml"
+  check "YAML indent $_yaml_indent finds scoped entries" grype_ignore_entry_exists "$YAML_SECTION_REPO/.grype.yaml" CVE-SCOPE example.com/scoped /tools/go.mod
+  check "YAML indent $_yaml_indent finds scope conflicts" grep -q '^SCOPE_CONFLICT:' <<< "$(grype_ignore_scope_conflicts "$YAML_SECTION_REPO/.grype.yaml")"
   check "YAML indent $_yaml_indent runs scope migration" migrate_grype_ignore_scope "$YAML_SECTION_REPO/.grype.yaml" CVE-SCOPE example.com/scoped /tools/go.mod unknown >/dev/null
   check "YAML indent $_yaml_indent migrates scope and state" grype_ignore_entry_exists "$YAML_SECTION_REPO/.grype.yaml" CVE-SCOPE example.com/scoped /tools/go.mod
   check "YAML indent $_yaml_indent removes migrated unscoped entry" ! grype_ignore_entry_exists "$YAML_SECTION_REPO/.grype.yaml" CVE-SCOPE example.com/scoped
@@ -10101,8 +10084,11 @@ _policy_missing_rc=0
 _policy_missing_out=$(PATH="$POLICY_ROOT/no-yaml:$PATH" python3 "$SCRIPT_DIR/check-grype-ignores.py" "$POLICY_ROOT/audit/.grype.yaml" 2>&1) || _policy_missing_rc=$?
 check "policy missing PyYAML: helper fails" test "$_policy_missing_rc" -ne 0
 check "policy missing PyYAML: helper names dependency" grep -q 'CSafeLoader' <<< "$_policy_missing_out"
-_policy_missing_out=$(PATH="$POLICY_ROOT/no-yaml:$PATH" bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$POLICY_ROOT/audit.env")
+_policy_missing_rc=0
+_policy_missing_out=$(PATH="$POLICY_ROOT/no-yaml:$PATH" bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$POLICY_ROOT/audit.env" 2>&1) || _policy_missing_rc=$?
+check "policy missing PyYAML: audit emits findings" test "$_policy_missing_rc" -eq 0
 check "policy missing PyYAML: audit blocks" grep -qE '^NEW_ISSUES=[1-9][0-9]*$' <<< "$_policy_missing_out"
+check "policy missing PyYAML: audit names dependency" grep -q CSafeLoader <<< "$_policy_missing_out"
 _policy_missing_rc=0
 _policy_missing_out=$(PATH="$POLICY_ROOT/no-yaml:$PATH" preflight_check 2>&1) || _policy_missing_rc=$?
 check "policy missing PyYAML: preflight fails" test "$_policy_missing_rc" -ne 0
@@ -10119,9 +10105,12 @@ _policy_backend_out=$(PYTHONPATH="$POLICY_ROOT/pure-yaml" PATH="$POLICY_ROOT/no-
   python3 "$SCRIPT_DIR/check-grype-ignores.py" "$POLICY_ROOT/audit/.grype.yaml" 2>&1) || _policy_backend_rc=$?
 check "policy missing libyaml: helper fails" test "$_policy_backend_rc" -ne 0
 check "policy missing libyaml: helper names backend" grep -q CSafeLoader <<< "$_policy_backend_out"
+_policy_backend_rc=0
 _policy_backend_out=$(PYTHONPATH="$POLICY_ROOT/pure-yaml" PATH="$POLICY_ROOT/no-yaml:$PATH" \
-  bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$POLICY_ROOT/audit.env")
+  bash "$SCRIPT_DIR/../subagents/yaml-integrity.sh" "$POLICY_ROOT/audit.env" 2>&1) || _policy_backend_rc=$?
+check "policy missing libyaml: audit emits findings" test "$_policy_backend_rc" -eq 0
 check "policy missing libyaml: audit blocks" grep -qE '^NEW_ISSUES=[1-9][0-9]*$' <<< "$_policy_backend_out"
+check "policy missing libyaml: audit names dependency" grep -q CSafeLoader <<< "$_policy_backend_out"
 _policy_backend_rc=0
 _policy_backend_out=$(PYTHONPATH="$POLICY_ROOT/pure-yaml" PATH="$POLICY_ROOT/no-yaml:$PATH" preflight_check 2>&1) || _policy_backend_rc=$?
 check "policy missing libyaml: preflight fails" test "$_policy_backend_rc" -ne 0
@@ -10130,13 +10119,17 @@ check "policy missing libyaml: test wrapper names prerequisite" \
   env PYTHONPATH="$POLICY_ROOT/pure-yaml" "$POLICY_PYTHON" -S -c \
   'import runpy,sys; reason=runpy.run_path(sys.argv[1])["missing_prerequisite"](); assert reason and "CSafeLoader" in reason' \
   "$SCRIPT_DIR/../test/test_fix_go_cves.py"
+cp "$POLICY_ROOT/audit/.grype.yaml" "$POLICY_ROOT/backend-original.yaml"
+_policy_backend_rc=0
 _policy_backend_out=$(PYTHONPATH="$POLICY_ROOT/pure-yaml" PATH="$POLICY_ROOT/no-yaml:$PATH" \
-  insert_grype_ignore "$POLICY_ROOT/audit/.grype.yaml" CVE-BACKEND example.com/backend 'No fix' not-fixed 2>&1)
-check "standalone insert retains explicit optional-backend warning" grep -q 'CSafeLoader unavailable' <<< "$_policy_backend_out"
+  insert_grype_ignore "$POLICY_ROOT/audit/.grype.yaml" CVE-BACKEND example.com/backend 'No fix' not-fixed 2>&1) || _policy_backend_rc=$?
+check "standalone insert requires policy reader backend" test "$_policy_backend_rc" -eq 2
+check "standalone insert names backend" grep -q CSafeLoader <<< "$_policy_backend_out"
+check "standalone insert without backend preserves bytes" cmp -s "$POLICY_ROOT/audit/.grype.yaml" "$POLICY_ROOT/backend-original.yaml"
 
 echo "inherited Grype policy stops before clean and scan"
 mkdir -p "$POLICY_ROOT/scripts"
-cp "$SCRIPT_DIR/"{lib.sh,fix-all.sh,check-grype-ignores.py,binary-module-locations.py} "$POLICY_ROOT/scripts/"
+cp "$SCRIPT_DIR/"{lib.sh,generated-artifacts.py,fix-all.sh,check-grype-ignores.py,binary-module-locations.py} "$POLICY_ROOT/scripts/"
 printf '\npreflight_check() { return 0; }\n' >> "$POLICY_ROOT/scripts/lib.sh"
 cat > "$POLICY_ROOT/scripts/detect.sh" <<'SH'
 #!/usr/bin/env bash
@@ -10242,7 +10235,7 @@ SKITT_GROUP="$TMPD/skitt-group"
 mkdir -p "$SKITT_GROUP/scripts" "$SKITT_GROUP/scanner"
 mkdir -p "$SKITT_GROUP/subagents"
 cp "$SCRIPT_DIR/../subagents/"*.sh "$SKITT_GROUP/subagents/"
-for _skitt_script in lib.sh fix-all.sh fix-package.sh fix-stdlib.sh ignore.sh scan.sh binary-module-locations.py check-grype-ignores.py; do
+for _skitt_script in lib.sh fix-all.sh fix-package.sh fix-stdlib.sh ignore.sh scan.sh generated-artifacts.py binary-module-locations.py check-grype-ignores.py; do
   cp "$SCRIPT_DIR/$_skitt_script" "$SKITT_GROUP/scripts/"
 done
 printf '\npreflight_check() { return 0; }\n' >> "$SKITT_GROUP/scripts/lib.sh"
@@ -10397,7 +10390,8 @@ _skitt_native_run() {
     check "native $name: module checksum committed" git -C "$repo" ls-files --error-unmatch "$moddir/go.sum"
     check "native $name: project tests run" grep -q '^ok[[:space:]].*example.com/app' "$dir/run.log"
     check "native $name: final scan confirms clean" grep -q 'Clean: no actionable CVEs remain' "$dir/run.log"
-    check "native $name: PR command available after verification" grep -q 'gh pr create' "$dir/run.log"
+    check "native $name: confirmed gates reach optional publication" \
+      grep -q '^PR command unavailable: .*could not be confirmed' "$dir/run.log"
     check "native $name: repair is signed off" bash -c 'git -C "$1" log -1 --format=%B | grep -q "Signed-off-by: Test <test@test.com>"' _ "$repo"
     check "native $name: no spurious ignore created" test ! -f "$repo/.grype.yaml"
   elif [[ "$mode" == persistent* ]]; then
@@ -10484,6 +10478,7 @@ printf 'binary fixture\0' > "$SKITT_MARKER/repo/compiler-bin"
 chmod +x "$SKITT_MARKER/repo/compiler-bin"
 cat > "$SKITT_MARKER/bin/go" <<'MARKERGO'
 #!/usr/bin/env bash
+. "$CVE_FIX_TEST_GO_ARGS"
 if [[ "$1" == version && "${2:-}" == -m ]]; then
   printf '%s: %s\n' "$3" "$SKITT_GO_MARKER"
 else
@@ -10633,11 +10628,13 @@ ignore:
       type: go-module
       location: /go.mod
 YAML
+cp "$IGY/foreign.yaml" "$IGY/foreign.orig"
 remove_grype_ignore "$IGY/foreign.yaml" CVE-2024-5535 openssl-libs >/dev/null
-check "removal leaves no orphaned fields" ! grep -q 'type: rpm' "$IGY/foreign.yaml"
+check "Go ignore removal preserves non-Go policy bytes" cmp -s "$IGY/foreign.yaml" "$IGY/foreign.orig"
 check "removal keeps YAML valid" python3 -c 'import yaml,sys; yaml.safe_load(open(sys.argv[1]))' "$IGY/foreign.yaml"
 remove_grype_ignore "$IGY/foreign.yaml" CVE-2023-0001 golang.org/x/net /go.mod >/dev/null
 check "removal finds a location after other fields" ! grep -q CVE-2023-0001 "$IGY/foreign.yaml"
+check "Go ignore removal leaves no orphaned fields" ! grep -q 'type: go-module' "$IGY/foreign.yaml"
 printf 'ignore: []\nexclude:\n  - ./testdata/**\n' > "$IGY/empty-flow.yaml"
 check "insert into an empty flow list succeeds" \
   insert_grype_ignore "$IGY/empty-flow.yaml" GO-2026-0001 golang.org/x/net "No fix" not-fixed /go.mod
@@ -10647,13 +10644,17 @@ printf 'ignore: !!seq []\n' > "$IGY/breaks.yaml"
 check "insert reports YAML it breaks as failure" \
   ! insert_grype_ignore "$IGY/breaks.yaml" GO-2026-0002 golang.org/x/net "No fix" not-fixed
 printf 'ignore:\n  - vulnerability: CVE-1\n    package:\n      name: a.b/c\nbroken: [\n' > "$IGY/broken.yaml"
-check "insert is not blamed for already-invalid YAML" \
-  insert_grype_ignore "$IGY/broken.yaml" GO-2026-0002 golang.org/x/net "No fix" not-fixed
+cp "$IGY/broken.yaml" "$IGY/broken.orig"
+check "insert refuses already-invalid YAML" \
+  ! insert_grype_ignore "$IGY/broken.yaml" GO-2026-0002 golang.org/x/net "No fix" not-fixed
+check "invalid YAML remains unchanged for review" cmp -s "$IGY/broken.yaml" "$IGY/broken.orig"
 printf -- '---\nignore:\n  - {vulnerability: CVE-2023-1111, package: {name: golang.org/x/net}}\n  - vulnerability: CVE-2023-2222\n    package: {name: golang.org/x/crypto, location: /go.mod}\n  - vulnerability: CVE-2023-3333\n' > "$IGY/flow.yaml"
-remove_invalid_grype_ignores "$IGY/flow.yaml" >/dev/null
+cp "$IGY/flow.yaml" "$IGY/flow.orig"
+check "mixed flow policy requires review before broad cleanup" ! remove_invalid_grype_ignores "$IGY/flow.yaml" >/dev/null
+check "mixed flow policy remains unchanged" cmp -s "$IGY/flow.yaml" "$IGY/flow.orig"
 check "flow-style package names are not broad" grep -q CVE-2023-1111 "$IGY/flow.yaml"
 check "inline package maps are not broad" grep -q CVE-2023-2222 "$IGY/flow.yaml"
-check "entries without a package are still removed" ! grep -q CVE-2023-3333 "$IGY/flow.yaml"
+check "unsupported broad entry remains visible for review" grep -q CVE-2023-3333 "$IGY/flow.yaml"
 
 FIX_LINES=('NEEDS_REVIEW: example.com/sc — det at /sub/go.mod')
 apply_review_outcome example.com/sc 'needs k8s (need team input) at /sub/go.mod'
@@ -10669,8 +10670,9 @@ check "reviewer prose quoting a limit stays a verdict" ! bash -c \
   "printf 'VERDICT: FAIL\nThe log says usage limit reached earlier.\n' | { source '$SCRIPT_DIR/lib.sh'; is_auth_error; }"
 
 printf 'ignore:\n  - vulnerability: CVE-12\n    reason: upstream name: unknown\n  - vulnerability: CVE-13 # package name: none\n' > "$IGY/prose.yaml"
-remove_invalid_grype_ignores "$IGY/prose.yaml" >/dev/null
-check "prose mentioning name: is still a broad ignore" ! grep -q 'CVE-1[23]' "$IGY/prose.yaml"
+cp "$IGY/prose.yaml" "$IGY/prose.orig"
+check "malformed prose requires review before mutation" ! remove_invalid_grype_ignores "$IGY/prose.yaml" >/dev/null
+check "malformed prose remains unchanged" cmp -s "$IGY/prose.yaml" "$IGY/prose.orig"
 printf 'ignore: [] # none yet\n' > "$IGY/empty-comment.yaml"
 check "insert into an empty flow list with a comment" \
   insert_grype_ignore "$IGY/empty-comment.yaml" GO-2026-0003 golang.org/x/net "No fix" not-fixed
@@ -10765,7 +10767,7 @@ check "Go restriction requires a YAML boolean" ! python3 "$SCRIPT_DIR/read-confi
 echo "report-only scans validate one scan and leave no branch, commit or state"
 RPT="$TMPD/report-only"
 mkdir -p "$RPT/bin" "$RPT/scripts"
-cp "$SCRIPT_DIR"/{lib.sh,report.sh,detect.sh,scan.sh,read-config.py} "$RPT/scripts/"
+cp "$SCRIPT_DIR"/{lib.sh,generated-artifacts.py,check-grype-ignores.py,report.sh,detect.sh,scan.sh,read-config.py} "$RPT/scripts/"
 printf '\npreflight_check() { return 0; }\n' >> "$RPT/scripts/lib.sh"
 make_test_repo "$RPT/repo" ""
 printf 'module example.com/rpt\ngo 1.24.0\n' > "$RPT/repo/go.mod"
@@ -10879,7 +10881,9 @@ printf 'kept' > "$BLT/repo/bin/untouched"; chmod +x "$BLT/repo/bin/untouched"
 check "an in-place rebuild is a built artifact" grep -qx "$BLT/repo/bin/old-tool" "$BLT/state.env.built-artifacts"
 check "a new binary is a built artifact" grep -qx "$BLT/repo/bin/new-tool" "$BLT/state.env.built-artifacts"
 check "an untouched binary is not a built artifact" ! grep -qx "$BLT/repo/bin/untouched" "$BLT/state.env.built-artifacts"
-check "an in-place rebuild is not marked for deletion" ! grep -qx "$BLT/repo/bin/old-tool" "$BLT/state.env.generated-artifacts"
+check "an in-place rebuild is not marked for deletion" python3 -c \
+  'import json,sys; data=json.load(open(sys.argv[1])); sys.exit(not isinstance(data,dict) or sys.argv[2] in data)' \
+  "$BLT/state.env.generated-artifacts" "$BLT/repo/bin/old-tool"
 
 echo "a run removes the previous run's outputs"
 PRV="$TMPD/prev-run"; mkdir -p "$PRV/repo/bin"
@@ -10942,10 +10946,6 @@ EEF_OUT=$(bash "$SCRIPT_DIR/../subagents/existing-entries.sh" "$EEF/state.env" "
 check "foreign ecosystem ignores are never stale" grep -qx 'NEW_ISSUES=0' <<< "$EEF_OUT"
 check "untyped non-module names are never stale" ! grep -q 'libxml2\|libssl1.1' <<< "$EEF_OUT"
 
-echo "verification updates are tested"
-check "fix-all reruns tests when verification moves HEAD" \
-  grep -qF '! git diff --quiet "$TESTED_HEAD" HEAD' "$SCRIPT_DIR/fix-all.sh"
-
 echo "repository config cannot inject names or options"
 CFGV="$TMPD/config-validation"
 make_test_repo "$CFGV" ""
@@ -10973,6 +10973,7 @@ GXP="$TMPD/goexperiment"
 mkdir -p "$GXP"
 cat > "$GXP/go" <<'STUB'
 #!/usr/bin/env bash
+. "$CVE_FIX_TEST_GO_ARGS"
 [[ "$*" == "env GOEXPERIMENT" ]] && { printf '%s\n' "${GOEXPERIMENT-${GXP_DEFAULT}}"; exit 0; }
 exit 1
 STUB
@@ -11017,14 +11018,38 @@ git -C "$EVI_REPO" commit -qsm fixture
 EVI_BASE=$(git -C "$EVI_REPO" rev-parse HEAD)
 git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
 git -C "$EVI_REPO" remote add origin https://github.com/example/evidence.git
+# Explicit same-repository push intent needs no API or inferred fork. The
+# existing fetch stub below keeps this orchestration fixture offline.
+git -C "$EVI_REPO" config remote.pushDefault origin
 mkdir -p "$EVI_SCRIPTS" "$EVI_ROOT/subagents"
-cp "$SCRIPT_DIR/"{fix-all.sh,scan.sh,lib.sh,binary-module-locations.py,check-grype-ignores.py} "$EVI_SCRIPTS/"
+cp "$SCRIPT_DIR/"{fix-all.sh,scan.sh,lib.sh,generated-artifacts.py,binary-module-locations.py,check-grype-ignores.py} "$EVI_SCRIPTS/"
 cp "$SCRIPT_DIR/../subagents/"*.sh "$EVI_ROOT/subagents/"
+# Inject late commits at the verification boundary while retaining the real
+# audits. The canonical suite must observe these commits, including policy-only.
+sed -i '2a bash "$EVI_ROOT/verify-commit.sh" || exit $?' "$EVI_ROOT/subagents/yaml-integrity.sh"
+cat > "$EVI_ROOT/verify-commit.sh" <<'SH'
+#!/usr/bin/env bash
+set -e
+[[ -n "${EVI_VERIFY_COMMIT:-}" && ! -f "$EVI_ROOT/ignore-commit" ]] || exit 0
+if [[ "$EVI_VERIFY_COMMIT" == dependency ]]; then
+  printf '// verification dependency update\n' >> go.mod
+  git add go.mod && git commit -qsm 'Verification dependency update'
+else
+  printf 'ignore: []\n' > .grype.yaml
+  git add .grype.yaml && git commit -qsm 'Record empty ignore policy'
+fi
+git rev-parse HEAD > "$EVI_ROOT/ignore-commit"
+[[ ! -e "$EVI_ROOT/test-count" ]] || touch "$EVI_ROOT/tested-before-verification"
+SH
 cat >> "$EVI_SCRIPTS/lib.sh" <<'SH'
 preflight_check() { return 0; }
 fetch_origin_branch() { return 0; }
 run_grype() {
-  if [[ "${EVI_STDLIB:-false}" == true ]]; then
+  if [[ "${EVI_CAPTURE_KIND:-}" == ignore ]]; then
+    printf '{"matches":[{"vulnerability":{"id":"GO-2099-0001","severity":"High","fix":{"versions":[],"state":"not-fixed"}},"artifact":{"type":"go-module","name":"example.com/pkg","version":"1.0.0","locations":[{"path":"/go.mod"}]}}],"ignoredMatches":[]}\n'
+    return
+  fi
+  if [[ "${EVI_STDLIB:-false}" == true || "${EVI_CAPTURE_KIND:-}" == stdlib ]]; then
     printf '{"matches":[{"vulnerability":{"id":"GO-2099-0002","severity":"High","fix":{"versions":["1.24.1"],"state":"fixed"}},"artifact":{"type":"go-module","name":"stdlib","version":"go1.24.0","locations":[{"path":"/bin/app"}]}}],"ignoredMatches":[]}\n'
     return
   fi
@@ -11034,16 +11059,6 @@ run_grype() {
   if [[ "${EVI_LATE_STAGE:-}" == before-final && "${CVE_FIX_EVIDENCE_PHASE:-}" == final-gate ]]; then
     git show HEAD:Makefile > Makefile
     touch "$EVI_ROOT/late-restored"
-  fi
-  if [[ -n "${EVI_VERIFY_COMMIT:-}" && -f "$EVI_ROOT/test-count" && ! -f "$EVI_ROOT/ignore-commit" ]]; then
-    if [[ "$EVI_VERIFY_COMMIT" == dependency ]]; then
-      printf '// verification dependency update\n' >> go.mod
-      git add go.mod && git commit -qsm 'Verification dependency update'
-    else
-      printf 'ignore: []\n' > .grype.yaml
-      git add .grype.yaml && git commit -qsm 'Record empty ignore policy'
-    fi
-    touch "$EVI_ROOT/ignore-commit"
   fi
   if [[ -n "${EVI_WORKSPACE_MODE:-}" ]]; then
     if [[ "${CVE_FIX_EVIDENCE_PHASE:-}" == initial && -n "${EVI_WORKSPACE_SEED:-}" ]]; then
@@ -11080,6 +11095,15 @@ SH
 cat > "$EVI_SCRIPTS/fix-package.sh" <<'SH'
 #!/usr/bin/env bash
 source "$1"
+if [[ -n "${EVI_CAPTURE_KIND:-}" ]]; then
+  n=$(cat "$EVI_ROOT/fix-count" 2>/dev/null || echo 0)
+  echo $((n + 1)) > "$EVI_ROOT/fix-count"
+  result=${EVI_MUTATOR_RESULT:-0}
+  [[ "$EVI_CAPTURE_KIND" != retry || "$n" != 0 ]] || result=2
+  [[ "$result" != 2 ]] || echo 'RETRY_FIX: GO-2099-0001 1.2.0'
+  echo "NEEDS_REVIEW: example.com/pkg — controlled producer exit $result"
+  exit "$result"
+fi
 printf '// fixed\n' >> "$REPO/go.mod"
 git -C "$REPO" add go.mod
 git -C "$REPO" commit -qsm 'Bump pkg'
@@ -11093,7 +11117,17 @@ SH
 cat > "$EVI_SCRIPTS/fix-stdlib.sh" <<'SH'
 #!/usr/bin/env bash
 echo 'NEEDS_REVIEW: stdlib — selected patch needs compiler approval'
+if [[ "${EVI_CAPTURE_KIND:-}" == stdlib ]]; then
+  echo 1 > "$EVI_ROOT/fix-count"
+  exit "${EVI_MUTATOR_RESULT:-0}"
+fi
 exit 2
+SH
+cat > "$EVI_SCRIPTS/ignore.sh" <<'SH'
+#!/usr/bin/env bash
+echo 1 > "$EVI_ROOT/fix-count"
+echo 'NEEDS_REVIEW: example.com/pkg — controlled ignore producer'
+exit "${EVI_MUTATOR_RESULT:-0}"
 SH
 cat > "$EVI_SCRIPTS/review.sh" <<'SH'
 #!/usr/bin/env bash
@@ -11121,6 +11155,15 @@ else
   fi
 fi
 touch "$EVI_ROOT/late-change"
+SH
+cat > "$EVI_ROOT/clean-command.sh" <<'SH'
+#!/usr/bin/env bash
+# Initial cleanup is harmless; only post-test cleanup exercises these controls.
+[[ -f "$EVI_ROOT/test-count" ]] || exit 0
+case "${EVI_CLEAN_MODE:-}" in
+  fail) exit 17 ;;
+  worktree|cancel|head) EVI_LATE_CHANGE="$EVI_CLEAN_MODE" bash "$EVI_ROOT/late-command.sh" ;;
+esac
 SH
 cat > "$EVI_ROOT/test-command.sh" <<'SH'
 #!/usr/bin/env bash
@@ -11172,12 +11215,13 @@ evi_run() {
   local name="$1" evidence="$2"
   git -C "$EVI_REPO" checkout -q devel
   git -C "$EVI_REPO" branch -D fix-evidence >/dev/null 2>&1 || true
-  rm -f "$EVI_ROOT/test-count"
+  rm -f "$EVI_ROOT/test-count" "$EVI_ROOT/fix-count" "$EVI_ROOT/fix-tee-count"
   printf 'REPO=%q\nBRANCH=devel\nBASE_SHA=%q\nORIGINAL_REF=devel\nFIX_BRANCH=fix-evidence\n' "$EVI_REPO" "$EVI_BASE" > "$EVI_STATE"
   printf 'BUILD_CMD=%q\nBUILD_IMAGE=""\nBUILD_GO_VERSION=unknown\nTEST_CMD=%q\n' \
     'echo canonical-build; if [[ -n "${EVI_LATE_STAGE:-}" && "$EVI_LATE_STAGE" == "${CVE_FIX_EVIDENCE_PHASE:-}" ]]; then bash "$EVI_ROOT/late-command.sh"; fi' \
     'bash "$EVI_ROOT/test-command.sh"' >> "$EVI_STATE"
   printf 'ENV_UNSET=""\nDIFF_IGNORE_ARGS=%q\nCVE_SCRIPTS=%q\nFETCH_FAILED=false\n' "${EVI_INITIAL_RULES:-}" "$EVI_SCRIPTS" >> "$EVI_STATE"
+  printf 'CLEAN_CMD=%q\n' 'bash "$EVI_ROOT/clean-command.sh"' >> "$EVI_STATE"
   if [[ "${EVI_NO_COMMANDS:-false}" == true ]]; then
     printf 'BUILD_CMD=""\nTEST_CMD=""\n' >> "$EVI_STATE"
   fi
@@ -11232,6 +11276,9 @@ for _evi_audit_failure in missing-directory missing-script malformed; do
   check "$_evi_audit_failure audit preserves failed verification evidence" jq -e \
     '.exit_code == 2 and .verification_exit_code == 1' "$EVI_ROOT/$_evi_audit_failure/run.json"
   check "$_evi_audit_failure audit preserves state for diagnosis" test -s "$EVI_ROOT/$_evi_audit_failure/state.env"
+  check "$_evi_audit_failure still tests the retained blocked tree once" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+  check "$_evi_audit_failure passing tests cannot clear verification failure" jq -e \
+    '.test_exit_code == 0 and .tested_head == .head and .verification_exit_code == 1' "$EVI_ROOT/$_evi_audit_failure/run.json"
   check "$_evi_audit_failure audit reports verification failure" \
     grep -q 'NEEDS_REVIEW: subagent verification failed' "$EVI_ROOT/$_evi_audit_failure.log"
   check "$_evi_audit_failure audit suppresses publication" \
@@ -11287,7 +11334,6 @@ check "rejected evidence directory was not created" test ! -d "$EVI_REPO/.git/ev
 # a retry or subsequent scanner. Existing files belong to the caller.
 echo "test-command workspace ownership"
 EVI_WORKSPACE_BASE="$EVI_BASE"
-git -C "$EVI_REPO" remote add fork https://github.com/example-fork/evidence.git
 evi_workspace_reset() {
   git -C "$EVI_REPO" reset -q --hard
   git -C "$EVI_REPO" checkout -q devel
@@ -11295,7 +11341,7 @@ evi_workspace_reset() {
   rm -rf "$EVI_REPO/go.work" "$EVI_REPO/go.work.sum"
   : > "$EVI_REPO/.git/info/exclude"
   rm -f "$EVI_ROOT/workspace-scans" "$EVI_ROOT/workspace-residue" "$EVI_ROOT/cancelled-diff"
-  rm -f "$EVI_ROOT/"{late-change,late-restored,late-cancelled,late-before-head,late-after-head,late-status,ignore-commit}
+  rm -f "$EVI_ROOT/"{late-change,late-restored,late-cancelled,late-before-head,late-after-head,late-status,ignore-commit,tested-before-verification}
   EVI_BASE="$EVI_WORKSPACE_BASE"
   git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
 }
@@ -11305,6 +11351,8 @@ check "new workspace is cleaned before retry succeeds" test "$EVI_RC" -eq 0
 check "workspace retry runs exactly twice" test "$(cat "$EVI_ROOT/test-count")" -eq 2
 check "workspace first actual child failure is retained" jq -e '.exit_code == 7' "$EVI_ROOT/workspace-retry/tests/1-1.json"
 check "workspace retry actual child success is retained" jq -e '.exit_code == 0' "$EVI_ROOT/workspace-retry/tests/1-2.json"
+check "recovered retry reports actual exits without causal speculation" grep -qxF \
+  'Tests passed on retry (first attempt exit 7; retry exit 0).' "$EVI_ROOT/workspace-retry.log"
 check "Summary retains a recovered first-attempt failure" grep -qE \
   '^Tests: completed \(exit 0; failed=false\); tested HEAD: ([0-9a-f]{40}); attempts: 1-1@\1=7 1-2@\1=0$' "$EVI_ROOT/workspace-retry.log"
 check "successful workspace cleanup permits downstream scans" test -s "$EVI_ROOT/workspace-scans"
@@ -11336,8 +11384,11 @@ for _workspace in go.work go.work.sum; do
   for _ownership in tracked untracked ignored symlink; do
     evi_workspace_reset
     _seed=file
+    printf 'preserved workspace\n' > "$EVI_ROOT/caller-workspace.expected"
     if [[ "$_ownership" == tracked ]]; then
-      printf 'preserved workspace\n' > "$EVI_REPO/$_workspace"
+      # Tracked workspaces are owned Go metadata and must parse natively.
+      [[ "$_workspace" != go.work ]] || printf 'go 1.24.0\n\nuse .\n' > "$EVI_ROOT/caller-workspace.expected"
+      cp "$EVI_ROOT/caller-workspace.expected" "$EVI_REPO/$_workspace"
       git -C "$EVI_REPO" add "$_workspace"
       git -C "$EVI_REPO" commit -qsm 'Caller workspace'
       EVI_BASE=$(git -C "$EVI_REPO" rev-parse HEAD)
@@ -11356,7 +11407,7 @@ for _workspace in go.work go.work.sum; do
       check "caller dangling $_workspace symlink is preserved" test "$(readlink "$EVI_REPO/$_workspace")" = missing-workspace-target
       check "caller $_workspace symlink remains dangling" test ! -e "$EVI_REPO/$_workspace"
     else
-      check "caller $_ownership $_workspace bytes are preserved" grep -qx 'preserved workspace' "$EVI_REPO/$_workspace"
+      check "caller $_ownership $_workspace bytes are preserved" cmp -s "$EVI_ROOT/caller-workspace.expected" "$EVI_REPO/$_workspace"
     fi
     _other=go.work
     [[ "$_workspace" == go.work ]] && _other=go.work.sum
@@ -11364,6 +11415,17 @@ for _workspace in go.work go.work.sum; do
     check "$_ownership workspace counterpart never reaches scanners" test ! -e "$EVI_ROOT/workspace-residue"
   done
 done
+
+evi_workspace_reset
+printf 'invalid workspace directive\n' > "$EVI_REPO/go.work"
+git -C "$EVI_REPO" add go.work
+git -C "$EVI_REPO" commit -qsm 'Invalid caller workspace'
+EVI_BASE=$(git -C "$EVI_REPO" rev-parse HEAD)
+git -C "$EVI_REPO" update-ref refs/remotes/origin/devel "$EVI_BASE"
+evi_run workspace-invalid-tracked "$EVI_ROOT/workspace-invalid-tracked"
+check "malformed tracked workspace blocks verification" test "$EVI_RC" -eq 2
+check "malformed tracked workspace is preserved" grep -qx 'invalid workspace directive' "$EVI_REPO/go.work"
+check "malformed tracked workspace never reaches tests" test ! -e "$EVI_ROOT/test-count"
 
 evi_workspace_reset
 EVI_WORKSPACE_MODE=newly-tracked EVI_WORKSPACE_KEEP=go.work evi_run workspace-tracked-during-test "$EVI_ROOT/workspace-tracked-during-test"
@@ -11402,7 +11464,7 @@ for _change in worktree index cancel timeout head; do
   check "post-test $_change mutation preserves actual child $_child_rc receipt" jq -e \
     ".exit_code == $_child_rc" "$EVI_ROOT/$_case/tests/1-1.json"
   check "post-test $_change mutation records completed actual child $_child_rc status" jq -e \
-    ".test_exit_code == $_child_rc and .phases.tests == \"completed\" and .phases.verification == \"not_reached\"" "$EVI_ROOT/$_case/run.json"
+    ".test_exit_code == $_child_rc and .phases.tests == \"completed\" and .phases.verification == \"completed\"" "$EVI_ROOT/$_case/run.json"
   check "post-test $_change mutation still cleans new workspace" test ! -e "$EVI_REPO/go.work"
   check "post-test $_change mutation still cleans new checksum" test ! -e "$EVI_REPO/go.work.sum"
   check "post-test $_change mutation stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
@@ -11426,7 +11488,7 @@ for _child_rc in 0 7; do
   check "workspace cleanup failure preserves actual child $_child_rc receipt" jq -e \
     ".exit_code == $_child_rc" "$EVI_ROOT/$_case/tests/1-1.json"
   check "workspace cleanup failure preserves actual child $_child_rc run status" jq -e \
-    ".test_exit_code == $_child_rc and .phases.tests == \"completed\" and .phases.verification == \"not_reached\"" "$EVI_ROOT/$_case/run.json"
+    ".test_exit_code == $_child_rc and .phases.tests == \"completed\" and .phases.verification == \"completed\"" "$EVI_ROOT/$_case/run.json"
   check "workspace cleanup failure after child $_child_rc stops downstream scans" test ! -e "$EVI_ROOT/workspace-scans"
   check "workspace cleanup failure after child $_child_rc prevents final gate" test ! -e "$EVI_ROOT/$_case/final-gate.json"
   check "workspace cleanup failure after child $_child_rc suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/$_case.log"
@@ -11461,10 +11523,58 @@ case "${logfile##*/}" in
       build:build.log|build:cve-fix-build.*|license:license.log) exit 19 ;;
     esac
     ;;
+  cve-fix.*)
+    "$EVI_REAL_TEE" "$@" || exit $?
+    if [[ "${EVI_TEE_TARGET:-}" == fix ]]; then
+      n=$(cat "$EVI_ROOT/fix-tee-count" 2>/dev/null || echo 0)
+      echo $((n + 1)) > "$EVI_ROOT/fix-tee-count"
+      [[ $((n + 1)) != "${EVI_TEE_AFTER:-1}" ]] || exit 19
+    fi
+    ;;
   *) exec "$EVI_REAL_TEE" "$@" ;;
 esac
 SH
 chmod +x "$EVI_ROOT/test-log-bin/tee"
+# Mutator child exits and required FIX_LOG capture have different meanings.
+# A failed capture aborts before classification, threshold retries or later gates.
+for _kind in ignore stdlib package retry; do
+  _producer_label="$_kind"
+  [[ "$_kind" != stdlib ]] || _producer_label="stdlib fix"
+  [[ "$_kind" != package ]] || _producer_label="package fix"
+  [[ "$_kind" != retry ]] || _producer_label="package retry"
+  _calls=1
+  [[ "$_kind" != retry ]] || _calls=2
+  for _child_rc in 0 2 5; do
+    evi_workspace_reset
+    _case="dispatch-log-$_kind-$_child_rc"
+    PATH="$EVI_ROOT/test-log-bin:$PATH" EVI_TEE_TARGET=fix EVI_TEE_AFTER="$_calls" \
+      EVI_CAPTURE_KIND="$_kind" EVI_MUTATOR_RESULT="$_child_rc" evi_run "$_case" "$EVI_ROOT/$_case"
+    check "$_kind logger failure after child $_child_rc blocks" test "$EVI_RC" -eq 2
+    check "$_kind capture diagnosis preserves both statuses" grep -q \
+      "Cannot capture $_producer_label output (command exited $_child_rc; tee exited 19)" "$EVI_ROOT/$_case.log"
+    check "$_kind capture failure makes no extra mutation attempt" test "$(cat "$EVI_ROOT/fix-count")" -eq "$_calls"
+    check "$_kind capture failure stops before tests" test ! -f "$EVI_ROOT/test-count"
+    check "$_kind capture failure leaves downstream phases unreached" jq -e \
+      '.exit_code == 2 and .phases.tests == "not_reached" and .phases.verification == "not_reached" and .phases.final_gate == "not_reached"' \
+      "$EVI_ROOT/$_case/run.json"
+    check "$_kind capture failure emits no confirmation Summary" ! grep -q '^--- Summary:' "$EVI_ROOT/$_case.log"
+    check "$_kind capture failure suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/$_case.log"
+  done
+done
+for _child_rc in 5 124; do
+  evi_workspace_reset
+  _case="dispatch-child-$_child_rc"
+  EVI_CAPTURE_KIND=package EVI_MUTATOR_RESULT="$_child_rc" evi_run "$_case" "$EVI_ROOT/$_case"
+  check "child $_child_rc with healthy logging stays blocked" test "$EVI_RC" -eq 2
+  check "child $_child_rc is not mislabeled as capture failure" ! grep -q 'Cannot capture package fix output' "$EVI_ROOT/$_case.log"
+  if [[ "$_child_rc" == 5 ]]; then
+    check "transient child classification survives healthy logging" grep -q \
+      'transient network error during go get' "$EVI_ROOT/$_case.log"
+  else
+    check "timeout child status survives healthy logging" grep -q \
+      'fix-package.sh failed with exit code 124' "$EVI_ROOT/$_case.log"
+  fi
+done
 for _evidence in "" "$EVI_ROOT/build-log-failure"; do
   evi_workspace_reset
   PATH="$EVI_ROOT/test-log-bin:$PATH" EVI_TEE_TARGET=build \
@@ -11500,7 +11610,7 @@ for _child_rc in 0 7; do
   check "failed logger after child $_child_rc blocks pipeline" test "$EVI_RC" -eq 2
   check "failed logger preserves actual child $_child_rc receipt" jq -e ".exit_code == $_child_rc" "$EVI_ROOT/$_case/tests/1-1.json"
   check "failed logger records completed actual child $_child_rc status" jq -e \
-    ".phases.tests == \"completed\" and .test_exit_code == $_child_rc and .phases.verification == \"not_reached\"" "$EVI_ROOT/$_case/run.json"
+    ".phases.tests == \"completed\" and .test_exit_code == $_child_rc and .phases.verification == \"completed\"" "$EVI_ROOT/$_case/run.json"
   check "failed logger after child $_child_rc is diagnosed" grep -q 'Cannot capture test output' "$EVI_ROOT/$_case.log"
   check "failed logger after child $_child_rc aborts before a success Summary" ! grep -q '^Scans:' "$EVI_ROOT/$_case.log"
   check "failed logger after child $_child_rc never retries" test "$(cat "$EVI_ROOT/test-count")" -eq 1
@@ -11516,7 +11626,7 @@ PATH="$EVI_ROOT/test-log-bin:$PATH" EVI_TEE_MODE=interrupt EVI_WORKSPACE_MODE=gu
 check "interrupted test preserves signal exit" test "$EVI_RC" -eq 143
 check "interrupted test does not invent a child exit" jq -e '.exit_code == null' "$EVI_ROOT/test-interrupted/tests/1-1.json"
 check "interrupted test phase remains incomplete" jq -e \
-  '.phases.tests == "running" and .test_exit_code == null and .phases.verification == "not_reached"' "$EVI_ROOT/test-interrupted/run.json"
+  '.phases.tests == "running" and .test_exit_code == null and .phases.verification == "completed"' "$EVI_ROOT/test-interrupted/run.json"
 check "interrupted test is not retried" test "$(cat "$EVI_ROOT/test-count")" -eq 1
 check "interrupted test prevents final gate" test ! -e "$EVI_ROOT/test-interrupted/final-gate.json"
 check "interrupted test suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/test-interrupted.log"
@@ -11529,7 +11639,7 @@ cat > "$EVI_ROOT/test-log-bin/jq" <<'SH'
 #!/usr/bin/env bash
 target=$(readlink "/proc/$$/fd/1")
 case "$target" in
-  "$EVI_ROOT/record-once/tests/"*.json)
+  "$(cd "$EVI_ROOT" && pwd -P)/record-once/tests/"*.json)
     n=$(cat "$EVI_ROOT/receipt-writes" 2>/dev/null || echo 0)
     echo $((n + 1)) > "$EVI_ROOT/receipt-writes"
     [[ "$n" == 0 ]] || exit 73
@@ -11569,7 +11679,7 @@ check "retry precheck interruption preserves signal exit" test "$EVI_RC" -eq 143
 check "retry precheck interruption retains first actual child failure" jq -e '.exit_code == 7' "$EVI_ROOT/retry-precheck-interrupted/tests/1-1.json"
 check "retry precheck interruption does not reuse preceding child status" jq -e '.exit_code == null' "$EVI_ROOT/retry-precheck-interrupted/tests/1-2.json"
 check "retry precheck interruption records incomplete current attempt" jq -e \
-  '.phases.tests == "running" and .test_exit_code == null and .phases.verification == "not_reached"' "$EVI_ROOT/retry-precheck-interrupted/run.json"
+  '.phases.tests == "running" and .test_exit_code == null and .phases.verification == "completed"' "$EVI_ROOT/retry-precheck-interrupted/run.json"
 check "retry precheck interruption launches no second child" test "$(cat "$EVI_ROOT/test-count")" -eq 1
 check "retry precheck interruption does not reuse preceding output" test ! -s "$EVI_ROOT/retry-precheck-interrupted/tests/1-2.log"
 check "retry precheck interruption prevents final gate" test ! -e "$EVI_ROOT/retry-precheck-interrupted/final-gate.json"
@@ -11622,7 +11732,9 @@ for _late_case in final-gate:worktree license:worktree license:cancel license:he
   _stage="${_late_case%:*}"
   _change="${_late_case#*:}"
   _case="late-$_stage-$_change"
-  EVI_LATE_STAGE="$_stage" EVI_LATE_CHANGE="$_change" evi_run "$_case" "$EVI_ROOT/$_case"
+  _cleanup=""
+  [[ "$_stage" != before-final ]] || _cleanup=worktree
+  EVI_CLEAN_MODE="$_cleanup" EVI_LATE_STAGE="$_stage" EVI_LATE_CHANGE="$_change" evi_run "$_case" "$EVI_ROOT/$_case"
   check "$_case mutation was actually exercised" test -f "$EVI_ROOT/late-change"
   check "$_case mutation blocks successful completion" test "$EVI_RC" -eq 2
   check "$_case preserves actual clean scan and license receipts" jq -e \
@@ -11640,23 +11752,36 @@ for _late_case in final-gate:worktree license:worktree license:cancel license:he
   fi
 done
 
+for _verification_change in ignore dependency; do
+  evi_workspace_reset
+  _case="verification-$_verification_change"
+  EVI_VERIFY_COMMIT="$_verification_change" evi_run "$_case" "$EVI_ROOT/$_case"
+  check "verification $_verification_change repair permits successful gates" test "$EVI_RC" -eq 0
+  check "verification $_verification_change actually commits before testing" test -s "$EVI_ROOT/ignore-commit"
+  check "verification $_verification_change has no earlier canonical suite" test ! -e "$EVI_ROOT/tested-before-verification"
+  check "verification $_verification_change is tested exactly once" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+  check "verification $_verification_change test receipt binds to final commit" jq -e \
+    --arg head "$(cat "$EVI_ROOT/ignore-commit")" '.head == $head and .exit_code == 0' "$EVI_ROOT/$_case/tests/1-1.json"
+  check "verification $_verification_change retains exact tested and final HEAD" jq -e \
+    '.exit_code == 0 and .head == .tested_head' "$EVI_ROOT/$_case/run.json"
+  check "verification $_verification_change preserves publication eligibility" grep -q '^PR command:' "$EVI_ROOT/$_case.log"
+done
+for _cleanup in fail worktree cancel head; do
+  evi_workspace_reset
+  _case="post-test-cleanup-$_cleanup"
+  EVI_CLEAN_MODE="$_cleanup" evi_run "$_case" "$EVI_ROOT/$_case"
+  check "$_cleanup cleanup blocks confirmation despite passing tests" test "$EVI_RC" -eq 2
+  check "$_cleanup cleanup preserves actual successful test receipt" jq -e \
+    '.exit_code == 2 and .test_exit_code == 0 and .verification_exit_code == 0' "$EVI_ROOT/$_case/run.json"
+  check "$_cleanup cleanup does not reopen testing" test "$(cat "$EVI_ROOT/test-count")" -eq 1
+  check "$_cleanup cleanup suppresses publication" ! grep -q '^PR command:' "$EVI_ROOT/$_case.log"
+  if [[ "$_cleanup" == fail ]]; then
+    check "nonzero cleanup remains visible with unchanged tracked state" grep -q 'Build artifact cleanup failed (exit 17)' "$EVI_ROOT/$_case.log"
+  elif [[ "$_cleanup" == head ]]; then
+    check "cleanup commit cannot redefine tested source" jq -e '.head != .tested_head' "$EVI_ROOT/$_case/run.json"
+  fi
+done
 evi_workspace_reset
-EVI_VERIFY_COMMIT=ignore evi_run earlier-ignore-commit "$EVI_ROOT/earlier-ignore-commit"
-check "earlier ignore-only commit is accepted by final source boundary" test "$EVI_RC" -eq 0
-check "earlier ignore-only commit was actually created" test -f "$EVI_ROOT/ignore-commit"
-check "ignore-only commit does not rerun unchanged code tests" test "$(cat "$EVI_ROOT/test-count")" -eq 1
-check "ignore-only final head may differ from tested code head" jq -e '.exit_code == 0 and .head != .tested_head' "$EVI_ROOT/earlier-ignore-commit/run.json"
-check "earlier ignore-only commit preserves publication eligibility" grep -q '^PR command:' "$EVI_ROOT/earlier-ignore-commit.log"
-evi_workspace_reset
-EVI_VERIFY_COMMIT=dependency evi_run verification-retest "$EVI_ROOT/verification-retest"
-check "verification dependency change is tested again" test "$(cat "$EVI_ROOT/test-count")" -eq 2
-_evi_first_test_head=$(jq -r .head "$EVI_ROOT/verification-retest/tests/1-1.json")
-_evi_final_test_head=$(jq -r .head "$EVI_ROOT/verification-retest/tests/2-1.json")
-check "verification retest actually moves tested HEAD" test "$_evi_first_test_head" != "$_evi_final_test_head"
-check "Summary binds every test run to its actual HEAD and exit" grep -qxF \
-  "Tests: completed (exit 0; failed=false); tested HEAD: $_evi_final_test_head; attempts: 1-1@$_evi_first_test_head=0 2-1@$_evi_final_test_head=0" "$EVI_ROOT/verification-retest.log"
-evi_workspace_reset
-git -C "$EVI_REPO" remote remove fork
 
 
 evi_workspace_reset
@@ -11716,7 +11841,7 @@ check "default scanner invocation writes no selected identity" test ! -f "$EVI_R
 check "local scan requests its catalog in the same invocation" grep -qxF "cyclonedx-json=$EVI_ROOT/catalog/catalog.cdx.json" "$EVI_ROOT/local-args"
 check "catalog output preserves scanner JSON stdout" jq -e '.matches == []' "$EVI_ROOT/local-result.json"
 check "accepted local identity resolves executable symlink and hashes its bytes" jq -e \
-  --arg path "$EVI_ROOT/scanner-bin/grype-real" \
+  --arg path "$(cd "$EVI_ROOT/scanner-bin" && pwd -P)/grype-real" \
   --arg sha "$(sha256sum "$EVI_ROOT/scanner-bin/grype-real" | cut -d' ' -f1)" \
   '.mode == "local" and .path == $path and .sha256 == $sha' "$EVI_ROOT/catalog/scanner-identity.json"
 check "selected identity capture preserves scanner output" cmp "$EVI_ROOT/default-scan.json" "$EVI_ROOT/local-result.json"

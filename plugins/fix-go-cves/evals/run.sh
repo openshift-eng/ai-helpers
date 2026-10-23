@@ -11,7 +11,7 @@ Without a mode flag, run the recorded admiral case and its judges.
 --live runs today's remediation scripts, real builds, tests and scanners.
 It supports --prepare-only, but cannot be combined with --dry-run.
 --case selects a case from that track; repeat it to select several cases.
---config selects a scoring profile; positive case-002 uses eval-publication.yaml.
+--config selects an alternate scoring profile. All replay cases share the default.
 
 HARNESS selects an agent-eval-harness checkout. EVAL_JUDGE_MODEL overrides
 the judge model; CVE_EVAL_PYTHON selects the Python interpreter. Results go
@@ -68,7 +68,14 @@ harness_dir=${HARNESS:-$repo_root/.work/fix-go-cves-review/harness}
 }
 harness_dir=$(cd "$harness_dir" && pwd -P)
 harness_scripts="$harness_dir/skills/eval-run/scripts"
-python_bin=${CVE_EVAL_PYTHON:-python3}
+python_bin=$(command -v "${CVE_EVAL_PYTHON:-python3}") || {
+  echo "Selected eval Python is unavailable." >&2; exit 2;
+}
+# Keep the virtual-environment entrypoint; resolving its symlink loses packages.
+python_bin=$("$python_bin" -c 'import os,sys; print(os.path.abspath(sys.executable))')
+export CVE_EVAL_PYTHON="$python_bin"
+export PATH="$(dirname "$python_bin"):$PATH"
+"$python_bin" -I -c 'from yaml import CSafeLoader; import agent_eval'
 config="$script_dir/eval-replay.yaml"
 default_case=case-005
 verify_args=()
@@ -105,7 +112,8 @@ fi
 mkdir -p "$run_dir"
 git -C "$harness_dir" rev-parse HEAD > "$run_dir/harness-revision.txt"
 config=$("$python_bin" "$helper" snapshot --config "$config" --run-dir "$run_dir" \
-  --cases "${case_ids[@]}" "${model_args[@]}")
+  --cases "${case_ids[@]}" "${model_args[@]}" "${verify_args[@]}")
+helper="$run_dir/provenance/fix-go-cves/evals/scripts/eval.py"
 workspace_output=$("$python_bin" "$harness_scripts/workspace.py" --config "$config" --run-id "$run_id" --cases "${case_ids[@]}")
 printf '%s\n' "$workspace_output"
 workspace_dir=$(printf '%s\n' "$workspace_output" | sed -n 's/^WORKSPACE: //p')

@@ -388,11 +388,23 @@ fi
 MODULE_NOT_IN_PROXY=false
 MAJOR_PATH_CHANGE=false
 _GO_GET_LOG=$(mktemp)
+# A failed logger cannot provide complete verification evidence. Keep the
+# command's actual status in the diagnosis; a command timeout stays transient.
+_check_package_capture() {
+  [[ "$2" -eq 0 ]] && return 0
+  echo "ERROR: Cannot capture $3 output (command exited $1; tee exited $2); verification stopped." >&2
+  [[ "$1" -ne 124 ]] || exit 5
+  exit 2
+}
+
 _go_get_version() {
   local moddir="$1" pkg="$2" ver="$3"
   local _rc=0
-  if ! timeout "${GO_GET_TIMEOUT:-120}" go -C "$moddir" get "${pkg}@v${ver}" 2>&1 | tee -a "$_GO_GET_LOG"; then
-    _rc=${PIPESTATUS[0]}
+  local -a _get_status=(0 0)
+  module_go "$moddir" get "${pkg}@v${ver}" 2>&1 | tee -a "$_GO_GET_LOG" || _get_status=("${PIPESTATUS[@]}")
+  _rc=${_get_status[0]}
+  _check_package_capture "$_rc" "${_get_status[1]}" "go get"
+  if [[ "$_rc" -ne 0 ]]; then
     if grep -qE "unknown revision v?${ver}|invalid version: unknown revision v?${ver}" \
          "$_GO_GET_LOG" 2>/dev/null; then
       MODULE_NOT_IN_PROXY=true
@@ -470,7 +482,10 @@ _go_get_and_check() {
     fi
   fi
   local _tidy_rc=0
-  timeout "${GO_GET_TIMEOUT:-120}" go -C "$moddir" mod tidy 2>&1 | tee -a "$_GO_GET_LOG" || _tidy_rc=${PIPESTATUS[0]}
+  local -a _tidy_status=(0 0)
+  module_go "$moddir" mod tidy 2>&1 | tee -a "$_GO_GET_LOG" || _tidy_status=("${PIPESTATUS[@]}")
+  _tidy_rc=${_tidy_status[0]}
+  _check_package_capture "$_tidy_rc" "${_tidy_status[1]}" "go mod tidy"
   if [[ $_tidy_rc -ne 0 ]]; then
     if [[ $_tidy_rc -eq 124 ]] || grep -qiE "$SCAN_TRANSIENT_RE" "$_GO_GET_LOG" 2>/dev/null; then
       echo "TRANSIENT_ERROR: mod tidy failed with exit $_tidy_rc (timeout or network error)"
@@ -610,8 +625,15 @@ if git ls-files --error-unmatch go.work >/dev/null 2>&1; then
     _SYNC_GOMOD_BEFORE["$_sync_gomod"]=$(git hash-object -- "$_sync_gomod")
   done < <(find_gomods)
   _sync_rc=0
-  env GOWORK= timeout "${GO_GET_TIMEOUT:-120}" go work sync \
-    2>&1 | tee -a "$_GO_GET_LOG" || _sync_rc=${PIPESTATUS[0]}
+  _sync_status=(0 0)
+  if ! validate_go_metadata; then
+    echo "NEEDS_REVIEW: $PACKAGE — workspace members changed outside the owned transaction"
+    exit 2
+  fi
+  env GOWORK="$PWD/go.work" timeout "${GO_GET_TIMEOUT:-120}" go work sync -modfile= -overlay= \
+    2>&1 | tee -a "$_GO_GET_LOG" || _sync_status=("${PIPESTATUS[@]}")
+  _sync_rc=${_sync_status[0]}
+  _check_package_capture "$_sync_rc" "${_sync_status[1]}" "go work sync"
   if [[ $_sync_rc -ne 0 ]]; then
     if [[ $_sync_rc -eq 124 ]] || grep -qiE "$SCAN_TRANSIENT_RE" "$_GO_GET_LOG" 2>/dev/null; then
       echo "TRANSIENT_ERROR: go work sync failed with exit $_sync_rc (timeout or network error)"
@@ -625,8 +647,11 @@ if git ls-files --error-unmatch go.work >/dev/null 2>&1; then
   for _sync_gomod in "${!_SYNC_GOMOD_BEFORE[@]}"; do
     [[ "$(git hash-object -- "$_sync_gomod")" != "${_SYNC_GOMOD_BEFORE[$_sync_gomod]}" ]] || continue
     _sync_tidy_rc=0
-    timeout "${GO_GET_TIMEOUT:-120}" go -C "$(dirname "$_sync_gomod")" mod tidy \
-      2>&1 | tee -a "$_GO_GET_LOG" || _sync_tidy_rc=${PIPESTATUS[0]}
+    _sync_tidy_status=(0 0)
+    module_go "$(dirname "$_sync_gomod")" mod tidy \
+      2>&1 | tee -a "$_GO_GET_LOG" || _sync_tidy_status=("${PIPESTATUS[@]}")
+    _sync_tidy_rc=${_sync_tidy_status[0]}
+    _check_package_capture "$_sync_tidy_rc" "${_sync_tidy_status[1]}" "workspace go mod tidy"
     if [[ $_sync_tidy_rc -ne 0 ]]; then
       if [[ $_sync_tidy_rc -eq 124 ]] || grep -qiE "$SCAN_TRANSIENT_RE" "$_GO_GET_LOG" 2>/dev/null; then
         echo "TRANSIENT_ERROR: workspace mod tidy failed with exit $_sync_tidy_rc (timeout or network error)"
@@ -651,18 +676,24 @@ if [[ "${#_INDIRECT_BEFORE[@]}" -gt 0 ]]; then
       _old="${_INDIRECT_BEFORE[$_key]}"
       _cur=$(get_installed_version "$MODDIR" "$_pkg" 2>/dev/null || true)
       if [[ -z "$_cur" ]] && \
-         ! go -C "$MODDIR" list -m "$_pkg" 2>/dev/null | grep -q .; then
+         ! module_go "$MODDIR" list -m "$_pkg" 2>/dev/null | grep -q .; then
         echo "INFO: $_pkg removed from module graph after fix — not a CVE risk, skipping re-pin"
         continue
       fi
       if [[ -z "$_cur" ]] || ! version_gte "$_cur" "$_old"; then
         echo "WARNING: $_pkg downgraded in $GOMOD (v${_old} -> v${_cur:-removed}); re-pinning to v${_old}..."
         _REPIN_RC=0
-        timeout "${GO_GET_TIMEOUT:-120}" go -C "$MODDIR" get "${_pkg}@v${_old}" \
-          2>&1 | tee -a "$_GO_GET_LOG" || _REPIN_RC=${PIPESTATUS[0]}
+        _repin_status=(0 0)
+        module_go "$MODDIR" get "${_pkg}@v${_old}" \
+          2>&1 | tee -a "$_GO_GET_LOG" || _repin_status=("${PIPESTATUS[@]}")
+        _REPIN_RC=${_repin_status[0]}
+        _check_package_capture "$_REPIN_RC" "${_repin_status[1]}" "indirect go get"
         if [[ $_REPIN_RC -eq 0 ]]; then
           _repin_tidy_rc=0
-          timeout "${GO_GET_TIMEOUT:-120}" go -C "$MODDIR" mod tidy 2>&1 | tee -a "$_GO_GET_LOG" || _repin_tidy_rc=${PIPESTATUS[0]}
+          _repin_tidy_status=(0 0)
+          module_go "$MODDIR" mod tidy 2>&1 | tee -a "$_GO_GET_LOG" || _repin_tidy_status=("${PIPESTATUS[@]}")
+          _repin_tidy_rc=${_repin_tidy_status[0]}
+          _check_package_capture "$_repin_tidy_rc" "${_repin_tidy_status[1]}" "indirect go mod tidy"
           if [[ $_repin_tidy_rc -ne 0 ]]; then
             if [[ $_repin_tidy_rc -eq 124 ]] || grep -qiE "$SCAN_TRANSIENT_RE" "$_GO_GET_LOG" 2>/dev/null; then
               echo "TRANSIENT_ERROR: re-pin mod tidy failed with exit $_repin_tidy_rc (timeout or network error)"
@@ -677,7 +708,7 @@ if [[ "${#_INDIRECT_BEFORE[@]}" -gt 0 ]]; then
           fi
           _after_repin=$(get_installed_version "$MODDIR" "$_pkg" 2>/dev/null || true)
           if [[ -z "$_after_repin" ]] && \
-             ! go -C "$MODDIR" list -m "$_pkg" 2>/dev/null | grep -q .; then
+             ! module_go "$MODDIR" list -m "$_pkg" 2>/dev/null | grep -q .; then
             echo "INFO: $_pkg removed from module graph after re-pin tidy — not a CVE risk, skipping"
             continue
           fi
@@ -717,7 +748,10 @@ for _vendor_dir in "${_VENDOR_DIRS[@]}"; do
   fi
   echo "Syncing vendor directory in $_vendor_moddir..."
   _vendor_rc=0
-  timeout "${GO_GET_TIMEOUT:-120}" go -C "$_vendor_moddir" mod vendor 2>&1 | tee -a "$_GO_GET_LOG" || _vendor_rc=${PIPESTATUS[0]}
+  _vendor_status=(0 0)
+  module_go "$_vendor_moddir" mod vendor 2>&1 | tee -a "$_GO_GET_LOG" || _vendor_status=("${PIPESTATUS[@]}")
+  _vendor_rc=${_vendor_status[0]}
+  _check_package_capture "$_vendor_rc" "${_vendor_status[1]}" "go mod vendor"
   if [[ $_vendor_rc -ne 0 ]]; then
     if [[ $_vendor_rc -eq 124 ]] || grep -qiE "$SCAN_TRANSIENT_RE" "$_GO_GET_LOG" 2>/dev/null; then
       echo "TRANSIENT_ERROR: go mod vendor failed with exit $_vendor_rc (timeout or network error)"
@@ -729,7 +763,10 @@ for _vendor_dir in "${_VENDOR_DIRS[@]}"; do
     exit 1
   fi
   _vendor_check_rc=0
-  go -C "$_vendor_moddir" list -mod=vendor -m 2>&1 | tee -a "$_GO_GET_LOG" || _vendor_check_rc=${PIPESTATUS[0]}
+  _vendor_check_status=(0 0)
+  module_go "$_vendor_moddir" list -mod=vendor -m 2>&1 | tee -a "$_GO_GET_LOG" || _vendor_check_status=("${PIPESTATUS[@]}")
+  _vendor_check_rc=${_vendor_check_status[0]}
+  _check_package_capture "$_vendor_check_rc" "${_vendor_check_status[1]}" "vendor verification"
   if [[ $_vendor_check_rc -ne 0 ]]; then
     echo "NEEDS_REVIEW: $PACKAGE — vendor metadata is inconsistent in $_vendor_moddir"
     exit 2
@@ -746,6 +783,7 @@ if [[ -n "${BUILD_CMD:-}" ]]; then
   build_env_scrub
   artifact_manifest_prepare
   _PACKAGE_BUILD_RC=0
+  _PACKAGE_BUILD_STATUS=(0 0)
   (
     # Resolution uses module mode internally; native builds retain the caller's
     # environment (or their own defaults). Apply ENV_UNSET after restoration.
@@ -761,8 +799,10 @@ if [[ -n "${BUILD_CMD:-}" ]]; then
     "${ENV_SCRUB[@]+"${ENV_SCRUB[@]}"}" env ${BUILD_REPO_NAME:+REPO="$BUILD_REPO_NAME"} \
       MAKEFLAGS=-B timeout --foreground "${CVE_FIX_BUILD_TIMEOUT:-1800}" bash -c "$BUILD_CMD"
   ) \
-    2>&1 | tee -a "$_GO_GET_LOG" || _PACKAGE_BUILD_RC=${PIPESTATUS[0]}
+    2>&1 | tee -a "$_GO_GET_LOG" || _PACKAGE_BUILD_STATUS=("${PIPESTATUS[@]}")
+  _PACKAGE_BUILD_RC=${_PACKAGE_BUILD_STATUS[0]}
   artifact_manifest_record
+  _check_package_capture "$_PACKAGE_BUILD_RC" "${_PACKAGE_BUILD_STATUS[1]}" "project build"
   if [[ "$_PACKAGE_BUILD_RC" -ne 0 ]]; then
     if is_scan_transient "$_GO_GET_LOG"; then
       echo "TRANSIENT_ERROR: project build could not verify $PACKAGE (exit $_PACKAGE_BUILD_RC)"
@@ -843,10 +883,10 @@ while IFS= read -r GOMOD; do
         PRIMARY_STILL_VULNERABLE=true
       fi
     elif version_gte "$INSTALLED" "$VERSION"; then
-      _EFFECTIVE=$(go -C "$MODDIR" list -m -f '{{if .Replace}}{{.Replace.Version}}{{end}}' \
+      _EFFECTIVE=$(module_go "$MODDIR" list -m -f '{{if .Replace}}{{.Replace.Version}}{{end}}' \
         "$PACKAGE" 2>/dev/null || true)
       _EFFECTIVE="${_EFFECTIVE#v}"
-      _LOCAL_REPLACE=$(go -C "$MODDIR" list -m -f '{{if .Replace}}{{.Replace.Dir}}{{end}}' \
+      _LOCAL_REPLACE=$(module_go "$MODDIR" list -m -f '{{if .Replace}}{{.Replace.Dir}}{{end}}' \
         "$PACKAGE" 2>/dev/null || true)
       # A fetched versioned replacement has a cache directory too. Its
       # published Version remains verifiable; local replacements have none.

@@ -34,7 +34,7 @@ while IFS= read -r GOMOD; do
      gomod_has_module_reference "$GOMOD" "$PACKAGE"; then
     FOUND_IN+=("$GOMOD")
   fi
-  if MOD_JSON=$(GOTOOLCHAIN=local go -C "$(dirname "$GOMOD")" mod edit -json 2>/dev/null) &&
+  if MOD_JSON=$(GOTOOLCHAIN=local module_go "$(dirname "$GOMOD")" mod edit -json 2>/dev/null) &&
      jq -e 'type == "object"' >/dev/null 2>&1 <<< "$MOD_JSON"; then
     HITS=$(jq -r --arg pkg "$PACKAGE" '.Replace[]? | select(.Old.Path == $pkg or .New.Path == $pkg) |
       "replace \(.Old.Path) => \(.New.Path) \(.New.Version // "")"' <<< "$MOD_JSON")
@@ -65,5 +65,5 @@ echo "Dependency graph (may download module metadata)..."
 for GOMOD in "${FOUND_IN[@]}"; do
   MODDIR=$(dirname "$GOMOD")
   [[ "$MODDIR" != "." ]] && echo "($MODDIR)"
-  timeout 30 go -C "$MODDIR" mod graph 2>/dev/null | grep -F "$PACKAGE" | head -10 || true
+  GO_LIST_TIMEOUT=30 module_go "$MODDIR" mod graph 2>/dev/null | grep -F "$PACKAGE" | head -10 || true
 done

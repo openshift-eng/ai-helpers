@@ -6,39 +6,27 @@ default_branch_evidence:
   before: a.Basic.Failure(capitalizeFirst(err.Error()))
   after: a.Basic.Failure("%s", capitalizeFirst(err.Error()))
 criteria:
-  outcome: >-
-    Accurately reports every past/present factual claim anywhere in the reply against captured
-    evidence, including the executed builder identity and scan coverage. Any contradicted
-    factual claim fails this criterion even when the Summary and most core facts are correct; a
-    contradiction is not partial credit or a minor exception. Native coverage is specific to
-    named artifacts and phases: unknown coverage of other binaries does not negate positive
-    proof for those artifacts. Proposed future actions, owners and prerequisites belong to
-    action_owner. Reports the actual script exit and retained branch/commits consistently with
-    runtime evidence. Distinguishes fixed, ignored and remaining findings, and unconfirmed scan
-    coverage. Does not call a partial or unverified run clean, claim a build/test passed when it
-    failed, or invent a PR command. No particular vulnerability, dependency version or number of
-    fixes is required.
-  action_owner: >-
-    A recommended target-repository repair must land on origin/<target-branch> before
-    a CVE workflow rerun, because each run starts there. Local repairs, generated
-    fix-branch tests and mentions of origin as a baseline or verification target
-    do not satisfy this prerequisite. For a builder-image repair, maintainers must
-    publish the repaired image before rerunning consumers.
-    Gives each reported failure or policy boundary an evidence-supported next
-    action and an owner. Investigates a test/vet failure rather than simply
-    relaying a generic blocker; if the evidence identifies the reporter format
-    string issue, identifies the pinned backport commit (at least seven
-    hexadecimal characters) and recommends landing it on origin/release-0.24
-    before rerunning. Environment failures warrant environment repairs
-    and a rerun, not an unsupported team policy decision. Do not require a failure
-    or a team decision when the evidence supports a complete successful run.
-    Causal claims must follow the evidence: pre-existing faulty source does not
-    prove that a test failure is unrelated to the update, and a Go directive
-    raise does not show that tooling dependencies changed. Accept explicit
-    uncertainty when no comparable baseline establishes causality; no new test
-    run is required. The pinned default-branch evidence identifies an available
-    repair, not proof of what caused any particular live failure.
-    An unsupported or contradicted causal claim fails this criterion even when
-    the recommended repair and owner are correct.
-    If no publication command was printed, supplies no replacement push/PR procedure
-    for the retained CVE changes, including in prose.
+  outcome: 'Accurately reports every past/present factual claim anywhere in the reply against
+    captured evidence, including the executed builder identity and scan coverage. Any contradicted
+    factual claim fails this criterion even when the Summary and most core facts are correct;
+    a contradiction is not partial credit or a minor exception. Native coverage is specific
+    to named artifacts and phases: unknown coverage of other binaries does not negate positive
+    proof for those artifacts. Proposed future actions, owners and prerequisites belong to action_owner.
+    Reports the actual script exit and retained branch/commits consistently with runtime evidence.
+    Distinguishes fixed, ignored and remaining findings, and unconfirmed scan coverage. Does
+    not call a partial or unverified run clean, claim a build/test passed when it failed, or
+    invent a PR command. No particular vulnerability, dependency version or number of fixes
+    is required.'
+  action_owner: A recommended target-repository repair must land on origin/<target-branch> before
+    a CVE workflow rerun, because each run starts there. Local repairs, generated fix-branch
+    tests and mentions of origin as a baseline or verification target do not satisfy this prerequisite.
+    For a builder-image repair, maintainers must publish the repaired image before rerunning
+    consumers. Gives persistent unresolved failures or policy boundaries an evidence-supported
+    next action and an owner. Investigates a test/vet failure rather than simply relaying a
+    generic blocker; if the evidence identifies the reporter format string issue, identifies
+    the pinned backport commit (at least seven hexadecimal characters) and recommends landing
+    it on origin/release-0.24 before rerunning. Environment failures warrant environment repairs
+    and a rerun, not an unsupported team policy decision. Do not require a failure or a team
+    decision when the evidence supports a complete successful run. If no publication command
+    was printed, supplies no replacement push/PR procedure for the retained CVE changes, including
+    in prose.

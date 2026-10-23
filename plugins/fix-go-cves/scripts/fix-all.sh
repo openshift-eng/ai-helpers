@@ -7,7 +7,7 @@ set -euo pipefail
 #   1. Setup   — load helpers, check toolchain, register cleanup trap
 #   2. Scan    — detect repo/branch, clean artifacts, run initial grype scan
 #   3. Fix     — for each CVE group: ignore, fix-stdlib, or fix-package
-#   4. Verify  — run tests, agent review, subagent verification
+#   4. Verify  — deterministic repair, final-tree tests, agent review
 #   5. Gate    — authoritative final rescan; any remaining CVE = non-zero exit
 #   6. Report  — summary headline, per-package detail, PR command
 
@@ -32,6 +32,7 @@ _EVIDENCE_TEST_STATUS=not_reached
 _EVIDENCE_VERIFY_STATUS=not_reached
 _EVIDENCE_LICENSE_STATUS=not_reached
 _EVIDENCE_TEST_RUN=0
+TESTED_HEAD=""
 _TEST_ATTEMPT_RESULTS=()
 INITIAL_SCAN_SCOPE="not established"
 FINAL_SCAN_SCOPE="not reached"
@@ -104,14 +105,27 @@ cleanup() {
   # Only revert once the target repo is known. The trap installs before
   # 'cd "$REPO"', so an early failure would otherwise run these in the user's
   # invocation directory. Guard on REPO/FIX_BRANCH and target $REPO explicitly.
+  local owns_checkout=false observed_branch="" observed_head="" owned_head=""
   if [[ -n "${FIX_BRANCH:-}" && -n "${REPO:-}" ]]; then
-    git -C "$REPO" reset --quiet HEAD -- . 2>/dev/null || true
-    git -C "$REPO" checkout -- . 2>/dev/null || true
+    observed_branch=$(git -C "$REPO" symbolic-ref --quiet HEAD) || true
+    observed_head=$(git -C "$REPO" rev-parse --verify HEAD) || true
+    owned_head="${TESTED_HEAD:-}"
+    if [[ -z "$owned_head" ]]; then
+      owned_head=$(git -C "$REPO" rev-parse --verify "refs/heads/$FIX_BRANCH") || true
+    fi
+    if [[ "$observed_branch" == "refs/heads/$FIX_BRANCH" && -n "$owned_head" && "$observed_head" == "$owned_head" ]]; then
+      owns_checkout=true
+      git -C "$REPO" reset --quiet HEAD -- . 2>/dev/null || true
+      git -C "$REPO" checkout -- . 2>/dev/null || true
+    else
+      echo "WARNING: Checkout moved outside the run-owned branch; preserving its files/index and $FIX_BRANCH for recovery." >&2
+      printf 'Observed branch: %s; HEAD: %s\n' "${observed_branch:-detached or unavailable}" "${observed_head:-unavailable}" >&2
+    fi
   fi
   # A completed run (including a confirmed partial result) keeps its fix branch.
   # An aborted run restores the original ref before deleting the branch;
   # otherwise an interrupt can strand the checkout on an unpublished fix branch.
-  if [[ "${RUN_COMPLETED:-false}" != "true" && -n "${FIX_BRANCH:-}" && -n "${REPO:-}" ]]; then
+  if [[ "${RUN_COMPLETED:-false}" != "true" && "$owns_checkout" == true ]]; then
     if [[ -n "${ORIGINAL_REF:-}" ]]; then
       if [[ "${ORIGINAL_REF}" == "HEAD" ]]; then
         git -C "$REPO" checkout -q --detach HEAD 2>/dev/null || true
@@ -121,7 +135,13 @@ cleanup() {
     fi
     git -C "$REPO" branch -D "$FIX_BRANCH" 2>/dev/null || true
   fi
-  _record_run_evidence "$exit_status" || echo "WARNING: durable runtime evidence is incomplete." >&2
+  if ! _record_run_evidence "$exit_status"; then
+    echo "WARNING: durable runtime evidence is incomplete; private diagnostics are preserved." >&2
+    printf 'State: %s\nTests: %s\nFixes: %s\nReports: %s\n' \
+      "${STATE_FILE:-unavailable}" "${TEST_LOG:-unavailable}" \
+      "${FIX_LOG:-unavailable}" "${SUBAGENT_REPORT_DIR:-unavailable}" >&2
+    return "$exit_status"
+  fi
   if [[ -n "${STATE_FILE:-}" ]]; then
     rm -f "$STATE_FILE" "${STATE_FILE}.scan-scope" "${STATE_FILE}.build-failed" "${STATE_FILE}.network-broken" "${STATE_FILE}.scanner-degraded" "${STATE_FILE}.scan-transient" "${STATE_FILE}.coverage-unknown" "${STATE_FILE}.review-unresolved" "${STATE_FILE}.review-resolved" "${STATE_FILE}.generated-artifacts" "${STATE_FILE}.built-artifacts" "${STATE_FILE}.baseline-artifacts" "${STATE_FILE}.generated-drift" 2>/dev/null || true
     rmdir "$(dirname "$STATE_FILE")/reviewer" "$(dirname "$STATE_FILE")" 2>/dev/null || true
@@ -424,13 +444,19 @@ while IFS='|' read -r TYPE PKG FIX_VER CVE_CSV _SEVERITY ALL_FIX_VERS FIX_STATE_
 
   FIX_LOG=$(mktemp "${TMPDIR:-/tmp}/cve-fix.XXXXXX")
   if [[ "$TYPE" == "no-fix" ]]; then
-    IGNORE_EXIT=0
+    _FIX_STATUS=(0 0)
     # Scope the ignore to the reporting module when the scan pinned one (set-u
     # safe empty-array expansion so an unscoped CVE passes no --location).
     _loc_flag=()
     [[ -n "${LOCATION:-}" ]] && _loc_flag=(--location "$LOCATION")
     "$SCRIPT_DIR/ignore.sh" "$STATE_FILE" "$PKG" "${_SEVERITY:-High}" \
-      "No fix available for $PKG." --fix-state "${FIX_STATE_VAL:-not-fixed}" ${_loc_flag[@]+"${_loc_flag[@]}"} "${CVES[@]}" </dev/null 2>&1 | tee "$FIX_LOG" || IGNORE_EXIT=$?
+      "No fix available for $PKG." --fix-state "${FIX_STATE_VAL:-not-fixed}" ${_loc_flag[@]+"${_loc_flag[@]}"} "${CVES[@]}" </dev/null 2>&1 | tee "$FIX_LOG" || _FIX_STATUS=("${PIPESTATUS[@]}")
+    IGNORE_EXIT=${_FIX_STATUS[0]}
+    if [[ ${_FIX_STATUS[1]} -ne 0 ]]; then
+      printf 'ERROR: Cannot capture ignore output (command exited %s; tee exited %s); verification stopped.\n' \
+        "$IGNORE_EXIT" "${_FIX_STATUS[1]}" >&2
+      exit 2
+    fi
     if [[ "$IGNORE_EXIT" -eq 0 ]]; then
       # Remove any prior NEEDS_REVIEW or ERROR line for this package
       _remove_needs_review "$PKG" "$(normalize_scan_location "${LOCATION:-}")"
@@ -445,9 +471,15 @@ while IFS='|' read -r TYPE PKG FIX_VER CVE_CSV _SEVERITY ALL_FIX_VERS FIX_STATE_
       REVIEW_COUNT=$((REVIEW_COUNT + 1))
     fi
   elif [[ "$TYPE" == "stdlib" ]]; then
-    STDLIB_EXIT=0
+    _FIX_STATUS=(0 0)
     CVE_FIX_REQUIREMENTS_B64="$REQUIREMENTS_B64" \
-      "$SCRIPT_DIR/fix-stdlib.sh" "$STATE_FILE" "$FIX_VER" "$ALL_FIX_VERS" "${CVES[@]}" </dev/null 2>&1 | tee "$FIX_LOG" || STDLIB_EXIT=$?
+      "$SCRIPT_DIR/fix-stdlib.sh" "$STATE_FILE" "$FIX_VER" "$ALL_FIX_VERS" "${CVES[@]}" </dev/null 2>&1 | tee "$FIX_LOG" || _FIX_STATUS=("${PIPESTATUS[@]}")
+    STDLIB_EXIT=${_FIX_STATUS[0]}
+    if [[ ${_FIX_STATUS[1]} -ne 0 ]]; then
+      printf 'ERROR: Cannot capture stdlib fix output (command exited %s; tee exited %s); verification stopped.\n' \
+        "$STDLIB_EXIT" "${_FIX_STATUS[1]}" >&2
+      exit 2
+    fi
     if [[ "$STDLIB_EXIT" -eq 0 ]]; then
       _stdlib_used=$(grep '^FIXED: stdlib go ' "$FIX_LOG" | head -1 | awk '{print $4}' || true)
       [[ -z "$_stdlib_used" ]] && _stdlib_used="$FIX_VER"
@@ -460,22 +492,34 @@ while IFS='|' read -r TYPE PKG FIX_VER CVE_CSV _SEVERITY ALL_FIX_VERS FIX_STATE_
       REVIEW_COUNT=$((REVIEW_COUNT + 1))
     fi
   else
-    EXIT_CODE=0
+    _FIX_STATUS=(0 0)
     _outcome_scope=""
     [[ -z "${LOCATION:-}" ]] || _outcome_scope=" at $(normalize_scan_location "$LOCATION")"
     _loc_flag=()
     [[ -n "${LOCATION:-}" ]] && _loc_flag=(--location "$LOCATION")
     CVE_FIX_ALL_VERSIONS="$ALL_FIX_VERS" CVE_FIX_REQUIREMENTS_B64="$REQUIREMENTS_B64" \
-    "$SCRIPT_DIR/fix-package.sh" "$STATE_FILE" "$PKG" "$FIX_VER" ${_loc_flag[@]+"${_loc_flag[@]}"} "${CVES[@]}" </dev/null 2>&1 | tee "$FIX_LOG" || EXIT_CODE=$?
+    "$SCRIPT_DIR/fix-package.sh" "$STATE_FILE" "$PKG" "$FIX_VER" ${_loc_flag[@]+"${_loc_flag[@]}"} "${CVES[@]}" </dev/null 2>&1 | tee "$FIX_LOG" || _FIX_STATUS=("${PIPESTATUS[@]}")
+    EXIT_CODE=${_FIX_STATUS[0]}
+    if [[ ${_FIX_STATUS[1]} -ne 0 ]]; then
+      printf 'ERROR: Cannot capture package fix output (command exited %s; tee exited %s); verification stopped.\n' \
+        "$EXIT_CODE" "${_FIX_STATUS[1]}" >&2
+      exit 2
+    fi
     # A rejected update can reveal an advisory's threshold in the new release
     # stream (installed versions match only one affected range). Retry once.
     if [[ $EXIT_CODE -eq 2 && -n "${REQUIREMENTS_B64:-}" ]] &&
        _RETRY_REQUIREMENTS=$(sed -n 's/^RETRY_FIX: //p' "$FIX_LOG" | merge_fix_requirements "$REQUIREMENTS_B64"); then
       echo "Retrying $PKG with fix thresholds reported for the updated version..."
       REQUIREMENTS_B64="$_RETRY_REQUIREMENTS"
-      EXIT_CODE=0
+      _FIX_STATUS=(0 0)
       CVE_FIX_ALL_VERSIONS="$ALL_FIX_VERS" CVE_FIX_REQUIREMENTS_B64="$REQUIREMENTS_B64" \
-      "$SCRIPT_DIR/fix-package.sh" "$STATE_FILE" "$PKG" "$FIX_VER" ${_loc_flag[@]+"${_loc_flag[@]}"} "${CVES[@]}" </dev/null 2>&1 | tee "$FIX_LOG" || EXIT_CODE=$?
+      "$SCRIPT_DIR/fix-package.sh" "$STATE_FILE" "$PKG" "$FIX_VER" ${_loc_flag[@]+"${_loc_flag[@]}"} "${CVES[@]}" </dev/null 2>&1 | tee "$FIX_LOG" || _FIX_STATUS=("${PIPESTATUS[@]}")
+      EXIT_CODE=${_FIX_STATUS[0]}
+      if [[ ${_FIX_STATUS[1]} -ne 0 ]]; then
+        printf 'ERROR: Cannot capture package retry output (command exited %s; tee exited %s); verification stopped.\n' \
+          "$EXIT_CODE" "${_FIX_STATUS[1]}" >&2
+        exit 2
+      fi
     fi
     # Read the version actually applied from fix-package.sh output. When in-stream
     # selection picks a lower version (e.g. 3.6.14 instead of 3.7.1), the FIXED
@@ -603,8 +647,7 @@ _run_test_attempt() {
   _record_test_evidence "$TEST_RC"
 }
 
-# Test the current HEAD. Verification may commit further updates, so the
-# orchestrator reruns this whenever HEAD moves after the first pass.
+# Test the retained HEAD after deterministic verification has finished repairs.
 run_tests() {
   TESTED_HEAD=$(git rev-parse HEAD)
   if [[ -z "${TEST_CMD:-}" ]]; then _EVIDENCE_TEST_STATUS=not_configured; return 0; fi
@@ -627,10 +670,11 @@ run_tests() {
   grep -qiE 'no space left on device|disk quota exceeded' "$TEST_LOG" && disk_full=true
   # Retry once except for timeouts or disk exhaustion.
   if [[ $TEST_RC -ne 0 && $TEST_RC -ne 124 ]] && ! $disk_full; then
+    local first_rc=$TEST_RC
     echo "Tests failed; rerunning once..."
     _EVIDENCE_TEST_ATTEMPT=2
     _run_test_attempt
-    [[ $TEST_RC -ne 0 ]] || echo "WARNING: tests passed on the second run; a test may be flaky."
+    [[ $TEST_RC -ne 0 ]] || printf 'Tests passed on retry (first attempt exit %s; retry exit %s).\n' "$first_rc" "$TEST_RC"
   fi
   if [[ $TEST_RC -ne 0 ]]; then
     if $disk_full; then
@@ -647,12 +691,6 @@ run_tests() {
   _EVIDENCE_TEST_RC=$TEST_RC
   rm -f "$TEST_LOG"
 }
-run_tests
-# Clean stale build artifacts so the final scan doesn't find CVEs
-# from pre-fix binaries (the initial scan may have built with old deps)
-if [[ -n "${CLEAN_CMD:-}" ]]; then
-  bash -c "$CLEAN_CMD" >/dev/null 2>&1 || true
-fi
 echo "Final scan..."
 # Rebuild before review. The initial scan's binaries contain pre-fix modules;
 # reviewing a source-only scan of those stale artifacts creates false residuals
@@ -778,14 +816,22 @@ fi
 # or FIXED_COUNT directly; _fix_fv_package writes to fixed-pkgs so the parent
 # can record the outcome and remove any stale ERROR: line from the main loop.
 fold_fixed_package_outcomes "$SUBAGENT_REPORT_DIR"
-# Ignore-policy commits change no code, so only dependency changes are retested.
-if ! $TESTS_FAILED && ! git diff --quiet "$TESTED_HEAD" HEAD -- . ':(exclude).grype.yaml'; then
-  run_tests
+# Verification can commit dependency or policy repairs. Test that retained tree
+# once, with the existing bounded retry, even when verification remains blocked.
+run_tests
+VERIFIED_HEAD=$TESTED_HEAD
+# Remove test/build outputs before final scanning without redefining the tested
+# source. Failed cleanup cannot certify that the retained artifacts are current.
+_cleanup_rc=0
+if [[ -n "${CLEAN_CMD:-}" ]]; then
+  bash -c "$CLEAN_CMD" >/dev/null 2>&1 || _cleanup_rc=$?
 fi
-
-# Final checks must describe the retained source, including policy-only commits.
-VERIFIED_HEAD=""
-if ! VERIFIED_HEAD=$(git rev-parse HEAD) || ! _tracked_tree_unchanged "$VERIFIED_HEAD"; then
+if [[ $_cleanup_rc -ne 0 ]]; then
+  echo "NEEDS_REVIEW: Build artifact cleanup failed (exit $_cleanup_rc) before final checks." >&2
+  POLICY_CHECK_FAILED=true
+  UNSEEN_NEEDS_REVIEW=true
+fi
+if ! _tracked_tree_unchanged "$VERIFIED_HEAD"; then
   echo "NEEDS_REVIEW: Retained HEAD and clean tracked files could not be confirmed before final checks." >&2
   POLICY_CHECK_FAILED=true
   UNSEEN_NEEDS_REVIEW=true
@@ -1181,37 +1227,24 @@ elif [[ "$COMMIT_COUNT" -gt 0 ]]; then
     BASE_BRANCH="$BRANCH"
     _ADVISORIES=$(printf '%s\n' "${_FIXED_TUPLES:-}" | sed '/^$/d' | cut -d'|' -f1 | sort -u | wc -l)
     PLURAL=$([[ "$COMMIT_COUNT" -eq 1 && "$_ADVISORIES" -le 1 ]] && echo "" || echo "s")
-    _UPSTREAM="${UPSTREAM_ORG:-}"
-    [[ -z "$_UPSTREAM" ]] && _UPSTREAM=$(github_remote_owner "$(git remote get-url origin 2>/dev/null)")
-    FORK_REMOTE=""
-    FORK_USER=""
-    if [[ -n "$_UPSTREAM" ]]; then
-      while IFS= read -r _remote; do
-        _fork_owner=$(github_remote_owner "$(git remote get-url --push "$_remote" 2>/dev/null)")
-        [[ -n "$_fork_owner" && "${_fork_owner,,}" != "${_UPSTREAM,,}" ]] || continue
-        FORK_REMOTE="$_remote"
-        FORK_USER="$_fork_owner"
-        break
-      done < <(git remote)
-    fi
-
     if [[ "$GATE_REMAINING" -gt 0 ]]; then
       PR_TITLE="Partial CVE fix in ${BASE_BRANCH} ($GATE_REMAINING unresolved)"
       echo "NOTE: $GATE_REMAINING finding(s) remain — PR title reflects a partial fix."
     else
       PR_TITLE="Fix CVE${PLURAL} in ${BASE_BRANCH}"
     fi
-    if [[ -n "$FORK_REMOTE" && -n "$FORK_USER" ]]; then
+    if publication_target "$CURRENT_BRANCH"; then
       echo "PR command:"
-      printf 'git push %q %q && \\\n' "$FORK_REMOTE" "$CURRENT_BRANCH"
+      printf 'git push --no-follow-tags %q %q && \\\n' "$PR_PUSH_REMOTE" "refs/heads/$CURRENT_BRANCH:refs/heads/$CURRENT_BRANCH"
       echo "gh pr create \\"
       printf '  --title %q \\\n' "$PR_TITLE"
       printf '  --body %q \\\n' "See commit message${PLURAL} for details."
+      printf '  --repo %q \\\n' "$PR_REPOSITORY"
       printf '  --base %q \\\n' "$BASE_BRANCH"
-      printf '  --head %q \\\n' "${FORK_USER}:${CURRENT_BRANCH}"
+      printf '  --head %q \\\n' "$PR_HEAD"
       echo "  --assignee \"@me\""
     else
-      echo "PR command unavailable: no GitHub fork push remote was detected."
+      echo "PR command unavailable: GitHub base and a single push destination could not be confirmed."
     fi
   fi
 else

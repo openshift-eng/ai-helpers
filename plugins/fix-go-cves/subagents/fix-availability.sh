@@ -21,43 +21,16 @@ if [[ ! -f "$GRYPE_FILE" ]]; then
   exit 0
 fi
 
-# Extract exact CVE/package/location entries with fix-state: not-fixed.
-# YAML structure:
-#   - vulnerability: GHSA-xxxx
-#     fix-state: not-fixed
-#     package:
-#       name: package.name/path
-NOT_FIXED_ENTRIES=()
-CURRENT_FIX_STATE=""
-CURRENT_PKG=""
-CURRENT_VULN=""
-CURRENT_LOCATION=""
-while IFS= read -r line; do
-  [[ "$line" =~ ^[[:space:]]*# ]] && continue
-  if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*vulnerability: ]]; then
-    # Save previous entry if it was not-fixed
-    if [[ "$CURRENT_FIX_STATE" =~ ^(not-fixed|unknown)$ ]] && [[ -n "$CURRENT_PKG" ]]; then
-      NOT_FIXED_ENTRIES+=("$CURRENT_VULN|$CURRENT_PKG|$CURRENT_LOCATION")
-    fi
-    CURRENT_VULN=$(echo "$line" | sed 's/.*vulnerability:[[:space:]]*//' | xargs)
-    CURRENT_FIX_STATE=""
-    CURRENT_PKG=""
-    CURRENT_LOCATION=""
-  fi
-  if [[ "$line" =~ ^[[:space:]]*fix-state: ]]; then
-    CURRENT_FIX_STATE=$(grype_fix_states <<< "$line")
-  fi
-  if [[ "$line" =~ ^[[:space:]]*name: ]]; then
-    CURRENT_PKG=$(echo "$line" | sed 's/.*name:[[:space:]]*//; s/[[:space:]]#.*//' | xargs)
-  fi
-  if [[ "$line" =~ ^[[:space:]]*location: ]]; then
-    CURRENT_LOCATION=$(echo "$line" | sed 's/.*location:[[:space:]]*//' | xargs)
-  fi
-done < "$GRYPE_FILE"
-# Save last entry
-if [[ "$CURRENT_FIX_STATE" =~ ^(not-fixed|unknown)$ ]] && [[ -n "$CURRENT_PKG" ]]; then
-  NOT_FIXED_ENTRIES+=("$CURRENT_VULN|$CURRENT_PKG|$CURRENT_LOCATION")
+if ! POLICY=$(grype_policy_entries "$GRYPE_FILE"); then
+  echo "NEW_ISSUES=0"
+  echo "SKIP: Grype ignore policy could not be decoded"
+  exit 1
 fi
+mapfile -t NOT_FIXED_ENTRIES < <(jq -r '
+  .[] | select(.type == "go-module" or (.type == "" and
+    (.package == "stdlib" or (.package | test("^[^/]*[.][^/]*/"))))) |
+  select(.fix_state | IN("not-fixed", "unknown")) |
+  [.vulnerability,.package,.location] | join("|")' <<< "$POLICY")
 
 if [[ ${#NOT_FIXED_ENTRIES[@]} -eq 0 ]]; then
   echo "NEW_ISSUES=0"
@@ -66,7 +39,7 @@ if [[ ${#NOT_FIXED_ENTRIES[@]} -eq 0 ]]; then
 fi
 
 SCAN_FILE=""
-if ! SCAN_FILE=$(review_scan_file "$REPORT_DIR"); then
+if ! SCAN_FILE=$(review_scan_file "$REPORT_DIR") || [[ -z "$SCAN_FILE" ]]; then
   echo "NEW_ISSUES=0"
   echo "SCAN_FAILED=1"
   echo "SKIP: Current Grype scan evidence unavailable or invalid"
