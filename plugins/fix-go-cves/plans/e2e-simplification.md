@@ -214,11 +214,17 @@ eight of nine expected majorities match. Publication negative 101 passes T/F/T:
 both passing rationales find unsupported facts, then waive them because they are
 not contradictions. No actor launches from that failed admission.
 
-Close this gap in the existing factual rejection sentence: unsupported factual
-claims fail alongside contradictions and missing required disclosures. The replay
-rationale can identify an evidence gap or conflict. Recalibrate changed O prompts
-on retained positive and negative controls: 51 O samples across V9, publication V5,
-the new fix-version pair and native V2. Reuse unchanged A requests by identity.
+C23 explicitly rejects unsupported factual claims, but calibration still fails:
+14/17 expected majorities, 51 valid responses and zero errors. Passing samples
+merge exact citations/commands or waive a found defect in an overall assessment.
+Preserve those results; no actor launches.
+
+Replace the opening checklist with a compact counterexample decision after the
+evidence and reply, and fence replay observations consistently with live. Keep
+all data/labels and interpretation boundaries. The combined rubric is shorter;
+it remains an unproved structural hypothesis. Recalibrate all fixed positive and
+negative controls: 51 O samples across V9, publication V5, the new fix-version
+pair and native V2. Reuse unchanged A requests by identity.
 Models, thresholds, runtime and the one-line error path stay fixed. The fully
 retained A-V6 results remain reusable; earlier counters remain reported, not
 retroactively proven. Preserve all old grades and dissent. No parser-error sample

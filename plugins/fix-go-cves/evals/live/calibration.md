@@ -251,9 +251,14 @@ adding 12. All 27 responses are valid with distinct IDs and zero errors. Eight o
 nine expected majorities match; publication V5 negative 101 incorrectly passes
 T/F/T because unsupported facts are waived as not contradicted. No actor launches.
 
-The next O revision explicitly rejects unsupported factual claims. Recalibrate
-all nine V9 replay controls, both publication V5 controls, the new publication
-fix-version pair and all four native V2 controls: 51 O samples, zero actors.
-Retain each original text/label and dissent; preserve positive proof and supported
-derived claims. A stays unchanged and reusable by exact request identity. These
-are development admissions, not holdouts or proof of general reliability.
+C23's explicit unsupported-claim rejection completes 51 valid, distinct responses
+with zero errors, but only 14/17 expected majorities and 45/51 samples match.
+Wrong precise citation, wrong named command and unsupported publication facts
+still pass. Native and fix-version controls all match. Preserve original dissent.
+
+C24 replaces the opening checklist with one counterexample decision after the
+evidence/reply and aligns replay observation boundaries with live. Recalibrate
+the same nine V9, two publication V5, two fix-version and four native controls:
+51 O samples, zero actors. Preserve all texts/labels, positive native proof and
+supported derived claims. A stays unchanged and reusable by exact request identity.
+These are development admissions, not holdouts or proof of general reliability.

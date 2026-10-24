@@ -99,11 +99,17 @@ The exception uses the existing error/usage path, and every new sample
 must be valid, retained and error-free. This is witness/error-path admission,
 not a format rule, actor pass or unseen holdout.
 
-The next outcome prompt explicitly rejects unsupported factual claims alongside
-contradictions. Prospective O-only calibration covers all nine V9 controls, both
-V5 proof controls, this fix-version pair and all four native V2 controls: 51 samples.
-Labels/texts stay fixed; unchanged A requests reuse accepted samples. This broader
-positive/negative check must pass before a fresh eleven-actor cohort.
+C23 explicitly rejects unsupported factual claims, but its 51 valid, error-free
+O responses match only 14/17 expected majorities. V5 101 still passes T/T/F;
+V9's wrong-citation and wrong-command negatives also pass. Both fix-version
+controls and all four native controls have the expected labels in every sample.
+Original grades and dissent remain unchanged.
+
+C24 replaces the opening checklist with a compact counterexample decision after
+the evidence/reply and aligns replay observation boundaries with live. Reuse all
+nine V9 controls, both V5 controls, this pair and all four native controls: 51
+prospective O samples. Texts/labels stay fixed; unchanged A requests reuse accepted
+samples. This check must pass before a fresh eleven-actor cohort.
 
 ## Actor evidence and artifact locations
 

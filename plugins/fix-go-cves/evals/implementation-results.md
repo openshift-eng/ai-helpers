@@ -5,8 +5,9 @@ at publication 002 on an unsupported Go-minor prerequisite. That run also expose
 incomplete judge evidence and an empty response silently counted as false instead
 of an error. C22 added a primary fix-version witness, an evidence priority sentence
 and a one-line parser exception. Its 27 calibration responses were valid, but one
-negative majority incorrectly passed; no actor launched. Current preparation closes
-that factual-grading gap by rejecting unsupported claims as well as contradictions.
+negative majority incorrectly passed; no actor launched. C23's stronger wording
+still misses three negative majorities. Current preparation replaces the opening
+checklist with a compact counterexample decision after the evidence and reply.
 
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
@@ -346,13 +347,26 @@ catalog coverage, then waive them as unsupported rather than contradicted.
 Calibration stops without actors. Original responses and terminal exits remain in
 `c22-calibration-original-completion.json` and the four groups' retained summaries.
 
-C23 preparation changes only the existing O rejection sentences to include
+C23 at `25f0e095` changes only the existing O rejection sentences to include
 unsupported factual claims, and lets the replay rationale identify an evidence gap
 as well as a conflict. This adds no citation/format requirement, new criterion or
 parser. Recalibrate the changed outcome judges against retained positive and negative
-controls before actors. Reuse unchanged A responses by exact request identity;
-preserve the failed calibration and every original score. Full details belong to
-the calibration records.
+controls before actors. All 51 responses are valid and distinct with zero errors,
+but only 14/17 expected majorities and 45/51 samples match. V9 102 returns F/T/T
+for a wrong precise citation; V9 108 returns T/T/F for the wrong named command;
+publication V5 101 returns T/T/F for unsupported historical configuration/native
+coverage. Passing rationales either merge relationships or locate the error and
+waive it as minor, recommendation context or mostly correct reporting. Preserve
+all rationales/dissent in `c23-calibration-original-completion.json` and its four
+groups. No C23 actor launches.
+
+C24 replaces that procedural checklist with one counterexample decision after
+the evidence and reply. Replay observations use live's existing evaluated-material
+boundary. Data payloads, labels, models, samples, limits, A and harness stay fixed.
+The combined O rubric is shorter; existing interpretation boundaries
+remain. This structural hypothesis needs a fresh fixed 51-sample O calibration;
+it has no acceptance credit yet. Reuse unchanged A requests by identity. Full
+details belong to the calibration records.
 
 After calibration and source freeze, measure publication 002 first, then 007,
 live 002, live 001, 005, live 003/004 and four replay repeats. All eleven actors,
