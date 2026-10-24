@@ -20,7 +20,6 @@ Before posting, verify the following are available from the parent command:
 - **`SOURCE_TICKET`** — the Jira ticket key from `--jira=`/`--jql=` (e.g. `OCPBUGS-12345`). This is the only ticket this skill writes to.
 - **`jira_context`** — label snapshot from Phase 0.5 (`jira_context["labels"]`); used as a hint only — Step 4.5 re-fetches current labels before writing
 - Risk level (`HIGH` / `MEDIUM` / `LOW` / `NEEDS_REVIEW`)
-- `AUTO_APPROVE` (`yes`/`no`, default `no`) — governs the Step 3b visibility-downgrade fallback prompt
 
 **If `SOURCE_TICKET` is not available** (direct CVE mode): return `status: skipped` with reason `"no_source_ticket"`.
 
@@ -71,16 +70,31 @@ Jira comment bodies are capped at **32,767 characters**. Apply these steps **in 
 
 ## Step 3: Post the Comment
 
+The comment is posted publicly (visible to everyone with access to the ticket) — no visibility restriction is applied or needed.
+
+### Step 3a: MCP tool (default)
+
+```python
+addCommentToJiraIssue(
+    issue_key=SOURCE_TICKET,
+    comment_body="<constructed comment from Step 2>",
+    contentFormat="markdown"
+)
+```
+
+### Step 3b: Fallbacks (if the MCP tool is unavailable)
+
+**jira-cli:**
+
+```bash
+jira issue comment add "${SOURCE_TICKET}" \
+  --body "$(cat /tmp/cve-report-comment.txt)" \
+  --no-input
+```
+
+**Direct REST API** (headless environments with `JIRA_API_TOKEN`/`JIRA_URL` set but no MCP tool or jira-cli):
+
 > **Credential rule:** Never print, echo, or log any token, key, or password value. Reference credentials only via environment variable names. Never interpolate a credential value into a logged string.
-
-CVE analysis reports contain security-sensitive findings. Prefer restricted (internal-only) visibility when the Jira instance supports it.
-
-### Step 3a: Direct REST API with restricted visibility (attempt first, if credentials are configured)
-
-If a token is available in the environment, try the REST API directly so the comment can carry a visibility restriction the MCP tool does not support. Try **both** auth schemes and let the HTTP response decide which one worked — credentials may be exposed differently depending on the runtime (a local shell with a bare token vs. a CI/RWS runner with a mounted service-account email+token pair):
-
-1. **Basic auth (email + API token)** — the scheme most Jira Cloud instances actually expect for API tokens. Used when both `JIRA_EMAIL` and a token are available.
-2. **Bearer token only** — fallback for runtimes that expose only a bare token env var with no associated email.
 
 ```bash
 JIRA_API_TOKEN="${JIRA_API_TOKEN:-${JIRA_TOKEN:-${ATLASSIAN_API_TOKEN:-}}}"
@@ -93,118 +107,32 @@ if [ -n "${JIRA_API_TOKEN}" ] && [ -n "${JIRA_BASE_URL}" ]; then
     *) echo "ERROR: JIRA_BASE_URL must use HTTPS (got: ${JIRA_BASE_URL})"; exit 1 ;;
   esac
 
-  cat > /tmp/cve-report-comment.txt << 'COMMENT_EOF'
-<constructed comment from Step 2>
-COMMENT_EOF
-
-  COMMENT_BODY=$(cat /tmp/cve-report-comment.txt)
-  COMMENT_JSON_BODY=$(echo "${COMMENT_BODY}" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))")
-
-  post_comment() {
-    # $1 = auth mode: "basic" (email+token) or "bearer" (token only)
-    # Build the Authorization header inside this function after set +x so
-    # credentials never appear in traced argv when post_comment is invoked.
-    local auth_mode="$1" curl_cfg http_code auth_header
-    curl_cfg=$(mktemp)
-    chmod 600 "${curl_cfg}"
-    trap 'rm -f "${curl_cfg}"' RETURN EXIT INT TERM
-    [[ $- == *x* ]] && local _was_tracing=true || local _was_tracing=false
-    set +x
-    if [ "${auth_mode}" = "basic" ]; then
-      auth_header="Basic $(printf '%s:%s' "${JIRA_EMAIL}" "${JIRA_API_TOKEN}" | base64 | tr -d '\n')"
-    else
-      auth_header="Bearer ${JIRA_API_TOKEN}"
-    fi
-    printf 'header = "Authorization: %s"\n' "${auth_header}" > "${curl_cfg}"
-    unset auth_header
-    $_was_tracing && set -x || true
-
-    http_code=$(curl -s -o /tmp/jira-post-response.txt -w "%{http_code}" \
-      --connect-timeout 15 \
-      --max-time 60 \
-      -X POST \
-      -K "${curl_cfg}" \
-      "${JIRA_BASE_URL}/rest/api/2/issue/${SOURCE_TICKET}/comment" \
-      -H "Content-Type: application/json" \
-      --data-binary @- << EOF
-{
-  "body": ${COMMENT_JSON_BODY},
-  "visibility": {
-    "type": "group",
-    "value": "Red Hat Employee"
-  }
-}
-EOF
-)
-    echo "${http_code}"
-  }
-
-  HTTP_STATUS=""
-  if [ -n "${JIRA_EMAIL}" ] && [ -n "${JIRA_API_TOKEN}" ]; then
-    echo "Attempting REST post with Basic auth (email + token)..."
-    HTTP_STATUS=$(post_comment basic)
-  fi
-
-  # Only retry with the other auth scheme when Basic wasn't attempted at all
-  # (no JIRA_EMAIL) or came back with an actual auth failure (401/403). This
-  # POST is not idempotent: retrying it for every other status (400, 429,
-  # 5xx, or curl's own "000") risks creating a duplicate comment if the first
-  # request was actually accepted server-side but the response was lost or
-  # malformed. Any other failure goes straight to Step 3b instead of retrying.
-  if { [ -z "${HTTP_STATUS}" ] || [ "${HTTP_STATUS}" = "401" ] || [ "${HTTP_STATUS}" = "403" ]; } && [ -n "${JIRA_API_TOKEN}" ]; then
-    echo "Attempting REST post with Bearer auth..."
-    HTTP_STATUS=$(post_comment bearer)
-  fi
-
-  echo "Jira API HTTP status: ${HTTP_STATUS:-none attempted}"
-  if [ "${HTTP_STATUS}" = "201" ]; then
-    echo "✓ Comment posted with restricted visibility"
+  COMMENT_JSON_BODY=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" < /tmp/cve-report-comment.txt)
+  if [ -n "${JIRA_EMAIL}" ]; then
+    auth_header="Basic $(printf '%s:%s' "${JIRA_EMAIL}" "${JIRA_API_TOKEN}" | base64 | tr -d '\n')"
   else
-    echo "✗ REST API failed (HTTP ${HTTP_STATUS:-n/a}) — will fall back to MCP tool"
-    cat /tmp/jira-post-response.txt 2>/dev/null || true
+    auth_header="Bearer ${JIRA_API_TOKEN}"
   fi
+  curl_cfg=$(mktemp) && chmod 600 "${curl_cfg}"
+  trap 'rm -f "${curl_cfg}"' RETURN EXIT INT TERM
+  printf 'header = "Authorization: %s"\n' "${auth_header}" > "${curl_cfg}"
+  unset auth_header
+
+  HTTP_STATUS=$(curl -s -o /tmp/jira-post-response.txt -w "%{http_code}" \
+    --connect-timeout 15 --max-time 60 -X POST -K "${curl_cfg}" \
+    "${JIRA_BASE_URL}/rest/api/2/issue/${SOURCE_TICKET}/comment" \
+    -H "Content-Type: application/json" \
+    --data-binary "{\"body\": ${COMMENT_JSON_BODY}}")
+
+  echo "Jira API HTTP status: ${HTTP_STATUS}"
+  [ "${HTTP_STATUS}" != "201" ] && cat /tmp/jira-post-response.txt 2>/dev/null
 fi
 ```
 
-> The `visibility` object above targets `redhat.atlassian.net`. On other Jira Cloud instances, adjust `type`/`value` to match an equivalent internal-only group, or omit `visibility` entirely if none exists.
+- IF HTTP 201 → posted successfully.
+- Never print `JIRA_API_TOKEN`, `JIRA_EMAIL`, the computed auth header, or the contents of `${curl_cfg}` — only the HTTP status code and response body.
 
-- IF HTTP 201 (either scheme) → done. Skip Step 3b.
-- IF credentials are not configured → continue to Step 3b.
-- IF HTTP 401/403 on both schemes (or Basic wasn't attempted and Bearer also fails) → credentials not available or insufficient permissions; continue to Step 3b.
-- IF Basic auth returns any other status (400, 429, 5xx, curl error `000`) → do **not** retry with Bearer (the POST is not idempotent) — go directly to Step 3b.
-- Never print `JIRA_API_TOKEN`, `JIRA_EMAIL`, the computed `BASIC_AUTH` value, or the contents of `${curl_cfg}` — only the HTTP status code and response body (which contains no credentials).
-
----
-
-### Step 3b: MCP tool (default / fallback)
-
-```python
-addCommentToJiraIssue(
-    issue_key=SOURCE_TICKET,
-    comment_body="<constructed comment from Step 2>",
-    contentFormat="markdown"
-)
-```
-
-> ⚠️ The MCP tool does not expose a `visibility` parameter — the comment will be visible to everyone with access to the ticket, not restricted to an internal group.
-
-This visibility downgrade is gated by `AUTO_APPROVE` when it happens **after** Step 3a was actually attempted and failed (i.e. restricted posting was possible in principle but didn't work):
-
-- IF `AUTO_APPROVE=no` and Step 3a was attempted and failed → **ask the user**:
-  ```
-  ⚠️ Restricted-visibility posting is unavailable (no REST credentials, or the request failed). The MCP fallback will post this comment visible to everyone with ticket access. Proceed?
-  ```
-  IF user says **no** → display the full comment body in the session for manual posting instead.
-- IF `AUTO_APPROVE=yes` and Step 3a was attempted and failed → proceed automatically via the MCP fallback. **Clearly log** that this comment was posted without the internal-only restriction.
-- IF Step 3a was never attempted (no REST credentials configured at all) → just post via MCP; this is the normal/expected path for most setups and does not need a prompt.
-
-**Fallback — jira-cli** (if MCP is also unavailable):
-
-```bash
-jira issue comment add "${SOURCE_TICKET}" \
-  --body "$(cat /tmp/cve-report-comment.txt)" \
-  --no-input
-```
+On failure of every available method, display the full comment body in the session so the user can post it manually. Do not retry more than once.
 
 ---
 
@@ -319,7 +247,7 @@ for label in current_labels:
   "source_ticket": "<SOURCE_TICKET>",
   "cve_id": "<CVE_ID>",
   "risk_level": "<HIGH|MEDIUM|LOW|NEEDS_REVIEW>",
-  "method": "rest | mcp | jira-cli"
+  "method": "mcp | jira-cli | rest"
 }
 ```
 
@@ -349,7 +277,7 @@ for label in current_labels:
 
 Called from **Phase 4** of the [analyze-cve](../analyze-cve/SKILL.md) skill as the final step, after the report has been fully generated.
 
-**Input:** complete report content, CVE ID, risk level, `SOURCE_TICKET` (from Phase 0.5), `AUTO_APPROVE`
+**Input:** complete report content, CVE ID, risk level, `SOURCE_TICKET` (from Phase 0.5)
 **Output:** confirmation of comment and label posted to `SOURCE_TICKET`, or `status: skipped`/`failed` per above
 
 Also called from **Phase 6** (`create-fix-pr`) for a short follow-up comment containing only the GitHub PR URL. That path uses the section below and must not replace this analysis comment or change labels.
@@ -383,7 +311,7 @@ A pull request is open for this CVE.
 
 ### Posting
 
-Use the same procedure as Step 3 (REST with restricted visibility first if configured, MCP/jira-cli fallback otherwise).
+Use the same procedure as Step 3 (MCP tool, then jira-cli/REST fallback).
 
 On failure, print the comment in the session for manual paste. Do not treat a Jira follow-up failure as a GitHub PR failure — the PR itself is still a success.
 
