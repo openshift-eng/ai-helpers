@@ -274,6 +274,12 @@ A66 and every O except citation control 102 match unanimously. No actor launches
 
 C27 replaces O's abstract relationship paragraph with explicit named-command and
 exact-line attribution; it requires no new citations or format. Renew all 17 O
-controls/51 samples and reuse C26 A66 only through independent acceptance and
-unchanged full requests. Preserve all labels, native proof, derived facts and
-reasoning limits. These are development admissions, not reliability proof.
+controls/51 samples; 16/17 majorities and 47/51 samples match with zero errors.
+Citation 102 still passes TTT; native 093's invalid middle True is retained.
+
+C28 moves only the unchanged annotation reference after observations and before
+the reply. This tests locality, with no new words, criterion or evidence filtering.
+Renew all 17 O controls/51 samples and reuse C26 A66 only by accepted exact requests.
+If it fails, compare a supported O-only judge model on the same corpus rather than
+adding clauses/layout changes or a parser. Preserve all labels, native proof,
+derived facts and reasoning limits; these are development admissions.

@@ -120,10 +120,14 @@ All 117 renewed responses are valid, distinct and error-free: 38/39 majorities a
 114/117 values match. All A66 and every O except wrong-citation 102 match unanimously;
 that negative still passes TTT. Preserve its nearby-line substitutions.
 
-C27 makes exact citation attribution concrete in O's existing relationship
-paragraph. It requires no citations or new format. Renew the same 51 O samples;
-reuse C26 A66 only by independent acceptance and full request identity. All
-expected labels remain required before the fresh eleven-actor cohort.
+C27's exact-line clarification still matches only 16/17 majorities and 47/51
+samples, with zero errors. Citation 102 remains TTT; native 093 dissent is retained.
+
+C28 moves the unchanged O annotation block after observations, next to the reply.
+It tests reference locality without new words, evidence or requirements. Renew the
+same 51 O samples; reuse C26 A66 only by independent acceptance and full request
+identity. All labels remain required before the fresh eleven-actor cohort. A failed
+order-only trial leads to a supported O-only model comparison, not more prompt clauses.
 
 ## Actor evidence and artifact locations
 

@@ -10,8 +10,9 @@ still misses three negative majorities. C24's counterexample task also fails
 calibration, including action-owner requirements scored as factual defects.
 C25 isolates O and reaches 16/17 majorities, still failing the citation control.
 C26 repairs the system/user instruction boundary and isolates both criteria;
-38/39 majorities match. Current preparation makes the existing exact-citation
-requirement concrete without adding a parser or requiring citations.
+38/39 majorities match. C27's exact-line clarification still misses one control.
+Current preparation moves the unchanged primary reference next to the evaluated
+reply; it adds no text, parser or criterion.
 
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
@@ -409,9 +410,23 @@ C27 replaces the abstract relationship paragraph with explicit command and exact
 line attribution. A quotation/measurement paired with an unqualified line number
 must match that line; nearby text is insufficient. Accurate paraphrases, derived
 facts and harmless normalization remain allowed. Citations are not mandatory.
-All 17 O controls and 51 samples remain required; reuse C26's newly measured A66
-only through independent acceptance and unchanged full request identity. Models,
-caps, labels, evidence and harness remain fixed. Full details belong to the
+C27's 51 responses are valid, distinct and error-free, but only 16/17 majorities
+and 47/51 values match. Wrong-citation 102 still passes TTT; native 093 rejects
+F/T/F with invalid hypothetical-base-image dissent retained. No actor launches.
+Original results remain in `c27-calibration-original-completion.json` and its groups.
+
+A full production-thread mock check verifies all nine replay records and 27 samples
+stay bound to their exact subject; no 102/103 swap is found. The actual 102 prompt
+has 77,235 characters, with reference lines near 3,200 and the bad quotation near
+75,600. C28 moves only the existing O annotation block after observations, before
+the final reply. It reduces reference separation to roughly 5,000 characters while
+preserving every block and total length. This tests locality, not a proven cause;
+provider token count or cost equality is not inferred. No text or criterion is added.
+
+The same 17 O controls/51 samples remain required. C26 A66 is reusable only by
+independent acceptance and unchanged full requests. If this order-only trial still
+fails, assess a supported O-only model override on the same corpus instead of adding
+more wording/layout changes or a citation parser. Full details belong to the
 calibration records.
 
 After calibration and source freeze, measure publication 002 first, then 007,

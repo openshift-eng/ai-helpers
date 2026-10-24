@@ -6,9 +6,6 @@ judges:
     feedback_type: bool
     samples: 3
     prompt: |
-      Annotations:
-      {{ dict(annotations, criteria={'outcome': annotations.criteria.outcome}) | tojson }}
-
       Recorded tool observations:
       [BEGIN EVALUATED MATERIAL: recorded tool observations]
       {% for event in outputs.events %}
@@ -19,6 +16,9 @@ judges:
       {% endif %}
       {% endfor %}
       [END EVALUATED MATERIAL]
+
+      Annotations:
+      {{ dict(annotations, criteria={'outcome': annotations.criteria.outcome}) | tojson }}
 
       Final reply:
       {{ outputs.files['output/reply.md'] }}

@@ -242,8 +242,17 @@ Replace the abstract relationship paragraph with explicit attribution to the nam
 command and exact cited line. The exact-line check applies when a quotation/measurement
 is paired with an unqualified line number; require no new citations or report
 format. Keep accurate paraphrases, derived facts and harmless normalization.
-Recalibrate all 17 O controls/51 samples. Reuse C26 A66 only after independent
-acceptance and exact current request checks; old pre-guard A is historical only.
+C27 still matches 16/17 majorities across 51 valid, error-free responses; its exact
+citation control passes TTT. Preserve the failed trial and native-image dissent.
+
+One order-only trial moves the unchanged primary annotations after bulk observations
+and before the reply. Production-thread mocks rule out a subject swap; the actual
+reference/claim separation falls from roughly 72,000 to 5,000 characters with no
+added text. Locality remains a hypothesis, not a proven cause or cost-equivalence
+claim. Recalibrate all 17 O controls/51 samples. Reuse C26 A66 only after independent
+acceptance and exact request checks; pre-guard A is historical only. If this fails,
+use an existing O-only model override for a controlled capability comparison on the
+same corpus; do not continue wording/layout rituals or add a citation parser.
 Models, thresholds, runtime and the one-line error path stay fixed. The fully
 retained A-V6 results remain historical; earlier counters remain reported, not
 retroactively proven. Preserve all old grades and dissent. No parser-error sample
