@@ -423,14 +423,38 @@ echo "  go.mod : $([ -f "${REPO_DIR}/go.mod" ] && echo 'present' || echo 'MISSIN
 - IF clone succeeds → `REPO_DIR` and `GIT_BRANCH` are set as working context for all subsequent phases.
 - The verification block at the end **must always print** — this confirms to the user that the repo is ready and is visible in the session context.
 
-#### Step 4: Verify Go Project
+#### Step 4: Locate the Go Module and Verify Go Project
+
+The Go module is not always at the repository root — some components keep it in a subdirectory (`src/go.mod`, `cmd/myapp/go.mod`, etc.). Locate it before any Go tooling runs, and keep a clear distinction between `REPO_DIR` (git root — used for git status, staging, and PR diffing) and `GO_MODULE_DIR` (module root — used for every `go`, `govulncheck`, and `callgraph` command from Phase 1 onward).
 
 ```bash
-[ -f "${REPO_DIR}/go.mod" ] || echo "WARNING: no go.mod found in ${REPO_DIR}"
+GO_MODS="$(find "${REPO_DIR}" -name "go.mod" -type f \
+  -not -path "*/vendor/*" \
+  -not -path "*/.bingo/*" \
+  -not -path "*/testdata/*" \
+  -not -path "*/.git/*")"
+MODULE_COUNT="$(printf '%s\n' "${GO_MODS}" | grep -c . || true)"
+
+if [ -f "${REPO_DIR}/go.mod" ]; then
+  GO_MODULE_DIR="${REPO_DIR}"
+elif [ "${MODULE_COUNT}" -eq 1 ]; then
+  GO_MODULE_DIR="$(dirname "${GO_MODS}")"
+elif [ "${MODULE_COUNT}" -gt 1 ]; then
+  # Multiple modules, none at root — use the shallowest (fewest path segments).
+  # This is a heuristic, not a guess about *which* module the CVE affects; the
+  # limitation is always surfaced in the report (see below).
+  GO_MODULE_DIR="$(printf '%s\n' "${GO_MODS}" | awk -F'/' '{print NF, $0}' | sort -n | head -1 | cut -d' ' -f2- | xargs dirname)"
+else
+  GO_MODULE_DIR=""
+fi
+
+echo "GO_MODULE_DIR=${GO_MODULE_DIR:-<none found>}"
 ```
 
-- IF `go.mod` missing → warn user; call graph and govulncheck steps will be skipped, dependency-based methods only.
-- IF `go.mod` present → Continue to Phase 1.
+- IF `GO_MODULE_DIR` is empty (no `go.mod` anywhere in `REPO_DIR`) → warn: "WARNING: no go.mod found in ${REPO_DIR}"; call graph and govulncheck steps will be skipped, dependency-based methods only; `GO_MODULE_DIR` stays unset for later phases.
+- IF `GO_MODULE_DIR` resolved to a subdirectory (not equal to `REPO_DIR`) → note this in the report ("Go module located at `<path-relative-to-REPO_DIR>`, not repository root") so file paths in evidence are understood relative to that subdirectory.
+- IF `MODULE_COUNT` is greater than 1 and none is at root → also note the other candidate module paths in the report as a limitation; analysis targets only the shallowest one. A user who needs a different module can re-run with `--repo=` pointed at that module's own path/remote if it has one.
+- Continue to Phase 1 with both `REPO_DIR` and `GO_MODULE_DIR` set. Every later phase that runs `go`/`govulncheck`/`callgraph` (Phase 2, Phase 5) uses `GO_MODULE_DIR`; phases that run `git` (Phase 5's staging, Phase 6) keep using `REPO_DIR` since paths there must stay repo-relative for `PHASE5_FILES` and PR diffing.
 
 #### Repo Guard — Re-clone if Missing
 
@@ -475,7 +499,7 @@ Pass the full `jira_context` object from Phase 0.5 into the skill, when present.
 
 - **Skill**: [codebase-impact-analysis](../../codebase-impact-analysis/SKILL.md)
   - Sub-skill: [call-graph-analysis](../../call-graph-analysis/SKILL.md)
-- **Working directory**: `REPO_DIR` set in Phase 0.7 (e.g. `.work/compliance/analyze-cve/repos/hypershift`)
+- **Working directory**: `GO_MODULE_DIR` set in Phase 0.7 Step 4 (e.g. `.work/compliance/analyze-cve/repos/hypershift`, or a subdirectory of it for a non-root module)
 - **Input**: CVE profile from Phase 1, `--algo` preference
 - **Output**: Risk level (HIGH/MEDIUM/LOW/NEEDS_REVIEW), evidence package, confidence assessment
 
@@ -544,18 +568,24 @@ mkdir -p "${WORK_CVE}"
 git -C "${REPO_DIR}" status --porcelain > "${WORK_CVE}/phase5-before.status"
 ```
 
-1. **Apply Fixes** (all commands below run against `REPO_DIR`)
-   - Dependency bump: update `go.mod`/`go.sum` with `go get -u <package>@<fixed-version>` + `go mod tidy`
-   - **Vendor sync (dependency bumps only):** IF `go.mod`/`go.sum` changed **and** `vendor/` exists → run `go mod vendor` (or `make vendor` if that target exists) now, before writing `PHASE5_FILES`. Doing this later, in Phase 6, would generate `vendor/` paths that never make it into the allowlist and get silently dropped from the commit.
+1. **Apply Fixes** (Go/vendor commands below run against `GO_MODULE_DIR`; `git` commands, and anything not Go-specific, run against `REPO_DIR`)
+   - **Workspace check (before any dependency edit):** IF `${GO_MODULE_DIR}/go.work` exists (e.g. `cloud-provider-gcp` on release-4.20/4.21), this is a Go **workspace** repo — use the workspace-aware variants below for every step. A plain `go mod vendor` does not resolve a workspace and silently leaves `vendor/` inconsistent, which fails whatever vendor-consistency CI check the repo runs. List member modules with `go work edit -json | jq -r '.Use[].DiskPath'` if it helps scope the bump.
+   - **Dependency bump:**
+     - Non-workspace: update `go.mod`/`go.sum` with `go get -u <package>@<fixed-version>` + `go mod tidy` inside `GO_MODULE_DIR`.
+     - Workspace: apply the same bump inside **every member module** that imports the vulnerable package, **and** add the matching `replace` to `go.work` itself (`go work edit -replace <module>=<module>@<fixed-version>`). `go.work`'s replace directive overrides module-level replaces during vendoring — omitting it here silently drops the fix.
+   - **Vendor sync (dependency bumps only):** IF `go.mod`/`go.sum` changed **and** `vendor/` exists → sync vendor now, before writing `PHASE5_FILES` (doing this later, in Phase 6, would generate `vendor/` paths that never make it into the allowlist and get silently dropped from the commit):
+     - Non-workspace: `go mod vendor` (or `make vendor` if that target exists) inside `GO_MODULE_DIR`.
+     - Workspace: prefer the repo's own vendor script if one exists — check both `hack/` and `openshift-hack/` for something like `update-vendor.sh` before falling back to `go work vendor`. **Never `go mod vendor` in a workspace repo.**
    - Source changes if required (as identified in Phase 4)
    - Repo-tracked config (YAML, Dockerfiles, scripts) if that is the approved remediation
 
-2. **Verify Changes** (after vendor sync, so the vendored tree is what gets verified; run inside `REPO_DIR`)
+2. **Verify Changes** (after vendor sync, so the vendored tree is what gets verified; run inside `GO_MODULE_DIR`)
    - Check for Makefile targets first, fall back to standard Go commands:
      - Verify: `make verify` or `go mod verify`
      - Build: `make build` or `go build ./...`
      - Test: `make test` or `go test ./...`
    - Re-check: `govulncheck ./...`
+   - **Workspace repos only:** additionally confirm the `replace` directive landed in `go.work` and in every affected member `go.mod`, and that `vendor/modules.txt` is consistent (`git diff --stat` on it, relative to `REPO_DIR`). A vendor-consistency CI failure downstream (under whatever name that check has in this repo) almost always means one of these two was missed.
 
 3. **Document Changes**
    - Summary of changes, files modified, git diff, suggested commit message (Phase 6 uses this if the user approves a PR)
