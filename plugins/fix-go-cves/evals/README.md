@@ -7,30 +7,18 @@ reply. It does not run today's remediation scripts.
 
 The `--live` track runs today's scripts with the repository's detected build and
 test commands and real Grype scans. Findings and outcomes come from that run.
-See [live cases](live/README.md) for its status. A passing historical replay does
-not establish that current remediation works end to end. A live eval can pass
+See [live cases](live/README.md) for scenarios and historical measurements. A
+passing historical replay does not establish that current remediation works end to end. A live eval can pass
 when the skill correctly reports a blocked or partial remediation outcome.
 
 ## Current E2E work
 
-The implementation now freezes the plugin/helper and interpreter used by every
-stage, binds grading to frozen case expectations, and tests the final retained
-commit after deterministic verification. Replay cases share one outcome/action
-profile. The shared harness pin uses the reviewed [lifecycle patch](harness.patch)
-for bounded pipe/process cleanup and nonzero exit aggregation. Focused controls
-pass; current-source actor acceptance remains open. Detailed measurements and
-historical grades belong to [implementation results](implementation-results.md).
+[Implementation results](implementation-results.md) owns current status,
+measurements and source groups. The [testing strategy](../plans/testing.md) owns
+acceptance and evidence-reuse requirements; the [E2E plan](../plans/e2e-simplification.md)
+owns design choices and remaining measurements.
 
-The records below describe preceding implementations and their limits.
-
-Live scenarios now check receipts for declared completed gates, including blocked
-runs: paired test logs/receipts agree with the last tested HEAD, command and exit;
-successful verification retains all four clean audits; reached scans retain
-matching phase/HEAD status and successful scan documents; completed license
-checks retain their log. Nonzero gate results remain valid observed outcomes.
-The stronger successful-repair and native-coverage requirements remain separate.
-The helper also checks completed aborts without requiring a Summary, and omits
-unrelated default-branch history when the runtime restores the original checkout.
+The records below preserve earlier implementations, original grades, costs and limits.
 
 The explicit publication-command contract now checks fenced blocks, inline
 commands with arguments and command-leading lines. It preserves ordinary bare
@@ -67,28 +55,9 @@ orchestration with a failed skill result, using historical runtime and the
 existing replay criteria; it does not measure today's remediation or the revised
 live judge.
 
-The current-runtime live case-004 continuation reached every recorded phase and
-completed the stock pipeline after narrow corrections to diagnostics, collection
-and scan timeouts. Two lint attempts failed, leaving unit tests unrun; audits, license
-and native final scanning passed. The invoking skill still fails literal Summary
-relay and factual diagnosis. The [live record](live/README.md#current-runtime-integration)
-retains both measurements, scores, coverage limits and costs. Those runs used
-our incorrect release lint override. The subsequent [five six-cell matrices](live/README.md#branch-policy-matrix)
-are closed. The latest at `7063ca5e` completed all actors and factual samples at
-pinned CLI 2.1.307; the skill remains unaccepted. Three live cells passed canonical
-unit checks, with positive native coverage on both Subctl branches. Admiral
-release replaced the inherited command with host build/tests; its real blocked
-result leaves canonical unit/Dapper coverage missing. Its quoted Summary also
-changes one line. Causal overclaims and replacement publication persist. Original
-grades and instability are retained alongside independent review and its notes
-on grader reasoning.
-
-The global ownership and causal-evidence clarifications are now measured, without
-establishing reliable behavior. No further source treatment or actor cohort is
-selected. Preserve useful diagnosis, current criteria and the unresolved Go-minor
-policy decision; no approval or new policy knob is inferred. The
-[testing strategy](../plans/testing.md) retains durable coverage and environment
-constraints; the canonical live record owns detailed results and costs.
+The historical [current-runtime integration](live/README.md#current-runtime-integration)
+and [five branch-policy matrices](live/README.md#branch-policy-matrix) retain their
+original measurements, grades, coverage limits and costs.
 
 ## Recorded cases
 
@@ -315,12 +284,16 @@ judge costs. See the live configuration for its execution and runtime deadlines.
 
 ## Current reporting implementation
 
-The skill now quotes the actual terminal result, then diagnoses flagged outcomes
-read-only. Known original refs are printed by the runtime; unknown return advice
-is omitted. Publication relay accepts only the complete emitted recipe or literal
-Summary. Live log identity is recorded at completion, and native string-message
-permission events retain their denied-operation verdict instead of crashing.
-The shell suite passed 2,343 checks and the eval suite 47.
+Current implementation and acceptance status belong to
+[implementation results](implementation-results.md). The measurements below describe
+earlier reporting sources.
+
+That reporting implementation quoted the actual terminal result and inspected
+flagged outcomes read-only. Known original refs were printed by the runtime;
+unknown return advice was omitted. Publication relay accepted only the complete
+emitted recipe or literal Summary. Live log identity was recorded at completion,
+and native string-message permission events retained their denied-operation verdict
+instead of crashing. The shell suite passed 2,343 checks and the eval suite 47.
 
 | Frozen source | Case-005 comparison | Original result | Agent cost |
 | --- | --- | --- | --- |
@@ -340,22 +313,15 @@ Manual review supports literal-result and non-mutation behavior in all three
 revised executions, but records future-result estimates/purpose wording as
 limitations. A subsequent wording refinement makes recommendations describe the
 next prerequisite and verification needed. The earlier replays do not measure
-that refinement. The current-engine blocked check at `a6c8e5a0` passed contract
-and outcome (3/3), but failed action/owner (3/3 false) on unsupported causality
-for a first-only syncer failure, with no judge errors. Reporter/capture integration
-and read-only behavior are verified; overall skill acceptance still fails.
-A clarification covers each distinct failure and what a passing retry establishes.
-The case-007 comparison below measures that guidance; it did not resolve the
-unsupported causal synthesis. See the
-[live record](live/README.md#current-reporting-integration-check). Positive command
-relay has helper-fixture coverage, not a new full historical-case/model measurement.
+that refinement. The [historical live integration check](live/README.md#current-reporting-integration-check)
+retains the subsequent blocked-run result and coverage limits. Positive command
+relay at this stage had helper-fixture coverage, not a new full historical-case/model
+measurement.
 
 ## Multi-failure replay
 
-Case 007 preserves the real live run's persistent reporter failure and first-only
-syncer failure. Its reviewed reference and causal negative calibrated at
-`fbda167a`: all 12 samples match expected labels without errors; judge cost is
-unknown. [Fixture provenance](cases/case-007/calibration.md) records the inputs.
+[Case 007 provenance and calibration](cases/case-007/calibration.md) owns its
+recording and admission results.
 
 The comparison at `0fdccbb0` **failed**: contract 2/3 and factual conjunction 0/3.
 Backport passed all nine samples; each action/owner aggregate failed with two
@@ -388,8 +354,8 @@ Reply 2 preserves both attempts and explicitly leaves update causality unproven;
 its raw pass stands, with a precision caveat about locating a race in the test
 without distinguishing implementation behavior. It gives no separate syncer
 next action/owner. These observations do not establish a population-level effect.
-The two-line remaining-work treatment is reverted; the earlier wording remains
-unaccepted. No further prompt-only cohorts are selected.
+The two-line remaining-work treatment was reverted; the earlier wording was
+not accepted.
 
 Trace review found reply 1 never retrieved the syncer failure: broad searches
 truncated expected-error chatter. The existing diagnostic grep now also selects
@@ -402,7 +368,7 @@ Both agents completed read-only and actually used the new search. Case 007
 retrieved both failures and retry outcomes, yet its overview attributes both
 to the directive change and claims both have existing repairs, despite qualified
 syncer detail later. This is synthesis after evidence exposure, not another
-retrieval miss. No further invoking-agent trials are selected for this branch.
+retrieval miss.
 
 Original case-005 contract is false solely because the new Summary checker
 wrongly required a historical wrapper `exit=2` inside the fence; the reply quotes
@@ -472,9 +438,9 @@ Agent wall time was 292 seconds and actual model usage cost $1.80188575, plus
 outputs, all samples and the standard report remain in the run directory;
 the experiment declaration and independent reviews are under
 `.work/fix-go-cves-remedy-workflow/`. No r2/r3 or additional wording cohort ran.
-Keep this comparison incomplete and the skill unaccepted. Retain the smaller
-workflow for task fit only; this pair establishes neither comparative improvement
-nor degradation. No new judge, schema, runtime gate or reviewer layer was added.
+This comparison is incomplete and establishes neither comparative improvement nor
+degradation. The smaller workflow was retained for task fit only; no new judge,
+schema, runtime gate or reviewer layer was added.
 
 The `487d0759` candidate restricted final prose to observed results and per-failure
 actions, and added a workflow-ownership clarification. Its declared three-run
@@ -569,16 +535,8 @@ listings record observed identities; they do not freeze mutable builder tags.
 change and runtime hashes. Judges receive the retained dependency diff alongside
 the reduced runtime log, so they can assess claims about dependency changes.
 
-The [live cases](live/README.md) distinguish faithful blocked-run reporting,
-genuine repair and native Linux/amd64 binary coverage. The repair assertion
-requires a fixable finding actually cleared rather than ignored, a retained
-dependency change, canonical gates and complete audits, and runtime exit 0.
-Native coverage requires the Subctl artifact's fresh build/hash, positive
-binary-catalog location and matching file hash, and unchanged retained output.
-A real clean initial fast path uses its initial catalog; it does not invent a
-final scan or claim repair coverage. A completed native remediation flow must
-also pass canonical test, verification and license gates. Findings may still
-leave that scenario partial; report runtime success separately from coverage.
+The [runtime acceptance requirements](../plans/testing.md#runtime-and-behavioral-acceptance)
+own blocked-run, successful-repair and native Linux/amd64 scenario gates.
 
 ## Fixture and checks
 

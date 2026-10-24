@@ -261,34 +261,9 @@ C24's counterexample task after the evidence/reply matches 14/17 majorities and
 only on A requirements despite correct O facts. Citation and unsupported-fact
 negatives still pass; native and fix-version controls match. Preserve all dissent.
 
-C25's O-only criterion context retains every other fact and reaches 16/17
-majorities, 47/51 matching samples and zero errors. Wrong citation 102 passes
-TTT; scope control 105 is TTT and publication-proof 101 rejects F/T/F. Preserve
-all original rationales, including unsupported minority reasoning.
-
-C26 corrects the shared system/user rubric conflict without altering artifact
-guards and gives A only its own criterion too. All O/A requests change; old A
-samples cannot certify current request identity. The renewed 117 responses are
-valid, distinct and error-free; 38/39 majorities and 114/117 values match. All
-A66 and every O except citation control 102 match unanimously. No actor launches.
-
-C27 replaces O's abstract relationship paragraph with explicit named-command and
-exact-line attribution; it requires no new citations or format. Renew all 17 O
-controls/51 samples; 16/17 majorities and 47/51 samples match with zero errors.
-Citation 102 still passes TTT; native 093's invalid middle True is retained.
-
-C28 moves only the unchanged annotation reference after observations and before
-the reply. This tests locality, with no new words, criterion or evidence filtering.
-Renew all 17 O controls/51 samples and reuse C26 A66 only by accepted exact requests.
-C28 still matches only 16/17 majorities and 48/51 samples, without errors.
-Citation 102 is T/F/T; command 108 is T/F/F. Preserve both valid and invalid dissent.
-
-C29's 51 O calls stop at native 091 TTT and one invalid V9 101 response:
-50 valid, 45 matching values, 16/17 semantic majorities but only 15 complete,
-error-free cells. Citation 102 is FFF. All original votes and reasoning remain.
-C30's replay O4.8/live O4.6 candidate admits all 17 O controls: 51 valid samples,
-47 matching values and zero errors. Preserve four invalid True minorities.
-C31 changes only Skill evidence retrieval; reuse C30 O51 and accepted C26 A66
-through exact request/valid-result identity. Fresh actor acceptance remains open.
-The [results record](../implementation-results.md) owns calibration details, the stopped C30 actor
-and its private preflight/timing deviation.
+The shared C25–C31 grading trials, original values, dissent, parse-error diagnostics
+and request-based reuse are retained in the
+[implementation results](../implementation-results.md#current-implementation-2026-10-24).
+C30 O51 and C26 A66 remain accepted component evidence under exact request identity;
+C31's stopped actor cohort does not establish full E2E acceptance. Original
+rationales, including unsupported minority reasoning, remain preserved.

@@ -4,7 +4,9 @@ Acceptance remains **open**. The remaining gate is a complete eleven-actor
 campaign with original thresholds and independent review. The
 [results record](../evals/implementation-results.md) owns current status, counts,
 source identities and review disagreements; [calibration](../evals/live/calibration.md)
-owns controls. The E2E plan defines the next campaign without old actor credit.
+owns controls. C31 stops after two actors, one accepted. The E2E plan defines
+future acceptance requirements without old actor credit; its next candidate is
+unimplemented.
 
 | Document | Owns |
 | --- | --- |
@@ -17,9 +19,6 @@ owns controls. The E2E plan defines the next campaign without old actor credit.
 
 ## Deferred work
 
-- **Eval README:** after acceptance, remove duplicate contract/calibration recaps
-  using existing canonical links; retain operational instructions and unique failed
-  grades, costs and limits. Exact ranges are in the E2E plan.
 - **Measured deletions:** remove reviewers/repeated scans only after their gate
   semantics and observed source/binary/policy states are accounted for. Deduplicate
   tuple/location parsing after semantic parity, preserving distinct gate meanings.

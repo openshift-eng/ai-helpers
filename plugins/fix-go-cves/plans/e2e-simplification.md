@@ -1,6 +1,6 @@
 # E2E acceptance and simplification
 
-Acceptance remains **open**. The [results record](../evals/implementation-results.md)
+Acceptance remains **open**: C31 stops after two actors, one accepted. The [results record](../evals/implementation-results.md)
 owns current status, source groups, grades and review disagreements. The remaining
 gate is all eleven actors on one declared source, with original thresholds and
 independent review. Component evidence stays applicable only under its reuse rules.
@@ -201,88 +201,51 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C21 stopped at its third actor after replay 007 and real live 002 passed. Publication
-002 invented a Go-minor prerequisite from an abbreviated initial fix column; the
-complete post-fix table includes Go 1.26.9 for all nine advisories. Original A
-rejects it. Two O passes lacked that complete primary witness, and a third O value
-was an unparseable empty response silently emitted as false with zero reported
-errors. Preserve those raw results and the independent rejection.
+The [results record](../evals/implementation-results.md) preserves stopped campaign
+grades, parser errors, dissent and procedural deviations. Those results supply no
+actor credit. The design retains the following boundaries from those failures.
 
-C22 adds one primary fact map, one skill sentence and one parser exception using
-existing handling. All 27 calibration samples are valid with zero errors, but only
-eight of nine expected majorities match. Publication negative 101 passes T/F/T:
-both passing rationales find unsupported facts, then waive them because they are
-not contradictions. No actor launches from that failed admission.
+The shared system guard delegates to the unfenced user rubric while preserving
+quoted-artifact guards and escaping. Each semantic judge receives only its own
+criterion and all noncriterion facts through existing Jinja. This avoids mixed
+criterion instructions without a helper, schema or grading stage.
 
-C23 explicitly rejects unsupported factual claims, but calibration still fails:
-14/17 expected majorities, 51 valid responses and zero errors. Passing samples
-merge exact citations/commands or waive a found defect in an overall assessment.
-Preserve those results; no actor launches.
+Match commands, actors, actions, attempts, measurements and citations to their
+specific observations. A quotation or measurement paired with an unqualified line
+number must match that line; this requires no new citation or report format.
+Accurate paraphrases, derived facts and harmless normalization remain valid.
 
-C24 moves the compact counterexample decision after the evidence/reply and aligns
-replay observation boundaries with live. Its 51 valid responses still match only
-14/17 expected majorities. Three O105 rationales accept all factual claims, then
-explicitly reject an A requirement; other samples miss citations or waive unsupported
-facts. Preserve all results, including wrong-basis dissent. No actor launches.
+Use existing profiles for replay O4.8/live O4.6, with actor/A4.6. These development
+choices follow observed control failures; they establish no model superiority,
+context-length effect or causal benefit from instruction/reference placement.
+No further rubric/layout tuning, citation or heading gate is selected. Models,
+thresholds, caps and runtime remain fixed within each trial and actor cohort.
 
-O criterion projection retains all noncriterion facts through existing Jinja.
-C25 reaches 16/17 majorities with 51 valid responses and zero errors; its citation
-negative still passes TTT. Preserve the stopped calibration; no actor launches.
+Unparseable responses remain errors. The existing error path retains usage/ID,
+stop fields and block/tool/input-field types without content values, retries,
+coercion or a new schema. Strict-tool probes were denied by organization policy;
+strict tools are not adopted and that policy is unchanged. Historical missing
+response-shape facts stay unknown.
 
-Correct the shared guard's system-only instruction, which contradicts delivery of
-the rubric in the user message. Explicitly delegate to the unfenced user rubric;
-keep all quoted-artifact guards and escaping. Give A only its own criterion too.
-This removes mixed criterion instructions without a helper, schema or new stage.
-C26's 117 responses are valid, distinct and error-free: 38/39 majorities and
-114/117 values match. All newly measured A66 match their labels unanimously;
-the sole wrong O majority still treats nearby lines as an exact citation.
-Preserve that stopped calibration and all reasoning limits; no actor launches.
+C31 extends the existing flagged-log grep with complete scanner headers and typed
+stdlib rows, retaining advisory IDs beside all fix alternatives. It replaces
+abstract grounding lines and removes the redundant all-pass Summary-status clause;
+all failed/later-attempt obligations remain. Actual CLI controls preserve old
+matches and expose the missing rows, with one line and 14 words removed.
+The fresh publication actor passes; replay 007 then fails on unsupported causal
+exonerations, an invented retry diagnostic and a blocked mutating stash attempt.
+No stash executed. Preserve the original contract/O failures and A pass; stop
+before live002. The results record owns the complete source, grade and review record.
 
-Replace the abstract relationship paragraph with explicit attribution to the named
-command and exact cited line. The exact-line check applies when a quotation/measurement
-is paired with an unqualified line number; require no new citations or report
-format. Keep accurate paraphrases, derived facts and harmless normalization.
-C27 still matches 16/17 majorities across 51 valid, error-free responses; its exact
-citation control passes TTT. Preserve the failed trial and native-image dissent.
-
-One order-only trial moves the unchanged primary annotations after bulk observations
-and before the reply. Production-thread mocks rule out a subject swap; the actual
-reference/claim separation falls from roughly 72,000 to 5,000 characters with no
-added text. Locality remains a hypothesis, not a proven cause or cost-equivalence
-claim. C28 still fails: 16/17 majorities, 48/51 samples and zero errors. Preserve
-the T/F/T wrong-citation majority and T/F/F command-attribution dissent.
-
-C29 compares O on 4.8 through the existing model override. It catches citation
-102 but fails native 091 and contains one invalid response: 50 valid/51 calls,
-45/51 matches, 16/17 semantic majorities but 15 complete error-free cells. Preserve
-all outputs; no actor launches. The parser error lacks raw stop/content-shape facts;
-its 1186 completion tokens do not establish why no verdict was accepted.
-
-C30 retains stop fields and block/tool/input-field types on existing parse errors,
-without content values, retries, coercion or a new schema. Strict-tool probes on
-both models fail the existing organization policy; do not adopt strict tools or
-change that policy. Select replay O4.8/live O4.6 through existing profiles, with
-actor/A4.6. This is a development candidate selected after failures, not a proven
-model/context-length effect. Require all 17 O controls/51 fresh samples; reuse C26
-A66 only by accepted identical requests and valid-result behavior. Preserve every
-old result and dissent. No further rubric/layout tuning, grading stage, citation
-or heading gate is selected. Models, thresholds, caps and runtime stay fixed within
-each trial and the eventual actor cohort. Invalid feedback remains an error.
-
-C30 admits all 17 O controls with 51 valid responses, 47 matching values and zero
-errors, then stops at its first actor: unsupported exclusive Go-1.27 claims fail
-both original and independent O/A. Retain that source's private preflight/timing
-deviation separately; actual production provenance froze source/settings before
-execution. No failed stage, grade or chronology is rewritten.
-
-C31 addresses the witnessed retrieval loss: extend the existing flagged-log grep
-with complete scanner headers and typed stdlib rows, keeping advisory IDs beside
-all fix alternatives. Replace abstract grounding lines and remove the redundant
-all-pass Summary-status clause; keep every failed/later-attempt obligation.
-Actual CLI controls preserve old matches and expose the missing complete rows.
-No new parser, step, output gate or runtime change is needed. Reuse accepted C30
-O51/C26 A66 by unchanged request/valid-result identity, never old actor credit.
-Freeze the new source and successfully finish private preflight before any actor.
+The next bounded candidate is an actor-model-only change through the existing
+`models.skill` setting, rather than more prohibition/format/parser layers. Opus 4.8
+is an unimplemented development candidate, with no superiority or efficacy claim.
+Before adopting it, verify the exact pinned CLI, effort, tools and backend in a
+separate zero-credit compatibility probe; verify oracle request identity and
+predeclare one new source/model/caps configuration. SDK judge compatibility does
+not establish actor-CLI compatibility. Preserve caps and every criterion/gate.
+Reuse current O51/A66 only by exact request and valid-result identity, and require
+all eleven fresh actors. No further experiment is selected for this finish-up.
 
 After admission and source freeze, measure publication 002 first, then replay 007,
 live 002, live 001, replay 005, live 003/004 and four replay repeats. All eleven
@@ -356,10 +319,6 @@ output. No temporary framework is needed.
 
 Optional deletions do not block this campaign:
 
-- After acceptance, trim duplicate eval README passages at lines 26–33, 70–91,
-  338–345, 350–353 and 567–576, linking existing testing, live-result and case-007
-  calibration owners. Preserve unique historical grades/limits and artifact paths
-  at 557–565; remove obsolete cohort-selection sentences at 387/400/470.
 - Trace the pre-verification `FINAL_SCAN`, which is only printed before the first
   audit independently rebuilds/rescans. Remove it only after accounting for artifact
   and sentinel effects; retain audit inputs and the authoritative final rebuilt scan.

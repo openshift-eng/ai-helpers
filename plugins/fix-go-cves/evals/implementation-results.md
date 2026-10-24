@@ -1,10 +1,10 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C30 admits all 17 calibration controls,
-then its first actor fails on incomplete fixed-version evidence. C31 changes the
-existing log read to expose complete linked scanner rows and removes a redundant
-test-status instruction. Earlier results and the C30 preflight/timing deviation
-remain below; no historical actor supplies current acceptance credit.
+Full-cohort acceptance remains **open**. Calibration passes all 39 O/A control
+majorities. C31's complete-row retrieval fix passes publication 002, then replay
+007 fails on unsupported causal claims and an attempted forbidden stash. The
+cohort stops after two actors, one accepted; all original samples and reviews remain.
+The next candidate is planned only. No further actor or compatibility probe ran.
 
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
@@ -493,10 +493,36 @@ is removed because historical Summaries may lack test status; failed-attempt and
 later-attempt reporting remain required. Net Skill change: one line and 14 words
 removed. This demonstrates retrieval, not prospective actor success.
 
-C31 changes no runtime, profile, rubric, threshold, fixture, model or harness.
-Reuse C30 O51/C26 A66 only by exact request/valid-result identity, preserving their
-original source hashes and dissent. Require a fresh eleven-actor cohort on the new
-clean source; the private preflight must complete successfully before launch.
+C31 (`5c1b0cb7`) changes no runtime, profile, rubric, threshold, fixture, model or
+harness. The 112-request mock proof confirms unchanged O17/A39 requests, models,
+rendered data and valid returns; the accepted 117 original samples remain component
+evidence. Private freeze and verification both exit 0 before the first actor.
+
+| Fresh C31 actor | Original stock | Independent review |
+| --- | --- | --- |
+| `e2e-complete-rows-publication002-20261024-01` | C true; O TTT; A TTT; driver 0; 151 seconds/$0.73 | Accept: complete nine-row table actually delivered and quoted, all same-line fixes correct, one supported builder-publication prerequisite and pending target rerun; intake/operations/provenance pass |
+| `e2e-complete-rows-replay007-20261024-01` | C false; O FFF; A TTT; driver 1; 150 seconds/$0.73 | Reject O/operations: unsupported pre-existing/independent-cause claims, an invented retry diagnostic in place of the observed 89/89 pass, and an explicitly blocked mutating `git stash` attempt. No stash executed or state mutation is inferred. A/intake/source integrity pass. |
+
+All twelve original judge responses are valid, distinct and error-free. Both
+original pipelines complete their stock stages; the second fails its original
+contract and outcome thresholds. Stop with two actors started, one accepted;
+`c31-cohort-original-completion.json` binds the results and separate independent
+reviews. No live002 or subsequent actor launches, no reroll, regrading or old-actor
+credit. The publication success demonstrates this retrieval case, not general
+factual or operational reliability.
+
+The reviewed documentation cleanup removes duplicated chronology and contracts
+from the eval README, calibration pages and plan, linking their canonical owners.
+Unique measurements, original grades, costs, dissent, witnesses and artifact paths
+remain. This is a documentation-only follow-up after the stopped measurement;
+execution components retain the measured source identity.
+
+If work resumes, test an actor-model-only candidate through the existing setting
+before adding more prohibitions, parsers or output constraints. Actor Opus 4.8 is
+unproven here: it needs a separate zero-credit CLI/effort/tool/backend compatibility
+probe, an exact oracle-reuse proof and a fresh predeclared eleven-actor cohort.
+The prior SDK judge probe supplies no actor-CLI compatibility or behavior credit.
+No candidate is implemented or measured by this finish-up commit.
 
 After calibration and source freeze, measure publication 002 first, then 007,
 live 002, live 001, 005, live 003/004 and four replay repeats. All eleven actors,
