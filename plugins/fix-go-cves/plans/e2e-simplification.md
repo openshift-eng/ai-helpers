@@ -219,11 +219,17 @@ C23 explicitly rejects unsupported factual claims, but calibration still fails:
 merge exact citations/commands or waive a found defect in an overall assessment.
 Preserve those results; no actor launches.
 
-Replace the opening checklist with a compact counterexample decision after the
-evidence and reply, and fence replay observations consistently with live. Keep
-all data/labels and interpretation boundaries. The combined rubric is shorter;
-it remains an unproved structural hypothesis. Recalibrate all fixed positive and
-negative controls: 51 O samples across V9, publication V5, the new fix-version
+C24 moves the compact counterexample decision after the evidence/reply and aligns
+replay observation boundaries with live. Its 51 valid responses still match only
+14/17 expected majorities. Three O105 rationales accept all factual claims, then
+explicitly reject an A requirement; other samples miss citations or waive unsupported
+facts. Preserve all results, including wrong-basis dissent. No actor launches.
+
+Give each O request only its own criterion, retaining all noncriterion annotation
+facts through existing Jinja dictionary construction. This removes irrelevant A
+instructions from the factual judge without a helper or new schema. Its effect,
+including the remaining unsupported-claim/citation controls, is unproved. Recalibrate
+all 17 fixed controls: 51 O samples across V9, publication V5, the new fix-version
 pair and native V2. Reuse unchanged A requests by identity.
 Models, thresholds, runtime and the one-line error path stay fixed. The fully
 retained A-V6 results remain reusable; earlier counters remain reported, not

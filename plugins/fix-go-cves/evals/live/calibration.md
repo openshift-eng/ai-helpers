@@ -256,9 +256,13 @@ with zero errors, but only 14/17 expected majorities and 45/51 samples match.
 Wrong precise citation, wrong named command and unsupported publication facts
 still pass. Native and fix-version controls all match. Preserve original dissent.
 
-C24 replaces the opening checklist with one counterexample decision after the
-evidence/reply and aligns replay observation boundaries with live. Recalibrate
-the same nine V9, two publication V5, two fix-version and four native controls:
-51 O samples, zero actors. Preserve all texts/labels, positive native proof and
-supported derived claims. A stays unchanged and reusable by exact request identity.
-These are development admissions, not holdouts or proof of general reliability.
+C24's counterexample task after the evidence/reply matches 14/17 majorities and
+42/51 samples; all responses are valid, distinct and error-free. V9 105 is rejected
+only on A requirements despite correct O facts. Citation and unsupported-fact
+negatives still pass; native and fix-version controls match. Preserve all dissent.
+
+C25 projects only `criteria.outcome` to O while retaining every noncriterion fact.
+Recalibrate the same nine V9, two publication V5, two fix-version and four native
+controls: 51 O samples, zero actors. Preserve all texts/labels, positive native
+proof and supported derived claims. A stays unchanged and reusable by exact
+request identity. These are development admissions, not holdouts or reliability proof.

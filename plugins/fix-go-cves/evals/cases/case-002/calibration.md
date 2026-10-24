@@ -105,11 +105,15 @@ V9's wrong-citation and wrong-command negatives also pass. Both fix-version
 controls and all four native controls have the expected labels in every sample.
 Original grades and dissent remain unchanged.
 
-C24 replaces the opening checklist with a compact counterexample decision after
-the evidence/reply and aligns replay observation boundaries with live. Reuse all
-nine V9 controls, both V5 controls, this pair and all four native controls: 51
-prospective O samples. Texts/labels stay fixed; unchanged A requests reuse accepted
-samples. This check must pass before a fresh eleven-actor cohort.
+C24's counterexample task after the evidence/reply matches only 14/17 majorities
+and 42/51 samples, with zero errors. V5 101 passes TTT; V9 102 misses its citation
+and V9 105 is wrongly rejected on A criteria. Preserve every rationale and dissent.
+
+C25 gives O only `criteria.outcome` while retaining every noncriterion fact; A
+requests stay unchanged. Reuse all nine V9 controls, both V5 controls, this pair
+and all four native controls: 51 prospective O samples. Texts/labels stay fixed.
+Criterion isolation must pass the full check, including citation/unsupported-claim
+negatives, before a fresh eleven-actor cohort.
 
 ## Actor evidence and artifact locations
 

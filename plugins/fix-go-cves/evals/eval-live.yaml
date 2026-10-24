@@ -105,7 +105,7 @@ judges:
     samples: 3
     prompt: |
       Annotations:
-      {{ annotations }}
+      {{ dict(annotations, criteria={'outcome': annotations.criteria.outcome}) | tojson }}
 
       Runtime evidence:
       {{ outputs.files['output/evidence.txt'] }}
@@ -124,7 +124,7 @@ judges:
       Final reply:
       {{ outputs.files['output/reply.md'] }}
 
-      Evaluate outcome using the authoritative annotations and captured observations.
+      Evaluate only outcome using the authoritative annotations and captured observations.
       Check past/present factual claims throughout the reply, including factual premises
       in advice. Future proposals and predictions belong to action_owner.
 

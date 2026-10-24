@@ -6,8 +6,9 @@ incomplete judge evidence and an empty response silently counted as false instea
 of an error. C22 added a primary fix-version witness, an evidence priority sentence
 and a one-line parser exception. Its 27 calibration responses were valid, but one
 negative majority incorrectly passed; no actor launched. C23's stronger wording
-still misses three negative majorities. Current preparation replaces the opening
-checklist with a compact counterexample decision after the evidence and reply.
+still misses three negative majorities. C24's counterexample task also fails
+calibration, including action-owner requirements scored as factual defects.
+Current preparation gives each O request only its own criterion and all facts.
 
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
@@ -363,9 +364,22 @@ groups. No C23 actor launches.
 C24 replaces that procedural checklist with one counterexample decision after
 the evidence and reply. Replay observations use live's existing evaluated-material
 boundary. Data payloads, labels, models, samples, limits, A and harness stay fixed.
-The combined O rubric is shorter; existing interpretation boundaries
-remain. This structural hypothesis needs a fresh fixed 51-sample O calibration;
-it has no acceptance credit yet. Reuse unchanged A requests by identity. Full
+The combined O rubric is shorter; existing interpretation boundaries remain.
+Calibration gives no acceptance credit: all 51 responses are valid with distinct IDs and zero
+errors, but only 14/17 expected majorities and 42/51 samples match. V9 102 is F/T/T,
+V9 105 is FFF instead of true, and publication V5 101 is TTT instead of false.
+V9 108 now rejects FFF. The false 102 sample and 103 dissent use an A-only objection;
+105's three rationales accept O facts, then explicitly grade `criteria.action_owner`.
+Publication's passing samples still waive unsupported facts. Original results,
+including wrong-basis dissent, remain in `c24-calibration-original-completion.json`
+and its four groups. No C24 actor launches.
+
+C25 projects only `criteria.outcome` into O's annotation context using existing
+Jinja dictionary construction; every noncriterion fact remains. Its first sentence
+again says to evaluate only outcome. No annotation files, evidence, A requests,
+models, caps, parser or schema change. This addresses demonstrated criterion leakage;
+it does not establish citation/unsupported-claim accuracy. The same 17 controls and
+51 prospective O samples remain mandatory before the fresh actor cohort. Full
 details belong to the calibration records.
 
 After calibration and source freeze, measure publication 002 first, then 007,
