@@ -140,25 +140,33 @@ correctness; evals never push or create a PR.
 
 ### Compact handoff and factual grading
 
-The skill carries the reporting contract directly: preserve target policy, launch
-once and observe actual completion. The reply preserves the exact emitted
-Summary through terminal exit as the entire publication handoff, with any recipe
-exactly once. If no recipe is printed, report its absence and any printed reason;
-add no push/PR steps for the reported CVE branch. Only explicit
-runtime scope lines establish coverage; if none establish compiled Go binary
-coverage, add its uncertainty statement. Quote each failed attempt's diagnostics
-and outcome plus later attempt outcomes; for all-success tests, the Summary
-status suffices. Added prose gives only supported future actions, owners and
-verification prerequisites; omit causal explanations and forecasts. This is output
-guidance, not a new blanket semantic-grading rule. Inspect `origin/<branch>` for
-target policy and search default-branch history for an existing repair commit. Check the complete scope of
-a recommended candidate against the pinned target and required approvals; a valid
-alternative does not excuse an unsupported one. Stop once that handoff is supported.
-Applicable source repairs must land on the starting origin; builder repairs must
-be published before consumers rerun. Compiler version is a prerequisite. A recovered
-retry alone creates no maintainer task. Unknown coverage stays unknown; positive
-artifact/phase proof stays positive. Nested-reviewer prose does not authenticate
-observations.
+The skill prepares supported next actions before drafting: inspect immutable
+source/history, check the complete candidate scope against target policy and
+approvals, and stop once the action, roles and prerequisite are supported.
+Applicable source repairs must land on the starting origin; repaired builder
+images must be published before consumers rerun. Compiler compatibility is only
+a prerequisite. Published fixes blocked by policy stay unresolved; only findings
+without a published fix are eligible for ignores. Eligible ignores and a passing
+retry alone create no new maintainer repair.
+
+The final reply has three positive slots: the complete literal runtime result,
+quoted scope/failed-attempt evidence, then a short next-action handoff for persistent
+unresolved work. The handoff names the repair/investigation, subsequent verification
+operation and target, responsible roles, prerequisites, and pending verification.
+It has no separate explanatory narrative slot. This replaces accumulated negative
+reporting instructions; the proposed section is three lines shorter.
+The layout is actor guidance, not a new heading/order/field-label grading gate.
+Its delivery remains to be measured.
+
+Keep the complete Summary through terminal exit and any emitted recipe once,
+unchanged. The Summary is the publication handoff; when no recipe is printed,
+report absence and any printed reason without adding push/PR steps for the reported
+CVE branch. Only explicit runtime scope lines establish artifact/phase coverage;
+missing compiled-Go proof stays unverified, and coverage alone proves no stdlib
+remediation. Copy each failed attempt's diagnostics/outcome into an evidence block
+and include later outcomes; all-success tests need only the Summary status.
+Unknown coverage stays unknown; positive proof stays positive. Nested-reviewer prose
+does not authenticate observations. Investigation remains read-only throughout.
 
 Exact timing/last-tool gates, table/imperative grammar, verbatim-only evidence
 cells, universal no-count rules, mandatory causal/uncertainty paragraphs and
@@ -187,16 +195,16 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C19 stopped at its fourth actor after three accepted cells. Replay 007's original
-outcome samples and independent review rejected explicit causal independence
-without supporting evidence. Preserve its separate action-review disagreement;
-that cannot offset the decisive outcome failure.
+C20 stopped at its first actor: original outcome samples and independent review
+rejected another explicit causal-independence claim. Its original contract also
+rejected a read-only compound outside the existing exact inventory allowance;
+preserve that formal result without calling it an executed mutation/publication.
+The results record retains the original samples and prior source groups.
 
-Prospective C20 changes only the skill's handoff paragraph and redundant footer,
-net one line: quotations supply observations, added prose supplies supported next
-actions, and causal explanations/build-test-rerun forecasts are omitted. Runtime,
-helper, judges, calibration, models and pins remain fixed. No old actor supplies
-credit; unchanged component tests and control results are reused by identity.
+Prospective C21 replaces only the skill's reporting section with investigation
+first and a closed, positive final layout. No parser, schema, reference or grading
+rule is added. Runtime, helper, judges, calibration, models and pins stay fixed.
+No old actor supplies credit; unchanged component evidence is reused by identity.
 
 After source freeze, measure replay 007 first, then live 002, publication 002,
 live 001, replay 005, live 003/004 and four replay repeats. Finish each cell's

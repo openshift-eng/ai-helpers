@@ -94,47 +94,44 @@ grep -q '^--- Summary' "$LOG" && sed -n '/^--- Summary/,$p' "$LOG" || tail -40 "
 grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIEW|FAIL([[:space:]]|$)|--- FAIL:)' "$LOG"
 ```
 
-## 4. Quote observations, then hand off next actions
+## 4. Prepare the handoff, then report
 
-After completing the read-only investigation below, use a tool to reread this
-section from the actual loaded `SKILL.md` before composing the final reply.
-
-Quote the complete actual Summary through the log's end once, unchanged,
-including the terminal exit. Without a Summary, quote the terminal clean/error
-message; missing completion stays unconfirmed. Report the actual exit.
-The Summary is the entire publication handoff: keep any recipe once, unchanged.
-If none is printed, report its absence and any printed reason without adding
-push/PR steps for the reported CVE branch.
-
-Use only the runtime's explicit `Scan scope (...)` lines for coverage. Quote any
-relevant scope lines not already in the Summary. If none establish compiled Go
-binary coverage, add: "Compiled Go binary coverage is unverified." Keep coverage
-within the reported artifacts and phases; it does not alone establish stdlib
-remediation.
-
-For each failed test attempt, quote its captured diagnostics and outcome, plus
-outcomes of later attempts. Label the attempts. Otherwise the Summary's test
-status suffices.
-
-For unresolved work, follow the quotations only with a supported repair or
-investigation, its owner, verification prerequisite and verification still pending.
-Omit added causal explanations of the run and forecasts of build, test or rerun
-outcomes. Unchanged source or passing retries alone do not establish independence.
-Published fixes blocked by policy remain unresolved; ignore only findings without
-a published fix. Eligible ignored findings and a passing retry alone need no new
-maintainer repair.
-
-Select a matching repair by inspecting immutable source and default-branch history
-in the existing checkout: `git show <command-commit>:<file>`,
+Inspect unresolved work read-only using immutable source and default-branch history
+in this checkout: `git show <command-commit>:<file>`,
 `git log origin/<default> -- <file>` and `git show <candidate>`.
-Identify an applicable existing repair by commit after checking its full scope
-against target policy; otherwise describe the relevant standalone change. Stop once
-the supported next action, owner and prerequisite are established.
+Select an existing repair only after checking its complete scope against target
+policy and approvals; otherwise choose a standalone change or next investigation.
+Stop once the action, owner and prerequisite are supported.
 
-Source repairs must land on `origin/<branch>` before rerunning `fix-all.sh`, which
-starts afresh there; repaired builder images must be published before consumers
-rerun. Report compiler-version compatibility only as a prerequisite.
+Source repairs must land on `origin/<branch>` before `fix-all.sh` reruns;
+repaired builder images must be published before consumers rerun. Compiler
+compatibility establishes only a prerequisite. Published fixes blocked by policy
+remain unresolved; ignore only findings without a published fix. Eligible ignores
+and a passing retry alone need no new maintainer repair.
 
-Keep this investigation read-only: do not edit source/dependencies/ignores, apply
-or test a repair, rerun scripts, clean up, push or create a PR. Missing or skipped
-checks remain unverified. Nested-reviewer prose is advice, not a tool observation.
+Do not apply/test repairs, edit source/dependencies/ignores, rerun scripts,
+clean up, push or create a PR. Missing/skipped checks remain unverified;
+nested-reviewer prose is advice, not an observed outcome.
+
+Then use a tool to reread this section from the actual loaded `SKILL.md`.
+The final reply contains only these blocks, in order, omitting empty ones:
+
+1. **Runtime result.** In one code block, quote the complete actual Summary through
+   log end once, unchanged, including terminal exit and any recipe. Without a
+   Summary, quote the terminal clean/error message and report the actual exit;
+   missing completion stays unconfirmed. The Summary is the entire publication handoff.
+   If no recipe is printed, report its absence and any printed reason; add no
+   push/PR steps for the reported CVE branch.
+2. **Evidence.** Quote relevant runtime `Scan scope (...)` lines absent from the
+   Summary. Coverage stays within reported artifacts/phases and does not alone
+   establish stdlib remediation. If no scope establishes compiled Go binary
+   coverage, add: "Compiled Go binary coverage is unverified."
+   Label each failed test attempt and copy its captured diagnostics/outcome into
+   a code block, followed by later attempt outcomes. Only when all attempts passed
+   does the Summary's test status suffice.
+3. **Next actions**, only for persistent unresolved work:
+   - **Action:** matching repair commit and target, standalone change or investigation;
+     then the verification operation and target after its prerequisites.
+   - **Owner:** roles responsible for repair/investigation and verification.
+   - **Before rerun:** supported prerequisites for that verification.
+   - **Verification:** pending.

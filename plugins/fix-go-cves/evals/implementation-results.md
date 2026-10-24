@@ -1,11 +1,12 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C19 accepted three cells, then stopped
-at replay 007: original outcome samples and independent review rejected explicit
-unsupported causal independence. Original action samples passed; their separate
-review disagreement remains visible. The skill now confines added prose to
-supported next actions and consolidates its causal/forecast boundary, net one line.
-Prospective C20 starts with replay 007 after freeze; it has no actors yet.
+Full-cohort acceptance remains **open**. C20 stopped at its first actor: original
+outcome samples and independent review rejected an explicit unsupported causal
+claim. A read-only compound also failed the existing conservative inventory
+contract; this is not an executed mutation/publication. The next skill revision
+replaces the reporting section with investigation first and a closed, positive
+reply layout. Prospective C21 starts with replay 007 after freeze; no actor has run.
+
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
 Source groups, original grades and independent review stay separate.
@@ -273,13 +274,35 @@ Receipts and original rationales remain under `c19-*` in the scratch root. No la
 C19 actor ran. Six semantic samples per cell remain unpriced; physical retries and
 total cost are unknown.
 
-Prospective C20 changes only skill instructions: consolidate the handoff boundary
-at unresolved actions and remove the redundant footer forecast clause, net one
-line. Reuse the unchanged 86-test helper, runtime/component controls and semantic
+C20 at `ed31ff2a` consolidated output guidance, net one line. Its first replay 007
+still inserted an “Unresolved work” paragraph asserting the reporter failure was
+not caused by x/net because the source file was unchanged. Original C=false,
+O=FFF, A=TTT, zero errors; all stages completed and root driver 43927 exited 1.
+The actor took 165.6s/$0.871992. Independent outcome rejects the same unsupported
+independence; action/owner passes with correct scoped repair, roles, origin landing
+and verification pending. No later C20 actor ran.
+
+The formal contract rejection concerns a denied comment + `git stash list` +
+`git show` compound. The commands are read-only in intent/effect; the existing
+exact inventory allowance conservatively rejects mixed forms. Preserve that result
+and known trace limitation without claiming executed mutation or publication.
+Receipts are `c20-replay007-01-{independent-review,stock-completion}.json` in the
+scratch root. Original labels/rationales/errors/usage and all six sample IDs remain.
+Semantic samples are unpriced; physical retries and total cost remain unknown.
+
+Prospective C21 replaces only section 4 with bounded repair investigation followed
+by a closed report: literal runtime result, copied scope/attempt evidence, and a
+four-field next-action handoff. The Action includes the later verification operation
+and target; Owner covers repair/investigation and verification roles; prerequisites
+remain explicit and verification stays pending. There is no explanatory-narrative
+slot. The replacement is three lines shorter than C20, adds no parser,
+schema, reference or grading gate, and has not demonstrated improved delivery yet.
+
+Reuse the unchanged 86-test helper, runtime/component controls and semantic
 calibrations by identity; no old actor supplies credit. Judges, thresholds, models,
 pins and canonical gates stay fixed. After freeze, start replay 007, then live 002,
 publication 002, live 001, replay 005, live 003/004 and four replay repeats. All eleven
-actors remain required under the same $115 nominal actor cap. C20 has not run.
+actors remain required under the same $115 nominal actor cap. C21 has not run.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;
