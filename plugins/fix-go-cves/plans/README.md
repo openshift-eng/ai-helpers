@@ -1,13 +1,12 @@
 # Fix Go CVEs work plans
 
-Acceptance remains **open**. C17 accepted four cells, then stopped at live 002:
-the actual repair passed, but extra unprinted push/PR advice failed original and
-independent action/owner review. Facts and operations passed. The skill now makes
-the Summary the entire publication handoff, including an absent recipe's printed
-reason. Prospective C18 starts with live 002; it is not frozen and has no actors.
-Unchanged runtime and calibrated judge evidence remains applicable, without old
-actor credit. The [results record](../evals/implementation-results.md) owns counts
-and identities; [calibration](../evals/live/calibration.md) owns controls.
+Acceptance remains **open**. C18's real live 002 repair passed original and
+independent review, including the absent publication handoff. A separate model-free
+counterexample then exposed a native-target validator gap. The two-line correction
+checks existing GOOS/GOARCH metadata; no runtime or schema changes are needed.
+The [results record](../evals/implementation-results.md) owns current status, counts
+and source identities; [calibration](../evals/live/calibration.md) owns controls.
+The E2E plan defines the next complete campaign without old actor credit.
 
 | Document | Owns |
 | --- | --- |

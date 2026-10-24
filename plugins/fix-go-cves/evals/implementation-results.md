@@ -17,7 +17,7 @@ passes remain historical evidence. Historical actor grades are unchanged.
 
 | Changed boundary | Measured evidence |
 | --- | --- |
-| Frozen execution and authority | 85 eval tests pass in 49.587 seconds; current model-free 005/007/002 prepare/replay passes with expected historical results |
+| Frozen execution and authority | 86 eval tests pass in 71.170 seconds; current model-free 005/007/002 prepare/replay passes with expected historical results |
 | Shared lifecycle and aggregation | 362 lifecycle/configuration checks and 186 scoring/sample-retention checks passed on selected harness paths |
 | Physical Go metadata | Seven actual local-proxy transaction controls passed on Go 1.24 and 1.26 |
 | Artifact ownership and scan consumer | 19 focused tests pass in 4.699 seconds, including actual license producer and native Unicode consumer controls; original counterexamples preserved |
@@ -219,14 +219,31 @@ requirement reading applies; actual compiler installation/selection stays unknow
 Incidental stock rationales attributing the directive change to tidy are retained
 but not adopted: the reply does not make that claim.
 
-Prospective C18 replaces only two existing skill publication lines with three:
-relay any recipe once, otherwise report absence and its printed reason, without
-adding push/PR steps for the reported CVE branch. Both judges, V6 calibration and
-computational components remain unchanged; do not repeat the calibration calls or
-credit old actors to changed skill bytes. After source freeze, start live 002,
-then publication 002, live 001, 007/005, live 003/004 and four eligible replay
-repeats under the same 11-actor/$115 maximum, models and pins. C18 is not frozen;
-no actor has run.
+C18 at `75c4f574` replaced two skill publication lines with three: relay any
+recipe once, otherwise report absence and the printed reason without adding
+push/PR steps for the reported CVE branch. Live 002 passed original C/O/A, all six
+semantic samples, zero errors and driver 93139 exit 0. Its 127-second actual
+runtime fixed all five x/net findings, retained `5d06507`, passed canonical
+race-enabled tests/four audits and finished with no findings. The actor took
+206.4 seconds/$1.319529; six semantic calls remain unpriced. Independent review
+passed 18 scenario/22 integrity checks and 51 evidence hashes. Native coverage
+remains unverified; this is a dependency-repair result. Receipts are `c18-live002*`
+in the scratch root. No replacement publication instructions were supplied.
+
+C18 stopped before a second actor after a model-free validator counterexample:
+with otherwise-valid native evidence, wrong GOOS, wrong GOARCH and absent target
+fields all passed. `native-target-before-control.json` preserves those results.
+This is a validator assurance gap, not an observed wrong actual binary. The narrow
+correction parses existing build metadata and requires exactly one Linux/amd64
+pair. Five focused tests pass; the full 86-test helper suite passes in 71.170
+seconds. Controls cover wrong/missing/duplicate fields in both phases and accept
+reversed order. No schema, runtime or semantic-prompt change is needed.
+
+Prospective C19 keeps the C18 skill and all runtime/judge/profile/pin/settings
+bytes. Reuse unchanged V6 calibration without repeating its calls, and unchanged
+runtime controls by identity. No old actor supplies credit. After tests and freeze,
+start live 002, then publication 002, live 001, 007/005, live 003/004 and four replay
+repeats: all eleven actors under the same $115 nominal cap. C19 has not run.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;
@@ -374,7 +391,7 @@ helper allowed **scoring/report/verification only**, with byte-identical actor
 artifacts and no actor retry. Both recovered stock passes above are false positives
 against whole-reply requirements. Retain the integrity failure alongside recovery.
 
-## Current treatment and remaining acceptance
+## Historical literal treatment and acceptance failures
 
 The literal source group at `472270e9` was measured from an unchanged detached
 worktree. All three pilots passed stock thresholds and independent review. The
@@ -408,8 +425,8 @@ for unknown repairs. Current compact guidance retains relevant attempts and
 actionable unresolved work without requiring that table or a task for a recovered
 retry. The separate pilot group below preserves the historical source and results.
 
-The live action criterion now explicitly requires upstream repair landing before
-reruns and published images before consumer reruns. Its two controls match all
+That historical live action criterion explicitly required upstream repair landing
+before reruns and published images before consumer reruns. Its two controls matched
 6/6 samples and 2/2 majorities, preserving the prior false-positive grades. Full
 oracle details belong to the [native/live calibration record](live/calibration.md)
 and [publication calibration record](cases/case-002/calibration.md).

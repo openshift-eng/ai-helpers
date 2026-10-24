@@ -1469,6 +1469,27 @@ class EvidenceTests(unittest.TestCase):
                 (directory / "binaries.jsonl").write_text(json.dumps({**record, "build_info": changed}) + "\n")
                 self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
 
+    def test_native_binary_requires_one_matching_linux_amd64_target(self):
+        case, state, directory, record, catalog = self.binary_scenario()
+        for phase in ("initial", "final-gate"):
+            scan = directory if phase == "final-gate" else directory.parent / "initial.example"
+            original = EVAL.read_json(scan / "binaries.jsonl")
+            for key, expected, wrong in (("GOOS", "linux", "darwin"),
+                                         ("GOARCH", "amd64", "arm64")):
+                line = f"\tbuild\t{key}={expected}\n"
+                for changed in (original["build_info"].replace(f"{key}={expected}", f"{key}={wrong}"),
+                                original["build_info"].replace(line, ""), original["build_info"] + line):
+                    with self.subTest(phase=phase, build_info=changed):
+                        (scan / "binaries.jsonl").write_text(
+                            json.dumps({**original, "build_info": changed}) + "\n")
+                        self.assertFalse(all(EVAL.runtime_scenario(case, state).values()))
+            reordered = original["build_info"].replace(
+                "\tbuild\tGOOS=linux\n\tbuild\tGOARCH=amd64\n",
+                "\tbuild\tGOARCH=amd64\n\tbuild\tGOOS=linux\n")
+            (scan / "binaries.jsonl").write_text(
+                json.dumps({**original, "build_info": reordered}) + "\n")
+            self.assertTrue(all(EVAL.runtime_scenario(case, state).values()))
+
     def test_native_evidence_projects_both_scan_witnesses_without_module_catalog_dump(self):
         case, state, directory, record, catalog = self.binary_scenario()
         state["expected"]["runtime_expectation"] = "observed"

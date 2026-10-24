@@ -1,11 +1,9 @@
 # E2E acceptance and simplification
 
-Acceptance remains **open**. C17 accepted four cells, then stopped at live 002:
-actual repair, facts and operations passed, but extra unprinted push/PR advice
-failed original and independent action/owner review. Prospective C18 tests the
-clearer publication handoff, live 002 first; no freeze or actor has occurred.
-Preserve source groups, grades and limits; the
-[results record](../evals/implementation-results.md) owns counts.
+Acceptance remains **open**. The [results record](../evals/implementation-results.md)
+owns current status, source groups, grades and limits. C18's first real repair
+passed, then a separate native-target counterexample justified a narrow validator
+correction before further actors. Runtime, skill and semantic criteria stay fixed.
 
 This plan owns current design choices and the remaining acceptance sequence. The
 [testing strategy](testing.md) owns durable requirements and calibration/reuse
@@ -186,23 +184,23 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C17 stopped after five actors, before live 003. Publication 002, live 001 and
-replays 007/005 passed; their contextual adjudications and original dissent remain
-in the [results record](../evals/implementation-results.md). Live 002 passed the
-required actual repair, facts and operations, but supplied an unprinted push/PR
-procedure in prose. Original and independent action/owner review reject it.
+C18 at `75c4f574` completed live 002: original contract, all six semantic samples
+and independent required-repair/whole-reply review pass. The absent publication
+recipe was relayed without replacement steps. Before another actor, a separate
+model-free counterexample showed that the native checker accepted wrong or missing
+GOOS/GOARCH metadata. No actual wrong-platform artifact was observed.
 
-Prospective C18 replaces only the skill's existing publication guidance: relay any
-recipe once; otherwise report absence and the printed reason, adding no push/PR
-steps for the reported branch. Runtime, helper, both judges, models and pins remain
-unchanged. Reuse V6 calibration without repeating its calls; the
-[calibration record](../evals/live/calibration.md) owns controls and limits.
-No old actor supplies credit after the skill change.
+Prospective C19 adds only a target parse and exact Linux/amd64 check to the existing
+native predicate. Focused controls reject wrong, missing or duplicated fields in
+both scan phases and accept reversed field order. No new schema, runtime gate or
+semantic calibration is needed: these fields were already captured and projected.
+The skill, judges, V6 calibration, runtime, models and pins remain unchanged.
+No C18 actor supplies credit to the corrected source campaign.
 
 After source freeze, measure live 002 first, then publication 002, live 001,
-replay 007/005, live 003/004 and four eligible replay repeats. Finish each cell's
-original stages, thresholds and independent review before continuing. Preserve the
-eleven-actor/$115 maximum, models and pins. C18 is not frozen; no actor has run.
+replay 007/005, live 003/004 and four replay repeats. Finish each cell's original
+stages, thresholds and independent review before continuing. The results record
+owns freeze and execution status; the protocol owns the exact actor order.
 
 License cleanup reuses the existing artifact ownership helper with a private
 license prefix. Serialized path/event readers honor LF delimiters without splitting
@@ -237,14 +235,13 @@ or rerun unchanged work for a favorable seed. Historical replay can validate gua
 forwarding while its historical engine lacks newer enforcement; current enforcement
 needs local/live evidence.
 
-Retain eleven actors maximum: 005/007 three each, positive 002 once and four live
-once. Run seven distinct scenarios first (live 001, positive 002, 007, 005, then
-live 002/003/004), followed
-by four remaining replay repeats if eligible. Pilots count within their declared
-source campaign; failed campaigns remain separate. Existing actor caps total $115
-(seven at $5, four at $20); nested/judge costs are separate. Do not adapt caps,
-deadlines, source, model or seed within that campaign after a failure. A supported
-fix requires a separately declared measurement; preserve the stopped campaign.
+Acceptance requires all eleven original actors: 005/007 three each, publication
+002 once and four live once. Follow the frozen protocol order. Pilots count within
+their declared source campaign; stopped campaigns remain separate. Existing actor
+caps total $115 (seven at $5, four at $20); nested/judge costs are separate. Do not
+adapt caps, deadlines, source, model or seed within that campaign after a failure.
+A supported fix requires a separately declared measurement; preserve the stopped
+campaign.
 
 Finish each cell's original stock stages, required samples, scenario checks and
 independent whole-reply review before launching the next actor. Multi-case actor

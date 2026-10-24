@@ -616,6 +616,7 @@ def native_scan_proof(case, state, phase, head, retained=False):
         info = binary.get('build_info', '')
         revisions = re.findall(r'(?m)^[ \t]*build[ \t]+vcs\.revision=([^\s]+)[ \t]*$', info)
         modified = re.findall(r'(?m)^[ \t]*build[ \t]+vcs\.modified=([^\s]+)[ \t]*$', info)
+        target = re.findall(r'(?m)^[ \t]*build[ \t]+(GOOS|GOARCH)=([^\s]+)[ \t]*$', info)
         props = [component.get('properties', []) for component in catalog.get('components', [])
                  if component.get('name') == 'stdlib']
         covered = any(
@@ -630,6 +631,7 @@ def native_scan_proof(case, state, phase, head, retained=False):
                     for item in component.get('hashes', [])) for component in catalog.get('components', []))
         checks[f'native binary {path} positively cataloged' + (' and retained' if retained else '')] = (
             binary.get('recorded_build_artifact') is True and revisions == [head] and modified == ['false']
+            and sorted(target) == [('GOARCH', 'amd64'), ('GOOS', 'linux')]
             and covered and catalog_hash
             and (not retained or state['ignored_snapshot'].get(path, {}).get('sha256') == binary.get('sha256')))
         # Full build_info includes every dependency; only these existing lines are useful here.
