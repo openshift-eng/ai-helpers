@@ -36,6 +36,22 @@ recorded_evidence:
   build_image: quay.io/submariner/shipyard-dapper-base:release-0.24
   recorded_builder_go: 1.26.8
   required_go_patch: 1.26.9
+  stdlib_fixed_versions:
+    witness: Direct historical post-fix Grype table at run.log.gz lines 13098–13107,
+      immediately before Subagent Verification; not a typed runtime receipt.
+    alternatives:
+      GO-2026-6603: ["1.26.9"]
+      GO-2026-6605: ["1.26.9", "1.27.2"]
+      GO-2026-6607: ["1.26.9", "1.27.2"]
+      GO-2026-6608: ["1.26.9", "1.27.2"]
+      GO-2026-6610: ["1.26.9"]
+      GO-2026-6611: ["1.26.9"]
+      GO-2026-6612: ["1.26.9"]
+      GO-2026-6613: ["1.26.9", "1.27.2"]
+      GO-2026-6617: ["1.26.9"]
+    initial_display: The four two-alternative advisories show only 1.27.2 in the
+      simplified initial column at lines 287–302; that column is not the full
+      set of fixed-version alternatives.
   publication: Complete positive git push/gh pr create recipe printed for partial
     repair. Account identifiers sanitized; shell flags and escaping retained.
   limits: Historical recorded output only; no admitted native catalog proof or current-engine

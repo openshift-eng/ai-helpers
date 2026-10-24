@@ -19,6 +19,12 @@ not an independently captured tool observation. The reviewer runs with tools
 disabled in an empty working directory. Its provenance claims cannot override
 actual target/build configuration and typed runtime evidence.
 
+Historical sample-error counters are reported results. The old boolean parser
+could emit false for an unparseable response without marking an error. A later
+retention audit distinguishes genuine feedback from missing sample detail; original
+scores are preserved. Current admission requires every requested response to parse,
+with usage/ID retained and errors explicit.
+
 ## V1: prompt-only correction
 
 V1 adds whole-reply consistency, artifact/phase-specific coverage and executed
@@ -224,3 +230,23 @@ protocols and full samples remain in
 `.work/fix-go-cves-e2e-20261023/{live,replay}-actions-commit-scope-v6-prep/`.
 No actors or outcome calls ran. This development calibration does not supply
 holdout reliability or E2E acceptance credit.
+
+## Boolean-parser validity renewal
+
+The parser fix raises through existing handling instead of silently voting false.
+A model-free provider/aggregation/verifier proof preserves usage/response IDs and
+request bodies, rejects true/true/empty with one error, and accepts valid
+true/true/false feedback under the existing majority rule.
+
+A-V6 has all 60 rationales/IDs retained and no producer parse failures; it remains
+reusable for this error-only change. V9 lacks sample reasons for false samples 2–3
+of controls 104/108/202. Native V2 control 091 and publication V5 control 101 have
+the same uncertainty; native 093 retains its dissent and all reasons. Positives
+cannot be produced by this false fallback. No hidden error is inferred as fact.
+
+Prospective renewal is one whole three-sample O cell for each of those five
+negatives, on current profiles and annotation witnesses: 15 configured samples.
+The separate new publication fix-version pair uses O/A, three samples each,
+adding 12. Total: 27 configured samples, zero actors, currently pending. Keep all
+original grades and dissent, and require every new sample without error. These
+are development admissions, not holdouts or proof of general reliability.

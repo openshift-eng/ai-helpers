@@ -4,7 +4,7 @@ index 5bd1060..9c16b76 100644
 +++ b/agent_eval/agent/claude_code.py
 @@ -1,12 +1,16 @@
  """Claude Code CLI runner implementation."""
- 
+
 +import codecs
  import errno
  import json
@@ -20,20 +20,20 @@ index 5bd1060..9c16b76 100644
  import time
  import urllib.parse
 @@ -393,13 +397,14 @@ class ClaudeCodeRunner(EvalRunner):
- 
+
          start = time.monotonic()
          stdout_lines = []
 +        stderr_parts = []
          deadline = start + timeout_s
 -        timed_out = False
- 
+
          # Track temp settings file for cleanup
          cleanup_settings = temp_settings_file
          cost_source = None
          proc = None
 +        prompt_input = None
          stream_ids_seen = []          # every assistant id parsed, sighted or not
- 
+
          try:
 @@ -409,35 +414,20 @@ class ClaudeCodeRunner(EvalRunner):
              env = self._build_env(extra_env=extra_env)
@@ -53,7 +53,7 @@ index 5bd1060..9c16b76 100644
                  env=env,
 +                start_new_session=True,
              )
- 
+
 -            proc.stdin.write(prompt)
 -            proc.stdin.close()
 -
@@ -79,7 +79,7 @@ index 5bd1060..9c16b76 100644
 @@ -447,9 +437,7 @@ class ClaudeCodeRunner(EvalRunner):
              permission_denials = 0
              result_denials = []
- 
+
 -            for line in proc.stdout:
 -                if time.monotonic() > deadline:
 -                    raise subprocess.TimeoutExpired(cmd, timeout_s)
@@ -90,14 +90,14 @@ index 5bd1060..9c16b76 100644
 @@ -493,14 +481,11 @@ class ClaudeCodeRunner(EvalRunner):
                          pass
                  stdout_lines.append(line)
- 
+
 -            stderr = proc.stderr.read()
 -            proc.wait(timeout=5)
 -            if timed_out:
 -                raise subprocess.TimeoutExpired(cmd, timeout_s)
 +            stderr = "".join(stderr_parts)
 +            proc.wait(timeout=max(0.01, deadline - time.monotonic()))
- 
+
          except subprocess.TimeoutExpired:
 -            proc.kill()
 -            proc.wait()
@@ -145,8 +145,8 @@ index 5bd1060..9c16b76 100644
              if cleanup_settings is not None:
 @@ -891,35 +887,63 @@ class ClaudeCodeRunner(EvalRunner):
          return env
- 
- 
+
+
 -def _reap(proc, timeout_s: float = 10.0) -> list:
 -    """Kill a still-running CLI, drain the rest of its stdout (the lines may
 -    carry billed generation ids) and wait for it — all bounded by
@@ -226,8 +226,8 @@ index 5bd1060..9c16b76 100644
          pass
 -    return list(lines)
 +    return lines
- 
- 
+
+
  def _wire_model(model, plan):
 diff --git a/skills/eval-run/scripts/execute.py b/skills/eval-run/scripts/execute.py
 index 257ef20..3e9fb43 100644
@@ -243,9 +243,18 @@ index 257ef20..3e9fb43 100644
      if repo_verification_failed:
          worst_exit = max(worst_exit, 1)
 diff --git a/skills/eval-run/scripts/score.py b/skills/eval-run/scripts/score.py
-index 0fac730..83855ed 100644
+index 0fac730..573cfdd 100644
 --- a/skills/eval-run/scripts/score.py
 +++ b/skills/eval-run/scripts/score.py
+@@ -2249,7 +2249,7 @@ def _parse_bool_response(text):
+         passed = match.group(1).lower() == "true"
+         rationale = _rationale_field(text) or text.strip()
+         return (passed, rationale)
+-    return (False, f"Could not parse judge response: {text.strip() or '(empty)'}")
++    raise ValueError(f"Could not parse judge response: {text.strip() or '(empty)'}")
+
+
+ def _parse_score_response(text, bounds=None):
 @@ -2763,15 +2763,27 @@ def score_cases(judges, case_dirs, config, run_id=None, samples_override=None):
              try:
                  if n > 1:
@@ -280,8 +289,8 @@ index 0a02ade..4f2f874 100644
 +++ b/tests/test_claude_cli_direct.py
 @@ -264,24 +264,187 @@ def test_a_failure_mid_stream_keeps_the_sighted_ids(workspace, tmp_path, monkeyp
      assert not (workspace / ".claude" / ".eval-overlay.json").exists()
- 
- 
+
+
 -def test_reap_drain_is_bounded_when_a_descendant_holds_stdout():
 -    """A background descendant keeping the CLI's stdout open must not make
 -    the failure-path drain block: it returns by the deadline with what was
@@ -362,7 +371,7 @@ index 0a02ade..4f2f874 100644
 +
 +def _assert_lifecycle_cleanup(pidfile, procs, foreign):
      import time
- 
+
 -    from agent_eval.agent.claude_code import _reap
 +    assert procs and all(proc.returncode is not None for proc in procs)
 +    pids = json.loads(pidfile.read_text())
@@ -390,7 +399,7 @@ index 0a02ade..4f2f874 100644
 +@pytest.mark.parametrize("mode", ["stdout", "stderr", "both", "ignore-term", "leader", "closed-pipes", "unread-stdin"])
 +def test_deadline_owns_processes_and_retains_partial_output(lifecycle_cli, mode):
 +    import time
- 
+
 -    child = subprocess.Popen(
 -        [sys.executable, "-c",
 -         "import subprocess, sys; print('{\"type\": \"assistant\", \"message\": {\"id\": \"gen-fake-drain\"}}', flush=True); "
@@ -471,7 +480,7 @@ index 0a02ade..4f2f874 100644
 +
 +    def unavailable_group(*args):
 +        raise PermissionError("controlled group failure")
- 
+
 +    monkeypatch.setattr(cc.os, "killpg", unavailable_group)
 +    result = ClaudeCodeRunner(provider_plan=make_plan()).execute(
 +        None, "hello", ws, "unused", timeout_s=.4,
@@ -536,10 +545,10 @@ index 8c2298a..0b59187 100644
 +        assert (recorded['exit_code'] == 0) == all(status == 0 for status in statuses)
 diff --git a/tests/test_sample_metadata.py b/tests/test_sample_metadata.py
 new file mode 100644
-index 0000000..98f7872
+index 0000000..de2213e
 --- /dev/null
 +++ b/tests/test_sample_metadata.py
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,107 @@
 +"""Sample audit metadata survives aggregation without affecting scoring."""
 +import json
 +
@@ -605,3 +614,65 @@ index 0000000..98f7872
 +    # Summary serialization preserves the associated metadata without custom types.
 +    assert yaml.safe_load(yaml.safe_dump(entry)) == entry
 +    assert json.loads(json.dumps(entry)) == entry
++
++
++@pytest.mark.parametrize("third,errors", [(None, 1), (False, 0)])
++def test_provider_bool_parse_error_retains_usage_without_becoming_a_vote(
++        tmp_path, monkeypatch, third, errors):
++    from types import SimpleNamespace
++
++    config = EvalConfig(name='t', skill='t')
++    config.judges = [JudgeConfig(name='j', samples=3, feedback_type='bool')]
++    case = tmp_path / 'case-001'
++    case.mkdir()
++    requests = []
++
++    def create(**kwargs):
++        idx = len(requests)
++        requests.append(kwargs)
++        value = [True, True, third][idx]
++        content = [] if value is None else [SimpleNamespace(
++            type='tool_use', name='submit_evaluation',
++            input={'passed': value, 'rationale': f'valid {value}'})]
++        return SimpleNamespace(content=content, id=f'gen-{idx}', model='mock',
++                               usage=SimpleNamespace(input_tokens=10 + idx,
++                                                     output_tokens=20))
++
++    monkeypatch.setattr(score, '_get_anthropic_client', lambda: SimpleNamespace(
++        messages=SimpleNamespace(create=create)))
++
++    def scorer(outputs=None):
++        return score._call_structured_judge('fixed prompt', 'mock', 'bool')
++
++    result = score.score_cases([('j', scorer, '', 'llm', 3)], [case], config)
++    entry = result['per_case']['case-001']['j']
++    assert entry['value'] is True
++    assert entry['stability']['error_count'] == errors
++    assert entry['stability']['values'] == ([True, True] if errors else [True, True, False])
++    sample = entry['sample_results'][2]
++    assert sample['value'] is third
++    assert ('error' in sample) == bool(errors)
++    assert sample['usage']['id'] == 'gen-2'
++    assert entry['usage']['requests'] == 3
++    assert result['judge_usage']['prompt_tokens'] == 33
++    assert len(requests) == 3 and requests[0] == requests[1] == requests[2]
+diff --git a/tests/test_score_builtin.py b/tests/test_score_builtin.py
+index 16712c2..18033fe 100644
+--- a/tests/test_score_builtin.py
++++ b/tests/test_score_builtin.py
+@@ -195,11 +195,11 @@ class TestParsers:
+         result = _parse_bool_response('{"passed": false, "rationale": "found issues"}')
+         assert result == (False, "found issues")
+
+-    def test_parse_bool_unparseable(self):
++    @pytest.mark.parametrize("text", ["", "  \n", "no json here"])
++    def test_parse_bool_unparseable(self, text):
+         from score import _parse_bool_response
+-        passed, rationale = _parse_bool_response("no json here")
+-        assert passed is False
+-        assert "Could not parse" in rationale
++        with pytest.raises(ValueError, match="Could not parse judge response"):
++            _parse_bool_response(text)
+
+     def test_parse_score_json(self):
+         from score import _parse_score_response

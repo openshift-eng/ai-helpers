@@ -1,11 +1,11 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C20 stopped at its first actor: original
-outcome samples and independent review rejected an explicit unsupported causal
-claim. A read-only compound also failed the existing conservative inventory
-contract; this is not an executed mutation/publication. The next skill revision
-replaces the reporting section with investigation first and a closed, positive
-reply layout. Prospective C21 starts with replay 007 after freeze; no actor has run.
+Full-cohort acceptance remains **open**. C21 accepted two actors, then stopped
+at publication 002 on an unsupported Go-minor prerequisite. That run also exposed
+incomplete judge evidence and an empty response silently counted as false instead
+of an error. C22 preparation uses a primary fix-version witness, a concise evidence
+priority sentence and a one-line parser exception. No new actor has run. The
+27-sample calibration admission remains pending.
 
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
@@ -19,8 +19,8 @@ passes remain historical evidence. Historical actor grades are unchanged.
 
 | Changed boundary | Measured evidence |
 | --- | --- |
-| Frozen execution and authority | 86 eval tests pass in 71.170 seconds; current model-free 005/007/002 prepare/replay passes with expected historical results |
-| Shared lifecycle and aggregation | 362 lifecycle/configuration checks and 186 scoring/sample-retention checks passed on selected harness paths |
+| Frozen execution and authority | 86 eval tests pass in 49.406 seconds; current model-free 005/007/002 prepare/replay passes with expected historical results |
+| Shared lifecycle and aggregation | 362 lifecycle/configuration checks remain applicable by identity; 368 scoring/provider/agent checks pass in 2.01 seconds, including invalid-response metadata and genuine-false controls |
 | Physical Go metadata | Seven actual local-proxy transaction controls passed on Go 1.24 and 1.26 |
 | Artifact ownership and scan consumer | 19 focused tests pass in 4.699 seconds, including actual license producer and native Unicode consumer controls; original counterexamples preserved |
 | Cleanup / report preservation | Six / seven actual-producer controls; old report producer reproduces failures |
@@ -290,19 +290,61 @@ Receipts are `c20-replay007-01-{independent-review,stock-completion}.json` in th
 scratch root. Original labels/rationales/errors/usage and all six sample IDs remain.
 Semantic samples are unpriced; physical retries and total cost remain unknown.
 
-Prospective C21 replaces only section 4 with bounded repair investigation followed
-by a closed report: literal runtime result, copied scope/attempt evidence, and a
-four-field next-action handoff. The Action includes the later verification operation
-and target; Owner covers repair/investigation and verification roles; prerequisites
-remain explicit and verification stays pending. There is no explanatory-narrative
-slot. The replacement is three lines shorter than C20, adds no parser,
-schema, reference or grading gate, and has not demonstrated improved delivery yet.
+C21 at `050c7715` replaced section 4 with investigation followed by a closed
+report: runtime quotation, evidence quotations, then supported next actions and
+pending verification. It was three lines shorter than C20; no format grading gate
+was added. First replay 007 passed original C/O/A, all six semantic samples, zero
+errors and independent review (161.4s/$0.82707075; root 65250 exit 0).
 
-Reuse the unchanged 86-test helper, runtime/component controls and semantic
-calibrations by identity; no old actor supplies credit. Judges, thresholds, models,
-pins and canonical gates stay fixed. After freeze, start replay 007, then live 002,
-publication 002, live 001, replay 005, live 003/004 and four replay repeats. All eleven
-actors remain required under the same $115 nominal actor cap. C21 has not run.
+Real live 002 also passed original C/O/A and all six valid samples plus independent
+review (291.3s/$1.680468; root 19841 exit 0). Its 179-second actual repair cleared
+five findings and retained `e99fc00`. The first `make unit` exited 2 after a
+workqueue data race despite 21 passing Ginkgo specs; the single built-in retry
+exited 0 on the same HEAD. Both attempts and exact diagnostics/timings/coverage
+were preserved and reported; no causal exoneration or extra task was invented.
+Four audits/final scan passed. Native coverage stays unverified. Review checked
+18 repair/22 integrity conditions and 53 evidence hashes.
+
+C21 stopped at third actor publication 002. Original C=true, O values T/T/F with
+a reported majority true, A=FFF; root 89080 exited 1 after all reported stages.
+The actor took 203.7s/$0.87258575. The final false O value is not a semantic verdict:
+it is the producer diagnostic `Could not parse judge response: (empty)`, with
+4096 output tokens and zero reported errors. Only five of six responses provide
+valid feedback. Raw content/stop reason were not retained, so the cause is unknown.
+The original summary, grades and failed response remain unchanged under `c21-*`.
+
+The initial simplified column really shows 1.27.2 for four advisories. The later
+direct post-fix Grype table (13098–13107, before verification audits) lists
+1.26.9 for all nine, with 1.27.2 as an alternative for four. A required Go-minor
+policy decision therefore has no support. Independent O/A reject it. The actor
+observations supplied to O omit that complete table; the old scalar annotation
+cannot establish all per-advisory alternatives. This is corrected by adding the
+primary relationships to the existing fact map, without changing criteria.
+
+C22 preparation also replaces one boolean-parser fallback with `ValueError`,
+matching numeric parsing. Existing handling retains usage/IDs and records an
+error rather than a false vote. Mocked provider-to-verifier proof changes
+true/true/empty from errors=0/accepted to errors=1/rejected; true/true/false remains
+valid. All nine mocked request bodies are identical; no HTTP calls were made.
+20 focused tests and 368 relevant harness tests pass; the 86-test plugin suite
+passes in 49.406s. Runtime code and its 3,207 shell/70 Python/19 artifact controls
+remain unchanged. No new error type, retry, budget, schema or wrapper was added.
+
+Retrospective audit verifies every A-V6 sample: 60 retained rationales, 60 distinct
+IDs and no parse failures. Some older stable false groups discarded sample reasons;
+zero errors were reported but cannot be certified from those values alone. Current
+O uncertainty covers V9 controls 104/108/202, native V2 control 091 and publication
+V5 control 101. Renew each whole three-sample cell once on current profiles; retain
+the original counters, labels and dissent. The new publication wrong-version/
+corrected-reference pair adds 12 O/A samples, for 27 configured samples total,
+zero actors. Admission is pending; no unchanged call seeks unanimity or recovers an
+old score. Full details belong to the calibration records.
+
+After calibration and source freeze, C22 measures publication 002 first, then 007,
+live 002, live 001, 005, live 003/004 and four replay repeats. All eleven actors,
+original thresholds and independent review remain required; no old actor supplies
+credit. Models/settings/canonical gates stay fixed under the same $115 nominal
+actor cap. Semantic costs and physical retries remain unknown.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;

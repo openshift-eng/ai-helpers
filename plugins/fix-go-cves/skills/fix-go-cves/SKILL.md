@@ -96,6 +96,8 @@ grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIE
 
 ## 4. Prepare the handoff, then report
 
+Ground current facts and repairs in completed runtime evidence; for stdlib, check
+all fix alternatives on the executed compiler's release line before a Go minor upgrade.
 Inspect unresolved work read-only using immutable source and default-branch history
 in this checkout: `git show <command-commit>:<file>`,
 `git log origin/<default> -- <file>` and `git show <candidate>`.

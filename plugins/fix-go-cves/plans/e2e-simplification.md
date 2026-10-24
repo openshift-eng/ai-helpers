@@ -68,6 +68,10 @@ GOOS=linux/GOARCH=amd64 pair, independent of metadata order. Preserve actual blo
 unreached phases and initial-only proof for a clean fast path. Entry kind, content
 and execution mode are part of source/native identity.
 
+Unparseable judge feedback raises through the existing error path with its usage
+and response ID; it never becomes a false semantic vote. The existing plugin
+verifier rejects any incomplete or errored sample set.
+
 The selected shared runner patch bounds termination, pipe draining and reaping,
 preserves partial traces and raw exits, and fails aggregation for any nonzero case
 status, including negative exits. Its effective code identity and dirty state are
@@ -140,7 +144,9 @@ correctness; evals never push or create a PR.
 
 ### Compact handoff and factual grading
 
-The skill prepares supported next actions before drafting: inspect immutable
+The skill grounds current facts and repairs in completed evidence and full fix
+alternatives; stdlib repair uses the executed compiler line before a minor upgrade.
+It prepares supported next actions before drafting: inspect immutable
 source/history, check the complete candidate scope against target policy and
 approvals, and stop once the action, roles and prerequisite are supported.
 Applicable source repairs must land on the starting origin; repaired builder
@@ -154,7 +160,7 @@ quoted scope/failed-attempt evidence, then a short next-action handoff for persi
 unresolved work. The handoff names the repair/investigation, subsequent verification
 operation and target, responsible roles, prerequisites, and pending verification.
 It has no separate explanatory narrative slot. This replaces accumulated negative
-reporting instructions; the proposed section is three lines shorter.
+reporting instructions.
 The layout is actor guidance, not a new heading/order/field-label grading gate.
 Its delivery remains to be measured.
 
@@ -195,21 +201,27 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C20 stopped at its first actor: original outcome samples and independent review
-rejected another explicit causal-independence claim. Its original contract also
-rejected a read-only compound outside the existing exact inventory allowance;
-preserve that formal result without calling it an executed mutation/publication.
-The results record retains the original samples and prior source groups.
+C21 stopped at its third actor after replay 007 and real live 002 passed. Publication
+002 invented a Go-minor prerequisite from an abbreviated initial fix column; the
+complete post-fix table includes Go 1.26.9 for all nine advisories. Original A
+rejects it. Two O passes lacked that complete primary witness, and a third O value
+was an unparseable empty response silently emitted as false with zero reported
+errors. Preserve those raw results and the independent rejection.
 
-Prospective C21 replaces only the skill's reporting section with investigation
-first and a closed, positive final layout. No parser, schema, reference or grading
-rule is added. Runtime, helper, judges, calibration, models and pins stay fixed.
-No old actor supplies credit; unchanged component evidence is reused by identity.
+C22 preparation adds one primary fact map, one skill sentence and one parser
+return-to-exception change using existing handling. Request bodies, models,
+thresholds and runtime stay fixed. Calibration must finish before actor measurement:
+27 configured samples cover the new publication pair and whole negative cells
+whose missing historical sample details cannot certify parse validity. The fully
+retained 60-sample A-V6 results remain reusable; earlier counters remain reported,
+not retroactively proven. Preserve all old grades and dissent. No parser-error
+sample may count as a matching negative.
 
-After source freeze, measure replay 007 first, then live 002, publication 002,
-live 001, replay 005, live 003/004 and four replay repeats. Finish each cell's
-original stages, thresholds and independent review before continuing. The results
-record owns freeze/execution status; the protocol owns the exact actor order.
+After admission and source freeze, measure publication 002 first, then replay 007,
+live 002, live 001, replay 005, live 003/004 and four replay repeats. All eleven
+remain required on one declared source; no old actor supplies credit. Finish each
+cell's original stages, thresholds and independent review before continuing.
+The results record owns status; the frozen protocol owns exact order and caps.
 
 License cleanup reuses the existing artifact ownership helper with a private
 license prefix. Serialized path/event readers honor LF delimiters without splitting

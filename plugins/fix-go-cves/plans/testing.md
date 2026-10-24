@@ -242,8 +242,10 @@ per-criterion labels and factual witnesses. Success means agreement with those
 labels, including expected negatives whose production CLI correctly exits nonzero.
 Boolean criteria use strict majority across three samples: TTF reduces true;
 `min_pass_rate: 1.0` does not require sample unanimity. Every required sample must
-exist without error. Preserve dissent, raw labels and representative-rationale
-limits. Controls used to tune a change are development/regression controls, not
+exist without error. An unparseable response is an error, not a false vote; keep
+its usage and response ID through the existing error path. Historical false values
+without retained sample details cannot certify parse validity. Preserve dissent,
+raw labels and representative-rationale limits. Controls used to tune a change are development/regression controls, not
 unseen holdouts. Keep reviewed pairs fixed during the change and record which
 results informed edits; do not add recordings or models solely to rename them
 holdouts. Whole-reply review independently retains factual contradictions and

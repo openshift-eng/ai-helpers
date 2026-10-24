@@ -39,7 +39,7 @@ The reference's true original ref was added to the independent evidence in V4.
 ## Measurements and preserved failures
 
 All versions use harness `1a980e707909a23f8c143ce333d97f5203db34ab` and judge
-`claude-opus-4-6`, with zero actor executions and zero API/sample errors.
+`claude-opus-4-6`, with zero actor executions and zero reported API/sample errors.
 
 | Version | Judge calls | Correct samples | Correct majorities | Seconds | Result/limitation |
 | --- | --- | --- | --- | --- | --- |
@@ -72,6 +72,30 @@ calls full-log advisory IDs fabricated because compact annotations omit their li
 and discusses the GOEXPERIMENT gloss as unsupported. Correct labels are not proof
 that every rationale is sound; representative explanations do not explain each sample.
 
+## Complete fix alternatives and parser admission
+
+The C21 reply in [wrong-stdlib-release.md](negatives/wrong-stdlib-release.md) treats
+four advisories as requiring Go 1.27, based on the shortened initial column. The
+post-fix direct Grype table at 13098–13107 includes 1.26.9 for all nine advisories;
+four also list 1.27.2. The existing annotation fact map now exposes those primary
+alternatives and the initial display limitation. Criteria are unchanged.
+The [corrected reference](stdlib-release-reference.md) preserves the Summary,
+recipe, native disclosure and events, correcting only the exclusive-version
+interpretation and unsupported policy handoff.
+
+The proposed V6 admission is two controls × O/A × three samples = 12 configured
+samples, zero actors: wrong-version O/A=false/false; corrected O/A=true/true.
+Separate parser-validity renewal includes V9's invented-ID control 202 and V5's
+native/configuration negative 101, three O samples each. Those are distinct
+questions and are not replaced by the new pair. No model calls have run yet.
+
+The boolean parser formerly emitted false on unparseable output without an error.
+Historical error counts above are reported counters. Missing per-sample reasons
+cannot certify every old false as genuine feedback; original values stay unchanged.
+The proposed exception uses the existing error/usage path, and every new sample
+must be valid, retained and error-free. This is witness/error-path admission,
+not another rubric, format rule, actor pass or unseen holdout.
+
 ## Actor evidence and artifact locations
 
 | Actor run | Original stock contract/O/A | Independent whole-reply review |
@@ -86,7 +110,7 @@ Original scores remain unchanged. Calibration artifacts are under
 declared protocol, frozen controls/configuration and complete sampled labels;
 independent result reviews are retained alongside the summaries where applicable.
 
-All 114 judge calls were unpriced; total cost is unknown. Stock calibration exits
+The 114 V1–V5 judge calls were unpriced; total cost is unknown. Stock calibration exits
 are 1 because negative controls fail production thresholds; expected-label matching
 determines calibration success. No unchanged retry or actor rerun obtained these
 labels, and no calibration overwrites earlier actor grades. Repeatability, blocked
