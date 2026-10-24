@@ -1,10 +1,10 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C15 completed all original stages with
-passing stock grades, but independent action/owner review rejects its bundled
-repair alternative. A valid standalone Go option does not make the full commit's
-additional Kubernetes approval unnecessary. No migration ran. C16 scope guidance
-passes fixed-control action calibration; fresh actors await the source freeze.
+Full-cohort acceptance remains **open**. C16 passed live 001, then stopped after
+publication 002 failed original and independent action/owner review for forecasting
+a full fix after an unexecuted rerun. Facts, exact relay and operations passed.
+The skill now gives verification steps without predicting outcomes. Prospective
+C17 starts with publication 002; no freeze or actor has occurred.
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
 Source groups, original false-positive grades and independent review stay separate.
@@ -63,9 +63,11 @@ fails is not guaranteed.
 | `e2e-policy-boundary-live001-20261023-01` | C true, O FFF, A TTT, zero sample errors; actor $1.43 | C13 stopped: independent runtime 29/29 and A true, O false; quoted certificate 1.052s/57.5% contradicts actual 20.059s/89.1% |
 | `e2e-summary-tests-live001-20261023-01` | C true, O TTT, A FTF, zero sample errors; actor $1.44 | C14 stopped: independent runtime 27/27 and O true, A false for a tentative compilation forecast from version; same-result caveat genuine, dissent retained |
 | `e2e-prerequisite-only-live001-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.71 | C15 stopped: independent runtime 27/27 and O true, A false; full candidate adds a Kubernetes-minor migration without approval, while the standalone Go option is valid |
+| `e2e-commit-scope-live001-20261023-01` | C true, O/A TTT, zero sample errors; driver 0 | C16 individual pass: independent runtime 29/29, 52 evidence hashes and whole-reply O/A pass |
+| `e2e-commit-scope-publication002-20261023-01` | C true, O TTT, A FFF, zero sample errors; driver 1 | C16 stopped after two actors: independent O/operations true, A false for an unobserved full-fix forecast; exact Summary/recipe and native uncertainty pass |
 
 Complete actual skill intake was confirmed for the prior pilots, all three C10
-actors, C11 publication 002 and C12–C15. Earlier campaigns remain separate; no failed actor is pooled
+actors, C11 publication 002 and C12–C16. Earlier campaigns remain separate; no failed actor is pooled
 into a revised source. Current guidance quotes runtime
 observations and failed/later-attempt outcomes, then allows only supported future
 actions, owners and verification prerequisites. Default-branch repair-commit
@@ -187,17 +189,24 @@ is asserted. The third passing A sample notices possible broader Kubernetes scop
 then excuses it because the standalone option is also offered. Preserve that
 false positive and all original rationales under `c15-live001*` in the scratch root.
 
-Prospective C16 changes only four existing files: skill candidate-scope checking,
-two shared action-prompt scope/approval sentences, and three pinned-scope facts in
-live-001 annotations. That evidence describes a candidate, not a mandatory repair.
-V6 calibration passes all 20 majorities and 60 samples with zero errors, retaining
-the old 18 input/label bytes plus the actual C15 negative and sole-option-removal
-positive. Full scope, source and rationale checks preserve the original false
-positive. Runtime/helper and O rubric remain unchanged; live-001 adds verified
-source facts, not new outcome requirements. After source freeze,
-start live 001, then publication 002, 007/005, live 002/003/004 and four eligible
-replay repeats under the same 11-actor/$115 maximum, models and pins. No C16 actor
-has run.
+C16 at `b538f2f9` stopped after two actors. Live 001 passed original thresholds and
+independent runtime/whole-reply review: its 145-second runtime remained blocked at
+exit 2, passed canonical tests/audits and retained no commits. The actor took
+282.5 seconds/$0.737293; its driver exited 0. Publication 002 took 137 seconds/
+$0.70137175; its driver exited 1 after all stages. The exact Summary and recipe,
+native uncertainty, Shipyard owner and published-image prerequisite verify.
+“Should clear” is tentative, not itself a guarantee; “the partial PR becomes a
+full fix” asserts an unobserved rerun outcome. Original samples and independent
+receipts remain under `c16-{live001,publication002}*` in the scratch root.
+
+Prospective C17 changes only the skill's final phrase from “without predicting
+build or test success” to “without predicting verification outcomes.” Both judges,
+V6 calibration and computational components remain unchanged; do not repeat the
+60 calibration calls or credit C16 actors to changed skill bytes. Whole-candidate
+scope and approval checks remain; live-001 candidate facts require no particular
+repair. After source freeze, start publication 002, then live 001, 007/005,
+live 002/003/004 and four eligible replay repeats under the same 11-actor/$115
+maximum, models and pins. C17 is not frozen; no actor has run.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;

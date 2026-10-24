@@ -1,13 +1,13 @@
 # Fix Go CVEs work plans
 
-Acceptance remains **open**. C15 completed original stock stages with passing
-grades, but independent review rejects its full-commit repair alternative because
-it also crosses Kubernetes policy without that approval. The standalone Go option
-is valid; nothing was applied. Original false-positive grades remain intact.
-C16 checks complete candidate scope; the changed action criterion passes its
-fixed controls. Fresh actors await the exact source freeze. Runtime controls
-remain intact; the [results record](../evals/implementation-results.md)
-owns counts and identities, and [calibration](../evals/live/calibration.md) owns controls.
+Acceptance remains **open**. C16 passed live 001, then stopped after publication
+002 failed original and independent action/owner review: its unexecuted rerun was
+forecast to make the partial PR a full fix. Facts, literal recipe and operations
+passed. The skill now gives verification steps without predicting outcomes.
+Prospective C17 starts with publication 002; it is not frozen and has no actors.
+Unchanged runtime and calibrated judge evidence remains applicable, without C16
+actor credit. The [results record](../evals/implementation-results.md) owns counts
+and identities; [calibration](../evals/live/calibration.md) owns controls.
 
 | Document | Owns |
 | --- | --- |

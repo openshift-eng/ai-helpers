@@ -1,10 +1,10 @@
 # E2E acceptance and simplification
 
-Acceptance remains **open**. C15 passed original stock thresholds, but independent
-action/owner review rejects a bundled Kubernetes-minor change offered with only
-Go-minor approval. Its standalone Go alternative is valid; no migration ran.
-C16 scope checks pass fixed-control action calibration; fresh actors await a
-source freeze. Preserve source groups, grades and limits; the
+Acceptance remains **open**. C16 passed live 001, then stopped after publication
+002 failed original and independent action/owner review for forecasting a full
+fix after an unexecuted rerun. Its facts, literal recipe and operations passed.
+Prospective C17 tests the clearer verification guidance, publication 002 first;
+no freeze or actor has occurred. Preserve source groups, grades and limits; the
 [results record](../evals/implementation-results.md) owns counts.
 
 This plan owns current design choices and the remaining acceptance sequence. The
@@ -153,7 +153,7 @@ default-branch history for an existing repair commit. Check the complete scope o
 a recommended candidate against the pinned target and required approvals; a valid
 alternative does not excuse an unsupported one. Stop once that handoff is supported. Applicable source repairs must land on the starting origin;
 builder repairs must be published before consumers rerun. Compiler version is a
-prerequisite; give build/test verification steps without predicting success. A
+prerequisite; give verification steps without predicting outcomes. A
 recovered retry alone creates no maintainer task. Unknown coverage stays unknown; positive artifact/phase
 proof stays positive. Nested-reviewer prose does not authenticate observations.
 
@@ -184,26 +184,24 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C15 completed original stages with passing stock thresholds, then stopped on
-independent action/owner failure. It offered a full `2d9f5fb` cherry-pick or a
-standalone Go directive update; the first option also crosses Kubernetes minor
-policy while discussing only Go approval. The second is valid. No source migration
-was executed and no API break is asserted. Original false-positive samples and
-rationale limits remain in the [results record](../evals/implementation-results.md).
+C16 stopped after two actors: live 001 passed all original and independent checks;
+publication 002 passed facts, exact relay and operations but failed action/owner.
+Its tentative “should clear” is not itself a guarantee; the definite claim that
+the partial PR becomes a full fix forecasts unobserved verification. Original
+grades and historical failures remain in the
+[results record](../evals/implementation-results.md).
 
-Prospective C16 changes four existing files: full-candidate scope inspection in
-the skill, scope/approval sentences in both shared action prompts, and three pinned
-scope facts in live-001 annotations. Candidate evidence does not require that
-repair. Runtime gates, helper, outcome rubric, models and pins remain unchanged.
-Action calibration V6 passes the prior controls plus the actual C15 negative and
-a positive removing only the cherry-pick option. The
-[calibration record](../evals/live/calibration.md) owns the exact controls and
-reasoning limits. Freeze the source before declaring the actor campaign.
+Prospective C17 changes only the skill's existing final phrase to “without
+predicting verification outcomes.” Whole-candidate scope and approval checks stay;
+candidate evidence does not require that repair. Runtime, helper, both judges,
+models and pins remain unchanged. Reuse V6 calibration without repeating its calls;
+the [calibration record](../evals/live/calibration.md) owns controls and limits.
+No C16 actor supplies credit after the skill change.
 
-After source freeze, measure live 001 first, then publication 002,
-replay 007/005, live 002/003/004 and eligible replay repeats. Finish each cell's
-original stages, thresholds and independent review before continuing. Preserve
-the eleven-actor/$115 maximum, models and pins. No C16 actor has run.
+After source freeze, measure publication 002 first, then live 001, replay 007/005,
+live 002/003/004 and four eligible replay repeats. Finish each cell's original
+stages, thresholds and independent review before continuing. Preserve the
+eleven-actor/$115 maximum, models and pins. C17 is not frozen; no actor has run.
 
 License cleanup reuses the existing artifact ownership helper with a private
 license prefix. Serialized path/event readers honor LF delimiters without splitting
