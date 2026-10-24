@@ -17,6 +17,7 @@ all Node team plugins:
 
 - **[components.md](skills/node/references/shared/components.md)**: full component list, downstream fork mappings, branch patterns, pscomponent labels, sub-teams
 - **[version-map.md](skills/node/references/shared/version-map.md)**: OCP-to-K8s/CRI-O version formula, branch naming conventions
+- **[team-info.md](skills/node/references/shared/team-info.md)**: mission, ceremonies, channels, key links, plugin routing
 
 Other plugins (e.g. `node-cve`) reference these files instead of maintaining
 their own copies. When component ownership or version mappings change, update
@@ -26,7 +27,7 @@ the shared files here.
 
 ### `node-team:overview`
 
-Shows team component ownership, repos, sub-teams, sprint info, and which specialized plugins handle which domain.
+Shows team component ownership, repos, sub-teams, sprint info, and which specialized plugins handle which domain. Also syncs the team roster cache in `~/.node-assistant/`.
 
 ### `node-team:setup`
 
@@ -38,7 +39,7 @@ Tests all authentication tokens (GitHub, Jira) and CLI tools required by Node te
 
 ### `node-team:cleanup`
 
-Purges cached artifacts produced by Node team plugins: triage reports, cloned repos, dist-git clones, Vagrant VMs, and roster cache.
+Purges cached artifacts produced by Node team plugins: triage reports, cloned repos, dist-git clones, Vagrant VMs, and roster cache. Onboarding progress and the node-cve posting audit log are kept unless confirmed separately.
 
 ## Skill
 
@@ -49,7 +50,7 @@ Activates on any OpenShift node-layer task. Routes through reference documents t
 - **Shared Data**: canonical component/version data for all Node plugins
 - **Setup**: environment and access prerequisites
 - **Development**: per-component dev notes for kubelet, MCO, CRI-O, crun/conmon, the Kueue operator, and git worktrees
-- **Deployment**: deploying debug binaries to RHCOS nodes (cross-compile, SSH bastion, bind-mount deploy, rollback)
+- **Deployment**: deploying debug binaries to RHCOS nodes (cross-compile, SSH bastion, drop-in or bind-mount deploy, rollback)
 - **Jira**: Red Hat Jira REST API reference (auth, endpoints, ADF, custom fields, JQL recipes, OCPNODE/OCPBUGS triage)
 - **Red Hat Support**: KB articles and support cases
 - **Platform Documentation**: version-aware Kubernetes and OpenShift docs lookup
@@ -73,6 +74,15 @@ plugins depend on node-team's shared data and extend its capabilities:
 Satellite plugins reference shared data at `skills/node/references/shared/`.
 Do not move or rename these files without updating all consumer plugins.
 
+Relative links from a satellite plugin into this one only resolve in a repo
+checkout. Installed plugins live in versioned cache directories, so consumers
+locate the files in one of these ways:
+
+- repo checkout: `plugins/node-team/skills/node/references/`
+- installed: `"${CLAUDE_PLUGIN_ROOT}"/../../node-team/*/skills/node/references/`
+  (from the satellite plugin's root)
+- or by invoking the `node-team:node` skill and reading from its base directory
+
 ### Compliance
 
 Compliance documentation for the Node team plugin family is at
@@ -81,6 +91,14 @@ controls required by Red Hat's Enterprise AI Risk Management Standard.
 
 ## Configuration
 
-Jira access uses a token from `JIRA_API_TOKEN` or the macOS Keychain. See [`jira.md`](skills/node/references/jira.md) for details.
+| Variable | Purpose |
+|----------|---------|
+| `JIRA_API_TOKEN` | Jira API token. Falls back to the macOS Keychain item `JIRA_API_TOKEN` or Linux `secret-tool lookup service redhat key JIRA_API_TOKEN` |
+| `JIRA_USER` | Jira account email. Falls back to `JIRA_EMAIL`, the Keychain item's account, then `git config user.email` |
+| `JIRA_EMAIL` | Alternative name for `JIRA_USER` (used when `JIRA_USER` is unset) |
+| `RH_API_OFFLINE_TOKEN` | Red Hat API offline token for KB and support case lookups (keychain or secret-tool, see [`support.md`](skills/node/references/support.md)) |
+| `NODE_ASSISTANT_CONFIG_ISSUE` | Jira issue holding the roster attachments. Default `OCPNODE-4230` |
 
-Team rosters are maintained as `team-roster-*.json` attachments on the Jira config issue `OCPNODE-4230`. Override with the `NODE_ASSISTANT_CONFIG_ISSUE` environment variable. Synced to `~/.node-assistant/`; see the Team Roster section of [`jira.md`](skills/node/references/jira.md).
+See [`jira.md`](skills/node/references/jira.md) for the authentication chain. Tokens are passed to curl on stdin, never on the command line.
+
+Team rosters are maintained as `team-roster-*.json` attachments on the Jira config issue `OCPNODE-4230`. Override with the `NODE_ASSISTANT_CONFIG_ISSUE` environment variable. `/node-team:overview` syncs them to `~/.node-assistant/`; see the Team Roster section of [`jira.md`](skills/node/references/jira.md).

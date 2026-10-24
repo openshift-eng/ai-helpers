@@ -22,6 +22,8 @@ programmatically. For manual steps, it provides instructions and links,
 then asks the user to confirm completion.
 
 Progress is saved between sessions so the checklist can be resumed later.
+`/node-team:cleanup` leaves the progress file alone unless the user confirms
+its removal.
 
 ## Implementation
 
@@ -33,145 +35,59 @@ Progress is saved between sessions so the checklist can be resumed later.
    - `--resume`: load prior progress from
      `~/.node-assistant/onboarding-progress.json` and skip completed sections.
    - `--check-only`: run only automated verification checks without
-     interactive prompts. Print pass/fail for each checkable item.
-2. If `--resume`, read `~/.node-assistant/onboarding-progress.json`. If the
-   file does not exist, start fresh.
-3. Read the checklist structure from
+     interactive prompts. Print pass/fail for each checkable item. This mode
+     does not write the progress file. It takes precedence over `--resume`:
+     with both flags the progress file is neither read, created nor modified,
+     and every checkable item is verified again.
+2. Handle existing progress in `~/.node-assistant/onboarding-progress.json`:
+   - With `--resume`: read the file and skip completed sections. If the file
+     does not exist, start fresh.
+   - Without `--resume`, if the file exists: do not overwrite it silently.
+     Show its track, start date and completion state, then ask whether to
+     resume it or start over. Only start over after the user confirms. In
+     `--check-only` mode skip this question, since nothing is written.
+3. Read the checklist from
    [references/onboarding-checklist.md](../references/onboarding-checklist.md).
+   It is the single source for sections, items, item keys, check commands,
+   manual actions and links. Do not rely on item lists from memory.
+4. Locating shared data: the checklist links to `node-team` files
+   (`jira.md`, `SETUP.md`, `shared/team-info.md`, `shared/version-map.md`).
+   Those links are relative to a repo checkout. When the plugin is installed,
+   read them from
+   `"${CLAUDE_PLUGIN_ROOT}"/../../node-team/*/skills/node/references/` (glob
+   the version directory), or invoke the `node-team:node` skill and read from
+   its base directory.
 
 ### Phase 1: Interactive Checklist
 
-Walk through each section sequentially. For each item:
-- If an automated check is defined, run it and report the result.
+Walk through the sections of the reference file in order. Skip sections whose
+`Track:` line does not match the selected track (`both` always applies). For
+each item:
+- If a check command is defined, run it and report the result.
 - If the check passes, mark the item complete automatically.
-- If the check fails or no check exists, show instructions and ask the user
-  to confirm when done (skip this prompt in `--check-only` mode).
+- If the check fails or no check exists, show the manual action or URL from
+  the reference and ask the user to confirm when done (skip this prompt in
+  `--check-only` mode and report the item as not verified).
 - Save progress to `~/.node-assistant/onboarding-progress.json` after each
-  section completes.
+  section completes, using the item keys from the reference. In
+  `--check-only` mode never create or modify the progress file.
 
-**Sections:**
-
-#### 1. Prerequisites
-
-Verify the user has completed New Hire Orientation and has basic access.
-
-| Item | Automated Check | Manual Action |
-|------|----------------|---------------|
-| Spin-up Buddy assigned | None | Request your manager to assign a Spin-up Buddy before starting |
-| VPN connectivity | `curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 https://brewweb.engineering.redhat.com/brew/` (expect 200) | Connect to Red Hat VPN |
-| Jira access | `curl -s -o /dev/null -w "%{http_code}" -u "${JIRA_USER:-$(git config user.email)}:$JIRA_API_TOKEN" "https://redhat.atlassian.net/rest/api/3/myself"` (expect 200) | Set up `JIRA_API_TOKEN` per [jira.md](../../node-team/skills/node/references/jira.md) |
-| ServiceNow portal | `curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 https://redhat.service-now.com/help` (expect 200) | Verify access to https://redhat.service-now.com/help?id=rh_requests |
-
-#### 2. Access and Permissions
-
-Guide through LDAP groups, Google Groups, Slack, and calendars.
-
-| Item | Instruction |
-|------|-------------|
-| LDAP: openshift-node-team | Request manager to add you at https://rover.redhat.com/groups/group/openshift-node-team |
-| LDAP: openshift-dev-node-team | Request manager to add you at https://rover.redhat.com/groups/group/openshift-dev-node-team |
-| Google Group: aos-node | Ask manager or TL to add you to https://groups.google.com/a/redhat.com/g/aos-node |
-| Google Group: aos-announce | Join https://groups.google.com/a/redhat.com/g/aos-announce |
-| Slack: team-node | Request manager to add you (private channel) |
-| Slack: forum-ocp-node | Join (public channel) |
-| Slack: @node-team handle | Request TL to add you to the @node-team Slack user group |
-| Calendar: OpenShift Main Calendar | Add https://calendar.google.com/calendar/embed?src=redhat.com_2v3jc3smo4hr9r8dkv5phed66g%40group.calendar.google.com |
-| Calendar: team PTO | Add the shared team leave calendar |
-
-Prompt the user to confirm each item. For LDAP groups, suggest verifying with:
-```bash
-ldapsearch -x -H ldaps://ldap.corp.redhat.com -b dc=redhat,dc=com -s sub 'uid=<your-uid>'
-```
-
-#### 3. GCP Access
-
-| Item | Instruction |
-|------|-------------|
-| openshift-gce-devel | Request via https://devservices.dpp.openshift.com/support/gcp_access_request/ (VPN required). Verify at https://console.cloud.google.com/welcome?project=openshift-gce-devel |
-
-#### 4. IDE License
-
-| Item | Instruction |
-|------|-------------|
-| GoLand license | File a DPP ticket. See https://source.redhat.com/groups/public/openshift/openshift_wiki/jetbrains_product_licenses |
-
-#### 5. GitHub Setup
-
-| Item | Automated Check | Manual Action |
-|------|----------------|---------------|
-| GitHub account linked | `gh auth status` (expect success) | Install `gh` and run `gh auth login` |
-| OpenShift org member | `gh api orgs/openshift/memberships/<github-handle> --jq '.state'` (expect `active`) | Follow https://source.redhat.com/groups/public/openshift/openshift_wiki/openshift_onboarding_checklist_for_github |
-
-Ask the user for their GitHub handle and substitute it in the org membership check.
-
-#### 6. Jira Dashboard
-
-| Item | Automated Check | Manual Action |
-|------|----------------|---------------|
-| Node Components filter access | `curl -s -u "${JIRA_USER:-$(git config user.email)}:$JIRA_API_TOKEN" "https://redhat.atlassian.net/rest/api/3/filter/91645" -o /dev/null -w "%{http_code}"` (expect 200) | Request access at https://issues.redhat.com/servicedesk/customer/portal/2 if needed |
-| Node Bugs filter | None | Verify you can open https://redhat.atlassian.net/issues/?filter=83963 |
-
-#### 7. Development Environment
-
-| Item | Automated Check | Manual Action |
-|------|----------------|---------------|
-| Go installed | `which go && go version` | Install from https://go.dev/doc/install |
-| kubectl installed | `which kubectl` | `brew install kubectl` (macOS) or distro package |
-| oc installed | `which oc` | Download from https://console.redhat.com/openshift/downloads |
-| GOPATH set | `test -n "$GOPATH"` (expect success) | Add `export GOPATH=$HOME/go` to shell config |
-
-After tool checks, suggest running `/node-team:setup` to clone repos and
-set up worktrees. Reference
-[SETUP.md](../../node-team/skills/node/references/SETUP.md) for the standard
-workflow.
-
-For kubelet/CRI-O development, mention the option to run a local
-single-node cluster via `local-up-cluster.sh` from the Kubernetes repo.
-Key environment variables:
-- `CGROUP_DRIVER=systemd`
-- `CONTAINER_RUNTIME_ENDPOINT=unix:///var/run/crio/crio.sock`
-
-#### 8. Cluster Creation
-
-Guide through creating a first test cluster. Present options:
-
-1. **ClusterBot** (recommended for first cluster):
-   - Open a DM with "Cluster Bot" on Slack
-   - Type `launch 4.19 gcp`
-   - Wait ~30 mins for kubeconfig
-   - `export KUBECONFIG=<downloaded-file>`
-   - `kubectl get nodes` to verify
-   - Cluster auto-expires after ~2 hours
-
-2. **AWS** (for longer-lived clusters):
-   - Requires openshift-dev AWS access (account 269733383066)
-   - Request via https://devservices.dpp.openshift.com/support (VPN required)
-   - Reference: internal cluster creation guide
-
-3. **GCP** (requires openshift-gce-devel access from step 3):
-   - Reference: internal cluster creation guide
-
-#### 9. Customer Support Readiness
-
-| Item | Automated Check | Manual Action |
-|------|----------------|---------------|
-| SupportShell access | `ssh -o ConnectTimeout=5 -o BatchMode=yes supportshell-1.sush-001.prod.us-west-2.aws.redhat.com exit 2>&1` (expect success) | Follow https://source.redhat.com/groups/public/customerplatform/customerplatform_wiki/how_to_access_supportshell |
-| omc installed | `which omc` | Install omc for must-gather analysis |
-| yank installed | `which yank` | Available on SupportShell by default |
-
-Explain the workflow: `yank -y <case_id>` to download, `omc use <file>` to
-analyze, then standard `omc get nodes`, `omc get mc` commands.
-
-#### 10. QE-Specific (only if `--track qe`)
-
-Additional items for QE engineers:
-
-| Item | Instruction |
-|------|-------------|
-| QE onboarding guide | Follow https://source.redhat.com/groups/public/openshiftqe/workflows/openshift_qe_workflow_wiki/openshift_qe_new_hire_guide |
-| Clone openshift-tests-private | `git clone https://github.com/openshift/openshift-tests-private` |
-| Polarion access | Access https://polarion.engineering.redhat.com/polarion/#/project/OSE/mypolarion with SSO |
-| Learn Ginkgo | Study the Ginkgo testing framework (used for e2e tests) |
+Notes for running the checks:
+- Shell state does not persist between Bash tool calls. For the Jira checks,
+  run the `jira_status` helper definition from the reference and the check in
+  the same invocation. Never print the token or put it on a command line.
+- Ask for the user's GitHub handle before the GitHub section and substitute
+  it in the org membership check.
+- The VPN, ServiceNow and SupportShell checks need the Red Hat VPN. If the
+  VPN check fails, say so once instead of reporting each dependent failure as
+  a separate problem.
+- In the Development Environment section, suggest `/node-team:setup` after
+  the tool checks pass.
+- In the Cluster Creation section, present ClusterBot first and resolve
+  "latest GA version" from node-team `shared/version-map.md`.
+- In the Customer Support Readiness section, explain the workflow after the
+  checks: `yank -y <case_id>` on SupportShell to download, `omc use <file>`
+  to load, then `omc get nodes`, `omc get mc`.
 
 ### Phase 2: Progress Summary
 
@@ -184,14 +100,15 @@ Additional items for QE engineers:
      - Submit your first PR
      - Update this onboarding doc for the next new team member
 3. Save final progress to `~/.node-assistant/onboarding-progress.json`
+   (not in `--check-only` mode).
 
 ### Progress File Format
 
 ```json
 {
   "track": "dev",
-  "started": "2026-06-30",
-  "last_updated": "2026-06-30",
+  "started": "<YYYY-MM-DD>",
+  "last_updated": "<YYYY-MM-DD>",
   "sections": {
     "prerequisites": {"status": "complete", "items": {"vpn": true, "jira": true}},
     "access": {"status": "in_progress", "items": {"ldap_node_team": true, "slack_team_node": false}}
@@ -238,4 +155,5 @@ items, and specific next steps for incomplete items.
 
 - **--check-only** *(optional)*
   Run automated verification checks only. Do not prompt for manual
-  confirmation. Useful for periodic re-validation.
+  confirmation. Does not read, create or modify the progress file. Useful for
+  periodic re-validation.

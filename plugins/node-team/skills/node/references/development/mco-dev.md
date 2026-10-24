@@ -1,8 +1,8 @@
 # MCO (Machine Config Operator): Non-Obvious Notes (Tribal Knowledge)
 
-- **Repo**: `https://github.com/openshift/machine-config-operator.git` (no upstream — MCO is OpenShift-only)
+- **Repo**: `https://github.com/openshift/machine-config-operator.git` (no upstream, MCO is OpenShift-only)
 
-For build commands, repo layout, CRD types, and test targets — browse the repo directly (Makefile, README, go.mod, pkg/apis/).
+For build commands, repo layout, CRD types, and test targets: browse the repo directly (Makefile, README, go.mod, pkg/apis/).
 
 ## Rendering Pipeline
 
@@ -35,5 +35,5 @@ and the on-/out-of-cluster variants are "image mode" rather than "layering".
 
 ## Other Notes
 
-- MCP `maxUnavailable` defaults to 1 — nodes update one at a time.
+- MCP `maxUnavailable` defaults to 1, so nodes update one at a time.
 - Machine Config Server (MCS) serves Ignition configs on port **22623**.
