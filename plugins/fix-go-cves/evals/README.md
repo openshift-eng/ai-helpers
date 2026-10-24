@@ -138,7 +138,7 @@ existing Application Default Credentials under the caller's home directory.
 It does not copy credential contents into the fixture. The judges also need
 working provider credentials.
 
-The outcome judge is pinned to Opus 4.8; actors and `action_owner` retain Opus 4.6.
+Replay outcome uses Opus 4.8; live outcome, actors and `action_owner` use Opus 4.6.
 For the tested Vertex setup, use `CLOUD_ML_REGION=global`. Opus 4.8 is not served
 on regional endpoints; see [Google-managed model availability](https://platform.claude.com/docs/en/build-with-claude/claude-models-on-google-cloud/google-managed).
 
@@ -186,7 +186,8 @@ Preparation checks both pinned trees for reserved eval paths before checkout.
 Repositories tracking paths such as `.claude` remain unsupported: preserve their
 settings and instructions rather than deleting them to admit a case. Composing
 project settings with harness settings needs a separate design.
-Use `--model MODEL` for the invoking agent and `EVAL_JUDGE_MODEL` for judges.
+Use `--model MODEL` for the invoking agent. `EVAL_JUDGE_MODEL` selects the default
+judge model; the explicit outcome model in each profile takes precedence.
 `--run-id ID` chooses a new result identifier; existing identifiers are rejected.
 Repeat `--case ID` to select cases within the chosen track; defaults remain the
 recorded case-005 and live case-001.

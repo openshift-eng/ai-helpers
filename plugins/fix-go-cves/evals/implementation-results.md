@@ -1,19 +1,10 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C21 accepted two actors, then stopped
-at publication 002 on an unsupported Go-minor prerequisite. That run also exposed
-incomplete judge evidence and an empty response silently counted as false instead
-of an error. C22 added a primary fix-version witness, an evidence priority sentence
-and a one-line parser exception. Its 27 calibration responses were valid, but one
-negative majority incorrectly passed; no actor launched. C23's stronger wording
-still misses three negative majorities. C24's counterexample task also fails
-calibration, including action-owner requirements scored as factual defects.
-C25 isolates O and reaches 16/17 majorities, still failing the citation control.
-C26 repairs the system/user instruction boundary and isolates both criteria;
-38/39 majorities match. C27's exact-line clarification still misses one control.
-C28's reference reorder still misses one control. Current preparation changes
-only O's model through the existing per-judge override; no more rubric or layout
-changes are proposed.
+Full-cohort acceptance remains **open**. C29 catches the wrong citation but fails
+native-coverage calibration and has one invalid response. C30 selects separate
+Outcome models for replay/live and preserves response-shape diagnostics on errors.
+All earlier actor and calibration results remain below; no historical actor supplies
+current acceptance credit.
 
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
@@ -445,6 +436,31 @@ identical. The same 17 O controls/51 samples remain mandatory, and C26 A66 is
 reusable only through independent acceptance and full request identity. No new
 parser, schema, reviewer or grading stage is introduced. Full details belong to
 the calibration records.
+
+C29 stops: 50 valid responses and one parse error across 51 calls; 45/51 values
+and 16/17 semantic majorities match, but only 15 cells are complete and error-free.
+Citation 102 rejects FFF. Native 091 passes TTT because its rationales waive the
+blanket unverified claim as conservative despite positive named-artifact proof.
+V9 101 is T/error/T; 1186 completion tokens do not identify its missing-verdict
+cause. All 51 distinct IDs and original values remain in
+`c29-calibration-original-completion.json` and four independently reviewed groups.
+No actor launches.
+
+C30 adds diagnostics only to the existing parse-error path: stop fields and ordered
+block/tool/input-field types, retaining the error and usage/ID without copying
+response content values, retrying or salvaging a verdict. Eight SDK mocks verify
+unchanged requests and valid results; 191 focused tests pass. Separate strict-tool
+compatibility probes on 4.6/4.8 both fail HTTP 400 because the existing organization
+policy disallows structured outputs. Strict tools are not adopted; no policy changes
+or calibration credit follow from those probes.
+
+C30 uses the existing profile boundary: replay O stays on 4.8, live O returns to
+4.6; actor/A stay on 4.6. This configuration is selected from development failures,
+not evidence of model superiority or a context-length cause. Require all 17 O
+controls/51 fresh samples, preserving data, criteria, wording, caps and thresholds.
+C26 A66 can be reused only through accepted identical requests and valid-result
+behavior; the diagnostic change supplies no new judge vote. No actor launches until
+independent full calibration admission and source freeze.
 
 After calibration and source freeze, measure publication 002 first, then 007,
 live 002, live 001, 005, live 003/004 and four replay repeats. All eleven actors,

@@ -252,17 +252,22 @@ added text. Locality remains a hypothesis, not a proven cause or cost-equivalenc
 claim. C28 still fails: 16/17 majorities, 48/51 samples and zero errors. Preserve
 the T/F/T wrong-citation majority and T/F/F command-attribution dissent.
 
-Use the existing per-judge model override for O only: `claude-opus-4-8`, retaining
-actor/A on 4.6 and every prompt, fact, control, threshold, sample count and cap.
-Official Google-managed documentation and a separate one-call transport/schema
-probe establish compatibility with the existing global endpoint/forced tool,
-not grading accuracy. Require all 17 fixed O controls/51 fresh samples; reuse
-C26 A66 only through accepted identical requests. Add no parser or grading stage
-and do not continue wording/layout tuning. Models stay fixed within each declared
-trial and the eventual actor cohort. Thresholds, runtime and the error path stay fixed. The fully
-retained A-V6 results remain historical; earlier counters remain reported, not
-retroactively proven. Preserve all old grades and dissent. No parser-error sample
-may count as a matching negative. Add no citation, heading or format grading gate.
+C29 compares O on 4.8 through the existing model override. It catches citation
+102 but fails native 091 and contains one invalid response: 50 valid/51 calls,
+45/51 matches, 16/17 semantic majorities but 15 complete error-free cells. Preserve
+all outputs; no actor launches. The parser error lacks raw stop/content-shape facts;
+its 1186 completion tokens do not establish why no verdict was accepted.
+
+C30 retains stop fields and block/tool/input-field types on existing parse errors,
+without content values, retries, coercion or a new schema. Strict-tool probes on
+both models fail the existing organization policy; do not adopt strict tools or
+change that policy. Select replay O4.8/live O4.6 through existing profiles, with
+actor/A4.6. This is a development candidate selected after failures, not a proven
+model/context-length effect. Require all 17 O controls/51 fresh samples; reuse C26
+A66 only by accepted identical requests and valid-result behavior. Preserve every
+old result and dissent. No further rubric/layout tuning, grading stage, citation
+or heading gate is selected. Models, thresholds, caps and runtime stay fixed within
+each trial and the eventual actor cohort. Invalid feedback remains an error.
 
 After admission and source freeze, measure publication 002 first, then replay 007,
 live 002, live 001, replay 005, live 003/004 and four replay repeats. All eleven

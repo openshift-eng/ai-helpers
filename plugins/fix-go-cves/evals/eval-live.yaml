@@ -100,7 +100,7 @@ judges:
       return (verdict["passed"], verdict["reason"])
 
   - name: outcome
-    model: claude-opus-4-8
+    model: claude-opus-4-6
     description: Explain the actual result consistently with captured runtime evidence.
     feedback_type: bool
     samples: 3

@@ -283,9 +283,10 @@ Renew all 17 O controls/51 samples and reuse C26 A66 only by accepted exact requ
 C28 still matches only 16/17 majorities and 48/51 samples, without errors.
 Citation 102 is T/F/T; command 108 is T/F/F. Preserve both valid and invalid dissent.
 
-C29 changes only O's model to `claude-opus-4-8` via the existing override; A and
-actors retain 4.6. The global endpoint and unchanged forced-tool caller pass one
-separate arithmetic compatibility probe, with zero calibration credit. Renew
-the same 17 O controls/51 samples, retaining all labels, data, wording and caps.
-Reuse accepted C26 A66 only under identical full requests. Preserve native proof,
-derived facts and reasoning limits; these are development admissions.
+C29's 51 O calls stop at native 091 TTT and one invalid V9 101 response:
+50 valid, 45 matching values, 16/17 semantic majorities but only 15 complete,
+error-free cells. Citation 102 is FFF. All original votes and reasoning remain.
+C30 selects replay O4.8/live O4.6 and adds parse-error shape diagnostics.
+The diagnostic change preserves requests and valid verdicts. All 17 O controls need fresh admission;
+accepted C26 A66 remains reusable only by exact request/behavior identity.
+The [results record](../implementation-results.md) owns the full measurements and failed strict-tool probes.
