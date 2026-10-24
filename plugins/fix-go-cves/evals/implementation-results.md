@@ -1,10 +1,10 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C29 catches the wrong citation but fails
-native-coverage calibration and has one invalid response. C30 selects separate
-Outcome models for replay/live and preserves response-shape diagnostics on errors.
-All earlier actor and calibration results remain below; no historical actor supplies
-current acceptance credit.
+Full-cohort acceptance remains **open**. C30 admits all 17 calibration controls,
+then its first actor fails on incomplete fixed-version evidence. C31 changes the
+existing log read to expose complete linked scanner rows and removes a redundant
+test-status instruction. Earlier results and the C30 preflight/timing deviation
+remain below; no historical actor supplies current acceptance credit.
 
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
@@ -461,6 +461,42 @@ controls/51 fresh samples, preserving data, criteria, wording, caps and threshol
 C26 A66 can be reused only through accepted identical requests and valid-result
 behavior; the diagnostic change supplies no new judge vote. No actor launches until
 independent full calibration admission and source freeze.
+
+C30 calibration passes: 17/17 majorities, 47/51 values, 51 distinct valid
+responses and zero errors. Independent review reads every rationale and preserves
+four incorrect True minorities. Accepted unchanged C26 A66 completes the component
+admission. The fresh publication actor then fails: C true, O FFF, A FFF, all six
+samples valid. Original driver session 69888 exits 1; actor 171 seconds/$0.90.
+Independent whole-reply O/A also fail the repeated Go-1.27-only premise and
+unnecessary policy prerequisite. Operations, actual skill intake, source integrity,
+literal recipe and native-unknown reporting pass. Stop after one actor, zero accepted;
+`c30-cohort-original-completion.json` binds the original results and reviews.
+
+A private campaign-writer assertion misreads inherited model defaults. Root's
+command sequence mistakenly continues after that failure. Production `run.sh`
+actually freezes clean `25a3037e`, configuration, models, caps, interpreter and
+harness before the actor; all seven accepted calibration reviews already exist.
+Independent adjudication preserves the original measurement without reroll, with
+an explicit timing deviation: the private cohort protocol is written after launch.
+Failed helpers/receipts and the separate adjudication remain immutable; no claim
+that all private prelaunch checks passed is made. The actual O/A failure stops the
+cohort independently of that deviation.
+
+The trace explains a concrete retrieval gap: a full-log Read fails its size limit;
+`grep | head` returns only shortened initial rows, and later `awk` strips advisory IDs
+from the complete version alternatives. No full primary row reaches the actor.
+C31 extends the existing terminal grep with scanner headers and intact typed stdlib
+rows, replacing abstract grounding prose. Actual CLI checks on five retained logs
+preserve every old flagged match and expose all nine publication rows, including
+four `1.26.9, 1.27.2` alternatives. A redundant all-passed Summary-status sentence
+is removed because historical Summaries may lack test status; failed-attempt and
+later-attempt reporting remain required. Net Skill change: one line and 14 words
+removed. This demonstrates retrieval, not prospective actor success.
+
+C31 changes no runtime, profile, rubric, threshold, fixture, model or harness.
+Reuse C30 O51/C26 A66 only by exact request/valid-result identity, preserving their
+original source hashes and dissent. Require a fresh eleven-actor cohort on the new
+clean source; the private preflight must complete successfully before launch.
 
 After calibration and source freeze, measure publication 002 first, then 007,
 live 002, live 001, 005, live 003/004 and four replay repeats. All eleven actors,

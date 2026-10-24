@@ -269,6 +269,21 @@ old result and dissent. No further rubric/layout tuning, grading stage, citation
 or heading gate is selected. Models, thresholds, caps and runtime stay fixed within
 each trial and the eventual actor cohort. Invalid feedback remains an error.
 
+C30 admits all 17 O controls with 51 valid responses, 47 matching values and zero
+errors, then stops at its first actor: unsupported exclusive Go-1.27 claims fail
+both original and independent O/A. Retain that source's private preflight/timing
+deviation separately; actual production provenance froze source/settings before
+execution. No failed stage, grade or chronology is rewritten.
+
+C31 addresses the witnessed retrieval loss: extend the existing flagged-log grep
+with complete scanner headers and typed stdlib rows, keeping advisory IDs beside
+all fix alternatives. Replace abstract grounding lines and remove the redundant
+all-pass Summary-status clause; keep every failed/later-attempt obligation.
+Actual CLI controls preserve old matches and expose the missing complete rows.
+No new parser, step, output gate or runtime change is needed. Reuse accepted C30
+O51/C26 A66 by unchanged request/valid-result identity, never old actor credit.
+Freeze the new source and successfully finish private preflight before any actor.
+
 After admission and source freeze, measure publication 002 first, then replay 007,
 live 002, live 001, replay 005, live 003/004 and four replay repeats. All eleven
 remain required on one declared source; no old actor supplies credit. Finish each

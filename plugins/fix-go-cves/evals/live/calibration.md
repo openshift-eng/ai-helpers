@@ -286,7 +286,9 @@ Citation 102 is T/F/T; command 108 is T/F/F. Preserve both valid and invalid dis
 C29's 51 O calls stop at native 091 TTT and one invalid V9 101 response:
 50 valid, 45 matching values, 16/17 semantic majorities but only 15 complete,
 error-free cells. Citation 102 is FFF. All original votes and reasoning remain.
-C30 selects replay O4.8/live O4.6 and adds parse-error shape diagnostics.
-The diagnostic change preserves requests and valid verdicts. All 17 O controls need fresh admission;
-accepted C26 A66 remains reusable only by exact request/behavior identity.
-The [results record](../implementation-results.md) owns the full measurements and failed strict-tool probes.
+C30's replay O4.8/live O4.6 candidate admits all 17 O controls: 51 valid samples,
+47 matching values and zero errors. Preserve four invalid True minorities.
+C31 changes only Skill evidence retrieval; reuse C30 O51 and accepted C26 A66
+through exact request/valid-result identity. Fresh actor acceptance remains open.
+The [results record](../implementation-results.md) owns calibration details, the stopped C30 actor
+and its private preflight/timing deviation.

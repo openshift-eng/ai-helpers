@@ -91,13 +91,13 @@ Read the terminal result and distinct flagged errors:
 ```bash
 tail -1 "$LOG"
 grep -q '^--- Summary' "$LOG" && sed -n '/^--- Summary/,$p' "$LOG" || tail -40 "$LOG"
-grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIEW|FAIL([[:space:]]|$)|--- FAIL:)' "$LOG"
+grep -nE '^(NEEDS_REVIEW|ERROR|TIMEOUT|STILL_VULNERABLE|NEW_FINDING|POLICY REVIEW|FAIL([[:space:]]|$)|--- FAIL:|NAME[[:space:]]+INSTALLED|stdlib[[:space:]].*[[:space:]]go-module[[:space:]])' "$LOG"
 ```
 
 ## 4. Prepare the handoff, then report
 
-Ground current facts and repairs in completed runtime evidence; for stdlib, check
-all fix alternatives on the executed compiler's release line before a Go minor upgrade.
+Ground facts in completed evidence. For unresolved stdlib, use the complete scanner
+rows above; the shortened findings column can omit same-line fix alternatives.
 Inspect unresolved work read-only using immutable source and default-branch history
 in this checkout: `git show <command-commit>:<file>`,
 `git log origin/<default> -- <file>` and `git show <candidate>`.
@@ -129,8 +129,7 @@ The final reply contains only these blocks, in order, omitting empty ones:
    establish stdlib remediation. If no scope establishes compiled Go binary
    coverage, add: "Compiled Go binary coverage is unverified."
    Label each failed test attempt and copy its captured diagnostics/outcome into
-   a code block, followed by later attempt outcomes. Only when all attempts passed
-   does the Summary's test status suffice.
+   a code block, followed by later attempt outcomes.
 3. **Next actions**, only for persistent unresolved work:
    - **Action:** matching repair commit and target, standalone change or investigation;
      then the verification operation and target after its prerequisites.
