@@ -8,7 +8,9 @@ and a one-line parser exception. Its 27 calibration responses were valid, but on
 negative majority incorrectly passed; no actor launched. C23's stronger wording
 still misses three negative majorities. C24's counterexample task also fails
 calibration, including action-owner requirements scored as factual defects.
-Current preparation gives each O request only its own criterion and all facts.
+C25 isolates O and reaches 16/17 majorities, still failing the citation control.
+Current preparation repairs a contradictory system/user instruction boundary and
+gives each judge only its own criterion and all recorded facts.
 
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
@@ -22,8 +24,8 @@ passes remain historical evidence. Historical actor grades are unchanged.
 
 | Changed boundary | Measured evidence |
 | --- | --- |
-| Frozen execution and authority | 86 eval tests pass in 49.406 seconds; current model-free 005/007/002 prepare/replay passes with expected historical results |
-| Shared lifecycle and aggregation | 362 lifecycle/configuration checks remain applicable by identity; 368 scoring/provider/agent checks pass in 2.01 seconds, including invalid-response metadata and genuine-false controls |
+| Frozen execution and authority | 86 eval tests pass; current model-free 005/007/002 prepare/replay passes with expected historical results |
+| Shared lifecycle and aggregation | 362 lifecycle/configuration checks remain applicable by identity; 429 scoring/provider/agent/pairwise checks pass in 2.88 seconds, including artifact guards, invalid-response metadata and genuine-false controls |
 | Physical Go metadata | Seven actual local-proxy transaction controls passed on Go 1.24 and 1.26 |
 | Artifact ownership and scan consumer | 19 focused tests pass in 4.699 seconds, including actual license producer and native Unicode consumer controls; original counterexamples preserved |
 | Cleanup / report preservation | Six / seven actual-producer controls; old report producer reproduces failures |
@@ -378,9 +380,27 @@ C25 projects only `criteria.outcome` into O's annotation context using existing
 Jinja dictionary construction; every noncriterion fact remains. Its first sentence
 again says to evaluate only outcome. No annotation files, evidence, A requests,
 models, caps, parser or schema change. This addresses demonstrated criterion leakage;
-it does not establish citation/unsupported-claim accuracy. The same 17 controls and
-51 prospective O samples remain mandatory before the fresh actor cohort. Full
-details belong to the calibration records.
+it does not establish citation accuracy. Its 51 valid, distinct, error-free samples
+match 16/17 majorities and 47/51 values. V9 105/103 are TTT and the wrong-command
+control is FFF; publication V5 101 is F/T/F with genuine dissent. V9 102 still
+passes TTT, accepting text/time from line 2791 as if it were line 2788. Preserve
+all results in `c25-calibration-original-completion.json` and its four groups.
+No C25 actor launches.
+
+C26 corrects one shared harness guard sentence. It told the judge to follow only
+instructions in the system message, although its actual rubric is in the user
+message. Captured serialized requests prove the conflict; its contribution to
+past grading failures is unknown. The replacement delegates to the unfenced user
+rubric, retaining all quoted-artifact exclusions and boundary escaping. Sixty-eight
+mocked SDK requests differ only in that system sentence; no HTTP calls occurred.
+The obsolete literal assertion is removed; marker/escaping tests remain.
+
+A now uses the same criterion projection as O, retaining all noncriterion facts.
+The shared guard changes O/A requests, so old A samples supply no current request
+credit. Prospective admission is 117 fixed samples: the same 51 O, all 60 V6 A and
+six fix-version-pair A responses. Models, caps, samples, labels and data stay fixed;
+all 39 expected majorities and every valid response remain required before actors.
+Full details belong to the calibration records.
 
 After calibration and source freeze, measure publication 002 first, then 007,
 live 002, live 001, 005, live 003/004 and four replay repeats. All eleven actors,

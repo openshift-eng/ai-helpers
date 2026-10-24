@@ -261,8 +261,14 @@ C24's counterexample task after the evidence/reply matches 14/17 majorities and
 only on A requirements despite correct O facts. Citation and unsupported-fact
 negatives still pass; native and fix-version controls match. Preserve all dissent.
 
-C25 projects only `criteria.outcome` to O while retaining every noncriterion fact.
-Recalibrate the same nine V9, two publication V5, two fix-version and four native
-controls: 51 O samples, zero actors. Preserve all texts/labels, positive native
-proof and supported derived claims. A stays unchanged and reusable by exact
-request identity. These are development admissions, not holdouts or reliability proof.
+C25's O-only criterion context retains every other fact and reaches 16/17
+majorities, 47/51 matching samples and zero errors. Wrong citation 102 passes
+TTT; scope control 105 is TTT and publication-proof 101 rejects F/T/F. Preserve
+all original rationales, including unsupported minority reasoning.
+
+C26 corrects the shared system/user rubric conflict without altering artifact
+guards and gives A only its own criterion too. All O/A requests change; old A
+samples cannot certify current request identity. Recalibrate the fixed 51 O,
+60 V6 A and six fix-version-pair A samples: 117 responses/39 majorities, zero
+actors. Preserve all texts/labels, native proof and supported derived claims.
+These are development admissions, not holdouts or reliability proof.

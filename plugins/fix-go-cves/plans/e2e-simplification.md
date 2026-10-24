@@ -225,14 +225,20 @@ replay observation boundaries with live. Its 51 valid responses still match only
 explicitly reject an A requirement; other samples miss citations or waive unsupported
 facts. Preserve all results, including wrong-basis dissent. No actor launches.
 
-Give each O request only its own criterion, retaining all noncriterion annotation
-facts through existing Jinja dictionary construction. This removes irrelevant A
-instructions from the factual judge without a helper or new schema. Its effect,
-including the remaining unsupported-claim/citation controls, is unproved. Recalibrate
-all 17 fixed controls: 51 O samples across V9, publication V5, the new fix-version
-pair and native V2. Reuse unchanged A requests by identity.
+O criterion projection retains all noncriterion facts through existing Jinja.
+C25 reaches 16/17 majorities with 51 valid responses and zero errors; its citation
+negative still passes TTT. Preserve the stopped calibration; no actor launches.
+
+Correct the shared guard's system-only instruction, which contradicts delivery of
+the rubric in the user message. Explicitly delegate to the unfenced user rubric;
+keep all quoted-artifact guards and escaping. Give A only its own criterion too.
+This removes mixed criterion instructions without a helper, schema or new stage.
+Its efficacy remains unproved. Because the guard changes both O/A requests, renew
+all affected fixed controls: 51 O, 60 V6 A and six fix-version-pair A samples.
+Require all 39 expected majorities and all 117 responses without error. Old A
+requests are historical evidence, not current request identity.
 Models, thresholds, runtime and the one-line error path stay fixed. The fully
-retained A-V6 results remain reusable; earlier counters remain reported, not
+retained A-V6 results remain historical; earlier counters remain reported, not
 retroactively proven. Preserve all old grades and dissent. No parser-error sample
 may count as a matching negative. Add no citation, heading or format grading gate.
 

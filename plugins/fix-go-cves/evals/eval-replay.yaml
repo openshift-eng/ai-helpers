@@ -75,7 +75,7 @@ judges:
       unverified.
 
       Annotations:
-      {{ annotations }}
+      {{ dict(annotations, criteria={'action_owner': annotations.criteria.action_owner}) | tojson }}
 
       Final reply:
       {{ outputs.files['output/reply.md'] }}

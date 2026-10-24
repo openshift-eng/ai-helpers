@@ -109,11 +109,16 @@ C24's counterexample task after the evidence/reply matches only 14/17 majorities
 and 42/51 samples, with zero errors. V5 101 passes TTT; V9 102 misses its citation
 and V9 105 is wrongly rejected on A criteria. Preserve every rationale and dissent.
 
-C25 gives O only `criteria.outcome` while retaining every noncriterion fact; A
-requests stay unchanged. Reuse all nine V9 controls, both V5 controls, this pair
-and all four native controls: 51 prospective O samples. Texts/labels stay fixed.
-Criterion isolation must pass the full check, including citation/unsupported-claim
-negatives, before a fresh eleven-actor cohort.
+C25 gives O only `criteria.outcome`, preserving all other facts. It reaches 16/17
+majorities and 47/51 matching samples with zero errors; citation control 102 still
+passes TTT. V5 101 rejects F/T/F; correct and dissenting rationales remain intact.
+
+C26 fixes a shared instruction conflict: its system prompt excluded the user
+message that actually carries the rubric. Delegation now names the unfenced user
+rubric while retaining artifact guards. A also receives only its own criterion.
+All O/A requests therefore need fresh measurement: the same 51 O, 60 V6 A and
+six pair A samples, 117 total. Texts/labels stay fixed. All 39 majorities and every
+error-free response remain required before the fresh eleven-actor cohort.
 
 ## Actor evidence and artifact locations
 
