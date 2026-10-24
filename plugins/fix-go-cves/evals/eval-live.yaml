@@ -106,8 +106,8 @@ judges:
     prompt: |
       Evaluate only the outcome criterion in the authoritative annotations.
       It owns all past/present factual claims anywhere in the reply, including
-      additional prose. Any factual contradiction fails even when the Summary and
-      core facts are accurate; do not waive it as minor or award partial credit.
+      additional prose. Unsupported factual claims and contradictions fail even when
+      the Summary and core facts are accurate; do not waive them as minor or award partial credit.
       Require every applicable substantive requirement and do not infer unstated facts.
       Compare the final reply with the captured evidence. Findings can change;
       do not require the historical recording's fixes, commits or failure.

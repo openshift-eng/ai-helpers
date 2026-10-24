@@ -248,7 +248,7 @@ without retained sample details cannot certify parse validity. Preserve dissent,
 raw labels and representative-rationale limits. Controls used to tune a change are development/regression controls, not
 unseen holdouts. Keep reviewed pairs fixed during the change and record which
 results informed edits; do not add recordings or models solely to rename them
-holdouts. Whole-reply review independently retains factual contradictions and
+holdouts. Whole-reply review independently retains unsupported factual claims, contradictions and
 judge reasoning limits; presentation/materiality language cannot waive them.
 
 Evidence reuse follows the changed component. Documentation needs no executions.

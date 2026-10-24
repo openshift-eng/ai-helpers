@@ -83,18 +83,27 @@ The [corrected reference](stdlib-release-reference.md) preserves the Summary,
 recipe, native disclosure and events, correcting only the exclusive-version
 interpretation and unsupported policy handoff.
 
-The proposed V6 admission is two controls × O/A × three samples = 12 configured
-samples, zero actors: wrong-version O/A=false/false; corrected O/A=true/true.
+V6 completes two controls × O/A × three samples = 12 valid samples, zero errors
+and zero actors: wrong-version O/A=FFF/FFF; corrected O/A=TTT/TTT.
 Separate parser-validity renewal includes V9's invented-ID control 202 and V5's
 native/configuration negative 101, three O samples each. Those are distinct
-questions and are not replaced by the new pair. No model calls have run yet.
+questions and are not replaced by the new pair. V9 202 rejects FFF. V5 101 passes
+T/F/T despite both passing rationales finding unobserved GOTOOLCHAIN and missing
+native authentication; they waive unsupported facts as not contradicted. The
+combined 27-sample admission therefore fails before any actor.
 
 The boolean parser formerly emitted false on unparseable output without an error.
 Historical error counts above are reported counters. Missing per-sample reasons
 cannot certify every old false as genuine feedback; original values stay unchanged.
-The proposed exception uses the existing error/usage path, and every new sample
+The exception uses the existing error/usage path, and every new sample
 must be valid, retained and error-free. This is witness/error-path admission,
-not another rubric, format rule, actor pass or unseen holdout.
+not a format rule, actor pass or unseen holdout.
+
+The next outcome prompt explicitly rejects unsupported factual claims alongside
+contradictions. Prospective O-only calibration covers all nine V9 controls, both
+V5 proof controls, this fix-version pair and all four native V2 controls: 51 samples.
+Labels/texts stay fixed; unchanged A requests reuse accepted samples. This broader
+positive/negative check must pass before a fresh eleven-actor cohort.
 
 ## Actor evidence and artifact locations
 

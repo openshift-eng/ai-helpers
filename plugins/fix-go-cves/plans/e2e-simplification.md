@@ -208,14 +208,21 @@ rejects it. Two O passes lacked that complete primary witness, and a third O val
 was an unparseable empty response silently emitted as false with zero reported
 errors. Preserve those raw results and the independent rejection.
 
-C22 preparation adds one primary fact map, one skill sentence and one parser
-return-to-exception change using existing handling. Request bodies, models,
-thresholds and runtime stay fixed. Calibration must finish before actor measurement:
-27 configured samples cover the new publication pair and whole negative cells
-whose missing historical sample details cannot certify parse validity. The fully
-retained 60-sample A-V6 results remain reusable; earlier counters remain reported,
-not retroactively proven. Preserve all old grades and dissent. No parser-error
-sample may count as a matching negative.
+C22 adds one primary fact map, one skill sentence and one parser exception using
+existing handling. All 27 calibration samples are valid with zero errors, but only
+eight of nine expected majorities match. Publication negative 101 passes T/F/T:
+both passing rationales find unsupported facts, then waive them because they are
+not contradictions. No actor launches from that failed admission.
+
+Close this gap in the existing factual rejection sentence: unsupported factual
+claims fail alongside contradictions and missing required disclosures. The replay
+rationale can identify an evidence gap or conflict. Recalibrate changed O prompts
+on retained positive and negative controls: 51 O samples across V9, publication V5,
+the new fix-version pair and native V2. Reuse unchanged A requests by identity.
+Models, thresholds, runtime and the one-line error path stay fixed. The fully
+retained A-V6 results remain reusable; earlier counters remain reported, not
+retroactively proven. Preserve all old grades and dissent. No parser-error sample
+may count as a matching negative. Add no citation, heading or format grading gate.
 
 After admission and source freeze, measure publication 002 first, then replay 007,
 live 002, live 001, replay 005, live 003/004 and four replay repeats. All eleven

@@ -244,9 +244,16 @@ of controls 104/108/202. Native V2 control 091 and publication V5 control 101 ha
 the same uncertainty; native 093 retains its dissent and all reasons. Positives
 cannot be produced by this false fallback. No hidden error is inferred as fact.
 
-Prospective renewal is one whole three-sample O cell for each of those five
-negatives, on current profiles and annotation witnesses: 15 configured samples.
+Renewal completes one whole three-sample O cell for each of those five
+negatives, on current profiles and annotation witnesses: 15 valid samples.
 The separate new publication fix-version pair uses O/A, three samples each,
-adding 12. Total: 27 configured samples, zero actors, currently pending. Keep all
-original grades and dissent, and require every new sample without error. These
+adding 12. All 27 responses are valid with distinct IDs and zero errors. Eight of
+nine expected majorities match; publication V5 negative 101 incorrectly passes
+T/F/T because unsupported facts are waived as not contradicted. No actor launches.
+
+The next O revision explicitly rejects unsupported factual claims. Recalibrate
+all nine V9 replay controls, both publication V5 controls, the new publication
+fix-version pair and all four native V2 controls: 51 O samples, zero actors.
+Retain each original text/label and dissent; preserve positive proof and supported
+derived claims. A stays unchanged and reusable by exact request identity. These
 are development admissions, not holdouts or proof of general reliability.

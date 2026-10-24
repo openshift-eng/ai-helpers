@@ -3,9 +3,10 @@
 Full-cohort acceptance remains **open**. C21 accepted two actors, then stopped
 at publication 002 on an unsupported Go-minor prerequisite. That run also exposed
 incomplete judge evidence and an empty response silently counted as false instead
-of an error. C22 preparation uses a primary fix-version witness, a concise evidence
-priority sentence and a one-line parser exception. No new actor has run. The
-27-sample calibration admission remains pending.
+of an error. C22 added a primary fix-version witness, an evidence priority sentence
+and a one-line parser exception. Its 27 calibration responses were valid, but one
+negative majority incorrectly passed; no actor launched. Current preparation closes
+that factual-grading gap by rejecting unsupported claims as well as contradictions.
 
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
@@ -337,10 +338,23 @@ O uncertainty covers V9 controls 104/108/202, native V2 control 091 and publicat
 V5 control 101. Renew each whole three-sample cell once on current profiles; retain
 the original counters, labels and dissent. The new publication wrong-version/
 corrected-reference pair adds 12 O/A samples, for 27 configured samples total,
-zero actors. Admission is pending; no unchanged call seeks unanimity or recovers an
-old score. Full details belong to the calibration records.
+zero actors. All 27 original responses are valid with distinct IDs and zero errors.
+Eight of nine expected majorities match. The new publication pair is FFF/FFF and
+TTT/TTT; the V9 and native negatives are FFF. Publication V5 negative 101 is T/F/T:
+both passing rationales identify unobserved `GOTOOLCHAIN=local` and unauthenticated
+catalog coverage, then waive them as unsupported rather than contradicted.
+Calibration stops without actors. Original responses and terminal exits remain in
+`c22-calibration-original-completion.json` and the four groups' retained summaries.
 
-After calibration and source freeze, C22 measures publication 002 first, then 007,
+C23 preparation changes only the existing O rejection sentences to include
+unsupported factual claims, and lets the replay rationale identify an evidence gap
+as well as a conflict. This adds no citation/format requirement, new criterion or
+parser. Recalibrate the changed outcome judges against retained positive and negative
+controls before actors. Reuse unchanged A responses by exact request identity;
+preserve the failed calibration and every original score. Full details belong to
+the calibration records.
+
+After calibration and source freeze, measure publication 002 first, then 007,
 live 002, live 001, 005, live 003/004 and four replay repeats. All eleven actors,
 original thresholds and independent review remain required; no old actor supplies
 credit. Models/settings/canonical gates stay fixed under the same $115 nominal
