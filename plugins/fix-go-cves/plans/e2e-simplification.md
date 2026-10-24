@@ -233,10 +233,17 @@ Correct the shared guard's system-only instruction, which contradicts delivery o
 the rubric in the user message. Explicitly delegate to the unfenced user rubric;
 keep all quoted-artifact guards and escaping. Give A only its own criterion too.
 This removes mixed criterion instructions without a helper, schema or new stage.
-Its efficacy remains unproved. Because the guard changes both O/A requests, renew
-all affected fixed controls: 51 O, 60 V6 A and six fix-version-pair A samples.
-Require all 39 expected majorities and all 117 responses without error. Old A
-requests are historical evidence, not current request identity.
+C26's 117 responses are valid, distinct and error-free: 38/39 majorities and
+114/117 values match. All newly measured A66 match their labels unanimously;
+the sole wrong O majority still treats nearby lines as an exact citation.
+Preserve that stopped calibration and all reasoning limits; no actor launches.
+
+Replace the abstract relationship paragraph with explicit attribution to the named
+command and exact cited line. The exact-line check applies when a quotation/measurement
+is paired with an unqualified line number; require no new citations or report
+format. Keep accurate paraphrases, derived facts and harmless normalization.
+Recalibrate all 17 O controls/51 samples. Reuse C26 A66 only after independent
+acceptance and exact current request checks; old pre-guard A is historical only.
 Models, thresholds, runtime and the one-line error path stay fixed. The fully
 retained A-V6 results remain historical; earlier counters remain reported, not
 retroactively proven. Preserve all old grades and dissent. No parser-error sample

@@ -116,9 +116,14 @@ passes TTT. V5 101 rejects F/T/F; correct and dissenting rationales remain intac
 C26 fixes a shared instruction conflict: its system prompt excluded the user
 message that actually carries the rubric. Delegation now names the unfenced user
 rubric while retaining artifact guards. A also receives only its own criterion.
-All O/A requests therefore need fresh measurement: the same 51 O, 60 V6 A and
-six pair A samples, 117 total. Texts/labels stay fixed. All 39 majorities and every
-error-free response remain required before the fresh eleven-actor cohort.
+All 117 renewed responses are valid, distinct and error-free: 38/39 majorities and
+114/117 values match. All A66 and every O except wrong-citation 102 match unanimously;
+that negative still passes TTT. Preserve its nearby-line substitutions.
+
+C27 makes exact citation attribution concrete in O's existing relationship
+paragraph. It requires no citations or new format. Renew the same 51 O samples;
+reuse C26 A66 only by independent acceptance and full request identity. All
+expected labels remain required before the fresh eleven-actor cohort.
 
 ## Actor evidence and artifact locations
 

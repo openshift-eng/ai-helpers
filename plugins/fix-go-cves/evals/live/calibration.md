@@ -268,7 +268,12 @@ all original rationales, including unsupported minority reasoning.
 
 C26 corrects the shared system/user rubric conflict without altering artifact
 guards and gives A only its own criterion too. All O/A requests change; old A
-samples cannot certify current request identity. Recalibrate the fixed 51 O,
-60 V6 A and six fix-version-pair A samples: 117 responses/39 majorities, zero
-actors. Preserve all texts/labels, native proof and supported derived claims.
-These are development admissions, not holdouts or reliability proof.
+samples cannot certify current request identity. The renewed 117 responses are
+valid, distinct and error-free; 38/39 majorities and 114/117 values match. All
+A66 and every O except citation control 102 match unanimously. No actor launches.
+
+C27 replaces O's abstract relationship paragraph with explicit named-command and
+exact-line attribution; it requires no new citations or format. Renew all 17 O
+controls/51 samples and reuse C26 A66 only through independent acceptance and
+unchanged full requests. Preserve all labels, native proof, derived facts and
+reasoning limits. These are development admissions, not reliability proof.

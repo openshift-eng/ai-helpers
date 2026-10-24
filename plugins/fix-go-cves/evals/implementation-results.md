@@ -9,8 +9,9 @@ negative majority incorrectly passed; no actor launched. C23's stronger wording
 still misses three negative majorities. C24's counterexample task also fails
 calibration, including action-owner requirements scored as factual defects.
 C25 isolates O and reaches 16/17 majorities, still failing the citation control.
-Current preparation repairs a contradictory system/user instruction boundary and
-gives each judge only its own criterion and all recorded facts.
+C26 repairs the system/user instruction boundary and isolates both criteria;
+38/39 majorities match. Current preparation makes the existing exact-citation
+requirement concrete without adding a parser or requiring citations.
 
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
@@ -397,10 +398,21 @@ The obsolete literal assertion is removed; marker/escaping tests remain.
 
 A now uses the same criterion projection as O, retaining all noncriterion facts.
 The shared guard changes O/A requests, so old A samples supply no current request
-credit. Prospective admission is 117 fixed samples: the same 51 O, all 60 V6 A and
-six fix-version-pair A responses. Models, caps, samples, labels and data stay fixed;
-all 39 expected majorities and every valid response remain required before actors.
-Full details belong to the calibration records.
+credit. All 117 fixed samples complete with distinct IDs and zero errors; 38/39
+majorities and 114/117 values match. All 66 A responses unanimously match their
+22 labels. Every O response except V9 102 also matches; its TTT rationales combine
+nearby test/package lines instead of checking the exact cited record. Independent
+review retains reasoning limits and every original value in
+`c26-calibration-original-completion.json` and its seven groups. No actor launches.
+
+C27 replaces the abstract relationship paragraph with explicit command and exact
+line attribution. A quotation/measurement paired with an unqualified line number
+must match that line; nearby text is insufficient. Accurate paraphrases, derived
+facts and harmless normalization remain allowed. Citations are not mandatory.
+All 17 O controls and 51 samples remain required; reuse C26's newly measured A66
+only through independent acceptance and unchanged full request identity. Models,
+caps, labels, evidence and harness remain fixed. Full details belong to the
+calibration records.
 
 After calibration and source freeze, measure publication 002 first, then 007,
 live 002, live 001, 005, live 003/004 and four replay repeats. All eleven actors,
