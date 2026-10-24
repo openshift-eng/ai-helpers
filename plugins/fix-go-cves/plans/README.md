@@ -1,12 +1,10 @@
 # Fix Go CVEs work plans
 
-Acceptance remains **open**. C18's real live 002 repair passed original and
-independent review, including the absent publication handoff. A separate model-free
-counterexample then exposed a native-target validator gap. The two-line correction
-checks existing GOOS/GOARCH metadata; no runtime or schema changes are needed.
-The [results record](../evals/implementation-results.md) owns current status, counts
-and source identities; [calibration](../evals/live/calibration.md) owns controls.
-The E2E plan defines the next complete campaign without old actor credit.
+Acceptance remains **open**. The remaining gate is a complete eleven-actor
+campaign with original thresholds and independent review. The
+[results record](../evals/implementation-results.md) owns current status, counts,
+source identities and review disagreements; [calibration](../evals/live/calibration.md)
+owns controls. The E2E plan defines the next campaign without old actor credit.
 
 | Document | Owns |
 | --- | --- |

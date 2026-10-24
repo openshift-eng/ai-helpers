@@ -1,15 +1,16 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C17 accepted four cells, then stopped at
-live 002: actual repair, facts and operations passed, but extra unprinted push/PR
-advice failed original and independent action/owner review. The skill now makes
-the Summary the entire publication handoff. Prospective C18 starts with live 002;
-no freeze or actor has occurred.
+Full-cohort acceptance remains **open**. C19 accepted three cells, then stopped
+at replay 007: original outcome samples and independent review rejected explicit
+unsupported causal independence. Original action samples passed; their separate
+review disagreement remains visible. The skill now confines added prose to
+supported next actions and consolidates its causal/forecast boundary, net one line.
+Prospective C20 starts with replay 007 after freeze; it has no actors yet.
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
-Source groups, original false-positive grades and independent review stay separate.
+Source groups, original grades and independent review stay separate.
 
-## Current implementation, 2026-10-23
+## Current implementation, 2026-10-24
 
 Earlier implementation from `8c88928b` passed component integration. Current v5
 verification incorporates the license ownership and LF-reader fixes below; v4
@@ -239,11 +240,46 @@ pair. Five focused tests pass; the full 86-test helper suite passes in 71.170
 seconds. Controls cover wrong/missing/duplicate fields in both phases and accept
 reversed order. No schema, runtime or semantic-prompt change is needed.
 
-Prospective C19 keeps the C18 skill and all runtime/judge/profile/pin/settings
-bytes. Reuse unchanged V6 calibration without repeating its calls, and unchanged
-runtime controls by identity. No old actor supplies credit. After tests and freeze,
-start live 002, then publication 002, live 001, 007/005, live 003/004 and four replay
-repeats: all eleven actors under the same $115 nominal cap. C19 has not run.
+C19 at `e116154a` corrected only native GOOS/GOARCH validation. Its first three
+actors passed original C/O/A, all eighteen semantic samples, zero errors and
+independent review:
+
+| C19 cell | Actual runtime | Actor | Root driver |
+| --- | --- | --- | --- |
+| Live 002 | 109s, exit 0; five findings cleared, retained `fc85774`, canonical race/tests/four audits passed | 222.0s / $1.00401775 | 95491, exit 0 |
+| Publication 002 | Historical partial-repair replay; exact recipe, builder owner/publication prerequisite, native unknown | 152.1s / $0.76234175 | 62026, exit 0 |
+| Live 001 | 131s, guarded exit 2; five unresolved, canonical tests/four audits passed, no commits, original ref restored | 272.5s / $0.74891875 | 93625, exit 0 |
+
+Live 001's tentative five-finding remedy expectation is supported by fixed-in
+v0.60.0; it does not promise compilation, whole-test/native coverage or whole-run
+success. Initial independent concern and contextual adjudication remain in its
+review. Publication's pending verification goal likewise does not predict a clean
+rerun. A separate note rejects compensatory wording in two passing judge rationales;
+correct advice elsewhere cannot excuse an actual unsupported claim.
+
+C19 stopped at fourth actor replay 007-01. Original C=true, O=FFF, A=TTT, zero
+errors; all original stages finished and root driver 7711 exited 1. The actor took
+137.0s/$0.5767225. All outcome samples correctly reject “not a regression”; the
+additional “not caused by” x/net assertion is also unsupported. Source presence
+and a passing retry establish neither independence. Intake, evidence, operations
+and complete reporter repair scope pass. The initial independent action review
+rejects “tests should pass” as an unexecuted whole-suite forecast; original samples
+accept it as a tentative expectation based on the specific repair and passing
+retry. Root and two secondary expert reviews accept that bounded A=true reading;
+the original A=false dissent remains. No verified test success or independence is
+certified. A separate `c19-replay007-01-contextual-adjudication.json` binds the
+original dissent and unchanged grades. The outcome failure is decisive.
+Receipts and original rationales remain under `c19-*` in the scratch root. No later
+C19 actor ran. Six semantic samples per cell remain unpriced; physical retries and
+total cost are unknown.
+
+Prospective C20 changes only skill instructions: consolidate the handoff boundary
+at unresolved actions and remove the redundant footer forecast clause, net one
+line. Reuse the unchanged 86-test helper, runtime/component controls and semantic
+calibrations by identity; no old actor supplies credit. Judges, thresholds, models,
+pins and canonical gates stay fixed. After freeze, start replay 007, then live 002,
+publication 002, live 001, replay 005, live 003/004 and four replay repeats. All eleven
+actors remain required under the same $115 nominal actor cap. C20 has not run.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;

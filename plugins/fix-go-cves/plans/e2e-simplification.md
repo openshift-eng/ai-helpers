@@ -1,9 +1,9 @@
 # E2E acceptance and simplification
 
 Acceptance remains **open**. The [results record](../evals/implementation-results.md)
-owns current status, source groups, grades and limits. C18's first real repair
-passed, then a separate native-target counterexample justified a narrow validator
-correction before further actors. Runtime, skill and semantic criteria stay fixed.
+owns current status, source groups, grades and review disagreements. The remaining
+gate is all eleven actors on one declared source, with original thresholds and
+independent review. Component evidence stays applicable only under its reuse rules.
 
 This plan owns current design choices and the remaining acceptance sequence. The
 [testing strategy](testing.md) owns durable requirements and calibration/reuse
@@ -63,7 +63,8 @@ is separate from compatibility permission. Dependency removal can remediate a
 finding without satisfying that narrower repair exercise.
 
 Reject duplicate canonical native paths before checking individual witnesses;
-a later good record cannot replace failed evidence. Preserve actual blocked or
+a later good record cannot replace failed evidence. Require exactly one recorded
+GOOS=linux/GOARCH=amd64 pair, independent of metadata order. Preserve actual blocked or
 unreached phases and initial-only proof for a clean fast path. Entry kind, content
 and execution mode are part of source/native identity.
 
@@ -140,22 +141,24 @@ correctness; evals never push or create a PR.
 ### Compact handoff and factual grading
 
 The skill carries the reporting contract directly: preserve target policy, launch
-once and observe actual completion. The reply starts with the exact emitted
+once and observe actual completion. The reply preserves the exact emitted
 Summary through terminal exit as the entire publication handoff, with any recipe
 exactly once. If no recipe is printed, report its absence and any printed reason;
 add no push/PR steps for the reported CVE branch. Only explicit
 runtime scope lines establish coverage; if none establish compiled Go binary
 coverage, add its uncertainty statement. Quote each failed attempt's diagnostics
 and outcome plus later attempt outcomes; for all-success tests, the Summary
-status suffices. Added prose gives only future actions, owners and verification
-prerequisites. Inspect `origin/<branch>` directly for target policy and search
-default-branch history for an existing repair commit. Check the complete scope of
+status suffices. Added prose gives only supported future actions, owners and
+verification prerequisites; omit causal explanations and forecasts. This is output
+guidance, not a new blanket semantic-grading rule. Inspect `origin/<branch>` for
+target policy and search default-branch history for an existing repair commit. Check the complete scope of
 a recommended candidate against the pinned target and required approvals; a valid
-alternative does not excuse an unsupported one. Stop once that handoff is supported. Applicable source repairs must land on the starting origin;
-builder repairs must be published before consumers rerun. Compiler version is a
-prerequisite; give verification steps without predicting outcomes. A
-recovered retry alone creates no maintainer task. Unknown coverage stays unknown; positive artifact/phase
-proof stays positive. Nested-reviewer prose does not authenticate observations.
+alternative does not excuse an unsupported one. Stop once that handoff is supported.
+Applicable source repairs must land on the starting origin; builder repairs must
+be published before consumers rerun. Compiler version is a prerequisite. A recovered
+retry alone creates no maintainer task. Unknown coverage stays unknown; positive
+artifact/phase proof stays positive. Nested-reviewer prose does not authenticate
+observations.
 
 Exact timing/last-tool gates, table/imperative grammar, verbatim-only evidence
 cells, universal no-count rules, mandatory causal/uncertainty paragraphs and
@@ -184,23 +187,21 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C18 at `75c4f574` completed live 002: original contract, all six semantic samples
-and independent required-repair/whole-reply review pass. The absent publication
-recipe was relayed without replacement steps. Before another actor, a separate
-model-free counterexample showed that the native checker accepted wrong or missing
-GOOS/GOARCH metadata. No actual wrong-platform artifact was observed.
+C19 stopped at its fourth actor after three accepted cells. Replay 007's original
+outcome samples and independent review rejected explicit causal independence
+without supporting evidence. Preserve its separate action-review disagreement;
+that cannot offset the decisive outcome failure.
 
-Prospective C19 adds only a target parse and exact Linux/amd64 check to the existing
-native predicate. Focused controls reject wrong, missing or duplicated fields in
-both scan phases and accept reversed field order. No new schema, runtime gate or
-semantic calibration is needed: these fields were already captured and projected.
-The skill, judges, V6 calibration, runtime, models and pins remain unchanged.
-No C18 actor supplies credit to the corrected source campaign.
+Prospective C20 changes only the skill's handoff paragraph and redundant footer,
+net one line: quotations supply observations, added prose supplies supported next
+actions, and causal explanations/build-test-rerun forecasts are omitted. Runtime,
+helper, judges, calibration, models and pins remain fixed. No old actor supplies
+credit; unchanged component tests and control results are reused by identity.
 
-After source freeze, measure live 002 first, then publication 002, live 001,
-replay 007/005, live 003/004 and four replay repeats. Finish each cell's original
-stages, thresholds and independent review before continuing. The results record
-owns freeze and execution status; the protocol owns the exact actor order.
+After source freeze, measure replay 007 first, then live 002, publication 002,
+live 001, replay 005, live 003/004 and four replay repeats. Finish each cell's
+original stages, thresholds and independent review before continuing. The results
+record owns freeze/execution status; the protocol owns the exact actor order.
 
 License cleanup reuses the existing artifact ownership helper with a private
 license prefix. Serialized path/event readers honor LF delimiters without splitting

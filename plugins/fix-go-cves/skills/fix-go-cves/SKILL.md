@@ -116,11 +116,13 @@ For each failed test attempt, quote its captured diagnostics and outcome, plus
 outcomes of later attempts. Label the attempts. Otherwise the Summary's test
 status suffices.
 
-For unresolved work, follow these quotations with only next actions: an applicable
-existing repair or next investigation, its owner, the prerequisite for verification,
-and verification still pending. A published fix blocked by branch policy remains
-unresolved; only findings without a published fix are eligible for ignoring.
-Eligible ignored findings and a passing retry alone need no new maintainer repair.
+For unresolved work, follow the quotations only with a supported repair or
+investigation, its owner, verification prerequisite and verification still pending.
+Omit added causal explanations of the run and forecasts of build, test or rerun
+outcomes. Unchanged source or passing retries alone do not establish independence.
+Published fixes blocked by policy remain unresolved; ignore only findings without
+a published fix. Eligible ignored findings and a passing retry alone need no new
+maintainer repair.
 
 Select a matching repair by inspecting immutable source and default-branch history
 in the existing checkout: `git show <command-commit>:<file>`,
@@ -131,8 +133,7 @@ the supported next action, owner and prerequisite are established.
 
 Source repairs must land on `origin/<branch>` before rerunning `fix-all.sh`, which
 starts afresh there; repaired builder images must be published before consumers
-rerun. Report compiler-version compatibility only as a prerequisite; give
-verification steps without predicting verification outcomes.
+rerun. Report compiler-version compatibility only as a prerequisite.
 
 Keep this investigation read-only: do not edit source/dependencies/ignores, apply
 or test a repair, rerun scripts, clean up, push or create a PR. Missing or skipped
