@@ -57,9 +57,8 @@ Slack notifications) require explicit opt-in via command flags.
 ## Capabilities and Inventory
 
 See [capabilities-inventory.md](capabilities-inventory.md) for the full list
-of tools, APIs, data sources, and guardrails. The `jira` and `git` CLIs are
-invoked through Claude Code's direct tool integrations, not through the Bash
-tool.
+of tools, APIs, data sources, and guardrails. The `jira`, `git` and `curl`
+CLIs run through Claude Code's Bash tool.
 
 ### Authorized Actions
 
@@ -69,13 +68,19 @@ tool.
 - Post analysis comments to Jira issues (write, opt-in via `--notify-jira`)
 - Send summary notifications to Slack (write, opt-in via `--notify-slack`)
 - Generate local reports in `.work/` (write, local only)
+- Bump downstream RPM packages in dist-git and start Brew builds
+  (`/node-rpm:bump`, interactive only, each push and build confirmed by the
+  user)
 
 ### Prohibited Actions
 
 - The agent must not create or close Jira issues
 - The agent must not transition issue status (e.g., move to ASSIGNED or CLOSED)
-- The agent must not create pull requests or commit code
-- The agent must not modify repository contents
+- The agent must not create pull requests
+- The agent must not commit code or modify repository contents, except
+  user-confirmed dist-git changes through `/node-rpm:bump`
+- The headless deployment is configured to run only `/node-cve:triage`; only
+  the namespace admins can change the CronJob or create Jobs
 - The agent must not access customer data, HR data, or financial data
 - The agent must not send messages to external parties
 
@@ -105,10 +110,17 @@ output does not replace manual security analysis.
 - Press `Ctrl-C` to stop any running command immediately.
 
 ### Headless / CronJob Mode
-- Delete the CronJob: `oc delete cronjob node-cve-triage`
-- Revoke the API tokens (`JIRA_API_TOKEN`, `SLACK_API_TOKEN`) to immediately
-  disable all external write actions
-- Scale the deployment to zero: `oc scale --replicas=0 deployment/node-cve-triage`
+Run by the namespace admins:
+- Suspend future runs: `oc patch cronjob node-cve-triage -p '{"spec":{"suspend":true}}'`
+- Stop the active run: find it with `oc get jobs -l app=node-cve-triage`
+  (the job without a completion time) and delete only that one with
+  `oc delete job <name>`. Deleting a Job also deletes its pod and logs;
+  cluster logging keeps its own copy.
+- Delete the CronJob entirely: `oc delete cronjob node-cve-triage`
+- Revoke the credentials to disable all external actions, independently of
+  the cluster: the Jira service account token, the Slack webhook, and the
+  Vertex AI access (remove the Workload Identity Federation binding, or
+  delete the service account key)
 
 ### Reverting Actions
 - Jira comments posted by the agent can be edited or deleted manually
@@ -145,6 +157,72 @@ The agent inherits permissions from the configured API tokens:
 
 Users can verify their access levels by running `/node-team:preflight`.
 
+In headless mode the agent does not inherit a user's permissions. It runs
+with a Jira service account limited to browsing OCPBUGS and OCPNODE and
+adding and editing its own comments on OCPBUGS, and a Slack incoming webhook
+bound to #team-node. Tool use is limited by the
+[headless tool allowlist](capabilities-inventory.md#headless-tool-allowlist).
+
+Namespace access has two levels, each backed by a Rover group:
+
+| Group | Role | Can do |
+|-------|------|--------|
+| Node team members | Custom read-only Role: `get`, `list`, `watch` on `cronjobs`, `jobs`, `pods` and `pods/log` | See runs and read their logs |
+| Admins (two or three maintainers) | `admin` | Change the CronJob and its config, trigger runs (`oc create job --from=cronjob/node-cve-triage <name>`, after checking that no run is active, since manual runs bypass `concurrencyPolicy`), suspend, manage secrets |
+
+The namespace is provisioned with a Role for read-only viewers and a
+RoleBinding for each level. Admins get the built-in `admin` ClusterRole
+scoped to the namespace. Both bindings reference OCP groups synced from
+Rover by the cluster's group-sync operator.
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: node-cve-viewer
+  namespace: node-team
+rules:
+- apiGroups: ["batch"]
+  resources: ["cronjobs", "jobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: node-cve-viewers
+  namespace: node-team
+subjects:
+- kind: Group
+  name: node-cve-triage-viewers   # synced from Rover
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: node-cve-viewer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: node-cve-admins
+  namespace: node-team
+subjects:
+- kind: Group
+  name: node-cve-triage-admins    # synced from Rover
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+```
+
+Anyone who can create Jobs or edit the CronJob can run any image with the
+mounted secrets, and RBAC cannot restrict what a Job runs. That is why
+triggers stay with the admins and team members get no write access or
+secret access.
+
 ## Troubleshooting
 
 Common issues and solutions:
@@ -153,7 +231,7 @@ Common issues and solutions:
 |-------|----------|
 | Jira API returns 401 | Token expired. Regenerate at https://id.atlassian.com/manage-profile/security/api-tokens |
 | Jira API returns 429 | Rate limited. Wait and retry. The agent sleeps 1s between calls. |
-| Slack notification fails | Verify `SLACK_API_TOKEN` and `SLACK_CHANNEL`. Check bot is added to channel. |
+| Slack notification fails | Verify `SLACK_API_TOKEN` and `SLACK_CHANNEL` (check bot is added to channel), or `SLACK_WEBHOOK`. |
 | Git clone times out | Network issue or repo doesn't exist at that branch. Classification defaults to "Uncertain." |
 | Empty triage results | Check Jira query. Run `/node-cve:triage --component "Node / CRI-O"` to test a single component. |
 
