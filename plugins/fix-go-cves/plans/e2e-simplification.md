@@ -1,10 +1,10 @@
 # E2E acceptance and simplification
 
-Acceptance remains **open**. C16 passed live 001, then stopped after publication
-002 failed original and independent action/owner review for forecasting a full
-fix after an unexecuted rerun. Its facts, literal recipe and operations passed.
-Prospective C17 tests the clearer verification guidance, publication 002 first;
-no freeze or actor has occurred. Preserve source groups, grades and limits; the
+Acceptance remains **open**. C17 accepted four cells, then stopped at live 002:
+actual repair, facts and operations passed, but extra unprinted push/PR advice
+failed original and independent action/owner review. Prospective C18 tests the
+clearer publication handoff, live 002 first; no freeze or actor has occurred.
+Preserve source groups, grades and limits; the
 [results record](../evals/implementation-results.md) owns counts.
 
 This plan owns current design choices and the remaining acceptance sequence. The
@@ -143,7 +143,9 @@ correctness; evals never push or create a PR.
 
 The skill carries the reporting contract directly: preserve target policy, launch
 once and observe actual completion. The reply starts with the exact emitted
-Summary through terminal exit, with its recipe exactly once. Only explicit
+Summary through terminal exit as the entire publication handoff, with any recipe
+exactly once. If no recipe is printed, report its absence and any printed reason;
+add no push/PR steps for the reported CVE branch. Only explicit
 runtime scope lines establish coverage; if none establish compiled Go binary
 coverage, add its uncertainty statement. Quote each failed attempt's diagnostics
 and outcome plus later attempt outcomes; for all-success tests, the Summary
@@ -184,24 +186,23 @@ history nor causal independence from other changes.
 
 ## One acceptance campaign, after local closure
 
-C16 stopped after two actors: live 001 passed all original and independent checks;
-publication 002 passed facts, exact relay and operations but failed action/owner.
-Its tentative “should clear” is not itself a guarantee; the definite claim that
-the partial PR becomes a full fix forecasts unobserved verification. Original
-grades and historical failures remain in the
-[results record](../evals/implementation-results.md).
+C17 stopped after five actors, before live 003. Publication 002, live 001 and
+replays 007/005 passed; their contextual adjudications and original dissent remain
+in the [results record](../evals/implementation-results.md). Live 002 passed the
+required actual repair, facts and operations, but supplied an unprinted push/PR
+procedure in prose. Original and independent action/owner review reject it.
 
-Prospective C17 changes only the skill's existing final phrase to “without
-predicting verification outcomes.” Whole-candidate scope and approval checks stay;
-candidate evidence does not require that repair. Runtime, helper, both judges,
-models and pins remain unchanged. Reuse V6 calibration without repeating its calls;
-the [calibration record](../evals/live/calibration.md) owns controls and limits.
-No C16 actor supplies credit after the skill change.
+Prospective C18 replaces only the skill's existing publication guidance: relay any
+recipe once; otherwise report absence and the printed reason, adding no push/PR
+steps for the reported branch. Runtime, helper, both judges, models and pins remain
+unchanged. Reuse V6 calibration without repeating its calls; the
+[calibration record](../evals/live/calibration.md) owns controls and limits.
+No old actor supplies credit after the skill change.
 
-After source freeze, measure publication 002 first, then live 001, replay 007/005,
-live 002/003/004 and four eligible replay repeats. Finish each cell's original
-stages, thresholds and independent review before continuing. Preserve the
-eleven-actor/$115 maximum, models and pins. C17 is not frozen; no actor has run.
+After source freeze, measure live 002 first, then publication 002, live 001,
+replay 007/005, live 003/004 and four eligible replay repeats. Finish each cell's
+original stages, thresholds and independent review before continuing. Preserve the
+eleven-actor/$115 maximum, models and pins. C18 is not frozen; no actor has run.
 
 License cleanup reuses the existing artifact ownership helper with a private
 license prefix. Serialized path/event readers honor LF delimiters without splitting

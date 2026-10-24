@@ -1,10 +1,10 @@
 # Simplification implementation and verification
 
-Full-cohort acceptance remains **open**. C16 passed live 001, then stopped after
-publication 002 failed original and independent action/owner review for forecasting
-a full fix after an unexecuted rerun. Facts, exact relay and operations passed.
-The skill now gives verification steps without predicting outcomes. Prospective
-C17 starts with publication 002; no freeze or actor has occurred.
+Full-cohort acceptance remains **open**. C17 accepted four cells, then stopped at
+live 002: actual repair, facts and operations passed, but extra unprinted push/PR
+advice failed original and independent action/owner review. The skill now makes
+the Summary the entire publication handoff. Prospective C18 starts with live 002;
+no freeze or actor has occurred.
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
 Source groups, original false-positive grades and independent review stay separate.
@@ -65,9 +65,11 @@ fails is not guaranteed.
 | `e2e-prerequisite-only-live001-20261023-01` | C true, O/A TTT, zero sample errors; actor $0.71 | C15 stopped: independent runtime 27/27 and O true, A false; full candidate adds a Kubernetes-minor migration without approval, while the standalone Go option is valid |
 | `e2e-commit-scope-live001-20261023-01` | C true, O/A TTT, zero sample errors; driver 0 | C16 individual pass: independent runtime 29/29, 52 evidence hashes and whole-reply O/A pass |
 | `e2e-commit-scope-publication002-20261023-01` | C true, O TTT, A FFF, zero sample errors; driver 1 | C16 stopped after two actors: independent O/operations true, A false for an unobserved full-fix forecast; exact Summary/recipe and native uncertainty pass |
+| C17 `e2e-verification-pending-…-20261024-01`: publication002, live001, replay007, replay005 | Each C true, O/A TTT, zero sample errors | Four individual passes; 007 accepted by separate contextual adjudication with original independent O-false review retained; 005 uses the bounded C8 Go-requirement reading |
+| `e2e-verification-pending-live002-20261024-01` | C true, O TTT, A FFF, zero sample errors; driver 1 | C17 stopped before live 003: actual repair 18/18, integrity 22/22 and 51 hashes pass; independent O true, A false only for added unprinted push/PR prose |
 
 Complete actual skill intake was confirmed for the prior pilots, all three C10
-actors, C11 publication 002 and C12–C16. Earlier campaigns remain separate; no failed actor is pooled
+actors, C11 publication 002 and C12–C17. Earlier campaigns remain separate; no failed actor is pooled
 into a revised source. Current guidance quotes runtime
 observations and failed/later-attempt outcomes, then allows only supported future
 actions, owners and verification prerequisites. Default-branch repair-commit
@@ -199,14 +201,32 @@ native uncertainty, Shipyard owner and published-image prerequisite verify.
 full fix” asserts an unobserved rerun outcome. Original samples and independent
 receipts remain under `c16-{live001,publication002}*` in the scratch root.
 
-Prospective C17 changes only the skill's final phrase from “without predicting
-build or test success” to “without predicting verification outcomes.” Both judges,
-V6 calibration and computational components remain unchanged; do not repeat the
-60 calibration calls or credit C16 actors to changed skill bytes. Whole-candidate
-scope and approval checks remain; live-001 candidate facts require no particular
-repair. After source freeze, start publication 002, then live 001, 007/005,
-live 002/003/004 and four eligible replay repeats under the same 11-actor/$115
-maximum, models and pins. C17 is not frozen; no actor has run.
+C17 at `c380f639` stopped at its fifth actor, live 002. The 105-second engine run
+exited 0, retained `7c793d9` with x/net v0.59.0 → v0.60.0 fixing five findings,
+passed canonical tests/four audits and had no final findings. The actor took
+180.7 seconds/$0.465941; root captured driver 31442 exit 1 after all stages.
+No recipe was printed because a GitHub base and single push destination could not
+be confirmed. A file-backed local fork exists; this is not evidence of a missing
+fork. Added advice to push and run `gh pr create` targeting devel fails A; no
+publication was executed. Original samples and reviews remain under `c17-*`.
+
+The first four C17 cells remain individually accepted. For 007, separate
+contextual adjudication reads “the CVE fix commit is sound” as the observed
+five-advisory remedy, bounded by explicit failed tests, not-ready status and
+pending verification. The original independent O-false review remains; this does
+not certify integration or causal independence. For 005, the C8 minimum-Go
+requirement reading applies; actual compiler installation/selection stays unknown.
+Incidental stock rationales attributing the directive change to tidy are retained
+but not adopted: the reply does not make that claim.
+
+Prospective C18 replaces only two existing skill publication lines with three:
+relay any recipe once, otherwise report absence and its printed reason, without
+adding push/PR steps for the reported CVE branch. Both judges, V6 calibration and
+computational components remain unchanged; do not repeat the calibration calls or
+credit old actors to changed skill bytes. After source freeze, start live 002,
+then publication 002, live 001, 007/005, live 003/004 and four eligible replay
+repeats under the same 11-actor/$115 maximum, models and pins. C18 is not frozen;
+no actor has run.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
 non-executable caller file when a generated executable's name contained a newline;

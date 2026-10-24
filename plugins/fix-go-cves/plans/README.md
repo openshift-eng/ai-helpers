@@ -1,11 +1,11 @@
 # Fix Go CVEs work plans
 
-Acceptance remains **open**. C16 passed live 001, then stopped after publication
-002 failed original and independent action/owner review: its unexecuted rerun was
-forecast to make the partial PR a full fix. Facts, literal recipe and operations
-passed. The skill now gives verification steps without predicting outcomes.
-Prospective C17 starts with publication 002; it is not frozen and has no actors.
-Unchanged runtime and calibrated judge evidence remains applicable, without C16
+Acceptance remains **open**. C17 accepted four cells, then stopped at live 002:
+the actual repair passed, but extra unprinted push/PR advice failed original and
+independent action/owner review. Facts and operations passed. The skill now makes
+the Summary the entire publication handoff, including an absent recipe's printed
+reason. Prospective C18 starts with live 002; it is not frozen and has no actors.
+Unchanged runtime and calibrated judge evidence remains applicable, without old
 actor credit. The [results record](../evals/implementation-results.md) owns counts
 and identities; [calibration](../evals/live/calibration.md) owns controls.
 

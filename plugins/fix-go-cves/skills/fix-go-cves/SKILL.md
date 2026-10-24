@@ -102,8 +102,9 @@ section from the actual loaded `SKILL.md` before composing the final reply.
 Quote the complete actual Summary through the log's end once, unchanged,
 including the terminal exit. Without a Summary, quote the terminal clean/error
 message; missing completion stays unconfirmed. Report the actual exit.
-The Summary's literal recipe is the entire publication handoff; include it there
-once, unchanged.
+The Summary is the entire publication handoff: keep any recipe once, unchanged.
+If none is printed, report its absence and any printed reason without adding
+push/PR steps for the reported CVE branch.
 
 Use only the runtime's explicit `Scan scope (...)` lines for coverage. Quote any
 relevant scope lines not already in the Summary. If none establish compiled Go
