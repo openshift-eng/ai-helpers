@@ -126,8 +126,15 @@ samples, with zero errors. Citation 102 remains TTT; native 093 dissent is retai
 C28 moves the unchanged O annotation block after observations, next to the reply.
 It tests reference locality without new words, evidence or requirements. Renew the
 same 51 O samples; reuse C26 A66 only by independent acceptance and full request
-identity. All labels remain required before the fresh eleven-actor cohort. A failed
-order-only trial leads to a supported O-only model comparison, not more prompt clauses.
+identity. C28 still matches only 16/17 majorities and 48/51 values; 102 is T/F/T
+and 108 is T/F/F. Preserve correct and invalid minority reasoning separately.
+
+C29 compares O on `claude-opus-4-8` through the existing per-judge model override,
+with the same 17 controls/51 samples. A and actors stay on 4.6; all evidence,
+wording, thresholds and caps stay fixed. One separate structured arithmetic
+probe establishes endpoint/caller compatibility only, with zero grading credit.
+Accepted identical C26 A66 requests remain reusable. All labels remain required
+before the fresh eleven-actor cohort; no new parser or prompt clauses are added.
 
 ## Actor evidence and artifact locations
 

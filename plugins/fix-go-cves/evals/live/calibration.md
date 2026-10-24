@@ -280,6 +280,12 @@ Citation 102 still passes TTT; native 093's invalid middle True is retained.
 C28 moves only the unchanged annotation reference after observations and before
 the reply. This tests locality, with no new words, criterion or evidence filtering.
 Renew all 17 O controls/51 samples and reuse C26 A66 only by accepted exact requests.
-If it fails, compare a supported O-only judge model on the same corpus rather than
-adding clauses/layout changes or a parser. Preserve all labels, native proof,
+C28 still matches only 16/17 majorities and 48/51 samples, without errors.
+Citation 102 is T/F/T; command 108 is T/F/F. Preserve both valid and invalid dissent.
+
+C29 changes only O's model to `claude-opus-4-8` via the existing override; A and
+actors retain 4.6. The global endpoint and unchanged forced-tool caller pass one
+separate arithmetic compatibility probe, with zero calibration credit. Renew
+the same 17 O controls/51 samples, retaining all labels, data, wording and caps.
+Reuse accepted C26 A66 only under identical full requests. Preserve native proof,
 derived facts and reasoning limits; these are development admissions.

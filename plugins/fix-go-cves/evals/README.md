@@ -138,6 +138,10 @@ existing Application Default Credentials under the caller's home directory.
 It does not copy credential contents into the fixture. The judges also need
 working provider credentials.
 
+The outcome judge is pinned to Opus 4.8; actors and `action_owner` retain Opus 4.6.
+For the tested Vertex setup, use `CLOUD_ML_REGION=global`. Opus 4.8 is not served
+on regional endpoints; see [Google-managed model availability](https://platform.claude.com/docs/en/build-with-claude/claude-models-on-google-cloud/google-managed).
+
 For live runs, also satisfy the [runtime prerequisites](../README.md#prerequisites)
 and provide the container runtime and network access needed by the repository's
 detected commands and scanners. The live cases use local remotes and never

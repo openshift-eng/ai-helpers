@@ -2,6 +2,7 @@ extends: replay-base.yaml
 
 judges:
   - name: outcome
+    model: claude-opus-4-8
     description: Find factual errors and missing required disclosures.
     feedback_type: bool
     samples: 3

@@ -11,8 +11,9 @@ calibration, including action-owner requirements scored as factual defects.
 C25 isolates O and reaches 16/17 majorities, still failing the citation control.
 C26 repairs the system/user instruction boundary and isolates both criteria;
 38/39 majorities match. C27's exact-line clarification still misses one control.
-Current preparation moves the unchanged primary reference next to the evaluated
-reply; it adds no text, parser or criterion.
+C28's reference reorder still misses one control. Current preparation changes
+only O's model through the existing per-judge override; no more rubric or layout
+changes are proposed.
 
 The [plan](../plans/e2e-simplification.md) defines remaining work; the
 [historical matrix](live/README.md#branch-policy-matrix) retains earlier failures.
@@ -423,16 +424,32 @@ the final reply. It reduces reference separation to roughly 5,000 characters whi
 preserving every block and total length. This tests locality, not a proven cause;
 provider token count or cost equality is not inferred. No text or criterion is added.
 
-The same 17 O controls/51 samples remain required. C26 A66 is reusable only by
-independent acceptance and unchanged full requests. If this order-only trial still
-fails, assess a supported O-only model override on the same corpus instead of adding
-more wording/layout changes or a citation parser. Full details belong to the
-calibration records.
+C28 completes 51 valid, distinct responses without errors: 16/17 majorities and
+48/51 values match. Wrong-citation 102 is T/F/T; the minority correctly compares
+the test/package text and timings. Wrong-command 108 is T/F/F with invalid process/
+end-state compensation in its True dissent. Preserve all original values/rationales
+in `c28-calibration-original-completion.json` and its four groups. No actor launches.
+
+C29 uses existing `judge.model` overrides to compare O on `claude-opus-4-8`.
+Actor and A stay on 4.6; prompts, data, thresholds, three samples, 4096-token cap,
+SDK/backend, system/tool schema and environment remain fixed. Official
+[Google-managed model documentation](https://platform.claude.com/docs/en/build-with-claude/claude-models-on-google-cloud/google-managed)
+lists 4.8 on the existing global endpoint, and its
+[forced-tool interface](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#forcing-tool-use)
+matches this caller. One predeclared arithmetic compatibility probe returns a valid
+4.8 Boolean through that caller; it has zero calibration/actor credit. Root session
+18115 exits 0; request, response ID, usage and hashes remain in `c29-model-compatibility-*`.
+
+Actual SDK mocks verify only O's model argument changes; all A requests remain
+identical. The same 17 O controls/51 samples remain mandatory, and C26 A66 is
+reusable only through independent acceptance and full request identity. No new
+parser, schema, reviewer or grading stage is introduced. Full details belong to
+the calibration records.
 
 After calibration and source freeze, measure publication 002 first, then 007,
 live 002, live 001, 005, live 003/004 and four replay repeats. All eleven actors,
 original thresholds and independent review remain required; no old actor supplies
-credit. Models/settings/canonical gates stay fixed under the same $115 nominal
+credit. Declared models/settings/canonical gates stay fixed throughout that cohort under the same $115 nominal
 actor cap. Semantic costs and physical retries remain unknown.
 
 A sandbox actual-license-block counterexample deleted a pre-existing ignored,
