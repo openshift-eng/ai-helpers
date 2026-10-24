@@ -40,6 +40,10 @@ Tests all authentication tokens (GitHub, Jira) and CLI tools required by Node te
 
 Purges cached artifacts produced by Node team plugins: triage reports, cloned repos, dist-git clones, Vagrant VMs, and roster cache.
 
+### `node-team:disconnected-install`
+
+Installs, inspects, or tears down a fully disconnected OpenShift cluster on GCP for node-layer testing — VPC, bastion, Quay mirror-registry, release mirroring, and cluster creation, with zero internet egress anywhere at rest. Idempotent and re-runnable. See [scripts/disconnected-ocp/PREREQUISITES.md](skills/node/references/scripts/disconnected-ocp/PREREQUISITES.md) for setup.
+
 ## Skill
 
 ### `node`
