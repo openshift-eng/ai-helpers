@@ -1,0 +1,5 @@
+repo_url: https://github.com/openshift/multus-cni
+from_commit: cf0f68ec2b5fe9bc72d0da325e02cf63968747fe
+version: "1.34.1"
+known_good_url: https://github.com/openshift/multus-cni
+known_good_ref: 82f486cd936f4956e52ea040dab5ba1f13e3f335

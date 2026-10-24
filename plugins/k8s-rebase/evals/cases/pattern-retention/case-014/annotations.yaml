@@ -1,0 +1,10 @@
+notes: >
+  openshift/ingress-node-firewall @ k8s 1.35.3 — operator that deploys a
+  daemon enforcing node-level ingress firewall rules. Narrow k8s API
+  surface; expect go.mod/vendor changes plus a small number of .go
+  call-site fixes. The IngressNodeFirewall CRD types live in this repo's
+  api/v1alpha1; regenerated deepcopy code and CRD manifests are expected,
+  while hand edits to the type definitions are a scope-creep signal.
+  Note: the known-good rebase is AI-produced (no complete human-authored
+  1.35 rebase exists for this repo); treat score-3 differences with
+  slightly more tolerance than for human-reviewed known-goods.
