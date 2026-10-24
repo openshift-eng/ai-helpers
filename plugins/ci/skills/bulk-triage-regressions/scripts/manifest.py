@@ -8,6 +8,7 @@ import argparse
 import copy
 import json
 import sys
+from datetime import datetime
 
 SCHEMA_VERSION = "1.0"
 LEVELS = ("HIGH", "ELEVATED", "LOW")
@@ -187,8 +188,455 @@ def _rule_objects(w, c):
     return errs
 
 
+PRIOR_RELATIONSHIPS = ("same-id", "supersedes", "split", "merge", "overlap")
+PRIOR_WRITE_MODES = ("report", "auto")
+PRIOR_BASIS_DEPTHS = ("deep-dive", "oracle")
+PRIOR_ROOT_LIMIT = 2000
+PRIOR_SOURCE_LISTS = ("actions", "unlinked", "watch_list", "unanalysed")
+PRIOR_SOURCE_OBJECTS = ("fingerprint", "shape", "blast_radius", "oracle", "bug_search", "proposed_action",
+                        "escalation")
+
+
+def _is_id(x):
+    return (isinstance(x, int) and not isinstance(x, bool)) or (isinstance(x, str) and x != "")
+
+
+def _id_list(p, name, value):
+    if not isinstance(value, list) or any(not _is_id(i) for i in value):
+        return ["%s: %s must be a list of integer or string ids" % (p, name)]
+    return []
+
+
+def _iso_or_null(p, name, value):
+    if value is None:
+        return []
+    if not isinstance(value, str) or not value:
+        return ["%s: %s must be an ISO timestamp or null" % (p, name)]
+    text = value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return ["%s: %s must be an ISO timestamp or null" % (p, name)]
+    if parsed.tzinfo is None:
+        return ["%s: %s must carry a timezone" % (p, name)]
+    return []
+
+
+def _rule_basis(p, basis):
+    if basis is None:
+        return []
+    if not isinstance(basis, dict):
+        return ["%s: basis must be an object or null" % p]
+    errs = []
+    for k in ("run_id", "cluster_id"):
+        if not isinstance(basis.get(k), str) or not basis.get(k):
+            errs.append("%s: basis.%s must be a non-empty string" % (p, k))
+    errs += _iso_or_null(p, "basis.observed_at", basis.get("observed_at"))
+    if basis.get("observed_at") is None:
+        errs.append("%s: basis.observed_at must be an ISO timestamp" % p)
+    errs += _enum(p, "basis.depth", basis.get("depth"), PRIOR_BASIS_DEPTHS)
+    return errs
+
+
+def _rule_prior_source(p, s, current_members):
+    """The projected envelope of one source: identity, flags, ids, bounded analysis. Historical payloads
+    (state, candidates, actions, escalation, shape, oracle ...) are opaque: no enums, no target rules."""
+    if not isinstance(s, dict):
+        return ["%s: expected object, got %s" % (p, _t(s))]
+    errs = []
+    if not isinstance(s.get("cluster_id"), str) or not s.get("cluster_id"):
+        errs.append("%s: cluster_id must be a non-empty string" % p)
+    for k in ("history_only", "unfinished"):
+        if not isinstance(s.get(k), bool):
+            errs.append("%s: %s must be a boolean" % (p, k))
+    if s.get("run_id") is not None and (not isinstance(s.get("run_id"), str) or not s.get("run_id")):
+        errs.append("%s: run_id must be a non-empty string or null" % p)
+    errs += _iso_or_null(p, "observed_at", s.get("observed_at"))
+    id_errs = _id_list(p, "member_ids", s.get("member_ids")) + _id_list(p, "matched_member_ids", s.get("matched_member_ids"))
+    errs += id_errs
+    if not id_errs:
+        matched, members = _ids(s.get("matched_member_ids")), _ids(s.get("member_ids"))
+        if matched != members & current_members:
+            errs.append("%s: matched_member_ids %s must be exactly the source members present in this cluster %s"
+                        % (p, sorted(matched, key=str), sorted(members & current_members, key=str)))
+    if s.get("state") is not None and not isinstance(s.get("state"), str):
+        errs.append("%s: state must be a string or null" % p)
+    for k in PRIOR_SOURCE_OBJECTS:
+        if s.get(k) is not None and not isinstance(s.get(k), dict):
+            errs.append("%s: %s must be an object or null" % (p, k))
+    for k in PRIOR_SOURCE_LISTS:
+        if s.get(k) is not None and not isinstance(s.get(k), list):
+            errs.append("%s: %s must be a list or null" % (p, k))
+    an = s.get("analysis")
+    if an is not None:
+        if not isinstance(an, dict):
+            errs.append("%s: analysis must be an object or null" % p)
+        else:
+            root = an.get("root_cause")
+            if root is not None and not isinstance(root, str):
+                errs.append("%s: analysis.root_cause must be a string or null" % p)
+            elif isinstance(root, str) and len(root) > PRIOR_ROOT_LIMIT:
+                errs.append("%s: analysis.root_cause exceeds %d characters" % (p, PRIOR_ROOT_LIMIT))
+            if not isinstance(an.get("root_cause_truncated"), bool):
+                errs.append("%s: analysis.root_cause_truncated must be a boolean" % p)
+            refs = an.get("evidence_refs")
+            if not isinstance(refs, list):
+                errs.append("%s: analysis.evidence_refs must be a list" % p)
+            else:
+                for i, r in enumerate(refs):
+                    q = "%s analysis.evidence_refs[%d]" % (p, i)
+                    if not isinstance(r, dict):
+                        errs.append("%s: expected object, got %s" % (q, _t(r)))
+                        continue
+                    if not isinstance(r.get("prowjob_run_id"), str) or not r.get("prowjob_run_id"):
+                        errs.append("%s: prowjob_run_id must be a non-empty string" % q)
+                    sup = r.get("supports_regression_ids")
+                    if not isinstance(sup, list) or not sup or any(not _is_id(i) for i in sup):
+                        errs.append("%s: supports_regression_ids must be a non-empty list of ids" % q)
+                    if r.get("artifact") is not None and not isinstance(r.get("artifact"), str):
+                        errs.append("%s: artifact must be a string or null" % q)
+            errs += _rule_basis(p + " analysis", an.get("basis"))
+    return errs
+
+
+def _key(value):
+    """A hashable stand-in for an identity field whose type may be wrong (reported elsewhere, never raised)."""
+    return value if isinstance(value, (str, int, float, bool, type(None))) else repr(value)
+
+
+def _rule_prior(w, c):
+    """Optional memory envelope (additive, schema 1.0). Absent or null is fine; a present object must be the
+    deterministic projection shape. Only the envelope is validated, never the old run's domain values."""
+    if "prior" not in c or c["prior"] is None:
+        return []
+    pr = c["prior"]
+    p = "%s prior" % w
+    if not isinstance(pr, dict):
+        return ["%s: expected object or null, got %s" % (p, _t(pr))]
+    errs = []
+    for k in ("run_id", "source_url"):
+        if pr.get(k) is not None and (not isinstance(pr.get(k), str) or not pr.get(k)):
+            errs.append("%s: %s must be a non-empty string or null" % (p, k))
+    errs += _iso_or_null(p, "observed_at", pr.get("observed_at"))
+    if pr.get("write_mode") is not None:
+        errs += _enum(p, "write_mode", pr.get("write_mode"), PRIOR_WRITE_MODES)
+    if not isinstance(pr.get("observation_complete"), bool):
+        errs.append("%s: observation_complete must be a boolean" % p)
+    errs += _enum(p, "relationship", pr.get("relationship"), PRIOR_RELATIONSHIPS)
+    mem = c.get("members")
+    current_members = _ids(mem.get("regression_ids")) if isinstance(mem, dict) else set()
+    sources = pr.get("sources")
+    if not isinstance(sources, list) or not sources:
+        errs.append("%s: sources must be a non-empty list" % p)
+        sources = []
+    seen, immediate_union, immediate = set(), set(), 0
+    for i, s in enumerate(sources):
+        q = "%s sources[%d]" % (p, i)
+        errs += _rule_prior_source(q, s, current_members)
+        if not isinstance(s, dict):
+            continue
+        key = tuple(_key(s.get(k)) for k in ("history_only", "run_id", "observed_at", "cluster_id"))
+        if key in seen:
+            errs.append("%s: duplicate source identity %r" % (q, key))
+        seen.add(key)
+        if s.get("history_only") is False:
+            immediate += 1
+            immediate_union |= _ids(s.get("member_ids"))
+    if sources and not immediate:
+        errs.append("%s: sources must include at least one immediate (history_only false) source" % p)
+    delta = pr.get("member_delta")
+    if not isinstance(delta, dict):
+        errs.append("%s: member_delta must be an object" % p)
+    else:
+        errs += _id_list(p, "member_delta.added", delta.get("added"))
+        errs += _id_list(p, "member_delta.removed", delta.get("removed"))
+        if immediate and isinstance(delta.get("added"), list) and isinstance(delta.get("removed"), list):
+            if _ids(delta["added"]) != current_members - immediate_union:
+                errs.append("%s: member_delta.added must be the current members absent from the immediate sources" % p)
+            if _ids(delta["removed"]) != immediate_union - current_members:
+                errs.append("%s: member_delta.removed must be the immediate sources' members absent now" % p)
+    return errs
+
+
+def _rule_prior_context(doc):
+    """Bind each prior's immediate sources to the latest attempt named in baseline_run; retained
+    (history_only) snapshots keep their own older identity. A non-null prior needs a compatible baseline."""
+    br = doc.get("baseline_run") if isinstance(doc.get("baseline_run"), dict) else {}
+    clusters = doc.get("clusters") if isinstance(doc.get("clusters"), list) else []
+    errs = []
+    for c in clusters:
+        if not isinstance(c, dict) or not isinstance(c.get("prior"), dict):
+            continue
+        pr = c["prior"]
+        w = "cluster %s prior" % c.get("id")
+        if br.get("compatible") is not True:
+            errs.append("%s: a prior requires baseline_run.compatible true" % w)
+        if br.get("run_id") is not None and pr.get("run_id") is not None and str(br["run_id"]) != str(pr["run_id"]):
+            errs.append("%s: run_id %r is not the baseline_run.run_id %r" % (w, pr["run_id"], br["run_id"]))
+        for i, s in enumerate(pr.get("sources") if isinstance(pr.get("sources"), list) else []):
+            if not isinstance(s, dict) or s.get("history_only") is not False:
+                continue
+            for k in ("run_id", "observed_at"):
+                if s.get(k) != pr.get(k):
+                    errs.append("%s sources[%d]: immediate source %s %r differs from the prior's %r"
+                                % (w, i, k, s.get(k), pr.get(k)))
+    observed = doc.get("observation", {}).get("time") if isinstance(doc.get("observation"), dict) else None
+    observed_dt = _instant(observed)
+    for c in clusters:
+        if not isinstance(c, dict):
+            continue
+        _, rev = _reverification(c)
+        if not isinstance(rev, dict):
+            continue
+        checked = _instant(rev.get("checked_at"))
+        if observed_dt is None:
+            errs.append("cluster %s reverification: observation.time %r is not an ISO instant; checked_at cannot be verified"
+                        % (c.get("id"), observed))
+        elif checked and checked < observed_dt:
+            errs.append("cluster %s reverification: checked_at %r precedes this run's observation.time %r"
+                        % (c.get("id"), rev.get("checked_at"), observed))
+    return errs
+
+
+def _instant(value):
+    """A timezone-aware datetime for an ISO string, else None."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
+REVERIFICATION_OUTCOMES = ("carried", "reinvestigated", "incomplete")
+CARRIED_DEPTH = "carried-forward"
+CARRY_RELATIONSHIPS = ("same-id", "supersedes")
+LEVEL_RANK = {lvl: i for i, lvl in enumerate(LEVELS)}
+WRITE_TYPES = ("extend_triage", "create_triage", "catch_all")
+
+
+def _reverification(c):
+    """(analysis, record) when the cluster's analysis is an object; the record may be absent (None)."""
+    d = c.get("disposition")
+    an = d.get("analysis") if isinstance(d, dict) else None
+    if not isinstance(an, dict):
+        return None, None
+    return an, an.get("reverification")
+
+
+def _str_list(p, name, value):
+    if not isinstance(value, list) or any(not isinstance(x, str) or not x for x in value):
+        return ["%s: %s must be a list of non-empty strings" % (p, name)], []
+    return [], value
+
+
+def _keyed(cand, bar):
+    return isinstance(cand, dict) and isinstance(cand.get("key"), str) and cand.get("key") and cand.get("bar_met") is bar
+
+
+def _rule_carry_fact(p, source):
+    """The one historical fact a carry asserts, type-checked only here: the previous state's bug-search
+    verdict. Legacy or malformed values (e.g. bar_met "unknown") cannot establish a carry."""
+    state = source.get("state")
+    bs = source.get("bug_search") if isinstance(source.get("bug_search"), dict) else {}
+    cands = bs.get("candidates")
+    if state == "KNOWN-CAUSE":
+        if not isinstance(cands, list) or not any(_keyed(x, True) for x in cands):
+            return ["%s: KNOWN-CAUSE carry needs a source bug_search.candidates entry with a key and bar_met true" % p]
+    elif state == "CANDIDATE":
+        if not isinstance(cands, list) or not any(_keyed(x, False) for x in cands):
+            return ["%s: CANDIDATE carry needs a source bug_search.candidates entry with a key and bar_met false" % p]
+    elif state == "UNEXPLAINED":
+        if not isinstance(cands, list) or any(not _keyed(x, False) for x in cands):
+            return ["%s: UNEXPLAINED carry needs a known source bug_search.candidates list that is empty or holds only"
+                    " keyed bar_met-false records" % p]
+    else:
+        return ["%s: source state %r cannot be carried" % (p, state)]
+    return []
+
+
+def _typed_evidence(c):
+    """(prowjob_run_id as text, supported ids) for current evidence items whose run id is an id; the single
+    population used for own_run_ids references and for carry coverage."""
+    return [(str(ev.get("prowjob_run_id")), _ids(ev.get("supports_regression_ids")))
+            for ev in _evidence_items(c) if _is_id(ev.get("prowjob_run_id"))]
+
+
+def _rule_carry(w, p, c, an, rev, own, locators):
+    """Eligibility of a carried-forward analysis: one finished, overlapping immediate source of known identity
+    and time, complete observation, high confidence on both sides, same state, non-HIGH and not promoted,
+    a basis-backed untruncated source analysis, and current own-run evidence covering every write target
+    and (when members were added) at least one added member."""
+    errs = []
+    d = c.get("disposition") if isinstance(c.get("disposition"), dict) else {}
+    br = c.get("blast_radius") if isinstance(c.get("blast_radius"), dict) else {}
+    level = br.get("level")
+    if level == "HIGH":
+        errs.append("%s: a HIGH cluster is never carried; it needs a fresh deep-dive" % p)
+    elif not (isinstance(level, str) and level in LEVEL_RANK):
+        errs.append("%s: carry requires a readable current blast_radius.level, got %r" % (p, level))
+    if an.get("confidence") != "high":
+        errs.append("%s: carry requires current analysis.confidence high, got %r" % (p, an.get("confidence")))
+    if not own:
+        errs.append("%s: carry requires non-empty own_run_ids referencing current evidence" % p)
+    if not locators:
+        errs.append("%s: carry requires non-empty lookup_locators" % p)
+    pr = c.get("prior")
+    if not isinstance(pr, dict):
+        return errs   # reported by _rule_reverification: no prior, nothing to carry
+    if pr.get("relationship") not in CARRY_RELATIONSHIPS:
+        errs.append("%s: carry requires prior.relationship same-id or supersedes, got %r" % (p, pr.get("relationship")))
+    if pr.get("observation_complete") is not True:
+        errs.append("%s: carry requires prior.observation_complete true" % p)
+    if pr.get("run_id") is None:
+        errs.append("%s: carry requires a known prior.run_id" % p)
+    if pr.get("observed_at") is None:
+        errs.append("%s: carry requires a known prior.observed_at" % p)
+    sources = pr.get("sources") if isinstance(pr.get("sources"), list) else []
+    immediate = [s for s in sources if isinstance(s, dict) and s.get("history_only") is False]
+    if len(immediate) != 1:
+        errs.append("%s: carry requires exactly one immediate source, found %d (merge/split history is re-investigated)"
+                    % (p, len(immediate)))
+        return errs
+    s = immediate[0]
+    if rev.get("source_cluster_ids") != [s.get("cluster_id")]:
+        errs.append("%s: carry source_cluster_ids %r must name exactly the sole immediate source %r"
+                    % (p, rev.get("source_cluster_ids"), [s.get("cluster_id")]))
+    if s.get("unfinished") is not False:
+        errs.append("%s: the immediate source is unfinished; nothing to carry" % p)
+    if not _ids(s.get("matched_member_ids")):
+        errs.append("%s: the immediate source has no matched_member_ids in common with this cluster" % p)
+    if s.get("state") != d.get("state"):
+        errs.append("%s: carry requires the source state %r, disposition.state is %r" % (p, s.get("state"), d.get("state")))
+    sbr = s.get("blast_radius") if isinstance(s.get("blast_radius"), dict) else {}
+    s_level = sbr.get("level")
+    if not (isinstance(s_level, str) and s_level in LEVEL_RANK):
+        errs.append("%s: carry requires a readable source blast_radius.level, got %r" % (p, s_level))
+    elif isinstance(level, str) and level in LEVEL_RANK and LEVEL_RANK[level] < LEVEL_RANK[s_level]:
+        errs.append("%s: blast_radius.level rose %s -> %s; a promoted cluster is re-investigated" % (p, s_level, level))
+    san = s.get("analysis") if isinstance(s.get("analysis"), dict) else None
+    if san is None:
+        errs.append("%s: the immediate source has no readable analysis; basis unavailable" % p)
+        return errs
+    if san.get("confidence") != "high":
+        errs.append("%s: source analysis.confidence %r is not high" % (p, san.get("confidence")))
+    if san.get("root_cause_truncated") is not False:
+        errs.append("%s: source analysis.root_cause_truncated must be false for a carry" % p)
+    basis = san.get("basis")
+    if not isinstance(basis, dict):
+        errs.append("%s: the source analysis has no basis; carry not allowed" % p)
+    elif rev.get("basis") != basis:
+        errs.append("%s: basis %r must equal the source analysis basis %r" % (p, rev.get("basis"), basis))
+    errs += _rule_carry_fact(p, s)
+    checked = set()
+    for run_id, supported in _typed_evidence(c):
+        if run_id in own:
+            checked |= supported
+    targets = set()
+    pa = d.get("proposed_action") if isinstance(d.get("proposed_action"), dict) else {}
+    if pa.get("type") in WRITE_TYPES:
+        targets |= _ids(pa.get("regression_ids"))
+    for a in c.get("actions") if isinstance(c.get("actions"), list) else []:
+        if isinstance(a, dict) and a.get("type") in WRITE_TYPES:
+            targets |= _ids(a.get("regression_ids"))
+    uncovered = sorted(targets - checked, key=str)
+    if uncovered:
+        errs.append("%s: own-run evidence does not cover proposed/action targets %s" % (p, uncovered))
+    delta = pr.get("member_delta") if isinstance(pr.get("member_delta"), dict) else {}
+    added = _ids(delta.get("added"))
+    if added and not (added & checked):
+        errs.append("%s: members were added %s; carry requires a checked own run for at least one added member"
+                    % (p, sorted(added, key=str)))
+    return errs
+
+
+def _rule_incomplete(w, p, c, an):
+    """An explicitly incomplete verification is UNANALYSED work: no completed diagnosis, no write."""
+    errs = []
+    d = c.get("disposition") if isinstance(c.get("disposition"), dict) else {}
+    if d.get("state") != "UNANALYSED":
+        errs.append("%s: outcome incomplete requires disposition.state UNANALYSED, got %r" % (p, d.get("state")))
+    if an.get("depth") != "none":
+        errs.append("%s: outcome incomplete requires analysis.depth none, got %r" % (p, an.get("depth")))
+    pa = d.get("proposed_action") if isinstance(d.get("proposed_action"), dict) else {}
+    if pa.get("type") in WRITE_TYPES:
+        errs.append("%s: outcome incomplete permits no proposed_action write (%s)" % (p, pa.get("type")))
+    for j, a in enumerate(c.get("actions") if isinstance(c.get("actions"), list) else []):
+        if isinstance(a, dict) and a.get("type") in WRITE_TYPES:
+            errs.append("%s: outcome incomplete permits no write action (actions[%d] %s)" % (p, j, a.get("type")))
+    return errs
+
+
+def _rule_reverification(w, c):
+    """The current re-verification record (analysis.reverification). Any record must be well-formed and
+    its own_run_ids must be current evidence; a carried-forward analysis additionally has to satisfy
+    the carry eligibility in _rule_carry. A deliberate watch or a plain fresh analysis needs no record."""
+    an, rev = _reverification(c)
+    if an is None:
+        return []
+    depth = an.get("depth")
+    if rev is None:
+        return ["%s: analysis.depth %s requires analysis.reverification" % (w, CARRIED_DEPTH)] if depth == CARRIED_DEPTH else []
+    p = "%s reverification" % w
+    if not isinstance(rev, dict):
+        return ["%s: expected object, got %s" % (p, _t(rev))]
+    errs = _enum(p, "outcome", rev.get("outcome"), REVERIFICATION_OUTCOMES)
+    if not isinstance(rev.get("reason"), str) or not rev.get("reason"):
+        errs.append("%s: reason must be a non-empty string" % p)
+    if rev.get("source_run_id") is not None and (not isinstance(rev.get("source_run_id"), str) or not rev["source_run_id"]):
+        errs.append("%s: source_run_id must be a non-empty string or null" % p)
+    e, _ = _str_list(p, "source_cluster_ids", rev.get("source_cluster_ids"))
+    errs += e
+    errs += _rule_basis(p, rev.get("basis"))
+    errs += _iso_or_null(p, "checked_at", rev.get("checked_at"))
+    e, own = _str_list(p, "own_run_ids", rev.get("own_run_ids"))
+    errs += e
+    e, locators = _str_list(p, "lookup_locators", rev.get("lookup_locators"))
+    errs += e
+    if len(set(own)) != len(own):
+        errs.append("%s: own_run_ids must not repeat" % p)
+    if rev.get("checked_at") is None:
+        errs.append("%s: checked_at is required for every record" % p)
+    current_runs = {run_id for run_id, _ in _typed_evidence(c)}
+    missing = [r for r in own if r not in current_runs]
+    if missing:
+        errs.append("%s: own_run_ids not present in current evidence (as string or integer prowjob_run_id): %s" % (p, missing))
+    pr = c.get("prior")
+    if not isinstance(pr, dict):
+        errs.append("%s: a record needs a non-null prior; there is no source to verify against" % p)
+    else:
+        if rev.get("source_run_id") != pr.get("run_id"):
+            errs.append("%s: source_run_id %r must equal prior.run_id %r" % (p, rev.get("source_run_id"), pr.get("run_id")))
+        immediate = sorted(s.get("cluster_id") for s in (pr.get("sources") if isinstance(pr.get("sources"), list) else [])
+                           if isinstance(s, dict) and s.get("history_only") is False and isinstance(s.get("cluster_id"), str))
+        declared = rev.get("source_cluster_ids") if isinstance(rev.get("source_cluster_ids"), list) else None
+        if declared is not None and all(isinstance(x, str) for x in declared):
+            if declared != sorted(set(declared)):
+                errs.append("%s: source_cluster_ids %r must be sorted and duplicate-free" % (p, declared))
+            foreign = sorted(set(declared) - set(immediate))
+            if foreign:
+                errs.append("%s: source_cluster_ids %r are not immediate sources of this prior %r" % (p, foreign, immediate))
+    if rev.get("outcome") == "incomplete":
+        errs += _rule_incomplete(w, p, c, an)
+    members = _ids(c["members"].get("regression_ids")) if isinstance(c.get("members"), dict) else set()
+    outside = set()
+    for ev in _evidence_items(c):
+        outside |= _ids(ev.get("supports_regression_ids")) - members
+    if outside:
+        errs.append("%s: current evidence supports non-members %s; prior references supply no coverage"
+                    % (w, sorted(outside, key=str)))
+    carried = rev.get("outcome") == "carried"
+    if carried != (depth == CARRIED_DEPTH):
+        errs.append("%s: outcome %r and analysis.depth %r must agree (carried <-> %s)"
+                    % (p, rev.get("outcome"), depth, CARRIED_DEPTH))
+    if carried or depth == CARRIED_DEPTH:
+        errs += _rule_carry(w, p, c, an, rev, own, locators)
+    return errs
+
+
 CLUSTER_RULES = (_rule_missing, _rule_objects, _rule_level, _rule_disposition_state, _rule_evidence,
-                 _rule_action_subset_and_unlinked, _rule_actions, _rule_escalation)
+                 _rule_action_subset_and_unlinked, _rule_actions, _rule_escalation, _rule_prior, _rule_reverification)
 
 
 def _cluster(c, idx):
@@ -296,7 +744,7 @@ def validate(doc):
             if cid in seen:
                 errs.append("cluster %s: duplicate cluster id (also at index %d)" % (cid, seen[cid]))
             seen.setdefault(cid, i)
-    return errs + _rule_catch_all(doc) + _rule_audit(doc)
+    return errs + _rule_catch_all(doc) + _rule_audit(doc) + _rule_prior_context(doc)
 
 
 TOP_SHAPES = {"policy": dict, "source_run": dict, "observation": dict, "baseline_run": dict, "clusters": list,
@@ -338,6 +786,8 @@ def merge(prepass, dispositions, actions):
         if cid not in dispositions:
             continue
         disp = copy.deepcopy(dispositions[cid])
+        if "prior" in disp:
+            raise ValueError("dispositions for cluster %s may not set prior: it is pre-pass memory" % cid)
         esc = disp.pop("escalation", None)
         unl = disp.pop("members_unlinked", None)
         if unl is not None:
@@ -453,6 +903,8 @@ def main(argv=None):
                 extra = _load(args.extra)
                 if not isinstance(extra, dict):
                     raise ValueError("--extra must contain a JSON object")
+                if "clusters" in extra:
+                    raise ValueError("--extra may not replace clusters (deterministic pre-pass data incl. prior)")
                 doc.update(extra)
             with open(args.out, "w") as f:
                 json.dump(doc, f, indent=2)

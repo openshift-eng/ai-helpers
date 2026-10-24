@@ -31,3 +31,22 @@ Notes:
 - Prototype cross-check (`chaibot-design/prepass_proto.py <inventory.json> --main`, frozen inventory): 326 regressions ->
   15 clusters, HIGH=2 / ELEVATED=4 / LOW=9. `prepass.py` on the same fixture gives 15 clusters with the same HIGH/ELEVATED/LOW
   members asserted in `test_backtest_frozen_inventory`; no drift observed.
+
+## Example manifest
+
+`triage-manifest.example.json` is a hand-written schema-1.0 `triage-manifest.json`; `test_manifest.py` validates it and
+builds its fixtures from it.
+
+- `c-7f3a9e` (HIGH, KNOWN-CAUSE) predates prior memory and has no `prior` key: the validator admits manifests
+  without it, which keeps every historical manifest valid.
+- `c-prior-example` (LOW, UNEXPLAINED in both weeks) shows a carried analysis. Its `prior` is the projection of the
+  baseline run `2105...` (observed 2026-10-06): one immediate source (`history_only: false`, `unfinished: false`),
+  the same member (`matched_member_ids: [90001]`, empty `member_delta`), the source's bounded analysis with its
+  `basis` (the original deep-dive), its rejected bug candidate kept as opaque history, and no action. The current
+  `disposition.analysis` has `depth: "carried-forward"` plus the `reverification` record the validator checks: the
+  basis equals the source's, `own_run_ids` name this week's own failed run in the current `evidence`, a negative
+  bug-search locator is listed, `checked_at` is not before this run's `observation.time`, and `outcome: "carried"`.
+- Flat retention: when the latest attempt left a cluster `UNANALYSED`, the pre-pass keeps the finished snapshots that
+  attempt had itself inherited as `history_only: true` sources (original run, time and basis), beside the unfinished
+  immediate source. Nothing is nested and nothing accumulates across attempts; retained history is context, never
+  coverage, and never a carry source (`test_manifest.py`, `MultiGenerationTest`).

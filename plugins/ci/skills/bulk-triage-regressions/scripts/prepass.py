@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import blast_radius  # noqa: E402
 import clustering  # noqa: E402
+import prior  # noqa: E402
 
 SCHEMA_VERSION = '1.0'
 POLICY = 'post-ga'
@@ -265,14 +266,24 @@ def oracle(cluster, runner=None, token=None, labels_fetch=None):
     return out
 
 
+def _cycles(lineage):
+    """A positive integer cycles_seen, else the historical default of 1 (bool is not a count)."""
+    n = lineage.get('cycles_seen')
+    return n if isinstance(n, int) and not isinstance(n, bool) and n > 0 else 1
+
+
 def diff_baseline(clusters, baseline, run_id='local'):
-    """Mutate clusters with lineage / new_since_baseline / growth; returns the baseline_run block."""
+    """Mutate clusters with lineage / new_since_baseline / growth; returns the baseline_run block.
+
+    Optional metadata (policy, source_run, a source's lineage) is read type-safely: a malformed
+    policy makes the baseline incompatible, malformed source_run/lineage mean unknown identity /
+    default lineage. Malformed cluster ids or member lists remain errors, not an empty baseline."""
     ok = (isinstance(baseline, dict) and baseline.get('schema_version') == SCHEMA_VERSION
-          and (baseline.get('policy') or {}).get('name') == POLICY)
+          and isinstance(baseline.get('policy'), dict) and baseline['policy'].get('name') == POLICY)
     block = {'run_id': None, 'manifest_url': None, 'schema_version': None, 'compatible': None}
     if isinstance(baseline, dict):
-        block.update(run_id=(baseline.get('source_run') or {}).get('run_id'),
-                     manifest_url=baseline.get('manifest_url'),
+        source_run = baseline.get('source_run') if isinstance(baseline.get('source_run'), dict) else {}
+        block.update(run_id=source_run.get('run_id'), manifest_url=baseline.get('manifest_url'),
                      schema_version=baseline.get('schema_version'), compatible=ok)
     for c in clusters:
         if not ok:
@@ -295,8 +306,10 @@ def diff_baseline(clusters, baseline, run_id='local'):
         if prev is None and len(c['lineage']['supersedes']) == 1:
             prev = base[c['lineage']['supersedes'][0]]   # same cluster under a new id (collision came or went)
         if prev:
-            c['lineage']['first_seen_run'] = (prev.get('lineage') or {}).get('first_seen_run') or block['run_id']
-            c['lineage']['cycles_seen'] = ((prev.get('lineage') or {}).get('cycles_seen') or 1) + 1
+            lineage = prev.get('lineage') if isinstance(prev.get('lineage'), dict) else {}
+            first = lineage.get('first_seen_run')
+            c['lineage']['first_seen_run'] = first if prior.is_id(first) else block['run_id']
+            c['lineage']['cycles_seen'] = _cycles(lineage) + 1
         else:
             c['lineage']['first_seen_run'] = run_id
             c['lineage']['cycles_seen'] = 1
@@ -368,6 +381,11 @@ def weekly(regs, now, baseline, oracle=None, run_id='local', view_status=None):
         c['oracle'] = oracle(c['_members']) if oracle else {'status': 'skipped', 'runs_probed': 0,
                                                             'labels': {}, 'label_bugs': {}}
         results.append(c['oracle'])
+    prior.attach_priors(clusters, baseline)
+    # Backlog first within urgency: a cluster the previous attempt left unfinished (and that still shares
+    # members with it) is analysed before equally urgent new work; deferred LOW never pre-empts HIGH.
+    clusters.sort(key=lambda c: (LEVEL_ORDER[c['blast_radius']['level']], 0 if prior.unfinished_backlog(c) else 1,
+                                 -c['blast_radius']['score'], c['id']))
     watch = [{'regression_id': r['id'], 'view': (r.get('duty_views') or [None])[0], 'cluster_id': c['id'],
               'reason': 'LOW & new (<7d)'}
              for c in clusters if c['blast_radius']['level'] == 'LOW'

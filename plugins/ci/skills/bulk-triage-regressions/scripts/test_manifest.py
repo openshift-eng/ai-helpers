@@ -15,6 +15,7 @@ sys.path.insert(0, HERE)
 import clustering  # noqa: E402
 import manifest as m  # noqa: E402
 import prepass  # noqa: E402
+import prior  # noqa: E402
 
 
 def example():
@@ -447,6 +448,762 @@ class ManifestTest(unittest.TestCase):
             self.assertNotIn('Traceback', miss.stderr)
             v = subprocess.run([sys.executable, cli, 'validate', out])
             self.assertEqual(v.returncode, 0)
+
+
+def _unanalysed_disposition():
+    return {'state': 'UNANALYSED',
+            'analysis': {'depth': 'none', 'confidence': 'low', 'owning_component': None, 'triage_type': None,
+                         'root_cause': None, 'evidence': [], 'unverified_hypotheses': []},
+            'bug_search': {'candidates': [], 'newer_release_fix': None},
+            'proposed_action': {'type': 'none'}}
+
+
+def with_prior(base_run='2105...', run_id='2108...'):
+    """A full current manifest (the example) whose cluster carries a Task-1 prior projected from a baseline
+    that is the same example one run earlier. Returns (current, baseline)."""
+    base = example()
+    base['clusters'] = base['clusters'][:1]
+    base['source_run']['run_id'] = base_run
+    base['observation']['time'] = '2026-10-06T05:03:40Z'
+    base['observation']['views'] = [{'view': '4.22-main', 'fetch': 'complete'}]
+    cur = example()
+    cur['clusters'] = cur['clusters'][:1]
+    cur['source_run']['run_id'] = run_id
+    cur['baseline_run'] = {'run_id': base_run, 'manifest_url': None, 'schema_version': '1.0', 'compatible': True}
+    for c in cur['clusters']:
+        c.pop('prior', None)
+    prior.attach_priors(cur['clusters'], base)
+    return cur, base
+
+
+class PriorEnvelopeTest(unittest.TestCase):
+    """Task 2: optional history is accepted without retrospective validation; only new envelopes are checked."""
+
+    def test_missing_and_null_prior_validate(self):
+        self.assertEqual(m.validate(example()), [])
+        doc = example()
+        doc['clusters'][0]['prior'] = None
+        self.assertEqual(m.validate(doc), [])
+
+    def test_projected_prior_validates_and_legacy_values_stay_opaque(self):
+        cur, base = with_prior()
+        self.assertEqual(cur['clusters'][0]['prior']['relationship'], 'same-id')
+        self.assertEqual(m.validate(cur), [])
+        # a legacy unknown bar in the *baseline* is preserved through projection and never invalidates the
+        # current manifest; the old validator has no candidate-domain rule either
+        base2 = copy.deepcopy(base)
+        base2['clusters'][0]['disposition']['bug_search']['candidates'][0]['bar_met'] = 'unknown'
+        self.assertEqual(m.validate(base2), [])
+        cur2 = example()
+        cur2['clusters'] = cur2['clusters'][:1]
+        cur2['source_run']['run_id'] = '2108...'
+        cur2['baseline_run'] = dict(cur['baseline_run'])
+        prior.attach_priors(cur2['clusters'], base2)
+        self.assertEqual(cur2['clusters'][0]['prior']['sources'][0]['bug_search']['candidates'][0]['bar_met'], 'unknown')
+        self.assertEqual(m.validate(cur2), [])
+        cur2['clusters'][0]['prior']['sources'][0]['actions'] = [{'status': 'legacy', 'regression_ids': 'unknown'}]
+        cur2['clusters'][0]['prior']['sources'][0]['state'] = 'SOMETHING-OLD'
+        self.assertEqual(m.validate(cur2), [])
+
+    def test_malformed_new_envelopes_are_reported_by_field(self):
+        cur, _ = with_prior()
+        for bad in ([], 'r0', True, {}, {'sources': [None]}):
+            doc = copy.deepcopy(cur)
+            doc['clusters'][0]['prior'] = bad
+            errors = m.validate(doc)
+            self.assertTrue(errors, bad)
+            self.assertTrue(any('prior' in e for e in errors), errors)
+        cases = [
+            (lambda pr: pr['sources'][0].__setitem__('member_ids', [1.5]), 'member_ids'),
+            (lambda pr: pr['sources'][0].__setitem__('matched_member_ids', [999999]), 'matched_member_ids'),
+            (lambda pr: pr['sources'][0].__setitem__('history_only', 'no'), 'history_only'),
+            (lambda pr: pr['sources'][0].__setitem__('unfinished', 1), 'unfinished'),
+            (lambda pr: pr['sources'][0]['analysis'].__setitem__('evidence_refs', [{'prowjob_run_id': ''}]), 'evidence_refs'),
+            (lambda pr: pr['sources'][0]['analysis'].__setitem__('root_cause', 'x' * 2001), 'root_cause'),
+            (lambda pr: pr['sources'][0]['analysis'].__setitem__('basis', {'run_id': 'r', 'depth': 'guess'}), 'basis'),
+            (lambda pr: pr.__setitem__('relationship', 'cousin'), 'relationship'),
+            (lambda pr: pr.__setitem__('member_delta', {'added': [], 'removed': [49999]}), 'member_delta'),
+            (lambda pr: pr.__setitem__('observation_complete', 'yes'), 'observation_complete'),
+            (lambda pr: pr.__setitem__('write_mode', 'dry'), 'write_mode'),
+            (lambda pr: pr.__setitem__('observed_at', 'yesterday'), 'observed_at'),
+            (lambda pr: pr['sources'].append(copy.deepcopy(pr['sources'][0])), 'duplicate'),
+            (lambda pr: pr['sources'][0].__setitem__('history_only', True), 'immediate'),
+            (lambda pr: pr['sources'][0].__setitem__('cluster_id', ''), 'cluster_id'),
+            (lambda pr: pr['sources'][0].__setitem__('bug_search', 'none'), 'bug_search'),
+        ]
+        for mutate, field in cases:
+            doc = copy.deepcopy(cur)
+            mutate(doc['clusters'][0]['prior'])
+            errors = m.validate(doc)
+            self.assertTrue(any(field in e for e in errors), (field, errors))
+
+    def test_prior_context_binds_immediate_sources_to_the_baseline_run(self):
+        cur, _ = with_prior()
+        doc = copy.deepcopy(cur)
+        doc['baseline_run']['run_id'] = 'r-other'
+        self.assertTrue(any('baseline_run' in e for e in m.validate(doc)))
+        doc = copy.deepcopy(cur)
+        doc['clusters'][0]['prior']['sources'][0]['run_id'] = 'r-older'
+        self.assertTrue(any('run_id' in e for e in m.validate(doc)))
+        doc = copy.deepcopy(cur)
+        doc['baseline_run']['compatible'] = False
+        self.assertTrue(any('compatible' in e for e in m.validate(doc)))
+        # a retained history-only snapshot may legitimately be older than the latest attempt
+        doc = copy.deepcopy(cur)
+        retained = copy.deepcopy(doc['clusters'][0]['prior']['sources'][0])
+        retained.update(run_id='r-older', observed_at='2026-09-29T05:03:40Z', history_only=True, unfinished=False)
+        doc['clusters'][0]['prior']['sources'].append(retained)
+        self.assertEqual(m.validate(doc), [])
+
+    def test_unreached_attempt_history_validates_without_coverage(self):
+        """R1 immediate (UNANALYSED) + R0 history-only; the current cluster has no action and no coverage."""
+        cur, base = with_prior(base_run='r0', run_id='r1')
+        r1 = copy.deepcopy(cur)
+        r1['clusters'][0]['disposition'] = _unanalysed_disposition()
+        r1['clusters'][0]['actions'] = []
+        r1['clusters'][0]['escalation'] = {'required': True, 'reason': 'blast_radius HIGH'}
+        r1['unanalysed'] = [{'cluster_id': r1['clusters'][0]['id'], 'reason': 'budget', 'blast_radius': 'HIGH'}]
+        self.assertEqual(m.validate(r1), [])
+        r2 = example()
+        r2['clusters'] = r2['clusters'][:1]
+        r2['source_run']['run_id'] = 'r2'
+        r2['baseline_run'] = {'run_id': 'r1', 'manifest_url': None, 'schema_version': '1.0', 'compatible': True}
+        r2['clusters'][0]['disposition'] = _unanalysed_disposition()
+        r2['clusters'][0]['actions'] = []
+        r2['clusters'][0]['members'].pop('unlinked', None)
+        prior.attach_priors(r2['clusters'], r1)
+        self.assertEqual([(s['run_id'], s['history_only']) for s in r2['clusters'][0]['prior']['sources']],
+                         [('r1', False), ('r0', True)])
+        self.assertEqual(m.validate(r2), [])
+
+
+class PriorMergeTest(unittest.TestCase):
+    def _one_cluster_prepass(self):
+        cur, _ = with_prior()
+        pre = {k: cur[k] for k in m.TOP_PREPASS}
+        pre['clusters'] = [{k: v for k, v in cur['clusters'][0].items() if k not in m.CLUSTER_LLM}]
+        return pre, cur
+
+    def test_merge_preserves_prior_and_never_replays_actions(self):
+        pre, cur = self._one_cluster_prepass()
+        cid = pre['clusters'][0]['id']
+        before = copy.deepcopy(pre)
+        disp = {cid: dict(cur['clusters'][0]['disposition'], escalation=cur['clusters'][0]['escalation'])}
+        merged = m.merge(pre, disp, {})
+        self.assertEqual(merged['clusters'][0]['prior'], pre['clusters'][0]['prior'])
+        self.assertEqual(merged['clusters'][0]['actions'], [])
+        self.assertEqual(merged['clusters'][0]['prior']['sources'][0]['actions'][0]['status'], 'planned')
+        self.assertEqual(pre, before)
+        final = m.finalize(merged, jira_creations={'status': 'ok', 'count': 0, 'window': []},
+                           sippy_diff={'status': 'match'}, permissions={'status': 'ok'},
+                           mode_requested='report', mode_effective='report', decision=('auto', '', ''),
+                           source_run={'job': 'j', 'run_id': '2108...', 'url': 'u', 'started': 's'},
+                           previous_run='2105...', existing_only=True)
+        self.assertEqual(final['clusters'][0]['prior'], pre['clusters'][0]['prior'])
+
+    def test_disposition_may_not_replace_prior(self):
+        pre, cur = self._one_cluster_prepass()
+        cid = pre['clusters'][0]['id']
+        with self.assertRaises(ValueError) as ctx:
+            m.merge(pre, {cid: {'state': 'UNANALYSED', 'prior': None}}, {})
+        self.assertIn('prior', str(ctx.exception))
+
+    def test_cli_extra_may_not_replace_clusters(self):
+        cli = os.path.join(HERE, 'manifest.py')
+        pre, cur = self._one_cluster_prepass()
+        cid = pre['clusters'][0]['id']
+        with tempfile.TemporaryDirectory() as t:
+            def w(name, obj):
+                path = os.path.join(t, name)
+                with open(path, 'w') as f:
+                    json.dump(obj, f)
+                return path
+            disp = {cid: dict(cur['clusters'][0]['disposition'], escalation=cur['clusters'][0]['escalation'])}
+            out = os.path.join(t, 'm.json')
+            base = [sys.executable, cli, 'merge', '--prepass', w('p.json', pre), '--dispositions', w('d.json', disp),
+                    '--actions', w('a.json', {cid: cur['clusters'][0]['actions']}), '--out', out]
+            extra = {k: cur[k] for k in m.TOP_LLM}
+            ok = subprocess.run(base + ['--extra', w('e.json', extra)], capture_output=True, text=True)
+            self.assertEqual((ok.returncode, ok.stderr), (0, ''))
+            with open(out) as f:
+                self.assertEqual(json.load(f)['clusters'][0]['prior'], pre['clusters'][0]['prior'])
+            bad = subprocess.run(base + ['--extra', w('e2.json', dict(extra, clusters=[]))],
+                                 capture_output=True, text=True)
+            self.assertEqual(bad.returncode, 1)
+            self.assertIn('clusters', bad.stderr)
+            unrelated = subprocess.run(base + ['--extra', w('e3.json', dict(extra, note='kept'))],
+                                       capture_output=True, text=True)
+            self.assertEqual(unrelated.returncode, 0)
+
+
+OWN1 = 'https://example.invalid/own-1/junit.xml'
+
+
+def carried_doc():
+    """One LOW cluster (member 49533) whose analysis is carried from a same-id finished source of run r0."""
+    base = example()
+    base['clusters'] = base['clusters'][:1]
+    base['source_run']['run_id'] = 'r0'
+    base['observation']['time'] = '2026-10-12T05:03:40Z'
+    base['observation']['views'] = [{'view': '4.22-main', 'fetch': 'complete'}]
+    bc = base['clusters'][0]
+    bc['members']['regression_ids'] = [49533]
+    bc['members']['unlinked'] = []
+    bc['blast_radius']['level'] = 'LOW'
+    bc['disposition']['analysis']['depth'] = 'deep-dive'
+    bc['disposition']['analysis']['evidence'][0]['prowjob_run_id'] = 'own-0'
+    bc['actions'][0]['status'] = 'skipped-report-mode'
+    bc['escalation'] = {'required': False, 'reason': 'not required'}
+
+    doc = example()
+    doc['clusters'] = doc['clusters'][:1]
+    doc['source_run']['run_id'] = 'r1'
+    doc['baseline_run'] = {'run_id': 'r0', 'manifest_url': None, 'schema_version': '1.0', 'compatible': True}
+    doc['observation']['views'] = [{'view': '4.22-main', 'fetch': 'complete'}]
+    doc['policy']['write_mode'] = 'report'
+    c = doc['clusters'][0]
+    c['members']['regression_ids'] = [49533]
+    c['members']['new_since_baseline'] = []
+    c['members']['unlinked'] = []
+    c['shape'].update(regressions=1, growth_since_baseline=0)
+    c['blast_radius']['level'] = 'LOW'
+    c['escalation'] = {'required': False, 'reason': 'not required'}
+    an = c['disposition']['analysis']
+    an['depth'] = 'carried-forward'
+    an['confidence'] = 'high'
+    an['evidence'] = [{'claim': 'same own-test signature', 'artifact': OWN1, 'quote': 'exact line',
+                       'prowjob_run_id': 'own-1', 'supports_regression_ids': [49533]}]
+    c['actions'] = [{'type': 'extend_triage', 'triage_id': 810, 'jira': 'OCPBUGS-129375', 'regression_ids': [49533],
+                     'status': 'skipped-report-mode', 'result_url': None, 'error': None}]
+    c['disposition']['proposed_action']['regression_ids'] = [49533]
+    prior.attach_priors(doc['clusters'], base)
+    source = c['prior']['sources'][0]
+    assert source['analysis']['basis'] == {'run_id': 'r0', 'cluster_id': c['id'],
+                                           'observed_at': '2026-10-12T05:03:40Z', 'depth': 'deep-dive'}, source
+    an['reverification'] = {
+        'source_run_id': 'r0', 'source_cluster_ids': [c['id']], 'basis': dict(source['analysis']['basis']),
+        'outcome': 'carried', 'reason': 'same own-test signature on own-1; OCPBUGS-129375 still Verified, triage 810 unresolved',
+        'checked_at': '2026-10-13T06:10:00Z', 'own_run_ids': ['own-1'],
+        'lookup_locators': ['https://example.invalid/jira/OCPBUGS-129375', 'https://example.invalid/triages/810']}
+    return doc
+
+
+def _errors_mention(errs, *needles):
+    return any(any(n in e for n in needles) for e in errs)
+
+
+class CarriedAnalysisTest(unittest.TestCase):
+    """Task 3: a carry is validated on current evidence and the prior's typed facts."""
+
+    def test_carried_fixture_validates(self):
+        self.assertEqual(m.validate(carried_doc()), [])
+
+    def test_carry_needs_current_own_run_evidence(self):
+        doc = carried_doc()
+        doc['clusters'][0]['disposition']['analysis']['evidence'] = []
+        errs = m.validate(doc)
+        self.assertTrue(_errors_mention(errs, 'evidence', 'own_run_ids'), errs)
+
+    def test_legacy_unknown_bar_cannot_establish_known_cause_carry(self):
+        doc = carried_doc()
+        doc['clusters'][0]['prior']['sources'][0]['bug_search']['candidates'][0]['bar_met'] = 'unknown'
+        self.assertTrue(_errors_mention(m.validate(doc), 'bar_met', 'candidates'))
+        doc['clusters'][0]['disposition']['analysis']['depth'] = 'deep-dive'
+        doc['clusters'][0]['disposition']['analysis']['reverification']['outcome'] = 'reinvestigated'
+        self.assertEqual(m.validate(doc), [])
+
+    def test_report_to_auto_needs_current_support_for_the_new_member(self):
+        doc = carried_doc()
+        doc['policy']['write_mode'] = 'auto'
+        c = doc['clusters'][0]
+        c['members']['regression_ids'].append(49534)
+        c['prior']['member_delta']['added'] = [49534]
+        c['actions'][0].update(status='done', regression_ids=[49533, 49534])
+        self.assertTrue(any('49534' in e for e in m.validate(doc)))
+
+    def test_unchanged_high_is_never_carried(self):
+        doc = carried_doc()
+        c = doc['clusters'][0]
+        c['blast_radius']['level'] = 'HIGH'
+        c['prior']['sources'][0]['blast_radius']['level'] = 'HIGH'
+        c['escalation']['required'] = True
+        self.assertTrue(_errors_mention(m.validate(doc), 'HIGH'))
+        c['disposition']['analysis']['depth'] = 'deep-dive'
+        c['disposition']['analysis']['reverification']['outcome'] = 'reinvestigated'
+        self.assertEqual(m.validate(doc), [])
+        self.assertIs(c['escalation']['required'], True)
+
+    def _ineligible_cases(self):
+        def two_sources(c):
+            c['prior']['relationship'] = 'merge'
+            extra = copy.deepcopy(c['prior']['sources'][0])
+            extra['cluster_id'] = 'c-other'
+            extra['member_ids'] = [49540]
+            extra['matched_member_ids'] = []
+            c['prior']['sources'].append(extra)
+            c['prior']['member_delta'] = {'added': [], 'removed': [49540]}
+            c['disposition']['analysis']['reverification']['source_cluster_ids'] = [c['id'], 'c-other']
+
+        def zero_overlap(c):
+            s = c['prior']['sources'][0]
+            s['member_ids'] = [49599]
+            s['matched_member_ids'] = []
+            c['prior']['member_delta'] = {'added': [49533], 'removed': [49599]}
+
+        def unfinished_with_history(c):
+            s = c['prior']['sources'][0]
+            s['unfinished'] = True
+            s['state'] = 'UNANALYSED'
+            kept = copy.deepcopy(c['prior']['sources'][0])
+            kept.update(history_only=True, unfinished=False, run_id='r-1', observed_at='2026-10-05T05:03:40Z',
+                        state='KNOWN-CAUSE')
+            c['prior']['sources'].append(kept)
+
+        def no_timestamp(c):
+            c['prior']['observed_at'] = None
+            c['prior']['sources'][0]['observed_at'] = None
+
+        def added_without_check(c):
+            c['members']['regression_ids'] = [49533, 49534]
+            c['members']['unlinked'] = [{'id': 49534, 'reason': 'not yet checked'}]
+            c['prior']['member_delta']['added'] = [49534]
+
+        def promoted(c):
+            c['blast_radius']['level'] = 'ELEVATED'
+            c['prior']['sources'][0]['blast_radius']['level'] = 'LOW'
+
+        def wrong_basis(c):
+            c['disposition']['analysis']['reverification']['basis']['run_id'] = 'r-not-the-source'
+
+        def wrong_source_ref(c):
+            c['disposition']['analysis']['reverification']['source_cluster_ids'] = ['c-elsewhere']
+
+        def split_child(c):
+            c['prior']['relationship'] = 'split'
+
+        def overlap_only(c):
+            c['prior']['relationship'] = 'overlap'
+
+        def basis_missing(c):
+            c['prior']['sources'][0]['analysis']['basis'] = None
+            c['disposition']['analysis']['reverification']['basis'] = None
+
+        def low_confidence(c):
+            c['prior']['sources'][0]['analysis']['confidence'] = 'medium'
+
+        def truncated(c):
+            c['prior']['sources'][0]['analysis']['root_cause_truncated'] = True
+
+        def incomplete_observation(c):
+            c['prior']['observation_complete'] = False
+
+        def missing_own_run(c):
+            c['disposition']['analysis']['reverification']['own_run_ids'] = ['own-9']
+
+        def changed_state(c):
+            c['disposition']['state'] = 'CANDIDATE'
+
+        def no_locators(c):
+            c['disposition']['analysis']['reverification']['lookup_locators'] = []
+
+        def checked_before_observation(c):
+            c['disposition']['analysis']['reverification']['checked_at'] = '2026-10-12T00:00:00Z'
+
+        def current_confidence_low(c):
+            c['disposition']['analysis']['confidence'] = 'medium'
+
+        return [('two_sources', two_sources, ('source', 'merge')), ('zero_overlap', zero_overlap, ('matched',)),
+                ('unfinished_with_history', unfinished_with_history, ('unfinished',)),
+                ('no_timestamp', no_timestamp, ('observed_at',)), ('added_without_check', added_without_check, ('49534', 'added')),
+                ('promoted', promoted, ('level',)), ('wrong_basis', wrong_basis, ('basis',)),
+                ('wrong_source_ref', wrong_source_ref, ('source_cluster_ids',)), ('split_child', split_child, ('relationship',)),
+                ('overlap_only', overlap_only, ('relationship',)), ('basis_missing', basis_missing, ('basis',)),
+                ('low_confidence', low_confidence, ('confidence',)), ('truncated', truncated, ('truncated',)),
+                ('incomplete_observation', incomplete_observation, ('observation_complete',)),
+                ('missing_own_run', missing_own_run, ('own_run_ids',)), ('changed_state', changed_state, ('state',)),
+                ('no_locators', no_locators, ('lookup_locators',)),
+                ('checked_before_observation', checked_before_observation, ('checked_at',)),
+                ('current_confidence_low', current_confidence_low, ('confidence',))]
+
+    def test_ineligible_carries_are_rejected_by_field(self):
+        for name, mutate, needles in self._ineligible_cases():
+            with self.subTest(case=name):
+                doc = carried_doc()
+                mutate(doc['clusters'][0])
+                errs = m.validate(doc)
+                self.assertTrue(errs, name)
+                self.assertTrue(_errors_mention(errs, *needles), (name, errs))
+
+    def test_fresh_analysis_still_validates_where_a_carry_would_not(self):
+        for name, mutate, _ in self._ineligible_cases():
+            if name in ('added_without_check', 'wrong_source_ref', 'missing_own_run', 'checked_before_observation',
+                        'wrong_basis'):
+                continue   # these break the record itself (binding, references, timing), not only carry eligibility
+            with self.subTest(case=name):
+                doc = carried_doc()
+                mutate(doc['clusters'][0])
+                an = doc['clusters'][0]['disposition']['analysis']
+                an['depth'] = 'deep-dive'
+                an['confidence'] = 'high'
+                an['reverification']['outcome'] = 'reinvestigated'
+                if name == 'basis_missing':
+                    an['reverification']['basis'] = None
+                errs = [e for e in m.validate(doc)]
+                self.assertEqual(errs, [], (name, errs))
+
+    def test_malformed_records_report_without_raising(self):
+        for bad in ('x', [], {'outcome': 'carried'}, {'outcome': 7, 'own_run_ids': 'own-1', 'lookup_locators': None,
+                                                       'source_cluster_ids': 'c', 'basis': [], 'checked_at': 5}):
+            with self.subTest(bad=bad):
+                doc = carried_doc()
+                doc['clusters'][0]['disposition']['analysis']['reverification'] = bad
+                errs = m.validate(doc)
+                self.assertTrue(errs)
+                self.assertTrue(_errors_mention(errs, 'reverification'), errs)
+        doc = carried_doc()
+        del doc['clusters'][0]['disposition']['analysis']['reverification']
+        self.assertTrue(_errors_mention(m.validate(doc), 'reverification'))   # carried-forward needs the record
+        doc = carried_doc()
+        doc['clusters'][0]['disposition']['analysis']['depth'] = 'deep-dive'   # outcome carried needs the depth
+        self.assertTrue(_errors_mention(m.validate(doc), 'carried-forward', 'outcome'))
+
+    def test_added_member_requires_verification_after_net_shrink_and_demotion(self):
+        doc = carried_doc()
+        c = doc['clusters'][0]
+        source = c['prior']['sources'][0]
+        source['blast_radius']['level'] = 'ELEVATED'
+        source['member_ids'] = [49533, 49535, 49536]
+        source['matched_member_ids'] = [49533]
+        c['blast_radius']['level'] = 'LOW'
+        c['members']['regression_ids'] = [49533, 49534]
+        c['members']['new_since_baseline'] = [49534]
+        c['members']['unlinked'] = [{'id': 49534, 'reason': 'not proposed for a link in this fixture'}]
+        c['shape'].update(regressions=2, growth_since_baseline=1)
+        c['prior']['member_delta'] = {'added': [49534], 'removed': [49535, 49536]}
+        analysis = c['disposition']['analysis']
+        self.assertEqual(analysis['reverification']['own_run_ids'], ['own-1'])
+        errs = m.validate(doc)
+        self.assertTrue(_errors_mention(errs, '49534', 'added'), errs)
+        added_evidence = copy.deepcopy(analysis['evidence'][0])
+        added_evidence.update(prowjob_run_id='own-added', supports_regression_ids=[49534],
+                              artifact='https://example.invalid/own-added/junit.xml')
+        analysis['evidence'].append(added_evidence)
+        analysis['reverification']['own_run_ids'].append('own-added')
+        self.assertEqual(m.validate(doc), [])
+
+    def test_validate_never_raises_on_malformed_memory_fields(self):
+        """Review C1: unhashable or wrongly typed new fields are reported, never raised."""
+        def mutate(path, value):
+            doc = carried_doc()
+            target = doc['clusters'][0]
+            for key in path[:-1]:
+                target = target[key]
+            target[path[-1]] = value
+            return doc
+        docs = []
+        for field in ('run_id', 'observed_at', 'cluster_id', 'history_only', 'unfinished', 'state', 'member_ids'):
+            for value in ([], {'a': 1}):
+                docs.append(mutate(('prior', 'sources', 0, field), value))
+        for field in ('run_id', 'observed_at', 'relationship', 'write_mode', 'observation_complete', 'member_delta', 'sources'):
+            for value in ([], {'a': 1}, 5):
+                docs.append(mutate(('prior', field), value))
+        for value in ([], {'a': 1}, 5):
+            docs.append(mutate(('blast_radius', 'level'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'blast_radius', 'level'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'blast_radius'), value))
+            docs.append(mutate(('disposition', 'state'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'analysis', 'basis'), value))
+            docs.append(mutate(('disposition', 'analysis', 'reverification', 'basis'), value))
+            docs.append(mutate(('disposition', 'analysis', 'reverification', 'own_run_ids'), value))
+            docs.append(mutate(('disposition', 'analysis', 'reverification', 'source_cluster_ids'), value))
+            docs.append(mutate(('disposition', 'analysis', 'evidence', 0, 'prowjob_run_id'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'bug_search', 'candidates'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'bug_search', 'candidates', 0, 'key'), value))
+            docs.append(mutate(('prior', 'sources', 0, 'bug_search', 'candidates', 0, 'bar_met'), value))
+        docs.append(mutate(('disposition', 'analysis', 'reverification', 'own_run_ids'), [[], {'a': 1}]))
+        docs.append(mutate(('disposition', 'analysis', 'reverification', 'source_cluster_ids'), [[], None]))
+        docs.append(mutate(('prior', 'sources', 0, 'member_ids'), [[], {'a': 1}, True]))
+        docs.append(mutate(('prior', 'member_delta'), {'added': [[1]], 'removed': {'x': 1}}))
+        doc = carried_doc(); doc['observation']['time'] = ['now']; docs.append(doc)
+        doc = carried_doc(); doc['baseline_run'] = {'run_id': [], 'compatible': True}; docs.append(doc)
+        for doc in docs:
+            errs = m.validate(doc)            # must not raise
+            self.assertTrue(errs)
+            self.assertTrue(all(isinstance(e, str) for e in errs))
+
+    def test_every_record_is_bound_to_its_prior(self):
+        """Review I1: binding and required provenance apply to reinvestigated/incomplete records too."""
+        def fresh():
+            doc = carried_doc()
+            an = doc['clusters'][0]['disposition']['analysis']
+            an['depth'] = 'deep-dive'
+            an['reverification']['outcome'] = 'reinvestigated'
+            self.assertEqual(m.validate(doc), [])
+            return doc, an['reverification']
+        doc, rev = fresh(); rev['source_run_id'] = 'not-r0'
+        self.assertTrue(_errors_mention(m.validate(doc), 'source_run_id'))
+        doc, rev = fresh(); rev['source_cluster_ids'] = ['c-elsewhere']
+        self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
+        doc, rev = fresh(); rev['source_cluster_ids'] = [doc['clusters'][0]['id'], doc['clusters'][0]['id']]
+        self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
+        doc, rev = fresh(); rev['checked_at'] = None
+        self.assertTrue(_errors_mention(m.validate(doc), 'checked_at'))
+        doc, rev = fresh(); rev['own_run_ids'] = ['own-1', 'own-1']
+        self.assertTrue(_errors_mention(m.validate(doc), 'own_run_ids'))
+        doc, rev = fresh(); doc['clusters'][0]['prior'] = None
+        self.assertTrue(_errors_mention(m.validate(doc), 'prior'))
+        doc, rev = fresh(); doc['observation']['time'] = 'later'
+        self.assertTrue(_errors_mention(m.validate(doc), 'observation.time'))
+        # an evidence run id must be an id before it can be referenced
+        doc, rev = fresh()
+        doc['clusters'][0]['disposition']['analysis']['evidence'][0]['prowjob_run_id'] = ['own-1']
+        rev['own_run_ids'] = ["['own-1']"]
+        self.assertTrue(_errors_mention(m.validate(doc), 'own_run_ids', 'prowjob_run_id'))
+        # a non-carry record names the immediate sources it considered: a sorted, duplicate-free subset
+        def merged(outcome):
+            doc, rev = fresh()
+            c = doc['clusters'][0]
+            extra = copy.deepcopy(c['prior']['sources'][0])
+            extra.update(cluster_id='c-other', member_ids=[49540], matched_member_ids=[])
+            c['prior']['sources'].append(extra)
+            c['prior']['relationship'] = 'merge'
+            c['prior']['member_delta'] = {'added': [], 'removed': [49540]}
+            if outcome == 'incomplete':
+                an = c['disposition']['analysis']
+                an.update(depth='none', confidence='low')
+                rev.update(outcome='incomplete', own_run_ids=[], lookup_locators=[])
+                c['disposition']['state'] = 'UNANALYSED'
+                c['disposition']['proposed_action'] = {'type': 'none'}
+                c['actions'] = []
+            return doc, c, rev
+        for outcome in ('reinvestigated', 'incomplete'):
+            with self.subTest(outcome=outcome):
+                doc, c, rev = merged(outcome)
+                rev['source_cluster_ids'] = [c['id']]                     # considered one parent, timed out / fresh
+                self.assertEqual(m.validate(doc), [])
+                rev['source_cluster_ids'] = sorted([c['id'], 'c-other'])
+                self.assertEqual(m.validate(doc), [])
+                rev['source_cluster_ids'] = sorted([c['id'], 'c-other'])[::-1]
+                self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
+                rev['source_cluster_ids'] = [c['id'], c['id']]
+                self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
+                rev['source_cluster_ids'] = ['c-foreign']
+                self.assertTrue(_errors_mention(m.validate(doc), 'source_cluster_ids'))
+
+    def test_incomplete_reverification_requires_unanalysed_no_action(self):
+        """Review I2: an explicitly incomplete verification cannot keep a completed diagnosis or a write."""
+        def incomplete():
+            doc = carried_doc()
+            c = doc['clusters'][0]
+            an = c['disposition']['analysis']
+            an['depth'] = 'none'
+            an['confidence'] = 'low'
+            an['reverification'].update(outcome='incomplete', own_run_ids=[], lookup_locators=[])
+            c['disposition']['state'] = 'UNANALYSED'
+            c['disposition']['proposed_action'] = {'type': 'none'}
+            c['actions'] = []
+            c['members']['unlinked'] = []
+            self.assertEqual(m.validate(doc), [])
+            return doc, c
+        doc, c = incomplete(); c['disposition']['state'] = 'KNOWN-CAUSE'
+        self.assertTrue(_errors_mention(m.validate(doc), 'incomplete', 'state'))
+        doc, c = incomplete(); c['disposition']['analysis']['depth'] = 'deep-dive'
+        self.assertTrue(_errors_mention(m.validate(doc), 'incomplete', 'depth'))
+        doc, c = incomplete()
+        c['disposition']['proposed_action'] = {'type': 'extend_triage', 'triage_id': 810, 'jira': 'OCPBUGS-129375',
+                                               'regression_ids': [49533], 'description': 'd'}
+        c['disposition']['analysis']['evidence'] = [{'prowjob_run_id': 'own-1', 'supports_regression_ids': [49533],
+                                                     'artifact': OWN1, 'claim': 'c', 'quote': 'q'}]
+        self.assertTrue(_errors_mention(m.validate(doc), 'incomplete', 'proposed_action'))
+        doc, c = incomplete()
+        c['disposition']['analysis']['evidence'] = [{'prowjob_run_id': 'own-1', 'supports_regression_ids': [49533],
+                                                     'artifact': OWN1, 'claim': 'c', 'quote': 'q'}]
+        c['actions'] = [{'type': 'extend_triage', 'triage_id': 810, 'jira': 'OCPBUGS-129375', 'regression_ids': [49533],
+                         'status': 'done', 'result_url': 'u', 'error': None}]
+        self.assertTrue(_errors_mention(m.validate(doc), 'incomplete', 'action'))
+
+    def test_malformed_evidence_cannot_supply_carry_coverage(self):
+        """Review R2-4: coverage is computed from the same typed evidence population as the reference check."""
+        doc = carried_doc()
+        c = doc['clusters'][0]
+        c['members']['regression_ids'] = [49533, 49534]
+        c['members']['unlinked'] = []
+        c['prior']['member_delta']['added'] = [49534]
+        c['prior']['sources'][0]['member_ids'] = [49533]
+        an = c['disposition']['analysis']
+        an['evidence'] = [{'claim': 'c', 'artifact': OWN1, 'quote': 'q', 'prowjob_run_id': "['own-1']",
+                           'supports_regression_ids': [49533]},
+                          {'claim': 'c', 'artifact': OWN1, 'quote': 'q', 'prowjob_run_id': ['own-1'],
+                           'supports_regression_ids': [49534]}]
+        an['reverification']['own_run_ids'] = ["['own-1']"]
+        c['actions'][0]['regression_ids'] = [49533, 49534]
+        c['disposition']['proposed_action']['regression_ids'] = [49533, 49534]
+        errs = m.validate(doc)
+        self.assertTrue(_errors_mention(errs, '49534'), errs)
+
+    def test_prior_matched_member_ids_are_exact_intersection(self):
+        """Review M3: matched_member_ids is the intersection, not any subset of it."""
+        doc = carried_doc()
+        c = doc['clusters'][0]
+        c['members']['regression_ids'] = [49533, 49534]
+        c['members']['unlinked'] = [{'id': 49534, 'reason': 'not checked'}]
+        s = c['prior']['sources'][0]
+        s['member_ids'] = [49533, 49534]
+        s['matched_member_ids'] = [49533]
+        errs = m.validate(doc)
+        self.assertTrue(_errors_mention(errs, 'matched_member_ids'), errs)
+        s['matched_member_ids'] = [49533, 49534]
+        errs = m.validate(doc)
+        self.assertFalse(_errors_mention(errs, 'matched_member_ids'), errs)
+
+    def test_watched_replacement_with_prior_needs_no_reverification(self):
+        doc = carried_doc()
+        c = doc['clusters'][0]
+        s = c['prior']['sources'][0]
+        s['member_ids'] = [51255, 51256]
+        s['matched_member_ids'] = []
+        c['members']['regression_ids'] = [51548]
+        c['members']['new_since_baseline'] = [51548]
+        c['members']['unlinked'] = []
+        c['prior']['member_delta'] = {'added': [51548], 'removed': [51255, 51256]}
+        c['shape'].update(regressions=1, days_open=1, growth_since_baseline=1)
+        c['disposition'] = {'state': 'UNEXPLAINED',
+                            'analysis': {'depth': 'none', 'confidence': 'low', 'owning_component': None,
+                                         'triage_type': None, 'root_cause': None, 'evidence': [],
+                                         'unverified_hypotheses': []},
+                            'bug_search': {'candidates': [], 'newer_release_fix': None},
+                            'proposed_action': {'type': 'none'}}
+        c['actions'] = []
+        doc['watch_list'] = [{'regression_id': 51548, 'view': '4.22-main', 'cluster_id': c['id'],
+                              'reason': 'LOW & new (<7d)', 'revisit': 'next cycle'}]
+        self.assertEqual(m.validate(doc), [])
+        self.assertIsNotNone(c['prior'])
+        self.assertEqual(c['actions'], [])
+
+    def test_current_evidence_stays_within_current_members(self):
+        doc = carried_doc()
+        doc['clusters'][0]['disposition']['analysis']['evidence'][0]['supports_regression_ids'] = [49533, 49599]
+        self.assertTrue(_errors_mention(m.validate(doc), '49599'))
+
+
+class MultiGenerationTest(unittest.TestCase):
+    """attach -> merge/finalize -> attach across runs (plan Task 3)."""
+    EXTRA = {'watch_list': [], 'catch_all': {'jira': 'OCPQUAL-88', 'triage_id': 851, 'admitted': []},
+             'backport_candidates': [], 'unanalysed': [], 'audit': {}}
+
+    def finish(self, pp, dispositions, actions, run_id, unanalysed=()):
+        merged = m.merge(pp, dispositions, actions)
+        merged.update(copy.deepcopy(self.EXTRA))
+        merged['unanalysed'] = list(unanalysed)
+        return m.finalize(merged, jira_creations={'status': 'ok', 'count': 0, 'window': []},
+                          sippy_diff={'status': 'match'}, permissions={'status': 'ok'},
+                          mode_requested='report', mode_effective='report', decision=('auto', '', ''),
+                          source_run={'job': 'j', 'run_id': run_id, 'url': 'u', 'started': 's'},
+                          previous_run=None, existing_only=True)
+
+    def prepass_doc(self, run_id, observed, baseline):
+        doc = carried_doc()
+        pp = {k: copy.deepcopy(doc[k]) for k in m.TOP_PREPASS}
+        pp['source_run'] = {'run_id': run_id}
+        pp['observation']['time'] = observed
+        pp['clusters'] = [{k: v for k, v in doc['clusters'][0].items() if k not in m.CLUSTER_LLM and k != 'prior'}]
+        pp['baseline_run'] = {'run_id': (baseline or {}).get('source_run', {}).get('run_id'), 'manifest_url': None,
+                              'schema_version': '1.0' if baseline else None, 'compatible': bool(baseline) or None}
+        prior.attach_priors(pp['clusters'], baseline)
+        return pp
+
+    def test_completed_carry_round_trip(self):
+        doc = carried_doc()
+        cid = doc['clusters'][0]['id']
+        disp1 = {cid: dict(copy.deepcopy(doc['clusters'][0]['disposition']), escalation=doc['clusters'][0]['escalation'])}
+        # R0 is the baseline carried_doc() was built from: rebuild it as a finalized manifest
+        base = example()
+        base['clusters'] = base['clusters'][:1]
+        base['source_run']['run_id'] = 'r0'
+        base['observation']['time'] = '2026-10-12T05:03:40Z'
+        base['observation']['views'] = [{'view': '4.22-main', 'fetch': 'complete'}]
+        bc = base['clusters'][0]
+        bc['members']['regression_ids'] = [49533]
+        bc['members']['unlinked'] = []
+        bc['blast_radius']['level'] = 'LOW'
+        bc['disposition']['analysis']['depth'] = 'deep-dive'
+        bc['disposition']['analysis']['evidence'][0]['prowjob_run_id'] = 'own-0'
+        bc['actions'][0]['status'] = 'skipped-report-mode'
+        bc['escalation'] = {'required': False, 'reason': 'not required'}
+        pp1 = self.prepass_doc('r1', '2026-10-13T05:03:40Z', base)
+        snap = copy.deepcopy(pp1)
+        final1 = self.finish(pp1, disp1, {cid: doc['clusters'][0]['actions']}, 'r1')
+        self.assertEqual(pp1, snap)
+        self.assertEqual(final1['clusters'][0]['prior'], pp1['clusters'][0]['prior'])
+        self.assertEqual(m.validate(final1), [])
+        pp2 = self.prepass_doc('r2', '2026-10-20T05:03:40Z', final1)
+        c2 = pp2['clusters'][0]
+        self.assertEqual(c2['prior']['run_id'], 'r1')
+        self.assertEqual(c2['prior']['sources'][0]['analysis']['basis']['run_id'], 'r0')
+        self.assertEqual([e['prowjob_run_id'] for e in c2['prior']['sources'][0]['analysis']['evidence_refs']], ['own-1'])
+        self.assertEqual(c2['prior']['sources'][0]['analysis']['depth'], 'carried-forward')
+        # R2 unreached: nothing replays
+        final2 = self.finish(pp2, {cid: dict(_unanalysed_disposition(), escalation={'required': False, 'reason': 'n'})}, {},
+                             'r2', unanalysed=[{'cluster_id': cid, 'reason': 'budget', 'blast_radius': 'LOW'}])
+        self.assertEqual(final2['clusters'][0]['actions'], [])
+        self.assertEqual(m.validate(final2), [])
+        # a separate R2 carry continues the same basis
+        carried2 = copy.deepcopy(doc['clusters'][0]['disposition'])
+        carried2['analysis']['evidence'][0].update(prowjob_run_id='own-2')
+        carried2['analysis']['reverification'].update(source_run_id='r1', own_run_ids=['own-2'],
+                                                       checked_at='2026-10-20T06:10:00Z')
+        final2b = self.finish(pp2, {cid: dict(carried2, escalation={'required': False, 'reason': 'n'})},
+                              {cid: doc['clusters'][0]['actions']}, 'r2')
+        self.assertEqual(m.validate(final2b), [])
+        self.assertEqual(final2b['clusters'][0]['disposition']['analysis']['reverification']['basis']['run_id'], 'r0')
+
+    def test_unreached_attempt_round_trip(self):
+        doc = carried_doc()
+        cid = doc['clusters'][0]['id']
+        base = example()
+        base['clusters'] = base['clusters'][:1]
+        base['source_run']['run_id'] = 'r0'
+        base['observation']['time'] = '2026-10-12T05:03:40Z'
+        base['observation']['views'] = [{'view': '4.22-main', 'fetch': 'complete'}]
+        bc = base['clusters'][0]
+        bc['members']['regression_ids'] = [49533]
+        bc['members']['unlinked'] = []
+        bc['blast_radius']['level'] = 'LOW'
+        bc['disposition']['analysis']['depth'] = 'deep-dive'
+        bc['actions'][0]['status'] = 'skipped-report-mode'
+        bc['escalation'] = {'required': False, 'reason': 'not required'}
+        pp1 = self.prepass_doc('r1', '2026-10-13T05:03:40Z', base)
+        pending_final1 = self.finish(pp1, {cid: dict(_unanalysed_disposition(), escalation={'required': False, 'reason': 'n'})},
+                                     {}, 'r1', unanalysed=[{'cluster_id': cid, 'reason': 'budget', 'blast_radius': 'LOW'}])
+        self.assertEqual(m.validate(pending_final1), [])
+        pending_pp2 = self.prepass_doc('r2', '2026-10-20T05:03:40Z', pending_final1)
+        pending_c2 = pending_pp2['clusters'][0]
+        self.assertEqual([(s['run_id'], s['history_only']) for s in pending_c2['prior']['sources']],
+                         [('r1', False), ('r0', True)])
+        pending_final2 = self.finish(pending_pp2,
+                                     {cid: dict(_unanalysed_disposition(), escalation={'required': False, 'reason': 'n'})},
+                                     {}, 'r2', unanalysed=[{'cluster_id': cid, 'reason': 'budget', 'blast_radius': 'LOW'}])
+        self.assertEqual(pending_final2['clusters'][0]['disposition']['analysis']['evidence'], [])
+        self.assertEqual(pending_final2['clusters'][0]['actions'], [])
+        self.assertEqual(m.validate(pending_final2), [])
+        # marking R2 carried from the retained R0 snapshot must fail: the immediate source is unfinished
+        carried = copy.deepcopy(doc['clusters'][0]['disposition'])
+        carried['analysis']['reverification'].update(source_run_id='r1', checked_at='2026-10-20T06:10:00Z')
+        bad = self.finish(pending_pp2, {cid: dict(carried, escalation={'required': False, 'reason': 'n'})},
+                          {cid: doc['clusters'][0]['actions']}, 'r2')
+        self.assertTrue(_errors_mention(m.validate(bad), 'unfinished', 'basis'))
+
+
+class ExamplePriorTest(unittest.TestCase):
+    def test_example_has_a_carried_low_cluster(self):
+        ex = example()
+        c = [c for c in ex['clusters'] if c['id'] == 'c-prior-example'][0]
+        self.assertEqual(c['members']['regression_ids'], [90001])
+        self.assertEqual((c['disposition']['state'], c['disposition']['analysis']['depth']), ('UNEXPLAINED', 'carried-forward'))
+        self.assertEqual(c['actions'], [])
+        self.assertEqual(c['disposition']['analysis']['reverification']['outcome'], 'carried')
+        self.assertEqual(c['prior']['sources'][0]['analysis']['basis']['run_id'], '2105...')
+        self.assertEqual(m.validate(ex), [])
 
 
 if __name__ == '__main__':
