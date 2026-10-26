@@ -49,8 +49,17 @@ def parse_time(value):
         raise QueueError("invalid UTC time: " + str(value)) from exc
 
 
+def validated_job_role(manifest):
+    role = manifest["effective_inputs"].get("job_role")
+    if role not in ("informing", "blocking"):
+        raise QueueError("workspace job_role must be informing or blocking; "
+                         "re-collect this workspace with an explicit job role")
+    return role
+
+
 def scope(manifest):
     settings = manifest["effective_inputs"]
+    validated_job_role(manifest)
     return {key: settings[key] for key in ("release", "architecture", "stream", "job_role")}
 
 
@@ -68,7 +77,7 @@ def load_workspace(workspace):
     rankings = read_json(workspace / "job-rankings.json")
     if rankings.get("selection_version") != manifest.get("selection_version"):
         raise QueueError("rankings do not match the frozen selection revision")
-    if rankings.get("job_role") != manifest["effective_inputs"]["job_role"]:
+    if rankings.get("job_role") != validated_job_role(manifest):
         raise QueueError("rankings do not match the frozen job role")
     cohorts = rankings.get("current", []) + rankings.get("previous_release_history", [])
     return manifest, cohorts
