@@ -45,10 +45,23 @@ mention on the PR.
    offering the completed branch list. Show the `summary`; confirm (Slack
    reply / GitHub comment). When its `release_notes` criterion fails, include
    a drafted release note: type "Bug Fix" (or "Release Note Not Required" if
-   the requester says users are unaffected) and text giving the Cause,
-   Consequence, Fix and Result, written for users with no customer details.
-2. Set a confirmed release note on the parent bug (`priv_jira_update_issue`)
-   so every clone copies it; never replace one a person wrote. Then
+   the requester says users are unaffected) and text of one line per field,
+   no blank lines:
+
+   ```text
+   Cause: <root cause, from the bug>
+   Consequence: <what users saw>
+   Fix: <what changed, from the parent PR, in user terms: no function names, file paths or line numbers>
+   Result: <behavior after the fix>
+   Workaround: <only when one exists; otherwise omit the line>
+   ```
+
+   Name no branches or versions, since every clone copies the note, and leave
+   customer details out.
+2. Set a confirmed release note on the parent bug so every clone copies it:
+   `priv_jira_update_issue(issue_key, custom_fields='{"customfield_10785":
+   {"value": "Bug Fix"}, "customfield_10783": "Cause: …"}')` (Release Note
+   Type, Release Note Text). Never replace text a person wrote. Then
    `priv_ocp_backport_ensure_clones(host, repo, pr_number, branches)` — the
    Jira chain. Report created vs reused clones; a reused clone without a
    release note gets the same one. Parent not merged → wait for the merge
