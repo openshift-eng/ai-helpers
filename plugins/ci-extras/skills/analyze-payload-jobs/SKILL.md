@@ -1,22 +1,26 @@
 ---
-name: analyze-payload-informing-jobs
-description: Use when ranking unreliable non-blocking verification jobs across healthy OpenShift payloads, investigating job-local failures, and exporting evidence-backed repair or retirement recommendations.
+name: analyze-payload-jobs
+description: Use when analyzing reliability of informing or blocking OpenShift payload verification jobs, investigating recurring failures, and exporting evidence-backed repair or retirement recommendations, including periodic blocking-job analysis for older releases without a payload agent.
 ---
 
-# Analyze payload informing jobs
+# Analyze payload jobs
 
-Analyze informing jobs only after freezing a bounded population of relatively
-healthy payloads. This workflow produces local recommendations; it does not edit
+Analyze the requested verification role after freezing a bounded payload
+population. Use `informing` for non-blocking verification jobs and `blocking`
+for release gates, including periodic reliability analysis of older z streams
+that have no informing jobs or payload agent. This workflow reads Sippy directly
+and produces local recommendations; it does not edit
 release configuration, change schedules, open issues or PRs, decide payloads, or
 trigger jobs.
 
 ## Inputs and defaults
 
-Require `release`, `--architecture`, and `--stream`. Accept natural-language
-equivalents and record the effective values. Defaults are a 14-day window ending
-at collection start, 10 healthy payloads, 50 inspected payloads, 3 healthy
-payloads, 5 distinct runs across 3 payloads per chronic conclusion, 90% blocker
-health, 50% poor-job success, `--max-recommendations 10`, `--max-candidates 100`,
+Require positional `release` and `job_role` (`informing` or `blocking`), plus
+`--architecture` and `--stream`. Accept natural-language equivalents and record
+the effective values. Defaults are a 14-day window ending at collection start,
+`--payloads 10`, 50 inspected payloads, `--min-payloads 3`, 5 distinct runs across
+3 payloads per chronic conclusion, 90% blocker health for informing analysis,
+50% poor-job success, `--max-recommendations 10`, `--max-candidates 100`,
 and `--time-budget-minutes 120`. Recommendation limits count distinct validated
 repair mechanisms and validated retirement candidates; candidate limits count
 distinct cohorts started in this invocation. Neither is a quota. The
@@ -30,7 +34,7 @@ sample remains provisional. Freeze the end time and never add newer payloads on
 restart.
 
 Workspace/output paths are user-selected when supplied. Otherwise the workspace
-is `~/tmp/analyze-payload-informing-jobs/<UTC timestamp>` and report exports are
+is `~/tmp/analyze-payload-jobs/<UTC timestamp>` and report exports are
 fresh timestamped directories inside it.
 
 Resolve bundled paths relative to this `SKILL.md`, independent of the current
@@ -41,7 +45,7 @@ working directory. Python 3.10+ and public HTTPS access are required.
 Read [population and ranking](references/population-and-ranking.md), then run:
 
 ```bash
-python3 scripts/collect_payload_jobs.py RELEASE \
+python3 scripts/collect_payload_jobs.py RELEASE JOB_ROLE \
   --architecture ARCH --stream STREAM --workspace WORK
 python3 scripts/rank_jobs.py --workspace WORK
 ```
@@ -51,8 +55,27 @@ The collector uses Sippy's `/api/releases/tags` and
 limits, unknown values, large Prow IDs as strings, and every payload association.
 It never treats a display page as an API page. Review collection completeness,
 payload health, role normalization, and any fallback mapping before accepting the
-frozen selection. Unknown roles are not informing. Forced acceptance never
+frozen selection. Retain all job rows as context; rank only exact matches for the
+requested role. Unknown roles never enter either ranking. Forced acceptance never
 overrides blocker results.
+
+Informing analysis selects relatively healthy completed payloads using
+`--min-blocker-pass-rate`. Blocking analysis selects completed payloads even when
+blocker health is poor or the payload was rejected, so the jobs under analysis
+cannot exclude their own failures. Both require complete terminal blocker
+inventories and retain shared-failure review. The blocker-health threshold is
+unused in blocking mode.
+
+For example, periodic analysis of an older release can start with:
+
+```bash
+python3 scripts/collect_payload_jobs.py 4.18 blocking \
+  --architecture amd64 --stream nightly --history-release none --workspace WORK
+```
+
+The role is frozen with the analysis scope. Resume using the same role; use a
+fresh workspace to analyze the other role. Investigation history keeps roles
+separate even when the underlying Prow job is the same.
 
 Shared-failure interpretation requires AI review. Compare signatures across
 independent job families, adjacent payloads, versions, and successful peers. Add
@@ -145,7 +168,7 @@ verification and periodic configuration, cross-stream impact, coverage risk,
 owners, validation, and restoration criteria. Say “no supported repair found
 within the documented investigation” when that is the evidence.
 
-When an informing job cannot execute its intended real tests and no supported
+When a selected job cannot execute its intended real tests and no supported
 repair is found, a yearly retirement proposal must also set `disabled: true` on
 its verification entry in the selected payload configuration, retaining the entry
 and its job mapping. If the periodic is already yearly, retain that schedule and

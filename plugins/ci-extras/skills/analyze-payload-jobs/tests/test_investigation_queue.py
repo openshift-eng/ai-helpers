@@ -15,6 +15,7 @@ NOW = datetime(2026, 10, 8, 18, tzinfo=timezone.utc)
 def workspace(root, total=7, **scope_overrides):
     root.mkdir(parents=True)
     settings = {"release": "5.1", "architecture": "amd64", "stream": "nightly",
+                "job_role": "informing",
                 "max_recommendations": 10, "max_candidates": 100, "time_budget_minutes": 120}
     settings.update(scope_overrides)
     manifest = {"schema_version": 1, "analysis_id": root.name, "stage": "RANKED",
@@ -25,6 +26,7 @@ def workspace(root, total=7, **scope_overrides):
                for index in range(1, total + 1)]
     queue.write_json(root / "manifest.json", manifest)
     queue.write_json(root / "job-rankings.json", {"schema_version": 1, "selection_version": 1,
+                     "job_role": settings["job_role"],
                      "current": cohorts, "previous_release_history": []})
     return root
 
@@ -137,6 +139,12 @@ class InvestigationQueueTests(unittest.TestCase):
             self.assertEqual("job-2", state["queue"][0]["cohort_id"])
             other = workspace(Path(directory) / "arm", total=2, architecture="arm64")
             self.assertEqual(2, len(queue.plan(other, now=NOW)["queue"]))
+            blocking = workspace(Path(directory) / "blocking", total=2, job_role="blocking")
+            state = queue.plan(blocking, now=NOW)
+            self.assertEqual(2, len(state["queue"]))
+            self.assertEqual([], state["deferred"])
+            self.assertNotEqual(queue.history_key(queue.read_json(old / "manifest.json"), {"cohort_id": "job-1"}),
+                                queue.history_key(queue.read_json(blocking / "manifest.json"), {"cohort_id": "job-1"}))
 
     def test_history_discovery_gaps_survive_replanning_and_subsequent_invocations(self):
         with tempfile.TemporaryDirectory() as directory:

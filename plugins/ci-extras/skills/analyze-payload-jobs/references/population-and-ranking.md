@@ -2,7 +2,8 @@
 
 ## Collection
 
-Freeze requested and effective settings before network acquisition. Query tags
+Freeze requested and effective settings, including required `job_role` (`informing`
+or `blocking`), before network acquisition. Query tags
 for the exact release, architecture, stream, and UTC window, newest first, then
 query all associated job rows for every inspected tag. A successful response
 must be a JSON array. Record URL, retrieval time, bytes, SHA256, retained path,
@@ -20,16 +21,25 @@ provisional actual job from a validated Prow URL, then replace the provisional
 job with `spec.job` from `prowjob.json` during investigation. An alias resolving
 to multiple actual jobs must split into multiple cohorts.
 
+Collect every role so blocker health and peer comparisons retain full context.
+Filter ranking to `normalized_role == job_role.upper()` for current and historical
+populations. Unknown and opposite-role rows never enter ranked denominators.
+
 Deduplicate Prow runs globally while retaining all associations. Upgrade routes,
 material test configuration, population role, and role changes remain distinct.
 Missing jobs are absent coverage. Previous-release observations always retain
 their original release and `previous-release-history` population role.
 
-## Health selection
+## Payload selection
 
-Completed payloads with complete terminal blocker inventories and blocker
-success at or above the configured threshold are initially eligible. Acceptance
-is context, not proof; forced acceptance cannot hide blocker failures. Running
+For `informing`, completed payloads with complete terminal blocker inventories
+and blocker success at or above the configured threshold are initially eligible.
+For `blocking`, use completed payloads with complete terminal blocker inventories
+regardless of blocker success; retain rejected and zero-pass payloads. Applying
+the informing health threshold here would select away the failures being studied.
+The selected population is bounded by `--payloads` (default 10), with
+`--min-payloads` (default 3) controlling fallback and population sufficiency.
+Acceptance is context, not proof; forced acceptance cannot hide blocker failures. Running
 payloads, nonterminal blockers, incomplete retrieval, unknown expected blocker
 coverage, and zero blockers need explicit uncertainty or another authoritative
 completion basis.
@@ -41,7 +51,8 @@ mechanism across at least three independent job families plus comparison with
 adjacent payloads. Labels alone do not establish a common cause.
 
 Preserve every selection revision. Recompute all rankings if later evidence
-changes eligibility. Never exclude payloads merely for poor informing results.
+changes eligibility. Never exclude payloads merely for poor results of the role
+being analyzed. Blocker health remains reported as context in both modes.
 
 ## Previous-release history
 
@@ -49,7 +60,7 @@ Trigger fallback only when a new release lacks eligible payloads or per-job
 history, never to hide current widespread failures, collection errors, or an
 exhausted budget. Resolve the immediately previous release from `/api/releases`
 metadata/order, or use the explicit input. Use the same architecture, stream,
-health, and completeness rules.
+role-specific eligibility and completeness rules.
 
 Prefer the frozen current window. If it contains no predecessor payloads, anchor
 a separate window of the same duration at the predecessor's latest payload at
@@ -63,7 +74,7 @@ defect or enter the current denominator.
 
 ## Metrics and ordering
 
-For each stable informing cohort report:
+For each stable cohort of the requested role report:
 
 - association success: `Succeeded / (Succeeded + Failed)`;
 - unique-run success with the same terminal denominator;

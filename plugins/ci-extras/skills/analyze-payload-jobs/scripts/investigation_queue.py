@@ -51,13 +51,13 @@ def parse_time(value):
 
 def scope(manifest):
     settings = manifest["effective_inputs"]
-    return {key: settings[key] for key in ("release", "architecture", "stream")}
+    return {key: settings[key] for key in ("release", "architecture", "stream", "job_role")}
 
 
 def observation(cohort):
     # New runs warrant a recheck, not automatic reuse of an old diagnosis.
     return digest({key: cohort.get(key) for key in (
-        "cohort_id", "population_role", "release", "architecture", "stream",
+        "cohort_id", "population_role", "release", "architecture", "stream", "job_role",
         "verification_aliases", "actual_prow_jobs", "provisional_prow_jobs",
         "upgrade_route", "run_ids", "metrics", "recent_three_exposures",
         "investigation_inputs")})
@@ -68,6 +68,8 @@ def load_workspace(workspace):
     rankings = read_json(workspace / "job-rankings.json")
     if rankings.get("selection_version") != manifest.get("selection_version"):
         raise QueueError("rankings do not match the frozen selection revision")
+    if rankings.get("job_role") != manifest["effective_inputs"]["job_role"]:
+        raise QueueError("rankings do not match the frozen job role")
     cohorts = rankings.get("current", []) + rankings.get("previous_release_history", [])
     return manifest, cohorts
 

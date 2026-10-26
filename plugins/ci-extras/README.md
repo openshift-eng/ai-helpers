@@ -2,21 +2,29 @@
 
 Extended OpenShift CI tooling, providing an MCP server for direct access to CI data APIs.
 
-## Payload informing-job analysis
+## Payload job analysis
 
-Use `$ci-extras:analyze-payload-informing-jobs 5.1 --architecture amd64
+Use `$ci-extras:analyze-payload-jobs 5.1 informing --architecture amd64
 --stream nightly` to rank non-blocking verification jobs across a frozen set of
 recent, relatively healthy payloads. The workflow separates current-release and
 verified previous-release history, deduplicates Prow runs, routes prioritized
 failures through `prow-job-analysis`, and exports portable repair, retirement,
 and unresolved findings.
 
-The [analyze-payload-informing-jobs skill](skills/analyze-payload-informing-jobs/SKILL.md)
-defaults to a 14-day window, at most 10 healthy payloads, a ceiling of 10 validated
-recommendations, 100 candidate cohorts, and a 120-minute workflow budget. Release, architecture, and
-stream are required; the population and evidence thresholds are configurable.
+Use `$ci-extras:analyze-payload-jobs 4.18 blocking --architecture amd64
+--stream nightly --history-release none` for periodic blocking-job analysis of
+older releases without informing jobs or a payload agent. Blocking analysis
+includes completed rejected payloads regardless of blocker pass rate, so failing
+gates remain visible. Both modes retain complete inventories and shared-failure
+review; the selected role filters the jobs ranked and investigated.
+
+The [analyze-payload-jobs skill](skills/analyze-payload-jobs/SKILL.md)
+defaults to a 14-day window, at most 10 eligible payloads, a ceiling of 10 validated
+recommendations, 100 candidate cohorts, and a 120-minute workflow budget. Release,
+architecture, stream, and an explicit `informing` or `blocking` role are required; the population
+and evidence thresholds are configurable (`--payloads`, `--min-payloads`).
 Its Python helpers use public Sippy and Prow/GCS data. User-selected workspace
-paths are supported; the default is `~/tmp/analyze-payload-informing-jobs/<UTC timestamp>`.
+paths are supported; the default is `~/tmp/analyze-payload-jobs/<UTC timestamp>`.
 
 The report links a readable summary for every ranked cohort. Investigated jobs
 use the reliability handoff format with impact, mechanism, source status, next
@@ -29,7 +37,7 @@ remaining queue, and historical context without renewing old conclusions or revi
 
 Retirement output is a recommendation with an unapplied configuration change,
 cross-stream impact, coverage risk, restoration criteria, and a separate review.
-For an informing job unable to run its intended tests with no supported repair,
+For a selected job unable to run its intended tests with no supported repair,
 a yearly retirement recommendation must also propose setting `disabled: true`
 on its payload verification entry, even if the periodic is already yearly.
 The entry and its job mapping are retained. The periodic job remains available for

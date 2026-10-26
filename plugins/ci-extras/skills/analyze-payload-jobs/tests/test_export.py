@@ -24,7 +24,8 @@ def setup_workspace(root):
     root.mkdir(parents=True)
     manifest = {"schema_version": 1, "analysis_id": "analysis", "stage": "RANKED",
                 "selection_version": 1, "effective_inputs": {"release": "5.1", "architecture": "amd64",
-                "stream": "nightly"}, "counts": {"payloads_inspected": 3, "selected_payloads": 2},
+                "stream": "nightly", "job_role": "informing"},
+                "counts": {"payloads_inspected": 3, "selected_payloads": 2},
                 "missing_evidence": [], "current_window": {"start": "2026-09-22T00:00:00Z",
                 "end": "2026-10-06T00:00:00Z"}}
     cohort = {"cohort_id": "cohort", "verification_aliases": ["alias"], "actual_prow_jobs": [],
@@ -32,7 +33,7 @@ def setup_workspace(root):
               {"numerator": 0, "denominator": 5, "value": 0}, "association_success":
               {"numerator": 0, "denominator": 7, "value": 0}, "distinct_runs": 5,
               "payload_exposures": 3}, "sample_sufficient": True, "rank": 1}
-    rankings = {"schema_version": 1, "selection_version": 1, "current": [cohort],
+    rankings = {"schema_version": 1, "selection_version": 1, "job_role": "informing", "current": [cohort],
                 "previous_release_history": []}
     (root / "manifest.json").write_text(json.dumps(manifest))
     (root / "payloads.json").write_text(json.dumps({"schema_version": 1, "payloads": []}))

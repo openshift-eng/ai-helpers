@@ -1,3 +1,4 @@
+import contextlib
 import importlib.util
 import io
 import json
@@ -169,15 +170,51 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(b"not JSON", Path(client.provenance[0]["path"]).read_bytes())
 
 
-def options(workspace, history="none", minimum="1"):
+def options(workspace, history="none", minimum="1", job_role="informing"):
     return collector.build_parser().parse_args([
-        "5.1", "--architecture", "amd64", "--stream", "nightly", "--history-release", history,
+        "5.1", job_role, "--architecture", "amd64", "--stream", "nightly", "--history-release", history,
         "--start", "2026-09-22T00:00:00Z", "--end", "2026-10-06T00:00:00Z",
-        "--min-healthy-payloads", minimum, "--workspace", str(workspace),
+        "--min-payloads", minimum, "--workspace", str(workspace),
     ])
 
 
 class CollectionTests(unittest.TestCase):
+    def test_job_role_is_required_and_limited_to_informing_or_blocking(self):
+        parser = collector.build_parser()
+        for role in ([], ["both"], ["unknown"]):
+            with self.subTest(role=role), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as error:
+                    parser.parse_args(["4.18", *role, "--architecture", "amd64", "--stream", "nightly"])
+                self.assertEqual(2, error.exception.code)
+        for role in ("informing", "blocking"):
+            args = parser.parse_args(["4.18", role, "--architecture", "amd64", "--stream", "nightly"])
+            self.assertEqual(role, args.job_role)
+
+    def test_resume_preserves_role_and_rejects_a_different_role(self):
+        for role in ("informing", "blocking"):
+            with self.subTest(role=role), tempfile.TemporaryDirectory() as directory:
+                args = options(Path(directory) / "run", job_role=role)
+                client = collector.Client(Path(args.workspace) / "raw", opener=FakeHTTP([
+                    json.dumps([tag(1, "payload")]).encode(), json.dumps(rows(1, 0, 0, 1, "1")).encode()]))
+                _, manifest, _, _ = collector.run(args, client)
+                self.assertEqual(role, manifest["effective_inputs"]["job_role"])
+                requests = client.requests
+                args.resume = True
+                self.assertEqual(manifest, collector.run(args, client)[1])
+                args.job_role = "blocking" if role == "informing" else "informing"
+                with self.assertRaisesRegex(collector.CollectionError, "frozen job_role"):
+                    collector.run(args, client)
+                self.assertEqual(requests, client.requests)
+
+    def test_blocking_failures_supply_current_population_without_history_fallback(self):
+        for role, expected_fallback in (("informing", True), ("blocking", False)):
+            with self.subTest(role=role), tempfile.TemporaryDirectory() as directory:
+                args = options(Path(directory) / "run", history="auto-previous", job_role=role)
+                client = FakeClient({"5.1": [tag(1, "current")], "5.0": [tag(2, "previous", release="5.0")]},
+                                    {"current": rows(0, 1, 0, 0, "1"), "previous": rows(1, 0, 0, 0, "2")})
+                _, manifest, _, _ = collector.run(args, client)
+                self.assertEqual(expected_fallback, manifest["history"]["triggered"])
+
     def test_exploration_defaults_and_explicit_candidate_limit(self):
         with tempfile.TemporaryDirectory() as directory:
             args = options(Path(directory) / "run")
@@ -185,7 +222,7 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual(100, args.max_candidates)
             self.assertEqual(10, args.max_recommendations)
             args = collector.build_parser().parse_args([
-                "5.1", "--architecture", "amd64", "--stream", "nightly", "--max-candidates", "5",
+                "5.1", "informing", "--architecture", "amd64", "--stream", "nightly", "--max-candidates", "5",
             ])
             collector.validate_args(collector.build_parser(), args, datetime(2026, 10, 6, tzinfo=timezone.utc))
             self.assertEqual(5, args.max_candidates)
