@@ -115,7 +115,7 @@ class Client:
                 raise CollectionError("request limit reached")
             self.requests += 1
             try:
-                request = urllib.request.Request(url, headers={"User-Agent": "payload-informing-analysis/1"})
+                request = urllib.request.Request(url, headers={"User-Agent": "payload-job-analysis/1"})
                 with self.opener(request, timeout=self.timeout) as response:
                     body = response.read(self.max_bytes - self.bytes + 1)
                 if self.bytes + len(body) > self.max_bytes:
@@ -229,13 +229,14 @@ def payload_record(tag, rows, population_role, inventory_complete=True):
     }
 
 
-def prelim_healthy(payload, threshold):
+def prelim_eligible(payload, job_role, threshold):
     blockers = payload["outcome_counts"]["blocking"]
     succeeded, failed = blockers.get("Succeeded", 0), blockers.get("Failed", 0)
     terminal = succeeded + failed
     nonterminal = sum(blockers.values()) - terminal
     return (payload["inventory_complete"] and terminal > 0 and nonterminal == 0
-            and succeeded / terminal >= threshold and payload.get("phase") not in ("Pending", "Ready"))
+            and (job_role == "blocking" or succeeded / terminal >= threshold)
+            and payload.get("phase") not in ("Pending", "Ready", "Running", "", None))
 
 
 def release_names(value):
@@ -283,18 +284,21 @@ def collect_population(client, release, architecture, stream, start, end, limit,
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("release")
+    parser.add_argument("job_role", choices=("informing", "blocking"),
+                        help="payload verification role to analyze")
     parser.add_argument("--architecture", required=True)
     parser.add_argument("--stream", required=True)
     parser.add_argument("--history-release", default="auto-previous")
     parser.add_argument("--lookback-days", type=positive, default=14)
     parser.add_argument("--start", type=parse_utc)
     parser.add_argument("--end", type=parse_utc)
-    parser.add_argument("--healthy-payloads", type=positive, default=10)
+    parser.add_argument("--payloads", type=positive, default=10)
     parser.add_argument("--max-payloads-scan", type=positive, default=50)
-    parser.add_argument("--min-healthy-payloads", type=positive, default=3)
+    parser.add_argument("--min-payloads", type=positive, default=3)
     parser.add_argument("--min-job-runs", type=positive, default=5)
     parser.add_argument("--min-job-payloads", type=positive, default=3)
-    parser.add_argument("--min-blocker-pass-rate", type=rate, default=.90)
+    parser.add_argument("--min-blocker-pass-rate", type=rate, default=.90,
+                        help="minimum blocker success for informing analysis; unused for blocking analysis")
     parser.add_argument("--poor-job-pass-rate", type=rate, default=.50)
     parser.add_argument("--max-recommendations", type=positive, default=10)
     parser.add_argument("--max-candidates", type=positive, default=100)
@@ -317,10 +321,10 @@ def validate_args(parser, args, collected_at):
     start = args.start or end - dt.timedelta(days=args.lookback_days)
     if start >= end:
         parser.error("--start must precede --end")
-    if args.min_healthy_payloads > args.healthy_payloads:
-        parser.error("--min-healthy-payloads cannot exceed --healthy-payloads")
-    if args.min_job_payloads > args.healthy_payloads:
-        parser.error("--min-job-payloads cannot exceed --healthy-payloads")
+    if args.min_payloads > args.payloads:
+        parser.error("--min-payloads cannot exceed --payloads")
+    if args.min_job_payloads > args.payloads:
+        parser.error("--min-job-payloads cannot exceed --payloads")
     return start, end
 
 
@@ -328,14 +332,14 @@ def run(args, client=None, collected_at=None):
     collected_at = collected_at or now()
     start, end = validate_args(build_parser(), args, collected_at)
     workspace = Path(args.workspace).expanduser() if args.workspace else (
-        Path.home() / "tmp" / "analyze-payload-informing-jobs" /
+        Path.home() / "tmp" / "analyze-payload-jobs" /
         collected_at.strftime("%Y%m%dT%H%M%SZ"))
     if (workspace / "manifest.json").exists():
         if not args.resume:
             raise CollectionError("workspace already contains a frozen analysis; choose a fresh workspace or use --resume")
         manifest = json.loads((workspace / "manifest.json").read_text())
         effective = manifest.get("effective_inputs", {})
-        for key in ("release", "architecture", "stream"):
+        for key in ("release", "architecture", "stream", "job_role"):
             if effective.get(key) != getattr(args, key):
                 raise CollectionError("resume scope does not match frozen " + key)
         frozen = manifest.get("current_window", {})
@@ -354,16 +358,16 @@ def run(args, client=None, collected_at=None):
     current_payloads, current_associations, current_scan_limit = collect_population(
         client, args.release, args.architecture, args.stream, start, end,
         args.max_payloads_scan, "current")
-    healthy_now = sum(prelim_healthy(item, args.min_blocker_pass_rate) for item in current_payloads)
+    eligible_now = sum(prelim_eligible(item, args.job_role, args.min_blocker_pass_rate) for item in current_payloads)
     history = {"requested": args.history_release, "triggered": False, "release": None,
                "window": None, "reason": None, "anchored": False}
     historical_payloads, historical_associations = [], []
     historical_scan_limit = False
-    if (healthy_now < args.min_healthy_payloads and args.history_release != "none"
+    if (eligible_now < args.min_payloads and args.history_release != "none"
             and not current_scan_limit):
         history["triggered"] = True
-        history["reason"] = "current release has %d preliminarily healthy payloads; minimum is %d" % (
-            healthy_now, args.min_healthy_payloads)
+        history["reason"] = "current release has %d preliminarily eligible payloads for %s analysis; minimum is %d" % (
+            eligible_now, args.job_role, args.min_payloads)
         chosen = args.history_release
         if chosen == "auto-previous":
             releases = client.get(SIPPY + "/api/releases", "releases")
@@ -388,16 +392,17 @@ def run(args, client=None, collected_at=None):
                     remaining_capacity, "previous-release-history")
                 history["anchored"] = True
         history["window"] = {"start": stamp(history_start), "end": stamp(history_end)}
-    elif healthy_now < args.min_healthy_payloads and current_scan_limit:
+    elif eligible_now < args.min_payloads and current_scan_limit:
         history["reason"] = "payload scan limit was exhausted before fallback capacity was available"
 
     payloads = current_payloads + historical_payloads
     associations = current_associations + historical_associations
     effective = {
         "release": args.release, "architecture": args.architecture, "stream": args.stream,
+        "job_role": args.job_role,
         "history_release": args.history_release, "lookback_days": args.lookback_days,
-        "healthy_payloads": args.healthy_payloads, "max_payloads_scan": args.max_payloads_scan,
-        "min_healthy_payloads": args.min_healthy_payloads, "min_job_runs": args.min_job_runs,
+        "payloads": args.payloads, "max_payloads_scan": args.max_payloads_scan,
+        "min_payloads": args.min_payloads, "min_job_runs": args.min_job_runs,
         "min_job_payloads": args.min_job_payloads, "min_blocker_pass_rate": args.min_blocker_pass_rate,
         "poor_job_pass_rate": args.poor_job_pass_rate,
         "max_recommendations": args.max_recommendations, "max_candidates": args.max_candidates,

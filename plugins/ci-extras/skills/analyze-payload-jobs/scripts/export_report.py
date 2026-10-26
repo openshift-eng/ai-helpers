@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate and export a portable payload informing-job analysis report."""
+"""Validate and export a portable payload job analysis report."""
 
 import argparse
 import hashlib
@@ -329,6 +329,7 @@ def cohort_readme(manifest, cohort, population, finding=None, retirement=None, a
               "- Prow job (%s): %s" % (md(cohort.get("identity_state", "PROVISIONAL")),
                   md(", ".join(cohort.get("actual_prow_jobs") or cohort.get("provisional_prow_jobs") or ["unresolved"]))),
               "- Cohort: " + md(cohort["cohort_id"]),
+              "- Job role: " + md(scope["job_role"]),
               "- Population: %s; %s / %s / %s" % (md(population), md(scope["release"]),
                   md(scope["architecture"]), md(scope["stream"])),
               "- Frozen window: " + md(window_text(manifest, population)),
@@ -422,7 +423,8 @@ def cohort_readme(manifest, cohort, population, finding=None, retirement=None, a
 def report_readme(manifest, rankings, findings, validated, unresolved, fixes, retirements=None):
     current = rankings.get("current", [])
     worst = current[0] if current else None
-    lines = ["# Payload informing-job analysis", "", "Analysis `%s` for `%s` / `%s` / `%s`." % (
+    role = manifest["effective_inputs"]["job_role"]
+    lines = ["# Payload %s-job analysis" % role, "", "Analysis `%s` for `%s` / `%s` / `%s`." % (
         manifest["analysis_id"], manifest["effective_inputs"]["release"],
         manifest["effective_inputs"]["architecture"], manifest["effective_inputs"]["stream"]), ""]
     if worst:
@@ -431,9 +433,9 @@ def report_readme(manifest, rankings, findings, validated, unresolved, fixes, re
         lines += ["Worst raw performer: `%s`, unique-run success %s." % (
             name, metric_text(worst["metrics"]["unique_run_success"])), ""]
     else:
-        lines += ["No current-release informing cohort was rankable in the selected population.", ""]
+        lines += ["No current-release %s cohort was rankable in the selected population." % role, ""]
     lines += ["## Coverage", "", "- Inspected payloads: %d" % manifest["counts"].get("payloads_inspected", 0),
-              "- Selected healthy payloads: %d" % manifest["counts"].get("selected_payloads", 0),
+              "- Selected eligible payloads: %d" % manifest["counts"].get("selected_payloads", 0),
               "- Current ranked cohorts: %d" % len(current),
               "- Historical ranked cohorts: %d" % len(rankings.get("previous_release_history", [])),
               "- Deep findings recorded: %d" % len(findings),
@@ -514,6 +516,10 @@ def render_report(workspace, output, repairs=None):
         raise ExportError("workspace has not been ranked")
     if rankings.get("selection_version") != manifest.get("selection_version"):
         raise ExportError("ranking selection version does not match manifest")
+    if manifest["effective_inputs"].get("job_role") not in ("informing", "blocking"):
+        raise ExportError("job_role must be informing or blocking")
+    if rankings.get("job_role") != manifest["effective_inputs"]["job_role"]:
+        raise ExportError("ranking job role does not match manifest")
     queue_path = workspace / "investigation-queue.json"
     queue = read_json(queue_path) if queue_path.exists() else None
     if manifest.get("investigation_workflow") and queue is None:

@@ -1,4 +1,6 @@
+import contextlib
 import importlib.util
+import io
 import json
 import tempfile
 import unittest
@@ -15,6 +17,7 @@ NOW = datetime(2026, 10, 8, 18, tzinfo=timezone.utc)
 def workspace(root, total=7, **scope_overrides):
     root.mkdir(parents=True)
     settings = {"release": "5.1", "architecture": "amd64", "stream": "nightly",
+                "job_role": "informing",
                 "max_recommendations": 10, "max_candidates": 100, "time_budget_minutes": 120}
     settings.update(scope_overrides)
     manifest = {"schema_version": 1, "analysis_id": root.name, "stage": "RANKED",
@@ -25,6 +28,7 @@ def workspace(root, total=7, **scope_overrides):
                for index in range(1, total + 1)]
     queue.write_json(root / "manifest.json", manifest)
     queue.write_json(root / "job-rankings.json", {"schema_version": 1, "selection_version": 1,
+                     "job_role": settings["job_role"],
                      "current": cohorts, "previous_release_history": []})
     return root
 
@@ -44,7 +48,57 @@ def complete(root, cohort_id):
     return queue.record(root, finding(root, cohort_id), now=NOW)
 
 
+def legacy_workspace(root):
+    root = workspace(root, total=1)
+    manifest = queue.read_json(root / "manifest.json")
+    del manifest["effective_inputs"]["job_role"]
+    queue.write_json(root / "manifest.json", manifest)
+    rankings = queue.read_json(root / "job-rankings.json")
+    del rankings["job_role"]
+    queue.write_json(root / "job-rankings.json", rankings)
+    return root
+
+
 class InvestigationQueueTests(unittest.TestCase):
+    def test_plan_rejects_legacy_active_and_explicit_prior_workspaces(self):
+        for source in ("active", "explicit-prior"):
+            with self.subTest(source=source), tempfile.TemporaryDirectory() as directory:
+                old = legacy_workspace(Path(directory) / "legacy")
+                manifest = (old / "manifest.json").read_bytes()
+                root = old if source == "active" else workspace(Path(directory) / "current", total=1)
+                prior = [] if source == "active" else [old]
+                with self.assertRaisesRegex(queue.QueueError, "job_role.*re-collect"):
+                    queue.plan(root, prior_workspaces=prior, now=NOW)
+                args = ["plan", "--workspace", str(root)]
+                if prior:
+                    args += ["--prior-workspace", str(old)]
+                errors = io.StringIO()
+                with contextlib.redirect_stderr(errors), contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(2, queue.main(args))
+                self.assertRegex(json.loads(errors.getvalue())["error"], "job_role.*re-collect")
+                self.assertEqual(manifest, (old / "manifest.json").read_bytes())
+                self.assertFalse((root / "investigation-queue.json").exists())
+                self.assertFalse((Path(directory) / "investigation-history.json").exists())
+
+    def test_discovered_legacy_workspace_is_skipped_with_actionable_history_gap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            old = legacy_workspace(Path(directory) / "legacy")
+            finding(old, "job-1")
+            root = workspace(Path(directory) / "current", total=1)
+            state = queue.plan(root, now=NOW)
+            self.assertEqual(["job-1"], [item["cohort_id"] for item in state["queue"]])
+            self.assertEqual([], state["deferred"])
+            self.assertEqual(1, len(state["history_gaps"]))
+            self.assertIn(str(old), state["history_gaps"][0])
+            self.assertRegex(state["history_gaps"][0], "job_role.*re-collect")
+
+    def test_plan_rejects_invalid_job_roles(self):
+        for role in (None, "both"):
+            with self.subTest(role=role), tempfile.TemporaryDirectory() as directory:
+                root = workspace(Path(directory) / "current", total=1, job_role=role)
+                with self.assertRaisesRegex(queue.QueueError, "job_role.*informing.*blocking.*re-collect"):
+                    queue.plan(root, now=NOW)
+
     def test_five_no_fix_investigations_advance_to_sixth_and_persist_across_runs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = workspace(Path(directory) / "first")
@@ -137,6 +191,12 @@ class InvestigationQueueTests(unittest.TestCase):
             self.assertEqual("job-2", state["queue"][0]["cohort_id"])
             other = workspace(Path(directory) / "arm", total=2, architecture="arm64")
             self.assertEqual(2, len(queue.plan(other, now=NOW)["queue"]))
+            blocking = workspace(Path(directory) / "blocking", total=2, job_role="blocking")
+            state = queue.plan(blocking, now=NOW)
+            self.assertEqual(2, len(state["queue"]))
+            self.assertEqual([], state["deferred"])
+            self.assertNotEqual(queue.history_key(queue.read_json(old / "manifest.json"), {"cohort_id": "job-1"}),
+                                queue.history_key(queue.read_json(blocking / "manifest.json"), {"cohort_id": "job-1"}))
 
     def test_history_discovery_gaps_survive_replanning_and_subsequent_invocations(self):
         with tempfile.TemporaryDirectory() as directory:

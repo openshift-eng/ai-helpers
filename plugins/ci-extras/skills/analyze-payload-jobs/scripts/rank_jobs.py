@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Select healthy payloads and deterministically rank informing job cohorts."""
+"""Select eligible payloads and rank cohorts of the requested verification role."""
 
 import argparse
 import hashlib
@@ -78,7 +78,7 @@ def load_mappings(path, current_ids, historical_ids):
     return items
 
 
-def health_decision(payload, threshold, shared):
+def eligibility_decision(payload, job_role, threshold, shared):
     reasons, evidence = [], []
     blockers = payload.get("outcome_counts", {}).get("blocking", {})
     succeeded = blockers.get("Succeeded", 0)
@@ -93,7 +93,7 @@ def health_decision(payload, threshold, shared):
     if not terminal:
         reasons.append("HEALTH_CHECK_UNCERTAIN")
         evidence.append("No terminal blocker rows; blocker health is undefined")
-    elif health["value"] < threshold:
+    elif job_role == "informing" and health["value"] < threshold:
         reasons.append("LOW_BLOCKER_HEALTH")
         evidence.append("%d/%d blockers succeeded; threshold is %.3f" % (succeeded, terminal, threshold))
     phase = payload.get("phase")
@@ -120,6 +120,7 @@ def identity(association):
     job = association.get("actual_prow_job") or association.get("provisional_prow_job")
     state = "RESOLVED" if association.get("actual_prow_job") else "PROVISIONAL"
     basis = {
+        "job_role": association["normalized_role"],
         "population_role": association.get("population_role"),
         "prow_job": job,
         "alias": association.get("raw_alias") if not job else None,
@@ -201,6 +202,7 @@ def cohort_record(cohort_id, rows, payload_by_id, settings):
     record = {
         "schema_version": 1,
         "cohort_id": cohort_id,
+        "job_role": settings["job_role"],
         "population_role": sample.get("population_role"),
         "release": sample.get("release"),
         "architecture": sample.get("architecture"),
@@ -263,7 +265,7 @@ def cohort_record(cohort_id, rows, payload_by_id, settings):
 def rank_population(associations, payload_by_id, settings):
     cohorts = defaultdict(list)
     for row in associations:
-        if row.get("normalized_role") != "INFORMING":
+        if row.get("normalized_role") != settings["job_role"].upper():
             continue
         cohort_id, _, _ = identity(row)
         cohorts[cohort_id].append(row)
@@ -284,11 +286,13 @@ def run(workspace, decisions_path=None, mappings_path=None):
     if not isinstance(payloads, list) or not isinstance(associations, list):
         raise RankingError("collector outputs have invalid shapes")
     settings = manifest["effective_inputs"]
+    if settings.get("job_role") not in ("informing", "blocking"):
+        raise RankingError("job_role must be informing or blocking")
     shared = load_decisions(decisions_path)
     eligible_by_role = defaultdict(list)
     for payload in payloads:
-        eligible, reasons, evidence, blocker_rate = health_decision(
-            payload, settings["min_blocker_pass_rate"], shared)
+        eligible, reasons, evidence, blocker_rate = eligibility_decision(
+            payload, settings["job_role"], settings["min_blocker_pass_rate"], shared)
         payload["eligibility"] = "ELIGIBLE" if eligible else "EXCLUDED"
         payload["reason_codes"] = reasons
         payload["evidence"] = evidence
@@ -297,8 +301,8 @@ def run(workspace, decisions_path=None, mappings_path=None):
             eligible_by_role[payload["population_role"]].append(payload)
     for values in eligible_by_role.values():
         values.sort(key=lambda item: item.get("release_time") or "", reverse=True)
-    selected = eligible_by_role["current"][:settings["healthy_payloads"]]
-    remaining = max(0, settings["healthy_payloads"] - len(selected))
+    selected = eligible_by_role["current"][:settings["payloads"]]
+    remaining = max(0, settings["payloads"] - len(selected))
     selected += eligible_by_role["previous-release-history"][:remaining]
     selected_ids = {str(payload["id"]) for payload in selected}
     for payload in payloads:
@@ -317,6 +321,7 @@ def run(workspace, decisions_path=None, mappings_path=None):
     rankings = {
         "schema_version": 1,
         "analysis_id": manifest["analysis_id"],
+        "job_role": settings["job_role"],
         "selection_version": manifest.get("selection_version", 0) + 1,
         "ordering": [
             "adequately sampled zero-pass: failing runs desc, payloads desc",
@@ -346,8 +351,8 @@ def run(workspace, decisions_path=None, mappings_path=None):
         "current_job_cohorts": len(current),
         "historical_job_cohorts": len(historical),
     })
-    if len(eligible_by_role["current"]) < settings["min_healthy_payloads"] and not historical:
-        manifest["missing_evidence"].append("minimum healthy current payload population not met and no usable predecessor cohort selected")
+    if len(eligible_by_role["current"]) < settings["min_payloads"] and not historical:
+        manifest["missing_evidence"].append("minimum eligible current payload population not met and no usable predecessor cohort selected")
     write_json(workspace / "payloads.json", {"schema_version": 1, "payloads": payloads})
     write_json(workspace / "job-rankings.json", rankings)
     write_json(workspace / "manifest.json", manifest)

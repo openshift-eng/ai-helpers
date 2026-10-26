@@ -3,7 +3,9 @@
 All machine-readable records use `schema_version: 1`. Times are explicit UTC,
 hashes are lowercase SHA256, missing observations are `null`, and substantive
 claims reference evidence records with source URL, retrieval time, retained path,
-hash, exact excerpt location, and evidence role.
+hash, exact excerpt location, and evidence role. The manifest's effective inputs
+record `job_role` (`informing` or `blocking`); rankings and cohort handoffs retain
+that role, and report titles identify the selected role.
 
 ## Finding
 
@@ -88,10 +90,10 @@ A retirement record is separate from a repair. It requires:
 - every other stream/release/architecture consumer, coverage/replacement analysis,
   residual risk, owner, validation steps, and restoration condition.
 
-For an informing job unable to execute its intended real tests, when no supported
+For a selected job unable to execute its intended real tests, when no supported
 repair is found and yearly operation is recommended, require one combined proposal:
 
-- Set `disabled: true` on the exact informing verification entry in the selected
+- Set `disabled: true` on the exact verification entry of the requested role in the selected
   payload configuration, retaining its alias, job mapping, and other fields.
   Record its path, alias, underlying Prow job, and pinned source revision.
 - Set the associated periodic to a valid yearly schedule, retaining its definition
@@ -99,7 +101,7 @@ repair is found and yearly operation is recommended, require one combined propos
   schedule and still disable the payload entry; no redundant schedule edit is needed.
 
 The periodic schedule does not prevent payload-triggered runs. For
-`5.1 --architecture amd64 --stream nightly`, the payload target is
+`5.1 informing --architecture amd64 --stream nightly`, the payload target is
 [`core-services/release-controller/_releases/release-ocp-5.1.json`](https://github.com/openshift/release/blob/main/core-services/release-controller/_releases/release-ocp-5.1.json):
 propose setting `verify["<selected-alias>"].disabled` to `true`, as in the
 [4.21 release configuration](https://github.com/openshift/release/blob/main/core-services/release-controller/_releases/release-ocp-4.21.json#L91).
@@ -107,6 +109,8 @@ Resolve the appropriate configuration for other scopes instead of reusing this
 example path.
 Keep unrelated verification entries intact and check other consumers before
 proposing a shared periodic change.
+For a blocking job, the impact and independent review must also account for lost
+release gating and the replacement coverage that supports the proposed retirement.
 
 `configuration.unapplied_change` must contain a reviewable patch or before/after
 excerpt setting `disabled: true` on the retained payload entry. Include the

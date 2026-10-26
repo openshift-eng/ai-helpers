@@ -25,19 +25,20 @@ python3 scripts/investigation_queue.py plan --workspace WORK
 
 The helper writes `WORK/investigation-queue.json` and defaults shared history to
 `WORK/../investigation-history.json`. Default timestamped workspaces therefore
-share `~/tmp/analyze-payload-informing-jobs/investigation-history.json`. Use
+share `~/tmp/analyze-payload-jobs/investigation-history.json`. Use
 `--history-file FILE` for a user-selected location. Keep a shared history file under
 one writer at a time. It is scheduling state, not a review attestation.
 
 On first initialization, discover up to 50 sibling workspaces' manifests/rankings
-and import completed findings of the exact release/architecture/stream. Discovery
+and import completed findings of the exact release/architecture/stream/job role. Discovery
 is bounded and gaps are recorded; it does not scan artifact trees. Use repeatable
 `--prior-workspace PATH` for older or differently located workspaces. Imported
 findings need a recognized disposition, completed investigation status, summary,
 and next action. Partial or interrupted findings are not treated as completed.
 
 History keys combine exact scope with the stable cohort ID, preserving underlying
-job, upgrade-route, and population distinctions. Store the observation fingerprint,
+job, verification role, upgrade-route, and population distinctions. Blocking and
+informing analyses never defer each other's investigations. Store the observation fingerprint,
 finding digest/path, source analysis, completion time, disposition, summary,
 next action, and optional `revisit_condition`. Re-importing an old finding after
 re-ranking does not replace the originally investigated observations.
