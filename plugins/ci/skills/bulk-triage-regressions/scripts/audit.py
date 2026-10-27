@@ -106,6 +106,7 @@ def diff_triages(before, after, declared):
             return {"status": "unknown", "error": "%s snapshot: %s" % (name, detail)}
     b, a = before["triages"], after["triages"]
     created, extended, removed, deleted, modified, observed = [], [], [], [], [], []
+    external = []
     for tid in sorted(set(a) | set(b), key=str):
         if tid not in b:
             created.append(tid)
@@ -129,8 +130,12 @@ def diff_triages(before, after, declared):
                    if _norm_field(f, b[tid].get(f)) != _norm_field(f, a[tid].get(f))]
         if changed:
             modified.append({"triage_id": tid, "fields": changed})
-            observed.append({"kind": "modified", "triage_id": tid, "fields": changed,
-                             "before": {f: b[tid].get(f) for f in changed}, "after": {f: a[tid].get(f) for f in changed}})
+            change = {"kind": "modified", "triage_id": tid, "fields": changed,
+                      "before": {f: b[tid].get(f) for f in changed}, "after": {f: a[tid].get(f) for f in changed}}
+            if changed == ["description"] and old == new:
+                external.append(change)
+            else:
+                observed.append(change)
 
     done = [d for d in (declared or []) if isinstance(d, dict) and d.get("status") == "done"
             and d.get("type") in ("extend_triage", "catch_all", "create_triage")]
@@ -190,7 +195,7 @@ def diff_triages(before, after, declared):
         if o["kind"] == "extended":
             return tid in ext_by_tid and ext_by_tid[tid] >= set(o["added"])
         if o["kind"] == "modified":
-            # A declared extension may refresh the description; protected fields never change undeclared.
+            # Description-only syncs are external; membership changes still need a declared extension.
             return o["fields"] == ["description"] and tid in ext_by_tid
         return False   # removed / deleted are never covered
 
@@ -209,7 +214,7 @@ def diff_triages(before, after, declared):
     undeclared = [o for o in observed if not covered(o)]
     not_observed = [d for d in done if not observed_for(d)]
     return {"created": created, "extended": extended, "removed": removed, "deleted": deleted, "modified": modified,
-            "undeclared": undeclared, "declared_not_observed": not_observed,
+            "external": external, "undeclared": undeclared, "declared_not_observed": not_observed,
             "status": "match" if not undeclared and not not_observed else "mismatch"}
 
 

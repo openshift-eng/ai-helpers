@@ -29,6 +29,81 @@ def tri(regs, url="https://x/triages/1", resolved=None):
 
 
 class DiffTests(unittest.TestCase):
+    def test_description_only_sync_is_external_without_declaration(self):
+        before = snap({"1": dict(tri([1]), description="old")})
+        after = snap({"1": dict(tri([1]), description="synced")})
+        result = audit.diff_triages(before, after, [])
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["modified"], [{"triage_id": "1", "fields": ["description"]}])
+        self.assertEqual(result["external"], [{"kind": "modified", "triage_id": "1", "fields": ["description"],
+                                             "before": {"description": "old"}, "after": {"description": "synced"}}])
+        self.assertEqual(result["undeclared"], [])
+
+    def test_description_and_url_change_is_not_external(self):
+        before = snap({"1": dict(tri([1]), description="old")})
+        after = snap({"1": dict(tri([1], url="https://x/triages/2"), description="synced")})
+        result = audit.diff_triages(before, after, [])
+        self.assertEqual(result["status"], "mismatch")
+        self.assertEqual(result["external"], [])
+        self.assertEqual(result["undeclared"][0]["fields"], ["url", "description"])
+
+    def test_description_and_undeclared_extension_is_not_external(self):
+        before = snap({"1": dict(tri([1]), description="old")})
+        after = snap({"1": dict(tri([1, 2]), description="synced")})
+        result = audit.diff_triages(before, after, [])
+        self.assertEqual(result["status"], "mismatch")
+        self.assertEqual(result["external"], [])
+        self.assertEqual([change["kind"] for change in result["undeclared"]], ["extended", "modified"])
+
+    def test_three_triage_description_syncs_match(self):
+        descriptions = {
+            "250": ("Component Readiness: scaling calculation", "scaling calculation"),
+            "508": ("Continued apiserver failure", "Continued disruption due to CPU exhaustion"),
+            "567": ("Component Readiness: scaling calculation", "scaling calculation"),
+        }
+        before, after = {}, {}
+        for triage_id, (old_description, new_description) in descriptions.items():
+            record = dict(tri([int(triage_id)], url="https://x/triages/" + triage_id),
+                          type="product", resolved=None, resolution_reason="")
+            before[triage_id] = dict(record, description=old_description)
+            after[triage_id] = dict(record, description=new_description)
+        result = audit.diff_triages(snap(before), snap(after), [])
+        self.assertEqual(result["status"], "match")
+        self.assertEqual([change["triage_id"] for change in result["external"]], ["250", "508", "567"])
+        self.assertTrue(all(change["fields"] == ["description"] for change in result["external"]))
+        self.assertEqual(len(result["modified"]), 3)
+        self.assertEqual(result["undeclared"], [])
+
+    def test_description_with_protected_changes_remains_undeclared(self):
+        before = snap({"1": dict(tri([1]), description="old")})
+        for field, value in (("type", "product"), ("resolved", {"Time": "2026-10-01T00:00:00Z", "Valid": True}),
+                             ("resolution_reason", "user")):
+            with self.subTest(field=field):
+                record = dict(tri([1]), description="synced")
+                record[field] = value
+                result = audit.diff_triages(before, snap({"1": record}), [])
+                self.assertEqual(result["status"], "mismatch")
+                self.assertEqual(result["external"], [])
+                self.assertEqual(result["undeclared"][0]["fields"], [field, "description"])
+
+    def test_description_with_membership_removal_is_not_external(self):
+        before = snap({"1": dict(tri([1, 2]), description="old")})
+        after = snap({"1": dict(tri([1]), description="synced")})
+        declaration = [{"type": "extend_triage", "triage_id": 1, "regression_ids": [1], "status": "done"}]
+        result = audit.diff_triages(before, after, declaration)
+        self.assertEqual(result["status"], "mismatch")
+        self.assertEqual(result["external"], [])
+        self.assertEqual(result["undeclared"][0]["kind"], "removed")
+
+    def test_external_sync_does_not_hide_unobserved_declaration(self):
+        before = snap({"1": dict(tri([1]), description="old")})
+        after = snap({"1": dict(tri([1]), description="synced")})
+        declaration = [{"type": "extend_triage", "triage_id": 1, "regression_ids": [2], "status": "done"}]
+        result = audit.diff_triages(before, after, declaration)
+        self.assertEqual(result["status"], "mismatch")
+        self.assertEqual(len(result["external"]), 1)
+        self.assertEqual(result["declared_not_observed"], declaration)
+
     def test_undeclared_extension_detected(self):
         r = audit.diff_triages(snap({"1": tri([1])}), snap({"1": tri([1, 2])}), [])
         self.assertEqual(r["extended"], [{"triage_id": "1", "added": [2]}])
