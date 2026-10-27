@@ -380,7 +380,9 @@ judges:
       # plan writes "[PRELIMINARY - no implementation PRs available]"; demanding
       # a closing bracket immediately after the word fails a plan that did the
       # right thing in words the pattern did not anticipate.
-      STATUSES = ("COVERED", "PARTIAL", "GAP", "PRELIMINARY")
+      # NOT COVERED replaced GAP in the skill's coverage vocabulary; GAP is
+      # kept so plans generated before that rename still score.
+      STATUSES = ("COVERED", "PARTIAL", "NOT COVERED", "GAP", "PRELIMINARY")
       found = {s for s in STATUSES
                if re.search(rf"\[{s}\b", body)}
       if not found:
