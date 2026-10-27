@@ -85,12 +85,24 @@ permissions:
     - "Grep"
     - "Bash"
     - "WebFetch"
-    # Jira MCP tools, both observed server namespaces. The skill selects
-    # whichever is present (SKILL.md Step 1b); fixtured cases need none.
+    # Jira MCP tools. Headless runs use --permission-prompts none, so any tool
+    # not named here is auto-denied and the skill cannot reach Jira at all.
+    # SKILL.md Step 1b tries three candidate tool names in order and then
+    # resolves cloudId through an accessible-resources call, so every spelling
+    # it can attempt has to be listed. Cases 001-004 read live Jira; case-005
+    # is fixture-backed and needs none of these.
+    #
+    # Step 1b candidates, in the order the skill tries them:
+    - "mcp__user_jira__jira_get_issue"
+    - "mcp__plugin_jira_atlassian__getJiraIssue"
+    - "mcp__atlassian__jira_get_issue"
+    # cloudId resolution, namespace varies with the server:
+    - "mcp__user_jira__jira_list_accessible_resources"
+    - "mcp__atlassian__jira_list_accessible_resources"
+    - "mcp__atlassian__getAccessibleAtlassianResources"
+    # Not in Step 1b's candidate list, but what the live Atlassian MCP exposes:
     - "mcp__atlassian__getJiraIssue"
     - "mcp__atlassian__searchJiraIssuesUsingJql"
-    - "mcp__atlassian__getAccessibleAtlassianResources"
-    - "mcp__plugin_jira_atlassian__getJiraIssue"
     - "mcp__plugin_jira_atlassian__searchJiraIssuesUsingJql"
   deny:
     - "Agent"
@@ -285,27 +297,38 @@ judges:
       # cell in a row that also carries a scenario ID. Matching bare words
       # anywhere in the document passes any plan that happens to use the
       # English word "unit" - that is a false pass, not a measurement.
-      labelled = re.findall(
-          rf"(?:ci[ -]?tier|\btier\b)[^\n|]{{0,16}}[:|]\s*\**({alt})\b", body, re.I)
-      rowwise = [l for l in body.splitlines()
-                 if re.search(r"\bTC-[A-Z]{2,8}-\d+\b", l)
-                 and re.search(rf"(?<![\w-])(?:{alt})(?![\w-])", l, re.I)]
-      n_tier = len(labelled) + len(rowwise)
+      # Compare SETS OF SCENARIOS, not counts of lines. Counting lines double
+      # counts a row that carries both an inline label and the ID, and a
+      # roll-up row such as "| unit | TC-FUNC-001 through TC-FUNC-010 |" adds
+      # one while representing no per-scenario assignment. The inflated total
+      # can then mask genuinely untiered scenarios.
+      #
+      # TC-DEFER-NNN is excluded from both sides. Deferred appendix entries are
+      # backlog items with no tier by design (SKILL.md 5g), so counting them as
+      # untiered scenarios fails a correct plan against a 1.0 gate.
+      #
+      # Width-tolerant on the digits: ID *shape* is scenario_ids_wellformed's
+      # concern, and coupling the two lets a malformed-ID plan pass here.
+      ID = r"\bTC-(?!DEFER-)[A-Z]{2,8}-\d+\b"
+      tiered = set()
+      for l in body.splitlines():
+          if re.search(rf"(?<![\w-])(?:{alt})(?![\w-])", l, re.I):
+              tiered.update(re.findall(ID, l))
+      n_tier = len(tiered)
       if n_tier == 0:
           return (False,
                   "No CI tier is assigned to any scenario (a tier word appearing "
                   "in prose does not count as an assignment)")
-      # Locate scenarios with a width-tolerant pattern: ID *shape* is the
-      # concern of scenario_ids_wellformed. Coupling the two makes a plan with
-      # malformed IDs silently pass this judge instead of failing both.
-      n_ids = len(set(re.findall(r"\bTC-[A-Z]{2,8}-\d+\b", body)))
+      n_ids = len(set(re.findall(ID, body)))
       for line in body.splitlines():
           if re.search(rf"(?:ci[ -]?tier|\btier\b)[^\n|]{{0,16}}[:|]\s*\**payload\b",
                        line, re.I) or re.search(
                        r"\bTC-[A-Z]{2,8}-\d+\b[^\n]*\|\s*payload\s*\|", line, re.I):
               return (False, f"Scenario assigned to forbidden payload tier: {line.strip()[:120]}")
       if n_ids and n_tier < n_ids:
-          return (False, f"{n_ids} scenarios but only {n_tier} tier assignments")
+          untiered = sorted(set(re.findall(ID, body)) - tiered)
+          return (False,
+                  f"{n_ids} scenarios, {n_tier} tiered; untiered: {untiered[:5]}")
       found = {t for t in TIERS
                if re.search(rf"(?<![\w-]){re.escape(t)}(?![\w-])", body, re.I)}
       return (True, f"Tiers used: {sorted(found)}; {n_tier} assignments for {n_ids} scenarios")
