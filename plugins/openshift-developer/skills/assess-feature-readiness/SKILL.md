@@ -50,17 +50,18 @@ When reporting on multiple features, the output is **grouped by team** (the Jira
      - Validate: must match pattern `X.Y` where X and Y are integers. Reject with an error if invalid.
      - Reconstruct the full release string as `openshift-X.Y` for Jira queries.
 3. **Parse `--team`** (optional, release-wide mode only): If `--team <component>` is passed, store the component name for JQL filtering in Step 4.
-4. **Parse `--check`** (optional): If `--check dor` is passed, run only DoR checks: R1, R6, R8, R9. If `--check dod`, run only DoD checks: R2, R3, R4, R5, R7, R10, R11, R12, R13. Otherwise run all R1–R13.
+4. **Parse `--check`** (optional): If `--check dor` is passed, report only DoR checks: R1, R6, R8, R9. If `--check dod`, report only DoD checks: R2, R3, R4, R5, R7, R10, R11, R12, R13. Otherwise report all R1–R13. **Important**: some checks depend on others as prerequisites (R8 needs R4's work items, R9 needs R1+R2+R6, R7 needs R1+R4+R6, R13 needs R1+R3+R5+R10+R12). Always compute prerequisite checks internally even in filtered mode — only limit which checks appear in the reported output.
 
 ### Step 2: Discover Jira MCP tool
 
 Try tool names in this order until one responds successfully:
 
-1. `mcp__atlassian__getJiraIssue`
-2. `mcp__plugin_jira_atlassian__getJiraIssue`
-3. `mcp__user_jira__getJiraIssue`
+1. `mcp__atlassian__jira_get_issue`
+2. `mcp__atlassian__getJiraIssue`
+3. `mcp__plugin_jira_atlassian__getJiraIssue`
+4. `mcp__user_jira__getJiraIssue`
 
-The first one that responds becomes the tool for **all** subsequent Jira calls. Also discover the corresponding `searchJiraIssuesUsingJql` or `jira_search` variant from the same namespace.
+The first one that responds becomes the tool for **all** subsequent Jira calls. Also discover the corresponding search variant from the same namespace (`jira_search`, `searchJiraIssuesUsingJql`, etc.).
 
 ### Step 3: Acquire cloudId
 

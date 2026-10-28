@@ -97,11 +97,13 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      # Read input to get expected count
-      input_files = {k: v for k, v in all_f.items() if k.endswith("input.yaml")}
-      if not input_files:
-          return (False, "No input.yaml found")
-      input_data = yaml.safe_load(list(input_files.values())[0])
+      # Read expected count from the inputs channel (case fixture)
+      input_data = outputs.get("inputs", {})
+      if not input_data:
+          input_files = {k: v for k, v in all_f.items() if k.endswith("input.yaml")}
+          if not input_files:
+              return (False, "No input data found in inputs or files")
+          input_data = yaml.safe_load(list(input_files.values())[0])
       expected_count = len(input_data.get("features", []))
       # Read summary from output
       summary_files = {k: v for k, v in all_f.items() if k.endswith("summary.json")}
@@ -125,11 +127,14 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      input_files = {k: v for k, v in all_f.items() if k.endswith("input.yaml")}
-      if not input_files:
-          return (False, "No input.yaml found")
-      input_data = yaml.safe_load(list(input_files.values())[0])
-      # Find features that should have missing plans (no test plan in remote_links)
+      # Read expected data from inputs channel, fallback to files
+      input_data = outputs.get("inputs", {})
+      if not input_data:
+          input_files = {k: v for k, v in all_f.items() if k.endswith("input.yaml")}
+          if not input_files:
+              return (False, "No input data found in inputs or files")
+          input_data = yaml.safe_load(list(input_files.values())[0])
+      # Find features that should have missing plans
       expected_missing = set()
       for f in input_data.get("features", []):
           has_plan = False
@@ -144,16 +149,24 @@ judges:
               expected_missing.add(f["key"])
       if not expected_missing:
           return (True, "No features expected to have missing plans")
-      # Check report
+      # Check report — traverse teams[team].features (not top-level features)
       report_files = {k: v for k, v in all_f.items() if k.endswith("readiness-report.json")}
       if not report_files:
           return (False, "No readiness-report.json found")
       report = json.loads(list(report_files.values())[0])
       actual_missing = set()
-      for f in report.get("features", []):
-          r1 = f.get("checks", {}).get("R1", {})
-          if r1.get("status") in ("missing", "Missing", "❌"):
-              actual_missing.add(f["key"])
+      teams = report.get("teams", {})
+      for team_name, team_data in teams.items():
+          for f in team_data.get("features", []):
+              r1 = f.get("checks", {}).get("R1", {})
+              if r1.get("status") in ("missing", "Missing", "❌"):
+                  actual_missing.add(f["key"])
+      # Fallback: also check top-level features if teams is empty
+      if not actual_missing:
+          for f in report.get("features", []):
+              r1 = f.get("checks", {}).get("R1", {})
+              if r1.get("status") in ("missing", "Missing", "❌"):
+                  actual_missing.add(f["key"])
       missed = expected_missing - actual_missing
       if missed:
           return (False, f"Failed to identify missing plans for: {missed}")
@@ -166,10 +179,13 @@ judges:
       files = outputs.get("files", {})
       modified = outputs.get("modified_files", {})
       all_f = {**files, **modified}
-      input_files = {k: v for k, v in all_f.items() if k.endswith("input.yaml")}
-      if not input_files:
-          return (False, "No input.yaml found")
-      input_data = yaml.safe_load(list(input_files.values())[0])
+      # Read expected data from inputs channel, fallback to files
+      input_data = outputs.get("inputs", {})
+      if not input_data:
+          input_files = {k: v for k, v in all_f.items() if k.endswith("input.yaml")}
+          if not input_files:
+              return (False, "No input data found in inputs or files")
+          input_data = yaml.safe_load(list(input_files.values())[0])
       # Find Critical/Blocker features with gaps in R1/R4/R6
       expected_critical = set()
       for f in input_data.get("features", []):
@@ -189,14 +205,22 @@ judges:
               expected_critical.add(f["key"])
       if not expected_critical:
           return (True, "No critical-gap features expected")
+      # Check report — traverse teams[team].features (not top-level features)
       report_files = {k: v for k, v in all_f.items() if k.endswith("readiness-report.json")}
       if not report_files:
           return (False, "No readiness-report.json found")
       report = json.loads(list(report_files.values())[0])
       actual_critical = set()
-      for f in report.get("features", []):
-          if f.get("verdict") in ("critical", "CRITICAL", "🔴 CRITICAL", "🔴"):
-              actual_critical.add(f["key"])
+      teams = report.get("teams", {})
+      for team_name, team_data in teams.items():
+          for f in team_data.get("features", []):
+              if f.get("verdict") in ("critical", "CRITICAL", "🔴 CRITICAL", "🔴"):
+                  actual_critical.add(f["key"])
+      # Fallback: also check top-level features if teams is empty
+      if not actual_critical:
+          for f in report.get("features", []):
+              if f.get("verdict") in ("critical", "CRITICAL", "🔴 CRITICAL", "🔴"):
+                  actual_critical.add(f["key"])
       missed = expected_critical - actual_critical
       if missed:
           return (False, f"Failed to flag critical-gap features: {missed}")
