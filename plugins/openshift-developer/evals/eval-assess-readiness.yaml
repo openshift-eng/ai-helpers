@@ -1,0 +1,280 @@
+name: assess-readiness-eval
+description: >
+  Hermetic eval of the assess-feature-readiness skill. Uses inlined OCPSTRAT
+  features with known characteristics — no live Jira calls. Validates correct
+  feature counting, gap detection, verdict assignment, and report structure.
+skill: openshift-developer:assess-feature-readiness
+
+execution:
+  mode: case
+  arguments: "openshift-5.1"
+  timeout: 180
+  max_budget_usd: 2.00
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/openshift-developer
+    - plugins/jira
+  system_prompt: |
+    You are running a hermetic evaluation of the assess-feature-readiness skill.
+    Live Jira MCP calls are denied. Instead, read input.yaml to obtain the
+    inlined feature data.
+
+    Treat the features array in input.yaml as if it were the result of the
+    JQL query for OCPSTRAT Features targeting openshift-5.1. Run all 13
+    readiness checks (R1–R13) against each feature using only the data
+    provided — do not attempt MCP calls.
+
+    Write the markdown report to output/report.md and the JSON sidecar to
+    output/readiness-report.json. Also write output/summary.json containing
+    only the summary statistics.
+
+    Group features by their components field (team). Features with multiple
+    components appear under each team. Features with no components go under
+    "Unassigned". The JSON must use a "teams" dict with per-team summary
+    and features array.
+
+    The output files must be valid and complete.
+
+permissions:
+  allow:
+    - "Skill"
+    - "Read"
+    - "Write"
+    - "Bash"
+  deny:
+    - "Agent"
+    - "mcp__*"
+
+models:
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
+
+mlflow:
+  experiment: assess-readiness-eval
+
+dataset:
+  path: cases/assess-readiness
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'release' — target release string (e.g. "openshift-5.1")
+      - 'features' — array of inlined OCPSTRAT feature objects, each with:
+        - 'key' — Jira issue key (e.g. OCPSTRAT-1001)
+        - 'summary' — feature title
+        - 'priority' — priority name (Critical, Blocker, Major, Minor)
+        - 'status' — Jira status (In Progress, Release Pending, etc.)
+        - 'description' — full description text (for R2, R3)
+        - 'remote_links' — array of {title, url} objects (for R1, R10, R11, R12)
+        - 'subtasks' — array of {key, summary, status, labels, components} (for R4, R5, R8)
+        - 'issue_links' — array of {key, type, summary, status} (for R4, R9)
+        - 'qa_contact' — string or null (for R6)
+        - 'labels' — array of strings
+        - 'components' — array of strings
+
+outputs:
+  - path: "output"
+    schema: |
+      The eval produces:
+        report.md — full markdown readiness report
+        readiness-report.json — JSON sidecar with per-feature check results
+        summary.json — summary statistics only
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  # ── Deterministic judges (hard gates) ──
+
+  - name: correct_feature_count
+    description: Verify the report counts the correct number of features
+    check: |
+      import json, yaml
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      # Read input to get expected count
+      input_files = {k: v for k, v in all_f.items() if k.endswith("input.yaml")}
+      if not input_files:
+          return (False, "No input.yaml found")
+      input_data = yaml.safe_load(list(input_files.values())[0])
+      expected_count = len(input_data.get("features", []))
+      # Read summary from output
+      summary_files = {k: v for k, v in all_f.items() if k.endswith("summary.json")}
+      if not summary_files:
+          report_files = {k: v for k, v in all_f.items() if k.endswith("readiness-report.json")}
+          if not report_files:
+              return (False, "No summary.json or readiness-report.json found")
+          report = json.loads(list(report_files.values())[0])
+          actual_count = report.get("summary", {}).get("total", -1)
+      else:
+          summary = json.loads(list(summary_files.values())[0])
+          actual_count = summary.get("total", -1)
+      if actual_count != expected_count:
+          return (False, f"Expected {expected_count} features, report says {actual_count}")
+      return (True, f"Correct feature count: {actual_count}")
+
+  - name: identifies_missing_plan
+    description: Verify the report correctly identifies features with no test plan link
+    check: |
+      import json, yaml
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      input_files = {k: v for k, v in all_f.items() if k.endswith("input.yaml")}
+      if not input_files:
+          return (False, "No input.yaml found")
+      input_data = yaml.safe_load(list(input_files.values())[0])
+      # Find features that should have missing plans (no test plan in remote_links)
+      expected_missing = set()
+      for f in input_data.get("features", []):
+          has_plan = False
+          for link in f.get("remote_links", []):
+              title = (link.get("title") or "").lower()
+              url = (link.get("url") or "").lower()
+              if "test" in title and "plan" in title:
+                  has_plan = True
+              elif "/plans/" in url or "/test-plan" in url:
+                  has_plan = True
+          if not has_plan:
+              expected_missing.add(f["key"])
+      if not expected_missing:
+          return (True, "No features expected to have missing plans")
+      # Check report
+      report_files = {k: v for k, v in all_f.items() if k.endswith("readiness-report.json")}
+      if not report_files:
+          return (False, "No readiness-report.json found")
+      report = json.loads(list(report_files.values())[0])
+      actual_missing = set()
+      for f in report.get("features", []):
+          r1 = f.get("checks", {}).get("R1", {})
+          if r1.get("status") in ("missing", "Missing", "❌"):
+              actual_missing.add(f["key"])
+      missed = expected_missing - actual_missing
+      if missed:
+          return (False, f"Failed to identify missing plans for: {missed}")
+      return (True, f"Correctly identified {len(expected_missing)} features with missing plans")
+
+  - name: flags_critical_gap
+    description: Verify Critical/Blocker features without plans/QA/work items are flagged as Critical Gap
+    check: |
+      import json, yaml
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      input_files = {k: v for k, v in all_f.items() if k.endswith("input.yaml")}
+      if not input_files:
+          return (False, "No input.yaml found")
+      input_data = yaml.safe_load(list(input_files.values())[0])
+      # Find Critical/Blocker features with gaps in R1/R4/R6
+      expected_critical = set()
+      for f in input_data.get("features", []):
+          if f.get("priority") not in ("Critical", "Blocker"):
+              continue
+          has_plan = False
+          for link in f.get("remote_links", []):
+              title = (link.get("title") or "").lower()
+              url = (link.get("url") or "").lower()
+              if ("test" in title and "plan" in title) or "/plans/" in url or "/test-plan" in url:
+                  has_plan = True
+          has_qa = bool(f.get("qa_contact"))
+          has_items = len(f.get("subtasks", [])) > 0 or any(
+              il.get("type") in ("Story", "Task") for il in f.get("issue_links", [])
+          )
+          if not has_plan or not has_qa or not has_items:
+              expected_critical.add(f["key"])
+      if not expected_critical:
+          return (True, "No critical-gap features expected")
+      report_files = {k: v for k, v in all_f.items() if k.endswith("readiness-report.json")}
+      if not report_files:
+          return (False, "No readiness-report.json found")
+      report = json.loads(list(report_files.values())[0])
+      actual_critical = set()
+      for f in report.get("features", []):
+          if f.get("verdict") in ("critical", "CRITICAL", "🔴 CRITICAL", "🔴"):
+              actual_critical.add(f["key"])
+      missed = expected_critical - actual_critical
+      if missed:
+          return (False, f"Failed to flag critical-gap features: {missed}")
+      return (True, f"Correctly flagged {len(expected_critical)} critical-gap features")
+
+  - name: summary_stats_accurate
+    description: Verify summary statistics add up correctly and team grouping is present
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      report_files = {k: v for k, v in all_f.items() if k.endswith("readiness-report.json")}
+      if not report_files:
+          return (False, "No readiness-report.json found")
+      report = json.loads(list(report_files.values())[0])
+      summary = report.get("summary", {})
+      total = summary.get("total", 0)
+      ready = summary.get("ready", 0)
+      partial = summary.get("partial", 0)
+      at_risk = summary.get("at_risk", 0)
+      critical = summary.get("critical", 0)
+      verdict_sum = ready + partial + at_risk + critical
+      if verdict_sum != total:
+          return (False, f"Verdict counts ({verdict_sum}) != total ({total}): ready={ready} partial={partial} at_risk={at_risk} critical={critical}")
+      # Verify team grouping exists
+      teams = report.get("teams", {})
+      if not teams:
+          return (False, "No 'teams' dict in report — features must be grouped by component")
+      # Verify all features appear in at least one team
+      team_feature_keys = set()
+      for team_name, team_data in teams.items():
+          for f in team_data.get("features", []):
+              team_feature_keys.add(f.get("key"))
+      if len(team_feature_keys) != total:
+          return (False, f"Unique features across teams ({len(team_feature_keys)}) != summary total ({total})")
+      return (True, f"Summary stats consistent: total={total}, teams={len(teams)}, ready={ready}, partial={partial}, at_risk={at_risk}, critical={critical}")
+
+  # ── LLM judge ──
+
+  - name: output_quality
+    description: >
+      Output is actionable and correctly prioritized — critical gaps first,
+      clear recommended actions, well-structured markdown and JSON.
+    prompt: |
+      You are evaluating the output of a feature readiness assessment skill.
+
+      The skill was given inlined OCPSTRAT feature data and asked to produce a
+      readiness report with per-feature checks and an overall summary.
+
+      Below are the outputs:
+
+      {{ outputs }}
+
+      Input data:
+
+      {{ inputs }}
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Output is missing, malformed, or contains no useful information.
+      Score 2: Basic structure present but significant errors in verdicts,
+               missing features, or wrong priorities.
+      Score 3: Correct verdicts and structure with minor issues — e.g. some
+               checks not fully evaluated, actions vague.
+      Score 4: Well-structured, accurate verdicts, clear actions, features
+               correctly prioritized by severity.
+      Score 5: Excellent — accurate, actionable, properly prioritized, complete
+               check coverage, clear next steps for every gap.
+
+thresholds:
+  correct_feature_count:
+    min_pass_rate: 1.0
+  identifies_missing_plan:
+    min_pass_rate: 1.0
+  flags_critical_gap:
+    min_pass_rate: 1.0
+  summary_stats_accurate:
+    min_pass_rate: 1.0
+  output_quality:
+    min_mean: 3.5
