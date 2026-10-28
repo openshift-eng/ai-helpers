@@ -32,8 +32,8 @@ each case tests.
 Each case corresponds to a real JIRA issue that was solved by the agent and
 merged. The eval repo has two branches per case:
 
-- `eval/case-N-base` — repo state before the fix (PR target)
-- `eval/case-N-expected` — repo state after the known-good fix
+- `eval/case-NNN-base` — repo state before the fix (PR target)
+- `eval/case-NNN-expected` — repo state after the known-good fix
 
 | Case | JIRA | Difficulty | Description |
 |------|------|-----------|-------------|
@@ -42,18 +42,20 @@ merged. The eval repo has two branches per case:
 | case-003 | TRT-2660 | Easy-Medium | Fix null explanations crash (Go+JS) |
 | case-004 | TRT-2678 | Medium | MCP server ready check |
 | case-005 | TRT-2795 | Easy | Fix variant filter comparison |
+| case-006 | TRT-2824 | Hard | Expand Sippy database seed coverage |
 
 ## Adding a new case
 
 1. Find a merged PR that solved a JIRA issue on sippy
 2. Get the base SHA: `git rev-parse <merge-commit>^1`
-3. Get the expected SHA: the PR head commit (last commit on the PR branch)
+3. Get the expected SHA: the merge commit, so the branches represent the
+   coherent repository state immediately before and after the fix
 4. Push branches to the eval repo:
    ```bash
    cd /path/to/sippy-eval
-   git branch eval/case-N-base <base-sha>
-   git branch eval/case-N-expected <expected-sha>
-   git push origin eval/case-N-base eval/case-N-expected
+   git branch eval/case-NNN-base <base-sha>
+   git branch eval/case-NNN-expected <expected-sha>
+   git push origin eval/case-NNN-base eval/case-NNN-expected
    ```
 5. Pick the next free `case-NNN` number and snapshot the JIRA issue into it:
    ```bash
@@ -63,6 +65,24 @@ merged. The eval repo has two branches per case:
    ```
 6. Create `input.yaml` and `annotations.yaml` following the existing cases
 7. Register the case in the **Cases** table above
+
+### case-006 fixture preparation
+
+The `case-006` branches are created manually in `openshift-trt/sippy-eval`.
+Use the exact pre/post-merge trees; pairing the merge parent with the older PR
+head would include unrelated changes:
+
+```bash
+git branch eval/case-006-base da64344f0d33e0b775a2bb57630401abb22360bf
+git branch eval/case-006-expected 706919e16426e173b3b144e941009796bdd5679d
+git diff --stat eval/case-006-base..eval/case-006-expected
+```
+
+The diff must contain five files with 888 insertions and 12 deletions. The
+expected branch has executable e2e checks for non-empty release tag, release
+job run, release pull request, and periodic test output API responses. The
+other requirements in the case description are behavioral expectations; this
+case does not add separate held-out assertions for them.
 
 ## Running the eval
 

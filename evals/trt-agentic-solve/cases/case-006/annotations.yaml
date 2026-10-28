@@ -1,0 +1,29 @@
+difficulty: hard
+pr_number: 3914
+original_base_sha: da64344f0d33e0b775a2bb57630401abb22360bf
+original_expected_sha: 706919e16426e173b3b144e941009796bdd5679d
+expected_files_changed:
+  - cmd/sippy/seed_data.go
+  - config/seed-views.yaml
+  - test/e2e/release_payloads_test.go
+  - test/e2e/test_outputs_test.go
+  - test/e2e/util/cache_manipulator.go
+description: >
+  Expand local database seed coverage for release payloads, periodic test
+  outputs, bugs, regression triages, symptoms, and multiple Component
+  Readiness views while preserving consistent cross-view regression state.
+key_signals:
+  - "payload definitions are ordered chronologically and track prior Accepted tags per release and stream"
+  - "release payloads include associated job runs, pull requests, and repositories"
+  - "regression job runs, bugs, triages, labels, and symptoms are linked consistently"
+  - "triage can span regressions from multiple views and expose a potential match"
+  - "active regression IDs are combined across enabled views before closure"
+  - "views with prime_cache disabled do not write competing report cache entries"
+  - "release payload and periodic test output APIs have focused e2e coverage"
+notes: >
+  The final public patch contains 13 source-branch commits and changes five
+  files. Its executable additions check that seeded release tags, release job
+  runs, release pull requests, and periodic test outputs are returned by their
+  APIs. Chronology, cross-view lifecycle, triage matching, symptom consistency,
+  and cache isolation are specified behaviors but do not have separate
+  case-local held-out assertions.
