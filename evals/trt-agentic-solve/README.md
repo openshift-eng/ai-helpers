@@ -66,24 +66,6 @@ merged. The eval repo has two branches per case:
 6. Create `input.yaml` and `annotations.yaml` following the existing cases
 7. Register the case in the **Cases** table above
 
-### case-006 fixture preparation
-
-The `case-006` branches are created manually in `openshift-trt/sippy-eval`.
-Use the exact pre/post-merge trees; pairing the merge parent with the older PR
-head would include unrelated changes:
-
-```bash
-git branch eval/case-006-base da64344f0d33e0b775a2bb57630401abb22360bf
-git branch eval/case-006-expected 706919e16426e173b3b144e941009796bdd5679d
-git diff --stat eval/case-006-base..eval/case-006-expected
-```
-
-The diff must contain five files with 888 insertions and 12 deletions. The
-expected branch has executable e2e checks for non-empty release tag, release
-job run, release pull request, and periodic test output API responses. The
-other requirements in the case description are behavioral expectations; this
-case does not add separate held-out assertions for them.
-
 ## Running the eval
 
 Trigger via Gangway with case and model overrides:
