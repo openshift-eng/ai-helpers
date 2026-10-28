@@ -1,7 +1,7 @@
 {
   "name": "ci",
   "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-  "version": "0.0.108",
+  "version": "0.0.109",
   "author": {
     "name": "github.com/openshift-eng"
   }
