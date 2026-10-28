@@ -246,18 +246,26 @@ Check whether the image maps to a **Pattern A** (direct repo) or **Pattern B** (
 
 ##### Step 3a (Pattern B only): Clone the Release Repo and Read `.gitmodules`
 
-Use `BRANCH` extracted by `jira-cve-extraction` (e.g. `openshift-4.17`, `ztwim-1.0`), resolved per its "Branch Resolution" section (Pattern A table) or passed through verbatim for Pattern B (this skill's own release-branch table handles it).
+Use `BRANCH` extracted by `jira-cve-extraction` (e.g. `openshift-4.17`, `ztwim-1.0`), resolved per its "Branch Resolution" section (Pattern A table, which already strips any trailing `.z` z-stream suffix) or passed through verbatim for Pattern B (this skill's own release-branch table handles it).
 
-**Verify the branch exists before cloning:**
+> **`.z`-stream suffix:** `.z` (e.g. `release-4.16.z`, `openshift-4.16.z`) means "any z-stream of this minor" in OpenShift/Jira versioning — it is never a real git branch name. If a candidate below ends in `.z` (case-insensitive) and fails the existence check, strip the suffix and retry before moving to the next candidate; the real branch is generally the `X.Y` form.
+
+**Verify the branch exists before cloning — try these candidates in order, stopping at the first that exists:**
 
 ```bash
-git ls-remote --heads "${REPO_URL}" "${GIT_BRANCH}" | grep -q "${GIT_BRANCH}"
+git_branch_exists() {
+  git ls-remote --heads "${REPO_URL}" "$1" 2>/dev/null | grep -q "refs/heads/$1$"
+}
+strip_z() { case "$1" in *.[zZ]) echo "${1%.*}" ;; *) echo "" ;; esac; }
 ```
 
-- IF branch exists → clone with `-b "${GIT_BRANCH}"` in Step 3b.
-- IF branch does not exist → try the Jira value verbatim as a fallback (same automatic step regardless of `AUTO_APPROVE`).
-  - IF the verbatim fallback branch exists → use it, and note in the report that the mapped branch name was not found and the verbatim Jira value was used instead.
-  - IF the verbatim fallback **also** does not exist → IF `AUTO_APPROVE=no`, warn the user and ask them to confirm or provide the correct branch name. IF `AUTO_APPROVE=yes`, there is no one to ask — **exit with error** instead of guessing a branch name. This case is never gated by `AUTO_APPROVE`.
+1. `GIT_BRANCH` — the mapped value from `jira-cve-extraction`/`image-repo-mapping`.
+2. `strip_z "${GIT_BRANCH}"` — if `GIT_BRANCH` ends in `.z`, retry with the suffix stripped.
+3. `BRANCH` — the raw Jira value, verbatim, if different from the candidates above.
+4. `strip_z "${BRANCH}"` — if the raw Jira value ends in `.z`, retry with the suffix stripped.
+
+- IF any candidate above exists → set `GIT_BRANCH` to that candidate and clone with `-b "${GIT_BRANCH}"` in Step 3b. IF candidate 2, 3, or 4 was needed, note in the report which fallback resolved it (e.g. "mapped branch `release-4.16.z` not found; stripped the `.z` z-stream suffix to `release-4.16`, which exists").
+- IF none of the candidates exist → IF `AUTO_APPROVE=no`, warn the user and ask them to confirm or provide the correct branch name.
 - IF `BRANCH` was not extracted (direct CVE mode, no Jira ticket, and `--repo=` was a bare URL with no branch hint) → clone default branch; note this in the analysis.
 
 ##### Step 3c (Pattern B only): Read `.gitmodules` and Resolve Component Repo
