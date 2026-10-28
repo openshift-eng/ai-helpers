@@ -170,6 +170,44 @@ For each issue in `manifest.issues`, read its detailed data:
       "is_bot": false
     }
   ],
+  "events_in_window": [
+    {
+      "type": "jira_transition",
+      "occurred_at": "2026-02-01T09:00:00Z",
+      "author": "user@example.com",
+      "changes": [
+        {
+          "field": "status",
+          "from": "To Do",
+          "to": "In Progress"
+        }
+      ]
+    },
+    {
+      "type": "jira_comment",
+      "occurred_at": "2026-02-03T14:00:00Z",
+      "author": "User Name",
+      "text": "PR submitted for review"
+    },
+    {
+      "type": "github_commit",
+      "occurred_at": "2026-01-30T09:00:00Z",
+      "author": "User Name",
+      "pr": "org/repo#123",
+      "pr_url": "https://github.com/org/repo/pull/123",
+      "sha": "abc1234",
+      "message": "Add feature handler"
+    },
+    {
+      "type": "github_review",
+      "occurred_at": "2026-01-31T14:00:00Z",
+      "author": "Reviewer Name",
+      "pr": "org/repo#123",
+      "pr_url": "https://github.com/org/repo/pull/123",
+      "state": "APPROVED",
+      "body": "LGTM"
+    }
+  ],
   "prs": [
     {
       "url": "https://github.com/org/repo/pull/123",
@@ -237,6 +275,7 @@ For each issue in `manifest.issues`, read its detailed data:
 | `changelog_in_range` | Field changes in date range |
 | `comments_in_range` | Human comments in date range |
 | `comments_in_range[].is_bot` | Filter out bot comments |
+| `events_in_window` | Dated in-range events from all sources (Jira transitions/comments and GitHub commits/reviews), each carrying its own `occurred_at`; the authoritative record of when activity happened |
 | `prs` | GitHub PRs linked to this issue |
 | `prs[].state` | OPEN, CLOSED, MERGED |
 | `prs[].activity_summary` | Quick check for in-range activity |
