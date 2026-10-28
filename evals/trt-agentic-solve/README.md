@@ -55,7 +55,11 @@ merged. The eval repo has two branches per case:
    cd /path/to/sippy-eval
    git branch eval/case-NNN-base <base-sha>
    git branch eval/case-NNN-expected <expected-sha>
-   git push origin eval/case-NNN-base eval/case-NNN-expected
+   git remote -v
+   # Select the remote whose push URL targets openshift-trt/sippy-eval.
+   fixture_remote="<fixture-repo-remote>"
+   git remote get-url --push "$fixture_remote"
+   git push "$fixture_remote" eval/case-NNN-base eval/case-NNN-expected
    ```
 5. Pick the next free `case-NNN` number and snapshot the JIRA issue into it:
    ```bash
