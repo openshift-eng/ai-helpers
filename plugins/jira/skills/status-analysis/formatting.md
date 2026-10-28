@@ -9,15 +9,20 @@ This module defines output templates for status summaries. It transforms analyze
 
 ## Overview
 
-Three output formats are supported:
+Four output formats are supported:
 
 | Format | Used By | Output Target | Syntax |
 |--------|---------|---------------|--------|
 | `markdown_comment` | `/jira:status-rollup` | Jira comment | Markdown (via `contentFormat: "markdown"`) |
-| `ryg_field` | `/jira:update-weekly-status` | Status Summary field | Bullet-point template |
+| `ryg_field` | `/jira:update-weekly-status` (default) | Status Summary field | Native ADF JSON |
+| `ryg_field_markdown` | Explicitly opted-in consumers with a verified converter | Draft only; convert to ADF before writing | Standard Markdown bullets |
 | `feature_markdown` | `/jira:generate-feature-updates` | stdout / localhost HTTP server | Markdown nested lists |
 
 **Important**: When posting comments via `addCommentToJiraIssue` or updating descriptions via `editJiraIssue`, always include `contentFormat: "markdown"`.
+
+The qualified PR-link rules below apply only to the opt-in `ryg_field_markdown`
+draft, not native `ryg_field` or the other formats. Native ADF logical-content
+examples remain unchanged; this option does not add a new ADF link-mark requirement.
 
 ## Format: markdown_comment
 
@@ -224,6 +229,110 @@ The examples below show the **logical content** (what the user sees in Jira). Th
     - Deadline at risk if subscription not approved by Friday
     - May need to descope Azure AD integration from initial release
 
+
+## Format: ryg_field_markdown
+
+This is a **draft-only** format for consumers that explicitly select
+`ryg_field_markdown` and supply a verified Markdown-to-ADF converter before REST
+API v3 writes. It is not a valid direct value for `customfield_10814`.
+`contentFormat: "markdown"` does not convert custom field values. Keep `ryg_field`
+as the default native ADF JSON format; it is not legacy Jira wiki text.
+
+### External consumer and conversion boundary
+
+This ai-helpers plugin **does not bundle or perform Markdown-to-ADF conversion**.
+Only external clients with a verified conversion path may opt in; never improvise
+conversion or send the draft string directly as a custom field value.
+
+A public reference is [Herald at `54b490c`](https://github.com/celebdor/herald/tree/54b490c):
+[`src/herald/jira.py::_text_to_adf`](https://github.com/celebdor/herald/blob/54b490c/src/herald/jira.py)
+calls `pyadf.Document.from_markdown(text).to_adf()`, with
+[`pyadf==0.5.2` pinned in `pyproject.toml`](https://github.com/celebdor/herald/blob/54b490c/pyproject.toml).
+Its writer sends an ADF object in `customfield_10814` and verifies the PUT with a
+GET and normalized-ADF comparison. These are source-verified reference behaviors,
+not a claim that this plugin ran pyadf or provides that writer. Readback equality
+does not establish structural compliance with the status-entry contract below.
+
+Herald's [draft validator](https://github.com/celebdor/herald/blob/54b490c/src/herald/validation.py)
+accepts case differences and leading whitespace; it is more permissive than this
+canonical draft grammar, which remains unchanged. Its
+[gatherer](https://github.com/celebdor/herald/blob/54b490c/src/herald/gather.py)
+renders existing ADF to Markdown and its writer replaces the whole field. It is
+an OCPSTRAT-style replacement reference, **not** an ARO raw-history-prepend
+guarantee. An ARO-capable external writer must separately retain original raw
+ADF nodes and prepend the validated new entry as project guidance requires;
+never reconstruct historical ADF from rendered Markdown.
+
+Before a REST API v3 PUT, the external client must convert the draft and validate
+the **new status-entry document** using all [native `ryg_field` checks](#ryg_field-validation):
+
+- A JSON object with `type: "doc"`, `version: 1`, and one top-level `bulletList`.
+- Exactly three `listItem` nodes in that list, in order.
+- First item: `Color Status:` followed by exactly one of `Red`, `Yellow`, `Green`.
+- Second item: `Status summary:` with a nested `bulletList` containing at least one item.
+- Third item: `Risks:` with a nested `bulletList` containing at least one item
+  (use `None at this time` when there are no risks); no empty text nodes.
+
+Then apply required raw-ADF history preservation and write an ADF object, not the
+draft. Stop if conversion, structural validation or required history support is
+unavailable. See selected-format handling in [SKILL.md](SKILL.md#step-5-format-output)
+and the weekly command; the default native ADF construction and history path
+are unchanged.
+
+### Template
+
+```markdown
+* Color Status: {Red|Yellow|Green}
+* Status summary:
+  * {achievement-or-progress-1}
+  * {achievement-or-progress-2}
+* Risks:
+  * {risk-1-or-"None at this time"}
+```
+
+### Formatting Rules
+
+- Use standard Markdown unordered-list markers: `* ` for top-level items and
+  `  * ` for items nested under a section.
+- Do not use Jira wiki-style `**` markers or indentation-only pseudo-lists.
+- Keep `Color Status`, `Status summary`, and `Risks` as top-level bullets.
+- Put each achievement, progress item, and risk under its corresponding section.
+- Include exactly one Color Status line, first, as `* Color Status: Red`,
+  `* Color Status: Yellow`, or `* Color Status: Green`.
+- Include at least one status summary item and a Risks section; use
+  `  * None at this time` when there are no risks.
+- Render each unambiguously confirmed PR reference as a Markdown link labeled `owner/repo#number`,
+  using the repository and URL in the evidence (for example,
+  `[openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456)`).
+- For confirmed PR references, use qualified labels rather than bare `#number`
+  or shorthand `repo#number`; the evidence URL is the authority for identity.
+- For confirmed PRs, do not print a raw PR URL in parentheses, such as `Enhancement PR (https://...)`;
+  put the URL only in the Markdown link target.
+- Do not infer or fabricate a repository or URL. If a reference cannot be tied
+  unambiguously to a confirmed PR URL, retain its original text **exactly verbatim**,
+  add no repository or link, and do not guess or request human input.
+- Qualify only references unambiguously identified as PRs by their evidence. Do
+  not transform arbitrary `#N` text, issues, language names or headings. Preserve
+  unknown references and unrelated links exactly verbatim; never attach a separate
+  PR URL to unrelated prose. For multiple references, qualify only those confirmed
+  by evidence and leave the others verbatim. If a written repository conflicts
+  with the evidence URL, keep that reference exactly as written and unlinked.
+- Preserve supplied PR destinations, including query strings, fragments and
+  subpages. A confirmed `/pull/3/files` reference belongs in a Markdown link
+  target; do not fabricate a replacement URL by stripping the subpath.
+- Output only the draft text, with no code fence, preamble, or explanation.
+
+### Example
+
+```markdown
+* Color Status: Green
+* Status summary:
+  * [openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456) merged adding OAuth2 token validation with comprehensive unit tests
+  * [openshift/enhancements#1945](https://github.com/openshift/enhancements/pull/1945) (EtcdBackup CRD for OADP integration) remains open
+* Risks:
+  * Review bandwidth may delay the follow-up merge
+```
+
 ## Format: feature_markdown
 
 Used by `/jira:generate-feature-updates` to produce concise executive-level feature summaries for weekly status documents (e.g., "Key Strategic Feature Updates" section).
@@ -270,7 +379,7 @@ Color circle mapping (from the `color` field in Status Summary):
 **Attribution for recognition:**
 
 - Name team members who drove key accomplishments
-- Example: "Thanks to Sara's work on PR #456, the migration path is now fully tested"
+- Example: "Thanks to Contributor A's work on PR #456, the migration path is now fully tested"
 
 **Tone:**
 
@@ -283,14 +392,14 @@ Color circle mapping (from the `color` field in Status Summary):
 - Explain scope changes and their rationale
 - Call out blockers with clear ownership
 - Attribute contributions so team members get recognition
-- Use first names for attribution (e.g., "Salvatore's PR #7746" not "sdminonne's PR #7746")
+- Use first names for attribution (e.g., "Contributor B's PR #7746" not "contributor-b's PR #7746")
 
 **DON'T**:
 - List every sub-task or minor change
 - Use vague language ("making progress", "ongoing work")
 - Include metrics or completion percentages
 - Use bullet points (prose only)
-- Use GitHub handles (e.g., `sdminonne`, `enxebre`). Always use first names from `author_name` fields instead.
+- Use GitHub handles (e.g., `contributor-b`, `contributor-c`). Always use first names from `author_name` fields instead.
 
 ### Example Outputs
 
@@ -300,9 +409,9 @@ Color circle mapping (from the `color` field in Status Summary):
 - 🟡 [OCPSTRAT-1409](https://issues.redhat.com/browse/OCPSTRAT-1409): Auto backup/restore for Hosted Clusters
     - A bug found in the implementation has highlighted a permission gap that we are going to cover with better UX.
 - 🟢 [OCPSTRAT-1558](https://issues.redhat.com/browse/OCPSTRAT-1558): Shared ingress for HCP
-    - Wei's [PR #7143](https://github.com/openshift/hypershift/pull/7143) landed this week, completing the core shared ingress controller. Integration tests are passing on AWS.
+    - Contributor C's [PR #7143](https://github.com/openshift/hypershift/pull/7143) landed this week, completing the core shared ingress controller. Integration tests are passing on AWS.
 - 🔴 [OCPSTRAT-2100](https://issues.redhat.com/browse/OCPSTRAT-2100): IPv6 support for Hosted Control Planes
-    - Blocked on upstream Kubernetes networking changes expected in 1.32. Alberto has prepared the downstream patches and they are ready to go once the dependency lands.
+    - Blocked on upstream Kubernetes networking changes expected in 1.32. Contributor D has prepared the downstream patches and they are ready to go once the dependency lands.
 ```
 
 ### Significant Activity Filter
@@ -463,6 +572,30 @@ def format_ryg_field(issue_data, config):
     }
 ```
 
+### For ryg_field_markdown format
+
+Produce a draft using the [template and rules](#format-ryg_field_markdown), not a
+regex transformation of activity descriptions. Draft formatting does not perform
+final conversion; the [external client owns it](#external-consumer-and-conversion-boundary).
+Use the same selection caps as native `ryg_field`: at most 3 achievements,
+2 in-progress items and 2 risks. If no summary items are selected, emit
+`  * No status updates this period` under `* Status summary:`. If no risks are
+selected, emit `  * None at this time` under `* Risks:`.
+
+These hypothetical fixtures constrain drafting, not executable rewrite behavior
+or claims about the contents of actual PRs:
+
+| Evidence and input | Required treatment |
+|---|---|
+| `fixes #12`, no PR evidence | Preserve the unknown reference; do not replace it with "pull request". |
+| `closed #99`, evidence points to `/issues/99` | Preserve the issue reference; it is not a PR. |
+| `ported C#12 code` or `fixed heading #1 in docs` | Preserve language text and heading numbers verbatim. |
+| `#456 and #457 merged`, confirmed evidence `https://github.com/openshift/hypershift/pull/456` | Output `[openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456) and #457 merged`. Qualify only 456; keep 457 verbatim. |
+| `openshift/other#456`, evidence `https://github.com/openshift/hypershift/pull/456` | Output `openshift/other#456` exactly as written and unlinked; do not attach mismatched evidence or change the repository. |
+| `https://github.com/o/r/pull/3/files`, confirmed PR evidence | Render `[o/r#3](https://github.com/o/r/pull/3/files)` without changing the destination. |
+| `docs at https://example.com/x`, unrelated PR URL present separately | Preserve the documentation link; do not append or associate the unrelated PR. |
+| A link on an unrecognized host with no verified PR identity | Preserve it as an unrelated/unknown link, not an inferred GitHub PR. |
+
 ### For feature_markdown format
 
 ```python
@@ -551,6 +684,15 @@ Before outputting, validate the formatted text:
 - [ ] Second item has text `Status summary:` with a nested `bulletList` containing at least one item
 - [ ] Third item has text `Risks:` with a nested `bulletList` (at least "None at this time")
 - [ ] No empty text nodes
+
+### ryg_field_markdown validation
+
+- [ ] Exactly one Color Status line, first: `* Color Status: Red`, `* Color Status: Yellow`, or `* Color Status: Green`
+- [ ] `Status summary` and `Risks` are top-level `* ` bullets
+- [ ] Summary items and risks use two-space nested `  * ` bullets
+- [ ] Contains no Jira wiki-style `**` sub-bullets
+- [ ] No empty bullet points
+- [ ] Confirmed qualified PR links agree with their evidence URLs; unknown/issue references and unrelated text remain exactly verbatim, without guesses or requests for input
 
 ## Escaping Special Characters
 

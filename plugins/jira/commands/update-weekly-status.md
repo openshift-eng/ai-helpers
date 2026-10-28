@@ -225,7 +225,17 @@ Using the pre-gathered data, apply the activity analysis rules from `activity-an
 
 ##### c. Generate Status Update
 
-Format the status content using the `ryg_field` structure. The content will be written as ADF (Atlassian Document Format) — a nested `bulletList` with three top-level items: Color Status, Status summary (with nested bullet items), and Risks (with nested bullet items). The gathered `issue.current_status_summary` value is the raw ADF document, not Markdown; use the summary script's rendered text only for review, and retain the raw document when project-specific guidance requires history preservation.
+Use `ryg_field` (native ADF JSON) by default. Select `ryg_field_markdown` only
+when an external caller explicitly requests a draft and owns a verified
+Markdown-to-ADF converter (an external Herald-style client). This plugin **does
+not bundle or perform conversion**. Never improvise conversion or send a draft
+string as the field value. See the canonical
+[external conversion boundary and source references](../skills/status-analysis/formatting.md#external-consumer-and-conversion-boundary).
+For draft PR references, qualify only unambiguously confirmed evidence; otherwise
+retain the original text exactly verbatim, add no repository or link, and do not
+guess or request human input.
+
+For `ryg_field`, format the status content as native ADF (Atlassian Document Format) JSON — a nested `bulletList` with three top-level items: Color Status, Status summary (with nested bullet items), and Risks (with nested bullet items). The gathered `issue.current_status_summary` value is the raw ADF document, not Markdown; use the summary script's rendered text only for review, and retain the raw document when project-specific guidance requires history preservation.
 
 **Logical structure:**
 
@@ -285,11 +295,31 @@ Options:
 
 - Show the proposed text in an editable format
 - Ask: "Please provide your updated status text (maintain the bullet format):"
-- Validate format (should start with `- Color Status:`)
+- Validate the selected representation against `formatting.md`: `ryg_field`
+  requires valid native ADF JSON with the expected list structure and color;
+  never apply a text-prefix check to an ADF document. `ryg_field_markdown`
+  requires exactly one Color Status line first (`* Color Status: Red`,
+  `* Color Status: Yellow`, or `* Color Status: Green`), standard nested Markdown
+  bullets, and qualified PR links agreeing with confirmed evidence URLs. Retain
+  unknown/issue references exactly verbatim without adding links or requesting input.
+- If the user edits the rendered display text for `ryg_field`, reconstruct and
+  validate the native ADF document rather than treating the display as field data.
 - Show modified version and ask for final confirmation
-- Convert the modified text to an ADF JSON document before updating (same `bulletList`/`listItem` structure as auto-generated updates)
 
 ##### e. Update the Issue
+
+For an explicitly selected `ryg_field_markdown` draft, the external client must
+convert it and validate the new status-entry document **before PUT**: `type: "doc"`,
+`version: 1`, one top-level `bulletList` with exactly three `listItem` nodes;
+`Color Status:` plus exactly one of Red/Yellow/Green first, then `Status summary:`
+and `Risks:` each with a nonempty nested `bulletList`, and no empty text nodes.
+Use all [native validation gates](../skills/status-analysis/formatting.md#ryg_field-validation),
+then apply required raw-ADF history preservation. Stop if conversion, validation,
+or required history support is unavailable. This plugin does not perform that
+conversion; Herald's normalized readback comparison is not a schema validator or
+an ARO history guarantee. Never pass the draft as a custom field value or assume
+`contentFormat: "markdown"` converts it. Apply the same raw ADF history
+preservation rules below to both paths.
 
 Use `editJiraIssue` with `contentFormat: "adf"` to set `customfield_10814` (Status Summary). This field requires an ADF (Atlassian Document Format) JSON document — passing a plain string (even with `contentFormat: "markdown"`) will fail with `"Operation value must be an Atlassian Document"`. For ARO, follow the loaded project guidance: prepend the new ADF entry nodes to `issue.current_status_summary.content`; do not replace history with the rendered display text.
 
