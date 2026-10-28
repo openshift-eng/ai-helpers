@@ -53,7 +53,7 @@ BOT_USERNAMES="openshift-bot openshift-cherrypick-robot"
 # Shared repos: discover PRs authored by, assigned to, or actually reviewed by
 # a team member. Review requests do not count as team work. Include recent
 # merges so review work is accounted for between dashboard syncs.
-SHARED_REPOS=("openshift/images" "openshift/api" "openshift/release" "openshift/origin" "openshift/enhancements" "openshift-eng/ai-helpers" "openshift/openshift-mcp-server" "openshift/library-go" "openshift/openshift-apiserver" "openshift/coredns-ocp-dnsnameresolver" "openshift/bgp-cloud-connector")
+SHARED_REPOS=("openshift/images" "openshift/api" "openshift/release" "openshift/origin" "openshift/enhancements" "openshift-eng/ai-helpers" "openshift/openshift-mcp-server" "openshift/library-go" "openshift/openshift-apiserver" "openshift/coredns-ocp-dnsnameresolver" "openshift/bgp-cloud-connector" "openshift/network-edge-tools")
 SHARED_MERGED_DAYS=7
 
 # =============================================================================

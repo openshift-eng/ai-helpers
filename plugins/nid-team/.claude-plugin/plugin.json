@@ -1,7 +1,7 @@
 {
   "name": "nid-team",
   "description": "NI&D team PR triage and review workflow tools",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "author": {
     "name": "github.com/openshift-eng"
   }
