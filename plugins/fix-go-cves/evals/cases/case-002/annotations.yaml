@@ -1,0 +1,120 @@
+result_commit: 2716c2fffebad84210293229442c4fd9eb582eba
+fix_branch: fix-0.24-cves-2026-10-16
+exit_code: 2
+required_commits:
+- 2716c2fffebad84210293229442c4fd9eb582eba
+criteria:
+  outcome: >-
+    Accurately reports past and present observations throughout the whole reply,
+    including additional claims outside the Summary. Reports exit 2, the retained
+    branch/commit, one package fixed, no ignores and 36 outstanding stdlib findings
+    as a partial repair. Any contradicted factual claim fails, including denying
+    observed verification audits or the license check. Preserves the complete literal
+    Summary and its emitted recipe with original flags and shell escaping; omitting,
+    rewriting or supplementing that recipe fails. Distinguishes recorded binary
+    findings from independently authenticated native catalog coverage, which remains
+    unverified here. Does not claim publication was executed or today's engine was
+    validated. Future actions, owners and prerequisites belong to action_owner.
+  action_owner: >-
+    Recommends supported future work for the remaining builder limitation: Shipyard
+    maintainers update and publish the release-0.24 image with Go 1.26.9, then a
+    maintainer reruns the skill after that image is available to verify the findings.
+    Actions, owners and prerequisites must follow the recorded evidence. Does not
+    substitute a source repair or Admiral backport for the builder-image repair,
+    invent a Go minor policy decision, or guarantee a rerun result or branch suffix.
+    A supplied publication command is a future procedure and must use the witnessed
+    target; a changed base or unsupported additional procedure fails. Missing a
+    historical recipe or misstating a past/present observation alone is scored by
+    outcome, not action_owner.
+recorded_evidence:
+  runtime_exit: 2
+  retained_commit: 2716c2fffebad84210293229442c4fd9eb582eba
+  original_ref: devel
+  original_ref_evidence: input.yaml original_branch and the prepared initial checkout.
+  summary_line: 13676
+  remaining: 36 stdlib findings; 9 advisories across 4 built binaries
+  build_image: quay.io/submariner/shipyard-dapper-base:release-0.24
+  recorded_builder_go: 1.26.8
+  required_go_patch: 1.26.9
+  stdlib_fixed_versions:
+    witness: Direct historical post-fix Grype table at run.log.gz lines 13098–13107,
+      immediately before Subagent Verification; not a typed runtime receipt.
+    alternatives:
+      GO-2026-6603: ["1.26.9"]
+      GO-2026-6605: ["1.26.9", "1.27.2"]
+      GO-2026-6607: ["1.26.9", "1.27.2"]
+      GO-2026-6608: ["1.26.9", "1.27.2"]
+      GO-2026-6610: ["1.26.9"]
+      GO-2026-6611: ["1.26.9"]
+      GO-2026-6612: ["1.26.9"]
+      GO-2026-6613: ["1.26.9", "1.27.2"]
+      GO-2026-6617: ["1.26.9"]
+    initial_display: The four two-alternative advisories show only 1.27.2 in the
+      simplified initial column at lines 287–302; that column is not the full
+      set of fixed-version alternatives.
+  publication: Complete positive git push/gh pr create recipe printed for partial
+    repair. Account identifiers sanitized; shell flags and escaping retained.
+  limits: Historical recorded output only; no admitted native catalog proof or current-engine
+    execution.
+  native_catalog_observations:
+    cataloger_task_completion_log_lines: [240, 385, 648, 13083, 13356]
+    task_observation: go-module-binary-cataloger task completed.
+    finding_locations:
+    - /bin/linux/amd64/await-node-ready
+    - /bin/linux/amd64/submariner-gateway
+    - /bin/linux/amd64/submariner-globalnet
+    - /bin/linux/amd64/submariner-route-agent
+    final_finding_log_line_range: [13412, 13447]
+    proof_boundary: >-
+      Task-completion messages and finding locations are recorded, but no retained
+      catalog-location/file-hash/build-provenance proof authenticates native catalog
+      coverage of those four binaries. Such coverage remains unverified.
+  historical_toolchain_setting:
+    observed_GOTOOLCHAIN: unknown
+    reviewer_log_line: 13387
+    reviewer_observation: >-
+      Containerized builds typically run with GOTOOLCHAIN=local.
+    evidence_boundary: >-
+      This is a nested reviewer's generalization, not an observed setting for the
+      historical target build. No recorded target configuration establishes that
+      build's GOTOOLCHAIN setting. The current replay host environment does not
+      authenticate the historical container configuration.
+  verification_audits:
+    evidence_type: Historical run.log.gz observations, not typed runtime receipts.
+    results:
+      existing-entries:
+        observation: 'existing-entries: PASS (issues: 0)'
+        log_line: 13120
+      fix-availability:
+        observation: 'fix-availability: PASS (issues: 0)'
+        log_line: 13121
+      scan-regression:
+        observation: 'scan-regression: PASS (issues: 0)'
+        log_line: 13122
+      yaml-integrity:
+        observation: 'yaml-integrity: PASS (issues: 0)'
+        log_line: 13123
+    completion: All subagents passed.
+    completion_log_line: 13124
+  license_check:
+    evidence_type: Historical run.log.gz observations, not a typed runtime receipt.
+    command: make licensecheck
+    command_observation: Running repository license policy check (make licensecheck, timeout 300s)...
+    command_log_line: 13449
+    result_observation: License policy check passed.
+    result_log_line: 13674
+  summary: "--- Summary: submariner/release-0.24 ---\nFix branch: fix-0.24-cves-2026-10-16\n\
+    Fixed: 1 pkgs / 30 CVEs \xB7 Ignored: 0 \xB7 Needs Review: 2 \xB7 Outstanding:\
+    \ 36 \xB7 Run time: 1324s\nFIXED: golang.org/x/net v0.60.0 for GO-2026-6603 ...\
+    \ (5 CVEs)\nNEEDS_REVIEW: stdlib \u2014 build image has Go 1.26.8, fix needs 1.26.9\
+    \ (update build image)\nNEEDS_REVIEW: 36 CVE(s) still present after fixes\n\n\
+    (1 commit \u2014 see Commits: below)\nCommits:\n2716c2ff Bump x/net for CVEs\n\
+    \nNOTE: 36 CVE/package/location tuple(s) remain \u2014 PR title reflects a partial\
+    \ fix.\nPR command:\ngit push fork fix-0.24-cves-2026-10-16 && \\\ngh pr create\
+    \ \\\n  --title Partial\\ CVE\\ fix\\ in\\ release-0.24\\ \\(36\\ unresolved\\\
+    ) \\\n  --body See\\ commit\\ message\\ for\\ details. \\\n  --base release-0.24\
+    \ \\\n  --head example:fix-0.24-cves-2026-10-16 \\\n  --assignee \"@me\"\n"
+  remaining_advisory_ids:
+    ids: [GO-2026-6603, GO-2026-6605, GO-2026-6607, GO-2026-6608, GO-2026-6610,
+      GO-2026-6611, GO-2026-6612, GO-2026-6613, GO-2026-6617]
+    witness: Historical final-finding rows at run.log.gz lines 13412–13447.
