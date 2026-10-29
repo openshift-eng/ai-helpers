@@ -141,6 +141,7 @@ class GatherConfig:
     assignees: List[str] = field(default_factory=list)
     excluded_assignees: List[str] = field(default_factory=list)
     issue_keys: List[str] = field(default_factory=list)
+    jql: Optional[str] = None
 
 
 @dataclass
@@ -700,10 +701,17 @@ class StatusDataGatherer:
         self.github = GitHubClient(config.github_token)
 
     def _build_root_jql(self) -> str:
-        """Build JQL to find root issues."""
+        """Build JQL to find root issues.
+
+        Explicit issue keys win, then a caller-supplied --jql (used verbatim,
+        replacing every built-in filter), then the assembled default query.
+        """
         if self.config.issue_keys:
             key_list = ", ".join(self.config.issue_keys)
             return f"key IN ({key_list}) ORDER BY rank ASC"
+
+        if self.config.jql:
+            return self.config.jql
 
         parts = [
             f'project = "{self.config.project}"',
@@ -1240,6 +1248,7 @@ class StatusDataGatherer:
                 "project": self.config.project,
                 "component": self.config.component,
                 "label": self.config.label,
+                "jql": self.config.jql,
                 "date_range": self.config.date_range.to_dict(),
                 "status_summary_field": self.config.status_summary_field,
             },
@@ -1333,7 +1342,7 @@ Environment Variables:
         """,
     )
 
-    parser.add_argument("--project", required=True, help="Jira project key (e.g., OCPSTRAT)")
+    parser.add_argument("--project", help="Jira project key (e.g., OCPSTRAT); required unless --jql or --issue is given")
     parser.add_argument("--component", help="Filter by component name")
     parser.add_argument("--label", help="Filter by label")
     parser.add_argument("--days", type=int, default=7, help="Number of days to look back (default: 7)")
@@ -1343,12 +1352,18 @@ Environment Variables:
     parser.add_argument("--status-field", default="customfield_10814", help="Status Summary field ID")
     parser.add_argument("--assignee", action="append", dest="assignees", help="Filter by assignee")
     parser.add_argument("--exclude-assignee", action="append", dest="excluded_assignees", help="Exclude assignee")
+    parser.add_argument("--jql",
+                        help="Custom JQL selecting root issues; used verbatim and overrides "
+                             "--project/--component/--label/--assignee/--exclude-assignee")
     parser.add_argument("--issue", action="append", dest="issue_keys",
-                        help="Fetch specific issue keys only (bypasses project/component/label filters)")
+                        help="Fetch specific issue keys only (bypasses project/component/label/jql filters)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output (INFO level)")
     parser.add_argument("--debug", action="store_true", help="Enable debug output (DEBUG level)")
 
     args = parser.parse_args()
+
+    if not (args.project or args.jql or args.issue_keys):
+        parser.error("one of --project, --jql, or --issue is required")
 
     # Setup logging based on verbosity flags
     setup_logging(verbose=args.verbose, debug=args.debug)
@@ -1387,6 +1402,7 @@ Environment Variables:
         assignees=args.assignees or [],
         excluded_assignees=args.excluded_assignees or [],
         issue_keys=args.issue_keys or [],
+        jql=args.jql,
     )
 
     # Always print header to stderr (regardless of log level)
@@ -1403,7 +1419,7 @@ Environment Variables:
     print("", file=sys.stderr)
 
     logger.debug(f"Full config: project={config.project}, component={config.component}, "
-                 f"label={config.label}, assignees={config.assignees}, "
+                 f"label={config.label}, jql={config.jql}, assignees={config.assignees}, "
                  f"excluded={config.excluded_assignees}")
 
     gatherer = StatusDataGatherer(config)
