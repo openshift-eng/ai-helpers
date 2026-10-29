@@ -884,6 +884,67 @@ class StatusDataGatherer:
             },
         }
 
+    def _build_events_in_range(
+        self,
+        changelog_in_range: List[Dict],
+        comments_in_range: List[Dict],
+        issue_prs: List[Dict],
+        pr_refs_map: Dict[str, PRRef],
+    ) -> List[Dict]:
+        """Assemble dated in-window events from Jira and GitHub sources.
+
+        Each event carries its own `occurred_at` timestamp so downstream
+        consumers can treat it as evidence of when the activity happened.
+        """
+        events: List[Dict] = []
+
+        for entry in changelog_in_range:
+            events.append({
+                "type": "jira_transition",
+                "occurred_at": entry.get("date"),
+                "author": entry.get("author"),
+                "changes": entry.get("items", []),
+            })
+
+        for comment in comments_in_range:
+            if comment.get("is_bot"):
+                continue
+            events.append({
+                "type": "jira_comment",
+                "occurred_at": comment.get("date"),
+                "author": comment.get("author_name"),
+                "text": comment.get("body"),
+            })
+
+        for pr in issue_prs:
+            ref = pr_refs_map.get(pr.get("url"))
+            if not ref:
+                continue
+            pr_label = f"{ref.owner}/{ref.repo}#{ref.number}"
+            for review in pr.get("reviews_in_range", []):
+                events.append({
+                    "type": "github_review",
+                    "occurred_at": review.get("submitted_at"),
+                    "author": review.get("author_name"),
+                    "pr": pr_label,
+                    "pr_url": pr.get("url"),
+                    "state": review.get("state"),
+                    "body": review.get("body"),
+                })
+            for commit in pr.get("commits_in_range", []):
+                events.append({
+                    "type": "github_commit",
+                    "occurred_at": commit.get("date"),
+                    "author": commit.get("author_name"),
+                    "pr": pr_label,
+                    "pr_url": pr.get("url"),
+                    "sha": commit.get("sha"),
+                    "message": commit.get("message"),
+                })
+
+        events.sort(key=lambda e: e.get("occurred_at") or "")
+        return events
+
     async def gather(self) -> Dict[str, Any]:
         """Main gathering method."""
         start_time = datetime.now()
@@ -1192,6 +1253,10 @@ class StatusDataGatherer:
                         issue_prs.append(filtered_pr)
                         total_prs += 1
 
+            events_in_window = self._build_events_in_range(
+                changelog_in_range, comments_in_range, issue_prs, pr_refs_map
+            )
+
             # Build issue data
             assignee = fields.get("assignee") or {}
             labels = [label for label in fields.get("labels", []) if isinstance(label, str)]
@@ -1212,6 +1277,7 @@ class StatusDataGatherer:
                 "changelog_in_range": changelog_in_range,
                 "comments_in_range": comments_in_range,
                 "prs": issue_prs,
+                "events_in_window": events_in_window,
             }
 
             # Write issue file
