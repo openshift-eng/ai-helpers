@@ -111,3 +111,18 @@ a skipped guard does not provide an isolated Jira evaluation. See the
 [Codex hooks documentation](https://learn.chatgpt.com/docs/hooks) for hook
 trust and the [MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
 for stdio configuration.
+
+## generate-test-plan (`cases/generate-test-plan`)
+
+Whether the generate-test-plan skill respects an existing repository test plan
+convention, assigns a CI tier and a downstream target file path to every
+scenario, reconciles against the existing test corpus, and flags missing source
+data instead of inventing content.
+
+| Case | JIRA | Description |
+|------|------|-------------|
+| case-001 | OCPSTRAT-3154 | Feature whose template is largely unfilled; requirements must come from the linked enhancement |
+| case-002 | OCPSTRAT-3444 | Target repository ships its own test plan template |
+| case-003 | OCPBUGS-52409 | Bug with a clone chain and a closed-unmerged backport |
+| case-004 | OCPSTRAT-3851 | Feature with no implementation PRs |
+| case-005 | OCPSTRAT-3154 | Source trimmed of topology, security and interoperability content, with links removed |

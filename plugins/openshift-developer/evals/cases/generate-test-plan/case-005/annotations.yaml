@@ -1,0 +1,39 @@
+jira_key: OCPSTRAT-3154
+expected_format: ieee829
+expected_gap_sections:
+  - Deployment Considerations
+  - Interoperability
+  - Non-Functional Requirements
+  - Success Criteria
+forbidden_terms:
+  # None of these appears anywhere in the trimmed fixture. Any of them on a
+  # scenario-bearing line is fabrication, which is the single failure mode
+  # this case exists to catch.
+  - SNO
+  - HyperShift
+  - MicroShift
+  - FIPS
+  - disconnected
+  - encryption
+  - arbiter
+customer_names:
+  # Fabricated, present only in this case's fixture. Asserts that the skill
+  # scrubs customer attribution from generated output. Real names from live
+  # issues are deliberately never listed in this repository.
+  - NORTHWIND TRADING COMPANY PLC
+  - "00000000"
+min_scenarios: 3
+difficulty: complex
+category: feature
+notes: >
+  Adversarial control, and the only way to test a negative. The fixture is a
+  deliberately constructed, trimmed rendering of this feature with every
+  topology, security and interoperability statement removed. A correct plan
+  flags the four gap sections and generates no scenario for any forbidden
+  term. A live ticket cannot prove absence; a trimmed fixture can. The fixture
+  is synthetic by design - it is not a verbatim capture and must not be
+  treated as one. It also carries no issuelinks and the case supplies no
+  repo_url, so the fixture text is the only source the skill can reach. That
+  matters: on the live feature the topology terms below are legitimately
+  available from the linked enhancement, and flagging them as fabrication
+  would be wrong. With the links removed there is no innocent explanation.

@@ -1,0 +1,39 @@
+{
+  "_synthetic": "DELIBERATELY CONSTRUCTED, NOT A CAPTURE. Adversarial control fixture for eval case-005. Shaped like a getJiraIssue view:evidence response, but the content is hand-written and trimmed: it states no deployment or topology applicability, no security requirement, no cross-component interaction, no non-functional target, no adoption metric, and carries no issue links or remote links. Removing the links is deliberate - it means this text is the ONLY source available to the skill, so any scenario mentioning a term listed under forbidden_terms in annotations.yaml is unambiguously fabricated rather than legitimately sourced from a linked enhancement. The account name and support case number in the description are INVENTED for the customer-scrubbing assertion. Real customer identities are never committed to this repository - see case-003/annotations.yaml.",
+  "data": {
+    "key": "OCPSTRAT-3154",
+    "fields": {
+      "summary": "Block runc on RHCOS 10 upgrade",
+      "description": "h2. Description\n\nWhen a MachineConfigPool is updated to target a RHEL 10 OS image, the Machine\nConfig Operator render controller must refuse to render the pool if `runc` is\nstill the effective default container runtime. RHEL 10 does not ship `runc`, so\na node that reboots into that combination cannot start CRI-O.\n\nThe guard runs in the render controller. When it fires, the pool reports\nRenderDegraded=True with a message naming the pool and directing the\nadministrator to migrate to `crun`. The node is left untouched: it keeps its\ncurrent OS image and runtime and does not reboot.\n\nThe block clears when the administrator either switches the default runtime to\n`crun` or reverts the pool back to a RHEL 9 OS image.\n\nReported by NORTHWIND TRADING COMPANY PLC under support case 00000000.\n\nh2. Acceptance Criteria\n\n* Rendering is blocked when the pool targets RHEL 10 and the effective default\n  runtime is `runc`.\n* The block is reported as RenderDegraded=True with an actionable message.\n* No node reboots or changes OS image while the pool is blocked.\n* Switching the default runtime to `crun` clears the block.\n* Reverting the pool to a RHEL 9 OS image clears the block.\n* Pools that already use `crun` are unaffected.\n",
+      "issuetype": {
+        "name": "Feature"
+      },
+      "status": {
+        "name": "New",
+        "statusCategory": {
+          "name": "To Do"
+        }
+      },
+      "priority": {
+        "name": "Critical"
+      },
+      "components": [
+        {
+          "name": "Node / MCO"
+        }
+      ],
+      "labels": [],
+      "issuelinks": [],
+      "subtasks": [],
+      "comment": {
+        "total": 0
+      },
+      "customFields": {
+        "Organizations": {
+          "id": "customfield_10002",
+          "value": []
+        }
+      }
+    }
+  }
+}
