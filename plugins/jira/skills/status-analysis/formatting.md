@@ -20,9 +20,7 @@ Four output formats are supported:
 
 **Important**: When posting comments via `addCommentToJiraIssue` or updating descriptions via `editJiraIssue`, always include `contentFormat: "markdown"`.
 
-The qualified PR-link rules below apply only to the opt-in `ryg_field_markdown`
-draft, not native `ryg_field` or the other formats. Native ADF logical-content
-examples remain unchanged; this option does not add a new ADF link-mark requirement.
+For Markdown output formats, render PR references as `[owner/repo#number](PR_URL)` using the repository and URL present in the evidence. Do not emit bare `#number` or shorthand `repo#number` references, or print a raw PR URL in parentheses; the URL belongs in the Markdown link target. Do not invent a repository or URL when the evidence lacks one. These rules apply to Markdown output only; native `ryg_field` ADF logical-content examples remain unchanged, and this does not add a new ADF link-mark requirement.
 
 ## Format: markdown_comment
 
@@ -102,7 +100,7 @@ Used by `/jira:status-rollup` to post a comprehensive status comment to a Jira i
 ### This Period
 
 **Completed:**
-1. [AUTH-101](https://redhat.atlassian.net/browse/AUTH-101) - OAuth2 implementation (PR #456 merged, all review feedback addressed)
+1. [AUTH-101](https://redhat.atlassian.net/browse/AUTH-101) - OAuth2 implementation ([openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456) merged, all review feedback addressed)
 1. [AUTH-102](https://redhat.atlassian.net/browse/AUTH-102) - Token validation with comprehensive unit tests
 
 **In Progress:**
@@ -361,7 +359,7 @@ Color circle mapping (from the `color` field in Status Summary):
 5. **No metrics**: No completion percentages, issue counts, or tables
 6. **Cross-references as markdown links**: Reference related issues, PRs, and people inline
 7. **Continuous list**: All entries in one unordered list, no blank lines between items
-8. **PR references**: Use `[PR #N](url)` format when referencing specific PRs
+8. **PR references**: Use `[owner/repo#N](url)` format when referencing specific PRs
 9. **First names for attribution**: Use `author_name` fields (not `author` logins) when attributing contributions. Always use first names, never GitHub handles.
 
 ### Content Guidelines
@@ -379,7 +377,7 @@ Color circle mapping (from the `color` field in Status Summary):
 **Attribution for recognition:**
 
 - Name team members who drove key accomplishments
-- Example: "Thanks to Contributor A's work on PR #456, the migration path is now fully tested"
+- Example: "Thanks to Contributor A's work on [openshift/hypershift#456](https://github.com/openshift/hypershift/pull/456), the migration path is now fully tested"
 
 **Tone:**
 
@@ -409,7 +407,7 @@ Color circle mapping (from the `color` field in Status Summary):
 - 🟡 [OCPSTRAT-1409](https://issues.redhat.com/browse/OCPSTRAT-1409): Auto backup/restore for Hosted Clusters
     - A bug found in the implementation has highlighted a permission gap that we are going to cover with better UX.
 - 🟢 [OCPSTRAT-1558](https://issues.redhat.com/browse/OCPSTRAT-1558): Shared ingress for HCP
-    - Contributor C's [PR #7143](https://github.com/openshift/hypershift/pull/7143) landed this week, completing the core shared ingress controller. Integration tests are passing on AWS.
+    - Contributor C's [openshift/hypershift#7143](https://github.com/openshift/hypershift/pull/7143) landed this week, completing the core shared ingress controller. Integration tests are passing on AWS.
 - 🔴 [OCPSTRAT-2100](https://issues.redhat.com/browse/OCPSTRAT-2100): IPv6 support for Hosted Control Planes
     - Blocked on upstream Kubernetes networking changes expected in 1.32. Contributor D has prepared the downstream patches and they are ready to go once the dependency lands.
 ```
@@ -595,6 +593,112 @@ or claims about the contents of actual PRs:
 | `https://github.com/o/r/pull/3/files`, confirmed PR evidence | Render `[o/r#3](https://github.com/o/r/pull/3/files)` without changing the destination. |
 | `docs at https://example.com/x`, unrelated PR URL present separately | Preserve the documentation link; do not append or associate the unrelated PR. |
 | A link on an unrecognized host with no verified PR identity | Preserve it as an unrelated/unknown link, not an inferred GitHub PR. |
+
+As a reference implementation of the treatments above, the helper below qualifies
+references from each activity record's evidence URL, not an assumed repository. It
+accepts the dictionaries produced by `external-links.md` as well as attribute-style
+records. Only a single unambiguous reference may inherit the record's URL;
+unsupported references are generalized. Inline PR link labels are qualified from
+their verified targets without changing the URL; other links, code, images, and
+reference definitions are preserved. URLs cannot be rewritten as bare references.
+Draft formatting still does not perform final Markdown-to-ADF conversion; the
+[external client owns it](#external-consumer-and-conversion-boundary).
+
+```python
+import re
+
+
+def markdown_activity_item(item):
+    def field(name):
+        if isinstance(item, dict):
+            return item.get(name, "")
+        return getattr(item, name, "")
+
+    def pr_identity(url):
+        match = re.fullmatch(
+            r"https?://github\.com/([A-Za-z0-9_-]+/[A-Za-z0-9_.-]+)/pull/([1-9][0-9]*)/?(?:[?#][^\s<>\[\]()]*)?",
+            url if isinstance(url, str) else "",
+        )
+        return (match[1], match[2]) if match else None
+
+    def pr_link(url, identity):
+        repository, number = identity
+        return f"[{repository}#{number}]({url})"
+
+    def prose_url(url):
+        target = url or ""
+        if not pr_identity(target) and "?" not in target and "#" not in target:
+            target = target.rstrip(".,;:!)")
+        return target, (url or "")[len(target):], pr_identity(target)
+
+    description = item if isinstance(item, str) else field("description")
+    evidence_url = field("url")
+    evidence = pr_identity(evidence_url)
+    tokens = re.compile(
+        r"(?P<definition>^[ ]{0,3}\[[^\]\n]+\]:[^\n]*)"
+        r"|(?P<protected>(?P<ticks>`+)[^\n]*?(?P=ticks)|<https?://[^<>\n]*>|\[[^\]\n]*\]\[[^\]\n]*\])"
+        r"|(?P<link>!?\[[^\]\n]*\]\((?:[^()\n]|\([^()\n]*\))*\))"
+        r"|(?P<bracket>\[[^\]\n]*\])"
+        r"|(?P<url>https?://[^\s<>\[\]]+)"
+        r"|(?P<reference>(?<![\w/])(?:PR\s+)?(?P<repository>[\w.-]+(?:/[\w.-]+)?)?#(?P<number>[0-9]+)\b)",
+        re.MULTILINE,
+    )
+    matches = list(tokens.finditer(description))
+    references = [match for match in matches if match.group("reference")]
+    links = [match for match in matches
+             if match.group("link") or match.group("protected") or match.group("definition") or match.group("bracket")]
+    linked_prs = [match for match in matches if prose_url(match.group("url"))[2]]
+
+    def replace(match):
+        if match.group("link"):
+            inline = re.fullmatch(
+                r"\[[^\]\n]*\]\([ \t]*(?:<(?P<angle>[^<>\s]+)>|(?P<plain>[^\s<>]+?))"
+                r"(?:[ \t]+(?:\"[^\"\n]*\"|'[^'\n]*'|\([^()\n]*\)))?[ \t]*\)",
+                match[0],
+            )
+            identity = pr_identity(inline.group("angle") or inline.group("plain")) if inline else None
+            if identity:
+                repository, number = identity
+                return f"[{repository}#{number}" + match[0][match[0].index("]("):]
+            return match[0]
+        if match.group("protected") or match.group("definition") or match.group("bracket"):
+            return match[0]
+        target = match.group("url")
+        if target:
+            target, punctuation, identity = prose_url(target)
+            return pr_link(target, identity) + punctuation if identity else match[0]
+        if (evidence and len(references) == 1 and not links and not linked_prs
+                and match.group("number") == evidence[1]
+                and match.group("repository") in (None, evidence[0])):
+            return pr_link(evidence_url, evidence)
+        return "pull request"
+
+    rendered = tokens.sub(replace, description)
+    if evidence and not references and not links and not linked_prs:
+        rendered += f" ({pr_link(evidence_url, evidence)})"
+    return rendered
+
+
+def format_ryg_field_markdown(issue_data, config):
+    output = []
+    health = issue_data.analysis.health.capitalize()  # Green, Yellow, Red
+    output.append(f"* Color Status: {health}")
+    output.append("* Status summary:")
+
+    items = [markdown_activity_item(item) for item in issue_data.analysis.achievements[:3]]
+    items.extend(markdown_activity_item(item) for item in issue_data.analysis.in_progress[:2])
+    if not items:
+        items = ["No status updates this period"]
+    output.extend(f"  * {item}" for item in items)
+
+    output.append("* Risks:")
+    risks = issue_data.analysis.risks[:2]
+    output.extend(f"  * {markdown_activity_item(risk)}" for risk in risks)
+    if not risks:
+        output.append("  * None at this time")
+
+    return "\n".join(output)
+```
 
 ### For feature_markdown format
 
