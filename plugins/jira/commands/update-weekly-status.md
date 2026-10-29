@@ -131,6 +131,20 @@ python3 {plugins-dir}/jira/skills/status-analysis/scripts/gather_status_data.py 
   --verbose
 ```
 
+When the root selection needs filters this command does not model (target
+version, fix version, issue type, or any other JQL predicate), pass a complete
+query with `--jql` instead of `--project`/`--component`/`--label`/`--assignee`:
+
+```bash
+python3 {plugins-dir}/jira/skills/status-analysis/scripts/gather_status_data.py \
+  --jql 'project = OCPSTRAT AND assignee = "me@example.com" AND cf[10855] = "openshift-5.1" ORDER BY rank ASC' \
+  --verbose
+```
+
+`--jql` is used verbatim and replaces the entire built-in query, including the
+`status != Closed` and `status != "Release Pending"` guards, so the query must
+express any status filtering it wants. `--issue` overrides `--jql`.
+
 **Script location**: `plugins/jira/skills/status-analysis/scripts/gather_status_data.py`
 
 **Script output**:
