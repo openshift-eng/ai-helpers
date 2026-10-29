@@ -1,0 +1,375 @@
+release: "openshift-5.1"
+
+features:
+  # Feature 1: Fully ready — all checks should pass
+  - key: "OCPSTRAT-3444"
+    summary: "Enhanced Pod Security Admission"
+    priority: "Major"
+    status: "In Progress"
+    description: |
+      h3. *Feature Overview*
+      Enhanced Pod Security Admission provides improved security defaults for workloads
+      running on OpenShift clusters, ensuring compliance with industry standards.
+
+      h3. *Goals*
+      - Enforce baseline security profiles by default
+      - Provide clear upgrade path from legacy SCCs
+      - Minimize disruption to existing workloads
+
+      h3. *Requirements*
+      h4. Functional Requirements
+      - PSA labels applied to all new namespaces
+      - Warnings emitted for non-compliant pods
+
+      h4. Testing and Validation Requirements
+      - Validate upgrade and rollback behavior
+      - Verify PSA label enforcement on new namespaces
+      - Integration tests for SCC-to-PSA migration
+
+      h4. Non-Functional Requirements
+      - No measurable performance regression on pod admission latency
+
+      h4. Operational Requirements
+      - Metrics exposed for policy violations
+      - Alert for misconfigured namespace labels
+
+      h3. *Use Cases*
+      - Cluster administrator enables restricted profile for production namespace
+      - Developer deploys workload and receives actionable warning
+
+      h3. *Deployment Considerations*
+      | Topology | Applicable |
+      | Self-managed, classic, multi-node | Yes |
+      | Managed, HCP | Yes |
+      | SNO | Yes |
+      | Restricted network | Yes |
+
+      h3. *Interoperability Considerations*
+      - Must coexist with NetworkPolicy enforcement
+      - Compatible with OPA Gatekeeper
+
+      h3. *Customer Considerations*
+      - Migration guide required for customers using legacy SCCs
+
+      h2. *Quality Status*
+      | Metric | Value |
+      | Estimated number of e2e/integration tests | 14 |
+      | % tests automated | 80% |
+    remote_links:
+      - title: "Test Plan — Pod Security Admission"
+        url: "https://docs.google.com/document/d/test-plan-psa"
+      - title: "Enhancement Proposal"
+        url: "https://github.com/openshift/enhancements/pull/1234"
+      - title: "PR: PSA label enforcement"
+        url: "https://github.com/openshift/kubernetes/pull/5001"
+      - title: "PR: SCC migration tests"
+        url: "https://github.com/openshift/origin/pull/28100"
+      - title: "Documentation — PSA Migration Guide"
+        url: "https://docs.openshift.com/container-platform/latest/security/psa.html"
+    subtasks:
+      - key: "OCPBUGS-9001"
+        summary: "Implement PSA label controller"
+        status: "Closed"
+        labels: []
+        components: ["kube-apiserver"]
+      - key: "OCPBUGS-9002"
+        summary: "QE: e2e tests for PSA enforcement"
+        status: "Closed"
+        labels: ["qe", "test-plan"]
+        components: ["QE"]
+      - key: "OCPBUGS-9003"
+        summary: "QE: integration tests for SCC migration"
+        status: "Closed"
+        labels: ["qe"]
+        components: ["QE"]
+      - key: "OCPBUGS-9004"
+        summary: "Add metrics for PSA violations"
+        status: "Closed"
+        labels: []
+        components: ["monitoring"]
+      - key: "OCPBUGS-9005"
+        summary: "Update documentation for PSA"
+        status: "Closed"
+        labels: ["docs"]
+        components: ["documentation"]
+      - key: "OCPBUGS-9006"
+        summary: "CI: add PSA job to periodic suite"
+        status: "Closed"
+        labels: ["ci", "automation"]
+        components: ["CI"]
+    issue_links:
+      - key: "OSDOCS-1001"
+        type: "Story"
+        summary: "PSA documentation update"
+        status: "Closed"
+    qa_contact: "Alice Johnson"
+    labels: ["security", "psa"]
+    components: ["kube-apiserver"]
+
+  # Feature 2: No test plan, Critical priority — should be flagged as Critical Gap
+  - key: "OCPSTRAT-2962"
+    summary: "OVN-K Gateway Enhancements"
+    priority: "Critical"
+    status: "In Progress"
+    description: |
+      h3. *Feature Overview*
+      <your text here>
+
+      h3. *Goals*
+      <your text here>
+
+      h3. *Requirements*
+      <your text here>
+
+      h3. *Use Cases*
+      <your text here>
+
+      h3. *Deployment Considerations*
+      | Topology | Applicable |
+      |  |  |
+      |  |  |
+
+      h3. *Interoperability Considerations*
+      <your text here>
+
+      h3. *Customer Considerations*
+      <your text here>
+
+      h2. *Quality Status*
+      | Metric | Value |
+      | Estimated number of e2e/integration tests | 0 |
+      | % tests automated | n/a |
+    remote_links: []
+    subtasks: []
+    issue_links: []
+    qa_contact: null
+    labels: []
+    components: ["networking"]
+
+  # Feature 3: Partially filled template, some work items, missing QA contact
+  - key: "OCPSTRAT-3266"
+    summary: "Multi-arch Image Build Pipeline"
+    priority: "Critical"
+    status: "In Progress"
+    description: |
+      h3. *Feature Overview*
+      Multi-architecture image build pipeline enables building container images
+      for x86_64, aarch64, s390x, and ppc64le architectures in a single CI run.
+
+      h3. *Goals*
+      - Support multi-arch builds in CI
+      - Reduce build times with parallel execution
+
+      h3. *Requirements*
+      h4. Functional Requirements
+      - Build pipeline supports 4 architectures
+      - Manifest list pushed to registry on success
+
+      h4. Testing and Validation Requirements
+      TBD
+
+      h4. Non-Functional Requirements
+      N/A
+
+      h4. Operational Requirements
+      TODO
+
+      h3. *Use Cases*
+      - Developer triggers multi-arch build from PR
+
+      h3. *Deployment Considerations*
+      | Topology | Applicable |
+      | Self-managed, classic | Yes |
+      | Managed | TBD |
+      |  |  |
+      |  |  |
+      |  |  |
+      |  |  |
+      |  |  |
+      |  |  |
+      |  |  |
+      |  |  |
+
+      h3. *Interoperability Considerations*
+      <your text here>
+
+      h3. *Customer Considerations*
+      <your text here>
+
+      h2. *Quality Status*
+      | Metric | Value |
+      | Estimated number of e2e/integration tests | 5 |
+      | % tests automated |  |
+    remote_links:
+      - title: "Test Plan — Multi-arch Builds"
+        url: "https://docs.google.com/document/d/test-plan-multiarch"
+      - title: "Design Doc"
+        url: "https://github.com/openshift/enhancements/pull/2345"
+      - title: "PR: multi-arch builder"
+        url: "https://github.com/openshift/builder/pull/601"
+    subtasks:
+      - key: "OCPBUGS-8001"
+        summary: "Implement multi-arch build controller"
+        status: "In Progress"
+        labels: []
+        components: ["builds"]
+      - key: "OCPBUGS-8002"
+        summary: "Add aarch64 build nodes"
+        status: "Closed"
+        labels: []
+        components: ["infrastructure"]
+      - key: "OCPBUGS-8003"
+        summary: "QE: validate manifest list generation"
+        status: "Open"
+        labels: ["qe"]
+        components: ["QE"]
+      - key: "OCPBUGS-8004"
+        summary: "CI: add multi-arch periodic job"
+        status: "Open"
+        labels: ["ci"]
+        components: ["CI"]
+    issue_links: []
+    qa_contact: null
+    labels: ["multi-arch"]
+    components: ["builds"]
+
+  # Feature 4: All fields complete, at Release Pending — should pass R13
+  - key: "OCPSTRAT-3500"
+    summary: "Cluster Observability Operator GA"
+    priority: "Major"
+    status: "Release Pending"
+    description: |
+      h3. *Feature Overview*
+      Graduate the Cluster Observability Operator from Tech Preview to GA,
+      providing a unified monitoring stack management experience.
+
+      h3. *Goals*
+      - GA-quality reliability and performance
+      - Complete API stability
+      - Full documentation coverage
+
+      h3. *Requirements*
+      h4. Functional Requirements
+      - COO manages Prometheus, Alertmanager, and Thanos components
+      - Custom resource validation with webhook
+
+      h4. Testing and Validation Requirements
+      - End-to-end tests for all managed components
+      - Upgrade tests from TP to GA version
+      - Performance regression tests
+
+      h4. Non-Functional Requirements
+      - Memory usage under 512MB for operator pod
+      - Reconciliation time under 30 seconds
+
+      h4. Operational Requirements
+      - Operator exposes metrics for reconciliation failures
+      - Support runbook for common issues
+
+      h3. *Use Cases*
+      - Admin installs COO and configures custom monitoring stack
+      - Admin upgrades from TP to GA seamlessly
+
+      h3. *Deployment Considerations*
+      | Topology | Applicable |
+      | Self-managed, classic, multi-node | Yes |
+      | Managed, HCP | Yes |
+      | SNO | Yes |
+      | Restricted network | Yes |
+
+      h3. *Interoperability Considerations*
+      - Must work alongside cluster-monitoring-operator
+      - Compatible with user-workload monitoring
+
+      h3. *Customer Considerations*
+      - Migration path from manual Prometheus deployments
+
+      h2. *Quality Status*
+      | Metric | Value |
+      | Estimated number of e2e/integration tests | 22 |
+      | % tests automated | 95% |
+    remote_links:
+      - title: "Test Plan — COO GA"
+        url: "https://docs.google.com/document/d/test-plan-coo-ga"
+      - title: "Enhancement Proposal — COO GA"
+        url: "https://github.com/openshift/enhancements/pull/3456"
+      - title: "PR: COO webhook validation"
+        url: "https://github.com/openshift/cluster-observability-operator/pull/201"
+      - title: "PR: COO e2e test suite"
+        url: "https://github.com/openshift/cluster-observability-operator/pull/215"
+      - title: "Documentation — COO GA Guide"
+        url: "https://docs.openshift.com/container-platform/latest/observability/coo.html"
+    subtasks:
+      - key: "OCPBUGS-7001"
+        summary: "Implement webhook validation for COO CRDs"
+        status: "Closed"
+        labels: []
+        components: ["monitoring"]
+      - key: "OCPBUGS-7002"
+        summary: "QE: e2e tests for COO GA"
+        status: "Closed"
+        labels: ["qe", "test-plan"]
+        components: ["QE"]
+      - key: "OCPBUGS-7003"
+        summary: "QE: upgrade tests TP to GA"
+        status: "Closed"
+        labels: ["qe"]
+        components: ["QE"]
+      - key: "OCPBUGS-7004"
+        summary: "Performance benchmarks for COO"
+        status: "Closed"
+        labels: ["performance"]
+        components: ["monitoring"]
+      - key: "OCPBUGS-7005"
+        summary: "Update documentation for COO GA"
+        status: "Closed"
+        labels: ["docs"]
+        components: ["documentation"]
+    issue_links:
+      - key: "OSDOCS-2001"
+        type: "Story"
+        summary: "COO GA documentation"
+        status: "Closed"
+    qa_contact: "Bob Smith"
+    labels: ["monitoring", "ga"]
+    components: ["monitoring"]
+
+  # Feature 5: Minor priority, many gaps but not Critical — should be AT RISK
+  - key: "OCPSTRAT-3600"
+    summary: "Experimental Node Feature Discovery Enhancements"
+    priority: "Minor"
+    status: "New"
+    description: |
+      h3. *Feature Overview*
+      Enhance the Node Feature Discovery operator with GPU detection
+      and topology-aware scheduling hints.
+
+      h3. *Goals*
+      TBD
+
+      h3. *Requirements*
+      TODO
+
+      h3. *Use Cases*
+      <your text here>
+
+      h3. *Deployment Considerations*
+      | Topology | Applicable |
+      |  |  |
+
+      h3. *Interoperability Considerations*
+      <your text here>
+
+      h3. *Customer Considerations*
+      <your text here>
+
+      h2. *Quality Status*
+      | Metric | Value |
+      | Estimated number of e2e/integration tests | 0 |
+      | % tests automated | n/a |
+    remote_links: []
+    subtasks: []
+    issue_links: []
+    qa_contact: null
+    labels: []
+    components: ["nfd"]
