@@ -10,7 +10,7 @@ Part of the [node-team plugin family](../node-team/).
 /plugin install node-rpm@ai-helpers
 ```
 
-Requires the `node-team` plugin (installed automatically as a dependency).
+Requires the `node-team` plugin (installed automatically as a dependency). Its shared `version-map.md` and `components.md` are used to check that the target version matches the OCP release and the upstream repo.
 
 ## Command
 
@@ -27,19 +27,19 @@ Bump a downstream RPM package to a new upstream version.
 
 **What it does:**
 
-1. Checks VPN connectivity to Red Hat internal systems
+1. Checks the target version against the OCP release (node-team version map) and VPN connectivity
 2. Validates prerequisites (locally or inside a Vagrant VM with `--vagrant`)
-3. Clones the dist-git repo and checks out the correct release branch
-4. Updates the spec file with the new upstream version and commit hash
-5. Downloads sources, declares new sources, bumps the changelog
-6. Commits, pushes, and kicks off a Brew build (or scratch build with `--scratch`)
+3. Clones the dist-git repo, lists the release branches that exist, and checks out the selected one
+4. Updates the spec file with the new upstream version and commit hash, bumps the changelog, downloads sources
+5. Shows the diff and waits for confirmation before anything leaves the machine
+6. With `--scratch`: builds a scratch SRPM from the working tree (no source upload, commit or push). Otherwise: declares new sources, commits, then asks before pushing and again before the Brew build
 7. Prints a summary with build URL and next steps
 
 **Arguments:**
 - `<package>`: Package name (required, e.g. "cri-tools")
 - `<new-version>`: Target upstream version (required, e.g. "1.36.0")
 - `--ocp-version <version>`: Target OCP version (prompted if omitted)
-- `--scratch`: Run a scratch build instead of a full build
+- `--scratch`: Run a scratch build from the working tree; nothing is uploaded, committed or pushed
 - `--vagrant`: Run the workflow inside a Vagrant VM (auto-provisions if needed)
 
 ## Prerequisites
