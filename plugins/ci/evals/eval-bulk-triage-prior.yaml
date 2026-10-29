@@ -1,0 +1,359 @@
+name: bulk-triage-prior-eval
+description: |
+  Frozen-observation policy-choice evaluation of ci:bulk-triage-regressions prior
+  memory (post-GA weekly run). Each case supplies one current pre-pass whose
+  clusters carry `prior` blocks projected by the real pre-pass from a validated
+  baseline manifest, plus the only observations available from the current run
+  (own-run junit excerpts, Jira issue/search replies, Sippy triage/label replies,
+  each with its locator). The model must decide the next step per cluster —
+  carry, reinvestigate, treat as new, analyse first, or watch — and record the
+  current provenance it relied on. Deterministic judges score the choices,
+  targets, member support and locator use against annotations the model never
+  sees. This is a model-development check with frozen inputs, not a mechanism
+  ground-truth eval and not a live duty run; nothing is fetched or written.
+skill: ci:bulk-triage-regressions
+
+execution:
+  mode: case
+  arguments: "{input_json}"
+  # Model-development limits for a frozen policy-choice case; not production budgets.
+  timeout: 180
+  max_budget_usd: 0.75
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/ci
+  # The complete output contract lives here: the harness passes input_json and this
+  # prompt to the model; outputs[].schema below documents collection and scoring only.
+  # Baseline and candidate runs use this identical prompt.
+  system_prompt: |
+    Use ci:bulk-triage-regressions under the input's post-ga policy and effective
+    write mode. This is a frozen-observation policy-choice evaluation, not a live
+    duty run. The JSON prepass is the entire inventory; supplied artifacts/API
+    replies are observations from the current run. Read the installed
+    skill/policy and decide the next step. Do not fetch live CI/Jira data,
+    execute writes, read annotations, or delegate. Do not invent the outcome of
+    further investigation. Write prior-verdict.json with exactly the top-level
+    fields decisions and investigation_order, using this contract:
+
+    {
+      "decisions": [{
+        "cluster_id": "<input cluster id>",
+        "next_step": "carry|reinvestigate|treat-as-new|analyse-first|watch",
+        "depth": "carried-forward|deep-dive|oracle|none",
+        "state": "KNOWN-CAUSE|CANDIDATE|UNEXPLAINED|UNANALYSED",
+        "target": {"jira": "<bug under consideration>", "triage_id": null},
+        "supported_member_ids": [],
+        "would_write": false,
+        "escalation_required": false,
+        "check_locators": ["<observed artifact or lookup locator>"]
+      }],
+      "investigation_order": ["<cluster id>"]
+    }
+
+    Emit one decision per input cluster, with no duplicate IDs. Choose one
+    literal from each pipe-separated enum above. cluster_id is a nonempty
+    string. depth names the selected next analysis method, not a dive already
+    performed. state is the supported current finding; unfinished further
+    diagnosis may be UNANALYSED. target is null or an object with a
+    nonempty-string jira key and an integer-or-null triage_id; it records the
+    bug to follow, not write authorization. supported_member_ids is a list of
+    unique integer IDs supported for a link by the supplied current evidence.
+    would_write and escalation_required are booleans, never strings.
+    check_locators is a list of observed locator strings supporting the
+    decision. investigation_order lists only work needing investigation, in
+    intended order, without duplicates. would_write describes permission under
+    the supplied observations/mode; it never asks you to perform a write.
+
+models:
+  # Pinned deliberately: the policy-choice expectations are calibrated against a
+  # fixed model; a floating alias would make baseline-vs-candidate runs incomparable.
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
+
+permissions:
+  # Read the installed skill/policy and the input; write the verdict. No shell,
+  # no delegation, no network, no MCP, and never the case's annotations.
+  allow:
+    - "Skill"
+    - "Read"
+    - "Write"
+  deny:
+    - "Agent"
+    - "Bash"
+    - "WebFetch"
+    - "WebSearch"
+    - "mcp__*"
+    - "Read(**/annotations.yaml)"
+    # the installed plugin tree contains this config and the eval index, which describe the
+    # expected choices; the staged input lives outside the evals tree
+    - "Read(**/evals/**)"
+
+mlflow:
+  experiment: bulk-triage-prior-eval
+  tags:
+    plugin: ci
+    skill: bulk-triage-regressions
+    kind: policy-choice
+
+dataset:
+  path: cases/bulk-triage-prior
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with field:
+      - 'input_json' — JSON string with: 'eval' (fixed id), 'write_mode_effective'
+        ("report" in every case), 'prepass' (a complete weekly prepass.json whose
+        clusters carry `prior` blocks projected from the preceding attempt's
+        manifest: lineage, members, shape, blast_radius, oracle, prior), and
+        'observations' — a list of frozen current-run observations, each with
+        'cluster_id', 'kind' (own-run-junit | jira-issue | jira-search |
+        sippy-triage | sippy-label), 'locator' and the excerpt/reply. These are
+        the only data available; nothing else was fetched.
+    - annotations.yaml: Expected outcomes, not visible to the model:
+      - 'expected.decisions' — map cluster_id -> {next_step, allowed_depths,
+        allowed_states, target (or allowed_targets: a list of acceptable
+        target values), supported_member_ids, would_write,
+        escalation_required, required_locators}
+      - 'expected.investigation_order_prefix' — the ids investigation_order must
+        start with, in order
+      - 'expected.investigation_order_exact' — when true, investigation_order must
+        equal the prefix exactly
+      - 'notes' — why these are the expected choices
+
+outputs:
+  - path: "prior-verdict.json"
+    schema: |
+      JSON object with exactly two top-level fields:
+      - decisions: list, one per input cluster, each with cluster_id (string),
+        next_step (carry|reinvestigate|treat-as-new|analyse-first|watch),
+        depth (carried-forward|deep-dive|oracle|none),
+        state (KNOWN-CAUSE|CANDIDATE|UNEXPLAINED|UNANALYSED),
+        target (null or {jira: string, triage_id: integer|null}),
+        supported_member_ids (unique integers), would_write (boolean),
+        escalation_required (boolean), check_locators (strings)
+      - investigation_order: cluster ids needing investigation, in order, unique
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_shape
+    description: prior-verdict.json exists, is valid JSON and every field has the contract's type and enum
+    check: |
+      import json
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      hits = {k: v for k, v in files.items()
+              if (k == "prior-verdict.json" or k.endswith("/prior-verdict.json")) and isinstance(v, str)}
+      if not hits:
+          return (False, "No prior-verdict.json found")
+      try:
+          data = json.loads(list(hits.values())[0])
+      except Exception as e:  # noqa: BLE001
+          return (False, f"Invalid JSON: {e}")
+      if not isinstance(data, dict) or set(data) != {"decisions", "investigation_order"}:
+          got = sorted(data) if isinstance(data, dict) else type(data).__name__
+          return (False, f"top-level fields must be exactly decisions and investigation_order, got {got}")
+      STEPS = {"carry", "reinvestigate", "treat-as-new", "analyse-first", "watch"}
+      DEPTHS = {"carried-forward", "deep-dive", "oracle", "none"}
+      STATES = {"KNOWN-CAUSE", "CANDIDATE", "UNEXPLAINED", "UNANALYSED"}
+      decisions = data["decisions"]
+      if not isinstance(decisions, list) or not decisions:
+          return (False, "decisions must be a non-empty list")
+      problems, seen = [], set()
+      for i, d in enumerate(decisions):
+          if not isinstance(d, dict):
+              problems.append(f"decisions[{i}] is not an object")
+              continue
+          cid = d.get("cluster_id")
+          if not isinstance(cid, str) or not cid:
+              problems.append(f"decisions[{i}].cluster_id must be a non-empty string")
+              cid = f"decisions[{i}]"
+          elif cid in seen:
+              problems.append(f"duplicate cluster_id {cid}")
+          else:
+              seen.add(cid)
+          for key, allowed in (("next_step", STEPS), ("depth", DEPTHS), ("state", STATES)):
+              value = d.get(key)
+              if not isinstance(value, str) or value not in allowed:
+                  problems.append(f"{cid}: {key} {value!r} not in {sorted(allowed)}")
+          if "target" not in d:
+              problems.append(f"{cid}: target key missing (null or object required)")
+          else:
+              t = d["target"]
+              ok_target = t is None or (
+                  isinstance(t, dict) and set(t) == {"jira", "triage_id"}
+                  and isinstance(t.get("jira"), str) and t["jira"]
+                  and (t.get("triage_id") is None
+                       or (isinstance(t["triage_id"], int) and not isinstance(t["triage_id"], bool))))
+              if not ok_target:
+                  problems.append(f"{cid}: target must be null or an object with jira (non-empty string) and triage_id (integer|null)")
+          ids = d.get("supported_member_ids")
+          if (not isinstance(ids, list) or any(not isinstance(x, int) or isinstance(x, bool) for x in ids)
+                  or len(set(ids)) != len(ids)):
+              problems.append(f"{cid}: supported_member_ids must be a list of unique integers")
+          for key in ("would_write", "escalation_required"):
+              if not isinstance(d.get(key), bool):
+                  problems.append(f"{cid}: {key} must be a boolean, got {type(d.get(key)).__name__}")
+          locs = d.get("check_locators")
+          if not isinstance(locs, list) or any(not isinstance(x, str) for x in locs):
+              problems.append(f"{cid}: check_locators must be a list of strings")
+      order = data["investigation_order"]
+      if not isinstance(order, list) or any(not isinstance(x, str) for x in order):
+          problems.append("investigation_order must be a list of cluster id strings")
+      elif len(set(order)) != len(order) or not set(order) <= seen:
+          problems.append("investigation_order must be duplicate-free and name only decision cluster ids")
+      if problems:
+          return (False, "; ".join(problems[:8]))
+      return (True, f"{len(decisions)} well-formed decisions")
+
+  - name: choices_and_priority
+    description: next_step, depth and state per cluster match the annotations; investigation_order starts as expected
+    check: |
+      import json
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      hits = {k: v for k, v in files.items()
+              if (k == "prior-verdict.json" or k.endswith("/prior-verdict.json")) and isinstance(v, str)}
+      if not hits:
+          return (False, "No prior-verdict.json found")
+      try:
+          data = json.loads(list(hits.values())[0])
+      except Exception as e:  # noqa: BLE001
+          return (False, f"Invalid JSON: {e}")
+      if not isinstance(data, dict) or not isinstance(data.get("decisions"), list):
+          return (False, "prior-verdict.json must be an object with a decisions list")
+      bad = [i for i, d in enumerate(data["decisions"])
+             if not isinstance(d, dict) or not isinstance(d.get("cluster_id"), str) or not d.get("cluster_id")]
+      if bad:
+          return (False, f"decisions {bad} lack a non-empty string cluster_id")
+      by_id = {d["cluster_id"]: d for d in data["decisions"]}
+      if len(by_id) != len(data["decisions"]):
+          return (False, "duplicate cluster_id in decisions")
+      expected = outputs.get("annotations", {}).get("expected") or {}
+      expected_by_id = expected.get("decisions") or {}
+      if not expected_by_id:
+          return (False, "annotations.expected.decisions missing")
+      if set(by_id) != set(expected_by_id):
+          return (False, f"decision ids {sorted(by_id)} != expected {sorted(expected_by_id)}")
+      problems = []
+      for cid, exp in expected_by_id.items():
+          got = by_id[cid]
+          if got.get("next_step") != exp["next_step"]:
+              problems.append(f"{cid}: next_step {got.get('next_step')!r} != {exp['next_step']!r}")
+          if got.get("depth") not in exp["allowed_depths"]:
+              problems.append(f"{cid}: depth {got.get('depth')!r} not in {exp['allowed_depths']}")
+          if got.get("state") not in exp["allowed_states"]:
+              problems.append(f"{cid}: state {got.get('state')!r} not in {exp['allowed_states']}")
+      prefix = list(expected.get("investigation_order_prefix") or [])
+      order = data.get("investigation_order")
+      if not isinstance(order, list):
+          problems.append("investigation_order missing")
+      elif order[:len(prefix)] != prefix:
+          problems.append(f"investigation_order {order} does not start with {prefix}")
+      elif expected.get("investigation_order_exact") and order != prefix:
+          problems.append(f"investigation_order {order} must equal {prefix}")
+      if problems:
+          return (False, "; ".join(problems))
+      return (True, "choices and priority as expected")
+
+  - name: target_and_member_coverage
+    description: target, supported member ids, would_write and escalation_required match the annotations
+    check: |
+      import json
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      hits = {k: v for k, v in files.items()
+              if (k == "prior-verdict.json" or k.endswith("/prior-verdict.json")) and isinstance(v, str)}
+      if not hits:
+          return (False, "No prior-verdict.json found")
+      try:
+          data = json.loads(list(hits.values())[0])
+      except Exception as e:  # noqa: BLE001
+          return (False, f"Invalid JSON: {e}")
+      if not isinstance(data, dict) or not isinstance(data.get("decisions"), list):
+          return (False, "prior-verdict.json must be an object with a decisions list")
+      bad = [i for i, d in enumerate(data["decisions"])
+             if not isinstance(d, dict) or not isinstance(d.get("cluster_id"), str) or not d.get("cluster_id")]
+      if bad:
+          return (False, f"decisions {bad} lack a non-empty string cluster_id")
+      by_id = {d["cluster_id"]: d for d in data["decisions"]}
+      if len(by_id) != len(data["decisions"]):
+          return (False, "duplicate cluster_id in decisions")
+      expected = outputs.get("annotations", {}).get("expected") or {}
+      expected_by_id = expected.get("decisions") or {}
+      if not expected_by_id:
+          return (False, "annotations.expected.decisions missing")
+      if set(by_id) != set(expected_by_id):
+          return (False, f"decision ids {sorted(by_id)} != expected {sorted(expected_by_id)}")
+      problems = []
+      for cid, exp in expected_by_id.items():
+          got = by_id[cid]
+          allowed = exp["allowed_targets"] if "allowed_targets" in exp else [exp.get("target")]
+          if "target" not in got:
+              problems.append(f"{cid}: target key missing")
+          elif got["target"] not in allowed:
+              problems.append(f"{cid}: target {got['target']!r} not in {allowed!r}")
+          ids = got.get("supported_member_ids")
+          if (not isinstance(ids, list) or any(isinstance(x, bool) or not isinstance(x, int) for x in ids)
+                  or sorted(ids) != sorted(exp["supported_member_ids"])):
+              problems.append(f"{cid}: supported_member_ids {ids!r} != {exp['supported_member_ids']!r}")
+          for key in ("would_write", "escalation_required"):
+              if got.get(key) is not exp[key]:
+                  problems.append(f"{cid}: {key} {got.get(key)!r} is not {exp[key]!r}")
+      if problems:
+          return (False, "; ".join(problems))
+      return (True, "targets, member support and flags as expected")
+
+  - name: required_locators
+    description: each decision cites the observed discriminator locators the annotations require
+    check: |
+      import json
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      hits = {k: v for k, v in files.items()
+              if (k == "prior-verdict.json" or k.endswith("/prior-verdict.json")) and isinstance(v, str)}
+      if not hits:
+          return (False, "No prior-verdict.json found")
+      try:
+          data = json.loads(list(hits.values())[0])
+      except Exception as e:  # noqa: BLE001
+          return (False, f"Invalid JSON: {e}")
+      if not isinstance(data, dict) or not isinstance(data.get("decisions"), list):
+          return (False, "prior-verdict.json must be an object with a decisions list")
+      bad = [i for i, d in enumerate(data["decisions"])
+             if not isinstance(d, dict) or not isinstance(d.get("cluster_id"), str) or not d.get("cluster_id")]
+      if bad:
+          return (False, f"decisions {bad} lack a non-empty string cluster_id")
+      by_id = {d["cluster_id"]: d for d in data["decisions"]}
+      if len(by_id) != len(data["decisions"]):
+          return (False, "duplicate cluster_id in decisions")
+      expected = outputs.get("annotations", {}).get("expected") or {}
+      expected_by_id = expected.get("decisions") or {}
+      if not expected_by_id:
+          return (False, "annotations.expected.decisions missing")
+      if set(by_id) != set(expected_by_id):
+          return (False, f"decision ids {sorted(by_id)} != expected {sorted(expected_by_id)}")
+      problems = []
+      for cid, exp in expected_by_id.items():
+          locs = by_id[cid].get("check_locators")
+          if not isinstance(locs, list) or any(not isinstance(x, str) for x in locs):
+              problems.append(f"{cid}: check_locators must be a list of strings")
+              continue
+          missing = sorted(set(exp.get("required_locators") or []) - set(locs))
+          if missing:
+              problems.append(f"{cid}: missing locators {missing}")
+      if problems:
+          return (False, "; ".join(problems))
+      return (True, "required locators cited")
+
+# Every judge must pass on every case; a regression in any of them fails scoring.
+thresholds:
+  valid_output_shape:
+    min_pass_rate: 1.0
+  choices_and_priority:
+    min_pass_rate: 1.0
+  target_and_member_coverage:
+    min_pass_rate: 1.0
+  required_locators:
+    min_pass_rate: 1.0

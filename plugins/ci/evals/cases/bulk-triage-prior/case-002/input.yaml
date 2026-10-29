@@ -1,0 +1,927 @@
+input_json: |
+  {
+    "eval": "bulk-triage-prior",
+    "write_mode_effective": "report",
+    "note": "Frozen weekly pre-pass with prior memory plus the only observations available from this run. Nothing else was fetched; do not fetch.",
+    "prepass": {
+      "schema_version": "1.0",
+      "mode": "weekly",
+      "policy": {
+        "name": "post-ga"
+      },
+      "source_run": {
+        "job": "periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga",
+        "run_id": "2114000000000000001",
+        "url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga/2114000000000000001",
+        "started": "2026-10-20T05:03:40Z"
+      },
+      "observation": {
+        "time": "2026-10-20T05:03:40Z",
+        "views": [
+          {
+            "view": "4.21-main",
+            "fetch": "complete",
+            "error": null,
+            "open": 9,
+            "open_untriaged": 9,
+            "opened_7d": 0,
+            "closed_7d": 0
+          },
+          {
+            "view": "4.20-main",
+            "fetch": "complete",
+            "error": null,
+            "open": 1,
+            "open_untriaged": 1,
+            "opened_7d": 1,
+            "closed_7d": 0
+          }
+        ],
+        "symptom_probe": {
+          "status": "ok",
+          "runs_probed": 11
+        }
+      },
+      "baseline_run": {
+        "run_id": "2111000000000000001",
+        "manifest_url": "gs://test-platform-results/logs/periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga/2111000000000000001/artifacts/bulk-triage/triage-manifest.json",
+        "schema_version": "1.0",
+        "compatible": true
+      },
+      "clusters": [
+        {
+          "id": "c-high",
+          "lineage": {
+            "first_seen_run": "2111000000000000001",
+            "cycles_seen": 2,
+            "supersedes": [
+              "c-high"
+            ]
+          },
+          "fingerprint": {
+            "release": "4.21",
+            "test_family": "cluster upgrade should maintain a functioning cluster",
+            "lane_family": "openshift-release-main-nightly-REL-upgrade-from-stable-REL-e2e-PLATFORM-ovn-upgrade",
+            "labels": []
+          },
+          "members": {
+            "regression_ids": [
+              501,
+              502,
+              503,
+              504,
+              505,
+              506,
+              507,
+              508
+            ],
+            "new_since_baseline": [],
+            "views": [
+              "4.21-main"
+            ],
+            "components": [
+              "Machine Config Operator"
+            ]
+          },
+          "shape": {
+            "regressions": 8,
+            "distinct_jobs": 3,
+            "lane_families": 1,
+            "platforms": [
+              "aws",
+              "azure",
+              "gcp"
+            ],
+            "arches": [],
+            "upgrade_lane": true,
+            "minor_upgrade_lane": true,
+            "install_wrapper": false,
+            "mass_failure_marker": false,
+            "median_test_failures_per_run": 1,
+            "distinct_runs": 6,
+            "failing_runs_7d": 3,
+            "first_failure": "2026-10-11T04:00:00+00:00",
+            "last_failure": "2026-10-18T06:00:00+00:00",
+            "days_open": 20,
+            "regression_days_open": 20,
+            "days_since_last_failure": 1,
+            "growth_since_baseline": 0,
+            "components": [
+              "Machine Config Operator"
+            ],
+            "views": [
+              "4.21-main"
+            ],
+            "top_jobs": [
+              "periodic-ci-openshift-release-main-nightly-4.21-upgrade-from-stable-4.20-e2e-aws-ovn-upgrade",
+              "periodic-ci-openshift-release-main-nightly-4.21-upgrade-from-stable-4.20-e2e-azure-ovn-upgrade",
+              "periodic-ci-openshift-release-main-nightly-4.21-upgrade-from-stable-4.20-e2e-gcp-ovn-upgrade"
+            ]
+          },
+          "blast_radius": {
+            "level": "HIGH",
+            "score": 0.378,
+            "reasons": [
+              "upgrade lane: 8 regressions, 3 jobs, 3 platforms",
+              "persisting 20d, last failure 1d ago, 3 failing runs in 7d"
+            ]
+          },
+          "oracle": {
+            "status": "ok",
+            "runs_probed": 6,
+            "labels": {},
+            "label_bugs": {}
+          },
+          "prior": {
+            "run_id": "2111000000000000001",
+            "observed_at": "2026-10-13T05:03:40Z",
+            "source_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga/2111000000000000001",
+            "write_mode": "report",
+            "observation_complete": true,
+            "relationship": "same-id",
+            "sources": [
+              {
+                "run_id": "2111000000000000001",
+                "observed_at": "2026-10-13T05:03:40Z",
+                "cluster_id": "c-high",
+                "history_only": false,
+                "unfinished": false,
+                "member_ids": [
+                  501,
+                  502,
+                  503,
+                  504,
+                  505,
+                  506,
+                  507,
+                  508
+                ],
+                "matched_member_ids": [
+                  501,
+                  502,
+                  503,
+                  504,
+                  505,
+                  506,
+                  507,
+                  508
+                ],
+                "fingerprint": {
+                  "release": "4.21",
+                  "test_family": "cluster upgrade should maintain a functioning cluster",
+                  "lane_family": "openshift-release-main-nightly-REL-upgrade-from-stable-REL-e2e-PLATFORM-ovn-upgrade",
+                  "labels": []
+                },
+                "shape": {
+                  "regressions": 8,
+                  "distinct_jobs": 3,
+                  "lane_families": 1,
+                  "platforms": [
+                    "aws",
+                    "azure",
+                    "gcp"
+                  ],
+                  "arches": [],
+                  "upgrade_lane": true,
+                  "minor_upgrade_lane": true,
+                  "install_wrapper": false,
+                  "mass_failure_marker": false,
+                  "median_test_failures_per_run": 1,
+                  "distinct_runs": 3,
+                  "failing_runs_7d": 3,
+                  "first_failure": "2026-10-11T04:00:00+00:00",
+                  "last_failure": "2026-10-11T06:00:00+00:00",
+                  "days_open": 13,
+                  "regression_days_open": 13,
+                  "days_since_last_failure": 1,
+                  "growth_since_baseline": null,
+                  "components": [
+                    "Machine Config Operator"
+                  ],
+                  "views": [
+                    "4.21-main"
+                  ],
+                  "top_jobs": [
+                    "periodic-ci-openshift-release-main-nightly-4.21-upgrade-from-stable-4.20-e2e-aws-ovn-upgrade",
+                    "periodic-ci-openshift-release-main-nightly-4.21-upgrade-from-stable-4.20-e2e-azure-ovn-upgrade",
+                    "periodic-ci-openshift-release-main-nightly-4.21-upgrade-from-stable-4.20-e2e-gcp-ovn-upgrade"
+                  ]
+                },
+                "blast_radius": {
+                  "level": "HIGH",
+                  "score": 0.378,
+                  "reasons": [
+                    "upgrade lane: 8 regressions, 3 jobs, 3 platforms",
+                    "persisting 13d, last failure 1d ago, 3 failing runs in 7d"
+                  ]
+                },
+                "oracle": {
+                  "status": "ok",
+                  "runs_probed": 3,
+                  "labels": {},
+                  "label_bugs": {}
+                },
+                "state": "KNOWN-CAUSE",
+                "analysis": {
+                  "depth": "deep-dive",
+                  "confidence": "high",
+                  "owning_component": "Machine Config Operator",
+                  "triage_type": "product",
+                  "unverified_hypotheses": [],
+                  "root_cause": "The 4.20 -> 4.21 minor upgrade stalls at the machine-config operator on every platform: the MCO daemon on the first master waits for a pending OS image pull that fails against the internal registry during the apiserver rollout. OCPBUGS-1 (4.21.z) describes this exact sequence and cites these upgrade lanes; triage 17 links it in 4.22-main.",
+                  "root_cause_truncated": false,
+                  "evidence_refs": [
+                    {
+                      "prowjob_run_id": "2110900000000000501",
+                      "supports_regression_ids": [
+                        501,
+                        502,
+                        503,
+                        504,
+                        505,
+                        506,
+                        507,
+                        508
+                      ],
+                      "artifact": "gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-upgrade-from-stable-4.20-e2e-aws-ovn-upgrade/2110900000000000501/artifacts/e2e-aws-ovn-upgrade/openshift-e2e-test/artifacts/junit/junit_e2e__20261011-040000.xml"
+                    }
+                  ],
+                  "basis": {
+                    "run_id": "2111000000000000001",
+                    "cluster_id": "c-high",
+                    "observed_at": "2026-10-13T05:03:40Z",
+                    "depth": "deep-dive"
+                  }
+                },
+                "bug_search": {
+                  "candidates": [
+                    {
+                      "key": "OCPBUGS-1",
+                      "status": "ON_QA",
+                      "release": "4.21.z",
+                      "cites_own_runs": true,
+                      "exact_assertion": true,
+                      "sibling_precedent": {
+                        "view": "4.22-main",
+                        "triage_id": 17
+                      },
+                      "bar_met": true,
+                      "verdict": "link"
+                    }
+                  ],
+                  "newer_release_fix": null
+                },
+                "proposed_action": {
+                  "type": "extend_triage",
+                  "triage_id": 17,
+                  "jira": "OCPBUGS-1",
+                  "regression_ids": [
+                    501,
+                    502,
+                    503,
+                    504,
+                    505,
+                    506,
+                    507,
+                    508
+                  ],
+                  "description": "minor upgrade stalls at machine-config during image pull"
+                },
+                "actions": [
+                  {
+                    "type": "extend_triage",
+                    "status": "skipped-report-mode",
+                    "triage_id": 17,
+                    "jira": "OCPBUGS-1",
+                    "regression_ids": [
+                      501,
+                      502,
+                      503,
+                      504,
+                      505,
+                      506,
+                      507,
+                      508
+                    ],
+                    "result_url": null,
+                    "error": null
+                  }
+                ],
+                "escalation": {
+                  "required": true,
+                  "reason": "blast_radius HIGH",
+                  "first_escalated_run": "2111000000000000001",
+                  "re_notify": false,
+                  "re_notify_reasons": []
+                },
+                "unlinked": null,
+                "watch_list": [],
+                "unanalysed": []
+              }
+            ],
+            "member_delta": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "id": "c-b17bd7",
+          "lineage": {
+            "first_seen_run": "2111000000000000001",
+            "cycles_seen": 2,
+            "supersedes": []
+          },
+          "fingerprint": {
+            "release": "4.20",
+            "test_family": "pod inplace resize container guaranteed qos pod, one container - increase cpu (notrequired) & memory (restartcontainer)",
+            "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ipi-ovn-runc",
+            "labels": []
+          },
+          "members": {
+            "regression_ids": [
+              51548
+            ],
+            "new_since_baseline": [
+              51548
+            ],
+            "views": [
+              "4.20-main"
+            ],
+            "components": [
+              "Node / Kubelet"
+            ]
+          },
+          "shape": {
+            "regressions": 1,
+            "distinct_jobs": 1,
+            "lane_families": 1,
+            "platforms": [
+              "metal"
+            ],
+            "arches": [],
+            "upgrade_lane": false,
+            "minor_upgrade_lane": false,
+            "install_wrapper": false,
+            "mass_failure_marker": false,
+            "median_test_failures_per_run": 1,
+            "distinct_runs": 3,
+            "failing_runs_7d": 3,
+            "first_failure": "2026-10-18T00:29:00+00:00",
+            "last_failure": "2026-10-20T00:29:26+00:00",
+            "days_open": 1,
+            "regression_days_open": 1,
+            "days_since_last_failure": 0,
+            "growth_since_baseline": 1,
+            "components": [
+              "Node / Kubelet"
+            ],
+            "views": [
+              "4.20-main"
+            ],
+            "top_jobs": [
+              "periodic-ci-openshift-release-main-nightly-4.20-e2e-metal-ipi-ovn-ipv6-runc"
+            ]
+          },
+          "blast_radius": {
+            "level": "LOW",
+            "score": 0.07600000000000001,
+            "reasons": []
+          },
+          "oracle": {
+            "status": "ok",
+            "runs_probed": 3,
+            "labels": {
+              "2111591636982042624": [
+                "InPlaceResizeRuncDiesAt20MiFixture"
+              ],
+              "2111954045928214528": [
+                "InPlaceResizeRuncDiesAt20MiFixture"
+              ],
+              "2112316397370478592": [
+                "InPlaceResizeRuncDiesAt20MiFixture"
+              ]
+            },
+            "label_bugs": {
+              "InPlaceResizeRuncDiesAt20MiFixture": [
+                "OCPBUGS-60546"
+              ]
+            }
+          },
+          "prior": {
+            "run_id": "2111000000000000001",
+            "observed_at": "2026-10-13T05:03:40Z",
+            "source_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga/2111000000000000001",
+            "write_mode": "report",
+            "observation_complete": true,
+            "relationship": "same-id",
+            "sources": [
+              {
+                "run_id": "2111000000000000001",
+                "observed_at": "2026-10-13T05:03:40Z",
+                "cluster_id": "c-b17bd7",
+                "history_only": false,
+                "unfinished": false,
+                "member_ids": [
+                  51255,
+                  51256
+                ],
+                "matched_member_ids": [],
+                "fingerprint": {
+                  "release": "4.20",
+                  "test_family": "pod inplace resize container guaranteed qos pod, one container - increase cpu (notrequired) & memory (restartcontainer)",
+                  "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ipi-ovn-runc",
+                  "labels": []
+                },
+                "shape": {
+                  "regressions": 2,
+                  "distinct_jobs": 2,
+                  "lane_families": 2,
+                  "platforms": [
+                    "metal",
+                    "vsphere"
+                  ],
+                  "arches": [],
+                  "upgrade_lane": true,
+                  "minor_upgrade_lane": false,
+                  "install_wrapper": false,
+                  "mass_failure_marker": false,
+                  "median_test_failures_per_run": 1,
+                  "distinct_runs": 3,
+                  "failing_runs_7d": 3,
+                  "first_failure": "2026-10-09T02:29:00+00:00",
+                  "last_failure": "2026-10-10T02:29:27+00:00",
+                  "days_open": 2,
+                  "regression_days_open": 2,
+                  "days_since_last_failure": 3,
+                  "growth_since_baseline": null,
+                  "components": [
+                    "Node / Kubelet"
+                  ],
+                  "views": [
+                    "4.20-main"
+                  ],
+                  "top_jobs": [
+                    "periodic-ci-openshift-release-main-nightly-4.20-e2e-metal-ipi-ovn-upgrade-runc",
+                    "periodic-ci-openshift-release-main-nightly-4.20-e2e-vsphere-ipi-ovn-runc"
+                  ]
+                },
+                "blast_radius": {
+                  "level": "LOW",
+                  "score": 0.15200000000000002,
+                  "reasons": []
+                },
+                "oracle": {
+                  "status": "ok",
+                  "runs_probed": 3,
+                  "labels": {
+                    "2108339568796241920": [
+                      "InPlaceResizeRuncDiesAt20MiFixture"
+                    ],
+                    "2108695222132150272": [
+                      "InPlaceResizeRuncDiesAt20MiFixture"
+                    ],
+                    "2108702017051430912": [
+                      "InPlaceResizeRuncDiesAt20MiFixture"
+                    ]
+                  },
+                  "label_bugs": {
+                    "InPlaceResizeRuncDiesAt20MiFixture": [
+                      "OCPBUGS-60546"
+                    ]
+                  }
+                },
+                "state": "KNOWN-CAUSE",
+                "analysis": {
+                  "depth": "deep-dive",
+                  "confidence": "high",
+                  "owning_component": "Node / Kubelet (test fixture in openshift/kubernetes)",
+                  "triage_type": "test",
+                  "unverified_hypotheses": [
+                    "Platform spread (metal + vSphere) is explained by the runtime variant, not the platform; not separately verified beyond the two own runs above."
+                  ],
+                  "root_cause": "Same mechanism as the 4.20 runc lanes' sibling clusters: the 20Mi memory cgroup of the InPlacePodVerticalScaling resize-test pod is too small for `runc init`, producing CreateContainerError / 'error reading container (probably exited) json message: EOF'. Fixture raised to 35Mi for 4.21+ (openshift/kubernetes#2533); release-4.20 not backported.",
+                  "root_cause_truncated": false,
+                  "evidence_refs": [
+                    {
+                      "prowjob_run_id": "2108702017051430912",
+                      "supports_regression_ids": [
+                        51255
+                      ],
+                      "artifact": "gs://test-platform-results-public/logs/periodic-ci-openshift-release-main-nightly-4.20-e2e-metal-ipi-ovn-upgrade-runc/2108702017051430912/artifacts/e2e-metal-ipi-ovn-upgrade-runc/baremetalds-e2e-test/artifacts/junit/junit_e2e__20261010-022927.xml"
+                    },
+                    {
+                      "prowjob_run_id": "2108695222132150272",
+                      "supports_regression_ids": [
+                        51256
+                      ],
+                      "artifact": "prepass.json -> clusters[c-b17bd7].oracle.labels[\"2108695222132150272\"]"
+                    }
+                  ],
+                  "basis": {
+                    "run_id": "2111000000000000001",
+                    "cluster_id": "c-b17bd7",
+                    "observed_at": "2026-10-13T05:03:40Z",
+                    "depth": "deep-dive"
+                  }
+                },
+                "bug_search": {
+                  "candidates": [
+                    {
+                      "key": "OCPBUGS-60546",
+                      "status": "Closed (Done, 2026-02-18)",
+                      "release": "4.21",
+                      "cites_own_runs": false,
+                      "exact_assertion": true,
+                      "sibling_precedent": {
+                        "view": "4.21-main",
+                        "triage_id": null,
+                        "note": "Sippy label InPlaceResizeRuncDiesAt20MiFixture -> OCPBUGS-60546; fixture fix is 4.21+ only"
+                      },
+                      "bar_met": true,
+                      "verdict": "link"
+                    }
+                  ],
+                  "newer_release_fix": null
+                },
+                "proposed_action": {
+                  "type": "create_triage",
+                  "triage_id": null,
+                  "jira": "OCPBUGS-60546",
+                  "regression_ids": [
+                    51255,
+                    51256
+                  ],
+                  "description": "4.20 metal/vSphere runc: InPlacePodVerticalScaling 20Mi fixture kills runc init"
+                },
+                "actions": [
+                  {
+                    "type": "create_triage",
+                    "status": "skipped-report-mode",
+                    "triage_id": null,
+                    "jira": "OCPBUGS-60546",
+                    "regression_ids": [
+                      51255,
+                      51256
+                    ],
+                    "result_url": null,
+                    "error": null
+                  }
+                ],
+                "escalation": {
+                  "required": false,
+                  "reason": "not required",
+                  "re_notify": false,
+                  "re_notify_reasons": []
+                },
+                "unlinked": null,
+                "watch_list": [],
+                "unanalysed": []
+              }
+            ],
+            "member_delta": {
+              "added": [
+                51548
+              ],
+              "removed": [
+                51255,
+                51256
+              ]
+            }
+          }
+        },
+        {
+          "id": "c-new-bug",
+          "lineage": {
+            "first_seen_run": "2111000000000000001",
+            "cycles_seen": 2,
+            "supersedes": [
+              "c-new-bug"
+            ]
+          },
+          "fingerprint": {
+            "release": "4.21",
+            "test_family": "etcd leader changes are not excessive",
+            "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn-serial",
+            "labels": []
+          },
+          "members": {
+            "regression_ids": [
+              401
+            ],
+            "new_since_baseline": [],
+            "views": [
+              "4.21-main"
+            ],
+            "components": [
+              "Etcd"
+            ]
+          },
+          "shape": {
+            "regressions": 1,
+            "distinct_jobs": 1,
+            "lane_families": 1,
+            "platforms": [
+              "aws"
+            ],
+            "arches": [],
+            "upgrade_lane": false,
+            "minor_upgrade_lane": false,
+            "install_wrapper": false,
+            "mass_failure_marker": false,
+            "median_test_failures_per_run": 1,
+            "distinct_runs": 2,
+            "failing_runs_7d": 1,
+            "first_failure": "2026-10-11T07:33:20+00:00",
+            "last_failure": "2026-10-18T07:21:04+00:00",
+            "days_open": 22,
+            "regression_days_open": 22,
+            "days_since_last_failure": 1,
+            "growth_since_baseline": 0,
+            "components": [
+              "Etcd"
+            ],
+            "views": [
+              "4.21-main"
+            ],
+            "top_jobs": [
+              "periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn-serial"
+            ]
+          },
+          "blast_radius": {
+            "level": "LOW",
+            "score": 0.07600000000000001,
+            "reasons": []
+          },
+          "oracle": {
+            "status": "ok",
+            "runs_probed": 2,
+            "labels": {},
+            "label_bugs": {}
+          },
+          "prior": {
+            "run_id": "2111000000000000001",
+            "observed_at": "2026-10-13T05:03:40Z",
+            "source_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga/2111000000000000001",
+            "write_mode": "report",
+            "observation_complete": true,
+            "relationship": "same-id",
+            "sources": [
+              {
+                "run_id": "2111000000000000001",
+                "observed_at": "2026-10-13T05:03:40Z",
+                "cluster_id": "c-new-bug",
+                "history_only": false,
+                "unfinished": false,
+                "member_ids": [
+                  401
+                ],
+                "matched_member_ids": [
+                  401
+                ],
+                "fingerprint": {
+                  "release": "4.21",
+                  "test_family": "etcd leader changes are not excessive",
+                  "lane_family": "openshift-release-main-nightly-REL-e2e-PLATFORM-ovn-serial",
+                  "labels": []
+                },
+                "shape": {
+                  "regressions": 1,
+                  "distinct_jobs": 1,
+                  "lane_families": 1,
+                  "platforms": [
+                    "aws"
+                  ],
+                  "arches": [],
+                  "upgrade_lane": false,
+                  "minor_upgrade_lane": false,
+                  "install_wrapper": false,
+                  "mass_failure_marker": false,
+                  "median_test_failures_per_run": 1,
+                  "distinct_runs": 1,
+                  "failing_runs_7d": 1,
+                  "first_failure": "2026-10-11T07:33:20+00:00",
+                  "last_failure": "2026-10-11T07:33:20+00:00",
+                  "days_open": 15,
+                  "regression_days_open": 15,
+                  "days_since_last_failure": 1,
+                  "growth_since_baseline": null,
+                  "components": [
+                    "Etcd"
+                  ],
+                  "views": [
+                    "4.21-main"
+                  ],
+                  "top_jobs": [
+                    "periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn-serial"
+                  ]
+                },
+                "blast_radius": {
+                  "level": "LOW",
+                  "score": 0.07600000000000001,
+                  "reasons": []
+                },
+                "oracle": {
+                  "status": "ok",
+                  "runs_probed": 1,
+                  "labels": {},
+                  "label_bugs": {}
+                },
+                "state": "UNEXPLAINED",
+                "analysis": {
+                  "depth": "deep-dive",
+                  "confidence": "high",
+                  "owning_component": "Etcd",
+                  "triage_type": "product",
+                  "unverified_hypotheses": [
+                    "not proven: the teardown elections are caused by the control-plane machine rotation test"
+                  ],
+                  "root_cause": "The serial suite on aws-ovn records four etcd leader changes against a budget of two; the etcd member logs show two leader elections during the [Serial] node-drain tests and two during the suite teardown, with no disk-latency warnings. No open or closed OCPBUGS issue references the leader-change assertion; persisting LOW singleton.",
+                  "root_cause_truncated": false,
+                  "evidence_refs": [
+                    {
+                      "prowjob_run_id": "2110800000000000401",
+                      "supports_regression_ids": [
+                        401
+                      ],
+                      "artifact": "gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn-serial/2110800000000000401/artifacts/e2e-aws-ovn-serial/openshift-e2e-test/artifacts/junit/junit_e2e__20261011-073320.xml"
+                    }
+                  ],
+                  "basis": {
+                    "run_id": "2111000000000000001",
+                    "cluster_id": "c-new-bug",
+                    "observed_at": "2026-10-13T05:03:40Z",
+                    "depth": "deep-dive"
+                  }
+                },
+                "bug_search": {
+                  "candidates": [],
+                  "newer_release_fix": null
+                },
+                "proposed_action": {
+                  "type": "none"
+                },
+                "actions": [],
+                "escalation": {
+                  "required": false,
+                  "reason": "not required",
+                  "re_notify": false,
+                  "re_notify_reasons": []
+                },
+                "unlinked": null,
+                "watch_list": [
+                  {
+                    "regression_id": 401,
+                    "view": "4.21-main",
+                    "cluster_id": "c-new-bug",
+                    "reason": "needs-human (low): persisting singleton, unexplained, examined 2 cycles",
+                    "revisit": "next cycle"
+                  }
+                ],
+                "unanalysed": []
+              }
+            ],
+            "member_delta": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ],
+      "watch_list_candidates": [
+        {
+          "regression_id": 51548,
+          "view": "4.20-main",
+          "cluster_id": "c-b17bd7",
+          "reason": "LOW & new (<7d)"
+        }
+      ]
+    },
+    "observations": [
+      {
+        "cluster_id": "c-b17bd7",
+        "kind": "own-run-junit",
+        "regression_id": 51548,
+        "prowjob_run_id": "2112316397370478592",
+        "locator": "gs://test-platform-results-public/logs/periodic-ci-openshift-release-main-nightly-4.20-e2e-metal-ipi-ovn-ipv6-runc/2112316397370478592/artifacts/e2e-metal-ipi-ovn-ipv6-runc/baremetalds-e2e-test/artifacts/junit/junit_e2e__20261020-002926.xml",
+        "excerpt": "testcase '[sig-node] Pod InPlace Resize Container [FeatureGate:InPlacePodVerticalScaling] [Beta] Guaranteed QoS pod, one container - increase CPU (NotRequired) & memory (RestartContainer) [Suite:openshift/conformance/parallel] [Suite:k8s]' <failure>: 'fail [k8s.io/kubernetes/test/e2e/common/node/pod_resize.go:1208]: Timed out after 300.002s.\\npod is not ready'; its <system-out>: 'Container c1 - looking for one of the expected cgroup values [20971520] in path /sys/fs/cgroup/memory.max'. The only testcase in this file whose <failure> carries 'error reading container (probably exited) json message: EOF' is '[sig-node] Pod InPlace Resize Container [FeatureGate:InPlacePodVerticalScaling] [Beta] Guaranteed QoS pod, one container - increase CPU & memory [Suite:openshift/conformance/parallel] [Suite:k8s]' - a different testcase."
+      },
+      {
+        "cluster_id": "c-b17bd7",
+        "kind": "sippy-label",
+        "locator": "https://sippy.dptools.openshift.org/api/jobs/labels?id=InPlaceResizeRuncDiesAt20MiFixture",
+        "reply": {
+          "id": "InPlaceResizeRuncDiesAt20MiFixture",
+          "bugs": [
+            "OCPBUGS-60546"
+          ],
+          "explanation": "runc init dies in the 20Mi memory cgroup of the InPlacePodVerticalScaling fixture: CreateContainerError with 'error reading container (probably exited) json message: EOF'. Timeouts of the same tests without this text are not covered."
+        }
+      },
+      {
+        "cluster_id": "c-new-bug",
+        "kind": "own-run-junit",
+        "regression_id": 401,
+        "prowjob_run_id": "2113500000000000401",
+        "locator": "gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-e2e-aws-ovn-serial/2113500000000000401/artifacts/e2e-aws-ovn-serial/openshift-e2e-test/artifacts/junit/junit_e2e__20261018-072104.xml",
+        "excerpt": "testcase '[sig-etcd] etcd leader changes are not excessive [Late] [Suite:openshift/conformance/parallel]' <failure>: 'fail [github.com/openshift/origin/test/extended/etcd/leader_changes.go:38]: Unexpected error: etcd leader changed 4 times during the run, expected at most 2'"
+      },
+      {
+        "cluster_id": "c-new-bug",
+        "kind": "jira-search",
+        "locator": "https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20updated%3E%3D2026-10-13%20AND%20text~%22etcd%20leader%20changed%22&fields=key,summary,status,created,updated",
+        "reply": {
+          "total": 1,
+          "issues": [
+            {
+              "key": "OCPBUGS-2",
+              "fields": {
+                "summary": "etcd leader changes during the serial suite follow peer-certificate rotation by EtcdCertSignerController",
+                "status": {
+                  "name": "New"
+                },
+                "created": "2026-10-16T09:12:44.000+0000",
+                "updated": "2026-10-16T09:12:44.000+0000"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "cluster_id": "c-new-bug",
+        "kind": "jira-issue",
+        "locator": "https://issues.redhat.com/rest/api/2/issue/OCPBUGS-2?fields=summary,status,resolution,fixVersions,versions,updated",
+        "reply": {
+          "key": "OCPBUGS-2",
+          "fields": {
+            "summary": "etcd leader changes during the serial suite follow peer-certificate rotation by EtcdCertSignerController",
+            "status": {
+              "name": "New"
+            },
+            "resolution": null,
+            "fixVersions": [],
+            "versions": [
+              {
+                "name": "4.21"
+              }
+            ],
+            "updated": "2026-10-16T09:12:44.000+0000"
+          }
+        },
+        "note": "description cites periodic-ci-openshift-release-main-nightly-4.21-e2e-gcp-ovn-serial run 2112800000000000777, quotes 'etcd leader changed 3 times during the run, expected at most 2' and states the failure signature as: each leader election starts within 10 s of an etcd-operator log line 'EtcdCertSignerController: rotating peer certificate for <member>' (the operator rotates peer certs mid-suite). The etcd-operator and etcd member logs of this regression's own runs were not read in this run, so the rotation discriminator is unverified here; no sibling-view triage exists"
+      },
+      {
+        "cluster_id": "c-high",
+        "kind": "own-run-junit",
+        "regression_id": 501,
+        "prowjob_run_id": "2113700000000000501",
+        "locator": "gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.21-upgrade-from-stable-4.20-e2e-aws-ovn-upgrade/2113700000000000501/artifacts/e2e-aws-ovn-upgrade/openshift-e2e-test/artifacts/junit/junit_e2e__20261018-040000.xml",
+        "excerpt": "testcase '[sig-cluster-lifecycle] Cluster upgrade should maintain a functioning cluster [Feature:ClusterUpgrade] [Suite:openshift/conformance/upgrade]' <failure>: 'fail [github.com/openshift/origin/test/e2e/upgrade/upgrade.go:212]: Cluster did not complete upgrade: timed out waiting for the condition: Working towards 4.21.0-0.nightly: 712 of 903 done (78% complete), waiting on machine-config'",
+        "note": "spot check of one of the three own failed runs of this week; the gcp and azure runs were not inspected"
+      },
+      {
+        "cluster_id": "c-high",
+        "kind": "jira-issue",
+        "locator": "https://issues.redhat.com/rest/api/2/issue/OCPBUGS-1?fields=summary,status,resolution,fixVersions,versions,updated",
+        "reply": {
+          "key": "OCPBUGS-1",
+          "fields": {
+            "summary": "minor upgrade stalls at machine-config while pulling the OS image during apiserver rollout",
+            "status": {
+              "name": "ON_QA"
+            },
+            "resolution": null,
+            "fixVersions": [
+              {
+                "name": "4.21.z"
+              }
+            ],
+            "versions": [
+              {
+                "name": "4.21"
+              }
+            ],
+            "updated": "2026-10-17T14:02:11.000+0000"
+          }
+        }
+      },
+      {
+        "cluster_id": "c-high",
+        "kind": "sippy-triage",
+        "locator": "https://sippy.dptools.openshift.org/api/component_readiness/triages/17",
+        "reply": {
+          "id": 17,
+          "url": "https://issues.redhat.com/browse/OCPBUGS-1",
+          "type": "product",
+          "resolved": null,
+          "regressions": [
+            {
+              "id": 48811,
+              "view": "4.22-main"
+            }
+          ],
+          "description": "minor upgrade stalls at machine-config during image pull"
+        }
+      }
+    ]
+  }
