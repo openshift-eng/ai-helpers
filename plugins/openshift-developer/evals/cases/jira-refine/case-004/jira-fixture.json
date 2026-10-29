@@ -1,0 +1,191 @@
+{
+  "snapshot": "OCPBUGS-129314 as of 2026-10-23, before refinement. People are anonymized; the original report and suggestion are retained. No saved assessment exists.",
+  "blocked_research": [
+    "\\bai-helpers\\b",
+    "\\bgh\\s+search\\s+\\w+[^|;&\\n]*\\bOCPBUGS-129314\\b",
+    "\\bsearch/\\w+\\b[^|;&\\n]*\\bOCPBUGS-129314\\b"
+  ],
+  "resolutions": [
+    "Done",
+    "Done-Errata",
+    "Won't Do",
+    "Not a Bug",
+    "Cannot Reproduce",
+    "Duplicate",
+    "Obsolete"
+  ],
+  "transitions": [
+    {
+      "id": "11",
+      "name": "New",
+      "category": "To Do"
+    },
+    {
+      "id": "21",
+      "name": "ASSIGNED",
+      "category": "In Progress"
+    },
+    {
+      "id": "31",
+      "name": "POST",
+      "category": "In Progress"
+    },
+    {
+      "id": "41",
+      "name": "ON_QA",
+      "category": "In Progress"
+    },
+    {
+      "id": "61",
+      "name": "Verified",
+      "category": "In Progress"
+    },
+    {
+      "id": "71",
+      "name": "Release Pending",
+      "category": "In Progress"
+    },
+    {
+      "id": "81",
+      "name": "Closed",
+      "category": "Done"
+    },
+    {
+      "id": "91",
+      "name": "MODIFIED",
+      "category": "In Progress"
+    }
+  ],
+  "issues": {
+    "OCPBUGS-129314": {
+      "key": "OCPBUGS-129314",
+      "browse_url": "https://redhat.atlassian.net/browse/OCPBUGS-129314",
+      "summary": "Hosted Cluster CVO on Hosting Cluster fails to reach api.openshift.com due to missing Proxy settings",
+      "issue_type": "Bug",
+      "status": "New",
+      "resolution": null,
+      "priority": "Undefined",
+      "severity": "Important",
+      "release_blocker": null,
+      "components": [
+        "HyperShift"
+      ],
+      "versions": [
+        "4.22.z"
+      ],
+      "fixVersions": [],
+      "labels": [],
+      "created": "2026-10-06T00:23:54.848+0000",
+      "updated": "2026-10-13T01:36:36.945+0000",
+      "reporter": "bug-reporter",
+      "assignee": null,
+      "description": "*Environment*\n\n* OpenShift Version: 4.22.9 Baremetal HCP\n* Network: Restricted network using a proxy (direct internet access is blocked)\n\nIn a proxy-enabled Baremetal HCP environment, the Cluster Version Operator (CVO) running on the hosting cluster (for the hosted cluster) cannot connect to api.openshift.com. Because direct internet access is blocked and the CVO is not using the proxy, update checks fail with a connection timeout.\n\n{noformat}Unable to retrieve available updates: Get \"https://api.openshift.com/api/upgrades_info/v1/graph?arch=amd64&channel=fast-4.22&id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx&version=4.22.9\": dial tcp 52.0.161.125:443: connect: connection timed out{noformat}\n\nThe CVO no longer respects proxy settings for hosted clusters due to the following change:\n\n[[release-4.22] OCPBUGS-104545: pkg/cvo/egress: Disable Proxy respect on HyperShift|https://github.com/openshift/cluster-version-operator/pull/1438]\n\nBecause CVO stopped applying the proxy config on HyperShift, egress traffic to api.openshift.com fails in proxy environments.\n\nHyperShift needs to be updated so that proxy settings are properly applied to the CVO running for the hosted cluster, allowing it to reach external endpoints through the proxy.",
+      "issue_links": [],
+      "remote_links": [
+        {
+          "url": "https://access.redhat.com/solutions/7148962",
+          "title": "Hosted cluster update check fails with connection timed out when a proxy is required for internet access"
+        }
+      ],
+      "comments": [
+        {
+          "id": "18781946",
+          "author": "cvo-maintainer",
+          "created": "2026-10-06T02:05:34.400+0000",
+          "body": "I\u2019d suggested HyperShift\u2019s control-plane operator controller update [this CVO Deployment section|https://github.com/openshift/hypershift/blob/311d49689d5982ae342273e0fffd23702719a59e/control-plane-operator/controllers/hostedcontrolplane/v2/assets/cluster-version-operator/deployment.yaml#L24-L49] to inject the usual {{http_proxy}}, {{HTTPS_PROXY}} , and {{NO_PROXY}} environment variables, based on whatever it does to determine management-cluster proxy settings.  [Possibly|https://github.com/openshift/hypershift/blob/3f656418c6fce172f0d06d77425950870df82c41/support/globalconfig/proxy.go#L15-L19] looking at the {{cluster}} Proxy resource?  Or maybe from the CPO\u2019s own environment variables?  As [apparently already happens|https://github.com/openshift/hypershift/blob/3f656418c6fce172f0d06d77425950870df82c41/control-plane-operator/controllers/hostedcontrolplane/testdata/ingress-operator/GCP/zz_fixture_TestControlPlaneComponents_ingress_operator_deployment.yaml#L100-L105] for other Deployments, although I\u2019m fuzzy on exactly where that content is getting attached (the only proxy hits [over here|https://github.com/openshift/hypershift/blob/3f656418c6fce172f0d06d77425950870df82c41/control-plane-operator/controllers/hostedcontrolplane/v2/ingressoperator/deployment.go#L13-L38] are for HAProxy)."
+        }
+      ],
+      "changelog": []
+    },
+    "OCPBUGS-104545": {
+      "key": "OCPBUGS-104545",
+      "browse_url": "https://redhat.atlassian.net/browse/OCPBUGS-104545",
+      "summary": "Cluster-version operator should ignore data-plane proxy configuration on HyperShift",
+      "issue_type": "Bug",
+      "status": "Closed",
+      "resolution": "Done",
+      "priority": "Normal",
+      "severity": null,
+      "release_blocker": null,
+      "components": [
+        "Cluster Version Operator"
+      ],
+      "versions": [
+        "4.14",
+        "4.15",
+        "4.16",
+        "4.17",
+        "4.18",
+        "4.19",
+        "4.20",
+        "4.21",
+        "4.22"
+      ],
+      "fixVersions": [
+        "4.22.z"
+      ],
+      "labels": [],
+      "created": "2026-08-04T17:47:48.102+0000",
+      "updated": "2026-08-18T12:09:47.740+0000",
+      "reporter": "cvo-maintainer",
+      "assignee": null,
+      "description": "This is a clone of issue OCPBUGS-79358. The following is the description of the original issue: \n---\n*Description of problem*\n\nSince 4.14, HostedCluster has had [_spec.configuration.proxy_|https://github.com/openshift/hypershift/blob/4585fa11d8263470dd3e51d5ccfe3a27ac3e3a4e/api/hypershift/v1beta1/hostedcluster_types.go#L2288-L2295] [to configure the |https://github.com/openshift/hypershift/blob/4585fa11d8263470dd3e51d5ccfe3a27ac3e3a4e/api/hypershift/v1beta1/hostedcluster_types.go#L2288-L2295][_data-plane_|https://github.com/openshift/hypershift/blob/4585fa11d8263470dd3e51d5ccfe3a27ac3e3a4e/api/hypershift/v1beta1/hostedcluster_types.go#L2288-L2295] [egress|https://github.com/openshift/hypershift/blob/4585fa11d8263470dd3e51d5ccfe3a27ac3e3a4e/api/hypershift/v1beta1/hostedcluster_types.go#L2288-L2295].  However, the cluster-version operator running on the management-cluster control plane has assumed that hosted-cluster Proxy resource should configure its own egress as well.  I\u2019m not sure how folks expect management-cluster-side control-plane egress to be configured, but we don\u2019t want it to respect _spec.configuration.proxy_, because management-cluster networking and data-plane-compute networking are very different environments.\n\n*Version-Release number of selected component*\n\n[The proxy knob has existed since at least 4.14|https://github.com/openshift/hypershift/blame/b11c804b44516f34e50344eeb94901936018d9d1/api/v1beta1/hostedcluster_types.go#L2165-L2167], although [the data-plane docs only date back to 4.18|https://github.com/openshift/hypershift/blame/0d2075c649ed99657f6c5f90a0d273b8f99e9bc2/api/hypershift/v1beta1/hostedcluster_types.go#L1719-L1727].\n\n*How reproducible*\n\nEvery time.\n\n*Steps to Reproduce*\n\n# Create a HostedCluster with spec.configuration.proxy populated with a broken configuration.\n# Check the ClusterVersionRetrievedUpdates condition on the HostedCluster. \n\n*Actual results*\n\nA message about the broken proxy configuration, like:\n\n{noformat}Unable to retrieve available updates: Get \"https://api.openshift.com/api/upgrades_info/v1/graph?...\": proxyconnect tcp: dial tcp: lookup ... on ...:53: no such host{noformat}\n\n*Expected results*\n\nSuccessful Update Service retrieval.\n\n*Additional info*\n\nI\u2019m not clear on how HyperShift clusters are expected to configure proxy egress for management-cluster-side control-plane components.  We will probably need a knob for that eventually.  Maybe we already have a knob, and I just haven\u2019t found it yet?  But in the short term, we can probably just disable CVO respect for the hosted-cluster\u2019s Proxy configuration when the CVO knows it\u2019s running in HyperShift-mode.",
+      "issue_links": [],
+      "remote_links": [],
+      "changelog": [],
+      "comments": [
+        {
+          "id": "OCPBUGS-104545-change",
+          "author": "release-bot",
+          "created": "2026-08-05T09:06:46+00:00",
+          "body": "Change: https://github.com/openshift/cluster-version-operator/pull/1438"
+        }
+      ]
+    },
+    "OCPBUGS-79358": {
+      "key": "OCPBUGS-79358",
+      "browse_url": "https://redhat.atlassian.net/browse/OCPBUGS-79358",
+      "summary": "Cluster-version operator should ignore data-plane proxy configuration on HyperShift",
+      "issue_type": "Bug",
+      "status": "Verified",
+      "resolution": null,
+      "priority": "Normal",
+      "severity": null,
+      "release_blocker": null,
+      "components": [
+        "Cluster Version Operator"
+      ],
+      "versions": [
+        "4.14",
+        "4.15",
+        "4.16",
+        "4.17",
+        "4.18",
+        "4.19",
+        "4.20",
+        "4.21",
+        "4.22"
+      ],
+      "fixVersions": [
+        "5.0.0"
+      ],
+      "labels": [],
+      "created": "2026-03-23T16:25:45.075+0000",
+      "updated": "2026-10-12T17:00:54.441+0000",
+      "reporter": "cvo-maintainer",
+      "assignee": null,
+      "description": "*Description of problem*\n\nSince 4.14, HostedCluster has had [_spec.configuration.proxy_|https://github.com/openshift/hypershift/blob/4585fa11d8263470dd3e51d5ccfe3a27ac3e3a4e/api/hypershift/v1beta1/hostedcluster_types.go#L2288-L2295] [to configure the |https://github.com/openshift/hypershift/blob/4585fa11d8263470dd3e51d5ccfe3a27ac3e3a4e/api/hypershift/v1beta1/hostedcluster_types.go#L2288-L2295][_data-plane_|https://github.com/openshift/hypershift/blob/4585fa11d8263470dd3e51d5ccfe3a27ac3e3a4e/api/hypershift/v1beta1/hostedcluster_types.go#L2288-L2295] [egress|https://github.com/openshift/hypershift/blob/4585fa11d8263470dd3e51d5ccfe3a27ac3e3a4e/api/hypershift/v1beta1/hostedcluster_types.go#L2288-L2295].  However, the cluster-version operator running on the management-cluster control plane has assumed that hosted-cluster Proxy resource should configure its own egress as well.  I\u2019m not sure how folks expect management-cluster-side control-plane egress to be configured, but we don\u2019t want it to respect _spec.configuration.proxy_, because management-cluster networking and data-plane-compute networking are very different environments.\n\n*Version-Release number of selected component*\n\n[The proxy knob has existed since at least 4.14|https://github.com/openshift/hypershift/blame/b11c804b44516f34e50344eeb94901936018d9d1/api/v1beta1/hostedcluster_types.go#L2165-L2167], although [the data-plane docs only date back to 4.18|https://github.com/openshift/hypershift/blame/0d2075c649ed99657f6c5f90a0d273b8f99e9bc2/api/hypershift/v1beta1/hostedcluster_types.go#L1719-L1727].\n\n*How reproducible*\n\nEvery time.\n\n*Steps to Reproduce*\n\n# Create a HostedCluster with spec.configuration.proxy populated with a broken configuration.\n# Check the ClusterVersionRetrievedUpdates condition on the HostedCluster. \n\n*Actual results*\n\nA message about the broken proxy configuration, like:\n\n{noformat}Unable to retrieve available updates: Get \"https://api.openshift.com/api/upgrades_info/v1/graph?...\": proxyconnect tcp: dial tcp: lookup ... on ...:53: no such host{noformat}\n\n*Expected results*\n\nSuccessful Update Service retrieval.\n\n*Additional info*\n\nI\u2019m not clear on how HyperShift clusters are expected to configure proxy egress for management-cluster-side control-plane components.  We will probably need a knob for that eventually.  Maybe we already have a knob, and I just haven\u2019t found it yet?  But in the short term, we can probably just disable CVO respect for the hosted-cluster\u2019s Proxy configuration when the CVO knows it\u2019s running in HyperShift-mode.",
+      "issue_links": [],
+      "remote_links": [],
+      "changelog": [],
+      "comments": [
+        {
+          "id": "OCPBUGS-79358-change",
+          "author": "release-bot",
+          "created": "2026-08-05T09:06:46+00:00",
+          "body": "Change: https://github.com/openshift/cluster-version-operator/pull/1357"
+        }
+      ]
+    }
+  }
+}

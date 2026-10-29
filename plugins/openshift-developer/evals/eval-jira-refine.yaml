@@ -98,7 +98,9 @@ dataset:
       - 'issue_key' — the Jira key served by the stub
     - jira-fixture.json: frozen Jira snapshot served by the jira-stub MCP
       server (issues, comments, changelog, remote links, transitions,
-      resolutions). People are anonymized.
+      resolutions). People are anonymized. Optional 'blocked_research'
+      regexes and 'blocked_research_sha256' token digests make the guard
+      block network calls to material published after the snapshot.
     - annotations.yaml: expected outcomes and ground truth for judges:
       - 'expected_disposition' and 'acceptable_dispositions'
       - 'acceptable_resolutions': Jira resolutions acceptable for CLOSE
@@ -109,6 +111,8 @@ dataset:
       - 'reference_description' (SOLVE cases): a file in the case directory
         holding the description a verified refinement saved; the harness
         loads it for the LLM judges and never copies it into the workspace
+      - 'solve_description_rubric' (SOLVE cases): case-specific score anchors
+        for the solve_description_quality judge
 
 outputs:
   - path: "output"
@@ -406,30 +410,26 @@ judges:
 
       The run need not match the reference's wording, structure, or CI
       details. Grade whether a developer could implement and validate the
-      right fix from the saved description alone.
+      right fix from the saved description alone. When the annotations carry
+      a solve_description_rubric, score with its case-specific anchors; the
+      general anchors below define the scale.
 
-      Score 1: No description was saved, or it repeats the ticket's diagnosis
-               and fix (replace the legacy keys with the CAPI keys).
-      Score 2: A partial or additive plan that keeps a material error: it
-               claims every listed release ignores the legacy keys, drops the
-               legacy keys, or writes CAPI memory as a bare integer.
-      Score 3: The additive dual-key fix for openshift/hypershift main with
-               acceptance criteria, but it misses two or more of: Mi memory
-               units, GPU count plus type, removal of both key families when
-               native capacity appears or the provider is disabled, and the
-               version-scoped correction of the older-release claim.
-      Score 4: The additive fix with Mi memory units, GPU count plus type,
-               cleanup that keeps labels and taints, testable acceptance
-               criteria, validation that exercises the fallback with native
-               capacity absent, and the version-scoped correction.
+      Score 1: No description was saved, or it repeats a diagnosis or fix the
+               ground truth rejects.
+      Score 2: A partial plan that keeps a material error the ground truth
+               calls out.
+      Score 3: The right fix, repository, and branch with acceptance criteria,
+               but it misses two or more of the essentials the ground truth
+               lists.
+      Score 4: The right fix with those essentials, testable acceptance
+               criteria, and validation that exercises the failing path.
       Score 5: Everything in 4, plus per-release status (reported, confirmed,
                inferred, unknown) backed by source or payload evidence, the
-               risk that annotations override native status, and no
-               overclaiming of affected or fixed releases.
+               main risks, and no overclaiming of affected or fixed releases.
 
 thresholds:
-  # Both current cases expect CLOSE. Restore thresholds for the conditional
-  # SOLVE-only judges when adding a case that expects SOLVE.
+  # Cases 001 and 002 expect CLOSE; case-003 expects SOLVE; case-004 expects
+  # NEED_HUMAN_ANALYSIS. SOLVE-only judges score case-003.
   result_json_valid:
     min_pass_rate: 1.0
   disposition_correct:
@@ -440,7 +440,11 @@ thresholds:
     min_pass_rate: 1.0
   comment_is_brief:
     min_pass_rate: 1.0
+  solve_description_ready:
+    min_pass_rate: 1.0
   root_cause_analysis:
     min_mean: 3.5
   jira_comment_quality:
+    min_mean: 3.5
+  solve_description_quality:
     min_mean: 3.5
