@@ -1,0 +1,4 @@
+notes: >
+  openshift/cloud-network-config-controller — manages cloud EgressIP
+  (AWS/Azure/GCP). known_good_ref is pinned to a SHA on a personal
+  fork to make the reference immutable.
