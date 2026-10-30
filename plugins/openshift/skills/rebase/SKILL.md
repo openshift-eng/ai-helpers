@@ -30,10 +30,10 @@ Git rebase implementation.
 
 ## Plan
 
-1. Inspect remotes and repository guidance. Resolve the upstream project,
-   downstream project/branch, and publishing fork from URLs, not remote names
-   alone. The customary names are `upstream`, `openshift`, and `origin`; document
-   alternate mappings rather than confusing the upstream and downstream projects.
+1. Inspect repository guidance and discover remotes with `git remote -v`.
+   Resolve the upstream project, downstream project/branch, and publishing fork
+   by their fetch and push URLs. Record the discovered role-to-remote/URL mapping
+   in the release report before using it; never assume a remote name.
    Fetch the required refs and tags. Record full commit SHAs for the selected
    upstream tag, downstream tip, and previous upstream base. A caller's supplied
    target is authoritative. Uncertain previous-base detection is a blocker. If
@@ -56,12 +56,20 @@ Git rebase implementation.
    - `squash` names a compatible target carry. Preserve application dependencies;
      consolidate only after the resulting changes have been reviewed. Keep
      generated changes separate where the repository requires it.
+
+   Inspect mixed-purpose commits hunk by hunk: an obsolete version pin does not
+   establish that a bundled compiler-selection or download policy is obsolete.
+   Explain those policies separately in tree accounting; leave uncertain policy
+   changes unresolved instead of inferring permission from a `<drop>` subject.
 4. Record the repository's actual generation/build/test commands, required CI
    checks, and behavior that the carries must preserve. Distinguish checks that
    can run locally from checks requiring CI. Write `plan.json` and
    `release-report.md`, including upstream changelog links, major changes,
    compatibility concerns, carry rationale, and unresolved questions. A plan can
    contain `undecided` entries; application cannot.
+   Choose a short feature-branch name distinct from the downstream/default branch.
+   Reject `main`, `master`, fully qualified refs, and repository-protected branches
+   as candidate destinations.
 
 The plan stage ends here. A manager decides when the selected plan may proceed.
 Interactive requests to perform a rebase already authorize its local execution;
@@ -90,6 +98,7 @@ resolutions in terms of upstream changes and carry intent. Do not blanket-select
 toolchain. Use `go mod tidy`/`go mod vendor` only when appropriate to that project's
 dependency policy. In particular, do not amend arbitrary source repairs and
 generated dependencies into an unrelated OpenShift-files carry.
+Use the toolchain preflight below before regeneration as well as validation.
 
 On an existing planned branch, inspect its tip, operation state, and recorded
 progress before continuing. An in-flight cherry-pick may have expected conflict
@@ -100,8 +109,11 @@ never infer completion from a subject substring. An uncertain partial operation
 returns a blocker with the exact Git state. Preserve unrelated changes and human
 edits; rebuilding a branch requires an explicit plan to retain accepted work.
 
-Write `result.json` with the plan digest, final head, every carry's disposition
-and resulting commit, plus any adaptations. Keep the plan immutable. A required
+Write the application result with the plan digest, final head, every carry's
+disposition and resulting commit, plus any adaptations. Use `result.json` for a
+first application; if an accepted result exists, write `result-proposed.json`
+and return that path to the manager for acceptance. Preserve the accepted file
+until the helper accepts its replacement. Keep the plan immutable. A required
 decision change returns to planning and invalidates earlier validation. Leave the
 candidate committed and clean before returning success. Consolidation that
 rewrites commits changes the candidate head and requires new evidence.
@@ -112,6 +124,13 @@ Use the plan, result, and actual current tree. Return failure or inconclusive
 evidence for any check that could not be completed; do not convert missing tools,
 unavailable reviewers, or exhausted retries into a pass.
 
+Before generation or validation, record the toolchain executable/version, host
+OS/architecture, and relevant overrides. For Go, check `go env GOVERSION GOROOT
+GOTOOLCHAIN GOFLAGS GOOS GOARCH CGO_ENABLED` against the selected compiler. Diagnose an
+inherited `GOROOT` mismatch before attributing a failure to the candidate; scope
+any correction to the command and retain the original failure log. Check required
+test tools before the suite and inspect output for silently skipped checks.
+
 - **Carry accounting:** every planned carry has an explained outcome. Inspect
   changed behavior, obsolete patches, conflict adaptations, and source-to-result
   mappings rather than accepting a successful cherry-pick alone.
@@ -119,10 +138,18 @@ unavailable reviewers, or exhausted retries into a pass.
   with the planned downstream inventory. Explain both disappeared downstream
   differences and newly introduced differences. Check required files, deletions,
   generated output, and ignored-but-required build inputs.
+  Review documented compiler minimums/examples and active build/test configuration
+  after version changes. Explain intentional differences between minimum compiler,
+  selected compiler, and server/client versions; equality is not the requirement.
+  Identify retained obsolete entrypoints without implying they were validated.
 - **Configured validation:** run the planned commands in the intended toolchain.
   Save the command, exit status, revision, and output. Distinguish product failures
   from environment limitations using evidence. Required CI checks that have not
   run remain inconclusive; a draft may clearly expose them for CI execution.
+  Preserve the full-suite result when using focused retries, race tests, or
+  baseline controls to diagnose a failure. Passing diagnostics cannot replace
+  the required suite. If a failure also occurs in a comparable baseline, record
+  that evidence and its environment differences; do not silently waive the gate.
 - **Independent review:** when a separate agent/reviewer is available, give it
   the pinned plan and candidate diff and request a correctness review. Record
   findings and disposition. If unavailable, return `INCONCLUSIVE` and identify
@@ -144,11 +171,18 @@ candidate. The report can also serve as the rebase review meeting agenda.
 
 Delegated report mode returns these files without publishing. In interactive
 mode, stop on unresolved code/build/test failures and present the evidence.
-Otherwise prepare the branch for the user's fork and use
-`gh pr create --web --repo <downstream-owner>/<repo>` so the user can edit the
-submission. Derive the OCP version from repository context before using the title
-`Rebase to <tag> for OCP <version>`. Preserve existing authorization for publishing;
-if it has not been given, present the concrete branch and PR body for approval.
+Otherwise prepare the branch for the user's fork. Before any push, verify its
+discovered push URL and explicit destination ref against the plan. Never push to
+`main`, `master`, the downstream/default branch, or a repository-protected branch;
+never force-push, including with a lease. Publishing requires explicit user
+authorization for the concrete branch and PR; preserve authorization already
+given, otherwise present the branch and PR body for approval.
+
+Derive the OCP version from repository context and prepare the title
+`Rebase to <tag> for OCP <version>`. Open the form with
+`gh pr create --web --repo <downstream-owner>/<repo> --base <downstream-branch> --head <fork-owner>:<candidate-branch> --title "<prepared-title>" --body-file <state-dir>/pr-body.md`
+so the user can edit the prepared submission. Resolve every placeholder from the
+plan and discovered URLs; quote all shell arguments as needed.
 
 ## Design sources
 

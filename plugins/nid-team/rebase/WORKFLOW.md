@@ -69,8 +69,15 @@ application, carry coverage, result ancestry, and evidence bindings. It cannot
 independently establish semantic correctness or honesty of an agent-authored
 PASS. Read the evidence and perform the work described in the skill.
 
-After a code change, overwrite `result.json` with the revised application record
-and call `advance --to applied` again; changed results invalidate old gates.
+After a code change, write the revised application record to a separate file,
+preserving the accepted `result.json`:
+
+```bash
+python3 "$MANAGER" --state-dir "$STATE_DIR" advance --to applied --result "$STATE_DIR/result-proposed.json"
+```
+
+The helper replaces `result.json` only after accepting the proposal; rejected
+proposals leave the prior record intact. Accepted changes invalidate old gates.
 If the accepted plan changes, preserve this directory and initialize a new run.
 The previous `--auto`, `--dryrun`, and `--start-over` executor flags are removed.
 Use the agent's plan stage for analysis without applying changes; there is no
@@ -144,3 +151,7 @@ Tests use temporary synthetic Git histories and local JSON/log artifacts. They
 exercise state transitions, accounting, stale evidence, and feedback handling;
 they do not establish correctness on historical rebases or qualification for an
 unattended service.
+
+The [CoreDNS #197 local replay](evaluations/coredns-197.md) records one frozen
+historical case, observed limits, and subsequent skill improvements. It does not
+qualify later revisions or the live publication/feedback lifecycle.

@@ -1,6 +1,8 @@
 """Synthetic local Git/state contracts; no network or historical replay."""
 
 import hashlib
+import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -8,9 +10,13 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).with_name("rebase_manager.py")
+SPEC = importlib.util.spec_from_file_location("rebase_manager_under_test", SCRIPT)
+MANAGER = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(MANAGER)
 
 
 def digest(value):
@@ -162,6 +168,58 @@ class RebaseManagerTest(unittest.TestCase):
         self.assertEqual(status["plan_sha256"], digest(self.plan))
         self.assertEqual(json.loads(plan_path.read_text()), self.plan)
 
+    def test_candidate_must_be_a_literal_unprotected_feature_branch(self):
+        for branch in ("main", "master", "refs/heads/main", "refs/heads/feature",
+                       "refs/remotes/custom/main", "downstream", "@{-1}"):
+            with self.subTest(branch=branch):
+                self.plan["branch"] = branch
+                result = self.cli("init", "--plan",
+                                  self.write_json("input-plan.json", self.plan), success=False)
+                self.assertIn("Candidate branch", result.stderr)
+                self.assertFalse((self.state_dir / "state.json").exists())
+        self.plan["branch"] = "feature/rebase-v1.1.0"
+        self.initialize()
+        self.assertEqual(json.loads(self.cli("status").stdout)["phase"], "planned")
+
+    def test_discovered_remote_tracking_base_cannot_be_candidate(self):
+        self.git("remote", "add", "company/team", str(self.repo))
+        self.git("update-ref", "refs/remotes/company/team/release/4.20", self.carry)
+        self.plan["downstream_ref"] = "refs/remotes/company/team/release/4.20"
+        self.plan["branch"] = "release/4.20"
+        self.cli("init", "--plan", self.write_json("input-plan.json", self.plan), success=False)
+        self.plan["branch"] = "feature/rebase-v1.1.0"
+        self.applied()
+        self.cli("sync-pr", "--input", self.snapshot(base_ref="release/4.20"))
+
+    def test_git_queries_use_finite_timeout_and_readonly_environment(self):
+        for query, args in ((MANAGER.git, (self.repo, "status", "--porcelain")),
+                            (MANAGER.ancestor, (self.repo, self.base, self.upstream))):
+            with self.subTest(query=query.__name__):
+                with patch.object(MANAGER.subprocess, "run", side_effect=
+                                  subprocess.TimeoutExpired("git", 300)) as run:
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        query(*args)
+                self.assertGreater(run.call_args.kwargs["timeout"], 0)
+                self.assertEqual(run.call_args.kwargs["timeout"], MANAGER.GIT_TIMEOUT_SECONDS)
+                self.assertEqual(run.call_args.kwargs["env"]["GIT_OPTIONAL_LOCKS"], "0")
+
+    def test_cli_timeout_reports_error_and_releases_state_lock(self):
+        self.applied()
+        before = (self.state_dir / "state.json").read_bytes()
+        error = io.StringIO()
+        with patch.object(MANAGER.subprocess, "run", side_effect=
+                          subprocess.TimeoutExpired("git", MANAGER.GIT_TIMEOUT_SECONDS)):
+            with patch.object(sys, "stderr", error):
+                status = MANAGER.main(["--state-dir", str(self.state_dir),
+                                       "advance", "--to", "validated"])
+        self.assertEqual(status, 1)
+        self.assertTrue(error.getvalue().startswith("ERROR: "))
+        self.assertIn("timed out", error.getvalue())
+        self.assertNotIn("Traceback", error.getvalue())
+        self.assertEqual((self.state_dir / "state.json").read_bytes(), before)
+        with MANAGER.locked(self.state_dir):
+            pass
+
     def test_carry_must_be_accounted_for_before_applied(self):
         self.initialize()
         self.create_candidate()
@@ -228,6 +286,28 @@ class RebaseManagerTest(unittest.TestCase):
         self.cli("advance", "--to", "validated", success=False)
         self.record_all()
         self.cli("advance", "--to", "validated")
+
+    def test_rejected_result_proposal_preserves_accepted_record_and_gates(self):
+        self.validated()
+        accepted_result = (self.state_dir / "result.json").read_bytes()
+        accepted_state = (self.state_dir / "state.json").read_bytes()
+        proposal = self.result()
+        proposal["carries"] = []
+        self.cli("advance", "--to", "applied", "--result",
+                 self.write_json("result-proposed.json", proposal), success=False)
+        self.assertEqual((self.state_dir / "result.json").read_bytes(), accepted_result)
+        self.assertEqual((self.state_dir / "state.json").read_bytes(), accepted_state)
+        self.cli("advance", "--to", "validated")
+
+        proposal = self.result()
+        proposal["carries"][0]["rationale"] = "Revised explanation for the same application"
+        self.cli("advance", "--to", "applied", "--result",
+                 self.write_json("result-proposed.json", proposal))
+        self.assertEqual(json.loads((self.state_dir / "result.json").read_text()), proposal)
+        state = json.loads((self.state_dir / "state.json").read_text())
+        self.assertEqual(state["gates"], {})
+        self.assertEqual(state["phase"], "applied")
+        self.cli("advance", "--to", "validated", success=False)
 
     def test_dirty_checkout_cannot_validate(self):
         self.applied()
@@ -323,6 +403,39 @@ class RebaseManagerTest(unittest.TestCase):
         state = json.loads((self.state_dir / "state.json").read_text())
         self.assertIn("complete", state.values())
         self.assertTrue((self.state_dir / "plan.json").exists())
+
+    def test_known_pr_can_close_after_downstream_ref_is_removed(self):
+        self.applied()
+        self.cli("sync-pr", "--input", self.snapshot())
+        self.git("branch", "-D", "downstream")
+        status = json.loads(self.cli("status").stdout)
+        self.assertEqual(status["phase"], "draft")
+        self.assertTrue(status["gate_problems"])
+        self.cli("advance", "--to", "validated", success=False)
+        self.cli("sync-pr", "--input", self.snapshot(state="MERGED", draft=False))
+        state = json.loads((self.state_dir / "state.json").read_text())
+        self.assertEqual(state["phase"], "complete")
+        self.assertEqual(state["head_sha"], self.picked)
+        self.assertEqual(state["gates"], {})
+
+    def test_known_pr_can_close_after_remote_mapping_is_removed(self):
+        self.git("remote", "add", "company/team", str(self.repo))
+        self.git("update-ref", "refs/remotes/company/team/release/4.20", self.carry)
+        self.plan["downstream_ref"] = "refs/remotes/company/team/release/4.20"
+        self.applied()
+        self.cli("sync-pr", "--input", self.snapshot(base_ref="release/4.20"))
+        self.git("config", "--remove-section", "remote.company/team")
+        self.assertEqual(self.git("rev-parse", self.plan["downstream_ref"]), self.carry)
+        status = json.loads(self.cli("status").stdout)
+        self.assertEqual(status["phase"], "draft")
+        self.assertTrue(status["gate_problems"])
+        self.cli("advance", "--to", "validated", success=False)
+        self.cli("sync-pr", "--input", self.snapshot(
+            base_ref="release/4.20", state="MERGED", draft=False))
+        state = json.loads((self.state_dir / "state.json").read_text())
+        self.assertEqual(state["phase"], "complete")
+        self.assertEqual(state["head_sha"], self.picked)
+        self.assertEqual(state["gates"], {})
 
     def test_merged_remote_revision_preserves_local_validation_provenance(self):
         self.validated()

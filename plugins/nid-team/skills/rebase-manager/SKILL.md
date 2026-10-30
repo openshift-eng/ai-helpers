@@ -90,8 +90,10 @@ Keep semantic review separate from implementation where a reviewer is available.
 After at most three repair attempts on the same blocker in an invocation, preserve
 results and report what needs human help. Exhaustion never advances a failed gate.
 
-A new commit or changed application result invalidates validation. Record the new
-result, collect evidence for the new head, and reconcile prior feedback again.
+A new commit or changed application result invalidates validation. Have the worker
+write `result-proposed.json`, preserving the accepted `result.json`, and pass the
+proposal to `advance --to applied --result ...`. After acceptance, collect evidence
+for the new head and reconcile prior feedback again.
 Changing the plan requires a new state directory and review of the change; do not
 edit an accepted plan in place to fit already-produced evidence.
 
@@ -105,10 +107,14 @@ The report also serves as the rebase review agenda.
 An applied candidate may be published as a **draft** to obtain CI evidence. State
 all incomplete and failed checks in the draft; draft publication does not mark
 validation complete. Before publishing, verify downstream repository/base and
-fork/head URLs, preserve human branch changes, and inspect the proposed diff.
-If publishing is already authorized, push the candidate and create or update the
+fork/head URLs using the shared skill's discovered remote mapping. Verify the
+explicit push destination is the planned feature branch, never `main`, `master`,
+the downstream/default branch, or a repository-protected branch. Preserve human
+branch changes and inspect the proposed diff. If publishing is already explicitly
+authorized for this branch and PR, push the candidate and create or update the
 identified draft. Otherwise present the concrete branch and PR body for approval.
-Do not force-push or replace a human-updated branch merely to make it match state.
+Never force-push, including with a lease, or replace a human-updated branch merely
+to make it match state.
 Capture the actual PR response and import its normalized snapshot with `sync-pr`.
 
 For an existing draft, read conversation comments, review bodies, and inline review

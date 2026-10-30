@@ -25,11 +25,8 @@ Read and follow the [OpenShift rebase skill](../skills/rebase/SKILL.md), passing
 through the supplied target and stage arguments. Resolve the skill relative to
 this command's installed plugin directory. The agent executes its instructions;
 do not attempt to run a slash command as a shell subprocess.
-
-Without `--stage`, use the interactive workflow, including opening PR preparation
-in the browser for user editing. With `--stage`, require an absolute state
-directory outside the target checkout, perform only that stage, and return the
-artifacts and blockers to the caller. Delegated stages do not publish.
+The skill is the sole procedure for stage boundaries, artifacts, validation,
+authorization, and PR preparation; do not maintain a second implementation here.
 
 ## Return Value
 

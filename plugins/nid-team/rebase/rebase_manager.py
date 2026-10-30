@@ -16,6 +16,7 @@ import tempfile
 CORE_GATES = {"carry-accounting", "tree-accounting", "review"}
 SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 NAME = re.compile(r"[a-z0-9][a-z0-9-]*\Z")
+GIT_TIMEOUT_SECONDS = 300
 
 
 class InvalidState(ValueError):
@@ -23,20 +24,24 @@ class InvalidState(ValueError):
 
 
 def require(condition, message):
+    """Reject an invalid input or transition through the CLI's error path."""
     if not condition:
         raise InvalidState(message)
 
 
 def read_json(path):
+    """Read a retained JSON artifact without modifying it."""
     return json.loads(Path(path).read_text())
 
 
 def digest(value):
+    """Hash canonical JSON so formatting changes do not invalidate evidence."""
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
                                      ensure_ascii=True).encode()).hexdigest()
 
 
 def file_digest(path):
+    """Hash retained log bytes without loading a large log into memory."""
     result = hashlib.sha256()
     with Path(path).open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -45,6 +50,7 @@ def file_digest(path):
 
 
 def write_json(path, value):
+    """Replace one artifact atomically after serializing its complete value."""
     path = Path(path)
     with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as stream:
         json.dump(value, stream, indent=2, sort_keys=True)
@@ -54,28 +60,52 @@ def write_json(path, value):
 
 
 def git(repo, *args):
+    """Run a bounded Git query without optional index-refresh writes."""
     result = subprocess.run(["git", "-C", str(repo), *args], check=True,
                             capture_output=True, text=True,
+                            timeout=GIT_TIMEOUT_SECONDS,
                             env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"})
     return result.stdout.strip()
 
 
 def commit(repo, ref):
+    """Resolve a ref to a full commit ID, treating the ref as an operand."""
     return git(repo, "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}")
 
 
 def ancestor(repo, older, newer):
+    """Distinguish absent ancestry from a failed or timed-out Git query."""
     result = subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor",
-                             older, newer], capture_output=True, text=True)
+                             older, newer], capture_output=True, text=True,
+                            timeout=GIT_TIMEOUT_SECONDS,
+                            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"})
     require(result.returncode in (0, 1), "Cannot inspect commit ancestry")
     return result.returncode == 0
 
 
 def nonempty(value):
+    """Require textual content rather than a missing or whitespace-only field."""
     return isinstance(value, str) and bool(value.strip())
 
 
+def downstream_branch(repo, ref):
+    """Resolve the selected local or remote-tracking ref to its branch name."""
+    full_ref = git(repo, "rev-parse", "--symbolic-full-name", "--verify",
+                   "--end-of-options", ref)
+    if full_ref.startswith("refs/heads/"):
+        return full_ref.removeprefix("refs/heads/")
+    require(full_ref.startswith("refs/remotes/"),
+            "downstream_ref must identify a local or remote-tracking branch")
+    # Match discovered remote names, including names containing a slash.
+    for remote in sorted(git(repo, "remote").splitlines(), key=len, reverse=True):
+        prefix = f"refs/remotes/{remote}/"
+        if full_ref.startswith(prefix):
+            return full_ref.removeprefix(prefix)
+    raise InvalidState("downstream_ref has no configured remote mapping")
+
+
 def validate_plan(plan):
+    """Check pinned inputs, candidate destination, and complete artifact shape."""
     require(isinstance(plan, dict) and plan.get("schema_version") == 1,
             "Expected plan schema_version 1")
     for key in ("repo", "downstream_ref", "upstream_tag", "branch"):
@@ -89,7 +119,12 @@ def validate_plan(plan):
         require(isinstance(plan.get(key), str) and SHA.fullmatch(plan[key]),
                 f"Expected full commit SHA: {key}")
         require(commit(repo, plan[key]) == plan[key], f"Unknown commit: {key}")
-    git(repo, "check-ref-format", "--branch", plan["branch"])
+    branch = plan["branch"]
+    require(not branch.startswith("refs/"), "Candidate branch must be a short branch name")
+    require(git(repo, "check-ref-format", "--branch", branch) == branch,
+            "Candidate branch must be a literal branch name, not a checkout alias")
+    require(branch not in {"main", "master"},
+            "Candidate branch must not be main or master")
     for key in ("carries", "tree_deltas", "validations"):
         require(isinstance(plan.get(key), list), f"Expected list: {key}")
     ids, sources = set(), set()
@@ -126,7 +161,10 @@ def validate_plan(plan):
 
 
 class Manager:
+    """Bind a single rebase plan to application, evidence, and review records."""
+
     def __init__(self, directory):
+        """Locate the external run artifacts without reading or creating them."""
         self.directory = Path(directory).resolve()
         self.state_path = self.directory / "state.json"
         self.plan_path = self.directory / "plan.json"
@@ -134,15 +172,18 @@ class Manager:
         self.plan = None
 
     def load(self):
+        """Load state only when the retained plan still matches its accepted digest."""
         self.state = read_json(self.state_path)
         self.plan = validate_plan(read_json(self.plan_path))
         require(digest(self.plan) == self.state.get("plan_sha256"),
                 "Plan changed; preserve this run and initialize a new state directory")
 
     def save(self):
+        """Persist the current state after the caller's checks have succeeded."""
         write_json(self.state_path, self.state)
 
     def init(self, source):
+        """Accept a pinned plan once, preserving artifacts on repeat invocation."""
         plan = validate_plan(read_json(source))
         require(not self.directory.is_relative_to(Path(plan["repo"])),
                 "State directory must be outside the target checkout")
@@ -163,12 +204,17 @@ class Manager:
         self.save()
 
     def check_refs(self):
+        """Require unchanged inputs and a distinct candidate before active work."""
         for ref, sha in ((self.plan["downstream_ref"], self.plan["downstream_sha"]),
                          (self.plan["upstream_tag"], self.plan["upstream_sha"])):
             require(commit(self.plan["repo"], ref) == sha,
                     f"Selected ref moved: {ref}; review a new plan instead of retargeting this run")
+        require(self.plan["branch"] != downstream_branch(
+            self.plan["repo"], self.plan["downstream_ref"]),
+            "Candidate branch must not be the downstream branch")
 
     def current_head(self):
+        """Return HEAD only for the clean planned branch with no Git operation pending."""
         repo = self.plan["repo"]
         git_dir = Path(git(repo, "rev-parse", "--absolute-git-dir"))
         require(not any((git_dir / marker).exists() for marker in
@@ -181,12 +227,15 @@ class Manager:
         return commit(repo, "HEAD")
 
     def gate_ids(self):
+        """List allowed semantic and repository-specific evidence gate IDs."""
         return CORE_GATES | {v["id"] for v in self.plan["validations"]}
 
     def required_gates(self):
+        """List checks whose current PASS evidence is needed for readiness."""
         return CORE_GATES | {v["id"] for v in self.plan["validations"] if v["required"]}
 
     def gate_problems(self, head):
+        """Report absent, failing, stale, or altered required evidence."""
         problems = []
         for name in sorted(self.required_gates()):
             evidence = self.state["gates"].get(name)
@@ -207,6 +256,7 @@ class Manager:
         return problems
 
     def require_validated(self):
+        """Require current inputs, application record, and passing retained evidence."""
         self.check_refs()
         head = self.current_head()
         require(head == self.state["head_sha"], "Result is stale; record the revised application")
@@ -217,6 +267,7 @@ class Manager:
         return head
 
     def apply(self, source):
+        """Accept a complete proposed result before replacing the prior record."""
         require(self.state["phase"] not in {"complete", "closed"}, "Run is terminal")
         self.check_refs()
         head = self.current_head()
@@ -265,6 +316,7 @@ class Manager:
         self.save()
 
     def check_result_commit(self, sha, head):
+        """Require a new candidate commit, excluding ancestry retained by an ours merge."""
         require(isinstance(sha, str) and SHA.fullmatch(sha), "Expected full result SHA")
         require(ancestor(self.plan["repo"], sha, head), "Result commit is not in candidate history")
         require(not any(ancestor(self.plan["repo"], sha, self.plan[key])
@@ -272,6 +324,7 @@ class Manager:
                 "Result commit belongs to pre-rebase history, not candidate application")
 
     def record(self, name, source):
+        """Bind gate evidence and its log digest to the accepted candidate head."""
         require(self.state["phase"] not in {"planned", "complete", "closed"},
                 "Record application before evidence")
         require(name in self.gate_ids(), "Unknown gate")
@@ -294,12 +347,14 @@ class Manager:
         self.save()
 
     def validate(self):
+        """Advance only when every required gate passes at the current revision."""
         require(self.state["phase"] in {"applied", "validated", "draft", "review"}, "Validate an applied candidate")
         self.require_validated()
         self.state["phase"] = "validated"
         self.save()
 
     def feedback(self, source):
+        """Import comments idempotently and reopen edited feedback with its history."""
         require(self.state["phase"] not in {"planned", "complete", "closed"}, "No active candidate")
         comments = read_json(source)
         require(isinstance(comments, list), "Feedback input must be an array")
@@ -318,6 +373,7 @@ class Manager:
         self.save()
 
     def resolve_feedback(self, identity, outcome, rationale):
+        """Record a reasoned resolution backed by current validation evidence."""
         require(identity in self.state["feedback"], "Unknown feedback id")
         require(nonempty(rationale), "Feedback resolution needs a rationale")
         head = self.require_validated()
@@ -328,11 +384,13 @@ class Manager:
         self.save()
 
     def pending_feedback(self):
+        """Find feedback lacking a resolution for the accepted candidate revision."""
         return sorted(key for key, item in self.state["feedback"].items()
                       if not item["resolution"] or
                       item["resolution"]["head_sha"] != self.state["head_sha"])
 
     def sync_pr(self, source):
+        """Reconcile one PR's identity and remote state without inventing readiness."""
         pr = read_json(source)
         require(isinstance(pr, dict) and type(pr.get("number")) is int and pr["number"] > 0,
                 "PR needs a positive number")
@@ -348,10 +406,7 @@ class Manager:
         if previous:
             base = previous["base_ref"]
         else:
-            full_ref = git(self.plan["repo"], "rev-parse", "--symbolic-full-name", self.plan["downstream_ref"])
-            base = full_ref.removeprefix("refs/heads/")
-            if full_ref.startswith("refs/remotes/"):
-                base = full_ref.split("/", 3)[3]
+            base = downstream_branch(self.plan["repo"], self.plan["downstream_ref"])
         require(pr.get("base_ref") == base, "PR base does not match planned downstream branch")
         require(pr.get("state") in {"OPEN", "CLOSED", "MERGED"} and isinstance(pr.get("draft"), bool),
                 "Invalid PR state")
@@ -374,6 +429,7 @@ class Manager:
         self.save()
 
     def status(self):
+        """Report saved progress alongside current checkout and evidence problems."""
         head = commit(self.plan["repo"], "HEAD")
         checkout_problem = None
         try:
@@ -398,6 +454,7 @@ class Manager:
 
 @contextlib.contextmanager
 def locked(directory):
+    """Serialize state updates and release the advisory lock on every exit path."""
     directory.mkdir(parents=True, exist_ok=True)
     with (directory / ".lock").open("a") as lock:
         try:
@@ -408,6 +465,7 @@ def locked(directory):
 
 
 def main(argv=None):
+    """Dispatch one state operation and report expected failures without a traceback."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state-dir", type=Path, required=True)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -458,7 +516,8 @@ def main(argv=None):
                         manager.sync_pr(args.input)
         print(json.dumps(manager.status(), indent=2, sort_keys=True))
         return 0
-    except (InvalidState, OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as exc:
+    except (InvalidState, OSError, ValueError, KeyError, TypeError,
+            subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
