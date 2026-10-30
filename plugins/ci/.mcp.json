@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ship-status": {
+      "type": "http",
+      "url": "https://mcp.ship-status.ci.openshift.org/mcp"
+    }
+  }
+}

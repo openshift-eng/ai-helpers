@@ -250,7 +250,6 @@ For each component:
    - Queries all team components in one invocation
    - Returns overall team summary
    - Includes per-component breakdowns
-   - Use `/teams:list-teams` to see available team names
 
 7. **Combine multiple filters**:
 

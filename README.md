@@ -72,7 +72,7 @@ description: My project is great.
 target: [claude, cursor, gemini, opencode]
 
 dependencies:
-  - openshift-eng/ai-helpers/plugins/bigquery
+  - openshift-eng/ai-helpers/plugins/bigquery-cost-analysis
 ```
 
 Then run `apm install`.  It can install to your project only, or with a `--global` scope.
@@ -205,6 +205,17 @@ This repository uses [skillsaw](https://github.com/stbenjam/skillsaw) to validat
 ```bash
 make lint
 ```
+
+### Previewing the Marketplace Site
+
+Install the dependencies from `site/requirements.txt`, then run:
+
+```bash
+make site-serve
+```
+
+The MkDocs site is available at <http://127.0.0.1:8000/ai-helpers/>. GitHub
+Pages builds the same generated content after changes merge to `main`.
 
 ## Additional Documentation
 

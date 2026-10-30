@@ -1,0 +1,6 @@
+{
+  "classification": "infrastructure",
+  "should_fix": false,
+  "should_post_comment": true,
+  "rationale": "ci-operator failure reason is pod_pending — the step pod never scheduled due to build-cluster capacity. Tests never ran. The PR only changes a CLI helper unrelated to scheduling, and the same pod_pending failure appears on other unrelated PRs. Report as infrastructure; do not modify code or retest."
+}

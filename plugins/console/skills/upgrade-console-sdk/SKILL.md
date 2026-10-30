@@ -7,7 +7,7 @@ allowed-tools: Bash(gh api repos/openshift/console/contents/*), Bash(gh api repo
 license: Apache-2.0
 ---
 
-# Upgrade SDK
+# Upgrade Console Plugin SDK
 
 You are a senior software engineer with expertise in TypeScript, React, and webpack module federation, particularly in the context of OpenShift Console dynamic plugins. Your task is to assist developers in upgrading their Console dynamic plugins to a newer Console SDK version.
 
@@ -15,7 +15,7 @@ You are a senior software engineer with expertise in TypeScript, React, and webp
 
 ```text
 # Upgrade a Console plugin from version 4.18 to 4.22
-/console:upgrade-sdk 4.18 4.22
+/console:upgrade-console-sdk 4.18 4.22
 ```
 
 The `current-target-version` and `new-target-version` arguments are mandatory -- when not provided, use the `AskUserQuestion` tool to gather this information from the user.
@@ -28,14 +28,14 @@ OpenShift Console is the web-based UI for Red Hat OpenShift Container Platform. 
 
 ### How dynamic plugins work
 
-Dynamic plugins use **webpack module federation** to load plugin code over the network at runtime. This means:
+Dynamic plugins use **module federation** to load plugin code over the network at runtime. This means:
 
 - Plugins are **completely decoupled** from the Console application -- they can be built, deployed, and upgraded independently.
 - Plugins are delivered as container images and registered on the cluster via a `ConsolePlugin` custom resource.
 - At startup, Console discovers enabled plugins and loads their assets (manifest, entry chunk, and exposed module chunks) from the cluster network.
-- Console and plugins **share specific modules** (React, Redux, PatternFly topology, etc.) at runtime via webpack's share scope. This ensures a single copy of React is running and plugins can use Console-provided hooks and components. Plugins must NOT bundle their own copies of shared modules.
-- Each plugin declares **extensions** (in `console-extensions.json` or inline in `webpack.config.ts`) that hook into Console's extension points -- adding pages, navigation items, resource views, dashboard cards, actions, and more.
-- Plugin code is referenced via **`$codeRef`** entries that point to exposed webpack modules, which are loaded on demand.
+- Console and plugins **share specific modules** (React, Redux, PatternFly topology, etc.) at runtime via the Console's share scope. This ensures a single copy of React is running and plugins can use Console-provided hooks and components. Plugins must NOT bundle their own copies of shared modules.
+- Each plugin declares **extensions** (in `console-extensions.json` or inline in the bundler configuration file (e.g., `webpack.config.ts`/`rspack.config.ts`/`rspack.config.mts`)) that hook into Console's extension points -- adding pages, navigation items, resource views, dashboard cards, actions, and more.
+- Plugin code is referenced via **`$codeRef`** entries that point to exposed modules, which are loaded on demand.
 
 ### SDK packages
 
@@ -44,7 +44,7 @@ There are two distributable SDK packages plugins depend on:
 | Package | Purpose |
 |---------|---------|
 | `@openshift-console/dynamic-plugin-sdk` | Core runtime APIs, types, hooks, and components used by plugins at runtime |
-| `@openshift-console/dynamic-plugin-sdk-webpack` | Webpack `ConsoleRemotePlugin` that generates plugin manifests, configures module federation, and manages shared modules |
+| `@openshift-console/dynamic-plugin-sdk-webpack` | Webpack/Rspack `ConsoleRemotePlugin` that generates plugin manifests, configures module federation, and manages shared modules |
 
 There is also `@openshift-console/dynamic-plugin-sdk-internal` which exposes additional Console code but has **no backwards compatibility guarantees**.
 
@@ -54,13 +54,13 @@ SDK packages follow a semver scheme where the **major and minor version** indica
 
 ### Shared modules
 
-Console provides specific modules (e.g., React, Redux, routing libraries) to plugins at runtime via webpack's share scope. Plugins should list these as `devDependencies` (not `dependencies`) since Console supplies them. The exact list and versions change between Console releases -- when Console upgrades a shared module (e.g., React 17 to 18), **all plugins must also upgrade** to the matching version, since only one version of each singleton module can be loaded at runtime.
+Console provides specific modules (e.g., React, Redux, routing libraries) to plugins at runtime via the Console's share scope. Plugins should list these as `devDependencies` (not `dependencies`) since Console supplies them. The exact list and versions change between Console releases -- when Console upgrades a shared module (e.g., React 17 to 18), **all plugins must also upgrade** to the matching version, since only one version of each singleton module can be loaded at runtime.
 
 Always fetch the SDK README at runtime to get the current shared modules list.
 
 ### Plugin metadata
 
-Plugin metadata (`consolePlugin` object) can be specified in `package.json` or passed directly to `ConsoleRemotePlugin` in `webpack.config.ts`. Key fields:
+Plugin metadata (`consolePlugin` object) can be specified in `package.json` or passed directly to `ConsoleRemotePlugin` in the bundler configuration file. Key fields:
 
 - **`name`** -- unique plugin identifier, must match the `ConsolePlugin` resource name on the cluster (must be a valid DNS subdomain name)
 - **`version`** -- semver version of the plugin
@@ -90,7 +90,7 @@ Fetch the release notes for EACH version in the upgrade range (from one version 
 
 Available release notes versions:
 
-!`gh api repos/openshift/console/contents/frontend/packages/console-dynamic-plugin-sdk/release-notes --jq .[].name`
+!`gh api repos/openshift/console/contents/frontend/packages/console-dynamic-plugin-sdk/release-notes --jq '.[].name'`
 
 Fetch each relevant version using this URL pattern:
 
@@ -98,16 +98,17 @@ Fetch each relevant version using this URL pattern:
 
 ### Console plugin template (canonical reference implementation)
 
-The [console-plugin-template](https://github.com/openshift/console-plugin-template) is the canonical reference for a Console dynamic plugin. Fetch its `package.json`, `tsconfig.json`, and `webpack.config.ts` for correct dependency versions, build configuration, and compiler options:
+The [console-plugin-template](https://github.com/openshift/console-plugin-template) is the canonical reference for a Console dynamic plugin. Fetch its `package.json`, `tsconfig.json`, and `rspack.config.ts` for correct dependency versions, build configuration, and compiler options:
 
 - `https://raw.githubusercontent.com/openshift/console-plugin-template/refs/heads/main/package.json`
 - `https://raw.githubusercontent.com/openshift/console-plugin-template/refs/heads/main/tsconfig.json`
-- `https://raw.githubusercontent.com/openshift/console-plugin-template/refs/heads/main/webpack.config.ts`
+- `https://raw.githubusercontent.com/openshift/console-plugin-template/refs/heads/main/rspack.config.ts`
 
 Key patterns to note from the template:
 - SDK packages use dist-tags like `4.21-latest` rather than exact versions. Check what dist-tag is current for the target version.
 - The `consolePlugin.dependencies` field uses a semver range like `"@console/pluginAPI": "^4.21.0"` to declare Console version compatibility.
 - The template may not always be updated to the very latest in-development SDK version. Cross-reference with the changelogs and release notes for the actual target version.
+- Note in the plugin template repo, `rspack.config.ts` is used for 4.23/5.0 and later. In previous verisons, `webpack.config.ts` is used. Both are supported and migration is discretionary. If migrating to rspack and `type: "module"` is not set in `package.json`, the configuration file may need to be named `rspack.config.mts` to avoid ESM to CJS interop overhead.
 
 ## Upgrade procedure
 
@@ -116,7 +117,7 @@ Follow these steps in order:
 ### Step 1: Gather information
 
 1. Read the plugin's `package.json` to understand current SDK versions, shared module versions, and PatternFly versions.
-2. Read the plugin's `webpack.config.ts` (or `.js`) to understand the build setup.
+2. Read the plugin's bundler configuration file to understand the build setup.
 3. Read the plugin's `tsconfig.json` to check compiler options.
 4. Read `console-extensions.json` if it exists, to understand extension types in use.
 5. Identify the current and target Console versions from the user's arguments.
@@ -171,7 +172,7 @@ Present a clear, versioned upgrade plan to the user that includes:
 2. **SDK package version updates** -- the exact `package.json` dependency changes needed
 3. **Shared module version updates** -- version bumps for shared modules like `react`, `react-i18next`, `react-redux`, `redux`, `redux-thunk`, etc. Use the plugin template and release notes as the source of truth for correct versions.
 4. **PatternFly version changes** -- if a PF major version change is required (refer to the compatibility table in the SDK README)
-5. **Build tooling changes** -- webpack version requirements, TypeScript version requirements, tsconfig changes
+5. **Build tooling changes** -- bundler version requirements, TypeScript version requirements, tsconfig changes
 6. **Code migration steps** -- specific code changes needed, with before/after examples drawn from the release notes migration guides
 7. **Deprecation warnings** -- things that still work but should be updated
 
@@ -181,7 +182,7 @@ After the user approves the plan, make the changes:
 
 1. Update `package.json` SDK and shared module versions
 2. Update `tsconfig.json` if needed (e.g., `jsx` compiler option)
-3. Update `webpack.config.ts` if needed
+3. Update the bundler configuration file if needed
 4. Apply code migrations for breaking changes
 5. Update `console-extensions.json` if extension types changed
 6. Run the appropriate install command for the detected package manager to update the lockfile

@@ -5,8 +5,23 @@ Control ID: Mon-01
 ## 1. Runtime Integrity
 
 ### Headless/CronJob Execution
-- Verify that `.work/node-cve/triage-YYYY-MM-DD/` artifacts exist and are
-  non-empty after each scheduled run
+- Nothing carries over between runs: each Job gets a new pod with an empty
+  `.work/` directory. Each run writes its session transcript
+  (`--output-format stream-json`) to stdout and streams `posting-audit.log`
+  to stderr. Cluster logging captures both. Verify that both are present in
+  the logs after each scheduled run. `posting-audit.log` is written once
+  after posting, so its presence marks a run that finished posting. Without
+  it, reconstruct the Jira writes from the transcript, which is best-effort
+  (see the next item), and confirm them against the service account's
+  comments in Jira, which is the authoritative record
+- Before relying on the transcript as the audit trail, test it against the
+  target logging stack: stream-json lines that carry whole file reads can
+  exceed per-line limits (CRI-O splits lines over 16 KiB, Loki drops lines
+  over 256 KB by default) and arrive truncated or not at all
+- The CronJob keeps the last 7 successful and 7 failed Jobs
+  (`successfulJobsHistoryLimit`, `failedJobsHistoryLimit`). Their pods stay
+  until the Job is pruned, so `oc logs` works for those runs even without
+  cluster logging; older runs are only in cluster logging
 - CronJob failure (non-zero exit) surfaces via standard OpenShift job
   monitoring and alerts
 - Monitor pod logs for errors (failed Jira API calls, clone timeouts,
@@ -24,8 +39,18 @@ Control ID: Mon-01
 ### Overprivilege Audit
 - Quarterly review of API token scopes to confirm least privilege:
   - `JIRA_API_TOKEN`: verify the token owner has only the necessary
-    project permissions (OCPBUGS read + comment, OCPNODE read)
+    project permissions (OCPBUGS browse, add comments and edit own
+    comments; OCPNODE browse)
   - `SLACK_API_TOKEN`: verify bot is only added to #team-node
+  - `SLACK_WEBHOOK` (headless): verify the Slack app has only the
+    `incoming-webhook` scope and posts to #team-node
+  - Vertex AI credentials (headless): verify the service identity has only
+    Vertex AI access; rotate the service account key if one is used instead
+    of Workload Identity Federation
+  - Headless tool allowlist: verify the mounted `settings.json` matches the
+    capabilities inventory, including the sandbox settings
+  - Namespace RBAC: verify only the admin group can create Jobs, edit the
+    CronJob or read secrets
 - Confirm no access creep (no new repos, APIs, or data sources added
   without updating the capabilities inventory)
 
@@ -45,9 +70,11 @@ Control ID: Mon-01
 - Target: false positive rate below 20%, false negative rate below 10%
 
 ### Skill Invocation Audit
-- Review Claude Code session logs (JSONL transcripts) to verify the agent
-  used read-only tools (git clone, curl GET, jira list) for analysis and
-  only used write tools (curl POST for Jira comment, Slack message) when
+- Review Claude Code session transcripts (local JSONL files for interactive
+  use, the stream-json output in the pod logs for headless runs) to verify
+  the agent used read-only tools (git clone, `jira issue list`,
+  `jira issue view`) for analysis and only used write tools
+  (`jira issue comment add`, curl POST for the Slack message) when
   `--notify-*` flags were provided
 - Flag any invocation of write tools without the corresponding opt-in flag
 
@@ -70,8 +97,8 @@ is in place.
 
 | Anomaly | Detection | Response | Status |
 |---------|-----------|----------|--------|
-| Infinite loop | Pod runtime exceeds 1 hour | Kill pod, investigate | Planned |
-| Permission probing | Agent attempts to access files or APIs outside approved scope | Review session logs, update prompts | Manual |
+| Infinite loop | Pod runtime exceeds 1 hour | `activeDeadlineSeconds: 3600` kills the Job; investigate | Planned |
+| Permission probing | Agent attempts to access files or APIs outside approved scope; in headless runs these show up as refused tool calls in the transcript | Review session logs, update prompts | Manual |
 | Resource spike | Token consumption > 3x baseline | Throttle, investigate prompt complexity | Planned |
 | All-Uncertain results | Every CVE classified as Uncertain | Check repo clone connectivity, verify branch patterns | Manual |
 | Zero CVEs found | Query returns no results when CVEs are known to exist | Verify JQL query, check component names | Manual |

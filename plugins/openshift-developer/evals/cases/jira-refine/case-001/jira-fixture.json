@@ -1,0 +1,265 @@
+{
+  "snapshot": "OCPBUGS-99760 as of 2026-10-20T09:30:00Z, before the refinement this case scores. People are anonymized.",
+  "resolutions": [
+    "Done",
+    "Done-Errata",
+    "Won't Do",
+    "Not a Bug",
+    "Cannot Reproduce",
+    "Duplicate",
+    "Obsolete"
+  ],
+  "transitions": [
+    {
+      "id": "11",
+      "name": "New",
+      "category": "To Do"
+    },
+    {
+      "id": "21",
+      "name": "ASSIGNED",
+      "category": "In Progress"
+    },
+    {
+      "id": "31",
+      "name": "POST",
+      "category": "In Progress"
+    },
+    {
+      "id": "41",
+      "name": "ON_QA",
+      "category": "In Progress"
+    },
+    {
+      "id": "61",
+      "name": "Verified",
+      "category": "In Progress"
+    },
+    {
+      "id": "71",
+      "name": "Release Pending",
+      "category": "In Progress"
+    },
+    {
+      "id": "81",
+      "name": "Closed",
+      "category": "Done"
+    },
+    {
+      "id": "91",
+      "name": "MODIFIED",
+      "category": "In Progress"
+    }
+  ],
+  "issues": {
+    "OCPBUGS-99760": {
+      "key": "OCPBUGS-99760",
+      "browse_url": "https://redhat.atlassian.net/browse/OCPBUGS-99760",
+      "summary": "CAPA AWSMachineTemplate.Status.Capacity never populated in HyperShift (missing ownerReferences)",
+      "issue_type": "Bug",
+      "status": "New",
+      "resolution": null,
+      "priority": "Major",
+      "severity": null,
+      "release_blocker": null,
+      "components": [
+        "HyperShift"
+      ],
+      "versions": [
+        "4.18"
+      ],
+      "fixVersions": [],
+      "target_backport_versions": null,
+      "sfdc_cases_counter": null,
+      "labels": [
+        "CAPA",
+        "cluster-autoscaler",
+        "hypershift",
+        "issue-for-agent",
+        "need-human-analysis",
+        "refined-by-agent",
+        "scale-from-zero"
+      ],
+      "created": "2026-07-24T21:22:22+00:00",
+      "updated": "2026-10-19T12:01:04+00:00",
+      "reporter": "bug-reporter",
+      "assignee": null,
+      "description": "**Description of problem:**\n\nCAPA's `AWSMachineTemplateReconciler` is registered and running in HyperShift's capi-provider deployment, but silently skips all AWSMachineTemplates because it cannot find an owning CAPI `Cluster` object. This means `AWSMachineTemplate.Status.Capacity` is never populated, preventing native CAPI scale-from-zero support.\n\n**Root cause:**\n\nCAPA's reconciler at `controllers/awsmachinetemplate_controller.go:143-146` calls:\n\n```java\ncluster, err := util.GetOwnerCluster(ctx, r.Client, awsMachineTemplate.ObjectMeta)\nif cluster == nil {\n    return ctrl.Result{}, nil  // silent early return\n}\n```\n\n`GetOwnerCluster` walks `ownerReferences` upward (AWSMachineTemplate -> MachineDeployment/MachineSet -> Cluster). HyperShift's NodePool controller creates AWSMachineTemplates **without any ownerReferences** — there is no `SetControllerReference`, `SetOwnerReference`, or `OwnerReferences` set on AWSMachineTemplate creation in `hypershift-operator/controllers/nodepool/aws.go` or `hypershift-operator/controllers/nodepool/capi.go`.\n\nWithout the owner chain, `GetOwnerCluster` returns nil, the controller returns early, and `Status.Capacity` is never populated.\n\n**Evidence:**\n\n- Production MC: 45 AWSMachineTemplates checked, all have empty `status.capacity`\n- CAPA controller is registered (not disabled) — `--disable-controllers` flag is not passed in HyperShift's CAPA deployment args (`hypershift-operator/controllers/hostedcluster/internal/platform/aws/aws.go:214`)\n- Controller silently skips templates without owner chain (no error, no event, no log)\n\n**Impact:**\n\n- `hasStatusCapacity()` in `hypershift-operator/controllers/nodepool/capi.go:61` always returns `false`\n- Native CAPI scale-from-zero path is never used\n- Combined with OCPBUGS-99759 (wrong annotation keys on the fallback workaround path), scale-from-zero has no working capacity signal to the autoscaler\n\n**Fix options:**\n1. Add ownerReferences on AWSMachineTemplate pointing to MachineDeployment (may have GC side effects — needs analysis)\n2. Accept this is a HyperShift-specific CAPI usage pattern and rely on the annotation workaround path (fix OCPBUGS-99759 instead)\n3. Both — fix annotations for immediate relief, add owner refs for long-term native support",
+      "issue_links": [
+        {
+          "type": "relates to",
+          "key": "OCPBUGS-99759"
+        }
+      ],
+      "remote_links": [
+        {
+          "url": "https://github.com/openshift/hypershift/pull/10030",
+          "title": "openshift/hypershift#10030: OCPBUGS-99760: Investigate AWS template ownership (diagnostic placeholder)"
+        }
+      ],
+      "comments": [
+        {
+          "id": "17723298",
+          "author": "bug-reporter",
+          "created": "2026-07-24T21:22:30+00:00",
+          "body": "Related: OCPBUGS-99759 (wrong annotation keys on fallback workaround path). Both bugs together mean scale-from-zero has no working capacity signal to the autoscaler."
+        },
+        {
+          "id": "18982300",
+          "author": "ship-help-jira",
+          "created": "2026-10-19T10:52:41+00:00",
+          "body": "## Refinement assessment\n\n**Disposition:** NEED*HUMAN*ANALYSIS\n**Assessed:** 2026-10-19\n**Recorded priority:** Major. Severity was not available in the retrieved fields.\n**Confidence:** High in the inspected source-level mismatch; deployed-release impact remains unconfirmed.\n\nThe report describes AWSMachineTemplates without status.capacity. Current HyperShift source constructs templates without ownerReferences, and CAPA's AWSMachineTemplateReconciler returns before capacity discovery when GetOwnerCluster returns nil. Important correction: GetOwnerCluster checks direct Cluster owner references; it does not recursively follow MachineDeployment or MachineSet owners. Adding only a MachineDeployment owner reference would not satisfy the inspected implementation.\n\nSources:\n\n- https://raw.githubusercontent.com/openshift/cluster-api-provider-aws/main/vendor/sigs.k8s.io/cluster-api/util/util.go\n- https://raw.githubusercontent.com/openshift/cluster-api-provider-aws/main/controllers/awsmachinetemplate_controller.go\n- HyperShift main: hypershift-operator/controllers/nodepool/aws.go (awsMachineTemplate), capi.go (machineTemplateBuilders, cleanupMachineTemplates).\n\nNative capacity population is worth addressing, but this evidence does not establish that scale-from-zero fails on every release. The related annotation-path issue OCPBUGS-99759 remains separate. Its PR https://github.com/openshift/hypershift/pull/9110 closed without merging. A human review on that PR states older autoscaler versions recognize both annotation families, so the blanket annotation-incompatibility claim needs verification against the deployed autoscaler revision.\n\n**Version scope:** Jira lists 4.18, treated as reported only. No exact management/operator, CAPA, or autoscaler build or reproduction artifacts were supplied. Current-main code inspection is not proof of shipped 4.18 behavior. Earliest affected and first fixed releases remain unknown; no version edits or backport targets proposed.\n\n**Decision needed:** Choose between a direct Cluster owner reference managed by HyperShift and explicit non-owning cluster association/resolution in CAPA. Do not add ownership solely to bypass lookup without reviewing deletion semantics and HyperShift's existing explicit template cleanup. Annotation repair is a separate mitigation candidate, not a verified workaround.\n\nBefore implementation, identify deployed revisions and reproduce with the fallback disabled or demonstrably unused. Validate capacity population and actual zero-to-one autoscaling for Replace and InPlace NodePools, existing-template reconciliation, template replacement and cleanup, cluster deletion, and region/IAM error handling. Existing tests that inject capacity do not demonstrate CAPA population.\n\nNext step: HyperShift/CAPA maintainers select the association/lifecycle contract and provide build-scoped evidence; then produce a bounded implementation plan and acceptance criteria.\n\nrefine:v1 outcome=NEED*HUMAN*ANALYSIS\n\n----\n\n*AI-generated. Review for accuracy.*\n\nRequested via Chai Bot (hypershift_internal)"
+        },
+        {
+          "id": "18982302",
+          "author": "ship-help-jira",
+          "created": "2026-10-19T10:52:46+00:00",
+          "body": "Labels added refined-by-agent, need-human-analysis\n\n----\n\nRequested via Chai Bot (hypershift_internal)"
+        },
+        {
+          "id": "18982945",
+          "author": "hypershift-maintainer",
+          "created": "2026-10-19T11:36:36+00:00",
+          "body": "> there is no `SetControllerReference`, `SetOwnerReference`, or `OwnerReferences` set on AWSMachineTemplate creation in `hypershift-operator/controllers/nodepool/aws.go` or `hypershift-operator/controllers/nodepool/capi.go`.\n\n\n\ncapi reconciliation should set this. Is that not happening? why?"
+        }
+      ],
+      "changelog": [
+        {
+          "created": "2026-07-24T21:28:23+00:00",
+          "author": "bug-reporter",
+          "items": [
+            {
+              "field": "description",
+              "from": "(earlier draft)",
+              "to": "(current description)"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-24T21:28:37+00:00",
+          "author": "bug-reporter",
+          "items": [
+            {
+              "field": "Component",
+              "from": null,
+              "to": "HyperShift"
+            }
+          ]
+        },
+        {
+          "created": "2026-07-28T15:49:01+00:00",
+          "author": "triage-engineer",
+          "items": [
+            {
+              "field": "Component",
+              "from": "Cluster Autoscaler",
+              "to": null
+            }
+          ]
+        },
+        {
+          "created": "2026-08-06T01:20:38+00:00",
+          "author": "automation-bot",
+          "items": [
+            {
+              "field": "Activity Type",
+              "from": null,
+              "to": "Quality / Stability / Reliability"
+            }
+          ]
+        },
+        {
+          "created": "2026-10-19T10:52:46+00:00",
+          "author": "ship-help-jira",
+          "items": [
+            {
+              "field": "labels",
+              "from": "CAPA cluster-autoscaler hypershift scale-from-zero",
+              "to": "CAPA cluster-autoscaler hypershift need-human-analysis refined-by-agent scale-from-zero"
+            }
+          ]
+        },
+        {
+          "created": "2026-10-19T10:53:45+00:00",
+          "author": "ship-help-jira",
+          "items": [
+            {
+              "field": "labels",
+              "from": "CAPA cluster-autoscaler hypershift need-human-analysis refined-by-agent scale-from-zero",
+              "to": "CAPA cluster-autoscaler hypershift issue-for-agent need-human-analysis refined-by-agent scale-from-zero"
+            }
+          ]
+        },
+        {
+          "created": "2026-10-19T12:01:04+00:00",
+          "author": "prow-bot",
+          "items": [
+            {
+              "field": "RemoteWorkItemLink",
+              "from": null,
+              "to": "openshift/hypershift#10030: OCPBUGS-99760: Investigate AWS template ownership (diagnostic placeholder)"
+            }
+          ]
+        }
+      ]
+    },
+    "OCPBUGS-99759": {
+      "key": "OCPBUGS-99759",
+      "browse_url": "https://redhat.atlassian.net/browse/OCPBUGS-99759",
+      "summary": "HyperShift scale-from-zero annotations use wrong keys for CAPI autoscaler provider",
+      "issue_type": "Bug",
+      "status": "New",
+      "resolution": null,
+      "priority": "Major",
+      "severity": null,
+      "components": [
+        "Cluster Autoscaler",
+        "HyperShift"
+      ],
+      "versions": [
+        "4.18",
+        "4.19",
+        "4.20",
+        "4.21",
+        "4.22"
+      ],
+      "labels": [
+        "cluster-autoscaler",
+        "hypershift",
+        "scale-from-zero"
+      ],
+      "created": "2026-07-24T21:22:00+00:00",
+      "updated": "2026-10-01T02:32:25+00:00",
+      "reporter": "bug-reporter",
+      "assignee": null,
+      "description": "### Impact\n\nHyperShift scale-from-zero capacity detection is broken for the cluster-autoscaler.\nUsers may see nodes fail to scale from zero because the autoscaler ignores the annotations written by HyperShift.\n\n### Expected behaviour\n\nHyperShift should write capacity annotations that match the CAPI autoscaler provider.\nThe autoscaler should read these annotations and detect CPU, memory, and GPU capacity correctly.\n\n### Actual behaviour\n\nHyperShift writes CPU, memory, and GPU capacity annotations using `machine.openshift.io/**` keys.\nThe cluster-autoscaler runs with `--cloud-provider=clusterapi` and only reads `capacity.cluster-autoscaler.kubernetes.io/**` keys.\nAs a result, the CAPI autoscaler provider silently ignores the annotations and scale-from-zero capacity detection fails.\n\nWrong keys (current):\n\n```java\ncpuKey    = \"machine.openshift.io/vCPU\"\nmemoryKey = \"machine.openshift.io/memoryMb\"\ngpuKey    = \"machine.openshift.io/GPU\"\n```\n\n### Steps to reproduce\n\n- Deploy HyperShift with cluster-autoscaler using `--cloud-provider=clusterapi`.\n- Use the scale-from-zero\n- Observe that the annotations are written with `machine.openshift.io/**` keys.\n- Check that the CAPI autoscaler provider only reads `capacity.cluster-autoscaler.kubernetes.io/**` keys.\n- Confirm that the autoscaler ignores the written annotations and does not detect capacity for scale-from-zero.\n\n### Environment\n\n- HyperShift\n- `hypershift-operator/controllers/nodepool/scale_from_zero.go`\n- `control-plane-operator/controllers/hostedcontrolplane/v2/assets/cluster-autoscaler/deployment.yaml`\n- `openshift/kubernetes-autoscaler cloudprovider/clusterapi/clusterapi_utils.go`\n\n### Workarounds\n\nN/A\n\n### Other information\n\nLabels and taints annotations in the same file already correctly use `capacity.cluster-autoscaler.kubernetes.io/*` prefix at `L39-40`.\n\nCorrect keys for the CAPI autoscaler provider:\n\n```java\ncpuKey      = \"capacity.cluster-autoscaler.kubernetes.io/cpu\"\nmemoryKey   = \"capacity.cluster-autoscaler.kubernetes.io/memory\"\ngpuCountKey = \"capacity.cluster-autoscaler.kubernetes.io/gpu-count\"\ngpuTypeKey  = \"capacity.cluster-autoscaler.kubernetes.io/gpu-type\"\n```",
+      "issue_links": [
+        {
+          "type": "relates to",
+          "key": "OCPBUGS-99760"
+        }
+      ],
+      "remote_links": [
+        {
+          "url": "https://github.com/openshift/hypershift/pull/9110",
+          "title": "openshift/hypershift#9110 (closed without merging)"
+        }
+      ],
+      "comments": [
+        {
+          "id": "17723297",
+          "author": "bug-reporter",
+          "created": "2026-07-24T21:22:29+00:00",
+          "body": "Related: OCPBUGS-99760 (CAPA AWSMachineTemplate.Status.Capacity never populated due to missing ownerReferences). Both bugs together mean scale-from-zero has no working capacity signal to the autoscaler."
+        },
+        {
+          "id": "18719723",
+          "author": "prow-bot",
+          "created": "2026-10-01T02:32:25+00:00",
+          "body": "Bug status changed to NEW as previous linked PR https://github.com/openshift/hypershift/pull/9110 has been closed"
+        }
+      ],
+      "changelog": []
+    }
+  }
+}

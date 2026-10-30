@@ -1,4 +1,4 @@
-prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/aggregated-aws-ovn-upgrade-5.0-major-release-openshift-release-analysis-aggregator/2070211754951970816"
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/aggregated-aws-ovn-upgrade-5.0-major-release-openshift-release-analysis-aggregator/2070211754951970816"
 job_name: "aggregated-aws-ovn-upgrade-5.0-major-release-openshift-release-analysis-aggregator"
 description: >-
   Aggregated release-analysis-aggregator over the 5.0 aws-ovn major upgrade variant

@@ -20,7 +20,7 @@
 
 ## Must fix before merge
 
-<!-- Phase 9.5 — Fill based on repo type detected in Phase 5:
+<!-- Phase 6 — Fill based on repo type detected in Phase 4:
 
      OPERATORS: Flag as must-fix: incorrect reconciliation logic, unscoped queries
      crossing tenant boundaries, resource leaks, upgrade/downgrade safety violations,
@@ -41,21 +41,26 @@
 
 ## Minor issue volume
 
-<!-- Phase 9.5 — Default: "Report at most five minor issues. Overflow: 'plus N similar items'
+<!-- Phase 6 — Default: "Report at most five minor issues. Overflow: 'plus N similar items'
      in the summary. If all minor, lead with 'No blocking issues.'"
      Adjust count based on repo complexity if needed. -->
 
 ## Do not report
 
-<!-- Phase 9.5 — Fill from Phase 5 CI enforcement discovery + generated code inventory.
+<!-- Phase 6 — Fill from Phase 4 CI enforcement discovery + generated code inventory.
 
      Always include these categories:
      - CI-enforced: lint, gofmt, govet, type-check (discovered from `grep Makefile`)
      - Generated: `zz_generated*`, `**/clientset/**`, `**/informers/**`, `**/listers/**`
      - Vendored: `vendor/**`
-     - Lockfiles: `go.sum`, `go.mod` (review dep bumps separately)
+     - Dependency checksums: `go.sum` (do not report individual checksum-line changes;
+       investigate unexplained churn)
 
-     Repo-specific additions from Phase 5:
+     Do not put `go.mod` in "Do not report." It is the dependency manifest; review
+     semantic changes such as added, removed, or upgraded dependencies, `replace` /
+     `exclude` directives, and Go/toolchain directives.
+
+     Repo-specific additions from Phase 4:
      - Generated dashboards/assets if present (e.g., `assets/**`)
      - Bindata files if present (e.g., `**/bindata.go`)
      - Protobuf generated files (e.g., `generated.pb.go`, `generated.proto`)
@@ -66,7 +71,7 @@
 
 ## Always check
 
-<!-- Phase 9.5 — Fill from repo-type platform rules + Phase 5 discoveries.
+<!-- Phase 6 — Fill from repo-type platform rules + Phase 4 discoveries.
 
      OPERATORS (all apply):
      - Feature gates: alpha behind TechPreviewNoUpgrade (guidelines/supportability.md)
@@ -96,7 +101,7 @@
 
 ## Verification bar
 
-<!-- Phase 9.5 — Default: "Every comment must cite file:line evidence from the diff
+<!-- Phase 6 — Default: "Every comment must cite file:line evidence from the diff
      or linked source. If you cannot point to a specific line, do not post the comment.
      Read surrounding context (at minimum the enclosing function) before flagging — the
      answer may be ten lines below the diff hunk."
@@ -106,7 +111,7 @@
 
 ## Re-review
 
-<!-- Phase 9.5 — Default: "On re-review of an updated PR, only comment on lines that
+<!-- Phase 6 — Default: "On re-review of an updated PR, only comment on lines that
      changed since the last review. Do not re-raise resolved issues or introduce new
      nits on unchanged code. Converge toward approval."
 
@@ -116,7 +121,7 @@
 
 ## Path-specific rules
 
-<!-- Phase 9.5 — Fill from Phase 5 framework split + naming conventions.
+<!-- Phase 6 — Fill from Phase 4 framework split + naming conventions.
 
      Use glob headers for each path. Example:
 
@@ -132,6 +137,6 @@
      Do not review — vendored code is upstream's responsibility.
      Review go.mod changes for dependency bumps separately.
 
-     Add subsections based on Phase 5 discoveries — only for paths where
+     Add subsections based on Phase 4 discoveries — only for paths where
      the repo has specific conventions that differ from the repo-wide rules.
 -->

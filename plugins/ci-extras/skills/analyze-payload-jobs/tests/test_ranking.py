@@ -1,0 +1,161 @@
+import importlib.util
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+SCRIPT = Path(__file__).parents[1] / "scripts" / "rank_jobs.py"
+SPEC = importlib.util.spec_from_file_location("rank_jobs", SCRIPT)
+ranking = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(ranking)
+
+
+def payload(identifier, when, passed, failed=0, phase="Accepted"):
+    return {"schema_version": 1, "id": str(identifier), "tag": "payload-" + str(identifier), "release": "5.1",
+            "architecture": "amd64", "stream": "nightly", "population_role": "current",
+            "release_time": when, "phase": phase, "forced": False, "inventory_complete": True,
+            "outcome_counts": {"blocking": {"Succeeded": passed, "Failed": failed},
+                               "informing": {}, "unknown_role": {}}, "eligibility": "UNREVIEWED",
+            "reason_codes": [], "evidence": []}
+
+
+def association(identifier, payload_id, run_id, outcome, role="INFORMING", upgrade=False):
+    return {"schema_version": 1, "payload_id": str(payload_id), "payload_tag": "payload-" + str(payload_id),
+            "release": "5.1", "architecture": "amd64", "stream": "nightly", "population_role": "current",
+            "association_id": str(identifier), "raw_alias": "alias", "raw_role": role.title(),
+            "normalized_role": role, "raw_state": outcome.title(), "normalized_outcome": outcome,
+            "prow_run_id": str(run_id), "prow_url": "https://example/run", "actual_prow_job": None,
+            "provisional_prow_job": "periodic-job", "identity_state": "PROVISIONAL_URL",
+            "transition_time": "2026-10-02T09:00:00Z", "retries": 0,
+            "upgrade_route": {"upgrade": upgrade, "from": "4.19" if upgrade else None,
+                              "to": "5.1" if upgrade else None}, "labels": []}
+
+
+def workspace(directory, payloads, associations, **overrides):
+    root = Path(directory)
+    settings = {"release": "5.1", "architecture": "amd64", "stream": "nightly",
+                "job_role": "informing",
+                "payloads": 10, "min_payloads": 1, "min_job_runs": 2,
+                "min_job_payloads": 2, "min_blocker_pass_rate": .9, "poor_job_pass_rate": .5,
+                "max_candidates": 100, "max_recommendations": 10, "time_budget_minutes": 120}
+    settings.update(overrides)
+    manifest = {"schema_version": 1, "analysis_id": "analysis", "stage": "COLLECTED",
+                "collected_at": "2026-10-06T00:00:00Z", "selection_version": 0,
+                "effective_inputs": settings, "counts": {"payloads_inspected": len(payloads)},
+                "missing_evidence": []}
+    (root / "manifest.json").write_text(json.dumps(manifest))
+    (root / "payloads.json").write_text(json.dumps({"schema_version": 1, "payloads": payloads}))
+    (root / "associations.json").write_text(json.dumps({"schema_version": 1, "associations": associations}))
+    return root
+
+
+class RankingTests(unittest.TestCase):
+    def test_requested_role_filters_both_populations_and_keeps_failed_blockers(self):
+        for role in ("informing", "blocking"):
+            with self.subTest(role=role), tempfile.TemporaryDirectory() as directory:
+                payloads = [payload(1, "2026-10-03T00:00:00Z", 10),
+                            dict(payload(2, "2026-10-02T00:00:00Z", 10), population_role="previous-release-history"),
+                            payload(3, "2026-10-04T00:00:00Z", 0, 10, "Rejected")]
+                rows = [association("%d-%s" % (p, kind), p, p * 100 + i, "FAILED", role=kind)
+                        for p in (1, 2, 3) for i, kind in enumerate(("INFORMING", "BLOCKING", "UNKNOWN"))]
+                for row in rows:
+                    if row["payload_id"] == "2":
+                        row["population_role"] = "previous-release-history"
+                root = workspace(directory, payloads, rows, job_role=role, min_job_runs=1, min_job_payloads=1)
+                result, manifest = ranking.run(root)
+                expected_ids = ["1", "2", "3"] if role == "blocking" else ["1", "2"]
+                self.assertEqual(expected_ids, manifest["selected_payload_ids"])
+                self.assertEqual(role, result["job_role"])
+                for population in ("current", "previous_release_history"):
+                    self.assertEqual(1, len(result[population]))
+                    cohort = result[population][0]
+                    self.assertEqual(role, cohort["job_role"])
+                    selected_rows = [row for row in rows if row["association_id"] in cohort["association_ids"]]
+                    self.assertTrue(all(row["normalized_role"] == role.upper() for row in selected_rows))
+                    self.assertEqual(0, cohort["metrics"]["unique_run_success"]["value"])
+                current_runs = result["current"][0]["metrics"]["terminal_runs"]
+                self.assertEqual(2 if role == "blocking" else 1, current_runs)
+
+    def test_blocking_analysis_still_excludes_incomplete_nonterminal_and_shared_payloads(self):
+        eligible = payload(1, "2026-10-03T00:00:00Z", 0, 10, "Rejected")
+        self.assertTrue(ranking.eligibility_decision(eligible, "blocking", .9, {})[0])
+        cases = [dict(eligible, inventory_complete=False), dict(eligible, phase="Running"),
+                 dict(eligible, outcome_counts={"blocking": {"Succeeded": 0, "Failed": 0}}),
+                 dict(eligible, outcome_counts={"blocking": {"Failed": 10, "Running": 1}})]
+        for value in cases:
+            with self.subTest(payload=value):
+                self.assertFalse(ranking.eligibility_decision(value, "blocking", .9, {})[0])
+        decision = {"1": {"classification": "CONFIRMED_SHARED_FAILURE", "evidence": ["shared signature"]}}
+        self.assertIn("CONFIRMED_SHARED_FAILURE",
+                      ranking.eligibility_decision(eligible, "blocking", .9, decision)[1])
+
+    def test_role_changes_produce_distinct_cohort_identities(self):
+        row = association(1, 1, 10000000001, "FAILED")
+        self.assertNotEqual(ranking.identity(row)[0], ranking.identity(dict(row, normalized_role="BLOCKING"))[0])
+
+    def test_unhealthy_payload_excluded_and_duplicate_runs_do_not_inflate_rate(self):
+        payloads = [payload(1, "2026-10-03T00:00:00Z", 10, 0),
+                    payload(2, "2026-10-02T00:00:00Z", 10, 0),
+                    payload(3, "2026-10-05T00:00:00Z", 6, 10, "Rejected")]
+        associations = [association(1, 1, 10000000001, "FAILED"),
+                        association(2, 2, 10000000001, "FAILED"),
+                        association(3, 2, 10000000002, "SUCCEEDED"),
+                        association(4, 3, 10000000003, "FAILED")]
+        with tempfile.TemporaryDirectory() as directory:
+            root = workspace(directory, payloads, associations)
+            result, manifest = ranking.run(root)
+            cohort = result["current"][0]
+            self.assertEqual({"numerator": 1, "denominator": 3, "value": 1 / 3},
+                             cohort["metrics"]["association_success"])
+            self.assertEqual({"numerator": 1, "denominator": 2, "value": .5},
+                             cohort["metrics"]["unique_run_success"])
+            self.assertEqual(["1", "2"], manifest["selected_payload_ids"])
+            updated = json.loads((root / "payloads.json").read_text())["payloads"]
+            rejected = next(item for item in updated if item["id"] == "3")
+            self.assertIn("LOW_BLOCKER_HEALTH", rejected["reason_codes"])
+
+    def test_unknown_and_blocking_roles_do_not_enter_ranking_and_routes_split(self):
+        payloads = [payload(1, "2026-10-03T00:00:00Z", 10), payload(2, "2026-10-02T00:00:00Z", 10)]
+        rows = [association(1, 1, 10000000001, "FAILED"),
+                association(2, 2, 10000000002, "FAILED", upgrade=True),
+                association(3, 1, 10000000003, "FAILED", role="UNKNOWN"),
+                association(4, 1, 10000000004, "FAILED", role="BLOCKING")]
+        with tempfile.TemporaryDirectory() as directory:
+            result, _ = ranking.run(workspace(directory, payloads, rows, min_job_runs=1, min_job_payloads=1))
+            self.assertEqual(2, len(result["current"]))
+            self.assertEqual({False, True}, {item["upgrade_route"]["upgrade"] for item in result["current"]})
+
+    def test_zero_pass_cohorts_rank_by_unique_failing_runs(self):
+        payloads = [payload(index, "2026-10-0%dT00:00:00Z" % index, 10) for index in range(1, 4)]
+        repeated = [dict(association("%d-%d" % (p, run), p, run, "FAILED"),
+                         provisional_prow_job="five-reused-runs")
+                    for p in range(1, 4) for run in range(1, 6)]
+        distinct = [dict(association(run, run % 3 + 1, 100 + run, "FAILED"),
+                         provisional_prow_job="six-distinct-runs") for run in range(6)]
+        with tempfile.TemporaryDirectory() as directory:
+            root = workspace(directory, payloads, repeated + distinct, min_job_runs=5, min_job_payloads=3)
+            result, _ = ranking.run(root)
+            cohorts = result["current"]
+            self.assertTrue(all(item["sample_sufficient"] for item in cohorts))
+            self.assertEqual(["ADEQUATE_ZERO_PASS", "ADEQUATE_ZERO_PASS"],
+                             [item["ranking"]["tier"] for item in cohorts])
+            self.assertEqual([["six-distinct-runs"], ["five-reused-runs"]],
+                             [item["provisional_prow_jobs"] for item in cohorts])
+            self.assertEqual([6, 5], [item["metrics"]["distinct_runs"] for item in cohorts])
+            self.assertEqual([6, 15], [item["metrics"]["outcomes"]["failed"] for item in cohorts])
+
+    def test_confirmed_shared_failure_requires_and_retains_evidence(self):
+        payloads = [payload(1, "2026-10-03T00:00:00Z", 10)]
+        with tempfile.TemporaryDirectory() as directory:
+            root = workspace(directory, payloads, [association(1, 1, 10000000001, "FAILED")],
+                             min_job_runs=1, min_job_payloads=1)
+            decisions = Path(directory) / "shared.json"
+            decisions.write_text(json.dumps({"payload_decisions": [{"payload_id": "1",
+                "classification": "CONFIRMED_SHARED_FAILURE", "evidence": ["same new signature in four families"]}]}))
+            result, manifest = ranking.run(root, decisions)
+            self.assertEqual([], result["current"])
+            self.assertEqual([], manifest["selected_payload_ids"])
+
+
+if __name__ == "__main__":
+    unittest.main()

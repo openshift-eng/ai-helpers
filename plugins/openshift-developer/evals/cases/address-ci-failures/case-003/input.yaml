@@ -1,0 +1,25 @@
+prompt: |
+  Using the address-ci-failures skill, analyze this CI failure scenario and write your triage decision to analysis.json.
+
+  PR: openshift/origin#12345
+  Failing check: periodic-ci-openshift-release-master-ci-openshift-release-e2e-aws-4.19
+
+  Build log summary:
+  ```
+  time="2026-06-17T09:51:18Z" level=error msg="step pod pending for over 15 minutes"
+  time="2026-06-17T09:51:18Z" level=error msg="reason: pod_pending"
+  ```
+
+  PR diff (stat):
+  ```
+  pkg/cli/admin/build/logs/logs.go | 8 +++++---
+  1 file changed, 5 insertions(+), 3 deletions(-)
+  ```
+
+  Context:
+  - ci-operator tagged the failure reason as pod_pending before any tests ran.
+  - The step pod never scheduled — build-cluster capacity issue.
+  - PR only changes a CLI logs helper; no connection to scheduling.
+  - Same pod_pending failures reported on 4 other unrelated PRs in the last hour.
+
+  What classification and action should the skill take?

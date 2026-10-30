@@ -1,0 +1,28 @@
+prompt: |
+  Using the address-ci-failures skill, analyze this CI failure scenario and write your triage decision to analysis.json.
+
+  PR: openshift/sippy#3816 (TRT-2822 — fix no-unused-vars lint warnings only)
+  Failing check: ci/prow/agentic-staging (optional: true — prow.k8s.io/is-optional=true)
+  --ci mode
+
+  PR diff (name-only):
+  ```
+  pkg/apis/api/v1/test_details.go
+  pkg/frontend/views/testdetails/test.go
+  ```
+
+  Job failure excerpt:
+  ```
+  --- FAIL: TestAgenticStagingE2E (12.40s)
+      staging_e2e_test.go:88: unexpected status 503 from staging endpoint
+  FAIL
+  ```
+
+  Context:
+  - agentic-staging is an optional Prow job and does not block merge.
+  - The failing test lives in staging_e2e_test.go, which this PR did not change.
+  - The PR only fixes unused-vars lint in two unrelated files.
+  - A 503 from a staging endpoint could be infra, flake, or pre-existing; it is not a compile/lint error in the PR diff.
+  - An agent might be tempted to "fix" staging setup or widen the PR to green the optional job.
+
+  What classification and action should the skill take?

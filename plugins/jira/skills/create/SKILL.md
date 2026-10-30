@@ -1,6 +1,6 @@
 ---
 name: create
-description: Create Jira issues — story, bug, epic, feature, initiative, task, risk, or feature-request — with CNTRLPLANE, OCPBUGS, GCP, HyperShift, ARO, ROSA conventions and type-specific templates
+description: Create Jira issues — story, bug, epic, feature, initiative, task, risk, spike, or feature-request — with CNTRLPLANE, OCPBUGS, GCP, HyperShift, ARO, ROSA conventions and type-specific templates
 ---
 
 # Create Jira Issue
@@ -9,7 +9,7 @@ description: Create Jira issues — story, bug, epic, feature, initiative, task,
 /jira:create <type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]
 ```
 
-Creates Jira issues following best practices and team-specific conventions. Supports stories, epics, features, initiatives, tasks, bugs, and feature requests with intelligent defaults, interactive prompts, and validation.
+Creates Jira issues following best practices and team-specific conventions. Supports stories, epics, features, initiatives, tasks, bugs, risks, spikes, and feature requests with intelligent defaults, interactive prompts, and validation.
 
 ## Type-Specific Guidance
 
@@ -23,6 +23,7 @@ Load the reference file matching the issue type for templates, interactive workf
 | **feature** | [Feature guide](../../reference/create-feature.md) | Market problem, strategic value, success criteria |
 | **initiative** | [Initiative guide](../../reference/create-initiative.md) | Internal capability, problem statement, internal impact |
 | **risk** | [Risk guide](../../reference/create-risk.md) | Qualifying criteria, probability/impact assessment, auto-calculated fields |
+| **spike** | [Spike guide](../../reference/create-spike.md) | Research question, time box, investigation approach |
 | **task** | [Task guide](../../reference/create-task.md) | Task vs story distinction, action-verb summaries |
 | **feature-request** | [Feature Request guide](../../reference/create-feature-request.md) | RFE project, 4-question workflow, business requirements |
 
@@ -30,7 +31,7 @@ Also load [Markdown for Jira](../../reference/markdown-for-jira.md) for descript
 
 ## Arguments
 
-- **type** *(required)* — `story` | `epic` | `feature` | `initiative` | `task` | `bug` | `risk` | `feature-request`
+- **type** *(required)* — `story` | `epic` | `feature` | `initiative` | `task` | `bug` | `risk` | `spike` | `feature-request`
 - **project-key** *(optional for bugs and feature-requests)* — e.g., `CNTRLPLANE`, `OCPBUGS`, `RFE`. Default for bugs: `OCPBUGS`. Default for feature-requests: `RFE`.
 - **summary** *(required)* — Issue title. Use quotes for multi-word: `"Enable automatic scaling"`
 - **--component** *(optional)* — Component name. Auto-detected from summary for known projects.
@@ -122,13 +123,13 @@ Jira issue types have a `hierarchyLevel` that determines valid parent-child rela
 Level 3: Outcome
 Level 2: Feature / Initiative
 Level 1: Epic
-Level 0: Story / Task / Bug
+Level 0: Story / Task / Bug / Spike
 Level -1: Sub-task
 ```
 
 ### Parent Field
 
-Use `{"parent": {"key": "PARENT-KEY"}}` in `additional_fields` for all parent-child relationships (Story→Epic, Task→Epic, Bug→Epic, Epic→Feature, Epic→Initiative, Feature→Outcome, Initiative→Outcome).
+Use `{"parent": {"key": "PARENT-KEY"}}` in `additional_fields` for all parent-child relationships (Story→Epic, Task→Epic, Bug→Epic, Spike→Epic, Epic→Feature, Epic→Initiative, Feature→Outcome, Initiative→Outcome).
 
 ### Pre-Validation (when `--parent` is provided)
 
@@ -139,6 +140,7 @@ Fetch the parent via `getJiraIssue` to verify it exists and its type matches the
 | Story | Epic | Warn user, ask to confirm or correct |
 | Task | Epic | Warn user, ask to confirm or correct |
 | Bug | Epic | Warn user, ask to confirm or correct |
+| Spike | Epic | Warn user, ask to confirm or correct |
 | Epic | Feature or Initiative | Warn user, ask to confirm or correct |
 | Feature | Outcome | Warn user, ask to confirm or correct |
 | Initiative | Outcome | Warn user, ask to confirm or correct |
@@ -162,7 +164,7 @@ When changing an existing issue's type to a different hierarchy level, the curre
 ### Invalid Issue Type
 
 ```plaintext
-Invalid issue type "stroy". Valid types: story, epic, feature, initiative, task, bug, risk, feature-request
+Invalid issue type "stroy". Valid types: story, epic, feature, initiative, task, bug, risk, spike, feature-request
 
 Did you mean "story"?
 ```
@@ -170,7 +172,7 @@ Did you mean "story"?
 ### Missing Project Key
 
 ```plaintext
-Project key is required for stories/tasks/epics/features/initiatives/risks.
+Project key is required for stories/tasks/epics/features/initiatives/risks/spikes.
 
 Usage: /jira:create story PROJECT-KEY "summary"
 ```
@@ -200,6 +202,7 @@ Usage: /jira:create story PROJECT-KEY "summary"
 /jira:create feature CNTRLPLANE "Advanced search capabilities"
 /jira:create initiative GCP "Establish performance testing infrastructure"
 /jira:create risk GCP "Cincinnati API outage could block new cluster creation due to version resolution dependency"
+/jira:create spike GCP "Evaluate Workload Identity Federation vs service account key rotation for HCP node auth"
 /jira:create feature-request RFE "Support custom SSL certificates for ROSA HCP"
 ```
 

@@ -12,7 +12,11 @@ Write and validate new OpenShift E2E tests using the Ginkgo framework.
 
 Rebase an OpenShift fork of an upstream repository to a new upstream release.
 
-This command automates the complex process of rebasing OpenShift forks following the UPSTREAM commit conventions.
+The command and the `rebase` skill share one procedure for carry analysis,
+conflict adaptation, validation, and PR preparation. The skill also accepts
+individual `plan`, `apply`, `validate`, and `report` stages for callers such as the
+NI&D rebase manager; delegated stages return artifacts without publishing.
+See the [shared rebase skill](skills/rebase/SKILL.md).
 
 ### `/openshift:bump-deps`
 

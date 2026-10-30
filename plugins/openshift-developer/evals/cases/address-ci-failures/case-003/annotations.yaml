@@ -1,0 +1,6 @@
+expected_classification: infrastructure
+expected_should_fix: false
+expected_should_post_comment: true
+notes: >
+  ci-operator reason pod_pending with step pod never scheduled. Same failure
+  across unrelated PRs. PR diff unrelated to infra. Report, do not fix or retest.

@@ -1,0 +1,11 @@
+expected_planning_level: decomposition_required
+expected_read_only: true
+notes: >
+  The story bundles independently valuable and independently variable
+  pieces: new-test detection (comparing metadata at merge base), the
+  orchestrator retry loop (run 10x, fail on >1 failure), long-duration
+  test handling (open question in the Jira itself), and cross-repo
+  support (origin and OTE). Each piece can be delivered, tested, and
+  reviewed on its own, and design choices in one (e.g. how to handle
+  long tests) do not block the others. The skill should recommend
+  decomposition rather than trying to plan all of this as a single unit.

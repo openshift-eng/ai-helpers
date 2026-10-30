@@ -69,7 +69,7 @@ The command executes in two phases:
 
 2. **If `--component` is NOT provided:**
    - Use `mcp__atlassian-mcp__jira_search_fields` with keyword "component" to find the component field ID
-   - Use `mcp__atlassian-mcp__jira_search` with JQL: `project = "{project-key}" AND status != Closed` and `fields=components`
+   - Query component values through `mcp__atlassian-mcp__jira_search` with `fields=components` and JQL `project = "{project-key}" AND status != Closed`
    - Extract all unique component names from the search results
    - Present components in a numbered list
    - Ask: "Please enter the number(s) of the component(s) you want to generate updates for (space-separated), or press Enter to skip:"

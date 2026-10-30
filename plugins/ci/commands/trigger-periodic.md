@@ -96,9 +96,9 @@ The command performs the following steps:
    - Stop polling once `gcs_path` is populated or status reaches a terminal state
    - If retries are exhausted without a `gcs_path`, provide `https://prow.ci.openshift.org/?job=<job_name>` so the user can find the job on the Prow dashboard
 
-   **GCS Path → Prow URL conversion**: Strip the `gs://<bucket-name>/` prefix and prepend `https://prow.ci.openshift.org/view/gs/test-platform-results/`. The Prow URL always uses `test-platform-results` regardless of the bucket name in `gcs_path`.
+   **GCS Path → Prow URL conversion**: Strip the `gs://<bucket-name>/` prefix and prepend `https://prow.ci.openshift.org/view/gs/test-platform-results-public/`. The Prow URL always uses `test-platform-results-public` regardless of the bucket name in `gcs_path`.
 
-   Example: `gs://origin-ci-test/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890` → `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890`
+   Example: `gs://origin-ci-test/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890` → `https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890`
 
 ## Return Value
 - **Success**: JSON response with execution ID and job details

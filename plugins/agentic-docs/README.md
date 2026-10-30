@@ -4,13 +4,79 @@ AI-optimized OpenShift documentation with progressive disclosure, reference styl
 
 ## Two-Tier Architecture
 
-**Platform Docs** (`openshift/enhancements/ai-docs/`) - **Already exists**  
-Generic patterns, testing, security, K8s/OpenShift fundamentals, cross-repo ADRs. ~34 files, 4.4k lines.
+**Platform Docs** (`openshift/enhancements`)  
+Development conventions (`dev-guide/`), coding standards (`CONVENTIONS.md`), enhancement guidelines (`guidelines/`).
 
 **Component Docs** (`{component}/ai-docs/`)  
-Component CRDs, architecture, local ADRs, exec-plans. Links to platform docs. ~15 files, 2.5k lines (58% leaner).
+Architecture, development, testing guides, enhancement catalog. Flat structure — 3-4 files in ai-docs/, plus AGENTS.md and REVIEW.md at root.
 
 ## Skills
+
+### `/generate-docs`
+Generate, review, and fix component docs until independently verified clean,
+no progress is possible, or the pass limit is reached.
+
+```bash
+/generate-docs [PATH] [--max-iterations N] [--review] [--cache-dir DIR] [--keep-cache]
+```
+
+The workflow is implemented as a portable skill without lifecycle hooks or
+host-specific plugin path variables. It uses whichever native fresh-session
+subagent capability the host exposes. A clean verdict still requires a fresh
+isolated reviewer on every pass; a host without that capability reports
+independent verification as unavailable instead of allowing the workflow to
+verify its own fixes.
+
+The first reviewer checks the full scope. Later reviewers check affected claims
+and dependencies against the last independent baseline, reusing valid unchanged
+evidence. They share immutable evidence, not the fixer's conversation.
+Unresolved claims are reported; identical passes stop when they add no evidence.
+
+#### Claim cache
+
+Review state is stored outside the published documentation:
+
+```text
+.work/agentic-docs/run-.../
+├── snapshots/       # document contents, claim inventory, source and policy hashes
+├── observations/    # detailed per-claim evidence and review status
+├── receipts/        # compact verification records
+├── reports/         # self-contained pass reports
+└── inputs.*/        # temporary inventory and evidence inputs
+```
+
+A snapshot records the repository revision, documentation, claims, occurrence
+ranges, dependencies, source scope, and verification-policy hash. Review
+observations classify each claim as `verified`, `failed`, or `unverified` and
+include source excerpts. Only independent reviewer evidence is reusable;
+fixer-only evidence cannot establish verification. Conflicting evidence makes a
+claim unverified until an independent reviewer explicitly resolves it.
+
+The next pass compares its snapshot with the independent baseline. Changed
+claim text, source bytes, policy, document scope, or dependencies select claims
+for re-verification. Unchanged claims reuse their observation or compact receipt.
+
+After each self-contained review report is saved, compact the reviewed snapshot:
+
+```bash
+python3 claim_cache.py --cache "$CACHE_DIR" compact \
+  --snapshot "$SNAPSHOT_ID"
+```
+
+Compaction writes aggregate receipts first, then deletes detailed observation
+and carry files for verified claims. A receipt retains only the claim ID,
+verification-context hash, evidence signature, and reviewer identity. Claim
+definitions remain in the snapshot so coverage and change detection continue
+to work. Failed, conflicting, and unresolved observations are retained for the
+next pass. The command is idempotent.
+
+See the [Claim cache reference](skills/review-docs/SKILL.md#claim-cache) for the
+full formats, commands, and cleanup rules.
+
+Successful runs delete their own cache after all passes finish; the report survives.
+Use `--keep-cache` to retain evidence for audit or reuse. Failed, incomplete, or
+interrupted runs and pre-existing caches are kept. Standalone `/review-docs`
+uses the same rules.
 
 ### `/update-platform-docs`
 Incrementally update platform docs with automatic gap detection.
@@ -30,7 +96,7 @@ cd /path/to/component-repository
 /component-docs
 ```
 
-Creates AGENTS.md + ai-docs/ with: component CRDs only, architecture, component ADRs, exec-plans, ecosystem links to platform docs, development/testing guides. Excludes generic patterns (lives in platform docs). Example: [machine-config-operator/ai-docs](https://github.com/openshift/machine-config-operator/tree/master/ai-docs).
+Creates AGENTS.md (executive briefing, 40-60 lines) + CLAUDE.md symlink + ai-docs/ with: ARCHITECTURE.md (internals, integration points, behavioral contracts, key design decisions), DEVELOPMENT.md, TESTING.md, ENHANCEMENTS.md (optional — enhancement/KEP/design doc catalog). Flat structure, no subdirectories. Excludes generic patterns (lives in platform docs).
 
 ### `/review-docs`
 Review agentic documentation for hallucinations and verify claims against authoritative sources.
@@ -40,66 +106,13 @@ cd /path/to/component-repository
 /review-docs
 ```
 
-Uses the **chai-bot MCP server** to verify documentation claims against verified OpenShift knowledge, GitHub source code, Slack history, Jira, and official docs. Detects hallucinations, outdated conventions, and missing references.
-
-**Prerequisites**: Requires chai-bot MCP server configuration (see Setup below).
-
-## Setup
-
-### chai-bot MCP Server (for `/review-docs`)
-
-The `/review-docs` skill requires access to the **chai-bot MCP server** configured with the **"OpenShift AI helpdesk"** persona — an AI agent with verified OpenShift knowledge.
-
-**Prerequisites:**
-1. **Red Hat VPN** - Must be connected to Red Hat VPN
-2. **Bearer Token** - Obtain from the chai-bot Slack app
-3. **Persona** - This plugin uses the `ocp_ai_helpdesk` persona (OpenShift AI helpdesk)
-
-**Configuration:**
-
-Add to `~/.claude.json` under `mcpServers`:
-
-```json
-{
-  "mcpServers": {
-    "chai-bot": {
-      "type": "http",
-      "url": "https://ship-help-mcp-continuous-release-tooling--ship-help-bot.apps.gpc.ocp-hub.prod.psi.redhat.com/personas/ocp_ai_helpdesk/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_TOKEN_HERE"
-      }
-    }
-  }
-}
-```
-
-**Important:** 
-- The URL includes `/personas/ocp_ai_helpdesk` — this is the **OpenShift AI helpdesk** persona
-- Replace `YOUR_TOKEN_HERE` with your bearer token from the chai-bot Slack app
-- Restart Claude Code after configuration
-
-**Alternative:** Merge `plugins/agentic-docs/.mcp.json.sample` into your existing `~/.mcp.json` (or create it if it doesn't exist):
-```bash
-# Merge without overwriting existing entries
-jq -s '.[0] * .[1]' ~/.mcp.json plugins/agentic-docs/.mcp.json.sample > ~/.mcp.json.tmp \
-  && mv ~/.mcp.json.tmp ~/.mcp.json \
-  || cp plugins/agentic-docs/.mcp.json.sample ~/.mcp.json
-```
-Then edit `~/.mcp.json` and replace the `YOUR_TOKEN_HERE` placeholder with your actual bearer token from the chai-bot Slack app.
-
-**Verification:**
-```bash
-# Must be on VPN
-ping -c 1 ship-help-mcp-continuous-release-tooling--ship-help-bot.apps.gpc.ocp-hub.prod.psi.redhat.com
-
-# Check config
-jq '.mcpServers."chai-bot"' ~/.mcp.json
-```
-
-After configuration, restart Claude Code to load the MCP server.
+Verifies local claims from repository source and vendored dependencies, then
+checks cross-repository claims against authoritative sources. When running
+inside the Chai Bot environment, also use its configured documentation, Slack,
+Jira, and CodeRAG knowledge where relevant.
 
 ## Development
 
-Skills live under `skills/{update-platform-docs,component-docs,review-docs}/` with SKILL.md, scripts, and templates.
+Skills live under `skills/{generate-docs,update-platform-docs,component-docs,review-docs}/` with SKILL.md and any skill-local scripts, templates, or guides.
 
 **License:** Apache 2.0

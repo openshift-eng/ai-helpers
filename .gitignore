@@ -33,6 +33,13 @@ __pycache__/
 venv/
 *.egg
 
+# Generated documentation site
+/public/
+/site/docs/categories/
+/site/docs/index.md
+/site/docs/plugins/
+/site/mkdocs.yml
+
 # Local settings
 *.local.*
 
@@ -46,3 +53,7 @@ venv/
 # Various logs and metrics tracking info
 *.log
 .anonymous_id
+
+# Local eval run output and harness state (never commit)
+/eval/
+/tmp/

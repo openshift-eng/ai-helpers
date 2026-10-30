@@ -1,0 +1,6 @@
+{
+  "classification": "pre_existing",
+  "should_fix": false,
+  "should_post_comment": true,
+  "rationale": "The lint job fails on npm audit moderate CVEs in react-router, an unchanged dependency. The PR only fixes no-unused-vars in files it touched. This CVE affects all PRs fleet-wide, not just this change. Fixing would require a repo-wide audit threshold change, which is out of scope for TRT-2822. Report on the PR instead of modifying CI policy."
+}

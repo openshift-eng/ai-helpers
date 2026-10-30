@@ -50,6 +50,9 @@ accepted/rejected payload snapshots.
 | case-012 | 4.20 — rejected streak |
 | case-013 | 4.20 — accepted with failures |
 | case-014 | 5.0 nightly — step-registry infra change |
+| case-018 | 5.0 nightly — mixed true/false attribution (cross-tenant etcd) |
+| case-019 | 5.0 CI — false revert from disjoint interval arithmetic |
+| case-020 | 5.0 nightly — compound infra chains, triggers vs fallout |
 
 ## prow-job-analysis (`cases/prow-job-analysis`)
 

@@ -1,73 +1,27 @@
 ---
 name: address-review-precommit
-description: Fix code review findings before committing. Use when the user wants to address pre-commit review feedback, fix review findings in the current branch, or apply code review fixes and push.
+description: Compatibility alias for applying pre-commit review findings through the implement skill. Use when an existing caller has not migrated to openshift-developer:implement.
 ---
 
 ## Name
 openshift-developer:address-review-precommit
 
 ## Synopsis
-```
+```text
 /openshift-developer:address-review-precommit
 ```
 
-## Description
-Applies code review findings to the current branch by editing the code, running verification, and pushing the fixes. Designed to run after `/code-review:pre-commit-review` to close the pre-PR author loop.
+## Compatibility behavior
 
-## Implementation
+This skill is a temporary backward-compatible entry point. Delegate the complete request
+to `/openshift-developer:implement` with the review findings from the current conversation
+or preceding `/code-review:pre-commit-review` invocation.
 
-### Step 1: Understand the review findings
+- Preserve `--ci` or any caller prohibition on prompting, pushing, or creating a PR.
+- Pass the Jira issue key and implementation plan when they are available.
+- Use `--defer-commit` when a later review or `check-gates` step will commit the final
+  result; otherwise allow `implement` to create or amend the appropriate commit.
+- Return the result produced by `implement`.
 
-Parse the provided review findings and identify all actions and improvements that need to be addressed.
-
-### Step 2: Apply fixes
-
-Address all actions and improvements by editing the code. For each finding:
-
-1. Locate the relevant file and code
-2. Apply the fix
-3. Verify the fix is correct
-
-### Step 3: Verify
-
-Run verification to ensure nothing is broken:
-
-```bash
-make test 2>&1
-make verify 2>&1
-```
-
-- If `make verify` generates new files, commit those too and run `make verify` again to confirm it passes
-- Maximum 3 retry attempts if verification fails — fix the issues and re-run
-- If verification still fails after 3 attempts, stop and report to the user
-
-### Step 4: Commit and push
-
-1. Amend existing commits or create new commits as appropriate
-2. Push the branch to origin:
-   ```bash
-   git push
-   ```
-
-## Return Value
-- **Verification result**: pass or fail with error details
-- **Git push result**: confirming fixes are on the remote
-
-## Examples
-
-1. **Fix findings from a prior review step**:
-   ```
-   /openshift-developer:address-review-precommit
-   ```
-   The review findings are passed from the preceding `/code-review:pre-commit-review` output.
-
-## Arguments
-- **REVIEW_FINDINGS**: The review findings to address (passed inline or from a prior review step)
-- **SUBAGENT_PROMPT**: Optional additional instructions for the fixing agent
-
-## Guidelines
-
-- Fix every issue identified in the review — all actions and improvements
-- Do NOT run commands that reveal git credentials like `git remote -v` or `git remote get-url origin`
-- If verification generates new files, commit those and re-verify
-- Commit all fixes and push to origin
+Do not independently edit code, run a second verification workflow, push, or create a
+pull request. New integrations should invoke `/openshift-developer:implement` directly.

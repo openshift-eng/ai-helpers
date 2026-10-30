@@ -1,0 +1,17 @@
+{
+  "key": "TRT-2824",
+  "fields": {
+    "summary": "Improve Sippy's database seed coverage",
+    "description": "Expand Sippy's local database seed so developers can exercise release payload and Component Readiness workflows without restoring production-like data.\n\nSeed release payload tags together with their job runs, pull requests, and repository data for more than one release and stream, including both Accepted and Rejected payloads. When a previous payload is linked, it must be an earlier Accepted payload from the same release and stream. Provide failed periodic test output text that can be retrieved through the test output API.\n\nAdd internally consistent examples of bugs, triages, regression job runs, job labels, and symptoms. Include multiple Component Readiness views and data that exercises a regression represented in more than one view, a triage spanning those regressions, and an untriaged related regression that can appear as a potential match. Synchronizing one enabled view must not close a regression that remains active in another enabled view.\n\nViews that are not intended to prime the report cache must not introduce competing report entries that cause local APIs or e2e checks to select an unrelated report. Add focused e2e coverage showing that the newly seeded release payload and periodic test output data is available through the existing APIs. Keep the change scoped to seed data, seed configuration, and proportionate validation.",
+    "issuetype": null,
+    "priority": null,
+    "status": null,
+    "labels": [],
+    "comment": {
+      "comments": [],
+      "maxResults": 0,
+      "startAt": 0,
+      "total": 0
+    }
+  }
+}

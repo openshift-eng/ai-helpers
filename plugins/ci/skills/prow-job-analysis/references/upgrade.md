@@ -327,14 +327,14 @@ MCO drain timeout on node X
 
 1. **Check MachineConfigPool status**:
    ```bash
-   gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/machineconfigpool" \
+   gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/machineconfigpools" \
      .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
    ```
    Look for pools with `UPDATED=False UPDATING=True DEGRADED=True`
 
 2. **Check machine-config-daemon logs**:
    ```bash
-   gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-machine-config-operator/"
+   gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-machine-config-operator/"
    ```
    Search for `drain` and `evict` messages in the MCD pod logs
 
@@ -355,12 +355,12 @@ MCO drain timeout on node X
 
 | Artifact | Path | What to Look For |
 |----------|------|------------------|
-| MachineConfigPool status | `gather-extra/artifacts/oc_cmds/machineconfigpool` | Pool update status, degraded reason |
+| MachineConfigPool status | `gather-extra/artifacts/oc_cmds/machineconfigpools` | Pool update status, degraded reason |
 | Machine-config-daemon logs | `gather-extra/artifacts/pods/openshift-machine-config-operator/machine-config-daemon-*` | Drain progress, eviction errors |
 | Node events | Timeline JSON `NodeMonitor` source | Drain start/end, reboot, NotReady transitions |
-| MachineConfig status | `gather-extra/artifacts/oc_cmds/machineconfig` | Current vs desired config per pool |
+| MachineConfig status | `gather-extra/artifacts/oc_cmds/machineconfigs` | Current vs desired config per pool |
 | Node list | `gather-extra/artifacts/oc_cmds/nodes` | SchedulingDisabled status |
-| PDB list | `gather-extra/artifacts/oc_cmds/poddisruptionbudgets` | PDB definitions and current disruptions allowed |
+| PDB list | `gather-extra/artifacts/inspect/namespaces/<ns>/policy/poddisruptionbudgets.yaml` | PDB definitions and current disruptions allowed |
 
 ## Operator Degradation Cascades
 
@@ -596,7 +596,7 @@ This is the most dangerous state because:
 **Identifying partial upgrade state**:
 ```bash
 # Check ClusterOperator versions
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/co" \
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/clusteroperators" \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
 
 # In the output, check VERSION column — mixed versions indicate partial upgrade
@@ -638,7 +638,7 @@ dumps are often faster for a version scan.
 
 1. ClusterOperator versions (spot a CO lagging the rest):
    ```bash
-   cat gather-extra/artifacts/oc_cmds/co       # VERSION column, plain text
+   cat gather-extra/artifacts/oc_cmds/clusteroperators       # VERSION column, plain text
    # From must-gather YAML instead:
    yq '.items[] | {name: .metadata.name, versions: .status.versions}' \
      must-gather/cluster-scoped-resources/config.openshift.io/clusteroperators.yaml
@@ -677,11 +677,11 @@ During minor upgrades, API version changes can cause issues:
 | File / Path | What It Contains | When to Check |
 |-------------|-----------------|---------------|
 | `gather-extra/artifacts/oc_cmds/clusterversion` | ClusterVersion CR with status, conditions, history | Always — first artifact to check |
-| `gather-extra/artifacts/oc_cmds/co` | All ClusterOperator statuses | Always — identify degraded operators |
-| `gather-extra/artifacts/oc_cmds/machineconfigpool` | MCP status (Updated, Updating, Degraded) | MCO failures, node update issues |
-| `gather-extra/artifacts/oc_cmds/machineconfig` | Machine configs and their rendered versions | MCP configuration mismatches |
+| `gather-extra/artifacts/oc_cmds/clusteroperators` | All ClusterOperator statuses | Always — identify degraded operators |
+| `gather-extra/artifacts/oc_cmds/machineconfigpools` | MCP status (Updated, Updating, Degraded) | MCO failures, node update issues |
+| `gather-extra/artifacts/oc_cmds/machineconfigs` | Machine configs and their rendered versions | MCP configuration mismatches |
 | `gather-extra/artifacts/oc_cmds/nodes` | Node status, kubelet versions, conditions | Node readiness, version skew |
-| `gather-extra/artifacts/oc_cmds/poddisruptionbudgets` | PDB status across all namespaces | Drain failures, PDB blocking |
+| `gather-extra/artifacts/inspect/namespaces/<ns>/policy/poddisruptionbudgets.yaml` | PDB status per namespace | Drain failures, PDB blocking |
 | `gather-extra/artifacts/pods/openshift-machine-config-operator/` | MCO and MCD pod logs | Drain details, reboot timing |
 | `gather-extra/artifacts/pods/openshift-cluster-version/` | CVO pod logs | Upgrade orchestration errors |
 | Timeline JSON (`e2e-timelines_spyglass_*.json`) | Upgrade events, operator transitions, disruption | Temporal correlation of failures |
@@ -843,11 +843,11 @@ Cloud provider issues that manifest during upgrade.
 **Key artifacts**:
 ```bash
 # Machine objects
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/machines" \
+gcloud storage cp "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/machines" \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
 
 # Cloud controller manager logs
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-cloud-controller-manager*/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-cloud-controller-manager*/"
 ```
 
 ### 2. MCO Drain/Reboot Failures
@@ -871,7 +871,7 @@ An operator's new version crashes or can't reconcile.
 **Diagnosis**:
 - Check the operator's pod logs for the new version:
   ```bash
-  gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-{operator-namespace}/"
+  gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-{operator-namespace}/"
   ```
 - Look for Go panics, nil pointer dereferences, or `unknown field` errors
 - Check if the operator's CRDs were updated before or after the operator pods
@@ -907,7 +907,7 @@ etcd is the most sensitive component during upgrade.
 **Key artifacts**:
 ```bash
 # etcd pod logs
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/"
 ```
 
 ### 5. Webhook/Admission Failures Blocking Upgrades
@@ -922,7 +922,7 @@ Webhooks can block CVO manifest application.
 **Diagnosis**:
 - Check CVO logs for the specific webhook and manifest:
   ```bash
-  gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-cluster-version/"
+  gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-cluster-version/"
   ```
 - Identify which webhook is blocking and why
 - Check if the webhook pod itself is healthy
@@ -974,7 +974,7 @@ Network plugin upgrades are particularly sensitive.
 **Diagnosis**:
 - Check OVN pod status on each node:
   ```bash
-  gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-ovn-kubernetes/"
+  gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-ovn-kubernetes/"
   ```
 - Look for `OVSVswitchdLog` events in timeline data
 - Check node-to-node connectivity in disruption data (host-to-host backends)

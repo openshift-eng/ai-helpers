@@ -64,7 +64,8 @@ def filter_labels(labels, search=None):
     out = []
     for label in labels:
         hay = " ".join([label.get("id", ""), label.get("label_title", ""),
-                        label.get("explanation", "") or ""]).lower()
+                        label.get("explanation", "") or "",
+                        " ".join(label.get("bugs") or [])]).lower()
         if search.lower() in hay:
             out.append(label)
     return out
@@ -75,6 +76,8 @@ def summarize_label(label):
     lines.append("  Title:       %s" % label.get("label_title"))
     if label.get("explanation"):
         lines.append("  Explanation: %s" % label.get("explanation"))
+    if label.get("bugs"):
+        lines.append("  Bugs:        %s" % ", ".join(label["bugs"]))
     if label.get("hide_display_contexts"):
         lines.append("  Hidden in:   %s" % ", ".join(label["hide_display_contexts"]))
     return "\n".join(lines)

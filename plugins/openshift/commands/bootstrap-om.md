@@ -319,7 +319,7 @@ func runOutputResources(ctx context.Context) (*libraryoutputresources.OutputReso
 }
 ```
 
-Build, test, and commit with title: "Populate OM output-resources with discovered resources"
+Commit the verified output-resource implementation as "Populate OM output-resources with discovered resources".
 
 #### 3.5 Create apply-configuration Command Stub and Commit
 

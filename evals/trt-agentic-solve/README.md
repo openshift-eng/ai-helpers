@@ -32,8 +32,8 @@ each case tests.
 Each case corresponds to a real JIRA issue that was solved by the agent and
 merged. The eval repo has two branches per case:
 
-- `eval/case-N-base` — repo state before the fix (PR target)
-- `eval/case-N-expected` — repo state after the known-good fix
+- `eval/case-NNN-base` — repo state before the fix (PR target)
+- `eval/case-NNN-expected` — repo state after the known-good fix
 
 | Case | JIRA | Difficulty | Description |
 |------|------|-----------|-------------|
@@ -42,18 +42,24 @@ merged. The eval repo has two branches per case:
 | case-003 | TRT-2660 | Easy-Medium | Fix null explanations crash (Go+JS) |
 | case-004 | TRT-2678 | Medium | MCP server ready check |
 | case-005 | TRT-2795 | Easy | Fix variant filter comparison |
+| case-006 | TRT-2824 | Hard | Expand Sippy database seed coverage |
 
 ## Adding a new case
 
 1. Find a merged PR that solved a JIRA issue on sippy
 2. Get the base SHA: `git rev-parse <merge-commit>^1`
-3. Get the expected SHA: the PR head commit (last commit on the PR branch)
+3. Get the expected SHA: the merge commit, so the branches represent the
+   coherent repository state immediately before and after the fix
 4. Push branches to the eval repo:
    ```bash
    cd /path/to/sippy-eval
-   git branch eval/case-N-base <base-sha>
-   git branch eval/case-N-expected <expected-sha>
-   git push origin eval/case-N-base eval/case-N-expected
+   git branch eval/case-NNN-base <base-sha>
+   git branch eval/case-NNN-expected <expected-sha>
+   git remote -v
+   # Select the remote whose push URL targets openshift-trt/sippy-eval.
+   fixture_remote="<fixture-repo-remote>"
+   git remote get-url --push "$fixture_remote"
+   git push "$fixture_remote" eval/case-NNN-base eval/case-NNN-expected
    ```
 5. Pick the next free `case-NNN` number and snapshot the JIRA issue into it:
    ```bash
@@ -87,7 +93,8 @@ The eval-judge step produces:
 - `pr_description_exists` — PR description file is non-empty
 
 **Diff-based scoring (0.0-1.0):**
-- `file_overlap` — Jaccard similarity of files changed
+- `file_overlap` — Jaccard similarity of files changed (default cases)
+- `golden_files_covered` — golden-branch file coverage (`case-002` only; extra test files OK)
 - `diff_size_ratio` — ratio of Claude's diff size to expected
 - `function_overlap` — overlap of modified functions/methods
 

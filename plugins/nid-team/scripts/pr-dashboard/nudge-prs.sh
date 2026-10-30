@@ -28,7 +28,7 @@ echo ""
 
 # Fetch project items
 echo "Fetching project items..."
-ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 2000)
 
 # Build nudge list
 NUDGE_FILE=$(mktemp)
@@ -150,10 +150,12 @@ print(f'NUDGE|{age_days}|{created.strftime(\"%b %-d\")}|{days_inactive}|{last_in
 
     IFS='|' read -r _ age_days created_str days_inactive last_info pr_author needs_rebase has_hold has_lgtm has_approved <<< "$result"
 
-    primary_login="${FULLNAME_TO_USERNAME[$primary]:-$primary}"
+    primary_login="$(login_for_fullname "$primary")"
+    [ -z "$primary_login" ] && primary_login="$primary"
     secondary_login=""
     if [ -n "$secondary" ] && [ "$secondary" != "Other" ]; then
-        secondary_login="${FULLNAME_TO_USERNAME[$secondary]:-$secondary}"
+        secondary_login="$(login_for_fullname "$secondary")"
+        [ -z "$secondary_login" ] && secondary_login="$secondary"
     fi
 
     # Build comment

@@ -1,0 +1,7 @@
+expected_classification: pr_caused
+expected_should_fix: true
+expected_should_post_comment: false
+notes: >
+  Unit test failure in a file the PR modified, with a logic assertion error.
+  This is a direct consequence of the PR's changes and should be fixed in the
+  changed code/tests.

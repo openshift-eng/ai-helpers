@@ -126,14 +126,14 @@ The Sippy API returns a JSON array of test run objects:
 ```json
 [
   {
-    "url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.22-e2e-aws-ovn-techpreview/2016123858595090432",
+    "url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-ci-4.22-e2e-aws-ovn-techpreview/2016123858595090432",
     "output": "fail [k8s.io/kubernetes/test/e2e/apimachinery/discovery.go:145]: Fail to access: /apis/stable.e2e-validating-admission-policy-1181/: the server could not find the requested resource",
     "test_name": "[sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]",
     "success": false,
     "failed_tests": 3
   },
   {
-    "url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+    "url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...",
     "output": "",
     "test_name": "[sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]",
     "success": true,
@@ -218,15 +218,15 @@ Mass Failure Runs (>10 test failures in job): 4 of 18
 
 Sample Runs:
 
-1. [FAIL] Job URL: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+1. [FAIL] Job URL: https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...
    Failed Tests in Job: 3
    Output: fail [k8s.io/kubernetes/test/e2e/apimachinery/discovery.go:145]: Fail to access...
 
-2. [FAIL] [MASS FAILURE] Job URL: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+2. [FAIL] [MASS FAILURE] Job URL: https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...
    Failed Tests in Job: 47
    Output: fail [k8s.io/kubernetes/test/e2e/apimachinery/discovery.go:145]: Fail to access...
 
-3. [PASS] Job URL: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+3. [PASS] Job URL: https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...
 
 ... and 15 more runs
 ```

@@ -45,10 +45,10 @@ The command performs the following steps:
    - `prow_url`: Derived Prow dashboard URL (see step 4)
 
 4. **Derive Prow URL from GCS Path**: If `gcs_path` is present, convert it to a Prow dashboard URL:
-   - Strip the `gs://<bucket-name>/` prefix (bucket is typically `origin-ci-test` or `test-platform-results`)
-   - Prepend `https://prow.ci.openshift.org/view/gs/test-platform-results/`
-   - Example: `gs://origin-ci-test/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890` → `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890`
-   - The Prow URL always uses `test-platform-results` as the bucket name regardless of what `gcs_path` reports
+   - Strip the `gs://<bucket-name>/` prefix (bucket is typically `origin-ci-test` or `test-platform-results-public`)
+   - Prepend `https://prow.ci.openshift.org/view/gs/test-platform-results-public/`
+   - Example: `gs://origin-ci-test/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890` → `https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890`
+   - The Prow URL always uses `test-platform-results-public` as the bucket name regardless of what `gcs_path` reports
 
 5. **Poll if Prow URL Not Yet Available**: If `gcs_path` is empty/missing and `job_status` is `TRIGGERED`, the job has not started yet. Automatically re-query:
    - Wait 15 seconds, then re-query the execution status
@@ -91,7 +91,7 @@ The command performs the following steps:
      "gcs_path": "gs://origin-ci-test/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890"
    }
    ```
-   Claude derives and displays: `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890`
+   Claude derives and displays: `https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890`
 
 2. **Query a recently triggered job (auto-polling)**:
    ```
@@ -117,7 +117,7 @@ The command performs the following steps:
 - **Rate Limits**: The REST API has rate limits
 - **Authentication**: Tokens expire and may need to be refreshed via browser login
 - **GCS Path**: Provides access to job logs and artifacts when available
-- **Prow URL Derivation**: The Prow URL is always derived using `test-platform-results` as the bucket name, regardless of what bucket name appears in `gcs_path` (commonly `origin-ci-test`)
+- **Prow URL Derivation**: The Prow URL is always derived using `test-platform-results-public` as the bucket name, regardless of what bucket name appears in `gcs_path` (commonly `origin-ci-test`)
 - **Auto-Polling**: When `gcs_path` is not yet available (common immediately after triggering), the command polls automatically every 15 seconds for up to ~5 minutes. Prow can be slow to schedule jobs. Do not just offer to check again — poll proactively.
 
 ## Arguments

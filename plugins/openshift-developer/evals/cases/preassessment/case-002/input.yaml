@@ -1,0 +1,31 @@
+issue_key: "TRT-2688"
+repo_url: "https://github.com/openshift-eng/ci-test-mapping"
+eval_ref: "5160aa1fc64a831f7cecf0cba26e2edb4579d00c"
+issue_context: |
+  Key: TRT-2688
+  Type: Story
+  Priority: Major
+  Status: Refinement
+  Labels: interactive-backlog-grooming-2026
+  Components: (none)
+  Resolution: Unresolved
+
+  Summary: Agentic workflows for ci-test-mapping
+
+  Description:
+  As a TRT engineer,
+
+  I want agentic Jira solving and PR followup for ci-test-mapping,
+
+  so that issues in that repo can be resolved by Claude.
+
+  ## Acceptance Criteria
+
+  * Devcontainer exists with OpenShift UID compatibility
+  * ci-operator config builds and promotes devcontainer image
+  * __agentic.yaml variant config uses generic workflow
+  * GitHub App installed on the repo
+  * Fork exists under openshift-trt
+  * End-to-end test with a real issue passes
+
+  Comments: (none)

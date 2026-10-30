@@ -56,7 +56,6 @@ Check for required tools and authentication:
 1. **If target directory is provided as argument**:
    - Use the provided directory path
    - Expand `~` to home directory if present
-   - Create directory if it doesn't exist
 
 2. **If no target directory provided**:
    - Ask user for preferred location using AskUserQuestion tool
@@ -64,9 +63,10 @@ Check for required tools and authentication:
      - `~/go/src/github.com/` (Go workspace convention)
      - `~/src/` (Simple source directory)
      - `~/code/olm/` (OLM-specific directory)
-   - Create the chosen directory if it doesn't exist
 
-3. **Verify directory is writable**:
+3. **Create the selected directory if it does not exist**
+
+4. **Verify directory is writable**:
    ```bash
    test -w <target-directory> && echo "writable" || echo "not writable"
    ```

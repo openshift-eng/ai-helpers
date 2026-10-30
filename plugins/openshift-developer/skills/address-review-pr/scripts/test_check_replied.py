@@ -1,0 +1,418 @@
+#!/usr/bin/env python3
+"""Tests for review reply detection and deduplication."""
+
+import contextlib
+import io
+import json
+import subprocess
+import sys
+import unittest
+from unittest.mock import patch
+
+from check_replied import (
+    check_issue_comment,
+    check_review,
+    check_review_comment,
+    check_review_thread,
+    is_bot_reply,
+    main,
+    paginated_items,
+)
+
+
+def review_thread_payload(comments=(), *, resolved=False):
+    return {
+        "data": {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "nodes": [{
+                            "id": "PRRT_1", "isResolved": resolved,
+                            "comments": {"nodes": list(comments)},
+                        }],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        }
+    }
+
+
+def thread_comment(identifier, time, login="reviewer", body="Please change this"):
+    return {
+        "id": identifier, "author": {"login": login},
+        "body": body, "createdAt": time,
+    }
+
+
+class TestIsBotReply(unittest.TestCase):
+    def test_provider_neutral_signature(self):
+        self.assertTrue(is_bot_reply("some-bot", "---\n*AI-assisted response*"))
+
+    def test_legacy_claude_code_signature(self):
+        self.assertTrue(
+            is_bot_reply(
+                "some-bot", "---\n*AI-assisted response via Claude Code*"
+            )
+        )
+
+    def test_unrelated_comment(self):
+        self.assertFalse(is_bot_reply("some-user", "Looks good to me."))
+
+    def test_configured_agent_matches_unsigned_user_form(self):
+        self.assertTrue(is_bot_reply("Review-Agent", "Done.", "review-agent[bot]"))
+
+
+class TestMissingCommentsAreNotSafe(unittest.TestCase):
+    @patch("check_replied.run_gh", return_value=[])
+    def test_issue_comment_empty_list(self, _run_gh):
+        result = check_issue_comment("openshift", "release", 1, "99")
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_comments_found")
+
+    @patch("check_replied.run_gh")
+    def test_issue_comment_id_missing(self, run_gh):
+        run_gh.return_value = [[
+            {"id": 1, "created_at": "t", "user": {"login": "a"}, "body": "x"}
+        ]]
+        result = check_issue_comment("openshift", "release", 1, "99")
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "comment_not_found")
+
+    @patch("check_replied.run_gh", return_value=[])
+    def test_review_comment_empty_list(self, _run_gh):
+        result = check_review_comment("openshift", "release", 1, "99")
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_comments_found")
+
+    @patch("check_replied.run_gh")
+    def test_review_comment_id_missing(self, run_gh):
+        run_gh.return_value = [[
+            {"id": 1, "user": {"login": "a"}, "body": "x", "in_reply_to_id": None}
+        ]]
+        result = check_review_comment("openshift", "release", 1, "99")
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "comment_not_found")
+
+
+class TestPaginatedItems(unittest.TestCase):
+    @patch("check_replied.subprocess.run")
+    def test_multiple_single_and_empty_pages(self, run):
+        cases = (
+            ('[[{"id":1}],[{"id":2}]]', [{"id": 1}, {"id": 2}]),
+            ('[[{"id":1}]]', [{"id": 1}]),
+            ('[[]]', []),
+        )
+        for stdout, expected in cases:
+            with self.subTest(stdout=stdout):
+                run.return_value = subprocess.CompletedProcess([], 0, stdout, "")
+                self.assertEqual(paginated_items("endpoint"), expected)
+        self.assertIn("--paginate", run.call_args.args[0])
+        self.assertIn("--slurp", run.call_args.args[0])
+
+
+class TestIssueCommentPagination(unittest.TestCase):
+    @patch("check_replied.run_gh")
+    def test_later_conversation_page_deduplicates_comment(self, run_gh):
+        run_gh.return_value = [
+            [
+                {"id": 100, "created_at": "2026-10-19T12:00:00Z", "user": {"login": "reviewer"}, "body": "Please fix this"},
+            ],
+            [
+                {"id": 101, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
+            ],
+        ]
+
+        result = check_issue_comment("openshift", "release", 1, "100")
+
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "bot_replied_after")
+
+
+class TestInlineReplyDeduplication(unittest.TestCase):
+    @patch("check_replied.run_gh")
+    def test_reply_to_root_handles_child_target(self, run_gh):
+        run_gh.return_value = [
+            [
+                {"id": 4313941703, "created_at": "2026-10-19T12:43:32Z", "user": {"login": "reviewer"}, "body": "First point"},
+                {"id": 4313946225, "in_reply_to_id": 4313941703, "created_at": "2026-10-19T12:44:02Z", "user": {"login": "reviewer"}, "body": "And this follow-up"},
+            ],
+            [
+                {"id": 4314161323, "in_reply_to_id": 4313941703, "created_at": "2026-10-19T13:06:36Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
+            ],
+        ]
+
+        result = check_review_comment("openshift", "release", 1, "4313946225")
+
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "bot_already_replied")
+        self.assertEqual(result["existing_reply"]["created_at"], "2026-10-19T13:06:36Z")
+
+    @patch("check_replied.run_gh")
+    def test_human_followup_after_bot_reply_is_safe(self, run_gh):
+        run_gh.return_value = [[
+            {"id": 100, "created_at": "2026-10-19T12:00:00Z", "user": {"login": "reviewer"}, "body": "First point"},
+            {"id": 101, "in_reply_to_id": 100, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
+            {"id": 102, "in_reply_to_id": 100, "created_at": "2026-10-19T12:02:00Z", "user": {"login": "reviewer"}, "body": "There is still a problem"},
+        ]]
+
+        result = check_review_comment("openshift", "release", 1, "102")
+
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_found")
+
+    @patch("check_replied.run_gh")
+    def test_other_automated_reviewer_followup_is_safe(self, run_gh):
+        run_gh.return_value = review_thread_payload([
+            thread_comment("C1", "2026-10-20T12:00:00Z"),
+            thread_comment("C2", "2026-10-20T13:00:00Z", "review-agent", "Done."),
+            thread_comment(
+                "C3", "2026-10-20T14:00:00Z", "coderabbitai[bot]",
+                "Please address this new finding.",
+            ),
+        ])
+
+        result = check_review_thread(
+            "openshift", "release", 1, "PRRT_1", "review-agent[bot]",
+        )
+
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_found")
+
+
+class TestReviewThreadDeduplication(unittest.TestCase):
+    @patch("check_replied.run_gh")
+    def test_human_followup_after_bot_reply_is_safe(self, run_gh):
+        run_gh.return_value = review_thread_payload([
+            thread_comment("C1", "2026-10-20T12:00:00Z"),
+            thread_comment("C2", "2026-10-20T13:00:00Z", "review-agent", "Done."),
+            thread_comment("C3", "2026-10-20T14:00:00Z", body="This still needs work"),
+        ])
+
+        result = check_review_thread(
+            "openshift", "release", 1, "PRRT_1", "review-agent[bot]",
+        )
+
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_found")
+
+    @patch("check_replied.run_gh")
+    def test_later_bot_acknowledgement_suppresses_thread(self, run_gh):
+        run_gh.return_value = review_thread_payload([
+            thread_comment("C1", "2026-10-20T12:00:00Z"),
+            thread_comment("C2", "2026-10-20T13:00:00Z", "review-agent", "Done."),
+            thread_comment("C3", "2026-10-20T14:00:00Z", body="This still needs work"),
+            thread_comment("C4", "2026-10-20T15:00:00Z", "Review-Agent", "Fixed."),
+        ])
+
+        result = check_review_thread(
+            "openshift", "release", 1, "PRRT_1", "review-agent[bot]",
+        )
+
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "bot_already_replied")
+        self.assertEqual(result["existing_reply"]["created_at"], "2026-10-20T15:00:00Z")
+
+    @patch("check_replied.run_gh")
+    def test_equal_second_bot_reply_keeps_thread_eligible(self, run_gh):
+        run_gh.return_value = review_thread_payload([
+            thread_comment("C1", "2026-10-20T12:00:00Z"),
+            thread_comment("C2", "2026-10-20T14:00:00Z", body="Latest feedback"),
+            thread_comment(
+                "C3", "2026-10-20T14:00:00Z", "other-agent",
+                "Done.\n\n---\n*AI-assisted response*",
+            ),
+        ])
+
+        result = check_review_thread("openshift", "release", 1, "PRRT_1")
+
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_found")
+
+    @patch("check_replied.run_gh")
+    def test_missing_and_resolved_threads_remain_not_safe(self, run_gh):
+        missing = review_thread_payload()
+        missing["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"] = []
+        run_gh.side_effect = [missing, review_thread_payload(resolved=True)]
+
+        missing_result = check_review_thread("openshift", "release", 1, "PRRT_1")
+        resolved_result = check_review_thread("openshift", "release", 1, "PRRT_1")
+
+        self.assertFalse(missing_result["safe_to_reply"])
+        self.assertEqual(missing_result["reason"], "thread_not_found")
+        self.assertFalse(resolved_result["safe_to_reply"])
+        self.assertEqual(resolved_result["reason"], "thread_resolved")
+
+
+class TestReviewReplyDeduplication(unittest.TestCase):
+    @patch("check_replied.run_gh")
+    def test_later_inline_reply_deduplicates_review(self, run_gh):
+        run_gh.side_effect = [
+            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+            [[]],
+            [[], [{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"}]],
+        ]
+
+        result = check_review("openshift", "release", 1, "200")
+
+        self.assertFalse(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "bot_replied_after")
+
+    @patch("check_replied.run_gh")
+    def test_new_review_after_existing_replies_is_safe(self, run_gh):
+        run_gh.side_effect = [
+            {"id": 200, "submitted_at": "2026-10-19T12:02:00Z"},
+            [[{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"}]],
+            [[]],
+        ]
+
+        result = check_review("openshift", "release", 1, "200")
+
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_after")
+
+    @patch("check_replied.run_gh")
+    def test_cli_uses_authenticated_login_for_unsigned_reply(self, run_gh):
+        run_gh.side_effect = [
+            {"login": "review-agent[bot]"},
+            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+            [[]],
+            [[{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "review-agent"}, "body": "Done."}]],
+        ]
+
+        argv = [
+            "check_replied.py", "openshift", "release", "1", "200",
+            "--type", "review",
+        ]
+        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as exit_context:
+                main()
+
+        self.assertEqual(exit_context.exception.code, 1)
+
+    @patch("check_replied.run_gh")
+    def test_failed_identity_lookup_uses_known_accounts_and_signatures(self, run_gh):
+        replies = (
+            {"user": {"login": "github-actions[bot]"}, "body": "Done."},
+            {"user": {"login": "other-agent"}, "body": "Done.\n\n---\n*AI-assisted response*"},
+        )
+        for reply in replies:
+            with self.subTest(reply=reply):
+                run_gh.reset_mock()
+                run_gh.side_effect = [
+                    RuntimeError("identity unavailable"),
+                    {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+                    [[]],
+                    [[{"id": 300, "created_at": "2026-10-19T12:01:00Z", **reply}]],
+                ]
+                argv = [
+                    "check_replied.py", "openshift", "release", "1", "200",
+                    "--type", "review",
+                ]
+                with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaises(SystemExit) as exit_context:
+                        main()
+                self.assertEqual(exit_context.exception.code, 1)
+
+    @patch("check_replied.run_gh")
+    def test_explicit_identity_bypasses_discovery(self, run_gh):
+        run_gh.side_effect = [
+            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+            [[]],
+            [[{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "Review-Agent"}, "body": "Done."}]],
+        ]
+        argv = [
+            "check_replied.py", "openshift", "release", "1", "200",
+            "--type", "review", "--agent-login", "review-agent[bot]",
+        ]
+        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as exit_context:
+                main()
+
+        self.assertEqual(exit_context.exception.code, 1)
+        self.assertEqual(
+            run_gh.call_args_list[0].args[0],
+            ["api", "repos/openshift/release/pulls/1/reviews/200"],
+        )
+
+    @patch("check_replied.run_gh")
+    def test_actual_fetch_failures_remain_errors(self, run_gh):
+        cases = (
+            ("issue_comment", "100"),
+            ("review", "200"),
+            ("review_comment", "300"),
+            ("review_thread", "PRRT_1"),
+        )
+        for comment_type, comment_id in cases:
+            with self.subTest(comment_type=comment_type):
+                run_gh.reset_mock()
+                run_gh.side_effect = RuntimeError("required lookup unavailable")
+                argv = [
+                    "check_replied.py", "openshift", "release", "1", comment_id,
+                    "--type", comment_type, "--agent-login", "review-agent",
+                ]
+                stdout = io.StringIO()
+                with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
+                    with self.assertRaises(SystemExit) as exit_context:
+                        main()
+
+                result = json.loads(stdout.getvalue())
+                self.assertEqual(exit_context.exception.code, 2)
+                self.assertFalse(result["safe_to_reply"])
+                self.assertEqual(result["reason"], "error_fallback")
+
+    @patch("check_replied.run_gh")
+    def test_malformed_required_data_remains_an_error(self, run_gh):
+        cases = (
+            (
+                ["check_replied.py", "openshift", "release", "1", "PRRT_1",
+                 "--type", "review_thread", "--agent-login", "review-agent"],
+                [{}],
+            ),
+            (
+                ["check_replied.py", "openshift", "release", "1", "200",
+                 "--type", "review", "--agent-login", "review-agent"],
+                [
+                    {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+                    {"not": "REST pages"},
+                ],
+            ),
+        )
+        for argv, responses in cases:
+            with self.subTest(comment_type=argv[6]):
+                run_gh.reset_mock()
+                run_gh.side_effect = responses
+                stdout = io.StringIO()
+                with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
+                    with self.assertRaises(SystemExit) as exit_context:
+                        main()
+
+                result = json.loads(stdout.getvalue())
+                self.assertEqual(exit_context.exception.code, 2)
+                self.assertFalse(result["safe_to_reply"])
+                self.assertEqual(result["reason"], "error_fallback")
+
+    @patch("check_replied.run_gh")
+    def test_unknown_identity_without_recognizable_reply_is_best_effort(self, run_gh):
+        run_gh.side_effect = [
+            RuntimeError("identity unavailable"),
+            {"id": 200, "submitted_at": "2026-10-19T12:00:00Z"},
+            [[]],
+            [[{"id": 300, "created_at": "2026-10-19T12:01:00Z", "user": {"login": "unsigned-agent"}, "body": "Done."}]],
+        ]
+        argv = [
+            "check_replied.py", "openshift", "release", "1", "200",
+            "--type", "review",
+        ]
+        stdout = io.StringIO()
+        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as exit_context:
+                main()
+
+        result = json.loads(stdout.getvalue())
+        self.assertEqual(exit_context.exception.code, 0)
+        self.assertTrue(result["safe_to_reply"])
+        self.assertEqual(result["reason"], "no_bot_reply_after")
+
+if __name__ == "__main__":
+    unittest.main()

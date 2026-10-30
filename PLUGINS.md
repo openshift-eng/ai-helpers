@@ -46,14 +46,23 @@ Generate OpenShift Console operator dashboard: CRD discovery, list/detail compon
 **Commands:**
 - **`/operator-dashboard:generate-dashboard` `<operator-name> [--namespace <ns>] [--output-dir <dir>]`** - Generate OpenShift Console operator dashboard from operator name and CRD discovery
 
-### Bigquery Plugin
+### Bigquery Cost Analysis Plugin
 
 BigQuery cost analysis and optimization utilities
 
 **Commands:**
-- **`/bigquery:analyze-usage` `<project-id> <timeframe>`** - Analyze BigQuery usage and costs for a project
+- **`/bigquery-cost-analysis:analyze-usage` `<project-id> <timeframe>`** - Analyze BigQuery usage and costs for a project
 
-See [plugins/bigquery/README.md](plugins/bigquery/README.md) for detailed documentation.
+See [plugins/bigquery-cost-analysis/README.md](plugins/bigquery-cost-analysis/README.md) for detailed documentation.
+
+### Bigquery CI Data Plugin
+
+Query and analyze OpenShift CI data in BigQuery across multiple datasets and tables
+
+**Commands:**
+- **`/bigquery-ci-data:query` `<question about CI data>`** - Query and analyze OpenShift CI data in BigQuery
+
+See [plugins/bigquery-ci-data/README.md](plugins/bigquery-ci-data/README.md) for detailed documentation.
 
 ### Ci Plugin
 
@@ -66,7 +75,6 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:analyze-pr-reverts` `[limit]`** - Analyze recent PR reverts to identify patterns and recommend preventive measures
 - **`/ci:analyze-prow-job-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
 - **`/ci:analyze-regression` `<regression id>`** - Analyze details about a Component Readiness regression and suggest next steps
-- **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
 - **`/ci:check-if-jira-regression-is-ongoing` `<jira-key-or-url>`** - Check if the regression described in a Jira bug is still ongoing or has resolved
 - **`/ci:continue-session` `<prowjob-url>`** - Download and continue a Claude session from a Prow CI job's artifacts
 - **`/ci:extract-kubeconfig` `<pr-url>`** - Extract kubeconfig from a running CI job in a PR
@@ -100,7 +108,10 @@ Automated code quality review with language-aware analysis for pre-commit verifi
 
 **Commands:**
 - **`/code-review:pr` `<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]`** - Automated PR code quality review with language-aware analysis and project-specific profiles
-- **`/code-review:pre-commit-review` `[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]`** - Automated pre-commit code quality review with language-aware analysis and project-specific profiles
+
+**Skills:**
+- **`/code-review:pre-commit-review`** `[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]` - Automated pre-commit code quality review with language-aware analysis and project-specific profiles
+- **`/code-review:deep-review`** - Multi-specialist review with runtime reproducers for blocking bug findings
 
 See [plugins/code-review/README.md](plugins/code-review/README.md) for detailed documentation.
 

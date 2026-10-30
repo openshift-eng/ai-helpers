@@ -46,7 +46,7 @@ python3 "$script_path" <prow_job_run_id> --format json
 The job run ID can be extracted from a Prow job URL:
 
 ```
-https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job-name>/<job_run_id>
+https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job-name>/<job_run_id>
 ```
 
 The last path segment is the job run ID.

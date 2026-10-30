@@ -113,7 +113,7 @@ The structured data includes all necessary regression details:
       },
       "failed_runs": [
         {
-          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...",
           "job_run_id": "2017184460591599616",
           "start_time": "2026-01-30T10:33:47",
           "test_failures": 3,
@@ -126,7 +126,7 @@ The structured data includes all necessary regression details:
       "label_summary": {},
       "failed_runs": [
         {
-          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...",
           "job_run_id": "2016460830022832128",
           "start_time": "2026-01-28T10:37:27",
           "test_failures": 1,
@@ -141,7 +141,7 @@ The structured data includes all necessary regression details:
       "regression_id": 34446,
       "prowjob_run_id": "2044678206610477056",
       "prowjob_name": "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview",
-      "prowjob_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2044678206610477056",
+      "prowjob_url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2044678206610477056",
       "start_time": "2026-04-16T07:23:39Z",
       "test_failures": 3
     }
@@ -160,6 +160,7 @@ The structured data includes all necessary regression details:
   - `failed_runs`: List of failed runs for this job, sorted by start_time (newest first). Each run includes:
     - `test_failures`: Total number of tests failing in the entire job run (not just the regressed test). High values (>10) indicate a mass failure run where the regressed test may be collateral damage rather than the primary problem.
     - `job_labels`: List of symptom labels applied to this specific run. Labels are precise — they fire only when a human-defined regex matches job artifacts. An empty list means no known symptom was detected for this run.
+- `label_bugs`: `{label: [Jira keys]}` for labels seen in `sample_failed_jobs`, from the public label catalog. On fetch failure, `label_bugs_error` is set instead — treat it as unknown, not "no bugs".
 - `job_runs`: Complete list of all job runs where the failure was observed throughout the entire life of the regression (not just the last reporting period). Sorted by start_time (newest first). Each entry contains:
   - `id`: Unique ID for this job run record
   - `regression_id`: The regression this run belongs to
@@ -259,7 +260,7 @@ The API returns a JSON object with the following structure:
       "regression_id": 34446,
       "prowjob_run_id": "2044678206610477056",
       "prowjob_name": "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview",
-      "prowjob_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+      "prowjob_url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...",
       "start_time": "2026-04-16T07:23:39Z",
       "test_failures": 3
     }
@@ -323,7 +324,7 @@ python3 plugins/ci/skills/fetch-regression-details/fetch_regression_details.py 3
       "pass_sequence": "FFFFFFFFFFFFFFFFFF",
       "failed_runs": [
         {
-          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...",
           "job_run_id": "2017184460591599616",
           "start_time": "2026-01-30T10:33:47"
         }
@@ -359,7 +360,7 @@ Sample Failed Jobs (19 runs):
   - periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview
     Run ID: 2017184460591599616
     Started: 2026-01-30
-    URL: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+    URL: https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...
 ```
 
 ### Example 3: Extract Failed Job URLs
@@ -375,8 +376,8 @@ echo "$data" | jq -r '.sample_failed_jobs | to_entries[] | .value.failed_runs[] 
 
 **Expected Output:**
 ```
-https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2017184460591599616
-https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2017131608699572224
+https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2017184460591599616
+https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2017131608699572224
 ...
 ```
 

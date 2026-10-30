@@ -38,40 +38,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Set
 from urllib.parse import urlparse
 
-
-# NOTE: _adf_to_text is duplicated from fetch_jira_issue.py and must be kept in sync.
-def _adf_to_text(node: Any) -> str:
-    """Convert an Atlassian Document Format (ADF) node to plain text.
-
-    API v3 returns description and comment bodies as ADF dicts instead of
-    plain strings.  This recursively extracts the text content.
-    """
-    if node is None:
-        return ""
-    if isinstance(node, str):
-        return node
-    if not isinstance(node, dict):
-        return str(node)
-    parts: List[str] = []
-    node_type = node.get("type")
-    if node_type == "text":
-        text = node.get("text", "")
-        for mark in node.get("marks", []):
-            if mark.get("type") == "link":
-                href = mark.get("attrs", {}).get("href", "")
-                if href and href != text:
-                    text = f"{text} ({href})"
-        parts.append(text)
-    elif node_type in ("inlineCard", "blockCard", "embedCard"):
-        # Smart Links store URL in attrs.url
-        url = node.get("attrs", {}).get("url", "")
-        if url:
-            parts.append(url)
-    for child in node.get("content", []):
-        parts.append(_adf_to_text(child))
-    sep = "\n" if node.get("type") in ("doc", "paragraph", "heading", "bulletList",
-                                        "orderedList", "listItem", "blockquote") else ""
-    return sep.join(parts)
+from adf import adf_to_text as _adf_to_text
 
 
 # Configure logging
@@ -173,6 +140,7 @@ class GatherConfig:
     status_summary_field: str = "customfield_10814"
     assignees: List[str] = field(default_factory=list)
     excluded_assignees: List[str] = field(default_factory=list)
+    issue_keys: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -733,6 +701,10 @@ class StatusDataGatherer:
 
     def _build_root_jql(self) -> str:
         """Build JQL to find root issues."""
+        if self.config.issue_keys:
+            key_list = ", ".join(self.config.issue_keys)
+            return f"key IN ({key_list}) ORDER BY rank ASC"
+
         parts = [
             f'project = "{self.config.project}"',
             "status != Closed",
@@ -1071,7 +1043,7 @@ class StatusDataGatherer:
                 obj = link.get("object", {})
                 url = obj.get("url", "")
                 title = obj.get("title", "")
-                if url and "github.com" in url and "/pull" in url:
+                if url and self.PR_PATTERN.fullmatch(url):
                     # Check if the PR title references a descendant issue
                     references_descendant = any(desc_key in title for desc_key in desc_keys)
                     if references_descendant:
@@ -1371,6 +1343,8 @@ Environment Variables:
     parser.add_argument("--status-field", default="customfield_10814", help="Status Summary field ID")
     parser.add_argument("--assignee", action="append", dest="assignees", help="Filter by assignee")
     parser.add_argument("--exclude-assignee", action="append", dest="excluded_assignees", help="Exclude assignee")
+    parser.add_argument("--issue", action="append", dest="issue_keys",
+                        help="Fetch specific issue keys only (bypasses project/component/label filters)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output (INFO level)")
     parser.add_argument("--debug", action="store_true", help="Enable debug output (DEBUG level)")
 
@@ -1412,6 +1386,7 @@ Environment Variables:
         status_summary_field=args.status_field,
         assignees=args.assignees or [],
         excluded_assignees=args.excluded_assignees or [],
+        issue_keys=args.issue_keys or [],
     )
 
     # Always print header to stderr (regardless of log level)

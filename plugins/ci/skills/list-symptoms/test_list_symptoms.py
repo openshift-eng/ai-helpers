@@ -1,4 +1,4 @@
-from list_symptoms import filter_labels, filter_symptoms, item_url
+from list_symptoms import filter_labels, filter_symptoms, item_url, summarize_label
 
 SYMPTOMS = [
     {"id": "AWSAuthFailure", "summary": "AWS could not validate credentials",
@@ -27,7 +27,7 @@ def test_no_filters_returns_all():
 
 LABELS = [
     {"id": "InfraFailure", "label_title": "Infrastructure Failure",
-     "explanation": "Cloud provider or infra problem"},
+     "explanation": "Cloud provider or infra problem", "bugs": ["OCPBUGS-12345"]},
     {"id": "ClusterDNSFlake", "label_title": "Cluster DNS Flake",
      "explanation": "DNS lookups intermittently time out"},
 ]
@@ -40,6 +40,12 @@ def test_filter_labels_matches_id():
 
 def test_filter_labels_case_insensitive_explanation():
     assert [label["id"] for label in filter_labels(LABELS, search="CLOUD PROVIDER")] == ["InfraFailure"]
+
+def test_filter_labels_matches_bug_key():
+    assert [label["id"] for label in filter_labels(LABELS, search="ocpbugs-12345")] == ["InfraFailure"]
+
+def test_summarize_label_includes_bugs():
+    assert "Bugs:        OCPBUGS-12345" in summarize_label(LABELS[0])
 
 def test_filter_labels_no_search_returns_all():
     assert filter_labels(LABELS) == LABELS

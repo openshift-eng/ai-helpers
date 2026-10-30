@@ -1,0 +1,35 @@
+issue_key: "TRT-2296"
+repo_url: "https://github.com/openshift/origin"
+eval_ref: "c41701b4f8f4419ce68ad12dcd5a54ac1861d870"
+issue_context: |
+  Key: TRT-2296
+  Type: Story
+  Priority: Normal
+  Status: Refinement
+  Labels: (none)
+  Components: (none)
+  Resolution: Unresolved
+
+  Summary: Implement aggressive testing for new tests
+
+  Description:
+  Implement a mechanism to identify and heavily test new tests. This process
+  will ensure that any new test logic is highly reliable and does not
+  introduce instability or flakiness. It needs to work in both origin and
+  OTE.
+
+  I would suggest identifying new tests by comparing the test metadata in
+  the working tree against the metadata at the merge base of a Pull
+  Request. ci-operator sets environment variables to know what the merge
+  base is; and you can use this to get the version of metadata from there.
+
+  When a new test is identified, the `openshift-tests` orchestrator should
+  run it a minimum of **10 times** against the cluster. A failure in more
+  than **one** of these ten runs will cause the overall test suite to be
+  considered a failure.
+
+  We will need to handle exceptionally long duration tests, do we run them
+  anyway? Run fewer times? Warn users they are introducing an extremely
+  long test?
+
+  Comments: (none)

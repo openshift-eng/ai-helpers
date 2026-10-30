@@ -153,7 +153,7 @@ The `junit-aggregated.xml` is the key artifact — it links to every child run.
 ```bash
 # Download from the parent job's artifacts
 gcloud storage cp \
-  "gs://test-platform-results/{parent-bucket-path}/artifacts/release-analysis-aggregator/openshift-release-analysis-aggregator/artifacts/release-analysis-aggregator/{underlying-job-name}/{payload-tag}/junit-aggregated.xml" \
+  "gs://test-platform-results-public/{parent-bucket-path}/artifacts/release-analysis-aggregator/openshift-release-analysis-aggregator/artifacts/release-analysis-aggregator/{underlying-job-name}/{payload-tag}/junit-aggregated.xml" \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
 ```
 
@@ -162,7 +162,7 @@ If you don't know the `{underlying-job-name}` or `{payload-tag}`, use a wildcard
 ```bash
 # Find all junit-aggregated.xml files in the parent's artifacts
 gcloud storage ls \
-  "gs://test-platform-results/{parent-bucket-path}/artifacts/release-analysis-aggregator/**/junit-aggregated.xml"
+  "gs://test-platform-results-public/{parent-bucket-path}/artifacts/release-analysis-aggregator/**/junit-aggregated.xml"
 ```
 
 ### Extracting Child Job URLs from junit-aggregated.xml
@@ -175,14 +175,14 @@ Example structure inside `<system-out>`:
 ```yaml
 passes:
   - jobrunid: "1962527613477982001"
-    humanurl: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn/1962527613477982001"
-    gcsartifacturl: "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn/1962527613477982001"
+    humanurl: "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn/1962527613477982001"
+    gcsartifacturl: "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn/1962527613477982001"
   - jobrunid: "1962527613477982002"
-    humanurl: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn/1962527613477982002"
+    humanurl: "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn/1962527613477982002"
     gcsartifacturl: "..."
 failures:
   - jobrunid: "1962527613477982003"
-    humanurl: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn/1962527613477982003"
+    humanurl: "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn/1962527613477982003"
     gcsartifacturl: "..."
 skips: []
 ```
@@ -206,7 +206,7 @@ extract it from the artifacts:
 
 2. **From the `humanurl` in `<system-out>`** — the Prow URL path contains the child job name:
    ```text
-   https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{underlying-job-name}/{jobrunid}
+   https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/{underlying-job-name}/{jobrunid}
    ```
 
 Examples of aggregated → underlying name mappings:
@@ -411,7 +411,7 @@ not the parent's. For step registry refs, chains, and workflows, see
 2. **Download junit-aggregated.xml**
    ```bash
    gcloud storage ls \
-     "gs://test-platform-results/{bucket-path}/artifacts/release-analysis-aggregator/**/junit-aggregated.xml"
+     "gs://test-platform-results-public/{bucket-path}/artifacts/release-analysis-aggregator/**/junit-aggregated.xml"
    gcloud storage cp <found-path> .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
    ```
 

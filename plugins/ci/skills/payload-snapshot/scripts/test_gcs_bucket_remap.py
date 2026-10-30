@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""Tests that payload-snapshot keeps the GCS bucket from the Prow URL."""
+
+import importlib.util
+import os
+import unittest
+from unittest.mock import patch
+
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _load_module():
+    spec = importlib.util.spec_from_file_location(
+        "payload_snapshot_gcs_path", os.path.join(_HERE, "payload_snapshot.py")
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+ps = _load_module()
+
+JOB_PATH = (
+    "logs/periodic-ci-openshift-release-master-okd-scos-4.20-e2e-aws-ovn-techpreview/"
+    "1964725888612306944"
+)
+PUBLIC = "test-platform-results-public"
+PRIVATE = "test-platform-results"
+ARCHIVE = "prow-artifact-archive"
+
+
+class ProwURLToGCSBucketPathTest(unittest.TestCase):
+    def test_url_bucket_is_preserved(self):
+        url = f"https://prow.ci.openshift.org/view/gs/{PRIVATE}/{JOB_PATH}"
+        self.assertEqual(
+            ps._prow_url_to_gcs_bucket_path(url),
+            f"{PRIVATE}/{JOB_PATH}",
+        )
+
+    def test_public_prow_url_is_unchanged(self):
+        url = f"https://prow.ci.openshift.org/view/gs/{PUBLIC}/{JOB_PATH}"
+        self.assertEqual(
+            ps._prow_url_to_gcs_bucket_path(url),
+            f"{PUBLIC}/{JOB_PATH}",
+        )
+
+    def test_archive_prow_url_is_preserved(self):
+        url = f"https://prow.ci.openshift.org/view/gs/{ARCHIVE}/{JOB_PATH}"
+        self.assertEqual(
+            ps._prow_url_to_gcs_bucket_path(url),
+            f"{ARCHIVE}/{JOB_PATH}",
+        )
+
+    def test_empty_or_non_prow_url_returns_none(self):
+        self.assertIsNone(ps._prow_url_to_gcs_bucket_path(""))
+        self.assertIsNone(
+            ps._prow_url_to_gcs_bucket_path("https://example.com/job")
+        )
+
+
+class ResolveProwStateTest(unittest.TestCase):
+    def test_fetch_uses_url_bucket(self):
+        captured = {}
+
+        def fake_fetch(url, timeout=10):
+            captured["url"] = url
+            return {"status": {"state": "success"}}
+
+        rc = ps.ReleaseController()
+        with patch.object(ps, "try_fetch_json", side_effect=fake_fetch):
+            state = rc.resolve_prow_state(
+                f"https://prow.ci.openshift.org/view/gs/{PRIVATE}/{JOB_PATH}"
+            )
+
+        self.assertEqual(state, "Succeeded")
+        self.assertEqual(
+            captured["url"],
+            f"{ps.GCSWEB_BASE}/{PRIVATE}/{JOB_PATH}/prowjob.json",
+        )
+
+    def test_archive_url_keeps_archive_bucket(self):
+        captured = {}
+
+        def fake_fetch(url, timeout=10):
+            captured["url"] = url
+            return {"status": {"state": "failure"}}
+
+        rc = ps.ReleaseController()
+        with patch.object(ps, "try_fetch_json", side_effect=fake_fetch):
+            state = rc.resolve_prow_state(
+                f"https://prow.ci.openshift.org/view/gs/{ARCHIVE}/{JOB_PATH}"
+            )
+
+        self.assertEqual(state, "Failed")
+        self.assertEqual(
+            captured["url"],
+            f"{ps.GCSWEB_BASE}/{ARCHIVE}/{JOB_PATH}/prowjob.json",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

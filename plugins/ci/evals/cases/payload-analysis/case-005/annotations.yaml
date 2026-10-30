@@ -2,16 +2,18 @@ expected_phase: Rejected
 expected_failed_job_count: 3
 has_revert_candidates: true
 force_accept_expected: false
+payload_completed_at: "2026-03-31T10:56:34Z"
 
 expected_candidates:
   - pr_url: "https://github.com/openshift/cloud-credential-operator/pull/978"
     component: "cloud-credential-operator"
-    min_confidence: 85
-    expected_confidence: 95
     description: "Set operator condition to Progressing when pod identity webhook pods are updating, causing CCO Progressing=True during MCO rolling phase"
     expected_failing_jobs:
-      - "aggregated-aws-ovn-upgrade-4.22-minor"
-      - "aggregated-gcp-ovn-upgrade-4.22-micro"
+      - "aws-ovn-upgrade"
+      - "gcp-ovn-upgrade"
+
+expected_infra_jobs:
+  - hypershift-e2e-aws
 
 notes: >
   Payload 4.22.0-0.ci-2026-03-31-050515 was rejected with 3 failed blocking

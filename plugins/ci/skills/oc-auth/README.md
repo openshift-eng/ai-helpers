@@ -44,7 +44,6 @@ curl_with_token.sh <cluster_api_url> [curl arguments...]
 ### dpcr - DPCR Cluster
 - **Console**: https://console-openshift-console.apps.cr.j7t7.p1.openshiftapps.com/
 - **API Server**: https://api.cr.j7t7.p1.openshiftapps.com:6443
-- **Used by**: ask-sippy
 
 **Note**: This skill supports any OpenShift cluster - simply provide the cluster's API server URL.
 
@@ -57,12 +56,6 @@ curl_with_token.sh <cluster_api_url> [curl arguments...]
 curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -X POST \
   -d '{"job_name": "my-job"}' \
   https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
-
-# Make authenticated API call to DPCR cluster
-curl_with_token.sh https://api.cr.j7t7.p1.openshiftapps.com:6443 -s -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"message": "question"}' \
-  https://sippy-auth.dptools.openshift.org/api/chat
 
 # Make authenticated API call to any other OpenShift cluster
 curl_with_token.sh https://api.your-cluster.example.com:6443 -X GET \

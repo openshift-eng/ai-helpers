@@ -240,9 +240,9 @@ class ReleaseController:
 
     def resolve_prow_state(self, prow_url: str) -> Optional[str]:
         """Cross-check a Prow job's actual state via its GCS artifact."""
-        if not prow_url or not prow_url.startswith(PROW_VIEW_PREFIX):
+        gcs_path = _prow_url_to_gcs_bucket_path(prow_url)
+        if not gcs_path:
             return None
-        gcs_path = prow_url[len(PROW_VIEW_PREFIX):]
         prowjob_url = f"{GCSWEB_BASE}/{gcs_path}/prowjob.json"
         data = try_fetch_json(prowjob_url)
         if not data:
@@ -3632,7 +3632,7 @@ def _new_changelog_entries(new_changelog: str, old_changelog: str) -> str:
 def _prow_url_to_gcs_bucket_path(prow_url: str) -> Optional[str]:
     """Extract the GCS bucket path from a Prow URL.
 
-    Returns 'test-platform-results/logs/{job}/{build_id}' or None.
+    Returns '<bucket>/logs/{job}/{build_id}' (bucket taken from the Prow URL) or None.
     """
     if not prow_url or not prow_url.startswith(PROW_VIEW_PREFIX):
         return None

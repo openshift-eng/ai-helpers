@@ -2533,7 +2533,7 @@ Use the `<dockerfile-choice>` and `<selected-dockerfiles>` variables collected i
 
 If user chose manual integration:
 
-```markdown
+````markdown
 ========================================
 Manual Dockerfile Integration Instructions
 ========================================
@@ -2642,7 +2642,7 @@ Replace <extension-name> with your actual extension name.
 **Note:** The Makefile uses `-mod=vendor` by default, which means all dependencies are built from the vendored code. This eliminates the need for SSH authentication or network access during Docker builds.
 
 ========================================
-```
+````
 
 Exit Phase 7 after providing instructions.
 
@@ -3633,4 +3633,3 @@ This skill provides complete automation for OTE migration with:
 - **Comprehensive validation** at each phase
 
 Follow each phase sequentially for successful migration. All phases include error handling and validation to ensure migration integrity.
-

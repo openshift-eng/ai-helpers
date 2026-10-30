@@ -145,19 +145,19 @@ def get_authorized_users(owner: str, repo: str) -> set[str]:
         if HAS_YAML:
             data = yaml.safe_load(content)
             if data:
-                def add_entries(entries: list):
-                    for entry in entries:
+                def add_entries(entries):
+                    for entry in entries or []:
                         if entry not in aliases:
                             authorized.add(entry)
 
-                add_entries(data.get("approvers", []))
-                add_entries(data.get("reviewers", []))
+                add_entries(data.get("approvers"))
+                add_entries(data.get("reviewers"))
 
                 if "filters" in data:
                     for _, config in data["filters"].items():
                         if isinstance(config, dict):
-                            add_entries(config.get("approvers", []))
-                            add_entries(config.get("reviewers", []))
+                            add_entries(config.get("approvers"))
+                            add_entries(config.get("reviewers"))
         else:
             for entry in _parse_simple_yaml_list(content, "approvers"):
                 if entry not in aliases:

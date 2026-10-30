@@ -1,7 +1,6 @@
 ---
 name: update-platform-docs
 description: Update existing platform documentation with automatic gap detection in openshift/enhancements
-trigger: explicit
 ---
 
 # Platform Documentation Updater
@@ -28,11 +27,12 @@ Incrementally update existing AI-optimized platform documentation in `openshift/
 ## Execution Workflow
 
 ### Phase 1: Discovery & Gap Detection
-- [ ] Find skill directory: `SKILL_DIR=$(find ~/.claude/plugins/cache -path "*/update-platform-docs" -type d | head -1)`
+- [ ] Resolve this skill directory from the location of the loaded `SKILL.md`. Resolve all `scripts/` and `templates/` paths relative to it. Do not search a plugin cache or assume the repository is the current directory.
+- [ ] Preflight every script and template required by the selected update before changing the repository. Stop and identify any missing resource.
 - [ ] Determine repo path: `REPO_PATH="${provided_path:-$PWD}"`
-- [ ] Run discovery: `bash "$SKILL_DIR/scripts/discover.sh" "$REPO_PATH"`
+- [ ] Run the resolved `scripts/discover.sh` with `"$REPO_PATH"`
 - [ ] Verify ai-docs/ exists (ai-docs/ should already exist in openshift/enhancements)
-- [ ] Run gap detection: `bash "$SKILL_DIR/scripts/gap-detection.sh" "$REPO_PATH"`
+- [ ] Run the resolved `scripts/gap-detection.sh` with `"$REPO_PATH"`
 - [ ] Show gap detection results to user
 - [ ] Ask user: Fill detected gaps OR specify custom addition?
 
@@ -83,7 +83,7 @@ Based on user request, perform ONE OR MORE of:
 
 ### Phase 3: Validation & Verification
 
-- [ ] Run validation: `bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"`
+- [ ] Run the resolved `scripts/validate.sh` with `"$REPO_PATH"`
 - [ ] Verify new files follow conventions, AGENTS.md 100-200 lines, internal links work
 - [ ] **Anti-hallucination**: Pattern claims verified in sample repos, API fields link to github.com/openshift/api or k8s/apimachinery, cross-check terminology with openshift-docs
 - [ ] All technical claims have references (type definitions, implementations, or enhancements)

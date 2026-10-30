@@ -1,0 +1,8 @@
+expected_files_changed:
+  - hypershift-operator/controllers/webhookcerts/webhookcerts_controller.go
+  - hypershift-operator/controllers/webhookcerts/webhookcerts_controller_test.go
+expected_tests_pass: true
+min_coverage_pct: 40
+difficulty: complex
+category: bug
+notes: Distinguish missing webhook cert secrets from transient API errors so retries do not replace a valid CA; reuse valid CA/serving cert data. Cover NotFound, transient errors, empty secrets, and CA reuse.

@@ -1,6 +1,6 @@
 ---
-description: Automate and manage the lifecycle of an upstream rebase following the 3-Phase NID rebase workflow
-argument-hint: "[--tag <tag>] [--auto] [--dryrun] [--start-over]"
+description: Plan, execute, and resume a manually operated downstream rebase with revision-bound evidence and draft PR feedback
+argument-hint: "[--tag <tag>] [--stage plan|apply|validate|draft|review|status] [--state-dir <path>]"
 ---
 
 ## Name
@@ -9,55 +9,41 @@ nid-team:rebase-manager
 
 ## Synopsis
 
-```bash
-/nid-team:rebase-manager [--tag <tag>] [--auto] [--dryrun] [--start-over]
+```text
+/nid-team:rebase-manager [--tag <tag>] [--stage plan|apply|validate|draft|review|status] [--state-dir <path>]
 ```
 
 ## Description
 
-The `/nid-team:rebase-manager` command automates, manages, and tracks upstream Git rebases for NI&D team forks (such as `openshift/coredns`). It operates in three distinct phases:
+Manage a downstream fork rebase from an upstream release through a reviewable
+plan, local candidate, validation evidence, and a draft PR. Resume from explicit
+state and PR identity. The agent analyzes carry intent, adapts conflicts, checks
+behavior, and addresses feedback; the helper records decisions and checks whether
+evidence belongs to the current candidate.
 
-1. **Phase 1: Discovery & Reporting** (No active PR or branch):
-   Compares local and upstream tags. If behind, it creates a local `.rebase/` state directory containing `.rebase/release-report.md` (changelog/impact report) and `.rebase/commits.tsv` (carry commits with pick/squash/drop decisions). Humans can manually edit decisions in `.rebase/commits.tsv`.
-   
-2. **Phase 2: Active Draft & Feedback Loop** (Draft PR open):
-   Performs the actual git rebase (incorporating any custom decisions in `.rebase/commits.tsv`), runs builds and tests. The tool discovers tracking remotes and prompts the user for explicit approval before securely pushing (without force-pushing) to the discovered fork and opening a Draft PR. It fetches and addresses review comments autonomously, and pushes fixes safely.
-   
-3. **Phase 3: Final Prow Review & Merge** (PR open, non-draft):
-   Monitors CI/Prow check status on the approved PR. Once merged, it cleans up the local `.rebase/` directory and rebase branches.
+This is a manually invoked workflow. A new invocation with no stage produces a
+plan for review; a request to complete a rebase may continue through the stages
+already authorized. It does not schedule future runs or merge PRs.
 
 ## Implementation
 
-Run the rebase manager script:
+Read and follow the [rebase-manager skill](../skills/rebase-manager/SKILL.md).
+Resolve that file relative to this installed plugin. It delegates rebase mechanics
+to the installed `openshift:rebase` skill; install the OpenShift plugin if that
+skill is unavailable. Neither slash command is a shell executable.
 
-```bash
-python3 <extension_path>/plugins/nid-team/rebase/rebase_manager.py [--tag <tag>] [--auto] [--dryrun]
-```
+The Python helper is only the state and evidence recorder. Running it alone does
+not analyze a repository, execute a rebase, run tests, or address feedback.
 
-*Note to Executing Agent (Gemini or Claude):* When running this command inside a target repository (e.g., `openshift/coredns`) where the `plugins/nid-team/rebase/rebase_manager.py` file is not locally present, you must locate the script within your respective global plugin/extension directory or local cloned `ai-helpers` repository path:
-- Active development path: `/Users/btofel/workspace/ai-helpers/plugins/nid-team/rebase/rebase_manager.py`
-- For Gemini CLI: Look in `~/.gemini/extensions/ai-helpers/plugins/nid-team/rebase/rebase_manager.py` or the active development path above.
-- For Claude Code: Look in your active plugins/extensions directory (e.g., `~/.claude/plugins/` or standard Claude plugin paths) or find it under your cloned `ai-helpers` development workspace path.
-Once located, execute the script from that path using its absolute path while maintaining the target repository as your current working directory.
+## Return Value
 
-### Arguments
-
-| Argument | Default | Description |
-|---|---|---|
-| `--tag` | auto | Force a specific upstream tag to rebase onto (skips auto-discovery of latest tag) |
-| `--auto` | off | Auto-approve Phase 1 release report and proceed immediately to Phase 2 rebase and Draft PR creation |
-| `--dryrun`| off | Run checks and show what actions would be performed without creating branches, modifying code, or calling writing GitHub APIs |
-| `--start-over`| off | Wipe any local `.rebase` folder state and force-rebuild the local rebase branch, force-pushing to overwrite/refresh the Draft PR |
+Report the state directory, pinned target, candidate revision when present, actual
+validation results, pending decisions or feedback, and draft PR URL if published.
 
 ## Examples
 
-```bash
-# Discover upstream changes and write the Release Report to .rebase/
-/nid-team:rebase-manager
-
-# Run auto-discovery and automatically rebase and create a Draft PR in one go
-/nid-team:rebase-manager --auto
-
-# Force a rebase to a specific upstream version tag
-/nid-team:rebase-manager --tag v1.11.3
+```text
+/nid-team:rebase-manager --tag v1.13.2 --stage plan
+/nid-team:rebase-manager --state-dir /work/rebase-state/coredns-v1.13.2 --stage apply
+/nid-team:rebase-manager --state-dir /work/rebase-state/coredns-v1.13.2 --stage review
 ```

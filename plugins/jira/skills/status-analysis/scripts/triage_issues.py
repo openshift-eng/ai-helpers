@@ -15,10 +15,14 @@ import json
 import glob
 import os
 import sys
+from typing import Any
+
+from adf import adf_to_text
 
 
-def parse_color(text: str | None) -> str | None:
+def parse_color(value: Any) -> str | None:
     """Extract Red/Yellow/Green from status summary text."""
+    text = adf_to_text(value)
     if not text:
         return None
     # Handle both "* Color Status: Green" and "{color:#d04437}Red{color}"
@@ -108,7 +112,7 @@ def triage(data_dir: str) -> tuple[list[dict], list[dict]]:
             "status_changes": len(status_changes),
             "completion": desc.get("completion_pct", 0),
             "total_desc": desc.get("total", 0),
-            "status_summary_excerpt": (status_summary or "")[:200],
+            "status_summary_excerpt": adf_to_text(status_summary)[:200],
         }
 
         if has_activity:

@@ -3,7 +3,7 @@
 #
 # Unlike payload-analysis, this eval needs no pre-staged snapshot: the
 # prow-job-analysis skill reads artifacts live from the PUBLIC
-# test-platform-results GCS bucket (no auth required). This script therefore
+# test-platform-results-public GCS bucket (no auth required). This script therefore
 # verifies the required tooling is present and prepares the working directory
 # so eval cases can run deterministically.
 #
@@ -60,7 +60,7 @@ python3 - <<'PY' >"$probe_log" 2>&1 && probe_rc=0 || probe_rc=$?
 import sys
 import urllib.request
 
-url = ("https://storage.googleapis.com/storage/v1/b/test-platform-results/o"
+url = ("https://storage.googleapis.com/storage/v1/b/test-platform-results-public/o"
        "?prefix=logs/&delimiter=/&maxResults=1")
 try:
     with urllib.request.urlopen(url, timeout=15) as resp:
@@ -70,7 +70,7 @@ except Exception as e:
     sys.exit(1)
 PY
 if [[ "$probe_rc" -eq 0 ]]; then
-    log "OK: public GCS bucket test-platform-results is reachable"
+    log "OK: public GCS bucket test-platform-results-public is reachable"
 else
     probe_err=$(cat "$probe_log")
     log "WARN: could not reach the public GCS API (network restricted?)${probe_err:+: ${probe_err}}; cases may not fetch artifacts"

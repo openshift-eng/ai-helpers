@@ -22,7 +22,7 @@ The command accepts:
 
 1. **gcloud CLI** — for accessing GCS artifacts
    - Check: `which gcloud`
-   - The `test-platform-results` bucket is publicly accessible (no auth needed)
+   - The `test-platform-results-public` bucket is publicly accessible (no auth needed)
 
 2. **Python 3** (3.7+)
    - Check: `which python3`

@@ -50,7 +50,7 @@ echo ""
 
 # Fetch all project items
 echo "Fetching project items..."
-ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 2000)
 ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['items']))")
 echo "Found $ITEM_COUNT items"
 echo ""
@@ -110,7 +110,7 @@ for item in data['items']:
         continue
     fi
 
-    login="${FULLNAME_TO_USERNAME[$reviewer]:-}"
+    login="$(login_for_fullname "$reviewer")"
     if [ -z "$login" ]; then
         echo "  SKIP: Unknown reviewer name '$reviewer' on $repo#$number"
         continue
@@ -169,12 +169,13 @@ done
 
 echo ""
 
-# --- Operation C: Add shared repo PRs from team members ---
-# GitHub Projects auto-add workflows can't filter by PR author, so we can't
-# auto-add from shared repos (api, release, origin, etc.) without picking up
-# every other team's PRs too. This manually fetches team-authored PRs only.
+# --- Operation C: Add shared repo PRs involving team members ---
+# Search explicit authorship, assignment, and review roles rather than adding
+# every PR in a shared repo. A PR can be relevant even when its author is not
+# on the team. Recent merges account for reviews completed between syncs.
 echo "--- Operation C: Add shared repo team PRs ---"
 
+ADDED_URLS=""
 EXISTING_URLS=$(echo "$ITEMS_JSON" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
@@ -185,31 +186,47 @@ for item in data['items']:
 ")
 
 SHARED_ADDED=0
+SHARED_MERGED_SINCE=$(python3 -c "
+import datetime
+print((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=$SHARED_MERGED_DAYS)).date())
+")
 
 for repo in "${SHARED_REPOS[@]}"; do
     for member in "${TEAM_USERNAMES[@]}"; do
-        urls=$(gh pr list --repo "$repo" --state open --search "author:$member" --json url -q '.[].url' 2>/dev/null || echo "")
-        for url in $urls; do
+        query="(author:$member OR assignee:$member OR reviewed-by:$member) (is:open OR merged:>=$SHARED_MERGED_SINCE)"
+        prs=$(gh pr list --repo "$repo" --state all --search "$query" --limit 200 --json url,state -q '.[] | .url + "|" + .state' 2>/dev/null || echo "")
+        while IFS='|' read -r url pr_state; do
+            [ -z "$url" ] && continue
             if echo "$EXISTING_URLS" | grep -qFx "$url"; then
                 continue
             fi
-            echo "  ADD: $url (by $member)"
-            if ! gh project item-add "$PROJECT_NUM" --owner "$OWNER" --url "$url"; then
+            echo "  ADD: $url (team member: $member)"
+            if ! item_id=$(gh project item-add "$PROJECT_NUM" --owner "$OWNER" --url "$url" --format json --jq '.id'); then
                 echo "  ERROR: failed to add $url" >&2
                 continue
             fi
             EXISTING_URLS="$EXISTING_URLS
 $url"
+            ADDED_URLS="$ADDED_URLS
+$url"
             SHARED_ADDED=$((SHARED_ADDED + 1))
-        done
+            if [ "$pr_state" = "MERGED" ]; then
+                if gh project item-edit --project-id "$PROJECT_ID" --id "$item_id" \
+                    --field-id "$FIELD_STATUS" --single-select-option-id "$STATUS_DONE"; then
+                    echo "  STATUS: $repo#${url##*/} → Done (recently merged)"
+                else
+                    echo "  ERROR: failed to mark $url Done" >&2
+                fi
+            fi
+        done <<< "$prs"
     done
 done
 
 echo ""
 
 # --- Operation C2: Add shared repo PRs linked to team bugs (any author) ---
-# Operation C only finds team-authored PRs. This catches PRs by non-team
-# members (sustaining, external contributors) working on our bugs.
+# This also catches PRs by non-team members working on our bugs before a team
+# member has been assigned or requested for review.
 # Gets our bug keys from Jira filter 23465, then searches each shared repo
 # once for all open PRs with OCPBUGS- in the title and matches locally.
 # This uses ~10 search API calls instead of bugs × repos.
@@ -240,6 +257,8 @@ for repo in "${SHARED_REPOS[@]}"; do
             continue
         fi
         EXISTING_URLS="$EXISTING_URLS
+$url"
+        ADDED_URLS="$ADDED_URLS
 $url"
         BUGPR_ADDED=$((BUGPR_ADDED + 1))
     done <<< "$prs"
@@ -289,6 +308,8 @@ for key in $ALL_DOCS_KEYS; do
         fi
         EXISTING_URLS="$EXISTING_URLS
 $url"
+        ADDED_URLS="$ADDED_URLS
+$url"
         DOCS_ADDED=$((DOCS_ADDED + 1))
     done <<< "$urls"
 done
@@ -298,7 +319,24 @@ echo ""
 # Re-fetch items if we added new ones
 if [ "$SHARED_ADDED" -gt 0 ] || [ "$BUGPR_ADDED" -gt 0 ] || [ "$DOCS_ADDED" -gt 0 ]; then
     echo "Re-fetching project items after additions..."
-    ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 500)
+    # Project item-list can briefly omit newly added PRs. Wait for all additions
+    # before processing fields, so the same run populates their metadata.
+    for attempt in 1 2 3 4 5 6; do
+        ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 2000)
+        missing=$(printf '%s' "$ITEMS_JSON" | python3 -c "
+import json, sys
+expected = {url for url in sys.argv[1].splitlines() if url}
+present = {item.get('content', {}).get('url', '') for item in json.load(sys.stdin)['items']}
+print(len(expected - present))
+" "$ADDED_URLS")
+        [ "$missing" -eq 0 ] && break
+        if [ "$attempt" -lt 6 ]; then
+            echo "  Waiting for $missing newly added PRs to appear on the board..."
+            sleep 5
+        else
+            echo "  WARNING: $missing newly added PRs are not visible yet" >&2
+        fi
+    done
     ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['items']))")
     echo "Now $ITEM_COUNT items"
     echo ""
@@ -307,7 +345,8 @@ fi
 # --- Operation A: Populate PR Author ---
 # GitHub Projects doesn't have a built-in Author column, so we use a free-text
 # field and populate it with display names from the team map (or raw login).
-# Runs after C/C2/F so newly added items get their author set in one pass.
+# Runs after C/C2/F and again at the end for items added during the sync.
+populate_pr_authors() {
 echo "--- Operation A: Populate PR Author ---"
 
 echo "$ITEMS_JSON" | python3 -c "
@@ -326,7 +365,7 @@ for item in data['items']:
         echo "  SKIP: Could not get author for $repo#$number"
         continue
     fi
-    display="${USERNAME_TO_DISPLAY[$author]:-$author}"
+    display="$(display_name "$author")"
     echo "  SET: $repo#$number → $display"
     if ! gh project item-edit \
         --project-id "$PROJECT_ID" \
@@ -336,6 +375,8 @@ for item in data['items']:
         echo "  ERROR: failed to set PR Author for $repo#$number" >&2
     fi
 done
+}
+populate_pr_authors
 
 echo ""
 
@@ -358,19 +399,20 @@ for item in data['items']:
         number = item['content']['number']
         print(f'{item_id}\t{repo}\t{number}')
 " | while IFS=$'\t' read -r item_id repo number; do
-    area_id="${REPO_TO_AREA[$repo]:-}"
+    area_id="$(area_for_repo "$repo")"
     if [ -z "$area_id" ]; then
         continue
     fi
-    area_name=$(case "$area_id" in
-        "$AREA_EXTERNAL_DNS") echo "ExDNS" ;;
-        "$AREA_ALBO") echo "ALBO" ;;
-        "$AREA_DNS") echo "DNS" ;;
-        "$AREA_AI") echo "AI" ;;
-        "$AREA_ROUTER") echo "Router" ;;
-        "$AREA_GWAPI") echo "GWAPI" ;;
-        *) echo "unknown" ;;
-    esac)
+    case "$area_id" in
+        "$AREA_EXTERNAL_DNS") area_name="ExDNS" ;;
+        "$AREA_ALBO") area_name="ALBO" ;;
+        "$AREA_BGP") area_name="BGP" ;;
+        "$AREA_DNS") area_name="DNS" ;;
+        "$AREA_AI") area_name="AI" ;;
+        "$AREA_ROUTER") area_name="Router" ;;
+        "$AREA_GWAPI") area_name="GWAPI" ;;
+        *) area_name="unknown" ;;
+    esac
     echo "  SET: $repo#$number → area $area_name"
     if ! gh project item-edit \
         --project-id "$PROJECT_ID" \
@@ -415,12 +457,7 @@ while IFS='|' read -r item_id repo number pr_author title; do
     # Determine author login - if PR Author is empty, fetch from GitHub
     author_login=""
     if [ -n "$pr_author" ]; then
-        for login in "${!USERNAME_TO_DISPLAY[@]}"; do
-            if [ "${USERNAME_TO_DISPLAY[$login]}" = "$pr_author" ]; then
-                author_login="$login"
-                break
-            fi
-        done
+        author_login="$(login_for_display "$pr_author")"
         # If no match in display names, pr_author might be the raw login
         if [ -z "$author_login" ]; then
             author_login="$pr_author"
@@ -696,6 +733,14 @@ done < "$PRIORITY_FILE"
 
 rm -f "$PRIORITY_FILE"
 
+# Auto-add workflows may add items during the sync after the first snapshot.
+# Sweep blank author fields again using the latest board state.
+echo ""
+echo "--- Final refresh for late project items ---"
+ITEMS_JSON=$(gh project item-list "$PROJECT_NUM" --owner "$OWNER" --format json --limit 2000)
+ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['items']))")
+populate_pr_authors
+
 echo ""
 echo "=== Sync Complete ==="
 echo "  Shared PRs added: $SHARED_ADDED"
@@ -703,7 +748,7 @@ echo "  Bug PRs added (non-team): $BUGPR_ADDED"
 echo "  Docs PRs added: $DOCS_ADDED"
 echo "$ITEMS_JSON" | python3 -c "
 import json, sys
-deterministic = {$(printf '"%s",' "${!REPO_TO_AREA[@]}")}
+deterministic = set('''$(deterministic_repos)'''.split())
 data = json.load(sys.stdin)
 area_count = 0
 for item in data['items']:

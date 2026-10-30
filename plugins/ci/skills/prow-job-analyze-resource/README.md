@@ -14,15 +14,15 @@ Claude Code skill definition that provides detailed implementation instructions 
 ### 2. Python Scripts
 
 #### parse_url.py
-Parses and validates Prow job URLs from gcsweb.
+Parses and validates Prow job URLs from prow (`/view/gs/<bucket>/`) or gcsweb (`/gcs/<bucket>/`).
 - Extracts build_id (10+ digit identifier)
 - Extracts prowjob name
-- Constructs GCS paths
+- Constructs GCS paths from the URL bucket (including `prow-artifact-archive`)
 - Validates URL format
 
 **Usage:**
 ```bash
-./parse_url.py "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/"
+./parse_url.py "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/"
 ```
 
 **Output:** JSON with build_id, prowjob_name, bucket_path, gcs_base_path
@@ -126,15 +126,15 @@ pod/etcd-0,configmap/cluster-config,openshift-etcd:secret/etcd-all-certs
    - Install: https://cloud.google.com/sdk/docs/install
    - Authenticate: `gcloud auth login`
 3. **jq** - For JSON processing (used in bash script)
-4. **Access to test-platform-results GCS bucket**
+4. **Access to test-platform-results-public GCS bucket**
 
 ## Workflow
 
 1. **URL Parsing**
-   - Validate URL contains `test-platform-results/`
+   - Validate URL contains `/gs/<bucket>/` or `/gcs/<bucket>/`
    - Extract build_id (10+ digits)
    - Extract prowjob name
-   - Construct GCS paths
+   - Construct GCS paths from the URL bucket
 
 2. **Working Directory**
    - Create `{build_id}/logs/` directory
@@ -236,7 +236,7 @@ Report generated: 1978913325970362368/pod_etcd-0.html
 ### Single Resource
 ```bash
 ./prow_job_resource_grep.sh \
-  "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/" \
+  "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/pr-logs/pull/30393/pull-ci-openshift-origin-main-okd-scos-e2e-aws-ovn/1978913325970362368/" \
   pod/etcd-0
 ```
 
@@ -290,5 +290,5 @@ gcloud auth list  # Verify active account
 - Check namespace if specified
 
 ### Permission denied
-- Verify access to test-platform-results bucket
+- Verify access to test-platform-results-public bucket
 - Check gcloud project configuration

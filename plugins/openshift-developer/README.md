@@ -14,16 +14,32 @@ These workflows are meant to be a common engine for different consumption models
 
 ### Pre-PR (author loop)
 
-1. `/jira:solve` — Pick up a Jira issue, analyze it, implement the fix.
-2. `/code-review:pre-commit-review` — Run a code review on the local changes before pushing.
-3. `/openshift-developer:address-review-precommit` — Apply the review findings, run verification, commit, and push.
+Run `/openshift-developer:jira-solve` for the end-to-end workflow. It analyzes the Jira issue, chooses a proportional skill chain, and invokes `implement`, `code-review:pre-commit-review`, `check-gates`, and `create-pr` when appropriate.
+
+Run `/openshift-developer:preassessment` when only a read-only decision about planning readiness is needed. It returns structured JSON and does not create a plan, change Jira, implement code, or deliver work.
+
+Alternatively, invoke the building blocks directly when you need manual control:
+
+1. `/openshift-developer:implement` — Implement the ticket or apply findings from `/code-review:pre-commit-review`.
+2. `/openshift-developer:check-gates` — Loop until requirements, tests, lint, builds, production readiness, and a clean worktree are all satisfied.
+3. `/openshift-developer:create-pr` — Push the completed branch and create the Jira-linked PR.
+
+### OpenShift backport (chai-bot / RWS)
+
+1. `/openshift-developer:backport` — coordinator playbook: plan the Jira clone
+   chain with `ocp_backport_*` tools, open one cherry-pick PR per release branch,
+   and monitor progression (used by Slack chai-bot).
+2. `/openshift-developer:cherry-pick` — the agent applies the coordinator's
+   BACKPORT BRIEF (`git cherry-pick -x`, conflict policy, tests, push). Never
+   opens the PR.
 
 ### Post-PR (review loop)
 
-1. `/code-review:pr` — Review an open PR for correctness and improvements.
+1. `/openshift-developer:has-review-work` — Gate: `COMMENT_WORK` (review comments) and/or `CI_WORK` (new non-optional CI failures)?
 2. `/openshift-developer:address-review-pr` — Fetch reviewer comments, categorize by priority, make code changes, post replies, and push.
+3. `/openshift-developer:address-ci-failures` — Triage failing CI checks; fix only PR-caused failures, report infra/pre-existing issues.
 
-Repeat steps 4-5 until the PR is approved.
+Repeat steps 1-3 until the PR is approved and CI is green or non-actionable failures are reported.
 
 ## What's included
 
@@ -37,12 +53,17 @@ Repeat steps 4-5 until the PR is approved.
 
 ### Skills
 
-- **jira:solve** — Pick up a Jira issue, analyze it, implement the fix, and open a PR. (via `jira` plugin)
-- **git:git-commit-format** — Conventional commit formatting rules: types, scopes, required footers (Signed-off-by, Commit-Message-Assisted-by), and gitlint validation. (via `git` plugin)
-- **code-review:pre-commit-review** — Run a code review on local changes before pushing. (via `code-review` plugin)
-- **address-review-precommit** — Fix code review findings in the current branch before committing: applies fixes, runs verification, and pushes.
-- **code-review:pr** — Review an open PR for correctness and improvements. (via `code-review` plugin)
-- **address-review-pr** — Fetch and address all PR review comments: categorizes by priority, makes code changes, posts replies, and pushes.
+- **preassessment** — Read-only classification of Jira work as implementation-ready, planning-required, decomposition-required, or needing clarification.
+- **jira-refine** — Refine a Jira bug into an evidence-backed disposition (CLOSE, SOLVE, NEEDS_INFO, or NEED_HUMAN_ANALYSIS) and apply it to the ticket; a SOLVE also sets the Target Backport Versions the fix should reach.
+- **jira-solve** — Central Jira workflow orchestrator that chooses implementation, review, gate, and delivery skills based on ticket complexity.
+- **implement** — Implement Jira requirements or apply local pre-commit review findings.
+- **address-review-precommit** — Deprecated compatibility alias for `implement`; retained temporarily for existing Chai callers.
+- **check-gates** — Fix and revalidate until tests, lint, builds, issue requirements, production readiness, and git cleanliness all pass.
+- **create-pr** — Push a completed feature branch and create a Jira-linked pull request.
+- **generate-test-plan** — Generate a comprehensive manual testing guide from a Jira issue, GitHub PR URLs, or both.
+- **address-review-pr** — Fetch and address PR review comments: categorizes by priority, makes code changes, posts replies, and pushes. Does not handle CI failures.
+- **address-ci-failures** — Triage failing CI checks; fix only failures caused by the PR's changes, report infra/pre-existing/flake issues instead of out-of-scope fixes.
+- **has-review-work** — Read-only gate: `COMMENT_WORK` (unanswered authorized review comments) and `CI_WORK` (new non-optional CI failures) for follow-up agents.
 
 ### Hooks
 
@@ -82,4 +103,3 @@ This bundle can also be installed via APM with `--target`:
 ```sh
 apm install openshift-eng/ai-helpers/plugins/openshift-developer --global --target cursor
 ```
-

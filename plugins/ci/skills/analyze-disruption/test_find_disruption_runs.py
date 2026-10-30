@@ -1,15 +1,24 @@
 """Tests for find_disruption_runs.py — URL parsing, backend parsing, disruption extraction."""
+import datetime
 import json
 from io import BytesIO
 from unittest.mock import patch
 
 from find_disruption_runs import (
+    _parse_timestamp,
+    apply_master_nodes_filter,
+    build_sippy_filter,
     extract_disruption_failures,
     fetch_disruption_data,
+    fetch_runs_in_window,
+    format_timestamp,
+    grafana_params_from_inputs,
     main,
     max_disruption_for_backend,
     parse_backend,
     parse_grafana_url,
+    print_table,
+    resolve_window_start,
     select_representative_runs,
 )
 
@@ -48,23 +57,32 @@ def test_parse_grafana_url_multi_value():
     assert result["releases"] == "5.0"
 
 
-@patch("find_disruption_runs.fetch_disruption_data", return_value={})
+def _flat_disruption(prow_ids):
+    """Equal exact-backend seconds so display order follows timestamp."""
+    return {
+        str(pid): [{"backend_name": "kube-api-new-connections", "disruption_seconds": 10}]
+        for pid in prow_ids
+    }
+
+
+@patch("find_disruption_runs.fetch_disruption_data", side_effect=_flat_disruption)
 @patch("find_disruption_runs.fetch_runs")
 def test_multi_value_queries_and_dedup(mock_fetch_runs, _mock_disruption):
     """Multi-value params expand into separate queries, dedup by prow_id, sort by timestamp, and cap at --limit."""
     import io
     from contextlib import redirect_stdout
 
-    base_ts = 1722988800000  # epoch ms
+    # Base 2024-08-07T00:00:00Z; suffixes below give each row a distinct offset
+    # (+50s/+30s/+10s azure, +40s/+10s/+5s gcp) as RFC 3339 strings.
     azure_rows = [
-        {"prow_id": "A1", "timestamp": base_ts + 50000, "job": "azure-job"},
-        {"prow_id": "A2", "timestamp": base_ts + 30000, "job": "azure-job"},
-        {"prow_id": "SHARED", "timestamp": base_ts + 10000, "job": "shared-job"},
+        {"prow_id": "A1", "timestamp": "2024-08-07T00:00:50Z", "job": "azure-job"},
+        {"prow_id": "A2", "timestamp": "2024-08-07T00:00:30Z", "job": "azure-job"},
+        {"prow_id": "SHARED", "timestamp": "2024-08-07T00:00:10Z", "job": "shared-job"},
     ]
     gcp_rows = [
-        {"prow_id": "G1", "timestamp": base_ts + 40000, "job": "gcp-job"},
-        {"prow_id": "SHARED", "timestamp": base_ts + 10000, "job": "shared-job"},
-        {"prow_id": "G2", "timestamp": base_ts + 5000, "job": "gcp-job"},
+        {"prow_id": "G1", "timestamp": "2024-08-07T00:00:40Z", "job": "gcp-job"},
+        {"prow_id": "SHARED", "timestamp": "2024-08-07T00:00:10Z", "job": "shared-job"},
+        {"prow_id": "G2", "timestamp": "2024-08-07T00:00:05Z", "job": "gcp-job"},
     ]
     mock_fetch_runs.side_effect = [azure_rows, gcp_rows]
 
@@ -95,32 +113,53 @@ def test_multi_value_queries_and_dedup(mock_fetch_runs, _mock_disruption):
     assert len(set(prow_ids)) == 4
     assert "SHARED" in prow_ids
 
-    # Sorted by timestamp descending (epoch ms numbers)
+    # Output rows are sorted newest-first; the preserved RFC 3339 values
+    # therefore appear in descending order.
     timestamps = [r["timestamp"] for r in output]
     assert timestamps == sorted(timestamps, reverse=True)
     assert timestamps[0] > timestamps[-1]
 
 
-@patch("find_disruption_runs.fetch_disruption_data", return_value={})
-@patch("find_disruption_runs.fetch_runs", return_value=[])
-def test_multi_value_backend_rejected(_mock_fetch, _mock_disruption):
-    """Multi-value var-backend should error, not silently produce garbage."""
+@patch("find_disruption_runs.fetch_runs")
+@patch("find_disruption_runs.fetch_disruption_data")
+def test_multi_value_backends_score_exact_names(mock_disruption, mock_fetch_runs):
+    """Every var-backend is scored. Derived and cache names do not win the max."""
     import io
-    from contextlib import redirect_stderr
+    from contextlib import redirect_stdout
+
+    mock_fetch_runs.return_value = [{
+        "prow_id": "1",
+        "job": "periodic-ci-openshift-release-main-nightly-5.0-e2e-aws-ovn-serial-ipsec",
+        "timestamp": "2026-10-01T23:49:29Z",
+        "overall_result": "S",
+        "url": "https://prow.example/1",
+    }]
+    mock_disruption.return_value = {
+        "1": [
+            {"backend_name": "pod-to-host-new-connections", "disruption_seconds": 476},
+            {"backend_name": "kube-api-new-connections", "disruption_seconds": 1},
+            {"backend_name": "kube-api-http2-localhost-new-connections", "disruption_seconds": 88},
+            {"backend_name": "cache-kube-api-new-connections", "disruption_seconds": 90},
+        ],
+    }
 
     buf = io.StringIO()
-    try:
-        with redirect_stderr(buf):
-            main([
-                "--grafana-url",
-                "https://grafana-loki.ci.openshift.org/d/abc/dash"
-                "?var-backend=host-to-host-new-connections&var-backend=kube-api-new-connections"
-                "&var-releases=5.0",
-            ])
-        assert False, "should have exited"
-    except SystemExit as e:
-        assert e.code == 1
-    assert "multiple backends not supported" in buf.getvalue()
+    with redirect_stdout(buf):
+        main([
+            "--grafana-url",
+            "https://grafana-loki.ci.openshift.org/d/abc/dash"
+            "?var-backend=pod-to-host-new-connections&var-backend=kube-api-new-connections"
+            "&var-releases=5.0",
+            "--format", "json",
+        ])
+    output = json.loads(buf.getvalue())
+    assert len(output) == 1
+    assert output[0]["disruption_seconds"] == 476
+    assert output[0]["disruption_backend"] == "pod-to-host-new-connections"
+    names = [entry["backend_name"] for entry in output[0]["disruption_backends"]]
+    assert names == ["pod-to-host-new-connections", "kube-api-new-connections"]
+    assert "kube-api-http2-localhost-new-connections" not in names
+    assert "cache-kube-api-new-connections" not in names
 
 
 @patch("find_disruption_runs.fetch_disruption_data", return_value={})
@@ -262,6 +301,22 @@ def test_max_disruption_for_backend_empty():
     assert max_disruption_for_backend(None, "kube-api") is None
 
 
+def test_max_disruption_ignores_derived_and_cache_backends():
+    entries = [
+        {"backend_name": "kube-api-new-connections", "disruption_seconds": 17},
+        {"backend_name": "kube-api-reused-connections", "disruption_seconds": 13},
+        {"backend_name": "kube-api-http2-localhost-new-connections", "disruption_seconds": 56},
+        {"backend_name": "kube-api-http1-service-network-new-connections", "disruption_seconds": 39},
+        {"backend_name": "kube-api-http2-internal-lb-new-connections", "disruption_seconds": 20},
+        {"backend_name": "cache-kube-api-new-connections", "disruption_seconds": 75},
+    ]
+    # Exact dashboard name: not reused, not localhost/http/lb, not cache.
+    assert max_disruption_for_backend(entries, "kube-api-new-connections") == 17
+    # Bare base: only the two connection variants.
+    assert max_disruption_for_backend(entries, "kube-api") == 17
+    assert max_disruption_for_backend(entries, ["pod-to-host-new-connections", "kube-api-new-connections"]) == 17
+
+
 def _mock_urlopen(response_data):
     """Create a mock context manager for urllib.request.urlopen."""
     body = json.dumps(response_data).encode("utf-8")
@@ -290,7 +345,7 @@ def test_fetch_disruption_data_builds_lookup():
     }
     with patch("find_disruption_runs.urllib.request.urlopen",
                return_value=_mock_urlopen(api_response)):
-        result = fetch_disruption_data(["123", "456"], "kube-api")
+        result = fetch_disruption_data(["123", "456"])
 
     assert "123" in result
     assert len(result["123"]) == 2
@@ -325,8 +380,8 @@ def test_select_empty_input():
 
 def test_select_returns_all_when_fewer_than_n():
     rows = [
-        {"prow_id": "1", "job": "job-a", "timestamp": 1000000},
-        {"prow_id": "2", "job": "job-b", "timestamp": 2000000},
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-b", "timestamp": "1970-01-01T00:33:20Z"},
     ]
     dd = _make_disruption_data({"1": 10, "2": 20})
     result = select_representative_runs(rows, dd, "kube-api", n=5)
@@ -335,9 +390,9 @@ def test_select_returns_all_when_fewer_than_n():
 
 def test_select_n1_picks_highest():
     rows = [
-        {"prow_id": "1", "job": "job-a", "timestamp": 1000000},
-        {"prow_id": "2", "job": "job-b", "timestamp": 2000000},
-        {"prow_id": "3", "job": "job-c", "timestamp": 3000000},
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-b", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-c", "timestamp": "1970-01-01T00:50:00Z"},
     ]
     dd = _make_disruption_data({"1": 10, "2": 50, "3": 30})
     result = select_representative_runs(rows, dd, "kube-api", n=1)
@@ -345,10 +400,11 @@ def test_select_n1_picks_highest():
 
 
 def test_select_deduplicates_same_job_within_60s():
+    # job-a runs are 50s apart (00:16:40 -> 00:17:30), inside the 60s window.
     rows = [
-        {"prow_id": "1", "job": "job-a", "timestamp": 1000000},
-        {"prow_id": "2", "job": "job-a", "timestamp": 1050000},
-        {"prow_id": "3", "job": "job-b", "timestamp": 2000000},
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-a", "timestamp": "1970-01-01T00:17:30Z"},
+        {"prow_id": "3", "job": "job-b", "timestamp": "1970-01-01T00:33:20Z"},
     ]
     dd = _make_disruption_data({"1": 10, "2": 30, "3": 20})
     result = select_representative_runs(rows, dd, "kube-api", n=5)
@@ -358,10 +414,11 @@ def test_select_deduplicates_same_job_within_60s():
 
 
 def test_select_deduplicates_cross_job_within_5s():
+    # Rows 0 and 1 are different jobs 3s apart (00:16:40 -> 00:16:43), inside 5s.
     rows = [
-        {"prow_id": "1", "job": "job-a", "timestamp": 1000000},
-        {"prow_id": "2", "job": "job-b", "timestamp": 1003000},
-        {"prow_id": "3", "job": "job-c", "timestamp": 2000000},
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-b", "timestamp": "1970-01-01T00:16:43Z"},
+        {"prow_id": "3", "job": "job-c", "timestamp": "1970-01-01T00:33:20Z"},
     ]
     dd = _make_disruption_data({"1": 10, "2": 50, "3": 20})
     result = select_representative_runs(rows, dd, "kube-api", n=5)
@@ -371,10 +428,12 @@ def test_select_deduplicates_cross_job_within_5s():
 
 
 def test_select_cross_job_dedup_anchor_based():
+    # Anchor=row0 (00:16:40). Row1 +4s (00:16:44) merges; row2 +9s (00:16:49)
+    # is >5s from the anchor and starts a new cluster.
     rows = [
-        {"prow_id": "1", "job": "job-a", "timestamp": 1000000},
-        {"prow_id": "2", "job": "job-b", "timestamp": 1004000},
-        {"prow_id": "3", "job": "job-c", "timestamp": 1009000},
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-b", "timestamp": "1970-01-01T00:16:44Z"},
+        {"prow_id": "3", "job": "job-c", "timestamp": "1970-01-01T00:16:49Z"},
     ]
     dd = _make_disruption_data({"1": 10, "2": 50, "3": 30})
     result = select_representative_runs(rows, dd, "kube-api", n=5)
@@ -386,12 +445,12 @@ def test_select_cross_job_dedup_anchor_based():
 
 def test_select_prefers_job_diversity():
     rows = [
-        {"prow_id": "1", "job": "job-a", "timestamp": 1000000},
-        {"prow_id": "2", "job": "job-a", "timestamp": 2000000},
-        {"prow_id": "3", "job": "job-a", "timestamp": 3000000},
-        {"prow_id": "4", "job": "job-a", "timestamp": 4000000},
-        {"prow_id": "5", "job": "job-b", "timestamp": 5000000},
-        {"prow_id": "6", "job": "job-c", "timestamp": 6000000},
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-a", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-a", "timestamp": "1970-01-01T00:50:00Z"},
+        {"prow_id": "4", "job": "job-a", "timestamp": "1970-01-01T01:06:40Z"},
+        {"prow_id": "5", "job": "job-b", "timestamp": "1970-01-01T01:23:20Z"},
+        {"prow_id": "6", "job": "job-c", "timestamp": "1970-01-01T01:40:00Z"},
     ]
     dd = _make_disruption_data({str(i+1): (i+1)*10 for i in range(6)})
     result = select_representative_runs(rows, dd, "kube-api", n=3)
@@ -402,7 +461,7 @@ def test_select_prefers_job_diversity():
 
 def test_select_includes_disruption_diversity():
     rows = [
-        {"prow_id": str(i+1), "job": "job-%s" % chr(97+i), "timestamp": (i+1)*1000000}
+        {"prow_id": str(i+1), "job": "job-%s" % chr(97+i), "timestamp": "1970-01-01T%02d:00:00Z" % i}
         for i in range(9)
     ]
     dd = _make_disruption_data({
@@ -421,9 +480,9 @@ def test_select_includes_disruption_diversity():
 
 def test_select_excludes_none_disruption():
     rows = [
-        {"prow_id": "1", "job": "job-a", "timestamp": 1000000},
-        {"prow_id": "2", "job": "job-b", "timestamp": 2000000},
-        {"prow_id": "3", "job": "job-c", "timestamp": 3000000},
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-b", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-c", "timestamp": "1970-01-01T00:50:00Z"},
     ]
     dd = _make_disruption_data({"1": 50})
     # prow_id 2 and 3 have no BQ data (None disruption) — should not be selected
@@ -435,7 +494,7 @@ def test_select_excludes_none_disruption():
 
 def test_select_returns_empty_when_all_none():
     rows = [
-        {"prow_id": str(i+1), "job": "job-%s" % chr(97 + i % 3), "timestamp": (i+1)*1000000}
+        {"prow_id": str(i+1), "job": "job-%s" % chr(97 + i % 3), "timestamp": "1970-01-01T%02d:00:00Z" % i}
         for i in range(6)
     ]
     result = select_representative_runs(rows, {}, "kube-api", n=3)
@@ -444,7 +503,7 @@ def test_select_returns_empty_when_all_none():
 
 def test_select_is_deterministic():
     rows = [
-        {"prow_id": str(i+1), "job": "job-%s" % chr(97 + i % 4), "timestamp": (i+1)*1000000}
+        {"prow_id": str(i+1), "job": "job-%s" % chr(97 + i % 4), "timestamp": "1970-01-01T%02d:00:00Z" % i}
         for i in range(20)
     ]
     dd = _make_disruption_data({str(i+1): (i * 7) % 100 for i in range(20)})
@@ -453,18 +512,62 @@ def test_select_is_deterministic():
     assert r1 == r2
 
 
+def test_select_clean_comparison_when_disrupted_set_fits():
+    # Fewer disrupted runs than n leaves a free slot for a same-job 0s run.
+    rows = [
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-b", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-a", "timestamp": "1970-01-01T00:50:00Z"},
+    ]
+    dd = _make_disruption_data({"1": 40, "2": 20, "3": 0})
+    assert select_representative_runs(rows, dd, "kube-api", n=5) == [0, 1, 2]
+
+
+def test_select_clean_comparison_replaces_when_early_selection_is_full():
+    # Exactly n disrupted runs: keep the limit by replacing one with the clean run.
+    rows = [
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-b", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-c", "timestamp": "1970-01-01T00:50:00Z"},
+        {"prow_id": "4", "job": "job-a", "timestamp": "1970-01-01T01:06:40Z"},
+    ]
+    dd = _make_disruption_data({"1": 40, "2": 20, "3": 10, "4": 0})
+    assert select_representative_runs(rows, dd, "kube-api", n=3) == [0, 1, 3]
+
+
+def test_select_clean_comparison_keeps_only_same_job_disrupted_run():
+    # The only job-a disrupted run is last. Replace another job, not that run.
+    rows = [
+        {"prow_id": "1", "job": "job-b", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-c", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-a", "timestamp": "1970-01-01T00:50:00Z"},
+        {"prow_id": "4", "job": "job-a", "timestamp": "1970-01-01T01:06:40Z"},
+    ]
+    dd = _make_disruption_data({"1": 40, "2": 20, "3": 10, "4": 0})
+    assert select_representative_runs(rows, dd, "kube-api", n=3) == [0, 2, 3]
+
+
+def test_select_skips_clean_comparison_below_three_slots():
+    rows = [
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-a", "timestamp": "1970-01-01T00:33:20Z"},
+    ]
+    dd = _make_disruption_data({"1": 40, "2": 0})
+    assert select_representative_runs(rows, dd, "kube-api", n=2) == [0]
+
+
 def test_select_zero_disruption_as_clean_comparison():
     # Clean run from same job as a disrupted run gets the clean-comparison slot.
     # Need >n disrupted candidates so the algorithm reaches Phase 5.5.
     rows = [
-        {"prow_id": "1", "job": "job-a", "timestamp": 1000000},
-        {"prow_id": "2", "job": "job-b", "timestamp": 2000000},
-        {"prow_id": "3", "job": "job-c", "timestamp": 3000000},
-        {"prow_id": "4", "job": "job-a", "timestamp": 4000000},
-        {"prow_id": "5", "job": "job-b", "timestamp": 5000000},
-        {"prow_id": "6", "job": "job-c", "timestamp": 6000000},
-        {"prow_id": "7", "job": "job-d", "timestamp": 7000000},
-        {"prow_id": "8", "job": "job-a", "timestamp": 8000000},  # same job as disrupted row 1
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-b", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-c", "timestamp": "1970-01-01T00:50:00Z"},
+        {"prow_id": "4", "job": "job-a", "timestamp": "1970-01-01T01:06:40Z"},
+        {"prow_id": "5", "job": "job-b", "timestamp": "1970-01-01T01:23:20Z"},
+        {"prow_id": "6", "job": "job-c", "timestamp": "1970-01-01T01:40:00Z"},
+        {"prow_id": "7", "job": "job-d", "timestamp": "1970-01-01T01:56:40Z"},
+        {"prow_id": "8", "job": "job-a", "timestamp": "1970-01-01T02:13:20Z"},  # same job as disrupted row 1
     ]
     dd = _make_disruption_data({
         "1": 100, "2": 80, "3": 60, "4": 40, "5": 30, "6": 20, "7": 10, "8": 0,
@@ -478,19 +581,19 @@ def test_select_zero_disruption_as_clean_comparison():
 
 
 def test_select_no_clean_from_unselected_job():
-    # A 0s run shares a job with disrupted candidates, but that job wasn't selected.
+    # A 0s run shares a job with disrupted candidates, but that job is not in the selected set.
     # The clean-comparison slot should not pick it — only jobs in the selected set matter.
     rows = [
-        {"prow_id": "1", "job": "job-a", "timestamp": 1000000},
-        {"prow_id": "2", "job": "job-b", "timestamp": 2000000},
-        {"prow_id": "3", "job": "job-c", "timestamp": 3000000},
-        {"prow_id": "4", "job": "job-d", "timestamp": 4000000},
-        {"prow_id": "5", "job": "job-a", "timestamp": 5000000},
-        {"prow_id": "6", "job": "job-b", "timestamp": 6000000},
-        {"prow_id": "7", "job": "job-c", "timestamp": 7000000},
-        {"prow_id": "8", "job": "job-d", "timestamp": 8000000},
-        {"prow_id": "9", "job": "job-e", "timestamp": 9000000},   # disrupted, unique job
-        {"prow_id": "10", "job": "job-e", "timestamp": 10000000}, # 0s, same job as row 9
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-b", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-c", "timestamp": "1970-01-01T00:50:00Z"},
+        {"prow_id": "4", "job": "job-d", "timestamp": "1970-01-01T01:06:40Z"},
+        {"prow_id": "5", "job": "job-a", "timestamp": "1970-01-01T01:23:20Z"},
+        {"prow_id": "6", "job": "job-b", "timestamp": "1970-01-01T01:40:00Z"},
+        {"prow_id": "7", "job": "job-c", "timestamp": "1970-01-01T01:56:40Z"},
+        {"prow_id": "8", "job": "job-d", "timestamp": "1970-01-01T02:13:20Z"},
+        {"prow_id": "9", "job": "job-e", "timestamp": "1970-01-01T02:30:00Z"},   # disrupted, unique job
+        {"prow_id": "10", "job": "job-e", "timestamp": "1970-01-01T02:46:40Z"}, # 0s, same job as row 9
     ]
     dd = _make_disruption_data({
         "1": 100, "2": 80, "3": 60, "4": 50, "5": 40, "6": 30, "7": 20, "8": 10,
@@ -515,16 +618,16 @@ def test_select_no_clean_from_unrelated_job():
     # is skipped, freeing that slot for another disrupted run.
     # 8 disrupted runs across 4 jobs, 2 clean runs from unique unrelated jobs.
     rows = [
-        {"prow_id": "1", "job": "job-a", "timestamp": 1000000},
-        {"prow_id": "2", "job": "job-a", "timestamp": 2000000},
-        {"prow_id": "3", "job": "job-b", "timestamp": 3000000},
-        {"prow_id": "4", "job": "job-b", "timestamp": 4000000},
-        {"prow_id": "5", "job": "job-c", "timestamp": 5000000},
-        {"prow_id": "6", "job": "job-c", "timestamp": 6000000},
-        {"prow_id": "7", "job": "job-d", "timestamp": 7000000},
-        {"prow_id": "8", "job": "job-d", "timestamp": 8000000},
-        {"prow_id": "9", "job": "job-e", "timestamp": 9000000},   # unrelated job, 0s
-        {"prow_id": "10", "job": "job-f", "timestamp": 10000000}, # unrelated job, 0s
+        {"prow_id": "1", "job": "job-a", "timestamp": "1970-01-01T00:16:40Z"},
+        {"prow_id": "2", "job": "job-a", "timestamp": "1970-01-01T00:33:20Z"},
+        {"prow_id": "3", "job": "job-b", "timestamp": "1970-01-01T00:50:00Z"},
+        {"prow_id": "4", "job": "job-b", "timestamp": "1970-01-01T01:06:40Z"},
+        {"prow_id": "5", "job": "job-c", "timestamp": "1970-01-01T01:23:20Z"},
+        {"prow_id": "6", "job": "job-c", "timestamp": "1970-01-01T01:40:00Z"},
+        {"prow_id": "7", "job": "job-d", "timestamp": "1970-01-01T01:56:40Z"},
+        {"prow_id": "8", "job": "job-d", "timestamp": "1970-01-01T02:13:20Z"},
+        {"prow_id": "9", "job": "job-e", "timestamp": "1970-01-01T02:30:00Z"},   # unrelated job, 0s
+        {"prow_id": "10", "job": "job-f", "timestamp": "1970-01-01T02:46:40Z"}, # unrelated job, 0s
     ]
     dd = _make_disruption_data({
         "1": 100, "2": 90, "3": 70, "4": 60, "5": 40, "6": 30, "7": 20, "8": 10,
@@ -539,3 +642,634 @@ def test_select_no_clean_from_unrelated_job():
         pid = str(rows[i]["prow_id"])
         selected_secs.append(max_disruption_for_backend(dd.get(pid, []), "kube-api"))
     assert all(s > 0 for s in selected_secs)
+
+
+def test_parse_timestamp_parses_z():
+    assert _parse_timestamp("2026-08-14T00:01:05Z") == datetime.datetime(
+        2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc
+    )
+
+
+def test_parse_timestamp_handles_missing_and_bad():
+    # None, empty string, and unparseable strings all fall back to the epoch sentinel (no raise).
+    epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    assert _parse_timestamp(None) == epoch
+    assert _parse_timestamp("") == epoch
+    assert _parse_timestamp("not-a-timestamp") == epoch
+
+
+def test_parse_timestamp_normalizes_offset_to_utc():
+    # A non-UTC offset is converted to the equivalent UTC time.
+    utc = datetime.datetime(2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc)
+    assert _parse_timestamp("2026-08-14T02:01:05+02:00") == _parse_timestamp("2026-08-14T00:01:05Z")
+    assert _parse_timestamp("2026-08-14T02:01:05+02:00") == utc
+
+
+def test_parse_timestamp_accepts_int_epoch_ms():
+    # Integer epoch-milliseconds convert to the matching UTC datetime.
+    assert _parse_timestamp(1704067200000) == datetime.datetime(
+        2024, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc
+    )
+    # Epoch-ms 0 maps to the 1970 epoch.
+    assert _parse_timestamp(0) == datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+
+
+def test_parse_timestamp_accepts_float_epoch_ms():
+    # Float epoch-milliseconds keep sub-second precision (500 ms -> 500000 us).
+    assert _parse_timestamp(1704067200500.0) == datetime.datetime(
+        2024, 1, 1, 0, 0, 0, 500000, tzinfo=datetime.timezone.utc
+    )
+
+
+def test_parse_timestamp_rejects_bool():
+    # bool is a subclass of int, but True/False are not epoch-ms values, so they
+    # fall through to the epoch sentinel instead of converting as 1/0.
+    epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    assert _parse_timestamp(True) == epoch
+    assert _parse_timestamp(False) == epoch
+
+
+def test_parse_timestamp_non_finite_or_overflow_returns_epoch():
+    # Infinity, NaN, and out-of-range magnitudes fall back to the epoch sentinel
+    # rather than raising out of datetime.fromtimestamp.
+    epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    assert _parse_timestamp(float("inf")) == epoch
+    assert _parse_timestamp(float("-inf")) == epoch
+    assert _parse_timestamp(float("nan")) == epoch
+    assert _parse_timestamp(10**1000) == epoch
+
+
+def test_parse_timestamp_naive_string_is_utc():
+    # A string with no Z suffix or offset is interpreted as UTC.
+    utc = datetime.datetime(2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc)
+    assert _parse_timestamp("2026-08-14T00:01:05") == utc
+    assert _parse_timestamp("2026-08-14T00:01:05") == _parse_timestamp("2026-08-14T00:01:05Z")
+
+
+def test_format_timestamp_accepts_rfc3339_string():
+    assert format_timestamp("2026-08-14T00:01:05Z") == "2026-08-14 00:01"
+
+
+def test_format_timestamp_empty_returns_empty():
+    # A missing timestamp (None or "") yields an empty string, not a 1970 epoch date.
+    assert format_timestamp("") == ""
+    assert format_timestamp(None) == ""
+
+
+def test_format_timestamp_zero_is_epoch():
+    # 0 is a valid epoch-ms timestamp, not an absent value, so it formats normally.
+    assert format_timestamp(0) == "1970-01-01 00:00"
+
+
+def test_build_sippy_filter_timestamp_is_rfc3339():
+    since = datetime.datetime(2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc)
+    f = build_sippy_filter({"Platform": "gcp"}, since)
+    assert f["items"][0] == {
+        "columnField": "variants", "operatorValue": "has entry", "value": "Platform:gcp",
+    }
+    assert {
+        "columnField": "timestamp", "operatorValue": ">", "value": "2026-08-14T00:01:05Z",
+    } in f["items"]
+    assert f["linkOperator"] == "and"
+
+
+def test_build_sippy_filter_no_since():
+    f = build_sippy_filter({"Platform": "gcp"}, None)
+    assert all(item["columnField"] != "timestamp" for item in f["items"])
+
+
+@patch("find_disruption_runs.fetch_disruption_data", side_effect=_flat_disruption)
+@patch("find_disruption_runs.fetch_runs")
+def test_multi_value_sort_with_rfc3339_timestamps(mock_fetch_runs, _mock_disruption):
+    """Multi-value queries dedup and sort merged rows by RFC 3339 timestamp
+    descending, then format timestamps without crashing (real API-shaped data)."""
+    import io
+    from contextlib import redirect_stdout
+
+    azure_rows = [
+        {"prow_id": "A_NEW", "timestamp": "2026-08-15T10:00:00Z", "job": "azure-job"},
+        {"prow_id": "SHARED", "timestamp": "2026-08-14T00:00:00Z", "job": "shared-job"},
+    ]
+    gcp_rows = [
+        {"prow_id": "G_MID", "timestamp": "2026-08-15T00:00:00Z", "job": "gcp-job"},
+        {"prow_id": "SHARED", "timestamp": "2026-08-14T00:00:00Z", "job": "shared-job"},
+        {"prow_id": "G_OLD", "timestamp": "2026-08-13T00:00:00Z", "job": "gcp-job"},
+    ]
+    mock_fetch_runs.side_effect = [azure_rows, gcp_rows]
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        main([
+            "--grafana-url",
+            (
+                "https://grafana-loki.ci.openshift.org/d/abc/dash"
+                "?var-platform=azure&var-platform=gcp"
+                "&var-backend=kube-api-new-connections&var-releases=5.0"
+            ),
+            "--format", "json", "--limit", "10",
+        ])
+    output = json.loads(buf.getvalue())
+
+    ids = [r["build_id"] for r in output]
+    # Dedup SHARED, then sort newest-first by RFC 3339 timestamp.
+    assert ids == ["A_NEW", "G_MID", "SHARED", "G_OLD"]
+    assert len(ids) == len(set(ids))
+    # The raw RFC 3339 value is preserved and timestamp_human is derived from it.
+    assert output[0]["timestamp"] == "2026-08-15T10:00:00Z"
+    assert output[0]["timestamp_human"] == "2026-08-15 10:00"
+
+
+@patch("find_disruption_runs.fetch_disruption_data", side_effect=_flat_disruption)
+@patch("find_disruption_runs.fetch_runs")
+def test_sort_key_orders_mixed_timestamp_types_by_time(mock_fetch_runs, _mock_disruption):
+    """The merged-row sort key parses each timestamp to a datetime, so rows with
+    mixed representations (RFC 3339 strings and numeric epoch-ms) order by actual
+    time — a raw-string key could not even compare a str against an int."""
+    import io
+    from contextlib import redirect_stdout
+
+    mid_epoch_ms = int(
+        datetime.datetime(2026, 8, 14, 12, 0, 0, tzinfo=datetime.timezone.utc).timestamp() * 1000
+    )
+    azure_rows = [
+        {"prow_id": "NEW", "timestamp": "2026-08-15T10:00:00Z", "job": "azure-job"},
+    ]
+    gcp_rows = [
+        {"prow_id": "MID_EPOCH", "timestamp": mid_epoch_ms, "job": "gcp-job"},
+        {"prow_id": "OLD", "timestamp": "2026-08-13T00:00:00Z", "job": "gcp-job"},
+    ]
+    mock_fetch_runs.side_effect = [azure_rows, gcp_rows]
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        main([
+            "--grafana-url",
+            (
+                "https://grafana-loki.ci.openshift.org/d/abc/dash"
+                "?var-platform=azure&var-platform=gcp"
+                "&var-backend=kube-api-new-connections&var-releases=5.0"
+            ),
+            "--format", "json", "--limit", "10",
+        ])
+    output = json.loads(buf.getvalue())
+
+    # Newest-first by actual time: RFC 3339 string, then epoch-ms, then older string.
+    ids = [r["build_id"] for r in output]
+    assert ids == ["NEW", "MID_EPOCH", "OLD"]
+
+
+def test_table_names_the_dashboard_percentile():
+    """The summary must follow var-percentile, not a hardcoded P95."""
+    import io
+    from contextlib import redirect_stdout
+
+    rows = [{
+        "prow_id": "1",
+        "job": "job-a",
+        "timestamp": "2026-10-01T00:00:00Z",
+        "overall_result": "S",
+        "failed_test_names": [],
+    }]
+    disruption = {"1": [{"backend_name": "pod-to-host-reused-connections", "disruption_seconds": 12}]}
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        print_table(
+            rows,
+            {"_dashboard_name": "dash", "releases": "5.0", "percentile": "P75",
+             "backend": "pod-to-host-reused-connections"},
+            ["pod-to-host-reused-connections"],
+            disruption,
+            selected_indices=[0],
+            scanned_count=164,
+        )
+    text = buf.getvalue()
+    assert "per-run seconds, not P75" in text
+    assert "not P95" not in text
+    assert "| 1 | * | job-a | 1 | S | 12 | pod-to-host-reused-connections |" in text
+    assert "Scanned 164 runs." in text
+
+
+def test_resolve_window_start_lookback_is_calendar_days():
+    now = datetime.datetime(2026, 10, 5, 15, 0, tzinfo=datetime.timezone.utc)
+    assert resolve_window_start(None, 7, now=now) == datetime.datetime(
+        2026, 9, 28, tzinfo=datetime.timezone.utc)
+    # Explicit --since-hours wins over var-lookback.
+    assert resolve_window_start(48, 7, now=now) == datetime.datetime(
+        2026, 10, 3, 15, 0, tzinfo=datetime.timezone.utc)
+    # No lookback and no --since-hours: 30 days rolling.
+    assert resolve_window_start(None, None, now=now) == now - datetime.timedelta(hours=720)
+
+
+def _freeze_now():
+    real = datetime.datetime
+
+    class Frozen(real):
+        @classmethod
+        def now(cls, tz=None):
+            return real(2026, 10, 5, 15, 0, tzinfo=datetime.timezone.utc)
+
+    return Frozen
+
+
+@patch("find_disruption_runs.fetch_disruption_data", return_value={})
+@patch("find_disruption_runs.fetch_runs", return_value=[])
+def test_lookback_sets_filter_and_since_hours_overrides(mock_fetch_runs, _mock_disruption):
+    url = (
+        "https://grafana-loki.ci.openshift.org/d/abc/dash"
+        "?var-backend=kube-api-new-connections&var-releases=5.0&var-lookback=7"
+    )
+    with patch("find_disruption_runs.datetime", _freeze_now()):
+        try:
+            main(["--grafana-url", url])
+        except SystemExit as e:
+            assert e.code == 0
+    since = _timestamp_lower_bound(mock_fetch_runs.call_args_list[0][0][1])
+    assert since == "2026-09-28T00:00:00Z"
+
+    mock_fetch_runs.reset_mock()
+    with patch("find_disruption_runs.datetime", _freeze_now()):
+        try:
+            main(["--grafana-url", url, "--since-hours", "48"])
+        except SystemExit as e:
+            assert e.code == 0
+    since = _timestamp_lower_bound(mock_fetch_runs.call_args_list[0][0][1])
+    assert since == "2026-10-03T15:00:00Z"
+
+
+@patch("find_disruption_runs.fetch_disruption_data", return_value={})
+@patch("find_disruption_runs.fetch_runs", return_value=[])
+def test_featureset_all_is_not_a_sippy_filter(mock_fetch_runs, _mock_disruption):
+    try:
+        main([
+            "--grafana-url",
+            "https://grafana-loki.ci.openshift.org/d/abc/dash"
+            "?var-platform=aws&var-featureset=All&var-backend=kube-api-new-connections"
+            "&var-releases=5.0",
+        ])
+    except SystemExit as e:
+        assert e.code == 0
+    values = [item["value"] for item in mock_fetch_runs.call_args_list[0][0][1]["items"]]
+    assert "Platform:aws" in values
+    assert "FeatureSet:All" not in values
+    assert not any(value.startswith("FeatureSet:") for value in values)
+
+
+def _timestamp_lower_bound(filter_dict):
+    for item in filter_dict["items"]:
+        if item["columnField"] == "timestamp" and item["operatorValue"] == ">":
+            return item["value"]
+    raise AssertionError("no timestamp lower bound in %s" % filter_dict)
+
+
+def _timestamp_filters(filter_dict):
+    return [
+        (item["operatorValue"], item["value"])
+        for item in filter_dict["items"]
+        if item["columnField"] == "timestamp"
+    ]
+
+
+@patch("find_disruption_runs.fetch_runs")
+def test_fetch_runs_in_window_pages_until_short_page_and_dedups(mock_fetch_runs):
+    since = datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
+
+    def fake_fetch(_release, filter_dict, _limit):
+        bounds = _timestamp_filters(filter_dict)
+        if ("<", "2026-09-29T12:00:00Z") in bounds:
+            return [{"prow_id": "EDGE", "timestamp": "2026-09-28T03:00:00Z"}]
+        if ("<", "2026-10-01T00:00:00Z") in bounds:
+            return [
+                {"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"},
+                {"prow_id": "OLDER", "timestamp": "2026-09-29T12:00:00Z"},
+            ]
+        if ("<", "2026-10-05T00:00:00Z") in bounds:
+            return [{"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"}]
+        return [
+            {"prow_id": "NEW", "timestamp": "2026-10-05T00:00:00Z"},
+            {"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"},
+        ]
+
+    mock_fetch_runs.side_effect = fake_fetch
+    rows, truncated = fetch_runs_in_window(
+        "5.0", {"Platform": "aws"}, since, page_size=2, max_runs=5000)
+    assert truncated is False
+    assert [row["prow_id"] for row in rows] == ["NEW", "MID", "OLDER", "EDGE"]
+    filters = [_timestamp_filters(call[0][1]) for call in mock_fetch_runs.call_args_list]
+    assert any(("<", "2026-10-01T00:00:00Z") in bounds for bounds in filters)
+    assert any(("<", "2026-09-29T12:00:00Z") in bounds for bounds in filters)
+
+
+@patch("find_disruption_runs.fetch_runs")
+def test_fetch_runs_in_window_keeps_equal_timestamps_across_page_boundary(mock_fetch_runs):
+    since = datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
+
+    def fake_fetch(_release, filter_dict, limit):
+        bounds = _timestamp_filters(filter_dict)
+        if any(op == "<" and value == "2026-10-02T00:00:00Z" for op, value in bounds):
+            return [
+                {"prow_id": "TIE-HIGH", "timestamp": "2026-10-01T00:00:00Z"},
+                {"prow_id": "TIE-LOW", "timestamp": "2026-10-01T00:00:00Z"},
+            ]
+        if any(op == "<" and value == "2026-10-01T00:00:00Z" for op, value in bounds):
+            return [{"prow_id": "OLDER", "timestamp": "2026-09-30T00:00:00Z"}]
+        return [
+            {"prow_id": "NEW", "timestamp": "2026-10-02T00:00:00Z"},
+            {"prow_id": "TIE-HIGH", "timestamp": "2026-10-01T00:00:00Z"},
+        ]
+
+    mock_fetch_runs.side_effect = fake_fetch
+    rows, truncated = fetch_runs_in_window(
+        "5.0", {"Platform": "aws"}, since, page_size=2, max_runs=5000)
+    assert truncated is False
+    assert [row["prow_id"] for row in rows] == ["NEW", "TIE-HIGH", "TIE-LOW", "OLDER"]
+    tie_calls = [
+        call for call in mock_fetch_runs.call_args_list
+        if ("<", "2026-10-02T00:00:00Z") in _timestamp_filters(call[0][1])
+    ]
+    assert tie_calls
+    assert tie_calls[0][0][2] > 2
+
+
+@patch("find_disruption_runs.fetch_runs")
+def test_fetch_runs_in_window_stops_at_window_start(mock_fetch_runs):
+    since = datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
+    mock_fetch_runs.return_value = [
+        {"prow_id": "NEW", "timestamp": "2026-10-05T00:00:00Z"},
+        {"prow_id": "AT_START", "timestamp": "2026-09-28T00:00:00Z"},
+    ]
+    rows, truncated = fetch_runs_in_window(
+        "5.0", {"Platform": "aws"}, since, page_size=2, max_runs=5000)
+    assert truncated is False
+    assert mock_fetch_runs.call_count == 1
+    assert [row["prow_id"] for row in rows] == ["NEW", "AT_START"]
+
+
+SAMPLE_ALERT = """\
+Alert:  - warning
+Description: P95 disruption has regressed over the past several days when compared to the 30 days prior to previous GA release for: openshift-api-http2-service-network-reused-connections azure micro ovn
+Details:
+   • alertname: DisruptionRegressionP95
+   • architecture: amd64
+   • backend: openshift-api-http2-service-network-reused-connections
+   • category: disruption
+   • compare_release: 4.22
+   • delta: P95
+   • feature_set: default
+   • master_nodes_updated: Y
+   • namespace: trt-monitoring
+   • network: ovn
+   • platform: azure
+   • prometheus: trt-monitoring/trt
+   • release: 5.0
+   • releaseStatus: Development
+   • severity: warning
+   • topology: ha
+   • upgrade_type: micro
+"""
+
+ALERT_LINK = (
+    "https://grafana-loki.ci.openshift.org/d/gEdw_aLvk/disruption-for-5-0-os-agnostic"
+    "?orgId=1&var-percentile=P95&var-platform=azure"
+    "&var-backend=openshift-api-http2-service-network-reused-connections"
+    "&var-upgrade_type=micro&var-master_nodes_updated=Y"
+    "&var-architectures=amd64&var-topologies=ha&var-networks=ovn"
+    "&var-releases=5.0&var-lookback=7"
+)
+
+
+def test_parse_grafana_url_feature_set_alias():
+    url = (
+        "https://grafana-loki.ci.openshift.org/d/abc/dash"
+        "?var-feature_set=default&var-backend=kube-api-new-connections&var-releases=5.0"
+    )
+    result = parse_grafana_url(url)
+    assert result["featureset"] == "default"
+    assert "feature_set" not in result
+
+
+def test_alert_without_link_uses_series_labels_and_three_day_lookback():
+    params = grafana_params_from_inputs(alert_text=SAMPLE_ALERT + "   • os: rhcos10\n")
+    assert params["_dashboard_name"] == "(alert)"
+    assert params["lookback"] == "3"
+    assert params["releases"] == "5.0"
+    assert params["backend"] == "openshift-api-http2-service-network-reused-connections"
+    assert params["platform"] == "azure"
+    assert params["architectures"] == "amd64"
+    assert params["topologies"] == "ha"
+    assert params["networks"] == "ovn"
+    assert params["upgrade_type"] == "micro"
+    assert params["featureset"] == "default"
+    assert params["os"] == "rhcos10"
+    assert params["master_nodes_updated"] == "Y"
+    assert params["percentile"] == "P95"
+    assert params["compare_release"] == "4.22"
+    assert "releaseStatus" not in params
+
+
+def test_alert_link_wins_and_omitted_labels_are_overlaid():
+    text = SAMPLE_ALERT + "link: " + ALERT_LINK + "\n   • os: rhcos10\n"
+    params = grafana_params_from_inputs(alert_text=text)
+    assert params["_dashboard_name"] == "disruption-for-5-0-os-agnostic"
+    assert params["lookback"] == "7"
+    assert params["percentile"] == "P95"
+    assert params["featureset"] == "default"
+    assert params["os"] == "rhcos10"
+    assert params["compare_release"] == "4.22"
+    assert params["master_nodes_updated"] == "Y"
+
+
+def test_explicit_url_is_not_replaced_by_alert_link():
+    params = grafana_params_from_inputs(
+        grafana_url="https://grafana-loki.ci.openshift.org/d/abc/other?var-releases=5.0&var-backend=kube-api-new-connections&var-lookback=1",
+        alert_text=SAMPLE_ALERT + "link: " + ALERT_LINK + "\n",
+    )
+    assert params["_dashboard_name"] == "other"
+    assert params["lookback"] == "1"
+    assert params["backend"] == "kube-api-new-connections"
+    assert params["featureset"] == "default"
+    assert params["platform"] == "azure"
+
+
+def _variant_values(filter_dict):
+    return [item["value"] for item in filter_dict["items"] if item["columnField"] == "variants"]
+
+
+@patch("find_disruption_runs.fetch_disruption_data", return_value={})
+@patch("find_disruption_runs.fetch_runs", return_value=[])
+def test_alert_text_filters_sippy_and_lookback(mock_fetch_runs, _mock_disruption):
+    with patch("find_disruption_runs.datetime", _freeze_now()):
+        try:
+            main(["--alert-text", SAMPLE_ALERT + "   • os: rhcos10\n"])
+        except SystemExit as e:
+            assert e.code == 0
+    values = _variant_values(mock_fetch_runs.call_args_list[0][0][1])
+    assert "Platform:azure" in values
+    assert "Architecture:amd64" in values
+    assert "Topology:ha" in values
+    assert "Network:ovn" in values
+    assert "Upgrade:micro" in values
+    assert "FeatureSet:default" in values
+    assert "OS:rhcos10" in values
+    assert not any(value.startswith("CompareRelease:") for value in values)
+    assert _timestamp_lower_bound(mock_fetch_runs.call_args_list[0][0][1]) == "2026-10-02T00:00:00Z"
+
+
+@patch("find_disruption_runs.fetch_disruption_data", return_value={})
+@patch("find_disruption_runs.fetch_runs", return_value=[])
+def test_feature_set_alias_is_a_sippy_filter(mock_fetch_runs, _mock_disruption):
+    try:
+        main([
+            "--grafana-url",
+            "https://grafana-loki.ci.openshift.org/d/abc/dash"
+            "?var-feature_set=techpreview&var-backend=kube-api-new-connections&var-releases=5.0",
+        ])
+    except SystemExit as e:
+        assert e.code == 0
+    values = _variant_values(mock_fetch_runs.call_args_list[0][0][1])
+    assert "FeatureSet:techpreview" in values
+
+
+def test_fetch_disruption_data_keeps_master_nodes_updated():
+    api_response = {
+        "rows": [
+            {"backend_name": "kube-api-new-connections", "disruption_seconds": 12,
+             "job_run_name": "123", "master_nodes_updated": "Y"},
+            {"backend_name": "kube-api-new-connections", "disruption_seconds": 4,
+             "job_run_name": "456", "master_nodes_updated": None},
+        ],
+    }
+    with patch("find_disruption_runs.urllib.request.urlopen",
+               return_value=_mock_urlopen(api_response)):
+        result = fetch_disruption_data(["123", "456"])
+    assert result["123"][0]["master_nodes_updated"] == "Y"
+    assert result["456"][0]["master_nodes_updated"] == ""
+
+
+def test_apply_master_nodes_filter_drops_other_runs_including_clean():
+    rows = [
+        {"prow_id": "Y1"},
+        {"prow_id": "N1"},
+        {"prow_id": "Y0"},
+    ]
+    data = {
+        "Y1": [{"backend_name": "b", "disruption_seconds": 20, "master_nodes_updated": "Y"}],
+        "N1": [{"backend_name": "b", "disruption_seconds": 90, "master_nodes_updated": "N"}],
+        "Y0": [{"backend_name": "b", "disruption_seconds": 0, "master_nodes_updated": "Y"}],
+    }
+    kept = apply_master_nodes_filter(rows, data, "Y", True)
+    assert [row["prow_id"] for row in kept] == ["Y1", "Y0"]
+    assert apply_master_nodes_filter(rows, data, "Y", False) == []
+
+
+@patch("find_disruption_runs.fetch_runs")
+@patch("find_disruption_runs.fetch_disruption_data")
+def test_master_nodes_updated_drops_nonmatching_runs(mock_disruption, mock_fetch_runs):
+    import io
+    from contextlib import redirect_stderr, redirect_stdout
+
+    mock_fetch_runs.return_value = [
+        {"prow_id": "Yrun", "job": "azure-upgrade", "timestamp": "2026-10-04T00:00:00Z",
+         "overall_result": "S", "url": "https://prow.example/Y"},
+        {"prow_id": "Nrun", "job": "azure-upgrade", "timestamp": "2026-10-04T01:00:00Z",
+         "overall_result": "S", "url": "https://prow.example/N"},
+    ]
+    mock_disruption.return_value = {
+        "Yrun": [{
+            "backend_name": "openshift-api-http2-service-network-reused-connections",
+            "disruption_seconds": 11,
+            "master_nodes_updated": "Y",
+        }],
+        "Nrun": [{
+            "backend_name": "openshift-api-http2-service-network-reused-connections",
+            "disruption_seconds": 80,
+            "master_nodes_updated": "N",
+        }],
+    }
+    buf = io.StringIO()
+    err = io.StringIO()
+    with redirect_stdout(buf), redirect_stderr(err):
+        main([
+            "--grafana-url",
+            "https://grafana-loki.ci.openshift.org/d/abc/dash"
+            "?var-backend=openshift-api-http2-service-network-reused-connections"
+            "&var-releases=5.0&var-master_nodes_updated=Y&var-featureset=default",
+            "--format", "json",
+        ])
+    output = json.loads(buf.getvalue())
+    assert [row["build_id"] for row in output] == ["Yrun"]
+    assert "Kept 1 of 2 runs with master_nodes_updated=Y." in err.getvalue()
+
+
+@patch("find_disruption_runs.fetch_runs")
+@patch("find_disruption_runs.fetch_disruption_data")
+def test_missing_master_nodes_field_does_not_return_unfiltered(mock_disruption, mock_fetch_runs):
+    import io
+    from contextlib import redirect_stderr, redirect_stdout
+
+    mock_fetch_runs.return_value = [
+        {"prow_id": "1", "job": "job", "timestamp": "2026-10-04T00:00:00Z"},
+    ]
+    mock_disruption.return_value = {
+        "1": [{"backend_name": "kube-api-new-connections", "disruption_seconds": 9}],
+    }
+    out = io.StringIO()
+    err = io.StringIO()
+    with redirect_stdout(out), redirect_stderr(err):
+        try:
+            main([
+                "--grafana-url",
+                "https://grafana-loki.ci.openshift.org/d/abc/dash"
+                "?var-backend=kube-api-new-connections&var-releases=5.0"
+                "&var-master_nodes_updated=Y",
+                "--format", "json",
+            ])
+        except SystemExit as e:
+            assert e.code == 0
+    assert out.getvalue().strip() == ""
+    assert "did not include that field" in err.getvalue()
+    assert "No runs matched master_nodes_updated=Y" in err.getvalue()
+
+
+def test_table_prints_series_context():
+    import io
+    from contextlib import redirect_stdout
+
+    rows = [{
+        "prow_id": "1",
+        "job": "job-a",
+        "timestamp": "2026-10-01T00:00:00Z",
+        "overall_result": "S",
+        "failed_test_names": [],
+    }]
+    disruption = {"1": [{
+        "backend_name": "kube-api-new-connections",
+        "disruption_seconds": 12,
+        "master_nodes_updated": "Y",
+    }]}
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        print_table(
+            rows,
+            {
+                "_dashboard_name": "(alert)",
+                "releases": "5.0",
+                "percentile": "P95",
+                "backend": "kube-api-new-connections",
+                "platform": "azure",
+                "featureset": "default",
+                "os": "rhcos10",
+                "master_nodes_updated": "Y",
+                "lookback": "3",
+                "compare_release": "4.22",
+            },
+            ["kube-api-new-connections"],
+            disruption,
+        )
+    text = buf.getvalue()
+    assert "Platform=azure" in text
+    assert "FeatureSet=default" in text
+    assert "OS=rhcos10" in text
+    assert "MasterNodesUpdated=Y" in text
+    assert "Lookback=3d" in text
+    assert "CompareRelease=4.22" in text
+    assert "Percentile: P95" in text

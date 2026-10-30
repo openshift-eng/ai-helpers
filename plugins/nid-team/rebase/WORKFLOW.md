@@ -1,79 +1,146 @@
-# Agentic Rebase Manager: Workflow Blueprint
+# Manual rebase manager
 
-The `rebase-manager` is a state-aware agentic tool designed for the Network Ingress & DNS (NI&D) team to automate and track upstream rebases for repositories such as `openshift/coredns`.
+The agent skill coordinates analysis, Git operations, validation, and review.
+`rebase_manager.py` is a standard-library Python 3.10+ state helper for Unix hosts.
+It executes only read-only Git queries and writes its external state directory.
+It does not call models, run project commands, contact GitHub, or publish messages.
 
-Unlike generic, one-shot rebase scripts, this tool maintains context across runs and responds to human feedback during the review process. It is designed to be executed periodically (e.g., weekly via CI/CD) or manually, determining its next actions dynamically by inspecting local state, git history, and active GitHub Pull Request metadata.
+Rebase mechanics and the canonical artifact schema live in the OpenShift plugin's
+[shared rebase skill](../../openshift/skills/rebase/SKILL.md) and
+[artifact contract](../../openshift/skills/rebase/references/artifacts.md).
+The agent resolves that dependency from the installed plugin registry; these
+relative links describe the source tree, not an assumption about installation.
+The [manager skill](../skills/rebase-manager/SKILL.md) defines authorization and
+stage delegation.
 
----
-
-## Architecture
-
-At the start of each execution, the tool queries the local repository (specifically the `.rebase/` subdirectory) and the GitHub API to infer the current workflow phase.
+## State and transitions
 
 ```text
-                   [Check Local .rebase/ & Open PRs]
-                                  |
-         +------------------------+------------------------+
-         | No Active PR/Branch    | PR is Draft            | PR is Ready (Non-Draft)
-         v                        v                        v
-+------------------+     +------------------+     +------------------+
-|    Phase 1:      |     |    Phase 2:      |     |    Phase 3:      |
-|   DISCOVERY &    |     |   ACTIVE DRAFT   |     |    FINAL PROW    |
-|    REPORTING     |     |  FEEDBACK LOOP   |     |  REVIEW & MERGE  |
-+------------------+     +------------------+     +------------------+
+plan → applied → validated
+          │          │
+          └── draft ─┘ → review → complete (merged)
+                 │         │
+                 └─ applied┘    (feedback revision, then new evidence)
 ```
 
----
+A draft can obtain CI evidence before validation passes. Review readiness requires
+all required gates to pass at the current candidate and all imported feedback to
+be resolved at that revision. A closed, unmerged PR records `closed`. Completion
+records the actual remote merge, rather than inventing missing validation.
 
-## Detailed Workflow Phases
+Keep state outside the target checkout. `plan.json` is immutable; `result.json`
+records application outcomes. `state.json` contains their digests, last recorded
+phase, candidate head, imported evidence, feedback versions/resolutions, and exact
+PR identity. Log content is hashed on import and checked again at readiness.
+The helper locks individual state updates and atomically replaces JSON files;
+use one agent writer for the entire run. This is a local workflow, not a
+transactional distributed controller. Preserve artifacts after interruption.
 
-### Phase 1: DISCOVERY & REPORTING (No active rebase PR or branch)
+`status` is read-only and reports the last phase, actual checkout head,
+`checkout_problem`, `result_problem`, missing/stale/failing gates, and pending feedback. A recorded
+`validated` phase can have stale evidence after changes. Required gates are
+`carry-accounting`, `tree-accounting`, `review`, and plan validations marked
+`required`. Only PASS satisfies them. Optional SKIP evidence needs a reason.
+An unperformed check is INCONCLUSIVE.
 
-*   **Detection Conditions:**
-    *   No local or remote `rebase-<tag>` branch exists.
-    *   No open Pull Request with the title prefix `"Rebase to <tag>"` exists on the target repository.
-*   **Workflow Steps:**
-    1.  **State Directory Setup:** Create a local `.rebase/` directory if it does not exist, and append `.rebase/` to `.gitignore` to prevent committing transient rebase states.
-    2.  **Fetch & Sync:** Discover tracked remotes via `git remote -v` and run `git fetch --all --tags`.
-    3.  **Version Comparison:** Compare the latest tag in `openshift/master` (or main) against the latest stable upstream release tag (excluding `-alpha`, `-beta`, or `-rc`).
-    4.  **No-Op Handshake:** If the repository is fully up-to-date, log the status, output a summary, and terminate.
-    5.  **Release Report & Carry Commit Listing:** If behind, compile and write two files to the local `.rebase/` directory:
-        *   `.rebase/release-report.md`: Highlighting comparison tags, upstream changelogs, major features, and breaking changes.
-        *   `.rebase/commits.tsv`: Listing all downstream carry commits (`UPSTREAM:` commits on `openshift/master` since the previous tag's merge-base) with automated decisions (`cherry-pick`, `squash`, `drop`).
-    6.  **Human Feedback Input (Optional):** The team can review the generated report and manually edit the `.rebase/commits.tsv` file to override decisions (e.g., changing a decision from `cherry-pick` to `drop` or vice versa) before proceeding.
+## Helper commands
 
----
+Bind `MANAGER` to this plugin's absolute `rebase/rebase_manager.py`, and
+`STATE_DIR` to the run's absolute directory in each shell call. First let the
+shared plan stage write `plan.json` and `release-report.md`, then initialize:
 
-### Phase 2: ACTIVE DRAFT & FEEDBACK LOOP (Draft PR is open on GitHub)
+```bash
+python3 "$MANAGER" --state-dir "$STATE_DIR" init --plan "$STATE_DIR/plan.json"
+python3 "$MANAGER" --state-dir "$STATE_DIR" status
+```
 
-*   **Detection Conditions:**
-    *   A local/remote branch `rebase-<tag>` exists, AND/OR an open Pull Request exists on GitHub in **Draft** mode.
-*   **Workflow Steps:**
-    1.  **Initial Rebase & Draft PR Generation (if not yet open):**
-        *   Checkout a branch named `rebase-<tag>` off the upstream tag.
-        *   Merge `openshift/master` with `-s ours` strategy.
-        *   Execute the cherry-pick and squash decisions. If a custom `.rebase/commits.tsv` is found, incorporate any manual overrides made by the team during Phase 1.
-        *   Run Go dependency management (`go mod tidy && go mod vendor`) and compile checks (`make`, `go build`, `go test`).
-        *   On success, explicitly prompt the user for approval, then push the branch (without forcing) to the discovered remote and open a **Draft Pull Request** on GitHub against the target repository.
-        *   **Agenda Integration:** The Draft PR description is written to *be* the official agenda for the Rebase Approval meeting (detailing changelogs, carries, and build status).
-    2.  **Interactive Feedback Iteration (if Draft PR is already open):**
-        *   During meetings or async reviews, the team provides feedback by leaving comments/discussion threads directly on the draft PR.
-        *   When the skill is executed, it fetches all open comments on the PR:
-            *   Analyze feedback (e.g., requests to change commit decisions, resolve test failures, or adjust configurations).
-            *   Check out the `rebase-<tag>` branch, apply requested code/rebase alterations, and re-run build and verification tests.
-            *   Reply directly to the comment threads on GitHub to document the changes and optionally resolve the threads.
-            *   Prompt the user for approval, then push updated commits to the draft PR without force-pushing.
-*   **Exit Condition:** A human gatekeeper moves the PR out of draft mode (marking it "Ready for Review"). This acts as the signal that the rebase is approved by the team.
+After the shared apply stage produces a complete result, then after importing
+actual validation evidence:
 
----
+```bash
+python3 "$MANAGER" --state-dir "$STATE_DIR" advance --to applied --result "$STATE_DIR/result.json"
+python3 "$MANAGER" --state-dir "$STATE_DIR" record --gate carry-accounting --evidence "$STATE_DIR/carry-accounting.json"
+python3 "$MANAGER" --state-dir "$STATE_DIR" advance --to validated
+```
 
-### Phase 3: FINAL PROW REVIEW & MERGE (PR is open, Draft mode is OFF)
+Repeat `record` for every gate. A nonzero exit is a blocker; never edit state to
+bypass it. The helper checks clean Git state, planned branch, pinned refs during
+application, carry coverage, result ancestry, and evidence bindings. It cannot
+independently establish semantic correctness or honesty of an agent-authored
+PASS. Read the evidence and perform the work described in the skill.
 
-*   **Detection Conditions:**
-    *   An open PR exists on GitHub and is **not** in draft mode.
-*   **Workflow Steps:**
-    1.  **CI Monitoring:** Monitor GitHub check runs and Prow job statuses on the PR.
-    2.  **Failure Reporting:** If final CI/Prow jobs fail, extract failure logs and report them. (Human review continues to gate final merges via `/lgtm` and `/approve` commands).
-    3.  **Completion & Cleanup:** Once the PR has been successfully merged:
-        *   Clean up the local `.rebase/` directory and delete local `rebase-<tag>` branches.
-        *   Declare the rebase cycle complete and log success.
+After a code change, overwrite `result.json` with the revised application record
+and call `advance --to applied` again; changed results invalidate old gates.
+If the accepted plan changes, preserve this directory and initialize a new run.
+The previous `--auto`, `--dryrun`, and `--start-over` executor flags are removed.
+Use the agent's plan stage for analysis without applying changes; there is no
+helper option that discards prior state.
+
+## Feedback snapshots
+
+Fetch the actual PR's conversation, inline threads, and review bodies. Import a
+JSON array; prefix IDs to distinguish GitHub object types:
+
+```json
+[
+  {
+    "id": "review-comment:123",
+    "url": "https://github.com/openshift/example/pull/42#discussion_r123",
+    "body": "Preserve the downstream behavior in this case.",
+    "updated_at": "2026-10-30T12:00:00Z"
+  }
+]
+```
+
+```bash
+python3 "$MANAGER" --state-dir "$STATE_DIR" feedback --input "$STATE_DIR/feedback.json"
+python3 "$MANAGER" --state-dir "$STATE_DIR" resolve-feedback --id review-comment:123 --outcome addressed --rationale "The candidate now preserves the behavior; the focused test and review pass."
+```
+
+Receipt does not acknowledge or resolve feedback remotely. Identical bodies are
+idempotent; changed bodies retain history and reopen the item. `addressed` needs
+a changed revision and current passing gates; `no-change` and `declined` also
+require current evidence and a specific rationale. A later candidate revision
+requires resolutions to be checked again. The helper posts no replies.
+
+## PR snapshots
+
+Fetch by the saved target repository and number, including closed PRs. Normalize
+the live response without guessing defaults:
+
+```json
+{
+  "number": 42,
+  "url": "https://github.com/openshift/example/pull/42",
+  "target_repository": "openshift/example",
+  "base_ref": "master",
+  "head_ref": "rebase-v1.13.2",
+  "head_sha": "FULL_CANDIDATE_COMMIT_SHA",
+  "state": "OPEN",
+  "draft": true
+}
+```
+
+```bash
+python3 "$MANAGER" --state-dir "$STATE_DIR" sync-pr --input "$STATE_DIR/pr.json"
+```
+
+The first open draft can be recorded from `applied`. Non-draft requires fresh
+passing evidence and resolved feedback. Later snapshots must match the persisted
+PR identity. Open snapshots must match the candidate head. For a known PR, a
+`MERGED` or `CLOSED` snapshot may record a different final remote head; the saved
+candidate/evidence remain unchanged and `pr_head_differs` discloses the mismatch.
+A terminal snapshot records the remote state
+without deleting any artifacts. The agent is responsible for authenticating the
+snapshot against GitHub; importing a fabricated JSON file proves no remote action.
+
+## Local checks
+
+```bash
+python3 -m unittest discover -s plugins/nid-team/rebase -p 'test_*.py' -v
+```
+
+Tests use temporary synthetic Git histories and local JSON/log artifacts. They
+exercise state transitions, accounting, stale evidence, and feedback handling;
+they do not establish correctness on historical rebases or qualification for an
+unattended service.

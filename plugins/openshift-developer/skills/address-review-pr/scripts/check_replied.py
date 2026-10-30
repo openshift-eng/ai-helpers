@@ -3,11 +3,11 @@
 Check if bot has already replied to a PR comment or review thread.
 
 Usage:
-    check_replied.py <owner> <repo> <pr_number> <comment_id> --type <issue_comment|review_thread|review_comment>
+    check_replied.py <owner> <repo> <pr_number> <id> --type <issue_comment|review|review_comment|review_thread> [--agent-login <login>]
 
 Returns:
     Exit 0: Safe to reply (no existing bot reply found)
-    Exit 1: Already replied (bot reply exists after this comment)
+    Exit 1: Already replied, or the comment is gone (comment_not_found, no_comments_found)
     Exit 2: Error occurred
 
 Output:
@@ -18,6 +18,7 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from typing import Any
 
 # Bot accounts that indicate we've already replied
@@ -28,8 +29,12 @@ BOT_SIGNATURES = [
     "github-actions[bot]",
 ]
 
-# Text signature that appears in bot replies
-REPLY_SIGNATURE = "*AI-assisted response via Claude Code*"
+# Text signatures that appear in bot replies. Keep the provider-specific
+# signature for replies created before the provider-neutral wording was adopted.
+REPLY_SIGNATURES = (
+    "*AI-assisted response*",
+    "*AI-assisted response via Claude Code*",
+)
 
 
 def run_gh(args: list[str]) -> Any:
@@ -44,20 +49,42 @@ def run_gh(args: list[str]) -> Any:
     return json.loads(result.stdout) if result.stdout.strip() else None
 
 
-def is_bot_reply(login: str, body: str) -> bool:
+def paginated_items(
+    endpoint: str, fetch: Callable[[list[str]], Any] | None = None,
+) -> list[dict]:
+    """Fetch and flatten all pages from a REST array endpoint."""
+    pages = (fetch or run_gh)(["api", endpoint, "--paginate", "--slurp"])
+    if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
+        raise ValueError("REST response must contain arrays of items")
+    items = [item for page in pages for item in page]
+    if any(not isinstance(item, dict) for item in items):
+        raise ValueError("REST response contains an invalid item")
+    return items
+
+
+def normalized_login(login: str) -> str:
+    """Normalize GitHub App and user forms of the same login."""
+    return login.lower().removesuffix("[bot]")
+
+
+def is_bot_reply(login: str, body: str, agent_login: str = "") -> bool:
     """Check if a comment is from our bot or contains our signature."""
     if not login:
         return False
+    if agent_login and normalized_login(login) == normalized_login(agent_login):
+        return True
     # Check if author is a known bot (only our specific bots, not all [bot] accounts)
     if login in BOT_SIGNATURES:
         return True
-    # Check if body contains our signature (in case of different bot account)
-    if body and REPLY_SIGNATURE in body:
+    # Check if body contains one of our signatures (in case of a different bot account)
+    if body and any(signature in body for signature in REPLY_SIGNATURES):
         return True
     return False
 
 
-def check_review_thread(owner: str, repo: str, pr_number: int, thread_id: str) -> dict:
+def check_review_thread(
+    owner: str, repo: str, pr_number: int, thread_id: str, agent_login: str = "",
+) -> dict:
     """Check if bot already replied to a review thread."""
     # Query with pagination support for PRs with >100 review threads
     query = '''
@@ -67,6 +94,7 @@ def check_review_thread(owner: str, repo: str, pr_number: int, thread_id: str) -
           reviewThreads(first: 100, after: $cursor) {
             nodes {
               id
+              isResolved
               comments(first: 100) {
                 nodes {
                   id
@@ -124,28 +152,44 @@ def check_review_thread(owner: str, repo: str, pr_number: int, thread_id: str) -
 
     if not target_thread:
         return {
-            "safe_to_reply": True,
+            "safe_to_reply": False,
             "reason": "thread_not_found",
             "message": f"Thread {thread_id} not found - may have been resolved"
         }
 
-    # Check if any bot reply exists in the thread
+    if target_thread.get("isResolved"):
+        return {
+            "safe_to_reply": False,
+            "reason": "thread_resolved",
+            "message": f"Thread {thread_id} is resolved"
+        }
+
+    # Check if our bot replied after the latest non-agent feedback in the thread.
     # Note: If a thread has >100 comments, we may need additional pagination
     # but this is extremely rare for review threads
     comments = target_thread["comments"]["nodes"]
+    latest_feedback = ""
+    latest_reply = None
     for comment in comments:
         author = comment["author"]["login"] if comment["author"] else ""
         body = comment.get("body", "")
-        if is_bot_reply(author, body):
-            return {
-                "safe_to_reply": False,
-                "reason": "bot_already_replied",
-                "existing_reply": {
-                    "author": author,
-                    "created_at": comment["createdAt"],
-                    "body_preview": body[:200] if body else ""
-                }
+        if is_bot_reply(author, body, agent_login):
+            if latest_reply is None or comment["createdAt"] > latest_reply[0]["createdAt"]:
+                latest_reply = (comment, author, body)
+        else:
+            latest_feedback = max(latest_feedback, comment["createdAt"])
+
+    if latest_reply and latest_feedback and latest_reply[0]["createdAt"] > latest_feedback:
+        comment, author, body = latest_reply
+        return {
+            "safe_to_reply": False,
+            "reason": "bot_already_replied",
+            "existing_reply": {
+                "author": author,
+                "created_at": comment["createdAt"],
+                "body_preview": body[:200] if body else ""
             }
+        }
 
     return {
         "safe_to_reply": True,
@@ -153,22 +197,17 @@ def check_review_thread(owner: str, repo: str, pr_number: int, thread_id: str) -
     }
 
 
-def check_issue_comment(owner: str, repo: str, pr_number: int, comment_id: str) -> dict:
+def check_issue_comment(
+    owner: str, repo: str, pr_number: int, comment_id: str, agent_login: str = "",
+) -> dict:
     """Check if bot already replied after an issue comment."""
-    try:
-        comments = run_gh([
-            "api", f"repos/{owner}/{repo}/issues/{pr_number}/comments", "--paginate"
-        ])
-    except RuntimeError as e:
-        return {
-            "safe_to_reply": False,
-            "reason": "api_error",
-            "message": str(e)
-        }
+    comments = paginated_items(
+        f"repos/{owner}/{repo}/issues/{pr_number}/comments"
+    )
 
     if not comments:
         return {
-            "safe_to_reply": True,
+            "safe_to_reply": False,
             "reason": "no_comments_found"
         }
 
@@ -184,7 +223,7 @@ def check_issue_comment(owner: str, repo: str, pr_number: int, comment_id: str) 
 
     if not target_comment:
         return {
-            "safe_to_reply": True,
+            "safe_to_reply": False,
             "reason": "comment_not_found",
             "message": f"Comment {comment_id} not found"
         }
@@ -195,7 +234,7 @@ def check_issue_comment(owner: str, repo: str, pr_number: int, comment_id: str) 
             continue
         author = comment["user"]["login"] if comment.get("user") else ""
         body = comment.get("body", "")
-        if is_bot_reply(author, body):
+        if is_bot_reply(author, body, agent_login):
             return {
                 "safe_to_reply": False,
                 "reason": "bot_replied_after",
@@ -212,22 +251,69 @@ def check_issue_comment(owner: str, repo: str, pr_number: int, comment_id: str) 
     }
 
 
-def check_review_comment(owner: str, repo: str, pr_number: int, comment_id: str) -> dict:
-    """Check if bot already replied to a review comment (inline code comment)."""
-    try:
-        comments = run_gh([
-            "api", f"repos/{owner}/{repo}/pulls/{pr_number}/comments", "--paginate"
-        ])
-    except RuntimeError as e:
+def check_review(
+    owner: str, repo: str, pr_number: int, review_id: str, agent_login: str = "",
+) -> dict:
+    """Check if bot already replied after a PR review body (REST numeric review id)."""
+    review = run_gh([
+        "api", f"repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}"
+    ])
+
+    if not review:
         return {
             "safe_to_reply": False,
-            "reason": "api_error",
-            "message": str(e)
+            "reason": "review_not_found",
+            "message": f"Review {review_id} not found"
         }
+
+    submitted_at = review.get("submitted_at")
+    if not submitted_at:
+        return {
+            "safe_to_reply": False,
+            "reason": "review_not_found",
+            "message": f"Review {review_id} has no submitted_at"
+        }
+
+    conversation = paginated_items(
+        f"repos/{owner}/{repo}/issues/{pr_number}/comments"
+    )
+    inline = paginated_items(
+        f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
+    )
+
+    for comment in (conversation or []) + (inline or []):
+        if comment.get("created_at", "") <= submitted_at:
+            continue
+        author = comment["user"]["login"] if comment.get("user") else ""
+        body = comment.get("body", "")
+        if is_bot_reply(author, body, agent_login):
+            return {
+                "safe_to_reply": False,
+                "reason": "bot_replied_after",
+                "existing_reply": {
+                    "author": author,
+                    "created_at": comment["created_at"],
+                    "body_preview": body[:200] if body else ""
+                }
+            }
+
+    return {
+        "safe_to_reply": True,
+        "reason": "no_bot_reply_after"
+    }
+
+
+def check_review_comment(
+    owner: str, repo: str, pr_number: int, comment_id: str, agent_login: str = "",
+) -> dict:
+    """Check if bot already replied to a review comment (inline code comment)."""
+    comments = paginated_items(
+        f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
+    )
 
     if not comments:
         return {
-            "safe_to_reply": True,
+            "safe_to_reply": False,
             "reason": "no_comments_found"
         }
 
@@ -240,29 +326,33 @@ def check_review_comment(owner: str, repo: str, pr_number: int, comment_id: str)
 
     if not target_comment:
         return {
-            "safe_to_reply": True,
+            "safe_to_reply": False,
             "reason": "comment_not_found",
             "message": f"Review comment {comment_id} not found"
         }
 
-    # Check for bot replies in the same thread (same in_reply_to_id or replies to this comment)
-    target_id = int(comment_id)
+    # GitHub points every reply at the thread root, even when the feedback being
+    # handled is a child comment. Normalize both sides to that root and only
+    # count replies newer than the specific target so later human follow-ups
+    # remain eligible.
+    target_root_id = int(target_comment.get("in_reply_to_id") or target_comment["id"])
+    target_time = target_comment["created_at"]
     for comment in comments:
-        # Check if this is a reply to the target comment
-        in_reply_to = comment.get("in_reply_to_id")
-        if in_reply_to == target_id:
-            author = comment["user"]["login"] if comment.get("user") else ""
-            body = comment.get("body", "")
-            if is_bot_reply(author, body):
-                return {
-                    "safe_to_reply": False,
-                    "reason": "bot_already_replied",
-                    "existing_reply": {
-                        "author": author,
-                        "created_at": comment["created_at"],
-                        "body_preview": body[:200] if body else ""
-                    }
+        comment_root_id = int(comment.get("in_reply_to_id") or comment["id"])
+        if comment_root_id != target_root_id or comment["created_at"] <= target_time:
+            continue
+        author = comment["user"]["login"] if comment.get("user") else ""
+        body = comment.get("body", "")
+        if is_bot_reply(author, body, agent_login):
+            return {
+                "safe_to_reply": False,
+                "reason": "bot_already_replied",
+                "existing_reply": {
+                    "author": author,
+                    "created_at": comment["created_at"],
+                    "body_preview": body[:200] if body else ""
                 }
+            }
 
     return {
         "safe_to_reply": True,
@@ -277,23 +367,51 @@ def main():
     parser.add_argument("owner", help="Repository owner (e.g., 'openshift')")
     parser.add_argument("repo", help="Repository name (e.g., 'hypershift')")
     parser.add_argument("pr_number", type=int, help="Pull request number")
-    parser.add_argument("comment_id", help="Comment or thread ID to check")
+    parser.add_argument(
+        "comment_id",
+        help="REST numeric id (issue_comment, review, review_comment) or GraphQL global thread id (review_thread)",
+    )
     parser.add_argument(
         "--type",
-        choices=["issue_comment", "review_thread", "review_comment"],
+        choices=["issue_comment", "review", "review_comment", "review_thread"],
         required=True,
         help="Type of comment to check"
+    )
+    parser.add_argument(
+        "--agent-login",
+        help="Agent GitHub login (otherwise discovered from the authenticated gh user when available)",
     )
 
     args = parser.parse_args()
 
     try:
+        agent_login = args.agent_login or ""
+        if not agent_login:
+            try:
+                user = run_gh(["api", "user"])
+                discovered_login = user.get("login", "") if isinstance(user, dict) else ""
+                if isinstance(discovered_login, str):
+                    agent_login = discovered_login
+            except (RuntimeError, TypeError, ValueError, OSError):
+                # Identity discovery is optional. Known account and body
+                # signatures still provide best-effort duplicate detection.
+                pass
         if args.type == "review_thread":
-            result = check_review_thread(args.owner, args.repo, args.pr_number, args.comment_id)
+            result = check_review_thread(
+                args.owner, args.repo, args.pr_number, args.comment_id, agent_login,
+            )
         elif args.type == "issue_comment":
-            result = check_issue_comment(args.owner, args.repo, args.pr_number, args.comment_id)
+            result = check_issue_comment(
+                args.owner, args.repo, args.pr_number, args.comment_id, agent_login,
+            )
+        elif args.type == "review":
+            result = check_review(
+                args.owner, args.repo, args.pr_number, args.comment_id, agent_login,
+            )
         elif args.type == "review_comment":
-            result = check_review_comment(args.owner, args.repo, args.pr_number, args.comment_id)
+            result = check_review_comment(
+                args.owner, args.repo, args.pr_number, args.comment_id, agent_login,
+            )
         else:
             result = {"error": f"Unknown type: {args.type}"}
             print(json.dumps(result, indent=2))

@@ -42,7 +42,7 @@ Structured JSON data containing:
       "pass_sequence": "FFFFFFFFFFFFFFFFFF",
       "failed_runs": [
         {
-          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/...",
           "job_run_id": "2017184460591599616",
           "start_time": "2026-01-30T10:33:47"
         }

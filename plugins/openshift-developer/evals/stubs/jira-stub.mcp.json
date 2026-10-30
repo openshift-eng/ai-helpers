@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "jira-stub": {
+      "command": "python3",
+      "args": ["jira_stub_mcp.py"]
+    }
+  }
+}

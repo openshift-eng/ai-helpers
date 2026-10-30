@@ -1,0 +1,55 @@
+issue_key: OCPBUGS-99760
+expected_disposition: CLOSE
+acceptable_dispositions: [CLOSE]
+acceptable_resolutions: ["Not a Bug", "Won't Do"]
+expected_final_status: Closed
+required_labels: [refined-by-agent]
+preserved_labels: [CAPA, cluster-autoscaler, hypershift, issue-for-agent, scale-from-zero]
+removed_labels: [need-human-analysis]
+max_comment_chars: 1500
+difficulty: complex
+category: bug-refinement
+ground_truth: |
+  Repeat run: the issue already carries a refine:v1 NEED_HUMAN_ANALYSIS marker,
+  and a maintainer has since asked why Cluster API does not set the owner
+  reference. That human comment is new evidence, so the run must reassess
+  rather than report NO_ACTION.
+
+  The ticket's root cause is wrong. Cluster API's MachineDeployment and
+  MachineSet controllers patch a direct Cluster ownerReference onto every
+  referenced infrastructure template (reconcileExternalTemplateReference in
+  internal/controllers/machinedeployment and internal/controllers/machineset),
+  so HyperShift does not need to set it. HyperShift e2e artifacts show the
+  ownerReference added by the CAPI manager within 1-2s of template creation on
+  4.18, 4.20, 4.21, and 5.1 HostedClusters.
+
+  Empty status.capacity is version-dependent: openshift/cluster-api-provider-aws
+  release-4.18, release-4.19, and release-4.20 have no
+  controllers/awsmachinetemplate_controller.go. The 4.18 and 4.20 periodic e2e
+  capi-provider logs start only the AWSCluster, AWSMachine, and AWSMachinePool
+  controllers, and their AWSMachineTemplates have no status. From release-4.21
+  CAPA ships the controller; 4.21 and 5.1 e2e runs log "Successfully populated
+  capacity and nodeInfo" and the templates carry status.capacity. For
+  HostedClusters at 4.18 or older, the HyperShift operator on main pins the CAPI
+  manager to a 4.22 image (support/backwardcompat), and CAPA still comes from
+  the HostedCluster payload. 4.19 is inferred from the branch content.
+
+  Native capacity on 4.20 and older would need a CAPA controller backport, an
+  enhancement rather than a HyperShift defect. Those versions rely on the
+  HyperShift operator's own scale-from-zero annotations (OCPBUGS-99759), and the
+  NodePool controller keeps the autoscaler minimum at 1 when no capacity signal
+  exists. Adding ownerReferences in HyperShift is the wrong fix.
+
+  Correct disposition: CLOSE with resolution Not a Bug (Won't Do acceptable),
+  one short comment with the marker and CI evidence, then refined-by-agent kept,
+  need-human-analysis removed, and every other label preserved.
+  NEED_HUMAN_ANALYSIS or NEEDS_INFO are wrong: the decisive facts are public in
+  source and CI artifacts.
+
+  Evidence:
+  - https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-hypershift-release-4.18-periodics-e2e-aws-ovn/2108292529538469888
+  - https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-hypershift-release-4.21-periodics-e2e-aws-ovn/2108317632322080768
+  - https://prow.ci.openshift.org/view/gs/test-platform-results-public/pr-logs/pull/openshift_hypershift/9619/pull-ci-openshift-hypershift-main-e2e-aws/2104978319106641920
+notes: |
+  The fixture freezes the issue before the refinement this case scores; real
+  Jira is blocked because the live issue now shows the answer.

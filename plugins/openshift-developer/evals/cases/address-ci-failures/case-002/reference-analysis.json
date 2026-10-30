@@ -1,0 +1,6 @@
+{
+  "classification": "pr_caused",
+  "should_fix": true,
+  "should_post_comment": false,
+  "rationale": "TestReconcileHostedCluster fails in hostedcluster_controller_test.go, a file modified by this PR. The assertion error (expected Ready=True, got Ready=False) is a direct consequence of controller logic changes in the same package. Fix the test or controller code in the PR's diff."
+}

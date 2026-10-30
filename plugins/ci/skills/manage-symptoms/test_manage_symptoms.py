@@ -1,11 +1,12 @@
 import manage_symptoms
 from manage_symptoms import (validate_symptom, build_update_payload,
-                             parse_label_ids, check_labels_exist)
+                             parse_label_ids, check_labels_exist,
+                             has_infrafailure_label, confirm_infrafailure_usage)
 
 def test_valid_string_symptom():
     assert validate_symptom({"summary": "AWS auth failure", "matcher_type": "string",
                              "file_pattern": "build-log.txt", "match_string": "AuthFailure",
-                             "label_ids": ["InfraFailure"]}) == []
+                             "label_ids": ["AWSAuthFailure"]}) == []
 
 def test_missing_summary():
     errs = validate_symptom({"matcher_type": "string", "file_pattern": "f", "match_string": "x"})
@@ -21,7 +22,8 @@ def test_non_cel_requires_file_pattern():
 
 def test_cel_requires_match_string_but_not_file_pattern():
     assert validate_symptom({"summary": "s", "matcher_type": "cel",
-                             "match_string": "'A' in labels"}) == []
+                             "match_string": "'A' in labels",
+                             "label_ids": ["TestLabel"]}) == []
     errs = validate_symptom({"summary": "s", "matcher_type": "cel"})
     assert any("match_string" in e for e in errs)
 
@@ -30,16 +32,24 @@ def test_string_and_regex_require_match_string():
     assert any("match_string" in e for e in errs)
 
 def test_none_matcher_needs_no_match_string():
-    assert validate_symptom({"summary": "s", "matcher_type": "none", "file_pattern": "f"}) == []
+    assert validate_symptom({"summary": "s", "matcher_type": "none", "file_pattern": "f",
+                             "label_ids": ["TestLabel"]}) == []
 
 def test_summary_too_long():
     errs = validate_symptom({"summary": "a" * 201, "matcher_type": "none", "file_pattern": "f"})
     assert any("200" in e for e in errs)
 
+def test_label_ids_required():
+    errs = validate_symptom({"summary": "s", "matcher_type": "none", "file_pattern": "f"})
+    assert any("label" in e for e in errs)
+    errs = validate_symptom({"summary": "s", "matcher_type": "none", "file_pattern": "f",
+                             "label_ids": []})
+    assert any("label" in e for e in errs)
+
 
 EXISTING = {"id": "AWSAuthFailure", "summary": "AWS could not validate credentials",
             "matcher_type": "string", "file_pattern": "build-log.txt",
-            "match_string": "api error AuthFailure", "label_ids": ["InfraFailure"]}
+            "match_string": "api error AuthFailure", "label_ids": ["AWSAuthFailure"]}
 
 
 def test_update_overrides_match_string():
@@ -60,7 +70,7 @@ def test_update_empty_string_clears_match_string():
 
 
 def test_update_label_ids_preserved_and_overridden():
-    assert build_update_payload(EXISTING)["label_ids"] == ["InfraFailure"]
+    assert build_update_payload(EXISTING)["label_ids"] == ["AWSAuthFailure"]
     out = build_update_payload(EXISTING, label_ids=["ClusterDNSFlake"])
     assert out["label_ids"] == ["ClusterDNSFlake"]
 
@@ -79,15 +89,15 @@ def test_check_labels_exist_handles_bad_api_response(monkeypatch):
     import manage_symptoms
     for bad in (None, {"error": "x"}, "oops", [1, 2], ["str"]):
         monkeypatch.setattr(manage_symptoms, "get_json", lambda url, _b=bad: _b)
-        errs = check_labels_exist(["InfraFailure"])
+        errs = check_labels_exist(["AWSAuthFailure"])
         assert errs and "could not verify label IDs" in errs[0]
 
 
 def test_check_labels_exist_valid_response(monkeypatch):
     import manage_symptoms
     monkeypatch.setattr(manage_symptoms, "get_json",
-                        lambda url: [{"id": "InfraFailure"}])
-    assert check_labels_exist(["InfraFailure"]) == []
+                        lambda url: [{"id": "AWSAuthFailure"}])
+    assert check_labels_exist(["AWSAuthFailure"]) == []
     assert check_labels_exist(["Nope"])
 
 
@@ -99,3 +109,40 @@ def test_resolve_token_falls_back_to_env():
 
 def test_resolve_token_none_when_unset():
     assert manage_symptoms.resolve_token(None, {}) is None
+
+
+def test_has_infrafailure_label_case_insensitive():
+    assert has_infrafailure_label(["InfraFailure"])
+    assert has_infrafailure_label(["infrafailure"])
+    assert has_infrafailure_label(["INFRAFAILURE"])
+    assert has_infrafailure_label(["TestLabel", "InfraFailure", "AnotherLabel"])
+    assert not has_infrafailure_label(["AWSAuthFailure"])
+    assert not has_infrafailure_label([])
+    assert not has_infrafailure_label(None)
+
+
+def test_confirm_infrafailure_usage_with_yes(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _: "yes")
+    assert confirm_infrafailure_usage() is True
+
+
+def test_confirm_infrafailure_usage_with_y(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+    assert confirm_infrafailure_usage() is True
+
+
+def test_confirm_infrafailure_usage_with_no(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _: "no")
+    assert confirm_infrafailure_usage() is False
+
+
+def test_confirm_infrafailure_usage_with_invalid(monkeypatch):
+    monkeypatch.setattr("builtins.input", lambda _: "maybe")
+    assert confirm_infrafailure_usage() is False
+
+
+def test_confirm_infrafailure_usage_with_eof(monkeypatch):
+    def raise_eof(_):
+        raise EOFError
+    monkeypatch.setattr("builtins.input", raise_eof)
+    assert confirm_infrafailure_usage() is False

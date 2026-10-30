@@ -624,12 +624,12 @@ analysis, but their failures do not change the overall job result.
 - Operator-specific diagnostics
 
 **`gather-extra`** — Runs a series of `oc` commands to capture:
-- `oc get nodes -o yaml` → `artifacts/oc_cmds/nodes`
+- `oc get nodes -o wide` → `artifacts/oc_cmds/nodes`
 - `oc get pods --all-namespaces` → `artifacts/oc_cmds/pods`
 - `oc get events --all-namespaces` → `artifacts/oc_cmds/events`
 - Pod logs by namespace → `artifacts/pods/`
 - API server audit logs → `artifacts/audit_logs/`
-- Node journal logs → `artifacts/journal_logs/`
+- Node journal logs → `artifacts/nodes/<node>/journal` (gzip, no `.gz` extension)
 
 **`gather-audit-logs`** — Specifically collects API server audit logs for detailed
 request-level analysis.
@@ -1030,7 +1030,7 @@ This artifact shows all steps, their execution status, and timing. Look for:
 Download and parse `junit_operator.xml` from the artifacts:
 
 ```bash
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/junit*.xml"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/**/junit*.xml"
 ```
 
 The JUnit XML encodes:
@@ -1043,7 +1043,7 @@ The JUnit XML encodes:
 The CI system attaches machine-detected symptom labels to job runs:
 
 ```bash
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/job_labels/"
+gcloud storage ls "gs://test-platform-results-public/{bucket-path}/artifacts/job_labels/"
 ```
 
 Each JSON file under `job_labels/` describes a detected symptom with a summary and explanation.

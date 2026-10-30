@@ -21,12 +21,24 @@
 set -euo pipefail
 
 REPO_PATH="${1:-.}"
-VERBOSE="${VERBOSE:-false}"   # Set VERBOSE=true to see all successful links
+VERBOSE="${VERBOSE:-false}"
+CHECK_EXTERNAL_LINKS="${CHECK_EXTERNAL_LINKS:-true}"
+VALIDATION_FAILED=false
+
+if [[ ! -d "$REPO_PATH" ]]; then
+    echo "❌ Repository path does not exist: $REPO_PATH" >&2
+    exit 1
+fi
+REPO_PATH=$(cd "$REPO_PATH" && pwd -P)
+
+if [[ -L "$REPO_PATH/ai-docs" ]]; then
+    echo "❌ Refusing to validate a symlinked ai-docs directory" >&2
+    exit 1
+fi
 
 echo "✅ Validating component documentation in: $REPO_PATH"
 echo ""
 
-# Function to validate internal/relative links
 validate_internal_links() {
     local file_path=$1
     local file_dir=$(dirname "$file_path")
@@ -36,39 +48,31 @@ validate_internal_links() {
     local valid_links=0
     local invalid_links=0
 
-    # Extract markdown links: [text](url)
-    # Match relative paths (not starting with http:// or https://)
     while IFS= read -r link; do
         links_found=true
-        ((total_links++))
+        ((++total_links))
 
-        # Skip anchors (links starting with #)
         if [[ "$link" =~ ^# ]]; then
-            ((valid_links++))
+            ((++valid_links))
             continue
         fi
 
-        # Resolve relative path
         local resolved_path
         if [[ "$link" =~ ^/ ]]; then
-            # Absolute path from repo root
             resolved_path="$REPO_PATH$link"
         else
-            # Relative path from current file
             resolved_path="$file_dir/$link"
         fi
 
-        # Remove anchor if present (e.g., file.md#section)
         resolved_path="${resolved_path%%#*}"
 
-        # Check if file exists
         if [ -f "$resolved_path" ] || [ -d "$resolved_path" ]; then
-            ((valid_links++))
+            ((++valid_links))
             if [ "${VERBOSE:-false}" = "true" ]; then
                 echo "  ✅ OK: $link"
             fi
         else
-            ((invalid_links++))
+            ((++invalid_links))
             echo "  ❌ NOT FOUND: $link (resolved to: $resolved_path)"
             broken_links=true
         fi
@@ -86,43 +90,37 @@ validate_internal_links() {
     return 0
 }
 
-# Function to remove broken link from file
 remove_broken_link() {
     local file_path=$1
     local broken_url=$2
 
-    # Escape special characters in URL for sed/grep
-    local escaped_url=$(printf '%s\n' "$broken_url" | sed 's/[[\.*^$/]/\\&/g')
+    # Keep the untrusted URL out of the command/program text; pass it as data.
+    python3 - "$file_path" "$broken_url" <<'PY'
+from pathlib import Path
+import sys
 
-    # Remove entire line containing the broken link
-    sed -i "\|$escaped_url|d" "$file_path"
-
+file_path, broken_url = sys.argv[1:]
+path = Path(file_path)
+lines = path.read_text().splitlines(keepends=True)
+path.write_text("".join(line for line in lines if broken_url not in line))
+PY
     echo "  🔧 REMOVED line containing broken link: $broken_url"
 }
 
-# Function to clean up empty sections after link removal
 cleanup_empty_sections() {
     local file_path=$1
     local cleaned=false
 
-    # Remove empty markdown tables (header + separator with no data rows)
-    # Matches: | Header | ... |\n|--------|-----|  followed by blank line or new section
     python3 -c "
 import re
 with open('$file_path', 'r') as f:
     content = f.read()
-# Match table header + separator with optional blank lines but no data rows
-# Pattern: table header, separator, then either EOF, blank line + header, or just header
 content = re.sub(r'\|[^\n]+\|\n\|[-:| ]+\|\n+(?=##|\Z)', '', content)
 with open('$file_path', 'w') as f:
     f.write(content)
 " && cleaned=true
 
-    # Remove multiple consecutive blank lines (reduce to max 2)
     perl -i -0pe 's/\n{3,}/\n\n/g' "$file_path"
-
-    # Remove section headers that have no content before next header
-    # Pattern: ## Header\n\n## Another Header -> ## Another Header
     sed -i '/^##[^#]/ { N; s/^##[^#][^\n]*\n\n##/##/; }' "$file_path"
 
     if [ "$cleaned" = true ]; then
@@ -130,7 +128,6 @@ with open('$file_path', 'w') as f:
     fi
 }
 
-# Function to validate HTTP/HTTPS links
 validate_links() {
     local file_path=$1
     local links_found=false
@@ -140,56 +137,47 @@ validate_links() {
     local invalid_links=0
     local links_to_remove=()
 
-    # Extract markdown links: [text](url)
-    # Match http:// and https:// URLs only
+    if [[ "$CHECK_EXTERNAL_LINKS" != "true" ]]; then
+        echo "  ⚠️  External link checks disabled; links are unverified"
+        return 0
+    fi
+
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "  ⚠️  curl is unavailable; external links are unverified"
+        return 0
+    fi
+
     while IFS= read -r link; do
         links_found=true
-        ((total_links++))
+        ((++total_links))
 
-        # Mark known sites that block curl but are valid
-        local is_curl_blocked=false
-        if [[ "$link" =~ "docs.openshift.com" ]]; then
-            is_curl_blocked=true
-        fi
-
-        # Check if URL is accessible (with timeout and follow redirects)
-        # Add user agent to avoid some sites blocking curl
+        local http_code
         http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 -L \
             -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
             "$link" 2>/dev/null || echo "000")
 
-        # Small delay to avoid rate limiting
         sleep 0.1
 
         if [[ "$http_code" == "200" ]]; then
-            ((valid_links++))
+            ((++valid_links))
             if [ "${VERBOSE:-false}" = "true" ]; then
                 echo "  ✅ OK ($http_code): $link"
             fi
         elif [[ "$http_code" =~ ^0+$ ]]; then
-            ((invalid_links++))
+            ((++invalid_links))
             echo "  ❌ TIMEOUT/ERROR: $link"
             links_to_remove+=("$link")
             broken_links=true
         elif [[ "$http_code" == "404" ]]; then
-            ((invalid_links++))
+            ((++invalid_links))
             echo "  ❌ NOT FOUND ($http_code): $link"
             links_to_remove+=("$link")
             broken_links=true
-        elif [[ "$http_code" == "403" ]]; then
-            if [ "$is_curl_blocked" = true ]; then
-                ((valid_links++))
-                if [ "${VERBOSE:-false}" = "true" ]; then
-                    echo "  ⚠️  OK (site blocks curl, assume valid): $link"
-                fi
-            else
-                ((invalid_links++))
-                echo "  ❌ FORBIDDEN ($http_code): $link"
-                links_to_remove+=("$link")
-                broken_links=true
-            fi
+        elif [[ "$http_code" == "403" || "$http_code" == "429" ]]; then
+            ((++valid_links))
+            echo "  ⚠️  MANUAL CHECK ($http_code): $link"
         else
-            ((invalid_links++))
+            ((++invalid_links))
             echo "  ❌ BROKEN ($http_code): $link"
             links_to_remove+=("$link")
             broken_links=true
@@ -202,13 +190,11 @@ validate_links() {
         echo "  📊 Links: $total_links total, $valid_links valid, $invalid_links invalid"
     fi
 
-    # Remove broken links from the file
     if [ ${#links_to_remove[@]} -gt 0 ]; then
         echo "  🔧 Removing ${#links_to_remove[@]} broken link(s) from file..."
         for broken_link in "${links_to_remove[@]}"; do
             remove_broken_link "$file_path" "$broken_link"
         done
-        # Clean up empty sections after removing links
         cleanup_empty_sections "$file_path"
     fi
 
@@ -218,7 +204,8 @@ validate_links() {
     return 0
 }
 
-# Check AGENTS.md at root
+# === AGENTS.md ===
+
 if [ ! -f "$REPO_PATH/AGENTS.md" ]; then
     echo "❌ AGENTS.md not found at repository root"
     exit 1
@@ -226,54 +213,112 @@ fi
 
 LINE_COUNT=$(wc -l < "$REPO_PATH/AGENTS.md")
 echo "  ✅ AGENTS.md exists"
-if [ "$LINE_COUNT" -lt 80 ] || [ "$LINE_COUNT" -gt 100 ]; then
-    echo "  ⚠️  AGENTS.md is $LINE_COUNT lines (target: 80-100)"
+if [ "$LINE_COUNT" -lt 40 ] || [ "$LINE_COUNT" -gt 60 ]; then
+    echo "  ⚠️  AGENTS.md is $LINE_COUNT lines (target: 40-60)"
 else
-    echo "     $LINE_COUNT lines (target: 80-100) ✅"
+    echo "     $LINE_COUNT lines (target: 40-60) ✅"
 fi
 
-# Check for Platform references
-if grep -q "Platform" "$REPO_PATH/AGENTS.md" || grep -q "openshift/enhancements" "$REPO_PATH/AGENTS.md"; then
-    echo "  ✅ Platform ecosystem references found"
+if grep -q "Platform\|openshift/enhancements" "$REPO_PATH/AGENTS.md"; then
+    echo "  ✅ Platform documentation reference found"
 else
-    echo "  ⚠️  No Platform ecosystem references found"
-fi
-
-# Check for retrieval-first instruction
-if grep -q -i "retrieval" "$REPO_PATH/AGENTS.md"; then
-    echo "  ✅ Retrieval-first instruction found"
-else
-    echo "  ⚠️  No retrieval-first instruction"
+    echo "  ⚠️  No Platform documentation reference found"
 fi
 
 echo ""
 
-# Check required directories
-for dir in domain architecture decisions exec-plans references; do
-    if [ -d "$REPO_PATH/ai-docs/$dir" ]; then
-        echo "  ✅ ai-docs/$dir/ exists"
+# === CLAUDE.md symlink ===
+
+if [ -L "$REPO_PATH/CLAUDE.md" ]; then
+    target=$(readlink "$REPO_PATH/CLAUDE.md")
+    if [ "$target" = "AGENTS.md" ]; then
+        echo "  ✅ CLAUDE.md → AGENTS.md symlink correct"
     else
-        echo "  ❌ ai-docs/$dir/ missing"
+        echo "  ❌ CLAUDE.md symlink points to $target (expected AGENTS.md)"
+        VALIDATION_FAILED=true
+    fi
+else
+    echo "  ❌ CLAUDE.md symlink missing (run: ln -sf AGENTS.md CLAUDE.md)"
+    VALIDATION_FAILED=true
+fi
+
+echo ""
+
+# === ai-docs/ directory ===
+
+if [ ! -d "$REPO_PATH/ai-docs" ]; then
+    echo "❌ ai-docs/ directory missing"
+    exit 1
+fi
+echo "  ✅ ai-docs/ exists"
+
+EXPECT_SOURCE_BACKUP=false
+if [ -d "$REPO_PATH/ai-docs/_sources" ]; then
+    EXPECT_SOURCE_BACKUP=true
+fi
+
+# Required files
+for f in ARCHITECTURE.md DEVELOPMENT.md TESTING.md; do
+    if [ -f "$REPO_PATH/ai-docs/$f" ]; then
+        echo "  ✅ ai-docs/$f exists"
+    else
+        echo "  ❌ ai-docs/$f missing"
+        VALIDATION_FAILED=true
     fi
 done
 
-echo ""
-
-# Check ecosystem.md
-if [ -f "$REPO_PATH/ai-docs/references/ecosystem.md" ]; then
-    echo "  ✅ references/ecosystem.md exists"
-    if grep -q "Platform" "$REPO_PATH/ai-docs/references/ecosystem.md"; then
-        echo "     Contains Platform links ✅"
-    else
-        echo "     ⚠️  No Platform links found"
-    fi
-else
-    echo "  ⚠️  references/ecosystem.md missing"
+# Optional file
+if [ -f "$REPO_PATH/ai-docs/ENHANCEMENTS.md" ]; then
+    echo "  ✅ ai-docs/ENHANCEMENTS.md exists (optional)"
 fi
 
 echo ""
 
-# Check REVIEW.md
+# === Source preservation ===
+
+if [ "$EXPECT_SOURCE_BACKUP" = true ]; then
+    if [ -d "$REPO_PATH/ai-docs/_sources" ]; then
+        echo "  ✅ ai-docs/_sources/ exists"
+    else
+        echo "  ⚠️  ai-docs/_sources/ missing"
+    fi
+
+    if [ -f "$REPO_PATH/ai-docs/_sources/CLAUDE.pre-agentic-docs.md" ]; then
+        echo "  ✅ Prior CLAUDE.md preserved"
+    else
+        echo "  ⚠️  Prior CLAUDE.md backup missing"
+    fi
+
+    if [ -f "$REPO_PATH/ai-docs/_sources/AGENTS.pre-agentic-docs.md" ]; then
+        echo "  ✅ Prior AGENTS.md preserved"
+    else
+        echo "  ℹ️  Prior AGENTS.md backup not found"
+    fi
+fi
+
+echo ""
+
+# === ARCHITECTURE.md content checks ===
+
+if [ -f "$REPO_PATH/ai-docs/ARCHITECTURE.md" ]; then
+    ARCH_LINES=$(wc -l < "$REPO_PATH/ai-docs/ARCHITECTURE.md")
+    if [ "$ARCH_LINES" -lt 200 ] || [ "$ARCH_LINES" -gt 400 ]; then
+        echo "  ⚠️  ARCHITECTURE.md is $ARCH_LINES lines (target: 200-400)"
+    else
+        echo "  ✅ ARCHITECTURE.md: $ARCH_LINES lines (target: 200-400)"
+    fi
+
+    if grep -qi "Platform Documentation\|openshift/enhancements" "$REPO_PATH/ai-docs/ARCHITECTURE.md" 2>/dev/null; then
+        echo "  ✅ ARCHITECTURE.md contains Platform documentation links"
+    else
+        echo "  ⚠️  ARCHITECTURE.md missing Platform Documentation section"
+    fi
+fi
+
+echo ""
+
+# === REVIEW.md ===
+
 if [ -f "$REPO_PATH/REVIEW.md" ]; then
     echo "  ✅ REVIEW.md exists"
     REVIEW_LINES=$(wc -l < "$REPO_PATH/REVIEW.md")
@@ -282,13 +327,11 @@ if [ -f "$REPO_PATH/REVIEW.md" ]; then
     else
         echo "     $REVIEW_LINES lines (target: 60-80, cap: 100) ✅"
     fi
-    # Check for platform citations
     if grep -qi "dev-guide\|CONVENTIONS\|enhancements" "$REPO_PATH/REVIEW.md"; then
         echo "  ✅ Platform rule citations found"
     else
         echo "  ⚠️  No platform rule citations found"
     fi
-    # Check skip paths reference real directories
     while IFS= read -r skip_path; do
         clean_path=$(echo "$skip_path" | sed 's/[`*]//g' | xargs)
         if [ -n "$clean_path" ] && [[ "$clean_path" != vendor* ]] && [[ "$clean_path" != go.* ]]; then
@@ -302,31 +345,33 @@ if [ -f "$REPO_PATH/REVIEW.md" ]; then
             fi
         fi
     done < <(grep -oP '`[^`]+\*\*[^`]*`' "$REPO_PATH/REVIEW.md" 2>/dev/null || true)
-    # Check no overlap with CLAUDE.md
-    if [ -f "$REPO_PATH/CLAUDE.md" ]; then
+    if [ -f "$REPO_PATH/AGENTS.md" ]; then
         overlap=$(comm -12 \
             <(grep -v '^$\|^#\|^-' "$REPO_PATH/REVIEW.md" 2>/dev/null | sort -u) \
-            <(grep -v '^$\|^#\|^-' "$REPO_PATH/CLAUDE.md" 2>/dev/null | sort -u) \
+            <(grep -v '^$\|^#\|^-' "$REPO_PATH/AGENTS.md" 2>/dev/null | sort -u) \
             | wc -l)
         if [ "$overlap" -gt 3 ]; then
-            echo "  ⚠️  REVIEW.md has $overlap lines overlapping with CLAUDE.md"
+            echo "  ⚠️  REVIEW.md has $overlap lines overlapping with AGENTS.md"
         else
-            echo "  ✅ No significant CLAUDE.md overlap"
+            echo "  ✅ No significant AGENTS.md overlap"
         fi
     fi
 else
-    echo "  ℹ️  REVIEW.md not found (optional — run Phase 9.5 to generate)"
+    echo "  ❌ REVIEW.md not found (required — run Phase 6 to generate)"
+    VALIDATION_FAILED=true
 fi
 
 echo ""
 
-# Check .coderabbit.yaml
+# === .coderabbit.yaml ===
+
 if [ -f "$REPO_PATH/.coderabbit.yaml" ]; then
     echo "  ✅ .coderabbit.yaml exists"
-    if python3 -c "import yaml; yaml.safe_load(open('$REPO_PATH/.coderabbit.yaml'))" 2>/dev/null; then
+    if python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' "$REPO_PATH/.coderabbit.yaml" 2>/dev/null; then
         echo "  ✅ Valid YAML syntax"
     else
         echo "  ❌ Invalid YAML syntax"
+        VALIDATION_FAILED=true
     fi
     if grep -q "REVIEW.md" "$REPO_PATH/.coderabbit.yaml"; then
         echo "  ✅ filePatterns includes REVIEW.md"
@@ -337,12 +382,14 @@ if [ -f "$REPO_PATH/.coderabbit.yaml" ]; then
         echo "  ⚠️  filePatterns includes CLAUDE.md (auto-detected, remove)"
     fi
 else
-    echo "  ℹ️  .coderabbit.yaml not found (optional — run Phase 9.5 to generate)"
+    echo "  ❌ .coderabbit.yaml not found (required — run Phase 6 to generate)"
+    VALIDATION_FAILED=true
 fi
 
 echo ""
 
-# Check for forbidden patterns (generic content duplication)
+# === Generic duplication check ===
+
 echo "Checking for generic duplication..."
 
 FORBIDDEN_PATTERNS=(
@@ -367,13 +414,13 @@ fi
 
 echo ""
 
-# Validate links
+# === Link validation ===
+
 echo "Validating links..."
 echo ""
 
 LINK_VALIDATION_FAILED=false
 
-# Check links in AGENTS.md
 if [ -f "$REPO_PATH/AGENTS.md" ]; then
     echo "📄 Checking AGENTS.md:"
     echo "  🔗 External links:"
@@ -387,7 +434,6 @@ if [ -f "$REPO_PATH/AGENTS.md" ]; then
     echo ""
 fi
 
-# Check links in REVIEW.md
 if [ -f "$REPO_PATH/REVIEW.md" ]; then
     echo "📄 Checking REVIEW.md:"
     echo "  🔗 External links:"
@@ -401,7 +447,6 @@ if [ -f "$REPO_PATH/REVIEW.md" ]; then
     echo ""
 fi
 
-# Check links in all ai-docs markdown files
 if [ -d "$REPO_PATH/ai-docs" ]; then
     while IFS= read -r -d '' file; do
         echo "📄 Checking $(basename "$file"):"
@@ -414,15 +459,21 @@ if [ -d "$REPO_PATH/ai-docs" ]; then
             LINK_VALIDATION_FAILED=true
         fi
         echo ""
-    done < <(find "$REPO_PATH/ai-docs" -name "*.md" -type f -print0)
+    done < <(find "$REPO_PATH/ai-docs" -path "$REPO_PATH/ai-docs/_sources" -prune -o -name "*.md" -type f -print0)
 fi
 
 if [ "$LINK_VALIDATION_FAILED" = true ]; then
-    echo "⚠️  Some links are broken or inaccessible"
+    echo "❌ Some links are broken or inaccessible"
+    VALIDATION_FAILED=true
 else
     echo "✅ All links validated successfully"
 fi
 
 echo ""
 echo "==================================="
+if [[ "$VALIDATION_FAILED" = true ]]; then
+    echo "❌ Validation failed"
+    exit 1
+fi
+
 echo "✅ Validation complete"

@@ -1,4 +1,4 @@
-prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-aws-ovn-serial-1of2/2009500207091290112"
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-aws-ovn-serial-1of2/2009500207091290112"
 job_name: "periodic-ci-openshift-release-master-nightly-4.22-e2e-aws-ovn-serial-1of2"
 description: >-
   4.22 aws-ovn serial run where all four [Feature:EgressIP] conformance tests fail

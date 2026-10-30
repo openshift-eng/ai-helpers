@@ -43,13 +43,24 @@ lint-pull: ## Pull the configured skillsaw image
 	$(CONTAINER_RUNTIME) pull $(SKILLSAW_IMAGE)
 
 .PHONY: update
-update: ## Update plugin documentation and website data
+update: ## Normalize plugin metadata and sync marketplace versions
 	@echo "Fixing frontmatter quotes, if any..."
 	@python3 scripts/fix_frontmatter_quotes.py
 	@echo "Syncing marketplace versions..."
 	@python3 scripts/sync_marketplace_versions.py
-	@echo "Generating docs..."
-	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z --entrypoint skillsaw $(SKILLSAW_IMAGE) docs -o docs/ --theme crimson-red
+
+.PHONY: site-generate
+site-generate: ## Generate ignored MkDocs content from marketplace metadata
+	@echo "Generating site content..."
+	@python3 scripts/generate_site.py
+
+.PHONY: site-build
+site-build: site-generate ## Generate and build the documentation site with strict checks
+	@cd site && python3 -m mkdocs build --strict --site-dir ../public
+
+.PHONY: site-serve
+site-serve: site-generate ## Generate and preview the site at http://127.0.0.1:8000/ai-helpers/
+	@cd site && python3 -m mkdocs serve --strict --dev-addr 127.0.0.1:8000
 
 .PHONY: list-unprotected
 list-unprotected: ## List directories where anyone can contribute (no OWNERS file)

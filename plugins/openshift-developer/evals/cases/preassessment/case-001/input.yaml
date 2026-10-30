@@ -1,0 +1,46 @@
+issue_key: "TRT-2755"
+repo_url: "https://github.com/openshift/sippy"
+eval_ref: "9e96f9311acb88d2b3bfdd28f9a399553d20e016"
+issue_context: |
+  Key: TRT-2755
+  Type: Bug
+  Priority: Major
+  Status: Refinement
+  Labels: interactive-backlog-grooming-2026, issue-for-agent
+  Components: (none)
+  Resolution: Unresolved
+
+  Summary: Add context.Context propagation to PostgreSQL query layer
+
+  Description:
+  GORM database queries throughout the codebase do not propagate
+  `context.Context` from HTTP request handlers. This means client disconnects
+  and request timeouts cannot cancel in-flight PostgreSQL queries.
+
+  ### Current state
+
+  * 0 of 38 query functions in `pkg/db/query/` accept `context.Context`
+  * ~69% of HTTP handlers in `pkg/sippyserver/server.go` do not pass
+    `req.Context()` to the database layer
+  * Only 1 GORM query in `pkg/api/` uses `WithContext()`
+  * Context is used consistently for BigQuery calls (required by the SDK)
+    but not for PostgreSQL
+
+  ### Work needed
+
+  * Add `context.Context` as the first parameter to query functions in
+    `pkg/db/query/`
+  * Thread `req.Context()` from HTTP handlers through API functions to GORM
+    calls
+  * Use `dbClient.DB.WithContext(ctx)` at query sites
+  * Prioritize long-running queries (test results, job reports) over simple
+    lookups
+
+  ### Why
+
+  Without context propagation, a canceled HTTP request (client navigates
+  away, timeout fires) leaves the database query running to completion. For
+  cheap primary-key lookups this is harmless, but for expensive analytical
+  queries it wastes database resources.
+
+  Comments: (none)

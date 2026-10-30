@@ -14,6 +14,8 @@ openshift-developer:address-review-pr
 ## Description
 Automates addressing PR review comments by fetching all comments from a pull request, categorizing them by priority (blocking, change requests, questions, suggestions), and systematically addressing each one. Intelligently filters out outdated comments, bot-generated content, and oversized responses to optimize context usage. Handles code changes, posts replies to reviewers, and maintains a clean git history by amending relevant commits rather than creating unnecessary new ones.
 
+Does not handle CI failures — use `address-ci-failures` for that.
+
 When `--ci` is passed: NEVER ask interactive questions or wait for user input. Make autonomous decisions. When in doubt, proceed with the safest action.
 
 ## Implementation
@@ -115,6 +117,14 @@ Cache results per author — do not re-check the same login twice.
 1. **Additional filtering** (for remaining fetched comments):
    - Already resolved comments
    - Pure acknowledgments ("LGTM", "Thanks!", etc.)
+   - Slash-command-only bodies (`/lgtm`, `/hold`, `/test …`) — not review work. Skip **before** categorizing:
+
+     ```sh
+     printf '%s' "$BODY" | python3 "${CLAUDE_SKILL_DIR}/../has-review-work/scripts/is_slash_command_only.py"
+     ```
+
+     - Exit 0: skip — after trimming, dropping blank lines and HTML comments, every remaining line is a slash command
+     - Exit 1: keep — mixed prose plus a trailing `/lgtm` is still work
 
 2. **Categorize**:
    - **ACTION_INSTRUCTION**: Repo-level operations — rebase, verify, squash, update branch, run tests.
@@ -208,11 +218,16 @@ If the refresh fails, continue anyway — the token may still be valid for short
 #### 4a. Post all replies
 
 - **Template**: `Done. [1-line what changed]. [Optional 1-line why]`
-- Post reply:
-  ```
-  gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments/<comment_id>/replies -f body="<reply>"
-  ```
-- **All replies must include**: `---\n*AI-assisted response via Claude Code*`
+- Use the endpoint that matches the comment type (see Response Rules — never both):
+  - **Inline review comments** (`pulls/<PR_NUMBER>/comments`):
+    ```
+    gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments/<comment_id>/replies -f body="<reply>"
+    ```
+  - **PR conversation comments** (`issues/<PR_NUMBER>/comments`):
+    ```
+    gh api repos/{owner}/{repo}/issues/<PR_NUMBER>/comments -f body="<reply>"
+    ```
+- **All replies must include**: `---\n*AI-assisted response*`
 
 #### 4b. Push once
 
@@ -263,7 +278,11 @@ Before posting ANY reply, verify you haven't already responded:
 python3 ${CLAUDE_SKILL_DIR}/scripts/check_replied.py <owner> <repo> <pr_number> <comment_id> --type <type>
 ```
 
-Where `<type>` is one of: `issue_comment`, `review_thread`, or `review_comment`
+The helper attempts to discover the authenticated `gh` login as the agent identity. Discovery is best effort: if unavailable, known bot accounts and reply body signatures still prevent duplicates. Pass an explicit configured identity with `--agent-login <login>` to recognize unsigned replies from other accounts; GitHub App `[bot]` suffixes and case are normalized.
+
+Where `<type>` is one of: `issue_comment`, `review`, `review_thread`, or `review_comment`
+
+For a `review` body, duplicate detection is best effort: any later bot response in the PR conversation or an inline review thread counts as a reply. This may associate an unrelated later response with an older review, which is acceptable for avoiding stale review work.
 
 **Exit code 1**: Skip — already replied.
 **Exit code 2**: Check failed — do NOT post a reply.
@@ -273,3 +292,7 @@ Where `<type>` is one of: `issue_comment`, `review_thread`, or `review_comment`
 1. **One response per feedback**: Inline review comments reply inline only. General PR comments reply as general comment only. NEVER both.
 2. **Code changes require explicit request**: Only modify code for imperative language ("change", "fix", "remove"). For questions — reply with explanation only.
 3. **Check before acting**: Questions ("Why did you...?") get explanations, not code changes.
+
+## See Also
+- `has-review-work` — read-only gate: `COMMENT_WORK` for unanswered authorized comments, `CI_WORK` for new non-optional CI failures
+- `address-ci-failures` — triage and fix PR-caused CI failures (or report non-actionable ones)

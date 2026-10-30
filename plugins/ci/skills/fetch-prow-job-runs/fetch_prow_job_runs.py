@@ -8,23 +8,31 @@ message is surfaced verbatim.
 import argparse
 import json
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
 
 BASE_URL = "https://sippy.dptools.openshift.org/api/jobs/runs"
 
 
-def since_millis(hours, now_ms=None):
-    """Return the epoch-milliseconds timestamp `hours` ago from now_ms."""
-    if now_ms is None:
-        now_ms = int(time.time() * 1000)
-    return int(now_ms - hours * 3600 * 1000)
+def since_cutoff(hours, now=None):
+    """Return the lookback cutoff datetime for `hours` before `now`.
+
+    `now` defaults to the current UTC time; pass a timezone-aware datetime to
+    override it (e.g. in tests).
+    """
+    if now is None:
+        now = datetime.now(timezone.utc)
+    return now - timedelta(hours=hours)
 
 
-def build_filter(job_contains, variants, result, since_ms, extra_items):
-    """Build the Sippy filter dict. All items are ANDed together."""
+def build_filter(job_contains, variants, result, since, extra_items):
+    """Build the Sippy filter dict. All items are ANDed together.
+
+    `since`, when set, is a datetime. The Sippy `timestamp` column is a
+    timestamptz, so it is formatted to an RFC 3339 UTC string here.
+    """
     items = []
     for substr in job_contains:
         items.append({"columnField": "name", "operatorValue": "contains", "value": substr})
@@ -32,8 +40,8 @@ def build_filter(job_contains, variants, result, since_ms, extra_items):
         items.append({"columnField": "variants", "operatorValue": "has entry", "value": variant})
     if result is not None:
         items.append({"columnField": "overall_result", "operatorValue": "equals", "value": result})
-    if since_ms is not None:
-        items.append({"columnField": "timestamp", "operatorValue": ">", "value": str(since_ms)})
+    if since is not None:
+        items.append({"columnField": "timestamp", "operatorValue": ">", "value": since.isoformat().replace("+00:00", "Z")})
     items.extend(extra_items)
     return {"items": items, "linkOperator": "and"}
 
@@ -110,9 +118,9 @@ def main(argv=None):
             print("Error: --filter-json must be a JSON array of filter items", file=sys.stderr)
             return 1
 
-    since_ms = since_millis(args.since_hours) if args.since_hours is not None else None
+    since = since_cutoff(args.since_hours) if args.since_hours is not None else None
     filter_dict = build_filter(args.job_contains, args.variant, args.result,
-                               since_ms, extra_items)
+                               since, extra_items)
     try:
         rows = fetch_runs(args.release, filter_dict, args.limit)
     except RuntimeError as e:

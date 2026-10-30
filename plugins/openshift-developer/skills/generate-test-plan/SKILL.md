@@ -29,8 +29,11 @@ When given a Jira key, it auto-discovers linked PRs. When given PR URLs directly
    - Issue summary, description, acceptance criteria
    - Steps to reproduce (for bugs)
    - Issue type (Story, Bug, Task, etc.)
+   - **Project key** (e.g. `OCPSTRAT`, `OCPBUGS`, `CNTRLPLANE`)
 
-3. **Discover PRs**:
+3. **OCPSTRAT feature routing**: If the issue's project is `OCPSTRAT` and the issue type is `Feature`, read [references/ocpstrat-feature.md](references/ocpstrat-feature.md) and follow its instructions for template parsing, analysis, scenario generation, document structure, and reporting in all subsequent steps. For **non-OCPSTRAT issues** (or OCPSTRAT issues that do not follow the feature template), do not read the reference — continue with the generic flow below.
+
+4. **Discover PRs**:
    - If explicit PR URLs were provided: use only those
    - If only a Jira key was provided: use `mcp__atlassian__jira_get_issue` with `include: "remote_links"` and look for GitHub PR links. Also check the issue description and comments for PR URLs.
    - For each PR, fetch details:
@@ -119,6 +122,11 @@ Note skipped PRs in the output with reasoning.
 4. **Multiple PRs without Jira**:
    ```text
    /openshift-developer:generate-test-plan https://github.com/openshift/hypershift/pull/6888 https://github.com/openshift/hypershift/pull/6889
+   ```
+
+5. **From an OCPSTRAT feature (generates IEEE 829-style plan with deployment matrix, interop, NFR sections)**:
+   ```text
+   /openshift-developer:generate-test-plan OCPSTRAT-3266
    ```
 
 ## Arguments
