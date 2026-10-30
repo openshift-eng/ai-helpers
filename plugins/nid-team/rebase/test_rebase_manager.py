@@ -86,6 +86,7 @@ class RebaseManagerTest(unittest.TestCase):
         return str(path)
 
     def cli(self, *args, success=True):
+        """Exercise the real CLI and require the expected success or failure path."""
         result = subprocess.run(
             [sys.executable, str(SCRIPT), "--state-dir", str(self.state_dir), *args],
             cwd=self.repo, env=self.env, text=True, capture_output=True, timeout=15)
@@ -106,6 +107,7 @@ class RebaseManagerTest(unittest.TestCase):
         return self.picked
 
     def result(self, head=None):
+        """Build a complete synthetic application record, optionally for a stale head."""
         return {"plan_sha256": digest(self.plan),
                 "head_sha": head or self.git("rev-parse", "HEAD"),
                 "carries": [{"id": "carry-1", "result_sha": self.picked,
@@ -119,6 +121,7 @@ class RebaseManagerTest(unittest.TestCase):
                  self.write_json("result.json", self.result()))
 
     def record(self, gate, verdict="PASS", head=None, **changes):
+        """Import synthetic evidence with controlled verdict, revision, and log bytes."""
         head = head or self.git("rev-parse", "HEAD")
         log = self.root / (gate + ".log")
         log.write_text(f"HEAD: {head}\nSynthetic {gate}: {verdict}\n")
@@ -130,6 +133,7 @@ class RebaseManagerTest(unittest.TestCase):
                         self.write_json(gate + ".json", evidence))
 
     def record_all(self):
+        """Supply every required gate for tests that start from a validated candidate."""
         for gate in ("carry-accounting", "tree-accounting", "review", "unit"):
             self.record(gate)
 
@@ -169,6 +173,7 @@ class RebaseManagerTest(unittest.TestCase):
         self.assertEqual(json.loads(plan_path.read_text()), self.plan)
 
     def test_candidate_must_be_a_literal_unprotected_feature_branch(self):
+        """Reject unsafe or ambiguous destinations before accepting a new plan."""
         for branch in ("main", "master", "refs/heads/main", "refs/heads/feature",
                        "refs/remotes/custom/main", "downstream", "@{-1}"):
             with self.subTest(branch=branch):
@@ -192,6 +197,7 @@ class RebaseManagerTest(unittest.TestCase):
         self.cli("sync-pr", "--input", self.snapshot(base_ref="release/4.20"))
 
     def test_git_queries_use_finite_timeout_and_readonly_environment(self):
+        """Ensure both Git query paths are bounded and avoid optional index writes."""
         for query, args in ((MANAGER.git, (self.repo, "status", "--porcelain")),
                             (MANAGER.ancestor, (self.repo, self.base, self.upstream))):
             with self.subTest(query=query.__name__):
@@ -259,6 +265,7 @@ class RebaseManagerTest(unittest.TestCase):
                  self.write_json("result.json", result))
 
     def test_required_gates_and_failures_block_validation(self):
+        """Missing, failing, inconclusive, or skipped required checks block readiness."""
         self.applied()
         for gate in ("carry-accounting", "tree-accounting", "review"):
             self.record(gate)
@@ -320,6 +327,7 @@ class RebaseManagerTest(unittest.TestCase):
         self.cli("advance", "--to", "validated", success=False)
 
     def test_clean_index_with_unfinished_cherry_pick_cannot_validate(self):
+        """A clean index does not hide an unfinished operation from validation."""
         self.applied()
         self.record_all()
         marker = Path(self.git("rev-parse", "--git-path", "CHERRY_PICK_HEAD"))
@@ -367,6 +375,7 @@ class RebaseManagerTest(unittest.TestCase):
         self.cli("sync-pr", "--input", self.snapshot(draft=False), success=False)
 
     def test_draft_can_bootstrap_ci_but_cannot_bypass_readiness(self):
+        """Draft tracking permits CI bootstrap while non-draft tracking requires evidence."""
         self.applied()
         for gate in ("carry-accounting", "tree-accounting", "review"):
             self.record(gate)
@@ -438,6 +447,7 @@ class RebaseManagerTest(unittest.TestCase):
         self.assertEqual(state["gates"], {})
 
     def test_merged_remote_revision_preserves_local_validation_provenance(self):
+        """Record human-updated closure without transferring validation to its new head."""
         self.validated()
         candidate = self.git("rev-parse", "HEAD")
         self.cli("sync-pr", "--input", self.snapshot())

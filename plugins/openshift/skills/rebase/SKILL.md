@@ -184,6 +184,13 @@ Derive the OCP version from repository context and prepare the title
 so the user can edit the prepared submission. Resolve every placeholder from the
 plan and discovered URLs; quote all shell arguments as needed.
 
+If opening the form fails, including because the body makes the browser URL too
+long, retain the pushed branch and report artifacts. Check whether a PR already
+exists for that head before retrying. Reopen a shorter form without `--body-file`
+or provide the repository's compare URL, and give the user the prepared title and
+`pr-body.md` for manual insertion. Report the actual publication state; a successful
+push or browser launch does not establish that a PR was submitted.
+
 ## Design sources
 
 This extracts the existing OpenShift rebase command into a reusable skill.
