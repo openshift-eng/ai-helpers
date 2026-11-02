@@ -66,7 +66,7 @@ Only on **verified existing issues in approved projects** — `OCPBUGS` and `TRT
   > Component Readiness regressions on <releases> are linked to this bug; the fix shipped in <version> via <key>; no clone targets <releases>.
 
   End it with the AI-attribution footer as a separate marked block (SKILL.md Phase 4, new-bug bullet), footer last.
-- The triage-link notice comment is **off by default**; post it only if the run's instructions enable it.
+- The triage-link notice comment is **off by default**; post it only if the run's instructions enable it, using the [jira-comment.md template](jira-comment.md).
 - Never: create issues, reopen, transition, set blockers, create issue links, or create labels/symptoms.
 
 ## 7. Write modes
