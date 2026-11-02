@@ -23,6 +23,7 @@ import jira_auth  # noqa: E402
 
 SCHEMA_VERSION = "1.0"
 SIPPY_TRIAGES_URL = "https://sippy.dptools.openshift.org/api/component_readiness/triages"
+BULK_TRIAGE_BOT_USER = "system:serviceaccount:sippy:claude-bulk-triage"
 JIRA_SEARCH_PATH = "/rest/api/3/search/jql"
 JIRA_MYSELF_PATH = "/rest/api/3/myself"
 JIRA_MYPERMISSIONS_PATH = "/rest/api/3/mypermissions"
@@ -51,6 +52,53 @@ def _get_json(url, headers=None):
 
 def _default_fetch():
     return _get_json(SIPPY_TRIAGES_URL)
+
+
+def _default_audit_fetch(triage_id):
+    return _get_json("%s/%s/audit" % (SIPPY_TRIAGES_URL, urllib.parse.quote(str(triage_id), safe="")))
+
+
+def _audit_timestamp(text):
+    """Parse zoned RFC3339 timestamps without losing Go's nanosecond precision."""
+    if not isinstance(text, str):
+        raise ValueError("audit timestamp must be a string")
+    match = re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)", text)
+    if not match:
+        raise ValueError("invalid audit timestamp")
+    return (_parse_ts(text).replace(microsecond=0), (match.group(1) or "").ljust(9, "0"))
+
+
+def _external_audit_users(triage_id, before_time, after_time, fetch):
+    try:
+        start, end = _audit_timestamp(before_time), _audit_timestamp(after_time)
+        if start > end:
+            return []
+        entries = fetch(triage_id)
+        if not isinstance(entries, list):
+            return []
+        users = set()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                return []
+            user = entry.get("user")
+            if not isinstance(user, str) or not user.strip() or user != user.strip():
+                return []
+            if not isinstance(entry.get("operation"), str) or not entry["operation"].strip():
+                return []
+            if not isinstance(entry.get("changes"), list):
+                return []
+            for change in entry["changes"]:
+                if not isinstance(change, dict) or not all(isinstance(change.get(field), str)
+                                                          for field in ("field_name", "original", "modified")):
+                    return []
+                if not change["field_name"].strip():
+                    return []
+            created_at = _audit_timestamp(entry.get("created_at"))
+            if start <= created_at <= end:
+                users.add(user)
+        return sorted(users) if BULK_TRIAGE_BOT_USER not in users else []
+    except Exception:
+        return []
 
 
 PROTECTED_FIELDS = ("url", "type", "resolved", "resolution_reason")   # never change without a declaration
@@ -101,7 +149,7 @@ def _jira_key(text):
     return m.group(1) if m else None
 
 
-def diff_triages(before, after, declared):
+def diff_triages(before, after, declared, audit_fetch=None):
     for name, snap in (("before", before), ("after", after)):
         if not _valid_snapshot(snap):
             detail = snap.get("error") if isinstance(snap, dict) and snap.get("error") else "missing or malformed"
@@ -215,6 +263,19 @@ def diff_triages(before, after, declared):
 
     undeclared = [o for o in observed if not covered(o)]
     not_observed = [d for d in done if not observed_for(d)]
+    audit_users = {}
+    unattributed = []
+    for change in undeclared:
+        tid = change["triage_id"]
+        if tid not in audit_users:
+            audit_users[tid] = _external_audit_users(tid, before.get("time"), after.get("time"),
+                                                    audit_fetch or _default_audit_fetch)
+        users = audit_users[tid]
+        if users:
+            external.append(dict(change, users=users))
+        else:
+            unattributed.append(change)
+    undeclared = unattributed
     return {"created": created, "extended": extended, "removed": removed, "deleted": deleted, "modified": modified,
             "external": external, "undeclared": undeclared, "declared_not_observed": not_observed,
             "status": "match" if not undeclared and not not_observed else "mismatch"}
