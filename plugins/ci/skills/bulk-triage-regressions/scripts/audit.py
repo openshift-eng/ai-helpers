@@ -38,6 +38,11 @@ def _now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _snapshot_now():
+    """Capture a UTC snapshot bound without truncating sub-second precision."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
 def _get_json(url, headers=None):
     h = {"Accept": "application/json"}
     h.update(headers or {})
@@ -120,9 +125,9 @@ def snapshot_triages(fetch=None):
                 "resolved": t.get("resolved"),
                 "resolution_reason": t.get("resolution_reason"),
             }
-        return {"time": _now(), "triages": triages}
+        return {"time": _snapshot_now(), "triages": triages}
     except Exception as e:
-        return {"time": _now(), "status": "unknown", "error": "snapshot failed: %s: %s" % (type(e).__name__, e)}
+        return {"time": _snapshot_now(), "status": "unknown", "error": "snapshot failed: %s: %s" % (type(e).__name__, e)}
 
 
 def _valid_snapshot(s):
