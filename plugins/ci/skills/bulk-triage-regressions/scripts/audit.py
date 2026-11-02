@@ -67,6 +67,7 @@ def _audit_timestamp(text):
 
 
 def _external_audit_users(triage_id, before_time, after_time, fetch):
+    """Return in-window non-bot users, or no attribution when evidence is invalid."""
     try:
         start, end = _audit_timestamp(before_time), _audit_timestamp(after_time)
         if start > end:
@@ -83,9 +84,10 @@ def _external_audit_users(triage_id, before_time, after_time, fetch):
                 return []
             if not isinstance(entry.get("operation"), str) or not entry["operation"].strip():
                 return []
-            if not isinstance(entry.get("changes"), list):
+            changes = entry.get("changes", [])
+            if not isinstance(changes, list):
                 return []
-            for change in entry["changes"]:
+            for change in changes:
                 if not isinstance(change, dict) or not all(isinstance(change.get(field), str)
                                                           for field in ("field_name", "original", "modified")):
                     return []

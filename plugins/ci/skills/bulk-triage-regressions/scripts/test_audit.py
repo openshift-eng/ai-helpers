@@ -58,6 +58,32 @@ class DiffTests(AuditFetchTests):
         self.assertEqual(result["external"], [])
         self.assertEqual(result["undeclared"][0]["kind"], "created")
 
+    def test_human_missing_changes_is_external(self):
+        entry = self.entry()
+        del entry["changes"]
+        result = self.creation_diff([entry])
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["undeclared"], [])
+        self.assertEqual(result["external"][0]["users"], ["human"])
+
+    def test_bot_missing_changes_is_undeclared(self):
+        entry = self.entry(audit.BULK_TRIAGE_BOT_USER)
+        del entry["changes"]
+        for entries in ([entry], [self.entry(), entry]):
+            with self.subTest(entries=entries):
+                result = self.creation_diff(entries)
+                self.assertEqual(result["status"], "mismatch")
+                self.assertEqual(result["external"], [])
+                self.assertEqual(result["undeclared"][0]["kind"], "created")
+
+    def test_present_non_list_changes_is_undeclared(self):
+        for changes in (None, {}, "", "[]", 0, False, ()):
+            with self.subTest(changes=changes):
+                result = self.creation_diff([self.entry(), dict(self.entry(), changes=changes)])
+                self.assertEqual(result["status"], "mismatch")
+                self.assertEqual(result["external"], [])
+                self.assertEqual(result["undeclared"][0]["kind"], "created")
+
     def test_mixed_human_and_bot_is_undeclared(self):
         for entries in ([self.entry(), self.entry(audit.BULK_TRIAGE_BOT_USER)],
                         [self.entry(audit.BULK_TRIAGE_BOT_USER), self.entry()]):
