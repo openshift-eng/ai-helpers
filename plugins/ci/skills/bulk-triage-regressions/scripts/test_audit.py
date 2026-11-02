@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from unittest import mock
 
 import audit
@@ -36,6 +37,66 @@ class AuditFetchTests(unittest.TestCase):
 
 
 class DiffTests(AuditFetchTests):
+    def captured_snapshots(self):
+        with mock.patch.object(audit, "datetime") as clock:
+            clock.now.side_effect = [datetime(2026, 10, 12, 1, 0, 0, 250000, tzinfo=timezone.utc),
+                                     datetime(2026, 10, 12, 1, 0, 1, 750000, tzinfo=timezone.utc)]
+            before = audit.snapshot_triages(fetch=lambda: [])
+            after = audit.snapshot_triages(fetch=lambda: [{"id": 7, "regressions": [{"id": 5}]}])
+        return before, after
+
+    def test_fractional_bot_before_captured_end_blocks_attribution(self):
+        before, after = self.captured_snapshots()
+        entries = [self.entry(created_at="2026-10-12T01:00:00.500000Z"),
+                   self.entry(audit.BULK_TRIAGE_BOT_USER, "2026-10-12T01:00:01.500000Z")]
+        result = audit.diff_triages(before, after, [], audit_fetch=lambda _: entries)
+        self.assertEqual(result["status"], "mismatch")
+        self.assertEqual(result["external"], [])
+        self.assertEqual(result["undeclared"][0]["kind"], "created")
+
+    def test_fractional_human_before_captured_end_is_external(self):
+        before, after = self.captured_snapshots()
+        result = audit.diff_triages(before, after, [], audit_fetch=lambda _: [
+            self.entry(created_at="2026-10-12T01:00:01.500000Z")])
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["undeclared"], [])
+        self.assertEqual(result["external"][0]["users"], ["human"])
+
+    def test_bot_after_captured_end_is_outside_window(self):
+        before, after = self.captured_snapshots()
+        entries = [self.entry(created_at="2026-10-12T01:00:00.500000Z"),
+                   self.entry(audit.BULK_TRIAGE_BOT_USER, "2026-10-12T01:00:01.750000001Z")]
+        result = audit.diff_triages(before, after, [], audit_fetch=lambda _: entries)
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["external"][0]["users"], ["human"])
+
+    def test_bot_before_captured_start_is_outside_window(self):
+        before, after = self.captured_snapshots()
+        entries = [self.entry(created_at="2026-10-12T01:00:00.500000Z"),
+                   self.entry(audit.BULK_TRIAGE_BOT_USER, "2026-10-12T01:00:00.249999999Z")]
+        result = audit.diff_triages(before, after, [], audit_fetch=lambda _: entries)
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["external"][0]["users"], ["human"])
+
+    def test_captured_snapshot_boundaries_are_inclusive(self):
+        before, after = self.captured_snapshots()
+        for timestamp in ("2026-10-12T03:00:00.250000000+02:00", "2026-10-12T01:00:01.750000000Z"):
+            with self.subTest(timestamp=timestamp):
+                entries = [self.entry(created_at="2026-10-12T01:00:00.500000Z"),
+                           self.entry(audit.BULK_TRIAGE_BOT_USER, timestamp)]
+                result = audit.diff_triages(before, after, [], audit_fetch=lambda _: entries)
+                self.assertEqual(result["status"], "mismatch")
+                self.assertEqual(result["external"], [])
+
+    def test_second_only_snapshot_end_is_not_widened(self):
+        entries = [self.entry(created_at="2026-10-12T01:00:00.500000Z"),
+                   self.entry(audit.BULK_TRIAGE_BOT_USER, "2026-10-12T01:00:01.500000Z")]
+        result = audit.diff_triages(snap({}, "2026-10-12T01:00:00Z"),
+                                    snap({"7": tri([5])}, "2026-10-12T01:00:01Z"), [],
+                                    audit_fetch=lambda _: entries)
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["external"][0]["users"], ["human"])
+
     def entry(self, user="human", created_at="2026-10-12T01:30:00Z"):
         return {"operation": "update", "changes": [], "user": user, "created_at": created_at}
 
@@ -358,6 +419,22 @@ class AuditHttpTests(unittest.TestCase):
 
 
 class SnapshotTests(unittest.TestCase):
+    def test_failed_snapshot_time_preserves_precision(self):
+        with mock.patch.object(audit, "datetime") as clock:
+            clock.now.return_value = datetime(2026, 10, 12, 1, 0, 1, 750000, tzinfo=timezone.utc)
+            snapshot = audit.snapshot_triages(fetch=mock.Mock(side_effect=OSError("down")))
+        self.assertEqual(snapshot["status"], "unknown")
+        self.assertEqual(snapshot["time"], "2026-10-12T01:00:01.750000Z")
+
+    def test_captured_snapshot_time_preserves_precision(self):
+        with mock.patch.object(audit, "datetime") as clock:
+            clock.now.return_value = datetime(2026, 10, 12, 1, 0, 1, 750000, tzinfo=timezone.utc)
+            snapshot = audit.snapshot_triages(fetch=lambda: [])
+            self.assertEqual(audit._now(), "2026-10-12T01:00:01Z")
+        self.assertEqual(snapshot["time"], "2026-10-12T01:00:01.750000Z")
+        self.assertEqual(audit._audit_timestamp(snapshot["time"]),
+                         audit._audit_timestamp("2026-10-12T03:00:01.750000000+02:00"))
+
     def test_resolved_struct_preserved_in_snapshot(self):
         res = {"Time": "2026-05-14T12:25:28.941154Z", "Valid": True}
         data = [{"id": 3, "url": "u", "resolved": res,
