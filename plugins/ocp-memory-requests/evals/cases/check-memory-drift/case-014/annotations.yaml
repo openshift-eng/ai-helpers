@@ -1,0 +1,6 @@
+# case-014: dry-run
+expected_candidates:
+- deployment: marketplace-operator
+  direction: raise
+expected_bugs_count: 0
+notes: '--dry-run: compute and report candidates but author no bugs.'

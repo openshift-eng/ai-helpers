@@ -1,0 +1,17 @@
+# case-006: defective-upgrade-missing-post — mocked input for check-memory-drift
+command_args: ''
+devel_release: '5.1'
+bigquery: ok
+manifests_present:
+- dns-operator
+preexisting_bugs: []
+rows:
+- job_id: job-4
+  deployment: dns-operator
+  namespace: openshift-dns-operator
+  release: '5.1'
+  age_days: 5
+  row_type: post-install
+  is_upgrade: true
+  start_mb: 600
+  request_mb: 50

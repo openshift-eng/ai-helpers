@@ -1,0 +1,44 @@
+# case-004: snapshot-upgrade-row — mocked input for check-memory-drift
+command_args: ''
+devel_release: '5.1'
+bigquery: ok
+manifests_present:
+- etcd-operator
+preexisting_bugs: []
+rows:
+- job_id: job-1
+  deployment: etcd-operator
+  namespace: openshift-etcd-operator
+  release: '5.1'
+  age_days: 5
+  row_type: post-install
+  is_upgrade: true
+  start_mb: 500
+  request_mb: 50
+- job_id: job-1
+  deployment: etcd-operator
+  namespace: openshift-etcd-operator
+  release: '5.1'
+  age_days: 5
+  row_type: post-upgrade
+  is_upgrade: true
+  start_mb: 1000
+  request_mb: 50
+- job_id: job-2
+  deployment: etcd-operator
+  namespace: openshift-etcd-operator
+  release: '5.1'
+  age_days: 5
+  row_type: post-install
+  is_upgrade: true
+  start_mb: 600
+  request_mb: 50
+- job_id: job-2
+  deployment: etcd-operator
+  namespace: openshift-etcd-operator
+  release: '5.1'
+  age_days: 5
+  row_type: post-upgrade
+  is_upgrade: true
+  start_mb: 1200
+  request_mb: 50

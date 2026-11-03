@@ -1,0 +1,9 @@
+# case-010: lower-bug-content
+expected_candidates:
+- deployment: image-registry
+  direction: lower
+  recommended_mb: 42.4
+expected_bugs_count: 1
+expected_description_contains:
+- lower
+notes: 'Over-provisioned: one bug phrased as lowering the request. 38.5*1.10=42.35 -> 42.4 (round half up).'

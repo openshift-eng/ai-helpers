@@ -1,0 +1,7 @@
+# case-016: empty-result — mocked input for check-memory-drift
+command_args: ''
+devel_release: '5.1'
+bigquery: ok
+manifests_present: []
+preexisting_bugs: []
+rows: []
