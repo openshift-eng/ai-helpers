@@ -1,0 +1,3 @@
+# case-013: idempotency
+expected_bugs_count: 0
+notes: 'An open bug already tracks this deployment/release: reconcile, do not create a duplicate.'

@@ -1,0 +1,3 @@
+# case-016: empty-result
+expected_bugs_count: 0
+notes: 'No rows for the release in the window: clear report, no bug.'

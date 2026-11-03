@@ -1,0 +1,23 @@
+# case-013: idempotency — mocked input for check-memory-drift
+command_args: --min-runs 1
+devel_release: '5.1'
+bigquery: ok
+manifests_present:
+- etcd-operator
+preexisting_bugs:
+- deployment: etcd-operator
+  namespace: openshift-etcd-operator
+  affected_version: '5.1'
+  status: In Progress
+  labels:
+  - ocp-memory-requests
+rows:
+- job_id: r-etcd-operator-0
+  deployment: etcd-operator
+  namespace: openshift-etcd-operator
+  release: '5.1'
+  age_days: 5
+  row_type: single
+  is_upgrade: false
+  start_mb: 160.6
+  request_mb: 50

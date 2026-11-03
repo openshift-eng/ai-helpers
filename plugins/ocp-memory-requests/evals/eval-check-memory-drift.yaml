@@ -1,0 +1,255 @@
+name: check-memory-drift-eval
+description: >
+  Evaluate ocp-memory-requests:check-memory-drift drift detection, candidate
+  selection, data-quality handling, and bug authoring against mocked BigQuery
+  rows and a mocked OCPBUGS store. No live BigQuery or Jira access.
+skill: ocp-memory-requests:check-memory-drift
+
+execution:
+  mode: case
+  arguments: "{command_args?}"
+  timeout: 600
+  max_budget_usd: 2.0
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/ocp-memory-requests
+    - plugins/bigquery-ci-data
+  system_prompt: |
+    You are running the ocp-memory-requests:check-memory-drift skill against a
+    MOCKED environment. Read input.yaml from the current working directory; it
+    is the full, already-fetched input for this run. BigQuery, the release
+    manifests, and Jira exist only as mocks in this file — do NOT make network
+    calls, run `bq`, or call any Jira/MCP tool, and do not create real Jira
+    issues.
+
+    input.yaml fields:
+      - command_args:      the CLI args for this run (also the invocation
+                           arguments).
+      - devel_release:     the current development release in this mocked
+                           environment.
+      - rows:              raw singleton-pod observations, standing in for the
+                           BigQuery rows the skill would otherwise query.
+      - manifests_present: the mocked release manifests — the deployments that
+                           ship in the release.
+      - preexisting_bugs:  the mocked OCPBUGS store: already-open bugs, each
+                           {deployment, namespace, affected_version, status,
+                           labels}.
+
+    The skill's bundled script has an offline mode that consumes this fixture
+    in place of the BigQuery query path. Run it from the loaded skill's
+    directory (the one containing its SKILL.md and drift.py):
+
+      python3 <skill-dir>/drift.py analyze --input input.yaml --out drift-result.json
+
+    It writes drift-result.json; everything else — which candidates to act on
+    and what bugs to file — is the skill's job. In this mocked environment,
+    "filing" an OCPBUGS means appending the bug you would file to the "bugs"
+    array of drift-result.json (deployment, summary, labels, recommended_mb,
+    description), leaving the rest of the file exactly as the script wrote it.
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Skill"
+    - "Bash"
+    - "Read"
+    - "Write"
+  deny:
+    - "mcp__*"
+    - "WebFetch"
+    - "WebSearch"
+
+mlflow:
+  experiment: check-memory-drift-eval
+
+dataset:
+  path: cases/check-memory-drift
+  schema: |
+    Each case directory contains:
+    - input.yaml: native YAML (see system_prompt) with fields command_args,
+      devel_release, bigquery, rows, manifests_present, and preexisting_bugs.
+      The skill reads it from the workspace; command_args is also the invocation
+      argument.
+    - annotations.yaml: expected outcomes; every field is OPTIONAL and a judge
+      is a no-op (pass) when its field is absent, so one judge set serves all
+      cases:
+      - expected_release: release the run should analyze
+      - expected_window_days: window the run should use
+      - expected_selected: list of {job_id, start_mb} the run must select
+      - expected_excluded_runs: job_ids excluded as defective
+      - expected_p90: map deployment -> p90 MB
+      - expected_candidates: list of {deployment, direction?, recommended_mb?, var?}
+      - expected_not_candidates: deployments that must NOT be candidates
+      - expected_skipped: list of {deployment, reason_contains}
+      - expected_bugs_count: exact number of bugs authored
+      - expected_bug_labels: labels every authored bug must include
+      - expected_description_contains: substrings every authored bug must contain
+      - notes: free text
+
+outputs:
+  - path: "drift-result.json"
+    schema: |
+      JSON object with fields: analyzed_release, window_days, evaluated_count,
+      p90_by_deployment, selected_rows, excluded_runs, warnings, candidates
+      (deployment, namespace, direction, current_request_mb, recommended_mb,
+      drift_pct, var), skipped (deployment, reason), bugs (deployment, summary,
+      labels, recommended_mb, description), error.
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_json
+    description: drift-result.json exists, parses, and has the core fields
+    check: |
+      import json
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("drift-result.json")}
+      if not rf:
+          return (False, "No drift-result.json found")
+      try:
+          data = json.loads(list(rf.values())[0])
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      for f in ["candidates", "warnings", "bugs"]:
+          if f in data and not isinstance(data[f], list):
+              return (False, f"{f} must be an array")
+      return (True, "valid result json")
+
+  - name: parameters_scoped
+    description: Run analyzed the expected release and window
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("drift-result.json")}
+      if not rf:
+          return (False, "No drift-result.json found")
+      data = json.loads(list(rf.values())[0])
+      msgs = []
+      if "expected_release" in ann:
+          if str(data.get("analyzed_release")) != str(ann["expected_release"]):
+              return (False, f"release {data.get('analyzed_release')} != {ann['expected_release']}")
+          msgs.append(f"release={ann['expected_release']}")
+      if "expected_window_days" in ann:
+          if int(data.get("window_days", -1)) != int(ann["expected_window_days"]):
+              return (False, f"window {data.get('window_days')} != {ann['expected_window_days']}")
+          msgs.append(f"window={ann['expected_window_days']}d")
+      return (True, ", ".join(msgs) or "n/a")
+
+  - name: selection_correct
+    description: Snapshot selection and defective-run exclusion match
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_selected" not in ann and "expected_excluded_runs" not in ann and "expected_p90" not in ann:
+          return (True, "n/a")
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("drift-result.json")}
+      if not rf:
+          return (False, "No drift-result.json found")
+      data = json.loads(list(rf.values())[0])
+      if "expected_selected" in ann:
+          got = sorted((str(r.get("job_id")), float(r.get("start_mb"))) for r in data.get("selected_rows", []))
+          want = sorted((str(r["job_id"]), float(r["start_mb"])) for r in ann["expected_selected"])
+          if got != want:
+              return (False, f"selected {got} != {want}")
+      if "expected_excluded_runs" in ann:
+          if sorted(map(str, data.get("excluded_runs", []))) != sorted(map(str, ann["expected_excluded_runs"])):
+              return (False, f"excluded {data.get('excluded_runs')} != {ann['expected_excluded_runs']}")
+          warn_blob = " ".join(data.get("warnings", []))
+          for run in ann["expected_excluded_runs"]:
+              if str(run) not in warn_blob:
+                  return (False, f"no warning names excluded run {run}")
+      if "expected_p90" in ann:
+          p90 = data.get("p90_by_deployment", {})
+          for dep, val in ann["expected_p90"].items():
+              if dep not in p90 or float(p90[dep]) != float(val):
+                  return (False, f"p90[{dep}]={p90.get(dep)} != {val}")
+      return (True, "selection ok")
+
+  - name: candidates_correct
+    description: Candidate set, direction, recommendation, and var flags match
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_candidates" not in ann and "expected_not_candidates" not in ann:
+          return (True, "n/a")
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("drift-result.json")}
+      if not rf:
+          return (False, "No drift-result.json found")
+      data = json.loads(list(rf.values())[0])
+      by = {c.get("deployment"): c for c in data.get("candidates", [])}
+      for wc in ann.get("expected_candidates", []):
+          dep = wc["deployment"]
+          if dep not in by:
+              return (False, f"{dep} missing from candidates {sorted(by)}")
+          got = by[dep]
+          if "direction" in wc and got.get("direction") != wc["direction"]:
+              return (False, f"{dep}: direction {got.get('direction')} != {wc['direction']}")
+          if "recommended_mb" in wc and float(got.get("recommended_mb", -1)) != float(wc["recommended_mb"]):
+              return (False, f"{dep}: recommended {got.get('recommended_mb')} != {wc['recommended_mb']}")
+          if "var" in wc and bool(got.get("var")) != bool(wc["var"]):
+              return (False, f"{dep}: var {got.get('var')} != {wc['var']}")
+      for dep in ann.get("expected_not_candidates", []):
+          if dep in by:
+              return (False, f"{dep} must NOT be a candidate")
+      return (True, f"candidates={sorted(by)}")
+
+  - name: skips_correct
+    description: Deployments absent from manifests are skipped with the right reason
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_skipped" not in ann:
+          return (True, "n/a")
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("drift-result.json")}
+      if not rf:
+          return (False, "No drift-result.json found")
+      data = json.loads(list(rf.values())[0])
+      skipped = {s.get("deployment"): str(s.get("reason", "")).lower() for s in data.get("skipped", [])}
+      for ws in ann["expected_skipped"]:
+          dep = ws["deployment"]
+          if dep not in skipped:
+              return (False, f"{dep} not in skip list {sorted(skipped)}")
+          rc = str(ws.get("reason_contains", "")).lower()
+          if rc and rc not in skipped[dep]:
+              return (False, f"{dep} reason {skipped[dep]!r} missing {rc!r}")
+      return (True, f"skipped={sorted(skipped)}")
+
+  - name: bugs_correct
+    description: Bug count, labels, and description contents match expectations
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if not any(k in ann for k in ("expected_bugs_count", "expected_bug_labels", "expected_description_contains")):
+          return (True, "n/a")
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("drift-result.json")}
+      if not rf:
+          return (False, "No drift-result.json found")
+      data = json.loads(list(rf.values())[0])
+      bugs = data.get("bugs", [])
+      if "expected_bugs_count" in ann and len(bugs) != int(ann["expected_bugs_count"]):
+          return (False, f"{len(bugs)} bugs != {ann['expected_bugs_count']}")
+      if "expected_bug_labels" in ann:
+          for b in bugs:
+              labels = set(b.get("labels", []))
+              missing = set(ann["expected_bug_labels"]) - labels
+              if missing:
+                  return (False, f"bug {b.get('deployment')} missing labels {missing}")
+      if "expected_description_contains" in ann:
+          blob = json.dumps(bugs).lower()
+          for sub in ann["expected_description_contains"]:
+              if str(sub).lower() not in blob:
+                  return (False, f"bugs missing description substring {sub!r}")
+      return (True, f"{len(bugs)} bugs ok")

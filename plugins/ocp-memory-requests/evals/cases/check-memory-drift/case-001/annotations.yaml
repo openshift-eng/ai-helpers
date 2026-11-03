@@ -1,0 +1,7 @@
+# case-001: default-params
+expected_release: '5.1'
+expected_window_days: 30
+expected_not_candidates:
+- old-rel
+- stale
+notes: 'No args: analyze devel release 5.1 over 30 days; other-release and >30d-old rows are out of scope.'
