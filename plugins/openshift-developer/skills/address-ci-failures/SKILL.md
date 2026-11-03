@@ -56,28 +56,46 @@ Resolve PR number and repository into named variables before any shell commands.
    ```
 
    - If `--failing-checks` is provided, parse it as a JSON array of those objects.
-   - If any object omits `link`, merge links from a guarded `gh pr checks` capture (non-zero exit is normal when checks fail; only fail on missing/invalid JSON):
+   - If any object omits `link`, merge links from a guarded `gh pr checks` capture (non-zero exit is normal when checks fail; a PR with no checks is an empty list; fail on any other missing/invalid JSON):
 
      ```sh
      CHECKS_JSON=""
      CHECKS_EXIT=0
-     CHECKS_JSON=$(gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link 2>/dev/null) || CHECKS_EXIT=$?
+     CHECKS_ERR=$(mktemp)
+     CHECKS_JSON=$(gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link 2>"$CHECKS_ERR") || CHECKS_EXIT=$?
      if [ -z "$CHECKS_JSON" ] || ! printf '%s' "$CHECKS_JSON" | jq -e 'type == "array"' >/dev/null 2>&1; then
-       echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
-       exit 1
+       # A PR with no checks is not a lookup failure: gh exits nonzero and
+       # prints "no checks reported on the '<branch>' branch".
+       if [ "$CHECKS_EXIT" -ne 0 ] && grep -q '^no checks reported on the ' "$CHECKS_ERR"; then
+         CHECKS_JSON='[]'
+       else
+         echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
+         rm -f "$CHECKS_ERR"
+         exit 1
+       fi
      fi
+     rm -f "$CHECKS_ERR"
      ```
 
-   - Otherwise fetch failing checks with the same guarded capture:
+   - Otherwise fetch failing checks with the same guarded capture. A PR with no checks yields `[]`, so a rebase-only run can continue:
 
      ```sh
      CHECKS_JSON=""
      CHECKS_EXIT=0
-     CHECKS_JSON=$(gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link 2>/dev/null) || CHECKS_EXIT=$?
+     CHECKS_ERR=$(mktemp)
+     CHECKS_JSON=$(gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link 2>"$CHECKS_ERR") || CHECKS_EXIT=$?
      if [ -z "$CHECKS_JSON" ] || ! printf '%s' "$CHECKS_JSON" | jq -e 'type == "array"' >/dev/null 2>&1; then
-       echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
-       exit 1
+       # A PR with no checks is not a lookup failure: gh exits nonzero and
+       # prints "no checks reported on the '<branch>' branch".
+       if [ "$CHECKS_EXIT" -ne 0 ] && grep -q '^no checks reported on the ' "$CHECKS_ERR"; then
+         CHECKS_JSON='[]'
+       else
+         echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
+         rm -f "$CHECKS_ERR"
+         exit 1
+       fi
      fi
+     rm -f "$CHECKS_ERR"
      ```
 
    Keep checks where `bucket == "fail"`. Ignore `tide`. Annotate optional Prow jobs (do not drop them) using the same detector `has-review-work` uses — do not use `gh pr checks --required`:
@@ -96,6 +114,7 @@ Resolve PR number and repository into named variables before any shell commands.
 
    ```sh
    BASE_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json baseRefName -q .baseRefName)
+   HEAD_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefName -q .headRefName)
    HEAD_SHA=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefOid -q .headRefOid)
 
    TARGET_REMOTE=""
@@ -133,9 +152,23 @@ Resolve PR number and repository into named variables before any shell commands.
 
 ### Step 0b: Rebase onto the base branch (only when `REBASE_REQUESTED=true`)
 
-Skip this step when no rebase was requested. Use `TARGET_REMOTE`, `BASE_BRANCH`, and `HEAD_SHA` from Step 0.
+Skip this step when no rebase was requested. Use `TARGET_REMOTE`, `BASE_BRANCH`, `HEAD_BRANCH`, and `HEAD_SHA` from Step 0.
 
-1. **Preconditions**: the worktree is clean and `git rev-parse HEAD` equals `HEAD_SHA`. If either fails, do not rebase and report the failed precondition. Still classify the other failing checks in Step 1, but make no Step 2 fixes or commits. Mark their action as `skipped (rebase precondition failed)`.
+1. **Preconditions**: the worktree has no uncommitted changes to tracked files, the checked-out branch is the PR's head branch (not a detached HEAD or another branch at the same commit), and `HEAD` is `HEAD_SHA`:
+
+   ```sh
+   REBASE_PRECONDITIONS=ok
+   # Untracked files (for example pipeline logs) do not affect a rebase.
+   if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+     REBASE_PRECONDITIONS="worktree has uncommitted changes"
+   elif [ "$(git symbolic-ref --quiet --short HEAD)" != "$HEAD_BRANCH" ]; then
+     REBASE_PRECONDITIONS="checked-out branch is not the PR head branch ${HEAD_BRANCH}"
+   elif [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
+     REBASE_PRECONDITIONS="HEAD does not match the PR head commit"
+   fi
+   ```
+
+   If `REBASE_PRECONDITIONS` is not `ok`, do not rebase and report the failed precondition. Still classify the other failing checks in Step 1, but make no Step 2 fixes or commits. Mark their action as `skipped (rebase precondition failed)`.
 
 2. **Skip when up to date**: Prow can take a few minutes to remove the label after a push.
 
