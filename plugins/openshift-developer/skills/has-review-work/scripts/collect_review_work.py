@@ -25,6 +25,12 @@ import check_authorized
 from check_replied import is_bot_reply, normalized_login, paginated_items
 
 GH_TIMEOUT = 30
+# PR labels that require CI work, reported as synthetic FAILING_CHECKS entries.
+# The bucket tells address-ci-failures what to do; the label/ prefix keeps names
+# distinct from real check contexts.
+LABEL_CHECKS = {
+    "needs-rebase": {"name": "label/needs-rebase", "state": "LABEL", "bucket": "rebase", "link": ""},
+}
 THREAD_QUERY = """
 query($owner:String!,$repo:String!,$number:Int!,$endCursor:String) {
   repository(owner:$owner, name:$repo) {
@@ -185,13 +191,23 @@ def collect_candidates(
     return candidates, dict(skipped)
 
 
+def check_runs(checks: list[dict]) -> set[tuple[str, str]]:
+    # The link identifies the run, so a retest that fails again is new work.
+    return {(c["name"], c.get("link") or "") for c in checks}
+
+
 def ci_decision(failing: list[dict], head: str, context: dict) -> str:
     if not failing:
         return "no"
     previous = context.get("previous_failing_checks")
     if previous is None or head != context.get("previous_head_ref_oid"):
         return "yes"
-    return "yes" if {c["name"] for c in failing} != {c["name"] for c in previous} else "no"
+    return "yes" if check_runs(failing) != check_runs(previous) else "no"
+
+
+def label_checks(labels: list[dict]) -> list[dict]:
+    names = {label["name"] for label in labels}
+    return [dict(check) for label, check in LABEL_CHECKS.items() if label in names]
 
 
 def validate_checks(value: Any) -> list[dict]:
@@ -206,11 +222,14 @@ def validate_checks(value: Any) -> list[dict]:
 def collect_snapshot(repo: str, number: int | None, context: dict) -> dict:
     owner, repo_name = repo.split("/")
     pr_args = [str(number)] if number is not None else []
-    metadata = run_gh(["pr", "view", *pr_args, "--repo", repo, "--json", "number,headRefOid"])
+    metadata = run_gh(["pr", "view", *pr_args, "--repo", repo, "--json", "number,headRefOid,labels"])
     number = metadata["number"]
     head = metadata["headRefOid"]
+    labels = metadata["labels"]
     if not isinstance(number, int) or not isinstance(head, str) or not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ValueError("PR metadata has an invalid number or head SHA")
+    if not isinstance(labels, list) or any(not isinstance(label, dict) or not isinstance(label.get("name"), str) for label in labels):
+        raise ValueError("PR metadata has invalid labels")
     agent = context.get("agent_login")
     if not agent:
         agent = run_gh(["api", "user"])["login"]
@@ -232,7 +251,7 @@ def collect_snapshot(repo: str, number: int | None, context: dict) -> dict:
     checks = validate_checks(run_gh([
         "pr", "checks", str(number), "--repo", repo, "--json", "name,state,bucket,link",
     ], allow_failure_json=True))
-    failing = filter_checks(checks)
+    failing = filter_checks(checks) + label_checks(labels)
     final_head = run_gh(["pr", "view", str(number), "--repo", repo, "--json", "headRefOid"])["headRefOid"]
     if final_head != head:
         raise RuntimeError("PR head changed during collection; retry")
