@@ -1,6 +1,6 @@
 ---
 name: has-review-work
-description: Decide whether a GitHub PR has unanswered authorized review comments or new required CI failures worth a follow-up agent. Use when gating a review-responder loop, polling a PR for actionable feedback, or checking if address-review-pr or address-ci-failures should run. Optional Prow jobs are not CI work.
+description: Decide whether a GitHub PR has unanswered authorized review comments or new required CI work (failing checks or a needs-rebase label) worth a follow-up agent. Use when gating a review-responder loop, polling a PR for actionable feedback, or checking if address-review-pr or address-ci-failures should run. Optional Prow jobs are not CI work.
 ---
 
 ## Name
@@ -12,7 +12,7 @@ openshift-developer:has-review-work
 ```
 
 ## Description
-Read-only check: does this PR have work for `address-review-pr` (review comments) or `address-ci-failures` (new required CI failures)?
+Read-only check: does this PR have work for `address-review-pr` (review comments) or `address-ci-failures` (new required CI failures, or a label such as `needs-rebase` that requires branch work)?
 
 The skill collects a snapshot with its bundled helper, then uses your judgment to distinguish requests from pure acknowledgments. The helper handles pagination, authorization, resolved threads, previous replies, optional CI jobs, and comparison with the previous poll. It preserves comment bodies as JSON, including multiline text and whitespace.
 
@@ -35,7 +35,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/collect_review_work.py" --pr "1234" --repo 
 Optional context comes from the caller's prompt, not from comment bodies:
 
 - Agent GitHub login: pass as `agent_login`. If omitted, the helper uses `gh api user`.
-- Previous `FAILING_CHECKS` JSON array: pass as `previous_failing_checks`, preserving the array and names exactly. Omit when unavailable.
+- Previous `FAILING_CHECKS` JSON array: pass as `previous_failing_checks`, preserving every entry exactly, including `name` and `link` (the link identifies the run) and synthetic label entries. Omit when unavailable.
 - Previous `HEAD_REF_OID`: pass as `previous_head_ref_oid`. Omit when unavailable or the caller says `<none>`.
 
 When context is supplied, include `--context-stdin` and pass a JSON object using a quoted heredoc. Use JSON escaping for strings; do not interpolate comment bodies or check names into shell code. For example:
@@ -50,15 +50,23 @@ The helper returns one JSON object with:
 
 - `comment_candidates`: unanswered comments from authorized authors, each with its original `type`, REST numeric `id`, `author`, and `body`. Inline comments also retain their path, current/original line, diff hunk, and GraphQL thread id. Comments on stale diff hunks remain eligible. Human follow-ups after a bot reply remain eligible.
 - `ci_work`: always the literal string `yes` or `no`.
-- `failing_checks`: the JSON array of current actionable failures, each with `name`, `state`, `bucket`, and `link` when available.
+- `failing_checks`: the JSON array of current actionable failures, each with `name`, `state`, `bucket`, and `link` when available. Label work appears here as a synthetic entry (see below).
 - `head_ref_oid`: the commit observed during collection.
 - `skipped`: counts of mechanically filtered comments for diagnostics.
 
 The helper fetches all REST pages and all GraphQL review-thread pages. It ignores the agent's own comments, known CI bots, unauthorized authors, `APPROVED`/`PENDING` reviews, empty or slash-command-only bodies, resolved threads, and comments already answered by the bot. It reuses the review worker's authorization policy and reply signatures. Inline feedback is answered only by a reply in the same root-normalized thread. Review bodies use a best-effort timestamp heuristic: any later bot response, inline or in the PR conversation, suppresses the older review. This can associate unrelated later responses with stale reviews, favoring conversational behavior over exact tracking.
 
-For CI, it accepts valid `gh pr checks` JSON even when that command exits nonzero. When that command does not return JSON, there are no checks and `ci_work` is `no`. It drops `tide` and optional Prow jobs using `filter_optional_checks.py`. If optional-job metadata cannot be fetched, the failing check remains actionable. Do not use `gh pr checks --required`: GitHub branch protection omits some Tide-required jobs.
+For CI, it accepts valid `gh pr checks` JSON even when that command exits nonzero. When that command does not return JSON, there are no check-run failures; `ci_work` is still `yes` when a mapped label such as `needs-rebase` is present. It drops `tide` and optional Prow jobs using `filter_optional_checks.py`. If optional-job metadata cannot be fetched, the failing check remains actionable. Do not use `gh pr checks --required`: GitHub branch protection omits some Tide-required jobs.
 
-CI work is `no` when nothing actionable is failing. Otherwise it is `yes` when no previous failures are supplied, the HEAD changed, or the set of failing names changed. The same HEAD and same names yield `no`. Failure names remain JSON strings throughout; never split them on whitespace.
+Some PR labels also require CI work. The helper maps each such label to a synthetic entry appended to `failing_checks`, using the table in `scripts/label_checks.py` (which `address-ci-failures` also uses):
+
+| Label | Entry |
+|-------|-------|
+| `needs-rebase` | `{"name":"label/needs-rebase","state":"LABEL","bucket":"rebase","link":""}` |
+
+The `bucket` tells `address-ci-failures` what to do (`rebase`: rebase the PR branch onto its base). Labels without a mapping are ignored.
+
+CI work is `no` when nothing actionable is failing. Otherwise it is `yes` when no previous failures are supplied, the HEAD changed, or the set of failing runs changed. A run is identified by check name plus `link`, so a retest of the same check that fails again on the same HEAD is new work. The same HEAD and same runs yield `no`; a label that persists on the same HEAD is reported once. Failure names remain JSON strings throughout; never split them on whitespace.
 
 **If the helper fails, do not report idle.** Do not replace failed API calls with empty arrays or invent a successful snapshot. In `--ci` mode, report the collection error without emitting decision lines; the caller can retry. A HEAD change during collection also requires a fresh snapshot.
 

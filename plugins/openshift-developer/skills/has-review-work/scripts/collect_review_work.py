@@ -17,6 +17,7 @@ import sys
 from typing import Any
 
 from filter_optional_checks import filter_checks
+from label_checks import label_checks, validate_labels
 from is_slash_command_only import is_slash_command_only
 
 # Reuse the worker's authorization policy and historical reply signatures.
@@ -185,13 +186,18 @@ def collect_candidates(
     return candidates, dict(skipped)
 
 
+def check_runs(checks: list[dict]) -> set[tuple[str, str]]:
+    # The link identifies the run, so a retest that fails again is new work.
+    return {(c["name"], c.get("link") or "") for c in checks}
+
+
 def ci_decision(failing: list[dict], head: str, context: dict) -> str:
     if not failing:
         return "no"
     previous = context.get("previous_failing_checks")
     if previous is None or head != context.get("previous_head_ref_oid"):
         return "yes"
-    return "yes" if {c["name"] for c in failing} != {c["name"] for c in previous} else "no"
+    return "yes" if check_runs(failing) != check_runs(previous) else "no"
 
 
 def validate_checks(value: Any) -> list[dict]:
@@ -206,11 +212,13 @@ def validate_checks(value: Any) -> list[dict]:
 def collect_snapshot(repo: str, number: int | None, context: dict) -> dict:
     owner, repo_name = repo.split("/")
     pr_args = [str(number)] if number is not None else []
-    metadata = run_gh(["pr", "view", *pr_args, "--repo", repo, "--json", "number,headRefOid"])
+    metadata = run_gh(["pr", "view", *pr_args, "--repo", repo, "--json", "number,headRefOid,labels"])
     number = metadata["number"]
     head = metadata["headRefOid"]
+    labels = metadata["labels"]
     if not isinstance(number, int) or not isinstance(head, str) or not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ValueError("PR metadata has an invalid number or head SHA")
+    validate_labels(labels)
     agent = context.get("agent_login")
     if not agent:
         agent = run_gh(["api", "user"])["login"]
@@ -232,7 +240,7 @@ def collect_snapshot(repo: str, number: int | None, context: dict) -> dict:
     checks = validate_checks(run_gh([
         "pr", "checks", str(number), "--repo", repo, "--json", "name,state,bucket,link",
     ], allow_failure_json=True))
-    failing = filter_checks(checks)
+    failing = filter_checks(checks) + label_checks(labels)
     final_head = run_gh(["pr", "view", str(number), "--repo", repo, "--json", "headRefOid"])["headRefOid"]
     if final_head != head:
         raise RuntimeError("PR head changed during collection; retry")

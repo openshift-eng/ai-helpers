@@ -294,5 +294,5 @@ For a `review` body, duplicate detection is best effort: any later bot response 
 3. **Check before acting**: Questions ("Why did you...?") get explanations, not code changes.
 
 ## See Also
-- `has-review-work` — read-only gate: `COMMENT_WORK` for unanswered authorized comments, `CI_WORK` for new non-optional CI failures
-- `address-ci-failures` — triage and fix PR-caused CI failures (or report non-actionable ones)
+- `has-review-work` — read-only gate: `COMMENT_WORK` for unanswered authorized comments, `CI_WORK` for new non-optional CI failures or a `needs-rebase` label
+- `address-ci-failures` — rebase the PR when needed, then triage and fix PR-caused CI failures (or report non-actionable ones)

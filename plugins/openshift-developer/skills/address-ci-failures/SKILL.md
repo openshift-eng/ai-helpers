@@ -1,6 +1,6 @@
 ---
 name: address-ci-failures
-description: Triage and fix PR CI failures caused by the PR's own changes. Use when has-review-work detects new failing checks, when a PR has CI regressions to investigate, or when deciding whether to fix vs report a CI failure.
+description: Triage and fix PR CI failures caused by the PR's own changes, and rebase the PR when it needs one. Use when has-review-work detects new failing checks or a needs-rebase label, when a PR has CI regressions to investigate, or when deciding whether to fix vs report a CI failure.
 ---
 
 ## Name
@@ -13,6 +13,8 @@ openshift-developer:address-ci-failures
 
 ## Description
 Investigates failing CI checks on a pull request, classifies each failure, and only fixes failures that are a direct consequence of the PR's changes. Pre-existing, infrastructure, flake, and fleet-wide failures are reported on the PR instead of "fixed" with out-of-scope repo-wide changes. Optional Prow jobs do not block merge — default is report, not a code change.
+
+When the PR needs a rebase (a `rebase` entry from `has-review-work`, or the `needs-rebase` label), rebases the branch onto its base and resolves conflicts before triage.
 
 When `--ci` is passed: NEVER ask interactive questions or wait for user input. Make autonomous decisions. When uncertain whether a failure is PR-caused, do not fix — report instead.
 
@@ -35,6 +37,14 @@ Resolve PR number and repository into named variables before any shell commands.
    ```
 
 3. **Failing checks**: Each check object uses `{name, state, bucket, link}` — the same shape `has-review-work` emits in `FAILING_CHECKS`.
+
+   `has-review-work` also reports labels that need branch work as synthetic entries with `"state": "LABEL"`. Before any other filtering, remove every entry with `"bucket": "rebase"` (for example `{"name":"label/needs-rebase","state":"LABEL","bucket":"rebase","link":""}`) and set `REBASE_REQUESTED=true` if there was one. Ignore any other `LABEL` entry with an unknown bucket. Without `--failing-checks`, derive the label entries with the same mapping `has-review-work` uses. Stop if the lookup fails; a failed lookup is not "no label":
+
+   ```sh
+   PR_LABELS_JSON=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels) || exit 1
+   LABEL_ENTRIES=$(printf '%s' "$PR_LABELS_JSON" | python3 "${CLAUDE_SKILL_DIR}/../has-review-work/scripts/label_checks.py") || exit 1
+   REBASE_REQUESTED=$(printf '%s' "$LABEL_ENTRIES" | jq 'any(.[]; .bucket == "rebase")')
+   ```
 
    - If `--failing-checks` is provided, parse it as a JSON array of those objects.
    - If any object omits `link`, merge links from a guarded `gh pr checks` capture (non-zero exit is normal when checks fail; only fail on missing/invalid JSON):
@@ -69,7 +79,7 @@ Resolve PR number and repository into named variables before any shell commands.
 
    Each remaining object may include `"optional": true`. Optional jobs do not block merge; still triage them, but apply the higher bar in Step 1 before any code change.
 
-4. If no failing checks remain, report that and stop.
+4. If no failing checks remain and `REBASE_REQUESTED` is not `true`, report that and stop.
 
 5. **PR diff context** (required for triage; fail closed if unavailable):
 
@@ -111,6 +121,37 @@ Resolve PR number and repository into named variables before any shell commands.
    ```
 
    Do not continue triage if fetch or either diff command fails.
+
+### Step 0b: Rebase onto the base branch (only when `REBASE_REQUESTED=true`)
+
+Skip this step when no rebase was requested. Use `TARGET_REMOTE`, `BASE_BRANCH`, and `HEAD_SHA` from Step 0.
+
+1. **Preconditions**: there are no uncommitted changes to tracked files (`git status --porcelain --untracked-files=no` is empty) and `git rev-parse HEAD` equals `HEAD_SHA`. If either fails, do not rebase; report it and continue with Step 1.
+
+2. **Skip when up to date**: Prow can take a few minutes to remove the label after a push.
+
+   ```sh
+   git fetch "$TARGET_REMOTE" "$BASE_BRANCH" || exit 1
+   if git merge-base --is-ancestor "$TARGET_REMOTE/$BASE_BRANCH" HEAD; then
+     REBASE_RESULT=up_to_date
+   fi
+   ```
+
+3. **Rebase**: `git rebase "$TARGET_REMOTE/$BASE_BRANCH"`.
+
+4. **Resolve conflicts** until the rebase completes:
+   - Keep both the base branch's changes and the PR's intent. Never resolve by discarding the base branch's side, and never drop a PR commit to make conflicts go away.
+   - Regenerate generated files and lock or vendor files (for example `go.sum`, `vendor/`, generated code) with the repository's generators instead of merging them by hand.
+   - `git add` the resolved files, then `GIT_EDITOR=true git rebase --continue`.
+   - If a conflict cannot be resolved with confidence, run `git rebase --abort`.
+
+5. **Verify**: run the repo's verification commands (same detection as `address-review-pr` Step 3.5). Fix breakage the rebase introduced with a new commit on top. If it still fails after 3 attempts, restore the original branch with `git reset --hard "$HEAD_SHA"`.
+
+6. **Record** `REBASE_RESULT` as `rebased`, `up_to_date`, or `failed`. When it is `failed`, post a PR conversation comment (same `gh api` pattern as Step 2) explaining which files conflicted or which verification failed, and that a human needs to rebase.
+
+7. **Publishing**: a rebase rewrites history. In `--ci` mode, do not push; the pipeline publishes the rewritten branch. Outside `--ci`, tell the user a force push is required and do not force push without explicit confirmation.
+
+8. **Remaining checks**: when `REBASE_RESULT=rebased`, the other failing checks ran against the pre-rebase HEAD, and CI will rerun on the rebased branch. Classify them in Step 1 for the summary, but do not fix or report them. Mark their action as `deferred (rebased)`. Otherwise continue normally.
 
 ### Step 1: Triage each failing check (mandatory before any code change)
 
@@ -212,7 +253,9 @@ Report for each failing check:
 
 | Check | Optional | Classification | Action |
 |-------|----------|----------------|--------|
-| ... | yes / no | pr_caused / infra / ... | fixed / reported / skipped |
+| ... | yes / no | pr_caused / infra / ... | fixed / reported / skipped / deferred (rebased) |
+
+When a rebase was requested, also report `REBASE_RESULT` (`rebased`, `up_to_date`, or `failed`) and the new HEAD commit.
 
 Include commit hashes for fixes and comment URLs for reports.
 
@@ -224,11 +267,12 @@ Include commit hashes for fixes and comment URLs for reports.
 - Do not fix failures classified as infrastructure, pre-existing, flake, or out-of-scope.
 - Do not change code to green an optional job unless the Step 1 optional-job bar is fully met.
 - Do not `/retest` or trigger CI jobs — report only.
+- Do not force push in `--ci` mode; the pipeline publishes rebased history.
 
 ## Arguments
 - `$1`: PR number (optional — current branch if omitted)
 - `$2`: `owner/repo` (optional — current repo if omitted)
-- `--failing-checks`: JSON array of `{name, state, bucket, link}` objects from `has-review-work`
+- `--failing-checks`: JSON array of `{name, state, bucket, link}` objects from `has-review-work`, including synthetic `LABEL` entries such as `bucket: "rebase"`
 - `--ci`: Non-interactive CI automation mode; no push; when uncertain, report instead of fix
 
 ## Examples
@@ -249,7 +293,7 @@ Include commit hashes for fixes and comment URLs for reports.
    ```
 
 ## See Also
-- `has-review-work` — read-only gate that sets `CI_WORK` for new CI failures
+- `has-review-work` — read-only gate that sets `CI_WORK` for new CI failures and labels such as `needs-rebase`
 - `address-review-pr` — handles reviewer comments (not CI failures)
 - `ci:prow-job-analysis` — analyze Prow job logs and artifacts
 - `github:check-pr-ci-status` — CI status helper with previous-failure tracking
