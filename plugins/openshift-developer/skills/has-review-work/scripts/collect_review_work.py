@@ -241,11 +241,9 @@ def collect_snapshot(repo: str, number: int | None, context: dict) -> dict:
         "pr", "checks", str(number), "--repo", repo, "--json", "name,state,bucket,link",
     ], allow_failure_json=True))
     failing = filter_checks(checks) + label_checks(labels)
-    final = run_gh(["pr", "view", str(number), "--repo", repo, "--json", "headRefOid,labels"])
-    if final["headRefOid"] != head:
+    final_head = run_gh(["pr", "view", str(number), "--repo", repo, "--json", "headRefOid"])["headRefOid"]
+    if final_head != head:
         raise RuntimeError("PR head changed during collection; retry")
-    if label_checks(validate_labels(final["labels"])) != label_checks(labels):
-        raise RuntimeError("PR labels changed during collection; retry")
     return {
         "head_ref_oid": head, "comment_candidates": candidates,
         "ci_work": ci_decision(failing, head, context),

@@ -38,83 +38,37 @@ Resolve PR number and repository into named variables before any shell commands.
 
 3. **Failing checks**: Each check object uses `{name, state, bucket, link}` — the same shape `has-review-work` emits in `FAILING_CHECKS`.
 
-   `has-review-work` also reports labels that need branch work as synthetic entries with `"state": "LABEL"` (for example `{"name":"label/needs-rebase","state":"LABEL","bucket":"rebase","link":""}`). Set `REBASE_REQUESTED=true` when any label entry has `"bucket": "rebase"`. Remove every `LABEL` entry before any other filtering; ignore label entries with an unknown bucket.
-
-   - If `--failing-checks` is provided, parse it as a JSON array of those objects and take the label entries from it. Do not look up labels live; the supplied checks are the snapshot to act on:
-
-     ```sh
-     # FAILING_CHECKS_JSON holds the --failing-checks value.
-     if ! printf '%s' "$FAILING_CHECKS_JSON" | jq -e 'type == "array"' >/dev/null 2>&1; then
-       echo "ERROR: --failing-checks is not a JSON array" >&2
-       exit 1
-     fi
-     LABEL_ENTRIES=$(printf '%s' "$FAILING_CHECKS_JSON" | jq -c '[.[] | select(.state == "LABEL")]')
-     FAILING_CHECKS_JSON=$(printf '%s' "$FAILING_CHECKS_JSON" | jq -c '[.[] | select(.state != "LABEL")]')
-     ```
-
-   - Without `--failing-checks`, derive the label entries with the same mapping `has-review-work` uses. Stop if either command fails; a failed lookup is not "no label":
-
-     ```sh
-     if ! PR_LABELS_JSON=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels); then
-       echo "ERROR: gh pr view failed while reading PR labels" >&2
-       exit 1
-     fi
-     if ! LABEL_ENTRIES=$(printf '%s' "$PR_LABELS_JSON" | python3 "${CLAUDE_SKILL_DIR}/../has-review-work/scripts/label_checks.py"); then
-       echo "ERROR: unable to map PR labels" >&2
-       exit 1
-     fi
-     ```
-
-   Then, in either case:
+   `has-review-work` also reports labels that need branch work as synthetic entries with `"state": "LABEL"`. Before any other filtering, remove every entry with `"bucket": "rebase"` (for example `{"name":"label/needs-rebase","state":"LABEL","bucket":"rebase","link":""}`) and set `REBASE_REQUESTED=true` if there was one. Ignore any other `LABEL` entry with an unknown bucket. Without `--failing-checks`, derive the label entries with the same mapping `has-review-work` uses. Stop if the lookup fails; a failed lookup is not "no label":
 
    ```sh
-   REBASE_REQUESTED=false
-   if printf '%s' "$LABEL_ENTRIES" | jq -e 'any(.[]; .bucket == "rebase")' >/dev/null; then
-     REBASE_REQUESTED=true
-   fi
+   PR_LABELS_JSON=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels) || exit 1
+   LABEL_ENTRIES=$(printf '%s' "$PR_LABELS_JSON" | python3 "${CLAUDE_SKILL_DIR}/../has-review-work/scripts/label_checks.py") || exit 1
+   REBASE_REQUESTED=$(printf '%s' "$LABEL_ENTRIES" | jq 'any(.[]; .bucket == "rebase")')
    ```
 
-   For the remaining (non-label) checks:
-   - With `--failing-checks`, if any object omits `link`, merge links from a guarded `gh pr checks` capture (non-zero exit is normal when checks fail; a PR with no checks is an empty list; fail on any other missing/invalid JSON):
+   - If `--failing-checks` is provided, parse it as a JSON array of those objects.
+   - If any object omits `link`, merge links from a guarded `gh pr checks` capture (non-zero exit is normal when checks fail; only fail on missing/invalid JSON):
 
      ```sh
      CHECKS_JSON=""
      CHECKS_EXIT=0
-     CHECKS_ERR=$(mktemp)
-     CHECKS_JSON=$(gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link 2>"$CHECKS_ERR") || CHECKS_EXIT=$?
+     CHECKS_JSON=$(gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link 2>/dev/null) || CHECKS_EXIT=$?
      if [ -z "$CHECKS_JSON" ] || ! printf '%s' "$CHECKS_JSON" | jq -e 'type == "array"' >/dev/null 2>&1; then
-       # A PR with no checks is not a lookup failure: gh exits nonzero and
-       # prints "no checks reported on the '<branch>' branch".
-       if [ "$CHECKS_EXIT" -ne 0 ] && grep -q '^no checks reported on the ' "$CHECKS_ERR"; then
-         CHECKS_JSON='[]'
-       else
-         echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
-         rm -f "$CHECKS_ERR"
-         exit 1
-       fi
+       echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
+       exit 1
      fi
-     rm -f "$CHECKS_ERR"
      ```
 
-   - Without `--failing-checks`, fetch failing checks with the same guarded capture. A PR with no checks yields `[]`, so a rebase-only run can continue:
+   - Otherwise fetch failing checks with the same guarded capture:
 
      ```sh
      CHECKS_JSON=""
      CHECKS_EXIT=0
-     CHECKS_ERR=$(mktemp)
-     CHECKS_JSON=$(gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link 2>"$CHECKS_ERR") || CHECKS_EXIT=$?
+     CHECKS_JSON=$(gh pr checks "$PR_NUMBER" --repo "$REPO" --json name,state,bucket,link 2>/dev/null) || CHECKS_EXIT=$?
      if [ -z "$CHECKS_JSON" ] || ! printf '%s' "$CHECKS_JSON" | jq -e 'type == "array"' >/dev/null 2>&1; then
-       # A PR with no checks is not a lookup failure: gh exits nonzero and
-       # prints "no checks reported on the '<branch>' branch".
-       if [ "$CHECKS_EXIT" -ne 0 ] && grep -q '^no checks reported on the ' "$CHECKS_ERR"; then
-         CHECKS_JSON='[]'
-       else
-         echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
-         rm -f "$CHECKS_ERR"
-         exit 1
-       fi
+       echo "ERROR: gh pr checks failed (exit ${CHECKS_EXIT})" >&2
+       exit 1
      fi
-     rm -f "$CHECKS_ERR"
      ```
 
    Keep checks where `bucket == "fail"`. Ignore `tide`. Annotate optional Prow jobs (do not drop them) using the same detector `has-review-work` uses — do not use `gh pr checks --required`:
@@ -133,7 +87,6 @@ Resolve PR number and repository into named variables before any shell commands.
 
    ```sh
    BASE_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json baseRefName -q .baseRefName)
-   HEAD_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefName -q .headRefName)
    HEAD_SHA=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefOid -q .headRefOid)
 
    TARGET_REMOTE=""
@@ -171,23 +124,9 @@ Resolve PR number and repository into named variables before any shell commands.
 
 ### Step 0b: Rebase onto the base branch (only when `REBASE_REQUESTED=true`)
 
-Skip this step when no rebase was requested. Use `TARGET_REMOTE`, `BASE_BRANCH`, `HEAD_BRANCH`, and `HEAD_SHA` from Step 0.
+Skip this step when no rebase was requested. Use `TARGET_REMOTE`, `BASE_BRANCH`, and `HEAD_SHA` from Step 0.
 
-1. **Preconditions**: the worktree has no uncommitted changes to tracked files, the checked-out branch is the PR's head branch (not a detached HEAD or another branch at the same commit), and `HEAD` is `HEAD_SHA`:
-
-   ```sh
-   REBASE_PRECONDITIONS=ok
-   # Untracked files (for example pipeline logs) do not affect a rebase.
-   if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-     REBASE_PRECONDITIONS="worktree has uncommitted changes"
-   elif [ "$(git symbolic-ref --quiet --short HEAD)" != "$HEAD_BRANCH" ]; then
-     REBASE_PRECONDITIONS="checked-out branch is not the PR head branch ${HEAD_BRANCH}"
-   elif [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
-     REBASE_PRECONDITIONS="HEAD does not match the PR head commit"
-   fi
-   ```
-
-   If `REBASE_PRECONDITIONS` is not `ok`, do not rebase and report the failed precondition. Still classify the other failing checks in Step 1, but make no Step 2 fixes or commits. Mark their action as `skipped (rebase precondition failed)`.
+1. **Preconditions**: there are no uncommitted changes to tracked files (`git status --porcelain --untracked-files=no` is empty) and `git rev-parse HEAD` equals `HEAD_SHA`. If either fails, do not rebase; report it and continue with Step 1.
 
 2. **Skip when up to date**: Prow can take a few minutes to remove the label after a push.
 
@@ -210,23 +149,7 @@ Skip this step when no rebase was requested. Use `TARGET_REMOTE`, `BASE_BRANCH`,
 
 6. **Record** `REBASE_RESULT` as `rebased`, `up_to_date`, or `failed`. When it is `failed`, post a PR conversation comment (same `gh api` pattern as Step 2) explaining which files conflicted or which verification failed, and that a human needs to rebase.
 
-7. **Publishing**: a rebase rewrites history. In `--ci` mode, do not push; the pipeline publishes the rewritten branch. Outside `--ci`:
-   - Before asking for confirmation, re-read the PR head. If it is no longer `HEAD_SHA`, someone pushed after Step 0: do not push, and report that the rebase must be redone on the new head.
-
-     ```sh
-     CURRENT_HEAD=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefOid -q .headRefOid) || exit 1
-     if [ "$CURRENT_HEAD" != "$HEAD_SHA" ]; then
-       echo "PR head moved from ${HEAD_SHA} to ${CURRENT_HEAD}; not pushing the rebase" >&2
-       exit 1
-     fi
-     ```
-
-   - Tell the user a force push is required and do not push without explicit confirmation.
-   - After confirmation, push to the remote for the PR's head repository (`PUSH_REMOTE`) with a lease that expects `HEAD_SHA`, never a plain `--force`:
-
-     ```sh
-     git push --force-with-lease="refs/heads/${HEAD_BRANCH}:${HEAD_SHA}" "$PUSH_REMOTE" "HEAD:refs/heads/${HEAD_BRANCH}"
-     ```
+7. **Publishing**: a rebase rewrites history. In `--ci` mode, do not push; the pipeline publishes the rewritten branch. Outside `--ci`, tell the user a force push is required and do not force push without explicit confirmation.
 
 8. **Remaining checks**: when `REBASE_RESULT=rebased`, the other failing checks ran against the pre-rebase HEAD, and CI will rerun on the rebased branch. Classify them in Step 1 for the summary, but do not fix or report them. Mark their action as `deferred (rebased)`. Otherwise continue normally.
 
@@ -330,7 +253,7 @@ Report for each failing check:
 
 | Check | Optional | Classification | Action |
 |-------|----------|----------------|--------|
-| ... | yes / no | pr_caused / infra / ... | fixed / reported / skipped / deferred (rebased) / skipped (rebase precondition failed) |
+| ... | yes / no | pr_caused / infra / ... | fixed / reported / skipped / deferred (rebased) |
 
 When a rebase was requested, also report `REBASE_RESULT` (`rebased`, `up_to_date`, or `failed`) and the new HEAD commit.
 
@@ -344,7 +267,7 @@ Include commit hashes for fixes and comment URLs for reports.
 - Do not fix failures classified as infrastructure, pre-existing, flake, or out-of-scope.
 - Do not change code to green an optional job unless the Step 1 optional-job bar is fully met.
 - Do not `/retest` or trigger CI jobs — report only.
-- Do not force push in `--ci` mode; the pipeline publishes rebased history. Outside `--ci`, only push after confirmation and with a lease on `HEAD_SHA`.
+- Do not force push in `--ci` mode; the pipeline publishes rebased history.
 
 ## Arguments
 - `$1`: PR number (optional — current branch if omitted)
