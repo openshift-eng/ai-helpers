@@ -2,7 +2,7 @@
   "metadata": {
     "description": "Team information including components, repos, and communication channels",
     "generated_by": "generate_team_component_map.py",
-    "total_components": 98,
+    "total_components": 100,
     "total_teams": 33
   },
   "teams": {
@@ -833,6 +833,8 @@
     },
     "Network Ingress and DNS": {
       "components": [
+        "AWS Load Balancer Operator",
+        "ExternalDNS Operator",
         "Networking / DNS",
         "Networking / router"
       ],
