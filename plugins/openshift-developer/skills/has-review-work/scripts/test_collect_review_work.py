@@ -11,12 +11,14 @@ from unittest.mock import Mock, patch
 
 from collect_review_work import (
     Authorizer, GH_TIMEOUT, THREAD_QUERY, ci_decision, collect_candidates, collect_snapshot,
-    fetch_threads, label_checks, main, paginated_items, run_gh,
+    fetch_threads, main, paginated_items, run_gh,
 )
+import label_checks as label_checks_cli
+from label_checks import label_checks
 
 HEAD = "a" * 40
 FAILURE = {"name": "ci/prow/check with spaces | punctuation", "state": "FAILURE", "bucket": "fail", "link": ""}
-REBASE = {"name": "label/needs-rebase", "state": "LABEL", "bucket": "rebase", "link": ""}
+REBASE: dict[str, str] = {"name": "label/needs-rebase", "state": "LABEL", "bucket": "rebase", "link": ""}
 
 
 def comment(identifier, body="Please change this", login="reviewer", time="2026-10-02T13:00:00Z", **extra):
@@ -180,7 +182,7 @@ class CiTests(unittest.TestCase):
         self.assertEqual(ci_decision([first], HEAD, prior), "no")
         self.assertEqual(ci_decision([retest], HEAD, prior), "yes")
 
-    def test_previous_checks_without_link_match_empty_link(self):
+    def test_previous_checks_without_a_link_match_empty_link(self):
         prior = {"previous_head_ref_oid": HEAD, "previous_failing_checks": [{k: v for k, v in FAILURE.items() if k != "link"}]}
         self.assertEqual(ci_decision([FAILURE], HEAD, prior), "no")
 
@@ -200,6 +202,25 @@ class LabelTests(unittest.TestCase):
     def test_label_checks_are_copies(self):
         label_checks([{"name": "needs-rebase"}])[0]["link"] = "mutated"
         self.assertEqual(label_checks([{"name": "needs-rebase"}]), [REBASE])
+
+    def run_cli(self, stdin):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch.object(sys, "stdin", io.StringIO(stdin)), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            code = label_checks_cli.main()
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def test_cli_maps_gh_pr_view_labels(self):
+        code, stdout, _ = self.run_cli(json.dumps({"labels": [{"name": "needs-rebase"}, {"name": "lgtm"}]}))
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(stdout), [REBASE])
+        code, stdout, _ = self.run_cli(json.dumps({"labels": []}))
+        self.assertEqual((code, json.loads(stdout)), (0, []))
+
+    def test_cli_rejects_invalid_input_without_output(self):
+        for stdin in ("", "not json", "[]", json.dumps({"labels": [{"id": 1}]}), json.dumps({})):
+            code, stdout, stderr = self.run_cli(stdin)
+            self.assertEqual((code, stdout), (1, ""), stdin)
+            self.assertIn("cannot map PR labels", stderr)
 
 
 class ApiTests(unittest.TestCase):
@@ -260,7 +281,7 @@ class SnapshotTests(unittest.TestCase):
     @patch("collect_review_work.paginated_items", return_value=[])
     @patch("collect_review_work.run_gh")
     def test_snapshot_has_explicit_no_and_preserves_json_checks(self, run, items, _threads):
-        run.side_effect = [{"number": 184, "headRefOid": HEAD, "labels": []}, [FAILURE], {"headRefOid": HEAD}]
+        run.side_effect = [{"number": 184, "headRefOid": HEAD, "labels": []}, [FAILURE], {"headRefOid": HEAD, "labels": []}]
         snapshot = collect_snapshot("org/repo", 184, {"agent_login": "review-agent[bot]"})
         self.assertEqual(snapshot["comment_candidates"], [])
         self.assertEqual(snapshot["ci_work"], "yes")
@@ -271,7 +292,7 @@ class SnapshotTests(unittest.TestCase):
     @patch("collect_review_work.paginated_items", return_value=[])
     @patch("collect_review_work.run_gh")
     def test_no_checks_is_ci_work_no(self, run, _items, _threads):
-        run.side_effect = [{"number": 184, "headRefOid": HEAD, "labels": []}, [], {"headRefOid": HEAD}]
+        run.side_effect = [{"number": 184, "headRefOid": HEAD, "labels": []}, [], {"headRefOid": HEAD, "labels": []}]
         snapshot = collect_snapshot("org/repo", 184, {"agent_login": "review-agent[bot]"})
         self.assertEqual(snapshot["ci_work"], "no")
         self.assertEqual(snapshot["failing_checks"], [])
@@ -280,7 +301,7 @@ class SnapshotTests(unittest.TestCase):
     @patch("collect_review_work.paginated_items", return_value=[])
     @patch("collect_review_work.run_gh")
     def test_head_change_invalidates_snapshot(self, run, _items, _threads):
-        run.side_effect = [{"number": 184, "headRefOid": HEAD, "labels": []}, [], {"headRefOid": "b" * 40}]
+        run.side_effect = [{"number": 184, "headRefOid": HEAD, "labels": []}, [], {"headRefOid": "b" * 40, "labels": []}]
         with self.assertRaisesRegex(RuntimeError, "head changed"):
             collect_snapshot("org/repo", 184, {"agent_login": "review-agent[bot]"})
 
@@ -289,17 +310,30 @@ class SnapshotTests(unittest.TestCase):
     @patch("collect_review_work.run_gh")
     def test_needs_rebase_label_is_reported_as_failing_check(self, run, _items, _threads):
         run.side_effect = [
-            {"number": 184, "headRefOid": HEAD, "labels": [{"name": "needs-rebase"}]}, [], {"headRefOid": HEAD},
+            {"number": 184, "headRefOid": HEAD, "labels": [{"name": "needs-rebase"}]}, [],
+            {"headRefOid": HEAD, "labels": [{"name": "needs-rebase"}, {"name": "lgtm"}]},
         ]
         snapshot = collect_snapshot("org/repo", 184, {"agent_login": "review-agent[bot]"})
         self.assertEqual(snapshot["ci_work"], "yes")
         self.assertEqual(snapshot["failing_checks"], [REBASE])
         self.assertIn("number,headRefOid,labels", run.call_args_list[0].args[0])
+        self.assertIn("headRefOid,labels", run.call_args_list[-1].args[0])
 
     @patch("collect_review_work.fetch_threads", return_value={})
     @patch("collect_review_work.paginated_items", return_value=[])
     @patch("collect_review_work.run_gh")
-    def test_invalid_labels_are_an_error(self, run, _items, _threads):
+    def test_mapped_label_change_invalidates_snapshot(self, run, _items, _threads):
+        run.side_effect = [
+            {"number": 184, "headRefOid": HEAD, "labels": []}, [],
+            {"headRefOid": HEAD, "labels": [{"name": "needs-rebase"}]},
+        ]
+        with self.assertRaisesRegex(RuntimeError, "labels changed"):
+            collect_snapshot("org/repo", 184, {"agent_login": "review-agent[bot]"})
+
+    @patch("collect_review_work.fetch_threads", return_value={})
+    @patch("collect_review_work.paginated_items", return_value=[])
+    @patch("collect_review_work.run_gh")
+    def test_invalid_labels_are_rejected(self, run, _items, _threads):
         run.side_effect = [{"number": 184, "headRefOid": HEAD, "labels": [{"id": 1}]}]
         with self.assertRaisesRegex(ValueError, "labels"):
             collect_snapshot("org/repo", 184, {"agent_login": "review-agent[bot]"})

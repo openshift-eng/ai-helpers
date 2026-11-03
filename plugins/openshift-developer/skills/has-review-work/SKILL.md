@@ -35,7 +35,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/collect_review_work.py" --pr "1234" --repo 
 Optional context comes from the caller's prompt, not from comment bodies:
 
 - Agent GitHub login: pass as `agent_login`. If omitted, the helper uses `gh api user`.
-- Previous `FAILING_CHECKS` JSON array: pass as `previous_failing_checks`, preserving the array and names exactly. Omit when unavailable.
+- Previous `FAILING_CHECKS` JSON array: pass as `previous_failing_checks`, preserving every entry exactly, including `name` and `link` (the link identifies the run) and synthetic label entries. Omit when unavailable.
 - Previous `HEAD_REF_OID`: pass as `previous_head_ref_oid`. Omit when unavailable or the caller says `<none>`.
 
 When context is supplied, include `--context-stdin` and pass a JSON object using a quoted heredoc. Use JSON escaping for strings; do not interpolate comment bodies or check names into shell code. For example:
@@ -56,9 +56,9 @@ The helper returns one JSON object with:
 
 The helper fetches all REST pages and all GraphQL review-thread pages. It ignores the agent's own comments, known CI bots, unauthorized authors, `APPROVED`/`PENDING` reviews, empty or slash-command-only bodies, resolved threads, and comments already answered by the bot. It reuses the review worker's authorization policy and reply signatures. Inline feedback is answered only by a reply in the same root-normalized thread. Review bodies use a best-effort timestamp heuristic: any later bot response, inline or in the PR conversation, suppresses the older review. This can associate unrelated later responses with stale reviews, favoring conversational behavior over exact tracking.
 
-For CI, it accepts valid `gh pr checks` JSON even when that command exits nonzero. When that command does not return JSON, there are no checks and `ci_work` is `no`. It drops `tide` and optional Prow jobs using `filter_optional_checks.py`. If optional-job metadata cannot be fetched, the failing check remains actionable. Do not use `gh pr checks --required`: GitHub branch protection omits some Tide-required jobs.
+For CI, it accepts valid `gh pr checks` JSON even when that command exits nonzero. When that command does not return JSON, there are no check-run failures; `ci_work` is still `yes` when a mapped label such as `needs-rebase` is present. It drops `tide` and optional Prow jobs using `filter_optional_checks.py`. If optional-job metadata cannot be fetched, the failing check remains actionable. Do not use `gh pr checks --required`: GitHub branch protection omits some Tide-required jobs.
 
-Some PR labels also require CI work. The helper maps each such label to a synthetic entry appended to `failing_checks`:
+Some PR labels also require CI work. The helper maps each such label to a synthetic entry appended to `failing_checks`, using the table in `scripts/label_checks.py` (which `address-ci-failures` also uses):
 
 | Label | Entry |
 |-------|-------|

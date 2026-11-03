@@ -17,6 +17,7 @@ import sys
 from typing import Any
 
 from filter_optional_checks import filter_checks
+from label_checks import label_checks, validate_labels
 from is_slash_command_only import is_slash_command_only
 
 # Reuse the worker's authorization policy and historical reply signatures.
@@ -25,12 +26,6 @@ import check_authorized
 from check_replied import is_bot_reply, normalized_login, paginated_items
 
 GH_TIMEOUT = 30
-# PR labels that require CI work, reported as synthetic FAILING_CHECKS entries.
-# The bucket tells address-ci-failures what to do; the label/ prefix keeps names
-# distinct from real check contexts.
-LABEL_CHECKS = {
-    "needs-rebase": {"name": "label/needs-rebase", "state": "LABEL", "bucket": "rebase", "link": ""},
-}
 THREAD_QUERY = """
 query($owner:String!,$repo:String!,$number:Int!,$endCursor:String) {
   repository(owner:$owner, name:$repo) {
@@ -205,11 +200,6 @@ def ci_decision(failing: list[dict], head: str, context: dict) -> str:
     return "yes" if check_runs(failing) != check_runs(previous) else "no"
 
 
-def label_checks(labels: list[dict]) -> list[dict]:
-    names = {label["name"] for label in labels}
-    return [dict(check) for label, check in LABEL_CHECKS.items() if label in names]
-
-
 def validate_checks(value: Any) -> list[dict]:
     if not isinstance(value, list) or any(
         not isinstance(c, dict) or any(not isinstance(c.get(k), str) for k in ("name", "state", "bucket"))
@@ -228,8 +218,7 @@ def collect_snapshot(repo: str, number: int | None, context: dict) -> dict:
     labels = metadata["labels"]
     if not isinstance(number, int) or not isinstance(head, str) or not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ValueError("PR metadata has an invalid number or head SHA")
-    if not isinstance(labels, list) or any(not isinstance(label, dict) or not isinstance(label.get("name"), str) for label in labels):
-        raise ValueError("PR metadata has invalid labels")
+    validate_labels(labels)
     agent = context.get("agent_login")
     if not agent:
         agent = run_gh(["api", "user"])["login"]
@@ -252,9 +241,11 @@ def collect_snapshot(repo: str, number: int | None, context: dict) -> dict:
         "pr", "checks", str(number), "--repo", repo, "--json", "name,state,bucket,link",
     ], allow_failure_json=True))
     failing = filter_checks(checks) + label_checks(labels)
-    final_head = run_gh(["pr", "view", str(number), "--repo", repo, "--json", "headRefOid"])["headRefOid"]
-    if final_head != head:
+    final = run_gh(["pr", "view", str(number), "--repo", repo, "--json", "headRefOid,labels"])
+    if final["headRefOid"] != head:
         raise RuntimeError("PR head changed during collection; retry")
+    if label_checks(validate_labels(final["labels"])) != label_checks(labels):
+        raise RuntimeError("PR labels changed during collection; retry")
     return {
         "head_ref_oid": head, "comment_candidates": candidates,
         "ci_work": ci_decision(failing, head, context),

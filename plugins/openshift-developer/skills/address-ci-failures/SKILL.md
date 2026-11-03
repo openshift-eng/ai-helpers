@@ -38,11 +38,19 @@ Resolve PR number and repository into named variables before any shell commands.
 
 3. **Failing checks**: Each check object uses `{name, state, bucket, link}` — the same shape `has-review-work` emits in `FAILING_CHECKS`.
 
-   `has-review-work` also reports labels that need branch work as synthetic entries with `"state": "LABEL"`. Before any other filtering, remove every entry with `"bucket": "rebase"` (for example `{"name":"label/needs-rebase","state":"LABEL","bucket":"rebase","link":""}`) and set `REBASE_REQUESTED=true` if there was one. Ignore any other `LABEL` entry with an unknown bucket. Without `--failing-checks`, set `REBASE_REQUESTED=true` when the PR has the `needs-rebase` label:
+   `has-review-work` also reports labels that need branch work as synthetic entries with `"state": "LABEL"`. Before any other filtering, remove every entry with `"bucket": "rebase"` (for example `{"name":"label/needs-rebase","state":"LABEL","bucket":"rebase","link":""}`) and set `REBASE_REQUESTED=true` if there was one. Ignore any other `LABEL` entry with an unknown bucket. Without `--failing-checks`, derive the label entries with the same mapping `has-review-work` uses. Stop if either command fails; a failed lookup is not "no label":
 
    ```sh
    REBASE_REQUESTED=false
-   if gh pr view "$PR_NUMBER" --repo "$REPO" --json labels -q '.labels[].name' | grep -qx 'needs-rebase'; then
+   if ! PR_LABELS_JSON=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels); then
+     echo "ERROR: gh pr view failed while reading PR labels" >&2
+     exit 1
+   fi
+   if ! LABEL_ENTRIES=$(printf '%s' "$PR_LABELS_JSON" | python3 "${CLAUDE_SKILL_DIR}/../has-review-work/scripts/label_checks.py"); then
+     echo "ERROR: unable to map PR labels" >&2
+     exit 1
+   fi
+   if printf '%s' "$LABEL_ENTRIES" | jq -e 'any(.[]; .bucket == "rebase")' >/dev/null; then
      REBASE_REQUESTED=true
    fi
    ```
@@ -127,7 +135,7 @@ Resolve PR number and repository into named variables before any shell commands.
 
 Skip this step when no rebase was requested. Use `TARGET_REMOTE`, `BASE_BRANCH`, and `HEAD_SHA` from Step 0.
 
-1. **Preconditions**: the worktree is clean and `git rev-parse HEAD` equals `HEAD_SHA`. If either fails, do not rebase; report it and continue with Step 1.
+1. **Preconditions**: the worktree is clean and `git rev-parse HEAD` equals `HEAD_SHA`. If either fails, do not rebase and report the failed precondition. Still classify the other failing checks in Step 1, but make no Step 2 fixes or commits. Mark their action as `skipped (rebase precondition failed)`.
 
 2. **Skip when up to date**: Prow can take a few minutes to remove the label after a push.
 
@@ -254,7 +262,7 @@ Report for each failing check:
 
 | Check | Optional | Classification | Action |
 |-------|----------|----------------|--------|
-| ... | yes / no | pr_caused / infra / ... | fixed / reported / skipped / deferred (rebased) |
+| ... | yes / no | pr_caused / infra / ... | fixed / reported / skipped / deferred (rebased) / skipped (rebase precondition failed) |
 
 When a rebase was requested, also report `REBASE_RESULT` (`rebased`, `up_to_date`, or `failed`) and the new HEAD commit.
 
