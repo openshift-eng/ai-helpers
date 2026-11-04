@@ -27,14 +27,14 @@ Use the matching `golang:<version>-bookworm` Docker image.
 SSH into the target node and check what the existing binary links against:
 
 ```bash
-ssh core@${WORKER} "ldd \$(which <binary>)"
+node_ssh "ldd \$(which <binary>)"
 ```
 
 The cross-compiled binary must link against the same sonames.
 
 ### 3. Create a Dockerfile
 
-Use a base image with matching libraries. Debian Bookworm and Fedora both produce binaries with compatible sonames for RHCOS 9.x.
+Use a base image with matching libraries. Check the node's base OS first (`node_ssh "cat /etc/os-release; ldd --version | head -1"`, with `node_ssh` from [ssh-bastion.md](ssh-bastion.md)): the RHEL major version behind RHCOS changes between OCP releases. The build image's glibc must not be newer than the node's. For RHEL 9 based RHCOS, Debian Bookworm works; a UBI or CentOS Stream image of the same RHEL major version is the safest choice. `fedora:latest` usually has a newer glibc than the node.
 
 The binary-specific reference (e.g., [crio.md](crio.md)) lists the exact packages and build tags needed.
 
@@ -91,17 +91,18 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=1
 conmon-rs is written in Rust. Cross-compile for `x86_64-unknown-linux-gnu`:
 
 ```bash
-# In the Docker container
-rustup target add x86_64-unknown-linux-gnu
-
-# Build
-cargo build --release --target x86_64-unknown-linux-gnu
+# In the Docker container (linux/amd64, so the host target is already
+# x86_64-unknown-linux-gnu and no extra rustup target is needed)
+cargo build --release
 ```
 
-Use a Fedora or RHEL-based container with matching system libraries. The Dockerfile should install:
+Use a RHEL-compatible container of the node's RHEL major version, so the system libraries match. Some `-devel` packages come from the CRB repository (`dnf config-manager --set-enabled crb`) or EPEL. The Dockerfile should install:
 
 ```dockerfile
-FROM --platform=linux/amd64 fedora:latest
+# Match the node's RHEL major version (see "glibc compatibility" above), for
+# example CentOS Stream 9 for RHEL 9 based RHCOS. Not fedora:latest, whose
+# glibc is newer than the node's.
+FROM --platform=linux/amd64 quay.io/centos/centos:stream<rhel-major>
 
 RUN dnf install -y \
     rust cargo \
@@ -121,7 +122,10 @@ RUN cargo build --release && ldd target/release/conmonrs
 crun uses autotools. Build in a matching container:
 
 ```dockerfile
-FROM --platform=linux/amd64 fedora:latest
+# Match the node's RHEL major version (see "glibc compatibility" above), for
+# example CentOS Stream 9 for RHEL 9 based RHCOS. Not fedora:latest, whose
+# glibc is newer than the node's.
+FROM --platform=linux/amd64 quay.io/centos/centos:stream<rhel-major>
 
 RUN dnf install -y \
     gcc automake autoconf libtool \
@@ -154,7 +158,7 @@ All libraries must resolve. If any show `not found`, the binary was built agains
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `ldd` shows `not found` | Wrong base image or missing -dev package | Check sonames on target node, use matching base image |
-| `GLIBC_x.xx not found` | glibc version mismatch | Use older base image (bookworm is usually safe for RHCOS 9.x) |
+| `GLIBC_x.xx not found` | glibc version mismatch | Use older base image (match the RHEL major version of the node; bookworm is usually safe for RHEL 9 based RHCOS) |
 | Binary runs but features missing | Wrong build tags | Check binary-specific reference for required tags |
 | Exec format error on node | Wrong architecture | Verify `file` output shows `x86-64` |
 | Build extremely slow | QEMU emulation on arm64 Mac | Expected, 2-5x slower than native |

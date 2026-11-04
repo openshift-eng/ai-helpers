@@ -7,4 +7,4 @@ allowed-tools: Bash(curl:*)
 ## How to use this skill
 
 1. Read [references/INDEX.md](references/INDEX.md) to route to the relevant reference
-2. Read the reference, then act on it — run scripts, fetch data, present results
+2. Read the reference, then act on it: run scripts, fetch data, present results

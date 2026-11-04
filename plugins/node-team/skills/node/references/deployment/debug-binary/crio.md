@@ -14,7 +14,7 @@
 
 ## Building the Binary
 
-Derive everything from the cri-o checkout you are building — do not rely on
+Derive everything from the cri-o checkout you are building: do not rely on
 hardcoded lists, they go stale and can differ between release branches:
 
 - **Build dependencies**: listed in [`install.md`](https://github.com/cri-o/cri-o/blob/main/install.md)
@@ -24,19 +24,20 @@ hardcoded lists, they go stale and can differ between release branches:
   `golang:<version>-bookworm` Docker image.
 - **Build command**: `make bin/crio`. The Makefile auto-detects build tags
   based on available libraries (`BUILDTAGS` is a Makefile variable computed by
-  `hack/*_tag.sh` probes, not a target) — verify the chosen tags in the
+  `hack/*_tag.sh` probes, not a target): verify the chosen tags in the
   `-tags "..."` portion of the build output, or after building with
   `bin/crio version` (BuildTags field).
 - **Dynamic libraries**: after building, run `ldd bin/crio` and compare the
-  sonames against `ldd /usr/bin/crio` on the target node. They must match —
+  sonames against `ldd /usr/bin/crio` on the target node. They must match:
   a missing soname on the node means a build dependency mismatch.
 
-### Example Dockerfile (illustrative snapshot — verify against install.md)
+### Example Dockerfile (illustrative snapshot, verify against install.md)
 
 ```dockerfile
-FROM --platform=linux/amd64 golang:1.23-bookworm
+# Use the Go version from the go.mod of your checkout
+FROM --platform=linux/amd64 golang:<go-version>-bookworm
 
-# Snapshot of build deps as of cri-o 1.33 — re-derive from install.md
+# Snapshot of build deps as of cri-o 1.33 (2025). Re-derive from install.md
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libseccomp-dev libgpgme-dev libassuan-dev \
     libgpg-error-dev libselinux1-dev \
@@ -91,7 +92,7 @@ daemon, and CRI-O re-attaches to running containers on startup. Kubelet's CRI
 connection drops briefly and re-establishes automatically. One side effect to
 expect: a container whose liveness probe depends on the CRI socket (e.g. an
 exec probe running `crictl`) can fail its probe during the restart window and
-be restarted by kubelet — probe-driven, not CRI-O killing it.
+be restarted by kubelet: probe-driven, not CRI-O killing it.
 
 After starting CRI-O, restart kubelet to ensure it cleanly re-establishes the
 CRI connection:
@@ -107,7 +108,7 @@ Wait ~15 seconds, then verify the node returns to `Ready`:
 oc get node <node-name>
 ```
 
-Cordon/drain before the swap is still recommended — not because the restart
+Cordon/drain before the swap is still recommended: not because the restart
 kills workloads (it does not), but because you are putting an untested debug
 binary in charge of the node's containers: if it crashes or misbehaves, you do
 not want production workloads on the node when it does.
@@ -124,7 +125,7 @@ oc debug node/<node-name> -- chroot /host sh -c 'systemctl restart crio && syste
 Caveat: the debug pod is itself a container running on the node you are
 restarting. A CRI-O restart does not kill running containers (they are held by
 their conmon processes and CRI-O re-attaches on startup), so the session
-usually survives — but if it does drop mid-sequence, the kubelet restart never
+usually survives: but if it does drop mid-sequence, the kubelet restart never
 runs and the node stays `NotReady`. To make the sequence immune to the session
 dying, detach it with `systemd-run`:
 

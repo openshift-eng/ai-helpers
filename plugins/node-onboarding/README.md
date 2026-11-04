@@ -51,8 +51,9 @@ installation, and environment configuration. Supports dev and QE tracks.
 #### Progress tracking
 
 Progress is saved to `~/.node-assistant/onboarding-progress.json`. Use
-`--resume` to pick up where you left off. Delete the progress file to
-start fresh.
+`--resume` to pick up where you left off. Without `--resume` the command
+asks before overwriting existing progress. `--check-only` never writes the
+file, and `/node-team:cleanup` keeps it unless you confirm its removal.
 
 ### `node-onboarding:resources`
 
@@ -66,4 +67,4 @@ Slack channels, documentation, upstream meetings, and support portals.
 ## Prerequisites
 
 - GitHub CLI (`gh`) for automated access checks
-- Optional: `JIRA_API_TOKEN` for Jira validation checks
+- Optional: `JIRA_API_TOKEN` plus `JIRA_USER` or `JIRA_EMAIL` for Jira validation checks (`JIRA_USER` wins; falls back to `git config user.email`). The token is passed to curl on stdin, never on a command line.
