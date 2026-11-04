@@ -2,9 +2,17 @@
 
 RHCOS worker nodes are not directly accessible via SSH. The [ssh-bastion](https://github.com/eparis/ssh-bastion) project deploys a bastion pod that proxies SSH connections to cluster nodes.
 
+> **Disconnected/air-gapped clusters (e.g. `/node-team:disconnected-install`):**
+> this pod-based flow does not apply — it needs a cloud LoadBalancer plus
+> pulling the `eparis/ssh-bastion` image from GitHub/quay.io, neither of
+> which is reachable with zero internet egress. On a disconnected cluster,
+> reach nodes either via `oc debug node` (see below) or by SSH'ing directly
+> from the GCE bastion VM to node internal IPs (the bastion sits in the
+> same VPC and already has SSH access set up as part of cluster creation).
+
 ## Setup
 
-### 1. Deploy the Bastion
+### 1. Deploy the Bastion (connected clusters only)
 
 Use the deploy script from the upstream repo:
 
