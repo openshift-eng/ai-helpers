@@ -33,24 +33,52 @@ mention on the PR.
    never applies any of these.
 4. A multi-branch request is a **set**: all PRs open together (when the
    parent merges, or immediately if asked), never chained one-after-another.
+5. Every backport carries a release note. The plugin keeps a PR
+   `jira/invalid-bug` until its bug has Release Note Text other than the
+   template, or Release Note Type "Release Note Not Required", and clones
+   copy the parent's. The z-stream approver also expects a user-focused
+   release note in the description of a PR the cherry-pick bot did not open.
 
 ## Steps
 
 1. `ocp_backport_plan(pr, branches)` — blockers stop you; a chain gap means
    offering the completed branch list. Show the `summary`; confirm (Slack
-   reply / GitHub comment).
-2. `priv_ocp_backport_ensure_clones(host, repo, pr_number, branches)` — the
-   Jira chain. Report created vs reused clones. Parent not merged → wait for
-   the merge turn.
+   reply / GitHub comment). When its `release_notes` criterion fails, include
+   a drafted release note: type "Bug Fix" (or "Release Note Not Required" if
+   the requester says users are unaffected) and text of one line per field,
+   no blank lines:
+
+   ```text
+   Cause: <root cause, from the bug>
+   Consequence: <what users saw>
+   Fix: <what changed, from the parent PR, in user terms: no function names, file paths or line numbers>
+   Result: <behavior after the fix>
+   Workaround: <only when one exists; otherwise omit the line>
+   ```
+
+   Name no branches or versions, since every clone copies the note, and leave
+   customer details out.
+2. Set a confirmed release note on the parent bug so every clone copies it:
+   `priv_jira_update_issue(issue_key, custom_fields='{"customfield_10785":
+   {"value": "Bug Fix"}, "customfield_10783": "Cause: …"}')` (Release Note
+   Type, Release Note Text). Never replace text a person wrote. Then
+   `priv_ocp_backport_ensure_clones(host, repo, pr_number, branches)` — the
+   Jira chain. Report created vs reused clones; a reused clone without a
+   release note gets the same one. Parent not merged → wait for the merge
+   turn.
 3. Per branch, newest first, one pod (`rws_pod_create` named after the
    campaign): `ocp_backport_brief` → `rws_new_agent` → `rws_goal_task` running
    `/openshift-developer:cherry-pick` with the brief → on success
    `priv_scm_ensure_fork` + `priv_scm_create_change_request` with the brief's
-   title/body unchanged → `ocp_backport_record_pr`. Conflicts park the branch
-   (`report_progress(kind="concern")`, tell the requester which files).
+   title/body unchanged, except that a body with no `release-note` block gets
+   one carrying the bug's release note → `ocp_backport_record_pr`. Conflicts
+   park the branch (`report_progress(kind="concern")`, tell the requester
+   which files).
 4. Then monitor: PR-activity turns (reviews, CI) and `[BACKPORT UPDATE]`
    turns from the watcher. `ocp_backport_status` gives each branch's
-   `next_action`; `ocp_zstream_approvers(repo)` names who can sign off.
+   `next_action`; `ocp_zstream_approvers(repo)` names who can sign off. A
+   predicted verdict that fails on the release note is not a wait for the
+   dependent bug: offer the release note.
 
 ## Exceptions you recognize, humans decide
 
