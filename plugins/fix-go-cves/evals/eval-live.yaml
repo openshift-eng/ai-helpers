@@ -1,0 +1,105 @@
+name: fix-go-cves-live
+description: Run today's remediation scripts on pinned real Go checkouts and evaluate the observed outcome.
+
+execution:
+  mode: case
+  skill: fix-go-cves:fix-go-cves
+  arguments: "{branch}"
+  timeout: 3600
+  max_budget_usd: 20.0
+  parallelism: 1
+  project_hooks: false
+
+runner:
+  type: claude-code
+  effort: max
+  plugin_dirs:
+    - plugins/fix-go-cves
+  env:
+    GOOGLE_APPLICATION_CREDENTIALS: $GOOGLE_APPLICATION_CREDENTIALS
+    DOCKER_HOST: $DOCKER_HOST
+    GOMAXPROCS: $GOMAXPROCS
+    DAPPER_ENV: $DAPPER_ENV
+    DAPPER_ARGS: $DAPPER_ARGS
+    CVE_FIX_TEST_CMD: $CVE_FIX_TEST_CMD
+    CVE_FIX_GO_MINOR_GUARD: $CVE_FIX_GO_MINOR_GUARD
+    CVE_FIX_K8S_VERSION_GUARD: $CVE_FIX_K8S_VERSION_GUARD
+    CVE_FIX_GRYPE_VERSION: $CVE_FIX_GRYPE_VERSION
+    GRYPE_DB_CACHE_DIR: $GRYPE_DB_CACHE_DIR
+    GOMODCACHE: $GOMODCACHE
+    GIT_CONFIG_NOSYSTEM: "1"
+    GIT_TERMINAL_PROMPT: "0"
+    CVE_FIX_BUILD_TIMEOUT: "1800"
+    CVE_FIX_TEST_TIMEOUT: "1800"
+    CVE_FIX_SCAN_TIMEOUT: "600"
+
+models:
+  skill: claude-opus-4-6
+
+permissions:
+  allow:
+    - Skill
+    - Read
+    - Bash
+  deny:
+    - "Bash(git push*)"
+    - "Bash(gh *)"
+    - "Bash(git stash*)"
+    - "Bash(git clean*)"
+    - "mcp__*"
+    - WebFetch
+    - WebSearch
+    - Agent
+    - Task
+
+dataset:
+  path: live/cases
+  schema: |
+    input.yaml pins the real repository and branches and selects live mode.
+    annotations.yaml contains generic scoring criteria. Actual findings and
+    results come from the live script's evidence, not a recorded outcome.
+
+outputs:
+  - path: output
+    schema: |
+      reply.md retains all assistant text and the native artifact pointer/status.
+      delivered.log preserves engine output and its captured terminal exit;
+      delivery-request.json binds selected inputs. state.json records delivery
+      identity, the real run and retained checkout. runtime/ preserves the engine receipts.
+
+traces:
+  stdout: true
+  stderr: true
+  events: true
+  metrics: true
+
+hooks:
+  before_each:
+    - command: python3 "$AGENT_EVAL_PROJECT_ROOT/plugins/fix-go-cves/evals/scripts/eval.py" prepare
+      timeout: 900
+  after_each:
+    - command: python3 "$AGENT_EVAL_PROJECT_ROOT/plugins/fix-go-cves/evals/scripts/eval.py" capture
+  before_scoring:
+    - command: python3 "$AGENT_EVAL_PROJECT_ROOT/plugins/fix-go-cves/evals/scripts/eval.py" extract --run-dir "$AGENT_EVAL_RUNS_DIR/fix-go-cves:fix-go-cves/$AGENT_EVAL_RUN_ID"
+
+judges:
+  - name: live_contract
+    description: Verify a real script run, retained state and permitted operations.
+    check: |
+      import json
+      import pathlib
+      import subprocess
+      import sys
+      helper = pathlib.Path.cwd() / "plugins/fix-go-cves/evals/scripts/eval.py"
+      result = subprocess.run(
+          [sys.executable, str(helper), "check", "--live", "--case-dir", outputs["case_dir"]],
+          capture_output=True, text=True, check=True)
+      verdict = json.loads(result.stdout)
+      if type(verdict.get("passed")) is not bool or not isinstance(verdict.get("reason"), str):
+          raise ValueError("Malformed live-contract verdict")
+      return (verdict["passed"], verdict["reason"])
+
+thresholds:
+  live_contract:
+    min_pass_rate: 1.0
+    max_error_rate: 0

@@ -1,0 +1,14 @@
+# Repository registry for named and "all" runs of fix-go-cves.
+#
+# Copy to ${XDG_CONFIG_HOME:-~/.config}/cve-fix/repos.yaml (or point
+# CVE_FIX_REPOS at a copy) and list your checkouts. This file is a template
+# and is never read.
+#
+# name: argument used to select the repository (e.g. "myrepo 4.18")
+# path: local checkout (~ is expanded to $HOME)
+---
+repos:
+  - name: myrepo
+    path: ~/go/src/github.com/example-org/myrepo
+  - name: another-repo
+    path: ~/src/another-repo
