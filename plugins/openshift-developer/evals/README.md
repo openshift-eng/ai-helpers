@@ -72,12 +72,18 @@ correctly. Each case freezes an issue in `jira-fixture.json`, served by the
 `jira_*` tool names. Writes stay in the stub and are logged to
 `output/jira-calls.jsonl` and `output/jira-state.json` for the judges.
 `stubs/jira_guard.py` blocks real Jira hosts and Atlassian MCP servers, because
-live issues are readable anonymously and would leak the answer.
+live issues are readable anonymously and would leak the answer. A fixture can
+also block material published after its snapshot, such as a fix pull request:
+`blocked_research` lists regexes, and `blocked_research_sha256` lists SHA-256
+digests of lowercase tokens (PR number, fork owner, branch) so the workspace
+does not reveal them. The guard blocks network calls that match either.
 
 | Case | JIRA | Description |
 |------|------|-------------|
 | case-001 | OCPBUGS-99760 | Repeat run on a misdiagnosed CAPA capacity bug; expected CLOSE (Not a Bug) |
 | case-002 | OCPBUGS-99759 | Misdiagnosed scale-from-zero incident; expected CLOSE with version-scoped evidence and reopening conditions |
+| case-003 | OCPBUGS-132796 | CPO sends AWS Local Zone subnets to VPC endpoint create/modify; expected SOLVE with a CPO zone filter that needs no new IAM permission, 4.22.z evidence from the stack trace, and the ignition symptom kept separate |
+| case-004 | OCPBUGS-129314 | Hosted CVO ignores management proxy environment after guest-proxy isolation; expected NEED_HUMAN_ANALYSIS for coordinated CVO transport and HyperShift injection changes |
 
 The default subject and LLM judges use the harness's native `codex` runner
 with `gpt-6.1-sol` and `high` reasoning. The harness stages the plugin skills
