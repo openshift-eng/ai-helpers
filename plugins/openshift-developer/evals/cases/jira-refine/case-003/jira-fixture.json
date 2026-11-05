@@ -1,0 +1,190 @@
+{
+  "snapshot": "OCPBUGS-132796 as of 2026-10-22T07:40:00Z, before the refinement this case scores. Related issues are frozen at the same time. People and cluster identifiers are anonymized.",
+  "blocked_research": [
+    "refs/pull/",
+    "\\bgh\\s+pr\\s+list\\b",
+    "\\bgh\\s+search\\s+(prs|issues)\\b",
+    "\\bsearch/issues\\b",
+    "/pulls(?![/\\d])",
+    "pullRequests\\s*\\(",
+    "\\bai-helpers\\b",
+    "\\bgh\\s+search\\s+\\w+[^|;&\\n]*\\bOCPBUGS-132796\\b",
+    "\\bsearch/\\w+\\b[^|;&\\n]*\\bOCPBUGS-132796\\b"
+  ],
+  "blocked_research_sha256": [
+    "2ab4e55c7fdf332c78e4f36966a981f452ffb6758026085a4ad9df565a1df82d",
+    "92061d35c29a017543c9b66089e41573d9de9017cb5b9a489d0f7291c513477b",
+    "ea8b016d694270e928f648b4f0cc73d25bd57fc7bab944947239c6092f9c857b"
+  ],
+  "resolutions": [
+    "Done",
+    "Done-Errata",
+    "Won't Do",
+    "Not a Bug",
+    "Cannot Reproduce",
+    "Duplicate",
+    "Obsolete"
+  ],
+  "transitions": [
+    {
+      "id": "11",
+      "name": "New",
+      "category": "To Do"
+    },
+    {
+      "id": "21",
+      "name": "ASSIGNED",
+      "category": "In Progress"
+    },
+    {
+      "id": "31",
+      "name": "POST",
+      "category": "In Progress"
+    },
+    {
+      "id": "41",
+      "name": "ON_QA",
+      "category": "In Progress"
+    },
+    {
+      "id": "61",
+      "name": "Verified",
+      "category": "In Progress"
+    },
+    {
+      "id": "71",
+      "name": "Release Pending",
+      "category": "In Progress"
+    },
+    {
+      "id": "81",
+      "name": "Closed",
+      "category": "Done"
+    },
+    {
+      "id": "91",
+      "name": "MODIFIED",
+      "category": "In Progress"
+    }
+  ],
+  "issues": {
+    "OCPBUGS-132796": {
+      "key": "OCPBUGS-132796",
+      "browse_url": "https://redhat.atlassian.net/browse/OCPBUGS-132796",
+      "summary": "ControlPlaneOperator reconciles VPC endpoint services for AWS Local Zone subnets",
+      "issue_type": "Bug",
+      "status": "New",
+      "resolution": null,
+      "priority": "Normal",
+      "severity": null,
+      "release_blocker": null,
+      "regression": "Yes",
+      "components": [
+        "HyperShift",
+        "HyperShift / ROSA"
+      ],
+      "versions": [
+        "5.1"
+      ],
+      "fixVersions": [],
+      "target_version": [
+        "5.1.z"
+      ],
+      "target_backport_versions": null,
+      "story_points": null,
+      "sfdc_cases_counter": null,
+      "labels": [],
+      "created": "2026-10-21T19:51:04+00:00",
+      "updated": "2026-10-22T07:39:23+00:00",
+      "reporter": "bug-reporter",
+      "assignee": null,
+      "description": "**Description of problem:**\n\n```\nThe control-plane-operator, when reconciling the AWS VPC Endpoint for an AWS cluster, does not remove AWS local zones from the AZs it tries to create endpoitns in.\n```\n\n**Version-Release number of selected component (if applicable):**\n\n```\n\n```\n\n**How reproducible:**\n\n```\nVery\n```\n\n**Steps to Reproduce:**\n\n```\n1. Create a HostedCluster with Karpenter enabled\n2. Add a NodePool that targets a subnet-id in a AWS Local Zone\n3. Observe the CPO erroring\n```\n\n**Actual results:**\n\n```\nCPO fails to reconcile the VPC endpoint\n```\n\n**Expected results:**\n\n```\nCPO reconciles the VPC endpoint, removing any local zones\n```\n\n**Additional info:**\n\n```\ncontrol-plane-operator-77956d5bcc-jc26f {\"level\":\"error\",\"ts\":\"2026-10-21T19:41:39Z\",\"msg\":\"failed to modify vpc endpoint\",\"controller\":\"awsendpointservice\",\"controllerGroup\":\"hypershift.openshift.io\",\"controllerKind\":\"AWSEndpointService\",\"AWSEndpointService\":{\"name\":\"private-router\",\"namespace\":\"ocm-production-2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-user-lz\"},\"namespace\":\"ocm-production-2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-user-lz\",\"name\":\"private-router\",\"reconcileID\":\"a578b86a-a279-44d5-a404-9359e6698f6e\",\"error\":\"operation error EC2: ModifyVpcEndpoint, https response error StatusCode: 400, RequestID: 61738cd9-ed62-426c-a006-c922111ed0dc, api error InvalidParameter: The VPC endpoint service com.amazonaws.vpce.us-east-1.vpce-svc-0b5823fd0960bc111 does not support the availability zone of the subnet: subnet-06b56643b49ed429f.\",\"stacktrace\":\"github.com/openshift/hypershift/control-plane-operator/controllers/awsprivatelink.(*AWSEndpointServiceReconciler).reconcileAWSEndpointService\\n\\t/hypershift/control-plane-operator/controllers/awsprivatelink/awsprivatelink_controller.go:747\\ngithub.com/openshift/hypershift/control-plane-operator/controllers/awsprivatelink.(*AWSEndpointServiceReconciler).Reconcile\\n\\t/hypershift/control-plane-operator/controllers/awsprivatelink/awsprivatelink_controller.go:501\\nsigs.k8s.io/controller-runtime/pkg/internal/controller.(*Controller[...]).Reconcile\\n\\t/hypershift/vendor/sigs.k8s.io/controller-runtime/pkg/internal/controller/controller.go:116\\nsigs.k8s.io/controller-runtime/pkg/internal/controller.(*Controller[...]).reconcileHandler\\n\\t/hypershift/vendor/sigs.k8s.io/controller-runtime/pkg/internal/controller/controller.go:303\\nsigs.k8s.io/controller-runtime/pkg/internal/controller.(*Controller[...]).processNextWorkItem\\n\\t/hypershift/vendor/sigs.k8s.io/controller-runtime/pkg/internal/controller/controller.go:263\\nsigs.k8s.io/controller-runtime/pkg/internal/controller.(*Controller[...]).Start.func2.2\\n\\t/hypershift/vendor/sigs.k8s.io/controller-runtime/pkg/internal/controller/controller.go:224\"}\n```",
+      "issue_links": [],
+      "remote_links": [],
+      "comments": [
+        {
+          "id": "19046937",
+          "author": "rosa-engineer",
+          "created": "2026-10-21T19:57:26+00:00",
+          "body": "When deploying Karpenter worker nodes in an AWS Local Zone (tested with `us-east-1-bue-1a`, Buenos Aires) on a ROSA HCP cluster, nodes consistently fail to register with the cluster. The EC2 instance launches successfully, RHCOS boots, and the ignition server is reachable post-boot — but the worker node components (CRI-O, MachineConfigDaemon, kubelet environment files) are never applied.\n**Evidence**\nVia EC2 Serial Console on the failing node:\n```\nUnit machine-config-daemon.service could not be found.\nkubelet.service: Failed to load environment files: No such file or directory\nkubelet.service: Failed to schedule restart job: Unit crio.service not found.\nIgnition: ran on 2026/10/21 05:05:39 UTC (at least 6 boots ago)\n\n```\nIgnition server confirmed reachable **post-boot** from the same node:\ncurl ignition-server.apps..hypershift.local/ignition\n1. → HTTP 200, 472,707 bytes, 57 files, 29 systemd units, kubelet=true, crio=true\n**Workaround applied:** Manually downloaded the full ignition config post-boot and applied it via a Python script that writes `storage.files` and `systemd.units` to the filesystem, followed by `systemctl daemon-reload && reboot`. Node registered successfully after this.\nSteps to reproduce:\n1. ROSA HCP cluster in `us-east-1` with AutoNode (Karpenter) enabled\n1. Private subnet in `us-east-1-bue-1a` (Buenos Aires local zone) tagged with required Karpenter discovery tags\n1. Create `OpenshiftEC2NodeClass` targeting the local zone subnet with `volumeType: GP2` (gp3 is not supported in this local zone)\n1. Create `NodePool` referencing the `EC2NodeClass` auto-generated from step 3\n1. Deploy a workload with the corresponding toleration and nodeSelector"
+        },
+        {
+          "id": "19047027",
+          "author": "bug-reporter",
+          "created": "2026-10-21T20:03:10+00:00",
+          "body": "My current working theory as to how this might be impacting ignition for nodes in the local zone: timing and flapping of the VPCE during failing reconcile. Either way, we should fix this bug."
+        }
+      ],
+      "changelog": [
+        {
+          "created": "2026-10-21T19:51:06+00:00",
+          "author": "jira-automation",
+          "items": [
+            {
+              "field": "assignee",
+              "from": "bug-reporter",
+              "to": null
+            }
+          ]
+        },
+        {
+          "created": "2026-10-21T19:51:19+00:00",
+          "author": "bug-reporter",
+          "items": [
+            {
+              "field": "description",
+              "from": "(earlier draft without the CPO log)",
+              "to": "(current description)"
+            }
+          ]
+        },
+        {
+          "created": "2026-10-22T07:39:23+00:00",
+          "author": "qe-contact",
+          "items": [
+            {
+              "field": "Contributors",
+              "from": null,
+              "to": "qe-contact"
+            }
+          ]
+        }
+      ]
+    },
+    "OCPBUGS-82443": {
+      "key": "OCPBUGS-82443",
+      "browse_url": "https://redhat.atlassian.net/browse/OCPBUGS-82443",
+      "summary": "VPCEndpointService should not try and create >1 Endpoint per AZ",
+      "issue_type": "Bug",
+      "status": "Closed",
+      "resolution": "Done",
+      "priority": "Critical",
+      "severity": null,
+      "components": [
+        "HyperShift"
+      ],
+      "versions": [
+        "4.21",
+        "4.22",
+        "4.23",
+        "5.0"
+      ],
+      "fixVersions": [
+        "5.0.0"
+      ],
+      "labels": [
+        "post-merge-verification",
+        "triaged"
+      ],
+      "created": "2026-04-09T17:34:18+00:00",
+      "updated": "2026-10-19T18:59:39+00:00",
+      "reporter": "rosa-engineer-2",
+      "assignee": null,
+      "description": "**Description of problem:**\n\n```\nWhen a HCP cluster has more than 1 subnet in an AZ, VPCEndpointService reconciliation fails with an AWS error: \"failed to modify vpc endpoint: DuplicateSubnetsInSameZone\"\n```\n\n**Version-Release number of selected component (if applicable):**\n\n```\nAll versions of control-plane-operator (OCP payload)\n```\n\n**How reproducible:**\n\n```\nVery\n```\n\n**Steps to Reproduce:**\n\n```\n1. Create a HCP cluster with a NodePool with 1 subnet in an az like us-east-1a\n2. Create a second NodePool with a different subnet that is also in us-east-1a\n3. VPCEndpointService reconciliation will then have conditions noting it failed to reconcile because AWS only allows 1 endpoint per AZ\n```\n\n**Actual results:**\n\n```\nVPCEndpointService reconciliation fails indefinitely\n```\n\n**Expected results:**\n\n```\nThe privatelink controller dedupes subnets on AZ and only creates 1 endpoint per AZ\n```\n\n**Additional info:**\n\n```\nExamnple status condition denoting this failure mode:\n- lastTransitionTime: \"2026-04-08T17:13:09Z\"\n    message: 'failed to modify vpc endpoint: DuplicateSubnetsInSameZone'\n    reason: AWSError\n    status: \"False\"\n    type: AWSEndpointAvailable\n\n```\n\nOf note, there is no limitation on AWS from making this work, so long as the subnets in the AZ are routable between eachother, then nodes in the additional subnets will route to the neighboring subnet in the same AZ to hit the VPC Endpoint.\n\nTested, under the failure, with a cluster and proved the nodes joined fine even though the endpoint reconciler was in error.\n\n```\n❯ oc get nodepools.hypershift.openshift.io -n ocm-staging-2bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nNAME                   CLUSTER   DESIRED NODES   CURRENT NODES   AUTOSCALING   AUTOREPAIR   VERSION   UPDATINGVERSION   UPDATINGCONFIG   MESSAGE\ndualsub-workers        dualsub   2               2               False         True         4.21.8    False             False\ndualsub-workers-test   dualsub   2               2               False         True         4.21.8    False             False\n\n❯ oc get nodes\nNAME                                       STATUS   ROLES    AGE     VERSION\nip-10-0-0-179.us-west-2.compute.internal   Ready    worker   17m     v1.34.5\nip-10-0-0-69.us-west-2.compute.internal    Ready    worker   17m     v1.34.5\nip-10-0-2-105.us-west-2.compute.internal   Ready    worker   10m     v1.34.5\nip-10-0-2-198.us-west-2.compute.internal   Ready    worker   9m59s   v1.34.5\n```",
+      "issue_links": [],
+      "remote_links": [],
+      "comments": [],
+      "changelog": []
+    }
+  }
+}
