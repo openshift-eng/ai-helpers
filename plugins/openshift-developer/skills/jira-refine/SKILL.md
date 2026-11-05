@@ -53,6 +53,8 @@ equivalent Jira tools the session provides:
 | Read issue, comments, links, history | `get_jira_issue` | `jira_get_issue` (include comments, changelog, remote links), `jira_search` |
 | Replace the description | `priv_jira_update_issue` | `jira_update_issue` with `description` |
 | Set Target Backport Versions | `priv_jira_update_issue` with `custom_fields` | `jira_update_issue` with `additional_fields` |
+| Set Target Version | `priv_jira_update_issue` with `custom_fields` | `jira_update_issue` with `additional_fields` |
+| List a project's released and unreleased versions | `get_jira_project_versions` | `jira_get_project_versions` |
 | Comment | `comment_on_jira_issue` | `jira_add_comment` |
 | Close with a resolution | `transition_jira_issue` | `jira_get_transitions`, then `jira_transition_issue` with the resolution in `fields` |
 | Add or remove labels | `manage_jira_labels` | `jira_update_issue` with `labels`, which replaces the list: re-read the labels immediately before writing and write them back with only this workflow's changes |
@@ -119,6 +121,39 @@ first fixed versions unknown unless evidence supports them. A failed
 reproduction alone does not prove a version unaffected. Propose "Affects
 Version/s" from the project's version entries, keeping them separate from fix
 versions and backport targets.
+
+### Target Version
+
+An issue needs a Target Version: the release the fix lands in first. When the
+field is already set, that is a decision — keep it, and name any doubt in the
+comment rather than overwriting it.
+
+When the field is empty, default it to the release that the component's `main`
+(or `master`) branch currently builds — the newest release under development,
+which is where a fix merges before any backport. Derive it rather than assuming
+the newest number exists in Jira:
+
+1. Read the project's version entries (`jira_get_project_versions`, or
+   `get_jira_project_versions`) so the value written is a real version.
+2. Find the release branches whose tip matches `main` in the relevant
+   repository (`git ls-remote origin 'refs/heads/release-*'` compared with
+   `refs/heads/main`). Those branches name the release `main` is currently
+   tracking; when several match, take the lowest version number, since the
+   higher ones were branched ahead of the release.
+3. When no release branch matches `main`, take the highest unreleased
+   `<major>.<minor>` version entry in the project instead, and say in the
+   comment that it came from Jira's version list rather than the branches.
+
+Write the project's own spelling of that version (for example `openshift-4.22`
+in OCPBUGS, or `4.22` where the project uses bare numbers) — read it from the
+field's allowed values, never construct the string. Set Target Version only on a
+`SOLVE`; a `CLOSE`, `NEEDS_INFO`, or `NEED_HUMAN_ANALYSIS` leaves it untouched.
+If the field cannot be read or written, report `BLOCKED` for that operation and
+continue with the rest of the disposition.
+
+Target Version is the first release to get the fix; the backport targets below
+are the released branches that also get it. They are separate fields and the
+Target Version is never one of the backport targets.
 
 ### Backport targets
 
@@ -189,20 +224,26 @@ Writes happen only in `auto`, or in `confirm` after the user accepts them.
    description=...)` with actual and expected behavior, evidence, corrected root
    cause, acceptance criteria, implementation plan, and validation; preserve
    relevant existing content.
-2. **Backport targets** (`SOLVE` only, after the description): set Target
+2. **Target Version** (`SOLVE` only, after the description): when the field is
+   empty, set it to the release derived above (`customfield_10855` on
+   redhat.atlassian.net), using the id or name from the field's allowed values,
+   for example `priv_jira_update_issue(issue_key,
+   custom_fields='{"customfield_10855": [{"name": "openshift-4.22"}]}')`. Leave
+   a value a person already set alone.
+3. **Backport targets** (`SOLVE` only, after the description): set Target
    Backport Versions (`customfield_10878` on redhat.atlassian.net) to the
    targets, for example `priv_jira_update_issue(issue_key,
    custom_fields='{"customfield_10878": [{"name": "5.0.z"}, {"name": "4.22.z"}]}')`.
    The write replaces the field, so list the versions a person set too. Skip it
    when there are no targets and the field is empty.
-3. **Comment** (every disposition): one short `comment_on_jira_issue` — aim for
+4. **Comment** (every disposition): one short `comment_on_jira_issue` — aim for
    a few lines, not a report. Include only: disposition + one-line reason,
    priority/severity if relevant, one or two evidence links, next step (for
    `CLOSE`, the resolution being applied), and the marker below. No essays, no
    repeated issue text, no bullet inventories of every finding. A `SOLVE`
    comment is one or two sentences pointing at the refined description. Leave
    customer identifiers and support-case details out.
-4. **Close** (`CLOSE` only): after the comment is verified and before any
+5. **Close** (`CLOSE` only): after the comment is verified and before any
    labels, call
    `transition_jira_issue(issue_key, target_status=..., resolution="Won't Do")`
    (use the project's closed/resolved status name from available transitions;
@@ -212,13 +253,13 @@ Writes happen only in `auto`, or in `confirm` after the user accepts them.
    the gap and add no labels: the saved `CLOSE` marker on an open issue is the
    unfinished step a repeat run repairs. Do not invent another disposition to
    avoid closing, and do not leave a `CLOSE` issue open on purpose.
-5. **Labels**: after the writes are verified (for `CLOSE`, after the issue is
+6. **Labels**: after the writes are verified (for `CLOSE`, after the issue is
    closed), one `manage_jira_labels` call adding `refined-by-agent` plus
    `needs-info` or `need-human-analysis` when they apply. Every saved
    disposition gets `refined-by-agent`; it is how automated jobs find assessed
    issues and skip them until something changes. Never replace the label list.
-6. **Verify** content, backport targets, labels, and (for `CLOSE`)
-   status/resolution with `get_jira_issue` before reporting them.
+7. **Verify** content, Target Version, backport targets, labels, and (for
+   `CLOSE`) status/resolution with `get_jira_issue` before reporting them.
 
 Do not reassign or change priority or severity. Do not close or transition
 except for `CLOSE` as above. Remove a waiting label only when this workflow
@@ -228,9 +269,9 @@ added it and the gap is resolved. Preserve human-owned labels and decisions.
 assessment with current facts, comments, and linked changes; the bot's own
 comments and labels are not new evidence. Reassess on material changes;
 otherwise repair only the missing step, such as the labels after a confirmed
-comment, the Target Backport Versions a saved `SOLVE` marker names but the
-issue lacks, or the close and labels after a saved `CLOSE` comment on an issue
-still open. After an uncertain write, read back before retrying. If an effect
+comment, the Target Version or Target Backport Versions a saved `SOLVE` marker
+names but the issue lacks, or the close and labels after a saved `CLOSE`
+comment on an issue still open. After an uncertain write, read back before retrying. If an effect
 cannot be established, report `BLOCKED` and stop writing to that issue.
 `get_jira_issue` shows only recent comments; when an older decision matters and
 cannot be read, assess read-only and report the gap.
@@ -245,10 +286,10 @@ description or a separate comment:
 ```
 
 `outcome` is the disposition; the newest marker is the current one. A `SOLVE`
-marker also names its backport targets, or `none`:
+marker also names its Target Version and its backport targets, or `none`:
 
 ```text
-[refine:v1] outcome=SOLVE backports=5.0.z,4.22.z
+[refine:v1] outcome=SOLVE target=openshift-4.22 backports=5.0.z,4.22.z
 ```
 
 Some Jira renderers drop the brackets, so read `refine:v1 outcome=...` as the
@@ -269,16 +310,16 @@ the caller authorized readiness labels. On FAIL, one corrective description
 update is allowed when verified findings fill the gap; never invent facts to
 pass. If it still fails, report the gaps and save the disposition the evidence
 supports; its comment supersedes the `SOLVE` one, and it removes the Target
-Backport Versions this run added (never a person's). A PASS never overrides
-`CLOSE`, `NEEDS_INFO`, or `NEED_HUMAN_ANALYSIS`.
+Version and Target Backport Versions this run added (never a person's). A PASS
+never overrides `CLOSE`, `NEEDS_INFO`, or `NEED_HUMAN_ANALYSIS`.
 
 ## Deliverable
 
 Keep the caller-facing summary short: disposition, confidence, one-paragraph
 rationale, next action, and execution status (`NO_ACTION` / `REPAIRED` /
 `BLOCKED` / verified writes). Expand only what the caller needs to route the
-result (for `SOLVE`: repo/branch, the backport targets, and that the plan is in
-the description; for
+result (for `SOLVE`: repo/branch, the Target Version, the backport targets, and
+that the plan is in the description; for
 `CLOSE`/`NEEDS_INFO`/`NEED_HUMAN_ANALYSIS`: the reason or ask already in the
 Jira comment). Do not paste long findings into Slack or the turn report when
 Jira already has them.
