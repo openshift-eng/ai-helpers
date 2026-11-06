@@ -1,22 +1,24 @@
 pr_url: https://github.com/openshift/hypershift/pull/8656
-expected_tier: moderate
-acceptable_tiers: [moderate]
-guidance:
-  - references/repos/openshift/hypershift/README.md
+expected_tier: critical
+# A maintainer labelled it Moderate; without that repository knowledge in the
+# repository's AGENTS.md, Critical is accepted. Low is never right.
+acceptable_tiers: [critical, moderate]
 ground_truth: >
-  Moderate. Sorts the mirrors of each source in the OPENSHIFT_IMG_OVERRIDES
-  value built by ConvertOpenShiftImageRegistryOverridesToCommandLineFlag. The
-  HO renders that value into the CPO Deployment of every hosted cluster with
-  registry overrides, and the CPO renders it into the HCCO and ignition-server
-  Deployments. It is a behaviour change, not cosmetic: where the order changes,
-  those workloads roll once on upgrade and then stop the repeated rollouts the
-  pull request fixes. The sort runs in place on the map the HO's release and
-  image-metadata providers share, so the HO's own lookups, and the components
-  that parse the value, try mirrors alphabetically; where one source spans
-  several IDMS or ICSP objects the order was already nondeterministic. Not
-  Critical: every mirror is checked for availability before use and images
-  are addressed by digest, so a different mirror serves identical content, and
-  nothing the HO renders depends on which mirror wins. The worst plausible
-  outcome is slower pulls or a verification timeout on an unreachable mirror.
-  Low is wrong, because a fix that changes rendered pod templates changes
-  product behaviour.
+  Critical or Moderate, never Low. Sorts the mirrors of each source in the
+  OPENSHIFT_IMG_OVERRIDES value built by
+  ConvertOpenShiftImageRegistryOverridesToCommandLineFlag. The HO renders that
+  value into the CPO Deployment of every hosted cluster with registry
+  overrides, and the CPO renders it into the HCCO and ignition-server
+  Deployments: a behaviour change, not cosmetic, that rolls those workloads
+  once where the order changes and then stops the repeated rollouts the pull
+  request fixes. The sort runs in place on the map the HO's release and
+  image-metadata providers share, and lookups use the first available mirror,
+  so the administrator's mirror priority becomes alphabetical for the HO and
+  for the components that parse the value. A maintainer labelled it Moderate:
+  the mirrors are digest mirrors checked for availability before use, so a
+  different mirror serves identical content. An assessment that cannot
+  establish that from the repository, and so cannot rule out a disruptive
+  mirror choice on the image pull and node ignition paths, reaches Critical
+  under "when in doubt, assign the higher tier"; that is accepted. Low is
+  wrong, because a fix that changes rendered pod templates changes product
+  behaviour.

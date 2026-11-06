@@ -1,9 +1,6 @@
 pr_url: https://github.com/openshift/hypershift/pull/10224
 expected_tier: critical
 acceptable_tiers: [critical]
-guidance:
-  - references/repos/openshift/hypershift/README.md
-  - references/repos/openshift/hypershift/guest-cluster-config.md
 ground_truth: >
   Critical. Removes MachineAPI from the default capability set in
   CalculateEnabledCapabilities. That function feeds the cluster-version

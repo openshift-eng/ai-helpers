@@ -1,9 +1,6 @@
 pr_url: https://github.com/openshift/hypershift/pull/10213
 expected_tier: moderate
 acceptable_tiers: [moderate]
-guidance:
-  - references/repos/openshift/hypershift/README.md
-  - references/repos/openshift/hypershift/control-plane-workloads.md
 ground_truth: >
   Moderate. The HostedCluster controller's Karpenter finalizer fallback now
   removes the finalizer without waiting for the guest API server when the
