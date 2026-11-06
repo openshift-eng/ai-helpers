@@ -1,8 +1,0 @@
-# case-008: threshold-boundary
-expected_candidates:
-- deployment: dep-above
-  direction: raise
-  recommended_mb: 132.0
-expected_not_candidates:
-- dep-at
-notes: A candidate needs drift STRICTLY greater than the threshold. dep-at drifts exactly 30% (excluded); dep-above 32% (included).

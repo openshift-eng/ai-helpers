@@ -1,0 +1,6 @@
+# case-03: lower direction
+command_args: --min-runs 1
+devel_release: '5.1'
+manifests_present:
+- image-registry
+preexisting_bugs: []

@@ -1,0 +1,12 @@
+# case-10: reconcile — same deployment name, different namespace -> create
+command_args: --min-runs 1
+devel_release: '5.1'
+manifests_present:
+- controller-manager
+preexisting_bugs:
+- deployment: controller-manager
+  namespace: openshift-route-controller-manager
+  affected_version: '5.1'
+  status: In Progress
+  labels: [ocp-memory-requests]
+  memory_drift_key: 5.1/openshift-route-controller-manager/controller-manager

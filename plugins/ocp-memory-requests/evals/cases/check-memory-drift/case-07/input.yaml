@@ -1,0 +1,13 @@
+# case-07: reconcile — open bug, same key, similar value -> leave
+command_args: --min-runs 1
+devel_release: '5.1'
+manifests_present:
+- etcd-operator
+preexisting_bugs:
+- deployment: etcd-operator
+  namespace: openshift-etcd-operator
+  affected_version: '5.1'
+  status: In Progress
+  labels: [ocp-memory-requests]
+  memory_drift_key: 5.1/openshift-etcd-operator/etcd-operator
+  recommended_mb: 175.0

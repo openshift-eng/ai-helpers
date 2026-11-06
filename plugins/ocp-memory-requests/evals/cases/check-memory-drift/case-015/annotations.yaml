@@ -1,5 +1,0 @@
-# case-015: no-drift
-expected_not_candidates:
-- console-operator
-expected_bugs_count: 0
-notes: recommended 110.0 vs request 110 -> 0% drift -> no candidate, no bug.

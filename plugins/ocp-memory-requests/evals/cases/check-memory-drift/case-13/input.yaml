@@ -1,0 +1,6 @@
+# case-13: no drift
+command_args: --min-runs 1
+devel_release: '5.1'
+manifests_present:
+- console-operator
+preexisting_bugs: []

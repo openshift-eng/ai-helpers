@@ -1,6 +1,0 @@
-# case-005: single-row-nonupgrade
-expected_selected:
-- job_id: job-3
-  start_mb: 150
-expected_excluded_runs: []
-notes: A non-upgrade job writes one valid row; use it.

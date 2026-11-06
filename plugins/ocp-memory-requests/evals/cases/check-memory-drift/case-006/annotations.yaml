@@ -1,5 +1,0 @@
-# case-006: defective-upgrade-missing-post
-expected_selected: []
-expected_excluded_runs:
-- job-4
-notes: 'Upgrade run missing its post-upgrade snapshot is defective: exclude + warn naming the job.'

@@ -1,0 +1,1 @@
+[{"Namespace":"openshift-marketplace","Deployment":"marketplace-operator","job_runs":150,"p90_start_mb":45.4,"p50_start_mb":40.0,"request_mb":5.0,"request_mb_min":5.0,"request_mb_max":5.0}]

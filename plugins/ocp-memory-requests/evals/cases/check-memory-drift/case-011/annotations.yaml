@@ -1,6 +1,0 @@
-# case-011: manifest-skip
-expected_skipped:
-- deployment: old-test-operator
-  reason_contains: manifest not found
-expected_bugs_count: 0
-notes: 'Deployment is absent from release manifests: skip with reason, open no bug.'

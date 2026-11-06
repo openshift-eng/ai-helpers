@@ -1,0 +1,6 @@
+# case-02: raise bug content
+command_args: --min-runs 1
+devel_release: '5.1'
+manifests_present:
+- marketplace-operator
+preexisting_bugs: []

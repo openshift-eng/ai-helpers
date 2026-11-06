@@ -1,5 +1,0 @@
-# case-002: release-override
-expected_release: '4.20'
-expected_not_candidates:
-- fivedotone
-notes: --release 4.20 analyzes only 4.20 rows; 5.1 rows ignored.
