@@ -162,7 +162,8 @@ Steps written in prose with no executable command are flagged "manual — no exe
 - `oc adm top`
 - `oc auth can-i`
 - `kubectl get`, `kubectl describe`, `kubectl logs`
-- Non-cluster shell commands: `cat`, `echo`, `grep`, `jq`, `yq`
+- Non-cluster shell commands: `cat`, `echo`, `grep`, `jq`
+- `yq` **only** in its read form, writing to stdout: no `-i`/`--inplace`, and no yq v3 `w -i`
 - `curl` **only** as a single plain GET: no `-X`/`--request` other than `GET`, no `-d`/`--data*`/`-F`/`-T`/`--upload-file`, no `-o`/`--output` to a sensitive path, and the target must be an endpoint already referenced in the report — never an arbitrary, internal, or metadata URL
 
 **Write** (individual confirmation required):
@@ -174,6 +175,7 @@ Steps written in prose with no executable command are flagged "manual — no exe
 - `kubectl apply`, `kubectl create`, `kubectl delete`, `kubectl patch`
 - Any compound or chained command (`&&`, `||`, `;`, `|`, command substitution `$(...)` or backticks, redirection `>`/`>>`) — chaining can hide destructive or exfiltrating behavior behind read-only-looking parts, so classify as write even when every visible component looks safe
 - `curl` with any method or flag not allowed above, or targeting an internal or unreferenced endpoint
+- `yq` with `-i`/`--inplace` or yq v3 `w -i`, or any flag not allowed above
 - Any unrecognized `oc` subcommand, or anything that does not cleanly match a single pattern above — default to write; never bulk-approve an ambiguous command
 
 #### 6.5: Present the execution plan
