@@ -586,6 +586,21 @@
         "pr-triage",
         "team-tools"
       ]
+    },
+    {
+      "name": "acs",
+      "source": "./plugins/acs",
+      "description": "Skills and commands for Advanced Cluster Security (ACS / RHACS) workflows — ROX backports, cherry-picks, and release management",
+      "version": "0.1.0",
+      "category": "development",
+      "keywords": [
+        "acs",
+        "rhacs",
+        "rox",
+        "stackrox",
+        "backport",
+        "cherry-pick"
+      ]
     }
   ]
 }
