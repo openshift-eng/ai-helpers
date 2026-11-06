@@ -1,0 +1,47 @@
+{
+ "pr_url": "https://github.com/openshift/hypershift/pull/10223",
+ "repo": "openshift/hypershift",
+ "pr_number": 10223,
+ "base_branch": "main",
+ "base_sha": "57a98bf0f6cc7267865b372f05a5bd151d632fd6",
+ "head_sha": "5306fa2b0560dbee546f43819e6ac38787450fe4",
+ "title": "CNTRLPLANE-4936: Temporarily make deadcode advisory",
+ "body": "## What this PR does / why we need it:\n\nEarly PRs in a staged feature can introduce intentionally unreachable foundations whose production callers arrive later, as a contributor encountered in #9916. Make the deadcode scan step temporarily nonblocking with `continue-on-error: true`, keeping the strict scan command, logs, and existing report upload.\n\nThe workflow comment links [CNTRLPLANE-4936](https://redhat.atlassian.net/browse/CNTRLPLANE-4936), which tracks agreement on a policy for these cases and restoring mandatory enforcement. Update the development and CI documentation to describe the advisory period.\n\n## Which issue(s) this PR fixes:\n\nRelated follow-up: https://redhat.atlassian.net/browse/CNTRLPLANE-4936. The policy and restoration work remain outstanding after this temporary mitigation.\n\n## Special notes for your reviewer:\n\nAnalyzer/build errors at the scan step are also nonblocking during this period. The report upload still uses `if: always()`; reports are available when the scan produces them.\n\nThe reusable workflow is resolved from `@main`, so this takes effect for PR checks after merging into `main` and rerunning them.\n\nValidation: actionlint passed with the existing `arc-runner-set` custom runner label configured; `make docs-aggregate`, `make verify-docs-nav`, commit-layout verification, gitlint, pre-commit checks, and both pre-push hooks (`make verify-quick` and `make test-changed`) passed. Go unit tests and the full deadcode scan were not run for this workflow/documentation change.\n\n## Checklist:\n\n- [x] Subject and description added to both, commit and PR.\n- [x] Relevant issues have been referenced.\n- [x] This change includes docs.\n- [ ] This change includes unit tests (not applicable to this workflow setting).\n\n\n<!-- This is an auto-generated comment: release notes by coderabbit.ai -->\n\n<!-- coderabbit-ai-generated:v1 -->\n\n## Summary by CodeRabbit\n\n* **Chores**\n  * Dead-code analysis now runs in advisory mode. Findings or report-generation failures no longer block the workflow.\n* **Documentation**\n  * Updated guidance to clarify that dead-code checks are advisory.\n\n<!-- end of auto-generated comment: release notes by coderabbit.ai -->",
+ "draft": false,
+ "files_listed": 4,
+ "diff_complete": true,
+ "files": [
+  {
+   "filename": ".github/workflows/deadcode-reusable.yaml",
+   "status": "modified",
+   "additions": 4,
+   "deletions": 0,
+   "kind": "build",
+   "patch": "@@ -21,6 +21,10 @@ jobs:\n           path: hack/tools/bin\n           key: deadcode-tools-${{ hashFiles('Makefile', 'hack/tools/go.mod', 'hack/tools/go.sum', 'hack/tools/tools.go', 'hack/tools/vendor/modules.txt', 'hack/tools/deadcode-report/**/*.go') }}\n       - name: Run deadcode gate\n+        # Advisory while staged feature PRs can introduce intentionally unreachable code.\n+        # https://redhat.atlassian.net/browse/CNTRLPLANE-4936 will restore mandatory\n+        # enforcement once a policy is agreed upon and implemented.\n+        continue-on-error: true\n         env:\n           ARTIFACT_DIR: ${{ runner.temp }}/deadcode\n         run: make verify-deadcode"
+  },
+  {
+   "filename": "DEVELOPMENT.md",
+   "status": "modified",
+   "additions": 9,
+   "deletions": 5,
+   "kind": "docs",
+   "patch": "@@ -83,8 +83,11 @@ vendored tools module, builds the report helper, and runs `generate` for ignored\n mocks. It does not modify tracked source files or delete candidates. `make\n deadcode` remains reporting-only; `make verify-deadcode` runs the same scan and\n fails when any candidate is reported. Neither is part of `verify`, `verify-ci`,\n-or `pre-commit`; the dedicated `Deadcode` GitHub Actions workflow enforces the\n-gate on pull requests to `main`.\n+or `pre-commit`; the dedicated `Deadcode` GitHub Actions workflow temporarily\n+runs the gate as an advisory check on pull requests to `main` using\n+`continue-on-error: true`.\n+[CNTRLPLANE-4936](https://redhat.atlassian.net/browse/CNTRLPLANE-4936) tracks\n+policy agreement for staged feature PRs and restoring mandatory enforcement.\n \n Analysis loads root-module `./...`, all executable entry points, and test\n executables (`-test`) using tags `integration,e2e,reqserving,e2ev2,backuprestore`.\n@@ -120,8 +123,9 @@ Non-generated test declarations in the root module remain eligible findings.\n \n Completed analysis exits zero both with candidates and without them. Tool-build,\n mock-generation, package/type-check, malformed-output, and report-writing errors\n-exit nonzero with diagnostic logs; do not suppress these failures. The helper\n-invalidates old reports before scanning, stages new reports, and publishes the\n+exit nonzero with diagnostic logs. The temporary advisory CI setting also makes\n+these failures nonblocking; inspect the logs when reports are unavailable. The\n+helper invalidates old reports before scanning, stages new reports, and publishes the\n completion summary last. Use a fresh artifact directory for each run: a failed\n Make prerequisite can leave artifacts from an earlier invocation untouched.\n \n@@ -134,7 +138,7 @@ The analyzer defaults to `GOMEMLIMIT=6GiB` and `GOGC=50`; explicit environment\n values override these defaults and are recorded in the summary. A Go memory\n limit is **not** an RSS or container memory limit. Whole-program analysis can\n require substantial memory. The `Deadcode` GitHub Actions workflow runs the gate\n-on pull requests to `main` on an ARC runner with a 45-minute timeout and uploads\n+in advisory mode on pull requests to `main` on an ARC runner with a 45-minute timeout and uploads\n the artifact directory on success and failure.\n \n Candidates require human review, not automatic deletion. An unreachable method"
+  },
+  {
+   "filename": "docs/content/how-to/ci/github-actions.md",
+   "status": "modified",
+   "additions": 1,
+   "deletions": 1,
+   "kind": "docs",
+   "patch": "@@ -38,7 +38,7 @@ Pull request callers resolve their reusable workflows from `main`, while post-me\n | Caller | Reusable | Purpose |\n |--------|----------|---------|\n | `codespell.yaml` | `codespell-reusable.yaml` | Spell checking across the codebase |\n-| `deadcode.yaml` | `deadcode-reusable.yaml` | Whole-program dead-code analysis; fails on any candidate |\n+| `deadcode.yaml` | `deadcode-reusable.yaml` | Whole-program dead-code analysis; temporarily advisory pending [CNTRLPLANE-4936](https://redhat.atlassian.net/browse/CNTRLPLANE-4936) |\n | `gitlint.yaml` | `gitlint-reusable.yaml` | Commit message format validation |\n | `lint.yaml` | `lint-reusable.yaml` | Go linting via `golangci-lint` |\n | `verify.yaml` | `verify-reusable.yaml` | Full verification (`make verify`) |"
+  },
+  {
+   "filename": "docs/content/reference/aggregated-docs.md",
+   "status": "modified",
+   "additions": 1,
+   "deletions": 1,
+   "kind": "docs",
+   "patch": "@@ -14976,7 +14976,7 @@ Pull request callers resolve their reusable workflows from `main`, while post-me\n | Caller | Reusable | Purpose |\n |--------|----------|---------|\n | `codespell.yaml` | `codespell-reusable.yaml` | Spell checking across the codebase |\n-| `deadcode.yaml` | `deadcode-reusable.yaml` | Whole-program dead-code analysis; fails on any candidate |\n+| `deadcode.yaml` | `deadcode-reusable.yaml` | Whole-program dead-code analysis; temporarily advisory pending CNTRLPLANE-4936 |\n | `gitlint.yaml` | `gitlint-reusable.yaml` | Commit message format validation |\n | `lint.yaml` | `lint-reusable.yaml` | Go linting via `golangci-lint` |\n | `verify.yaml` | `verify-reusable.yaml` | Full verification (`make verify`) |"
+  }
+ ]
+}

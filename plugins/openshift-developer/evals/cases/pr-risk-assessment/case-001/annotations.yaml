@@ -1,0 +1,17 @@
+pr_url: https://github.com/openshift/hypershift/pull/9958
+expected_tier: critical
+acceptable_tiers: [critical]
+ground_truth: >
+  Critical. The new API fields are optional and platform-gated (they set a
+  Moderate floor), but the pull request also changes behaviour for every
+  existing GCP hosted cluster. The control plane operator now deletes, on
+  reconcile, the ACME challenge CNAME that earlier revisions created
+  unconditionally, whenever the new delegation field is unset, which is true
+  for every existing cluster, so deployments that relied on that record lose
+  it. The HCCO writes the delegated *.apps zones into the guest dns.config, so
+  the guest ingress operator starts managing records in those zones, and new
+  workload identity credentials are provisioned into the guest
+  openshift-ingress-operator namespace. These are DNS and credential data
+  paths of running clusters: a defect breaks *.apps resolution or certificate
+  renewal. The description's backward-compatibility claims do not remove the
+  change to existing clusters' DNS records.

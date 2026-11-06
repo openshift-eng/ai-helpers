@@ -1,0 +1,16 @@
+pr_url: https://github.com/openshift/hypershift/pull/10224
+expected_tier: critical
+acceptable_tiers: [critical]
+ground_truth: >
+  Critical. Removes MachineAPI from the default capability set in
+  CalculateEnabledCapabilities. That function feeds the cluster-version
+  operator's bootstrap manifest and also the HCCO's ClusterVersion reconcile
+  (control-plane-operator/hostedclusterconfigoperator/controllers/resources/configuration/cluster_version.go),
+  which writes spec.capabilities.additionalEnabledCapabilities into every
+  existing guest cluster on each reconcile. Once a hosted cluster runs a
+  release with the change, every existing guest's ClusterVersion spec changes:
+  a default applied to existing installations, on the upgrade path, driving the
+  guest cluster-version operator. Fixing a CI-blocking failure of new
+  Technology Preview guests does not confine the change to that failing path.
+  An assessment that treats it as affecting only newly created guests misses
+  the HCCO reconcile.
