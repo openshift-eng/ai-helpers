@@ -1,5 +1,0 @@
-# case-003: window-7
-expected_window_days: 7
-expected_not_candidates:
-- older
-notes: --window-days 7 excludes rows older than 7 days.

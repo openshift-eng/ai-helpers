@@ -1,0 +1,1 @@
+[{"Namespace":"openshift-old-test-operator","Deployment":"old-test-operator","job_runs":1,"p90_start_mb":400.0,"p50_start_mb":300.0,"request_mb":50.0,"request_mb_min":50.0,"request_mb_max":50.0}]

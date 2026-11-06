@@ -1,0 +1,7 @@
+# case-04: set a missing request
+expected_candidates:
+- {deployment: etcd-operator, direction: set}
+expected_actions:
+- {deployment: etcd-operator, action: create}
+expected_create_count: 1
+notes: No request configured at all; surface it with direction "set" and file a bug.

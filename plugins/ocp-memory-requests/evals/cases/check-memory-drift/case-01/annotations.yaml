@@ -1,0 +1,12 @@
+# case-01: default release resolution
+expected_release: '5.1'
+expected_window_days: 30
+expected_candidates:
+- {deployment: marketplace-operator, direction: raise}
+expected_actions:
+- {deployment: marketplace-operator, action: create}
+expected_create_count: 1
+expected_bug_labels: [issue-for-agent, ocp-memory-requests, ai-generated-jira]
+expected_description_contains:
+- 'memory-drift-key: 5.1/openshift-marketplace/marketplace-operator'
+notes: No --release given; resolve devel 5.1 over 30 days and file one bug.

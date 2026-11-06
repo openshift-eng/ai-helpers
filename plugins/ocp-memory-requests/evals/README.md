@@ -1,84 +1,75 @@
 # ocp-memory-requests Plugin Evals
 
-Index of what each `case-NNN` directory under `cases/check-memory-drift` tests.
+Index of what each `case-NN` directory under `cases/check-memory-drift` tests.
 
 ## check-memory-drift (`cases/check-memory-drift`)
 
-Evaluates `ocp-memory-requests:check-memory-drift` against **mocked** BigQuery
-rows and a **mocked** OCPBUGS store — no live BigQuery or Jira. Each case feeds
-raw singleton-pod rows via a native-YAML `input.yaml` (fields `command_args`,
-`devel_release`, `bigquery`, `rows`, `manifests_present`, `preexisting_bugs`);
-the agent must run the skill's bundled
-[`drift.py`](../skills/check-memory-drift/drift.py) (`analyze --input`) to
-produce the deterministic parts of `drift-result.json` — scope, snapshot
-selection, exclusions, p90, drift, candidates, skips — and then layer the
-judgment steps (reconcile, bug authoring) on top. The judges in
+Evaluates `ocp-memory-requests:check-memory-drift` against a **mocked** BigQuery
+output and a **mocked** OCPBUGS store — no live BigQuery or Jira. Each case
+provides:
+
+- `input.yaml` — `command_args`, `devel_release`, `manifests_present`,
+  `preexisting_bugs`.
+- `usage.json` — the mocked output of
+  [`queries/singleton-usage.sql`](../skills/check-memory-drift/queries/singleton-usage.sql),
+  used in place of running `bq`.
+
+The agent runs the skill's real pipeline: feed `usage.json` to
+[`select-candidates.py`](../skills/check-memory-drift/scripts/select-candidates.py),
+confirm each candidate ships (against `manifests_present`), reconcile against
+`preexisting_bugs` by exact `memory-drift-key`, render each bug with
+[`render-bug.py`](../skills/check-memory-drift/scripts/render-bug.py), and record
+what it would file/update/leave in `result.json`. The judges in
 [`eval-check-memory-drift.yaml`](eval-check-memory-drift.yaml) score the result
-against the case `annotations.yaml`. Every judge is a no-op (pass) when its
+against the case `annotations.yaml`; every judge is a no-op (pass) when its
 annotation field is absent, so one judge set serves all cases.
 
-The deterministic math is **not** the model's job: the cases verify the agent
-*orchestrates* the script (runs it, forwards the right arguments, does not
-hand-compute or alter its numbers) rather than doing mental arithmetic —
-"p90 of 20 values" is ambiguous by hand (nearest-rank 1800 vs index-based
-1900), and production computes it in BigQuery anyway. The script's offline
-semantics are pinned by unit tests (below).
+**These cases test decisions, not arithmetic.** The +10% recommendation, drift,
+threshold, direction, and Mi rounding are deterministic and covered by the script
+unit tests (below), so they are not re-tested here. The eval checks what needs
+judgment: release resolution, the manifest "still ships" check, reconciliation
+with existing bugs, and dry-run behavior.
 
 Defaults pinned to the skill: `window_days=30`, `threshold_pct=30`, `min_runs=100`.
 
 | Case | Tests |
 |------|-------|
-| case-001 | Default params: analyze devel release 5.1 over 30 days; other-release / stale rows out of scope |
-| case-002 | `--release 4.20` analyzes only 4.20 rows |
-| case-003 | `--window-days 7` excludes rows older than 7 days |
-| case-004 | Upgrade runs use the post-upgrade snapshot, not post-install |
-| case-005 | Non-upgrade job with a single valid row is used |
-| case-006 | Upgrade run missing its post-upgrade row is excluded + warned |
-| case-007 | p90 is taken across runs; within-run spike ignored (= 1800, nearest-rank) |
-| case-008 | Threshold boundary: drift must be *strictly* greater than the threshold |
-| case-009 | Raise: one bug, both labels, recommendation 49.9, drift key, single-node warning |
-| case-010 | Lower: one bug phrased as lowering the request |
-| case-011 | Deployment absent from manifests is skipped with reason "manifest not found" |
-| case-012 | Differing requests across manifests flagged `var`; bug says check all manifests |
-| case-013 | Idempotency: open bug already exists -> no duplicate |
-| case-014 | `--dry-run`: candidates reported, zero bugs authored |
-| case-015 | No drift: no candidate, no bug |
-| case-016 | Empty result: clear report, no bug |
+| case-01 | Default params: no `--release` → resolve devel 5.1 over 30 days; file one bug |
+| case-02 | Raise: bug carries the `memory-drift-key` and the SNO/HyperShift warning |
+| case-03 | Lower: over-provisioned operator → `lower` direction |
+| case-04 | Set: no request configured → direction `set` |
+| case-05 | Deployment absent from manifests → skipped "manifest not found", no bug |
+| case-06 | Differing requests across variants → flagged `var`; bug says check every manifest |
+| case-07 | Reconcile: open bug, same key, similar value → `leave` (no write) |
+| case-08 | Reconcile: open bug, same key, materially different value → `update` + comment |
+| case-09 | Reconcile: Closed bug, same key → new bug filed |
+| case-10 | Reconcile: same deployment name, different namespace → new bug (keys differ) |
+| case-11 | Reconcile: open bug for a different release → new bug for 5.1 |
+| case-12 | `--dry-run`: candidate reported, zero bugs authored |
+| case-13 | No drift: no candidate, no bug |
+| case-14 | Empty result: clear report, no bug |
 
 ## Unit tests
 
-[`test_drift.py`](../skills/check-memory-drift/test_drift.py) (co-located with
-the script; run via `make test` or `python3 test_drift.py`) is the unit test of
-the script against known rows:
+The deterministic math lives in the scripts and is pinned by co-located unit
+tests (run with `python3 -m pytest` from the `scripts/` directory):
 
-- Every eval case's `input.yaml` is run through the script's offline path and
-  its deterministic annotations are asserted — the same checks the eval judges
-  apply, but deterministic and free.
-- Targeted tests pin the offline percentile convention (nearest-rank), the
-  half-up rounding, parameter validation (the SQL-injection guard), the
-  zero-request "set" rule, the strictly-greater threshold, the min-runs floor,
-  the production `--query-output` path (which must trust BigQuery's numbers),
-  and the YAML fallback parser (kept byte-compatible with PyYAML on all
-  fixtures).
-
-## Regenerating cases
-
-Fixtures are generated by [`scripts/generate-cases.py`](scripts/generate-cases.py):
-
-```bash
-python3 scripts/generate-cases.py
-```
+- [`test_select_candidates.py`](../skills/check-memory-drift/scripts/test_select_candidates.py)
+  — the +10% recommendation, half-up rounding, MB→Mi round-up, the
+  strictly-greater threshold, the min-runs floor, the zero-request `set` rule, the
+  `var` flag, candidate ordering, and string-input coercion.
+- [`test_render_bug.py`](../skills/check-memory-drift/scripts/test_render_bug.py)
+  — the fixed Jira fields, the `memory-drift-key`, raise/lower/set summaries, the
+  increase-only warning, the variants note, and the PR rules.
 
 ## Scope notes
 
-- **case-006** (defective-upgrade exclusion) and **case-011** (manifest-not-found
-  skip) are implemented in SKILL.md (query-level exclusion of upgrade runs missing
-  their post-upgrade snapshot; Step 3.5 manifest check).
-- Production computes percentiles with BigQuery `APPROX_QUANTILES` inside the
-  query; the script's offline `--input` mode uses exact **nearest-rank** as a
-  documented deterministic stand-in (APPROX_QUANTILES cannot run offline and is
-  approximate anyway). Expected values in fixtures (e.g. case-007's 1800) are
-  nearest-rank.
-- Data-quality filtering (null / negative / huge rows) and a BigQuery-failure
-  contract are intentionally **out of scope** for this skill; their cases were
-  retired.
+- Jira actions are **self-reported** in `result.json` (the eval does not yet assert
+  on real tool calls). Asserting on a logged Jira stub (`jira-calls.jsonl`) is
+  future work and would require the stub-MCP harness used by `eval-jira-refine`.
+- The manifest "still ships" check (step 4) is a model judgment with no prescribed
+  mechanism, so it is exercised via a `manifests_present` fixture rather than a
+  stubbed lookup.
+- Percentiles are computed in BigQuery (`APPROX_QUANTILES`) by
+  `queries/singleton-usage.sql`; cases provide already-aggregated per-deployment
+  `usage.json`, so snapshot selection and percentile math are not re-tested here.

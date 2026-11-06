@@ -1,4 +1,0 @@
-# case-007: p90-across-runs
-expected_p90:
-  network-operator: 1800
-notes: 20 runs; post-install 9999 is a within-run spike that must be ignored. p90 across the 20 post-upgrade values [100..2000] = 1800.

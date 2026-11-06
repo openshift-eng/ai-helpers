@@ -1,7 +1,0 @@
-# case-004: snapshot-upgrade-row
-expected_selected:
-- job_id: job-1
-  start_mb: 1000
-- job_id: job-2
-  start_mb: 1200
-notes: 'Upgrade runs: use the post-upgrade snapshot, not post-install.'

@@ -1,7 +1,0 @@
-# case-012: variable-requests
-expected_candidates:
-- deployment: kube-apiserver-operator
-  var: true
-expected_description_contains:
-- manifest
-notes: 'Same deployment configured with two different requests (50/100): flag var and tell the reviewer to check all manifests.'

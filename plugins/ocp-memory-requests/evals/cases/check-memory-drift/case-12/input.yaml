@@ -1,0 +1,6 @@
+# case-12: dry run
+command_args: --dry-run --min-runs 1
+devel_release: '5.1'
+manifests_present:
+- marketplace-operator
+preexisting_bugs: []

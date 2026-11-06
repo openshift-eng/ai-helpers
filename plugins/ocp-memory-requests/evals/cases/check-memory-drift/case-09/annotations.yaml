@@ -1,0 +1,5 @@
+# case-09: reconcile — Closed bug, same key -> create
+expected_actions:
+- {deployment: etcd-operator, action: create}
+expected_create_count: 1
+notes: Existing bug is Closed; it must not suppress a new bug for current drift.
