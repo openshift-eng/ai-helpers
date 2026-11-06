@@ -18,6 +18,8 @@ Run `/openshift-developer:jira-solve` for the end-to-end workflow. It analyzes t
 
 Run `/openshift-developer:preassessment` when only a read-only decision about planning readiness is needed. It returns structured JSON and does not create a plan, change Jira, implement code, or deliver work.
 
+Run `/openshift-developer:jira-plan <ORIGINAL_ISSUE_KEY> <PLANNING_SUBTASK_KEY> [remote] [--ci]` to investigate both issues and deliver a repository-grounded planning document PR without implementing the feature. A Prow planning job invokes it with `--ci` in the selected repository workspace; a developer can invoke the same skill from a remote workspace using its workspace selector. This is an independent workflow and is not part of `jira-solve`.
+
 Alternatively, invoke the building blocks directly when you need manual control:
 
 1. `/openshift-developer:implement` — Implement the ticket or apply findings from `/code-review:pre-commit-review`.
@@ -54,6 +56,7 @@ Repeat steps 1-3 until the PR is approved and CI is green or non-actionable fail
 ### Skills
 
 - **preassessment** — Read-only classification of Jira work as implementation-ready, planning-required, decomposition-required, or needing clarification.
+- **jira-plan** — Investigate an implementation issue and its planning subtask, then create and deliver an actionable planning document without implementing the feature.
 - **jira-refine** — Refine a Jira bug into an evidence-backed disposition (CLOSE, SOLVE, NEEDS_INFO, or NEED_HUMAN_ANALYSIS) and apply it to the ticket; a SOLVE also sets the Target Backport Versions the fix should reach.
 - **jira-solve** — Central Jira workflow orchestrator that chooses implementation, review, gate, and delivery skills based on ticket complexity.
 - **implement** — Implement Jira requirements or apply local pre-commit review findings.
