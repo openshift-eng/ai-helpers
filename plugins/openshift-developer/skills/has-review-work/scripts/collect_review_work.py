@@ -26,6 +26,7 @@ import check_authorized
 from check_replied import is_bot_reply, normalized_login, paginated_items
 
 GH_TIMEOUT = 30
+MAX_COMMENT_BODY_LENGTH = 5000
 THREAD_QUERY = """
 query($owner:String!,$repo:String!,$number:Int!,$endCursor:String) {
   repository(owner:$owner, name:$repo) {
@@ -144,12 +145,18 @@ def collect_candidates(
             if kind == "review" and comment.get("state") in ("APPROVED", "PENDING"):
                 skipped["review_state"] += 1
                 continue
+            if len(body) > MAX_COMMENT_BODY_LENGTH:
+                skipped["oversized"] += 1
+                continue
             if is_slash_command_only(body):
                 skipped["empty_or_commands"] += 1
                 continue
 
             thread = None
             if kind == "review_comment":
+                if comment.get("line") is None and comment.get("original_line") is None:
+                    skipped["orphaned"] += 1
+                    continue
                 root = comment.get("in_reply_to_id") or comment["id"]
                 thread = threads.get(root)
                 if thread is None:

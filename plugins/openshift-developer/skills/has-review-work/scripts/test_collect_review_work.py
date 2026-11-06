@@ -40,9 +40,9 @@ class CandidateTests(unittest.TestCase):
         # Earlier bot replies on unrelated threads must not hide fresh comments.
         body = "Use Go types | then marshal them.\nKeep whitespace and `quotes`."
         inline = [
-            comment(1), comment(2, login="review-agent[bot]", in_reply_to_id=1, time="2026-10-02T13:30:00Z"),
+            comment(1, line=10), comment(2, login="review-agent[bot]", in_reply_to_id=1, time="2026-10-02T13:30:00Z"),
             comment(3, body, time="2026-10-02T13:51:00Z", path="test.go", line=None, original_line=30),
-            comment(4, "same for these", time="2026-10-02T13:53:00Z", path="other_test.go"),
+            comment(4, "same for these", time="2026-10-02T13:53:00Z", path="other_test.go", line=40),
         ]
         candidates, skipped = self.collect(inline, threads={n: thread(n) for n in (1, 3, 4)})
         self.assertEqual([c["id"] for c in candidates], [3, 4])
@@ -54,9 +54,9 @@ class CandidateTests(unittest.TestCase):
 
     def test_human_followup_in_answered_thread_remains_eligible(self):
         inline = [
-            comment(1),
+            comment(1, line=10),
             comment(2, login="review-agent[bot]", in_reply_to_id=1, time="2026-10-02T13:30:00Z"),
-            comment(3, "This still needs a change", in_reply_to_id=1, time="2026-10-02T14:00:00Z"),
+            comment(3, "This still needs a change", in_reply_to_id=1, time="2026-10-02T14:00:00Z", line=20),
         ]
         candidates, _ = self.collect(inline, threads={1: thread(1)})
         self.assertEqual([c["id"] for c in candidates], [3])
@@ -76,26 +76,64 @@ class CandidateTests(unittest.TestCase):
 
     def test_resolved_comments_are_skipped_before_authorization(self):
         authorize = Mock()
-        candidates, skipped = self.collect([comment(1)], threads={1: thread(1, True)}, authorize=authorize)
+        candidates, skipped = self.collect([comment(1, line=10)], threads={1: thread(1, True)}, authorize=authorize)
         self.assertEqual(candidates, [])
         self.assertEqual(skipped["resolved"], 1)
         authorize.assert_not_called()
 
     def test_missing_thread_is_an_error_instead_of_idle(self):
         with self.assertRaisesRegex(RuntimeError, "missing"):
-            self.collect([comment(1)])
+            self.collect([comment(1, line=10)])
 
     def test_commands_bots_unauthorized_and_review_states_are_filtered(self):
         authorize = Mock(return_value=False)
-        reviews = [comment(4, state="APPROVED"), comment(5, state="PENDING")]
+        reviews = [comment(4, "", state="APPROVED"), comment(5, state="PENDING")]
         conversation = [
             comment(1, "<!-- hidden -->\n/hold\n/test check"),
             comment(2, login="openshift-ci[bot]"),
             comment(3, login="stranger"),
         ]
-        candidates, _ = self.collect(reviews=reviews, conversation=conversation, authorize=authorize)
+        candidates, skipped = self.collect(reviews=reviews, conversation=conversation, authorize=authorize)
         self.assertEqual(candidates, [])
+        self.assertEqual(skipped["review_state"], 2)
         authorize.assert_called_once_with("stranger")
+
+    def test_body_size_limit_matches_worker_for_all_comment_types(self):
+        inline = [
+            comment(1, "i" * 5001, line=10),
+            comment(2, "i" * 5000, login="coderabbitai[bot]", line=11),
+        ]
+        reviews = [
+            dict(comment(3, "r" * 5001), submitted_at="2026-10-02T13:00:00Z", state="COMMENTED"),
+            dict(
+                comment(4, "r" * 5000, login="coderabbitai[bot]"),
+                submitted_at="2026-10-02T13:00:00Z", state="COMMENTED",
+            ),
+        ]
+        conversation = [comment(5, "c" * 5001), comment(6, "Please update the test")]
+
+        candidates, skipped = self.collect(
+            inline, reviews, conversation,
+            threads={1: thread(1), 2: thread(2)},
+            authorize=lambda _login: True,
+        )
+
+        self.assertEqual([candidate["id"] for candidate in candidates], [2, 4, 6])
+        self.assertEqual([len(candidate["body"]) for candidate in candidates], [5000, 5000, 22])
+        self.assertEqual(skipped["oversized"], 3)
+
+    def test_only_truly_orphaned_inline_comment_is_filtered(self):
+        inline = [
+            comment(1, "Detached from the diff", line=None, original_line=None),
+            comment(2, "Still applies to the old hunk", line=None, original_line=30),
+        ]
+
+        candidates, skipped = self.collect(inline, threads={2: thread(2)})
+
+        self.assertEqual([candidate["id"] for candidate in candidates], [2])
+        self.assertIsNone(candidates[0]["line"])
+        self.assertEqual(candidates[0]["original_line"], 30)
+        self.assertEqual(skipped["orphaned"], 1)
 
     def test_acknowledgments_and_mixed_prose_are_left_for_model(self):
         candidates, _ = self.collect(conversation=[comment(1, "Thanks!"), comment(2, "Please fix this.\n/lgtm")])
@@ -115,7 +153,7 @@ class CandidateTests(unittest.TestCase):
             dict(comment(5571697371), submitted_at="2026-10-19T12:43:14Z", state="COMMENTED"),
         ]
         inline = [
-            comment(1, time="2026-10-19T12:40:00Z"),
+            comment(1, time="2026-10-19T12:40:00Z", line=10),
             comment(2, login="review-agent", in_reply_to_id=1, time="2026-10-19T13:00:00Z"),
         ]
 
@@ -141,7 +179,7 @@ class CandidateTests(unittest.TestCase):
             dict(comment(5572473354), submitted_at="2026-10-19T13:45:25Z", state="COMMENTED"),
         ]
         inline = [
-            comment(1, time="2026-10-19T12:40:00Z"),
+            comment(1, time="2026-10-19T12:40:00Z", line=10),
             comment(2, login="review-agent", in_reply_to_id=1, time="2026-10-19T13:00:00Z"),
         ]
 
@@ -152,7 +190,7 @@ class CandidateTests(unittest.TestCase):
     def test_legacy_signature_counts_as_reply(self):
         candidates, _ = self.collect(
             [
-                comment(1),
+                comment(1, line=10),
                 comment(
                     2, "*AI-assisted response via Claude Code*", login="other-agent",
                     in_reply_to_id=1, time="2026-10-02T13:01:00Z",
