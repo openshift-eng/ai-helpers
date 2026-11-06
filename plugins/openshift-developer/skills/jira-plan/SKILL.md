@@ -9,7 +9,7 @@ openshift-developer:jira-plan
 ## Synopsis
 
 ```text
-/openshift-developer:jira-plan <ORIGINAL_ISSUE_KEY> <PLANNING_SUBTASK_KEY> [remote] [--ci]
+/openshift-developer:jira-plan <ORIGINAL_ISSUE_KEY> <PLANNING_SUBTASK_KEY> [<REMOTE_NAME>] [--ci]
 ```
 
 ## Purpose
@@ -27,20 +27,22 @@ planning PR to merge.
 - `ORIGINAL_ISSUE_KEY` - Jira issue describing the feature or fix to be implemented.
 - `PLANNING_SUBTASK_KEY` - existing Jira subtask requesting planning for the issue (typically with
   clarifications to questions raised about issue implementation).
-- `remote` - optional target repository or remote-workspace selector, following the
+- `<REMOTE_NAME>` - optional target repository remote or remote-workspace selector, following the
   workspace convention of the caller. Resolve the target workspace before reading or
   changing files; never assume the current checkout is the target repository.
 - `--ci` - non-interactive mode; do not ask questions or wait for acknowledgement. Record
   assumptions and unresolved questions in the plan and report.
 
-The planning task should invoke this skill with both Jira keys and the target repository
-workspace. A Prow caller supplies `--ci` and passes the repository/workspace selected by
-its orchestration. A remote-workspace caller invokes the same skill with the two keys and
-the remote selector, omitting `--ci` when interactive review is available. For example:
+Before invocation, the caller must discover the target remote (for example, with
+`git remote -v`) and pass its actual name when a remote selector is needed. Do not assume
+a remote name. A Prow caller supplies `--ci` and the repository/workspace selected by its
+orchestration. A remote-workspace caller invokes the same skill with the two keys and the
+discovered remote selector, omitting `--ci` when interactive review is available. For
+example:
 
 ```text
 /openshift-developer:jira-plan TRT-3006 PLAN-3073 --ci
-/openshift-developer:jira-plan TRT-3006 PLAN-3073 origin
+/openshift-developer:jira-plan TRT-3006 PLAN-3073 <REMOTE_NAME>
 ```
 
 The invocation is intentionally self-contained: it must not depend on a preceding
@@ -148,7 +150,7 @@ validating it.
 ### 6. Deliver the planning-document PR
 
 Use the repository's normal branch and PR conventions. Preserve existing work and never
-force-push. The PR must:
+force-push. Reject any push to `main` or `master`. The PR must:
 
 - contain the planning document at the stable path;
 - have a title beginning with the planning subtask key, e.g. `PLAN-3073: plan for ...`
@@ -163,9 +165,9 @@ planning subtask key, inspect the resulting PR and update its description to add
 original issue link before reporting delivery. Otherwise create the PR with both links
 from the start. In either path, verify that both issue keys and URLs appear in the final
 PR description; linking only the planning subtask is insufficient. Push and open the PR
-only when the caller permits external writes. If delivery is not permitted or cannot
-complete, leave the document and branch in a reviewable state and report the remaining
-delivery step.
+only when the caller permits external writes (always if in `--ci`). If delivery is not
+permitted or cannot complete, leave the document and branch in a reviewable state and
+report the remaining delivery step.
 
 The first delivery establishes the document path. On retries, update the same path and
 continue or replace the associated PR as the hosting service permits; never create a
