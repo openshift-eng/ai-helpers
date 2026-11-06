@@ -1,9 +1,6 @@
 pr_url: https://github.com/openshift/hypershift/pull/9818
 expected_tier: critical
 acceptable_tiers: [critical]
-guidance:
-  - references/repos/openshift/hypershift/README.md
-  - references/repos/openshift/hypershift/nodepool-and-nodes.md
 ground_truth: >
   Critical. Re-lands a reverted change to NodePool rollout control in the
   HyperShift operator: new rollout hashes decide when machines are replaced, a

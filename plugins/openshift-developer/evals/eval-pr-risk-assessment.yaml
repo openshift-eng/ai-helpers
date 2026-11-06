@@ -5,13 +5,13 @@ description: >
   and changed files with patches) in input.json. The run may read the
   repository's source at the pull request's base commit, but never the pull
   request itself: its labels and comments would reveal the answer. Judges check
-  the tier, that the run read the repository guidance it needed (progressive
-  disclosure), that no pull request read reached GitHub, and the reason.
+  the tier, that the run read the repository's AGENTS.md, that no pull request
+  read reached GitHub, and the reason.
 
 execution:
   mode: case
   skill: openshift-developer:pr-risk-assessment
-  arguments: "input.json"
+  arguments: "{pr_url}"
   timeout: 2400
   max_budget_usd: 20.0
   parallelism: 6
@@ -40,15 +40,25 @@ runner:
   system_prompt: |
     You are running a configured, unattended pr-risk-assessment evaluation job.
 
-    input.json in the current directory holds the frozen evidence for one pull
-    request, in the evidence file format the skill's references/evidence.md
-    describes. It is the evidence your caller supplied: use it as given. Never
+    input.json in the current directory holds the frozen evidence for the pull
+    request: repo, pr_number, pr_url, base_branch, base_sha, head_sha, title,
+    body, files (filename, status, additions, deletions, kind, and patch, or
+    patch_omitted with why), files_listed, and diff_complete. It is the evidence
+    your caller supplied: use it instead of fetching the pull request. Never
     read the pull request from GitHub (its page, API objects, labels, comments,
     reviews, or search results); such reads are blocked.
 
-    You may read the repository's source at base_sha: make the shallow, sparse
-    clone under .work/ that references/evidence.md shows, or read single files
-    with the GitHub contents API at ref=base_sha. Do not fetch other commits.
+    You may read the repository at base_sha, which is on base_branch, with a
+    shallow, sparse clone under .work/:
+
+      mkdir -p .work && git init -q .work/repo && cd .work/repo
+      git remote add origin https://github.com/<repo>.git
+      git sparse-checkout set --no-cone '/*' '!/vendor/' '!**/testdata/'
+      git fetch -q --depth 1 --filter=blob:none origin <base_sha>
+      git checkout -q FETCH_HEAD
+
+    or read single files with the GitHub contents API at ref=base_sha. Do not
+    fetch other commits.
 
     When the skill finishes, write output/risk-result.json (valid JSON, no code
     fences) with these fields:
@@ -56,8 +66,8 @@ runner:
     - tier: low | moderate | critical
     - reason: the skill's reason paragraph
     - deciding_facts: list of the facts that decided the tier
-    - guidance_read: list of the repository guidance files you read, as paths
-      relative to the skill directory (empty when none applied)
+    - guidance_read: list of the repository files you read for risk-assessment
+      specifics (AGENTS.md and any files it links), as repository paths
 
 models:
   skill: claude-opus-5-5
@@ -85,14 +95,12 @@ dataset:
   schema: |
     Each case directory contains:
     - input.json: the frozen evidence for one pull request, made with
-      scripts/snapshot_pr_evidence.py (see the skill's references/evidence.md):
-      repo, pr_number, pr_url, base_branch, base_sha, head_sha, title, body,
-      files with patches, files_listed, diff_complete. Labels, comments, and
-      the author are left out, and people's names are removed.
+      scripts/snapshot_pr_evidence.py: repo, pr_number, pr_url, base_branch,
+      base_sha, head_sha, title, body, files with patches, files_listed,
+      diff_complete. Labels, comments, and the author are left out, and
+      people's names are removed.
     - annotations.yaml: expected outcome and ground truth for judges:
       - 'expected_tier' and 'acceptable_tiers'
-      - 'guidance': repository guidance files the run must read, as paths
-        relative to the skill directory
       - 'ground_truth': the verified analysis the LLM judge compares against
 
 outputs:
@@ -150,17 +158,12 @@ judges:
           return (True, f"tier={got} (expected {expected})")
       return (False, f"tier={got}, expected one of {acceptable}")
 
-  - name: guidance_read
+  - name: agents_md_read
     description: >
-      Verify progressive disclosure: the run read the repository guidance index
-      and the topic files the case's diff clearly maps to
+      Verify the run read the repository's AGENTS.md from its base, as the skill
+      directs: in the clone under .work/, from git, or through the contents API
     check: |
-      import posixpath
-      ann = outputs.get("annotations", {})
-      required = ann.get("guidance", [])
-      if not required:
-          return (True, "No repository guidance required")
-      reads, commands = [], []
+      reads = []
       for e in outputs.get("events", []):
           if e.get("type") != "assistant":
               continue
@@ -168,19 +171,16 @@ judges:
               inp = t.get("input") or {}
               if t.get("name") == "Read":
                   reads.append(str(inp.get("file_path", "")))
-              elif t.get("name") == "Bash":
-                  commands.append(str(inp.get("command", "")))
-      def read(g):
-          # A Read of the file under the skill directory, or a shell command
-          # naming it (relative to the skill, or after cd into its directory).
-          if any(r.endswith("pr-risk-assessment/" + g) for r in reads):
-              return True
-          folder, name = posixpath.split(g)
-          return any(g in c or (folder in c and name in c) for c in commands)
-      missing = [g for g in required if not read(g)]
-      if missing:
-          return (False, f"Guidance not read: {missing}")
-      return (True, f"Read {len(required)} guidance file(s)")
+              elif t.get("name") in ("Bash", "Grep", "Glob"):
+                  reads.append(str(inp))
+      # The target repository's AGENTS.md is in the clone under .work/, in its
+      # git objects, or behind the contents API; any other AGENTS.md (this
+      # repository's, behind the workspace's CLAUDE.md) does not count.
+      places = (".work/", ":AGENTS.md", "contents/AGENTS.md")
+      hits = [r for r in reads if "AGENTS.md" in r and any(p in r for p in places)]
+      if not hits:
+          return (False, "The repository's AGENTS.md was not read")
+      return (True, f"Read AGENTS.md ({len(hits)} call(s))")
 
   - name: pull_request_not_read
     description: >
@@ -244,7 +244,7 @@ thresholds:
     min_pass_rate: 1.0
   tier_correct:
     min_pass_rate: 1.0
-  guidance_read:
+  agents_md_read:
     min_pass_rate: 1.0
   pull_request_not_read:
     min_pass_rate: 1.0

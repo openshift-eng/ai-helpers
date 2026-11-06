@@ -67,7 +67,7 @@ skill chain.
 ## pr-risk-assessment (`cases/pr-risk-assessment`)
 
 Whether pr-risk-assessment assigns the verified risk tier to real HyperShift
-pull requests, and reads the repository guidance its diff maps to. Each case
+pull requests, and reads the repository's AGENTS.md. Each case
 freezes in `input.json` the evidence chai-bot's `prepare_pr_risk_assessment`
 tool hands the skill (title, description, changed files with patches;
 vendored and generated patches omitted; a 300,000-character patch budget),
@@ -81,7 +81,7 @@ their tier labels.
 | case-002 | openshift/hypershift#9818 | Critical | NodePool rollout hashes and token secrets, for every NodePool at HO upgrade |
 | case-003 | openshift/hypershift#10213 | Moderate | Karpenter finalizer removal during deletion when AWS credentials are invalid |
 | case-004 | openshift/hypershift#10224 | Critical | Default guest capabilities, which the HCCO reconciles into existing guests |
-| case-005 | openshift/hypershift#8656 | Moderate | Deterministic mirror order in a control plane environment variable the HO renders for every hosted cluster |
+| case-005 | openshift/hypershift#8656 | Critical (Moderate also accepted) | Deterministic mirror order in a control plane environment variable the HO renders for every hosted cluster |
 | case-006 | openshift/hypershift#10223 | Low | CI workflow and documentation only |
 
 The subject and LLM judges run on Claude Code with `claude-opus-5-5`. The run
