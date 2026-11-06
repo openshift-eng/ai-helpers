@@ -1,4 +1,7 @@
+import io
 import json
+import socket
+import urllib.error
 import urllib.request
 
 import pytest
@@ -9,14 +12,17 @@ from diagnose_job_run import (classify_response, format_jira_issues,
 
 
 class FakeResponse:
-    def __init__(self, status, body):
+    def __init__(self, status, body, read_error=None):
         self.status = status
         self._body = json.dumps(body).encode("utf-8") if not isinstance(body, str) else body.encode("utf-8")
+        self._read_error = read_error
 
     def getcode(self):
         return self.status
 
     def read(self):
+        if self._read_error:
+            raise self._read_error
         return self._body
 
     def __enter__(self):
@@ -32,7 +38,10 @@ def queue_authenticated_responses(monkeypatch, *responses):
 
     def fake_open(req, timeout=None):
         calls.append((req, timeout))
-        return pending.pop(0)
+        response = pending.pop(0)
+        if isinstance(response, BaseException):
+            raise response
+        return response
 
     monkeypatch.setattr(diagnose_job_run.HTTP_OPENER, "open", fake_open)
     return calls
@@ -47,7 +56,7 @@ def batch_response(status="complete", items=None):
         "enqueued": 1,
         "deduped": 0,
         "completed": 1 if status == "complete" else 0,
-        "failed": 1 if status == "failed" else 0,
+        "failed": 1 if status in ("failed", "cancelled") else 0,
         "running": 0,
         "pending": 0 if terminal else 1,
         "items": items if items is not None else [
@@ -251,7 +260,8 @@ def test_deep_mode_submits_202_polls_all_states_and_reads_item_result(monkeypatc
     assert diagnose_job_run.main([
         PROW_URL, "--deep", "--token", "secret", "--format", "json",
     ]) == 0
-    report = json.loads(capsys.readouterr().out)
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
     assert report["reevaluate_results"] == [result]
     assert report["matches"] == [{
         "label_id": "InfraFailure",
@@ -264,24 +274,81 @@ def test_deep_mode_submits_202_polls_all_states_and_reads_item_result(monkeypatc
     }
     assert all(call[1] == diagnose_job_run.REQUEST_TIMEOUT_SECONDS for call in calls)
     assert sleeps == [diagnose_job_run.POLL_INTERVAL_SECONDS] * 3
+    assert "batch-1" in captured.err
+    assert diagnose_job_run.REEVALUATE_URL + "/batch-1" in captured.err
+    assert "secret" not in captured.out + captured.err
 
 
-def test_deep_mode_rejects_cross_origin_status_without_get(monkeypatch, capsys):
+@pytest.mark.parametrize("output_format", ["json", "summary"])
+@pytest.mark.parametrize(
+    "unsafe_status,unsafe_marker",
+    [
+        ("https://unsafe-cross-origin.invalid/status", "unsafe-cross-origin"),
+        ("https://sippy-auth.dptools.openshift.org:unsafe-port/status", "unsafe-port"),
+        ("https://[unsafe-bracket.invalid/status", "unsafe-bracket"),
+        (
+            "https://unsafe-user:unsafe-password@"
+            "sippy-auth.dptools.openshift.org/status",
+            "unsafe-user",
+        ),
+    ],
+)
+def test_deep_mode_invalid_status_link_retains_safe_batch_id_without_get(
+    monkeypatch, capsys, output_format, unsafe_status, unsafe_marker
+):
     mock_catalogs(monkeypatch)
     calls = queue_authenticated_responses(monkeypatch, FakeResponse(202, {
         "batch_id": "batch-1",
         "requested": 1,
-        "links": {"status": "https://attacker.invalid/status"},
+        "links": {"status": unsafe_status},
     }))
 
-    assert diagnose_job_run.main([PROW_URL, "--deep", "--token", "secret"]) == 1
-    assert "cross-origin status URL" in capsys.readouterr().err
+    assert diagnose_job_run.main([
+        PROW_URL, "--deep", "--token", "cli-secret-token", "--format", output_format,
+    ]) == 1
+    captured = capsys.readouterr()
+    expected_error = (
+        "deep reevaluation batch batch-1 was accepted, but its status link "
+        "failed validation"
+    )
+    assert captured.err == "Error: %s\n" % expected_error
+    assert "Submitted deep reevaluation" not in captured.out + captured.err
+    assert unsafe_status not in captured.out + captured.err
+    assert unsafe_marker not in captured.out + captured.err
+    assert "unsafe-password" not in captured.out + captured.err
+    assert "cli-secret-token" not in captured.out + captured.err
+    if output_format == "json":
+        assert json.loads(captured.out) == {
+            "batch_id": "batch-1",
+            "error": expected_error,
+        }
+    else:
+        assert captured.out == ""
+        assert "batch-1" in captured.err
+    assert [call[0].get_method() for call in calls] == ["POST"]
     assert len(calls) == 1
 
 
-@pytest.mark.parametrize("terminal", ["failed", "cancelled"])
-def test_deep_mode_terminal_failure_is_controlled(monkeypatch, capsys, terminal):
+@pytest.mark.parametrize("terminal,item_state", [
+    ("failed", "discarded"),
+    ("cancelled", "cancelled"),
+])
+@pytest.mark.parametrize("output_format", ["json", "summary"])
+def test_deep_mode_terminal_failure_preserves_item_diagnostics(
+    monkeypatch, capsys, terminal, item_state, output_format
+):
     mock_catalogs(monkeypatch)
+    result = {
+        "prow_job_build_id": "1856789012345678848",
+        "status": "eval_error",
+        "error": "artifact scan failed",
+        "symptoms_evaluated": 3,
+    }
+    terminal_response = batch_response(status=terminal, items=[{
+        "item_key": "1856789012345678848",
+        "state": item_state,
+        "result": result,
+    }])
     calls = queue_authenticated_responses(
         monkeypatch,
         FakeResponse(202, {
@@ -289,11 +356,95 @@ def test_deep_mode_terminal_failure_is_controlled(monkeypatch, capsys, terminal)
             "requested": 1,
             "links": {"status": diagnose_job_run.REEVALUATE_URL + "/batch-1"},
         }),
-        FakeResponse(200, batch_response(status=terminal)),
+        FakeResponse(200, terminal_response),
     )
 
-    assert diagnose_job_run.main([PROW_URL, "--deep", "--token", "secret"]) == 1
-    assert "batch ended in %s" % terminal in capsys.readouterr().err
+    assert diagnose_job_run.main([
+        PROW_URL, "--deep", "--token", "secret", "--format", output_format,
+    ]) == 1
+    captured = capsys.readouterr()
+    assert "batch ended in %s" % terminal in captured.err
+    assert "secret" not in captured.out + captured.err
+    if output_format == "json":
+        failure = json.loads(captured.out)
+        assert failure == {
+            "batch": terminal_response,
+            "batch_id": "batch-1",
+            "error": "deep reevaluation batch ended in %s" % terminal,
+            "status_url": diagnose_job_run.REEVALUATE_URL + "/batch-1",
+        }
+        assert "batch-1" in captured.err
+    else:
+        assert "Deep reevaluation batch batch-1: %s" % terminal in captured.out
+        assert "Run 1856789012345678848: %s" % item_state in captured.out
+        assert '"status": "eval_error"' in captured.out
+        assert '"error": "artifact scan failed"' in captured.out
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize(
+    "failure_kind,expected_error",
+    [
+        ("network", "connection error: connection lost"),
+        ("timeout", "request timed out connecting to the API"),
+        ("auth", "HTTP 401 (token missing/expired; use the oc-auth skill): expired"),
+        ("malformed", "server returned a non-JSON response body"),
+        ("invalid_status", "batch status response is missing integer requested"),
+        ("http", "HTTP 500: database unavailable"),
+    ],
+)
+@pytest.mark.parametrize("output_format", ["json", "summary"])
+def test_post_submission_poll_failure_retains_recovery_context(
+    monkeypatch, capsys, failure_kind, expected_error, output_format
+):
+    mock_catalogs(monkeypatch)
+    status_url = diagnose_job_run.REEVALUATE_URL + "/batch-recover"
+    if failure_kind == "network":
+        failure = urllib.error.URLError("connection lost")
+    elif failure_kind == "timeout":
+        failure = socket.timeout("connect timed out")
+    elif failure_kind == "auth":
+        failure = urllib.error.HTTPError(
+            status_url, 401, "Unauthorized", {},
+            io.BytesIO(b'{"message":"expired"}'),
+        )
+    elif failure_kind == "malformed":
+        failure = FakeResponse(200, "not json")
+    elif failure_kind == "invalid_status":
+        failure = FakeResponse(200, {
+            "batch_id": "batch-recover", "status": "complete",
+        })
+    else:
+        failure = urllib.error.HTTPError(
+            status_url, 500, "Internal Server Error", {},
+            io.BytesIO(b'{"message":"database unavailable"}'),
+        )
+    calls = queue_authenticated_responses(
+        monkeypatch,
+        FakeResponse(202, {
+            "batch_id": "batch-recover",
+            "requested": 1,
+            "links": {"status": status_url},
+        }),
+        failure,
+    )
+
+    assert diagnose_job_run.main([
+        PROW_URL, "--deep", "--token", "secret", "--format", output_format,
+    ]) == 1
+    captured = capsys.readouterr()
+    assert expected_error in captured.err
+    assert "batch-recover" in captured.out + captured.err
+    assert status_url in captured.out + captured.err
+    assert "secret" not in captured.out + captured.err
+    if output_format == "json":
+        assert json.loads(captured.out) == {
+            "batch_id": "batch-recover",
+            "error": expected_error,
+            "status_url": status_url,
+        }
+    else:
+        assert "Submitted deep reevaluation" in captured.out
     assert len(calls) == 2
 
 
