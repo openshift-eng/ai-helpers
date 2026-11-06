@@ -1,0 +1,17 @@
+pr_url: https://github.com/openshift/hypershift/pull/10213
+expected_tier: moderate
+acceptable_tiers: [moderate]
+guidance:
+  - references/repos/openshift/hypershift/README.md
+  - references/repos/openshift/hypershift/control-plane-workloads.md
+ground_truth: >
+  Moderate. The HostedCluster controller's Karpenter finalizer fallback now
+  removes the finalizer without waiting for the guest API server when the
+  hosted cluster's AWS credentials are explicitly invalid, reusing the existing
+  credential-status classifier; valid, unknown, missing, and non-AWS states
+  keep the existing gate. The path runs only while a HostedCluster is being
+  deleted. If the condition is wrong, Karpenter-provisioned instances of a
+  cluster already being deleted are left behind (cost and cleanup), or deletion
+  waits as before; it cannot disrupt a running cluster. Reading a credential's
+  status is not a change to how credentials are issued or scoped. A behaviour
+  change on a contained path, so not Low and not Critical.

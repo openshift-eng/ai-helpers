@@ -1,0 +1,18 @@
+pr_url: https://github.com/openshift/hypershift/pull/9818
+expected_tier: critical
+acceptable_tiers: [critical]
+guidance:
+  - references/repos/openshift/hypershift/README.md
+  - references/repos/openshift/hypershift/nodepool-and-nodes.md
+ground_truth: >
+  Critical. Re-lands a reverted change to NodePool rollout control in the
+  HyperShift operator: new rollout hashes decide when machines are replaced, a
+  state machine chooses the effective hash for the token and user-data secrets
+  new machines join with, the secret janitor and CAPI propagation are gated on
+  it, and a migration seeds rollout annotations on every existing NodePool. The
+  NodePool controller runs in the HO, so every NodePool on a management cluster
+  receives the change at once when the HO is upgraded. A defect replaces every
+  machine of every NodePool or strands new machines (the reverted version
+  caused token desynchronization and ignition failures). The diff is not
+  readable in full (two large test patches are omitted), which adds
+  uncertainty.

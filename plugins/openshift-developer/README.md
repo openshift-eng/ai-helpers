@@ -64,6 +64,7 @@ Repeat steps 1-3 until the PR is approved and CI is green or non-actionable fail
 - **address-review-pr** — Fetch and address PR review comments: categorizes by priority, makes code changes, posts replies, and pushes. Does not handle CI failures.
 - **address-ci-failures** — Rebase when the PR needs it, then triage failing CI checks; fix only failures caused by the PR's changes, report infra/pre-existing/flake issues instead of out-of-scope fixes.
 - **has-review-work** — Read-only gate: `COMMENT_WORK` (unanswered authorized review comments) and `CI_WORK` (new non-optional CI failures, or a `needs-rebase` label) for follow-up agents.
+- **pr-risk-assessment** — Read-only risk tier (Low, Moderate, Critical) of a pull request from its runtime change and the blast radius of a defect, with an auditable reason; chai-bot uses it to label PRs for risk-based review. Repositories add their own guidance under `skills/pr-risk-assessment/references/repos/<org>/<repo>/`, read only for their pull requests.
 
 ### Hooks
 
