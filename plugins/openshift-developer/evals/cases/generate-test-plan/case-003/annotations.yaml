@@ -1,0 +1,26 @@
+jira_key: OCPBUGS-52409
+expected_format: generic
+# NOTE ON CUSTOMER SCRUBBING — read before adding a customer_names key here.
+#
+# This issue is linked to three CIPOE account records whose summaries are the
+# customer names. Listing them here would publish them in this repository,
+# which is public: the check would become the leak it exists to prevent.
+#
+# Customer scrubbing is therefore asserted in case-005, whose fixture carries
+# a fabricated account name. That tests the same behaviour, deterministically,
+# and discloses nothing.
+min_scenarios: 4
+difficulty: medium
+category: bug
+notes: >
+  Bug path, not feature path, and the richest traversal case in the set. The
+  description states this is a clone of OCPBUGS-49598, while the structured
+  issuelinks record Cloners to OCPBUGS-51143 and Blocks to OCPBUGS-54633
+  (the release-4.16 backport, still status New). A good plan reconciles the
+  prose and the structured links rather than trusting either alone, and does
+  not count the unlanded 4.16 backport as coverage. Scenarios must drive the
+  reproduction conditions - a sustained connection rate above the CoPP ARP
+  meter threshold of roughly 25 packets per second, held past the 300 second
+  MAC binding expiry - rather than emitting a single reachability check. The
+  issue text also carries a support case number; it must not be reproduced in
+  the generated plan.

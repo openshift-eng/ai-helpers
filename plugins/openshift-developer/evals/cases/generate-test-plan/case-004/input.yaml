@@ -1,0 +1,3 @@
+jira_key: "OCPSTRAT-3851"
+# Deliberately no repo_url: this feature has no implementation PRs, so there is
+# no tree to analyse. The skill must take the zero-PR path (SKILL.md 1n).

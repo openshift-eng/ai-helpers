@@ -1,0 +1,29 @@
+jira_key: OCPSTRAT-3154
+expected_format: ieee829
+expected_gap_sections:
+  # Exactly the four that references/ocpstrat-feature.md lines 48-51 mandate a
+  # marker for, and none of the four is filled on this feature. Goals, Use
+  # Cases, Customer Considerations and Out of Scope are also absent, but the
+  # skill never promised a marker for those, so asserting on them would be
+  # stricter than the contract.
+  - Deployment Considerations
+  - Interoperability
+  - Non-Functional Requirements
+  - Success Criteria
+forbidden_terms:
+  # Neither appears anywhere in the feature or the linked enhancement. A
+  # scenario for either is fabrication.
+  - FIPS
+  - etcd encryption
+min_scenarios: 8
+difficulty: complex
+category: feature
+notes: >
+  The OCPSTRAT template on this feature is almost entirely unfilled: 13 of 14
+  sections are absent and only Feature Quality Status is populated. The plan
+  must say so explicitly and source its requirements from the merged
+  enhancement (openshift/enhancements block-runc-on-rhcos10-upgrade.md, PR
+  #2071) rather than inventing them. The guard's decision matrix is pure logic
+  and belongs at unit tier; only the observable blocked behaviour on a live
+  cluster justifies e2e. Both machine-config-operator and openshift/origin are
+  downstream repositories, and the plan must not describe either as upstream.

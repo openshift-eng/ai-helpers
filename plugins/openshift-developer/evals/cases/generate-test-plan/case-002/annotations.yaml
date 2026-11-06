@@ -1,0 +1,28 @@
+jira_key: OCPSTRAT-3444
+expected_format: repo-template
+expected_template_path: docs/plans/templates/feature-test-plan-template.md
+expected_template_sections:
+  # The template has 11 headings; "Overview" is a table of contents rather
+  # than content, so the ten substantive sections are required here.
+  - References
+  - Introduction
+  - Test Strategy
+  - Test Scope
+  - Out of Scope
+  - Target Environments
+  - Test Deliverables
+  - Test Tasks
+  - Pass/Fail Criteria
+  - Risks
+min_scenarios: 6
+difficulty: complex
+category: feature
+notes: >
+  The target repository ships its own test plan template. The skill must
+  mirror it and must not impose IEEE 829 headings on top. Kueue originates in
+  the kubernetes-sigs community project, so upstream coverage may be cited as
+  an informational justification for reduced downstream effort, but no
+  scenario may be directed at an upstream repository and none may target
+  openshift-tests-private. This case is the direct test of the output
+  conformance problem and of the review request that team templates be mapped
+  against IEEE 829 rather than replaced by it.
