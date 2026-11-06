@@ -19,6 +19,7 @@ Team-specific conventions for GCP HCP (Hypershift on GKE) issues in the GCP proj
 | **Blocked** | `customfield_10517` | Mark issue as blocked | `{"value": "True"}` |
 | **Architect** | `customfield_10467` | Single user; technical lead for a Feature or Initiative. Named during Refinement. | `{"accountId": "..."}` |
 | **Product Manager** | `customfield_10469` | Single user; PM accountable for the product perspective. Named during Refinement. | `{"accountId": "..."}` |
+| **Size** | `customfield_10795` | T-shirt sizing for Features and Initiatives: XS, S, M, L, XL. Required for Definition of Ready. | `{"value": "M"}` |
 
 ## Components
 
@@ -37,8 +38,8 @@ Components are **optional** — only specify if work clearly fits. Do not reques
 |---|---|
 | Story / Task | `customfield_10028` (Story Points): float, auto-estimated per Sizing Guide; `priority`: `{"name": "Normal"}` (omit unless user specifies) |
 | Epic | `customfield_10011` (Epic Name): must match summary |
-| Feature | `customfield_10467` (Architect): single user, named during Refinement; `customfield_10469` (Product Manager): single user, named during Refinement |
-| Initiative | `customfield_10467` (Architect): single user, named during Refinement; `customfield_10469` (Product Manager): single user, named during Refinement |
+| Feature | `customfield_10467` (Architect): single user, named during Refinement; `customfield_10469` (Product Manager): single user, named during Refinement; `customfield_10795` (Size): required T-shirt sizing (XS, S, M, L, XL) for Definition of Ready |
+| Initiative | `customfield_10467` (Architect): single user, named during Refinement; `customfield_10469` (Product Manager): single user, named during Refinement; `customfield_10795` (Size): required T-shirt sizing (XS, S, M, L, XL) for Definition of Ready |
 
 **Story Points:** Auto-estimate using the Sizing Guide below. Set `customfield_10028` as float. For estimates of 8+, recommend splitting.
 
