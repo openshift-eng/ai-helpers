@@ -1,0 +1,31 @@
+{
+ "pr_url": "https://github.com/openshift/hypershift/pull/8656",
+ "repo": "openshift/hypershift",
+ "pr_number": 8656,
+ "base_branch": "main",
+ "base_sha": "804f82a64935e2a35930692d2b6a93410920cca9",
+ "head_sha": "455a12a06ebc3f40c7b13e943a10ceb84271b3e5",
+ "title": "OCPBUGS-85065: Fix repeated CPO Deployment churn due to OPENSHIFT_IMG_OVERRIDES reordering",
+ "body": "## What this PR does / why we need it:\n\nSorts mirrors within each registry source alphabetically when building\nthe `OPENSHIFT_IMG_OVERRIDES` environment variable string. Without this,\noverlapping mirror definitions across multiple IDMS/ICSP objects for the\nsame source produce non-deterministic mirror ordering, causing the CPO\nDeployment to roll out repeatedly even though the content is identical.\n\nThe prior fix (OCPBUGS-57626) sorted ICSP items by name but did not sort\nthe mirrors within each source. This is a variant where the same source\nappears in multiple IDMS/ICSP objects, and the mirror values for that\nsource get appended in non-deterministic order.\n\n## Which issue(s) this PR fixes:\n\nFixes OCPBUGS-85065\n\n## Special notes for your reviewer:\n\nThe fix is a single `sort.Strings()` call in\n`ConvertOpenShiftImageRegistryOverridesToCommandLineFlag()`. This makes\nthe output deterministic regardless of how mirrors are collected upstream\nfrom IDMS/ICSP objects.\n\n## Checklist:\n- [x] Subject and description added to both, commit and PR.\n- [x] Relevant issues have been referenced.\n- [ ] This change includes docs.\n- [x] This change includes unit tests.\n\n<!-- This is an auto-generated comment: release notes by coderabbit.ai -->\n## Summary by CodeRabbit\n\n* **Bug Fixes**\n  * Image registry mirror replacements are now sorted deterministically when converting to command-line flags, ensuring consistent output.\n\n* **Tests**\n  * Added test coverage validating consistent sorting of registry mirrors provided in non-alphabetical order.\n<!-- end of auto-generated comment: release notes by coderabbit.ai -->",
+ "draft": false,
+ "files_listed": 2,
+ "diff_complete": true,
+ "files": [
+  {
+   "filename": "support/util/util.go",
+   "status": "modified",
+   "additions": 1,
+   "deletions": 0,
+   "kind": "code",
+   "patch": "@@ -277,6 +277,7 @@ func ConvertOpenShiftImageRegistryOverridesToCommandLineFlag(registryOverrides m\n \n \tfor _, registrySource := range sortedRegistrySources {\n \t\tregistryReplacements := registryOverrides[registrySource]\n+\t\tsort.Strings(registryReplacements)\n \t\tfor _, registryReplacement := range registryReplacements {\n \t\t\tcommandLineFlagArray = append(commandLineFlagArray, fmt.Sprintf(\"%s=%s\", registrySource, registryReplacement))\n \t\t}"
+  },
+  {
+   "filename": "support/util/util_test.go",
+   "status": "modified",
+   "additions": 15,
+   "deletions": 0,
+   "kind": "tests",
+   "patch": "@@ -142,6 +142,21 @@ func TestConvertOpenShiftImageRegistryOverridesToCommandLineFlag(t *testing.T) {\n \t\t\t},\n \t\t\texpectedFlag: \"registry1=mirror1.1,registry1=mirror1.2,registry1=mirror1.3,registry2=mirror2.1,registry2=mirror2.2,registry3=mirror3.1\",\n \t\t},\n+\t\t{\n+\t\t\tname: \"When mirrors are in non-alphabetical order, it should sort them deterministically\",\n+\t\t\tregistryOverrides: map[string][]string{\n+\t\t\t\t\"cp.icr.io/cp\": {\n+\t\t\t\t\t\"mirror-c.example.com\",\n+\t\t\t\t\t\"mirror-a.example.com\",\n+\t\t\t\t\t\"mirror-b.example.com\",\n+\t\t\t\t},\n+\t\t\t\t\"icr.io/cpopen\": {\n+\t\t\t\t\t\"mirror-z.example.com\",\n+\t\t\t\t\t\"mirror-x.example.com\",\n+\t\t\t\t},\n+\t\t\t},\n+\t\t\texpectedFlag: \"cp.icr.io/cp=mirror-a.example.com,cp.icr.io/cp=mirror-b.example.com,cp.icr.io/cp=mirror-c.example.com,icr.io/cpopen=mirror-x.example.com,icr.io/cpopen=mirror-z.example.com\",\n+\t\t},\n \t}\n \n \tt.Parallel()"
+  }
+ ]
+}

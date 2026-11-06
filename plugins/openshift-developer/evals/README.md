@@ -64,6 +64,41 @@ skill chain.
 | case-004 | OCPBUGS-100141 | Propagate proxy configuration to AWS cloud-controller-manager (PR #9156) |
 | case-005 | OCPBUGS-85182 | Remove obsolete MutatingAdmissionPolicy runtime configuration (PR #9350) |
 
+## pr-risk-assessment (`cases/pr-risk-assessment`)
+
+Whether pr-risk-assessment assigns the verified risk tier to real HyperShift
+pull requests, and reads the repository guidance its diff maps to. Each case
+freezes in `input.json` the evidence chai-bot's `prepare_pr_risk_assessment`
+tool hands the skill (title, description, changed files with patches;
+vendored and generated patches omitted; a 300,000-character patch budget),
+made with `scripts/snapshot_pr_evidence.py`. Labels, comments, and authors are
+left out and people's names removed, because the live pull requests carry
+their tier labels.
+
+| Case | PR | Expected | Description |
+|------|----|----------|-------------|
+| case-001 | openshift/hypershift#9958 | Critical | GCP default ingress: DNS record cleanup and new credentials for existing clusters |
+| case-002 | openshift/hypershift#9818 | Critical | NodePool rollout hashes and token secrets, for every NodePool at HO upgrade |
+| case-003 | openshift/hypershift#10213 | Moderate | Karpenter finalizer removal during deletion when AWS credentials are invalid |
+| case-004 | openshift/hypershift#10224 | Critical | Default guest capabilities, which the HCCO reconciles into existing guests |
+| case-005 | openshift/hypershift#8656 | Moderate | Deterministic mirror order in a control plane environment variable the HO renders for every hosted cluster |
+| case-006 | openshift/hypershift#10223 | Low | CI workflow and documentation only |
+
+The subject and LLM judges run on Claude Code with `claude-opus-5-5`. The run
+may clone the repository at `base_sha` to trace callers. A `PreToolUse` hook in
+`runner.settings` blocks reads of pull requests, issues, repository events,
+searches, and this directory, and the `pull_request_not_read` judge fails a run
+where such a read got through. From the repository root:
+
+```text
+/eval-run --config plugins/openshift-developer/evals/eval-pr-risk-assessment.yaml --model claude-opus-5-5
+```
+
+To add a case, freeze the evidence with
+`python3 plugins/openshift-developer/evals/scripts/snapshot_pr_evidence.py <PR_URL> <case-dir>`,
+remove people's names from the description, and write `annotations.yaml` with
+the verified tier and the reasoning behind it.
+
 ## jira-refine (`cases/jira-refine`)
 
 Whether jira-refine reaches the right disposition and applies its Jira writes
