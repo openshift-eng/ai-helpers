@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from unittest import mock
 
 import audit
@@ -20,15 +21,254 @@ def jdump(o, p):
         json.dump(o, f)
 
 
-def snap(triages):
-    return {"time": "t", "triages": triages}
+def snap(triages, time="2026-10-12T01:00:00Z"):
+    return {"time": time, "triages": triages}
 
 
 def tri(regs, url="https://x/triages/1", resolved=None):
     return {"regression_ids": regs, "url": url, "resolved": resolved}
 
 
-class DiffTests(unittest.TestCase):
+class AuditFetchTests(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.object(audit, "_default_audit_fetch", return_value=[])
+        self.audit_fetch = patcher.start()
+        self.addCleanup(patcher.stop)
+
+
+class DiffTests(AuditFetchTests):
+    def captured_snapshots(self):
+        with mock.patch.object(audit, "datetime") as clock:
+            clock.now.side_effect = [datetime(2026, 10, 12, 1, 0, 0, 250000, tzinfo=timezone.utc),
+                                     datetime(2026, 10, 12, 1, 0, 1, 750000, tzinfo=timezone.utc)]
+            before = audit.snapshot_triages(fetch=lambda: [])
+            after = audit.snapshot_triages(fetch=lambda: [{"id": 7, "regressions": [{"id": 5}]}])
+        return before, after
+
+    def test_fractional_bot_before_captured_end_blocks_attribution(self):
+        before, after = self.captured_snapshots()
+        entries = [self.entry(created_at="2026-10-12T01:00:00.500000Z"),
+                   self.entry(audit.BULK_TRIAGE_BOT_USER, "2026-10-12T01:00:01.500000Z")]
+        result = audit.diff_triages(before, after, [], audit_fetch=lambda _: entries)
+        self.assertEqual(result["status"], "mismatch")
+        self.assertEqual(result["external"], [])
+        self.assertEqual(result["undeclared"][0]["kind"], "created")
+
+    def test_fractional_human_before_captured_end_is_external(self):
+        before, after = self.captured_snapshots()
+        result = audit.diff_triages(before, after, [], audit_fetch=lambda _: [
+            self.entry(created_at="2026-10-12T01:00:01.500000Z")])
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["undeclared"], [])
+        self.assertEqual(result["external"][0]["users"], ["human"])
+
+    def test_bot_after_captured_end_is_outside_window(self):
+        before, after = self.captured_snapshots()
+        entries = [self.entry(created_at="2026-10-12T01:00:00.500000Z"),
+                   self.entry(audit.BULK_TRIAGE_BOT_USER, "2026-10-12T01:00:01.750000001Z")]
+        result = audit.diff_triages(before, after, [], audit_fetch=lambda _: entries)
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["external"][0]["users"], ["human"])
+
+    def test_bot_before_captured_start_is_outside_window(self):
+        before, after = self.captured_snapshots()
+        entries = [self.entry(created_at="2026-10-12T01:00:00.500000Z"),
+                   self.entry(audit.BULK_TRIAGE_BOT_USER, "2026-10-12T01:00:00.249999999Z")]
+        result = audit.diff_triages(before, after, [], audit_fetch=lambda _: entries)
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["external"][0]["users"], ["human"])
+
+    def test_captured_snapshot_boundaries_are_inclusive(self):
+        before, after = self.captured_snapshots()
+        for timestamp in ("2026-10-12T03:00:00.250000000+02:00", "2026-10-12T01:00:01.750000000Z"):
+            with self.subTest(timestamp=timestamp):
+                entries = [self.entry(created_at="2026-10-12T01:00:00.500000Z"),
+                           self.entry(audit.BULK_TRIAGE_BOT_USER, timestamp)]
+                result = audit.diff_triages(before, after, [], audit_fetch=lambda _: entries)
+                self.assertEqual(result["status"], "mismatch")
+                self.assertEqual(result["external"], [])
+
+    def test_second_only_snapshot_end_is_not_widened(self):
+        entries = [self.entry(created_at="2026-10-12T01:00:00.500000Z"),
+                   self.entry(audit.BULK_TRIAGE_BOT_USER, "2026-10-12T01:00:01.500000Z")]
+        result = audit.diff_triages(snap({}, "2026-10-12T01:00:00Z"),
+                                    snap({"7": tri([5])}, "2026-10-12T01:00:01Z"), [],
+                                    audit_fetch=lambda _: entries)
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["external"][0]["users"], ["human"])
+
+    def entry(self, user="human", created_at="2026-10-12T01:30:00Z"):
+        return {"operation": "update", "changes": [], "user": user, "created_at": created_at}
+
+    def creation_diff(self, entries):
+        return audit.diff_triages(snap({}), snap({"7": tri([5])}, "2026-10-12T02:00:00Z"), [],
+                                  audit_fetch=lambda _: entries)
+
+    def test_human_creation_is_external(self):
+        result = self.creation_diff([self.entry()])
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["undeclared"], [])
+        self.assertEqual(result["created"], ["7"])
+        self.assertEqual(result["external"], [{"kind": "created", "triage_id": "7",
+                                             "url": "https://x/triages/1", "jira": None,
+                                             "regression_ids": [5], "users": ["human"]}])
+
+    def test_bot_creation_is_undeclared(self):
+        result = self.creation_diff([self.entry(audit.BULK_TRIAGE_BOT_USER)])
+        self.assertEqual(result["status"], "mismatch")
+        self.assertEqual(result["external"], [])
+        self.assertEqual(result["undeclared"][0]["kind"], "created")
+
+    def test_human_missing_changes_is_external(self):
+        entry = self.entry()
+        del entry["changes"]
+        result = self.creation_diff([entry])
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["undeclared"], [])
+        self.assertEqual(result["external"][0]["users"], ["human"])
+
+    def test_bot_missing_changes_is_undeclared(self):
+        entry = self.entry(audit.BULK_TRIAGE_BOT_USER)
+        del entry["changes"]
+        for entries in ([entry], [self.entry(), entry]):
+            with self.subTest(entries=entries):
+                result = self.creation_diff(entries)
+                self.assertEqual(result["status"], "mismatch")
+                self.assertEqual(result["external"], [])
+                self.assertEqual(result["undeclared"][0]["kind"], "created")
+
+    def test_present_non_list_changes_is_undeclared(self):
+        for changes in (None, {}, "", "[]", 0, False, ()):
+            with self.subTest(changes=changes):
+                result = self.creation_diff([self.entry(), dict(self.entry(), changes=changes)])
+                self.assertEqual(result["status"], "mismatch")
+                self.assertEqual(result["external"], [])
+                self.assertEqual(result["undeclared"][0]["kind"], "created")
+
+    def test_mixed_human_and_bot_is_undeclared(self):
+        for entries in ([self.entry(), self.entry(audit.BULK_TRIAGE_BOT_USER)],
+                        [self.entry(audit.BULK_TRIAGE_BOT_USER), self.entry()]):
+            with self.subTest(entries=entries):
+                self.assertEqual(self.creation_diff(entries)["status"], "mismatch")
+
+    def test_fetch_failure_is_undeclared(self):
+        self.audit_fetch.side_effect = OSError("audit unavailable")
+        result = audit.diff_triages(snap({}), snap({"7": tri([5])}), [])
+        self.audit_fetch.assert_called_once_with("7")
+        self.assertEqual(result["status"], "mismatch")
+        self.assertEqual(result["external"], [])
+
+    def test_only_outside_window_is_undeclared(self):
+        entries = [self.entry(created_at="2026-10-12T00:59:59Z"),
+                   self.entry(created_at="2026-10-12T02:00:00.000000001Z")]
+        self.assertEqual(self.creation_diff(entries)["status"], "mismatch")
+        self.assertEqual(self.creation_diff([])["status"], "mismatch")
+
+    def test_inclusive_boundaries_and_offset_formats(self):
+        for timestamp in ("2026-10-12T01:00:00Z", "2026-10-12T02:00:00Z",
+                          "2026-10-12T03:00:00.000000000+02:00", "2026-10-11T21:00:00-04:00"):
+            with self.subTest(timestamp=timestamp):
+                self.assertEqual(self.creation_diff([self.entry(created_at=timestamp)])["status"], "match")
+
+    def test_nanosecond_snapshot_boundary(self):
+        timestamp = "2026-10-12T01:30:00.123456789Z"
+        for created_at, status in ((timestamp, "match"), ("2026-10-12T01:30:00.123456788Z", "mismatch"),
+                                   ("2026-10-12T01:30:00.123456790Z", "mismatch")):
+            with self.subTest(created_at=created_at):
+                result = audit.diff_triages(snap({}, timestamp), snap({"7": tri([5])}, timestamp), [],
+                                            audit_fetch=lambda _: [self.entry(created_at=created_at)])
+                self.assertEqual(result["status"], status)
+
+    def test_malformed_audit_is_undeclared(self):
+        valid = self.entry()
+        malformed = [None, {}, "bad", [None], [dict(valid, user=None)], [dict(valid, user="")],
+                     [dict(valid, user=" ")], [dict(valid, user={})],
+                     [dict(valid, user=" " + audit.BULK_TRIAGE_BOT_USER)],
+                     [dict(valid, operation=None)], [dict(valid, changes={})],
+                     [dict(valid, changes=[None])], [dict(valid, changes=[{}])],
+                     [dict(valid, changes=[{"field_name": "url", "original": None, "modified": "new"}])],
+                     [dict(valid, changes=[{"field_name": "", "original": "old", "modified": "new"}])],
+                     [{key: value for key, value in valid.items() if key != "user"}]]
+        for entries in malformed:
+            with self.subTest(entries=entries):
+                self.assertEqual(self.creation_diff(entries)["status"], "mismatch")
+                if isinstance(entries, list):
+                    self.assertEqual(self.creation_diff([valid] + entries)["status"], "mismatch")
+        for timestamp in (None, 0, "bad", "2026-10-12", "2026-10-12T01:30:00",
+                          "2026-02-30T01:30:00Z", "2026-10-12T01:30:00.1234567890Z"):
+            with self.subTest(timestamp=timestamp):
+                self.assertEqual(self.creation_diff([valid, self.entry(created_at=timestamp)])["status"], "mismatch")
+
+    def test_invalid_offsets_fail_closed_in_entries_and_bounds(self):
+        for timestamp in ("2026-10-12T02:30:00+00:60", "2026-10-12T00:30:00-00:60",
+                          "2026-10-13T01:30:00+24:00"):
+            with self.subTest(timestamp=timestamp):
+                self.assertEqual(self.creation_diff([self.entry(created_at=timestamp)])["status"], "mismatch")
+                for start, end in ((timestamp, "2026-10-12T02:00:00Z"),
+                                   ("2026-10-12T01:00:00Z", timestamp)):
+                    result = audit.diff_triages(snap({}, start), snap({"7": tri([5])}, end), [],
+                                                audit_fetch=lambda _: [self.entry()])
+                    self.assertEqual(result["status"], "mismatch")
+
+    def test_valid_field_change_attribution(self):
+        entry = dict(self.entry(), changes=[{"field_name": "regressions", "original": "1", "modified": "1,2"}])
+        self.assertEqual(self.creation_diff([entry])["status"], "match")
+
+    def test_bad_snapshot_window_is_undeclared(self):
+        for start, end in ((None, "bad"), ("bad", "2026-10-12T02:00:00Z"),
+                           ("2026-10-12T02:00:00Z", "2026-10-12T01:00:00Z")):
+            with self.subTest(start=start, end=end):
+                result = audit.diff_triages(snap({}, start), snap({"7": tri([5])}, end), [],
+                                            audit_fetch=lambda _: [self.entry()])
+                self.assertEqual(result["status"], "mismatch")
+
+    def test_regression_tracker_extension_is_external(self):
+        result = audit.diff_triages(snap({"1": tri([1])}),
+                                    snap({"1": tri([1, 2])}, "2026-10-12T02:00:00Z"), [],
+                                    audit_fetch=lambda _: [self.entry("regression-tracker")])
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["external"], [{"kind": "extended", "triage_id": "1", "added": [2],
+                                             "users": ["regression-tracker"]}])
+
+    def test_all_change_kinds_keep_shape_and_cache_audit(self):
+        before = snap({"1": tri([1, 3]), "2": tri([4])})
+        after = snap({"1": tri([1, 2], url="https://new"), "3": tri([5])}, "2026-10-12T02:00:00Z")
+        baseline = audit.diff_triages(before, after, [], audit_fetch=lambda _: [])
+        fetch = mock.Mock(return_value=[self.entry("other"), self.entry(), self.entry()])
+        result = audit.diff_triages(before, after, [], audit_fetch=fetch)
+        self.assertEqual(result["status"], "match")
+        self.assertEqual(result["undeclared"], [])
+        self.assertEqual(result["external"], [dict(change, users=["human", "other"])
+                                             for change in baseline["undeclared"]])
+        self.assertEqual({change["kind"] for change in result["external"]},
+                         {"created", "extended", "removed", "deleted", "modified"})
+        self.assertEqual(fetch.call_args_list, [mock.call("1"), mock.call("2"), mock.call("3")])
+
+    def test_deleted_audit_unavailable_stays_undeclared(self):
+        self.audit_fetch.side_effect = OSError("not found")
+        result = audit.diff_triages(snap({"1": tri([1])}), snap({}), [])
+        self.assertEqual(result["undeclared"][0]["kind"], "deleted")
+        self.assertEqual(result["status"], "mismatch")
+
+    def test_outside_bot_does_not_block_human_attribution(self):
+        result = self.creation_diff([self.entry(), self.entry(audit.BULK_TRIAGE_BOT_USER,
+                                                             "2026-10-12T00:00:00Z")])
+        self.assertEqual(result["status"], "match")
+
+    def test_external_creation_preserves_declaration_mismatch(self):
+        declaration = [{"type": "create_triage", "triage_id": 8, "regression_ids": [5], "status": "done"}]
+        result = audit.diff_triages(snap({}), snap({"7": tri([5])}, "2026-10-12T02:00:00Z"), declaration,
+                                    audit_fetch=lambda _: [self.entry()])
+        self.assertEqual(result["status"], "mismatch")
+        self.assertEqual(result["declared_not_observed"], declaration)
+        self.assertEqual(len(result["external"]), 1)
+
+    def test_declared_creation_needs_no_attribution(self):
+        declaration = [{"type": "create_triage", "triage_id": 7, "regression_ids": [5], "status": "done"}]
+        result = audit.diff_triages(snap({}), snap({"7": tri([5])}), declaration)
+        self.assertEqual(result["status"], "match")
+        self.audit_fetch.assert_not_called()
+
     def test_description_only_sync_is_external_without_declaration(self):
         before = snap({"1": dict(tri([1]), description="old")})
         after = snap({"1": dict(tri([1]), description="synced")})
@@ -161,7 +401,40 @@ class DiffTests(unittest.TestCase):
         self.assertIn("error", r)
 
 
+class AuditHttpTests(unittest.TestCase):
+    def test_default_get_and_json_failure(self):
+        entry = {"operation": "CREATE", "changes": [], "user": "human", "created_at": "2026-10-12T01:00:00Z"}
+        for payload, status in ((json.dumps([entry]).encode(), "match"), (b"not json", "mismatch")):
+            with self.subTest(payload=payload), mock.patch.object(audit.urllib.request, "urlopen") as urlopen:
+                response = urlopen.return_value.__enter__.return_value
+                response.headers = {}
+                response.read.return_value = payload
+                result = audit.diff_triages(snap({}), snap({"7": tri([5])}), [])
+                self.assertEqual(result["status"], status)
+                request = urlopen.call_args.args[0]
+                self.assertEqual(request.full_url,
+                                 "https://sippy.dptools.openshift.org/api/component_readiness/triages/7/audit")
+                self.assertEqual(request.get_method(), "GET")
+                self.assertEqual(urlopen.call_args.kwargs["timeout"], audit.TIMEOUT)
+
+
 class SnapshotTests(unittest.TestCase):
+    def test_failed_snapshot_time_preserves_precision(self):
+        with mock.patch.object(audit, "datetime") as clock:
+            clock.now.return_value = datetime(2026, 10, 12, 1, 0, 1, 750000, tzinfo=timezone.utc)
+            snapshot = audit.snapshot_triages(fetch=mock.Mock(side_effect=OSError("down")))
+        self.assertEqual(snapshot["status"], "unknown")
+        self.assertEqual(snapshot["time"], "2026-10-12T01:00:01.750000Z")
+
+    def test_captured_snapshot_time_preserves_precision(self):
+        with mock.patch.object(audit, "datetime") as clock:
+            clock.now.return_value = datetime(2026, 10, 12, 1, 0, 1, 750000, tzinfo=timezone.utc)
+            snapshot = audit.snapshot_triages(fetch=lambda: [])
+            self.assertEqual(audit._now(), "2026-10-12T01:00:01Z")
+        self.assertEqual(snapshot["time"], "2026-10-12T01:00:01.750000Z")
+        self.assertEqual(audit._audit_timestamp(snapshot["time"]),
+                         audit._audit_timestamp("2026-10-12T03:00:01.750000000+02:00"))
+
     def test_resolved_struct_preserved_in_snapshot(self):
         res = {"Time": "2026-05-14T12:25:28.941154Z", "Valid": True}
         data = [{"id": 3, "url": "u", "resolved": res,
@@ -183,7 +456,7 @@ def issue(key, created):
     return {"key": key, "fields": {"created": created, "summary": "s"}}
 
 
-class DiffReviewTests(unittest.TestCase):
+class DiffReviewTests(AuditFetchTests):
     """Findings C1/C2 of the pre-merge review: coverage must be exact and every write observable."""
 
     def test_created_triage_with_undeclared_extra_member_is_mismatch(self):
@@ -247,7 +520,7 @@ class DiffReviewTests(unittest.TestCase):
         self.assertEqual(t["resolution_reason"], "jira-progression")
 
 
-class DiffReviewWave2Tests(unittest.TestCase):
+class DiffReviewWave2Tests(AuditFetchTests):
     """Review wave 2: N1 — creation identity and composition."""
 
     def created(self, ids, key="OCPBUGS-9"):
@@ -281,7 +554,7 @@ class DiffReviewWave2Tests(unittest.TestCase):
         self.assertEqual(len(r["undeclared"]), 1)
 
 
-class DiffReviewWave3Tests(unittest.TestCase):
+class DiffReviewWave3Tests(AuditFetchTests):
     """Review wave 3: W2-1 — each declaration group resolves to exactly one physical creation."""
 
     def created(self, ids, key="OCPBUGS-9"):
@@ -654,7 +927,7 @@ class PermissionsTests(unittest.TestCase):
         self.assertIn("boom", r["error"])
 
 
-class CliTests(unittest.TestCase):
+class CliTests(AuditFetchTests):
     def run_cli(self, argv):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
