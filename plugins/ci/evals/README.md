@@ -72,3 +72,4 @@ non-contiguous; retired cases leave gaps.)
 | case-011 | EgressIP SNAT regression |
 | case-012 | Build-farm disk-pressure eviction |
 | case-013 | ROSA NAT gateway quota |
+| case-014 | Images-only rehearsal — RHEL repository 502 |
