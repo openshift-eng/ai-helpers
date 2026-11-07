@@ -67,10 +67,12 @@ class MetricAccumulator:
     """
 
     def __init__(self):
+        """Initialize independent delta totals and cumulative snapshots."""
         self.totals = defaultdict(float)
         self.cumulative = {}
 
     def add(self, metric):
+        """Add all numeric data points from one OTLP metric."""
         name = metric.get("name", "")
         data = metric.get("sum", metric.get("gauge", metric.get("histogram", {})))
         is_cumulative = "sum" in metric and data.get("aggregationTemporality") == 2
@@ -97,6 +99,7 @@ class MetricAccumulator:
                 self.cumulative[key] = (timestamp, value)
 
     def values(self):
+        """Return totals with only the latest value of each cumulative series."""
         totals = self.totals.copy()
         for (name, attrs_key, _start), (_timestamp, value) in self.cumulative.items():
             totals[(name, attrs_key)] += value
@@ -110,6 +113,7 @@ class CodexLogAccumulator:
     """Accumulate Codex identity and activity fields from OTEL log events."""
 
     def __init__(self):
+        """Initialize per-model identity, prompt, timing, and turn state."""
         self.versions = {}
         self.sessions = {}
         self.prompts = []
@@ -120,6 +124,7 @@ class CodexLogAccumulator:
         self.max_timestamp = None
 
     def add(self, attrs):
+        """Add one flattened Codex OTEL log event."""
         event = attrs.get("event.name", "")
         model = str(attrs.get("model", ""))
         session_id = str(attrs.get("conversation.id", ""))
@@ -157,6 +162,7 @@ class CodexLogAccumulator:
                 pass
 
     def result(self, model):
+        """Return accumulated identity and activity for the selected model."""
         prompts = sorted(prompt for prompt in self.prompts if prompt[1] == model)
         ttft = sorted(item for item in self.ttft if item[1] == model)
         duration_ms = 0
@@ -386,6 +392,10 @@ def parse_otel(path):
 
     trace_data = traces.result()
     codex_data = codex_logs.result(model) if is_codex else {}
+    codex_prompt = codex_data.get("prompt", "")
+    trace_prompt = trace_data.get("prompt", "")
+    prompt = (codex_prompt if _is_real_prompt(codex_prompt)
+              else trace_prompt if _is_real_prompt(trace_prompt) else "")
     skills = trace_data.get("skills", [])
     skills_str = ",".join(dict.fromkeys(skills)) if skills else ""
 
@@ -396,7 +406,7 @@ def parse_otel(path):
                                 or trace_data.get("claude_code_version", "")),
         "permission_mode": trace_data.get("permission_mode", ""),
         "entrypoint": "",
-        "prompt": codex_data.get("prompt", "") or trace_data.get("prompt", ""),
+        "prompt": prompt,
         "plugins_loaded": "",
         "analyzed_at": analyzed_at,
         "duration_ms": str(trace_data.get("duration_ms", 0)
@@ -426,6 +436,28 @@ def parse_otel(path):
     }
 
 
+def _stream_user_prompt(lines):
+    """Return the first usable text prompt from Claude stream user messages."""
+    for item in lines:
+        if item.get("type") != "user":
+            continue
+        message = item.get("message", item)
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content", "")
+        if isinstance(content, str):
+            candidates = [content]
+        elif isinstance(content, list):
+            candidates = [block.get("text", "") for block in content
+                          if isinstance(block, dict) and block.get("type") == "text"]
+        else:
+            candidates = []
+        for candidate in candidates:
+            if _is_real_prompt(candidate):
+                return candidate[:500]
+    return ""
+
+
 def enrich_from_stream_log(row, stream_log_path):
     """Fill in identity/outcome fields from a stream-json log."""
     try:
@@ -453,10 +485,14 @@ def enrich_from_stream_log(row, stream_log_path):
                 break
 
     if not row["prompt"]:
+        row["prompt"] = _stream_user_prompt(lines)
+    if not row["prompt"]:
         for l in lines:
             if l.get("type") == "queue-operation" and l.get("operation") == "enqueue":
-                row["prompt"] = l.get("content", "")[:500]
-                break
+                prompt = l.get("content", "")[:500]
+                if _is_real_prompt(prompt):
+                    row["prompt"] = prompt
+                    break
     if not row["prompt"]:
         for l in lines:
             if l.get("type") != "assistant":
@@ -535,9 +571,9 @@ def enrich_from_prompt_file(row, prompt_path):
     if _is_real_prompt(row.get("prompt", "")):
         return row
     try:
-        with open(prompt_path) as prompt_file:
+        with open(prompt_path, encoding="utf-8") as prompt_file:
             prompt = prompt_file.read(501)
-    except (FileNotFoundError, OSError):
+    except (OSError, UnicodeError):
         return row
     if _is_real_prompt(prompt):
         row["prompt"] = prompt[:500]

@@ -579,8 +579,8 @@ def test_trace_accumulator_prompt_ordering():
 
 
 def test_stream_log_fallback_when_traces_zero():
-    """When traces produce zero for duration/ttft/num_turns, stream-log should fill them."""
-    # OTEL data with traces that have no interaction spans (so duration/ttft/turns are all zero)
+    """Redacted traces allow user-message and queued stream prompt fallbacks."""
+    # The interaction supplies timing and identity but only a redacted prompt.
     otel_data = [
         {"ts": "2026-06-16T00:00:00Z", "path": "/v1/metrics", "payload": {
             "resourceMetrics": [{"scopeMetrics": [{"metrics": [
@@ -599,56 +599,81 @@ def test_stream_log_fallback_when_traces_zero():
             "resourceSpans": [{"resource": {"attributes": [
                 {"key": "service.version", "value": {"stringValue": "2.1.185"}}
             ]}, "scopeSpans": [{"spans": [
-                # Only a non-interaction span; no llm_request or interaction spans
-                {"traceId": "aa", "spanId": "11", "name": "claude_code.tool", "kind": 1,
+                {"traceId": "aa", "spanId": "11", "name": "claude_code.interaction", "kind": 1,
                  "startTimeUnixNano": "1718452800000000000", "endTimeUnixNano": "1718452801000000000",
                  "attributes": [
                      {"key": "session.id", "value": {"stringValue": "fallback-session"}},
-                     {"key": "tool_name", "value": {"stringValue": "Read"}},
+                     {"key": "user_prompt", "value": {"stringValue": "[REDACTED]"}},
                  ]},
             ]}]}]
         }},
     ]
-    # Stream log with duration, ttft, and turns
-    stream_data = [
-        {"type": "system", "subtype": "init", "session_id": "fallback-session",
-         "model": "claude-opus-4-6", "claude_code_version": "2.1.185",
-         "permissionMode": "plan", "plugins": []},
-        {"type": "queue-operation", "operation": "enqueue", "content": "fallback prompt"},
-        {"type": "result", "duration_ms": 45000, "ttft_ms": 2500, "num_turns": 3,
-         "is_error": False, "terminal_reason": "completed", "stop_reason": "end_turn"},
+    stream_cases = [
+        ("user-message", {"type": "user", "message": {"role": "user", "content": [
+            {"type": "text", "text": "fallback user prompt"},
+        ]}}, "fallback user prompt"),
+        ("queue-operation", {"type": "queue-operation", "operation": "enqueue",
+                             "content": "fallback queued prompt"},
+         "fallback queued prompt"),
     ]
     with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
         for record in otel_data:
             tmp.write(json.dumps(record) + "\n")
         log_path = tmp.name
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
-        for record in stream_data:
-            tmp.write(json.dumps(record) + "\n")
-        stream_path = tmp.name
-    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
-        out_path = tmp.name
     try:
-        r = run_script(log_path, out_path, extra_args=["--stream-log", stream_path])
-        assert r.returncode == 0, f"Script failed: {r.stderr}"
-        data = load_autodl(out_path)
-        row = data["rows"][0]
-        # Trace-derived duration_ms is 1000ms (1s from the single tool span),
-        # but since it's non-zero the stream-log should NOT overwrite it
-        assert row["duration_ms"] == "1000", f"Got {row['duration_ms']}"
-        # ttft_ms is 0 from traces (no interaction spans), so stream-log fills in
-        assert row["ttft_ms"] == "2500", f"Got {row['ttft_ms']}"
-        # num_turns is 0 from traces (no interaction spans), so stream-log fills in
-        assert row["num_turns"] == "3", f"Got {row['num_turns']}"
-        # session_id from traces
-        assert row["session_id"] == "fallback-session"
-        # prompt from stream-log (no interaction spans in traces)
-        assert row["prompt"] == "fallback prompt"
+        for case_name, prompt_record, expected_prompt in stream_cases:
+            stream_data = [
+                {"type": "system", "subtype": "init", "session_id": "fallback-session",
+                 "model": "claude-opus-4-6", "claude_code_version": "2.1.185",
+                 "permissionMode": "plan", "plugins": []},
+                prompt_record,
+                {"type": "result", "duration_ms": 45000, "ttft_ms": 2500,
+                 "num_turns": 3, "is_error": False, "terminal_reason": "completed",
+                 "stop_reason": "end_turn"},
+            ]
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl",
+                                             delete=False) as tmp:
+                for record in stream_data:
+                    tmp.write(json.dumps(record) + "\n")
+                stream_path = tmp.name
+            with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+                out_path = tmp.name
+            try:
+                result = run_script(log_path, out_path,
+                                    extra_args=["--stream-log", stream_path])
+                assert result.returncode == 0, f"{case_name}: {result.stderr}"
+                row = load_autodl(out_path)["rows"][0]
+                assert row["duration_ms"] == "1000", row["duration_ms"]
+                assert row["ttft_ms"] == "2500", row["ttft_ms"]
+                assert row["num_turns"] == "3", row["num_turns"]
+                assert row["session_id"] == "fallback-session"
+                assert row["prompt"] == expected_prompt, row["prompt"]
+            finally:
+                os.unlink(stream_path)
+                os.unlink(out_path)
         print("PASS: test_stream_log_fallback_when_traces_zero")
     finally:
         os.unlink(log_path)
+
+
+def test_claude_trace_prompt_precedes_stream_prompts():
+    """A real Claude trace prompt takes priority over stream fallbacks."""
+    stream = [
+        {"type": "user", "message": {"role": "user", "content": "stream prompt"}},
+        {"type": "queue-operation", "operation": "enqueue", "content": "queued prompt"},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in stream:
+            tmp.write(json.dumps(record) + "\n")
+        stream_path = tmp.name
+    try:
+        row = extract_metrics.parse_otel(os.path.join(TESTDATA, "otel_metrics.jsonl"))
+        assert row["prompt"] == "Analyze this payload"
+        extract_metrics.enrich_from_stream_log(row, stream_path)
+        assert row["prompt"] == "Analyze this payload"
+    finally:
         os.unlink(stream_path)
-        os.unlink(out_path)
+    print("PASS: test_claude_trace_prompt_precedes_stream_prompts")
 
 
 def test_codex_metrics_identity_and_cumulative_snapshots():
@@ -727,12 +752,81 @@ def test_codex_metrics_identity_and_cumulative_snapshots():
         os.unlink(prompt_path)
 
 
+def test_codex_prompt_precedes_trace_and_stream_prompts():
+    """A real Codex prompt takes priority over Claude trace and stream prompts."""
+    records = [
+        codex_metric_record("100", "200", 1.0, {"input": 10, "output": 5}),
+        {"path": "/v1/logs", "payload": {"resourceLogs": [{"scopeLogs": [{
+            "logRecords": [
+                codex_log_record("2026-11-06T00:00:00Z", "codex.conversation_starts",
+                                 "gpt-main", "main-session"),
+                codex_log_record("2026-11-06T00:00:01Z", "codex.user_prompt",
+                                 "gpt-main", "main-session", prompt="real Codex prompt"),
+            ],
+        }]}]}},
+        {"path": "/v1/traces", "payload": {"resourceSpans": [{"scopeSpans": [{
+            "spans": [{
+                "name": "claude_code.interaction",
+                "startTimeUnixNano": "100",
+                "endTimeUnixNano": "200",
+                "attributes": [
+                    {"key": "user_prompt", "value": {"stringValue": "Claude trace prompt"}},
+                ],
+            }],
+        }]}]}},
+    ]
+    stream = [
+        {"type": "user", "message": {"role": "user", "content": "stream prompt"}},
+        {"type": "queue-operation", "operation": "enqueue", "content": "queued prompt"},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in records:
+            tmp.write(json.dumps(record) + "\n")
+        log_path = tmp.name
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in stream:
+            tmp.write(json.dumps(record) + "\n")
+        stream_path = tmp.name
+    try:
+        row = extract_metrics.parse_otel(log_path)
+        assert row["prompt"] == "real Codex prompt"
+        extract_metrics.enrich_from_stream_log(row, stream_path)
+        assert row["prompt"] == "real Codex prompt"
+    finally:
+        os.unlink(log_path)
+        os.unlink(stream_path)
+    print("PASS: test_codex_prompt_precedes_trace_and_stream_prompts")
+
+
 def test_redacted_prompt_placeholders_are_rejected():
     """Prompt validation must not accept redaction markers in any common case."""
     for prompt in ("[REDACTED]", " [redacted] ", "<REDACTED>", "Redacted"):
         assert not extract_metrics._is_real_prompt(prompt), prompt
     assert extract_metrics._is_real_prompt("Explain why this metric is missing")
     print("PASS: test_redacted_prompt_placeholders_are_rejected")
+
+
+def test_prompt_file_errors_and_real_prompt_precedence():
+    """Prompt-file failures preserve the row, and real telemetry wins."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        missing_path = os.path.join(tmp_dir, "missing-prompt.txt")
+        invalid_path = os.path.join(tmp_dir, "invalid-prompt.txt")
+        with open(invalid_path, "wb") as prompt_file:
+            prompt_file.write(b"\xff\xfe")
+
+        for prompt_path in (missing_path, tmp_dir, invalid_path):
+            row = {"prompt": ""}
+            result = extract_metrics.enrich_from_prompt_file(row, prompt_path)
+            assert result is row
+            assert row == {"prompt": ""}, prompt_path
+
+        valid_path = os.path.join(tmp_dir, "valid-prompt.txt")
+        with open(valid_path, "w", encoding="utf-8") as prompt_file:
+            prompt_file.write("prompt-file fallback")
+        row = {"prompt": "real telemetry prompt"}
+        extract_metrics.enrich_from_prompt_file(row, valid_path)
+        assert row["prompt"] == "real telemetry prompt"
+    print("PASS: test_prompt_file_errors_and_real_prompt_precedence")
 
 
 if __name__ == "__main__":
@@ -747,6 +841,9 @@ if __name__ == "__main__":
     test_trace_accumulator_multi_batch()
     test_trace_accumulator_prompt_ordering()
     test_stream_log_fallback_when_traces_zero()
+    test_claude_trace_prompt_precedes_stream_prompts()
     test_codex_metrics_identity_and_cumulative_snapshots()
+    test_codex_prompt_precedes_trace_and_stream_prompts()
     test_redacted_prompt_placeholders_are_rejected()
+    test_prompt_file_errors_and_real_prompt_precedence()
     print("\nAll tests passed.")
