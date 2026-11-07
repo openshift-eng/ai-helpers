@@ -1,0 +1,5 @@
+# case-11: reconcile — open bug for a different release -> create
+expected_actions:
+- {deployment: etcd-operator, action: create}
+expected_create_count: 1
+notes: Open bug is for a different release (5.0); file a new bug for 5.1.

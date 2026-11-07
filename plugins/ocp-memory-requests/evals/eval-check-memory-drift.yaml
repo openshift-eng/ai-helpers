@@ -1,0 +1,224 @@
+name: check-memory-drift-eval
+description: >
+  Evaluate ocp-memory-requests:check-memory-drift decisions — release resolution,
+  candidate handling, the manifest "still ships" check, and reconciliation with an
+  existing OCPBUGS store — against a mocked bq output and a mocked Jira. The drift
+  math itself is covered by the scripts' unit tests, not here. No live BigQuery or Jira.
+skill: ocp-memory-requests:check-memory-drift
+
+execution:
+  mode: case
+  arguments: "{command_args?}"
+  timeout: 600
+  max_budget_usd: 2.0
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/ocp-memory-requests
+    - plugins/bigquery-ci-data
+  system_prompt: |
+    You are running the ocp-memory-requests:check-memory-drift skill against a
+    MOCKED environment. Do NOT call BigQuery, `bq`, or any real Jira/MCP tool, and
+    do not create real issues.
+
+    The current working directory contains:
+      - input.yaml — run parameters and mocked state:
+          command_args:      the invocation arguments for this run.
+          devel_release:     the current development release (for release resolution).
+          manifests_present: deployments that ship in the release (for step 4).
+          preexisting_bugs:  the mocked OCPBUGS store — each {deployment, namespace,
+                             affected_version, status, labels, memory_drift_key}.
+      - usage.json — the mocked output of queries/singleton-usage.sql; use it in
+        place of running bq.
+
+    Run the skill's real pipeline on this fixture:
+      1. Resolve the release from command_args / devel_release.
+      2. Instead of bq, feed usage.json to the skill's selector:
+           python3 <skill-dir>/scripts/select-candidates.py \
+             --threshold-pct <T> --min-runs <M> < usage.json
+      3. For each candidate do step 4 (is it in manifests_present?) and step 5
+         (reconcile against preexisting_bugs by EXACT memory-drift-key) yourself.
+      4. For each candidate you would act on, render the bug with
+           python3 <skill-dir>/scripts/render-bug.py --release <R> --window-days <W>
+         piping the candidate in.
+
+    "Filing"/"updating" Jira is mocked — record what you WOULD do in result.json.
+
+    Write result.json (valid JSON, no code fences):
+      - release: string
+      - window_days: int
+      - candidates: the select-candidates.py output, verbatim (array)
+      - skipped: [{deployment, reason}]
+      - actions: one entry per candidate that passed step 4 —
+          {action, deployment, namespace, key, summary, labels,
+           recommended_mb, recommended_mi, description}
+        action is "create" (new bug), "update" (existing open bug, materially
+        different value), "leave" (existing open bug, no material change), or
+        "dry-run" (dry_run mode — no write).
+
+permissions:
+  allow:
+    - "Skill"
+    - "Bash"
+    - "Read"
+    - "Write"
+  deny:
+    - "mcp__*"
+    - "WebFetch"
+    - "WebSearch"
+
+mlflow:
+  experiment: check-memory-drift-eval
+
+dataset:
+  path: cases/check-memory-drift
+  schema: |
+    Each case directory contains:
+    - input.yaml: command_args, devel_release, manifests_present, preexisting_bugs.
+    - usage.json: mocked bq output — array of {Namespace, Deployment, job_runs,
+      p90_start_mb, p50_start_mb, request_mb, request_mb_min, request_mb_max}.
+    - annotations.yaml: expected outcomes; every field is OPTIONAL (a judge is a
+      no-op when its field is absent):
+      - expected_release, expected_window_days
+      - expected_candidates: [{deployment, direction?, recommended_mb?, var?}]
+      - expected_not_candidates: [deployment]
+      - expected_skipped: [{deployment, reason_contains}]
+      - expected_actions: [{deployment, action}]   # create|update|leave|dry-run
+      - expected_create_count: int
+      - expected_bug_labels: labels every created bug must include
+      - expected_description_contains: substrings every created bug must contain
+      - notes: free text
+
+outputs:
+  - path: "result.json"
+    schema: |
+      JSON object: release, window_days, candidates[], skipped[], actions[].
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_json
+    description: result.json exists, parses, and has the core arrays
+    check: |
+      import json
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("result.json")}
+      if not rf:
+          return (False, "No result.json found")
+      try:
+          data = json.loads(list(rf.values())[0])
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      for f in ["candidates", "skipped", "actions"]:
+          if f in data and not isinstance(data[f], list):
+              return (False, f"{f} must be an array")
+      return (True, "valid result json")
+
+  - name: parameters_scoped
+    description: Run analyzed the expected release and window
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("result.json")}
+      if not rf:
+          return (False, "No result.json found")
+      data = json.loads(list(rf.values())[0])
+      if "expected_release" in ann and str(data.get("release")) != str(ann["expected_release"]):
+          return (False, f"release {data.get('release')} != {ann['expected_release']}")
+      if "expected_window_days" in ann and int(data.get("window_days", -1)) != int(ann["expected_window_days"]):
+          return (False, f"window {data.get('window_days')} != {ann['expected_window_days']}")
+      return (True, "scoped ok")
+
+  - name: candidates_correct
+    description: Candidate set, direction and recommendation match
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_candidates" not in ann and "expected_not_candidates" not in ann:
+          return (True, "n/a")
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("result.json")}
+      if not rf:
+          return (False, "No result.json found")
+      data = json.loads(list(rf.values())[0])
+      by = {c.get("deployment"): c for c in data.get("candidates", [])}
+      for wc in ann.get("expected_candidates", []):
+          dep = wc["deployment"]
+          if dep not in by:
+              return (False, f"{dep} missing from candidates {sorted(by)}")
+          got = by[dep]
+          if "direction" in wc and got.get("direction") != wc["direction"]:
+              return (False, f"{dep}: direction {got.get('direction')} != {wc['direction']}")
+          if "recommended_mb" in wc and float(got.get("recommended_mb", -1)) != float(wc["recommended_mb"]):
+              return (False, f"{dep}: recommended {got.get('recommended_mb')} != {wc['recommended_mb']}")
+          if "var" in wc and bool(got.get("var")) != bool(wc["var"]):
+              return (False, f"{dep}: var {got.get('var')} != {wc['var']}")
+      for dep in ann.get("expected_not_candidates", []):
+          if dep in by:
+              return (False, f"{dep} must NOT be a candidate")
+      return (True, f"candidates={sorted(by)}")
+
+  - name: skips_correct
+    description: Deployments absent from manifests are skipped with the right reason
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_skipped" not in ann:
+          return (True, "n/a")
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("result.json")}
+      if not rf:
+          return (False, "No result.json found")
+      data = json.loads(list(rf.values())[0])
+      skipped = {s.get("deployment"): str(s.get("reason", "")).lower() for s in data.get("skipped", [])}
+      for ws in ann["expected_skipped"]:
+          dep = ws["deployment"]
+          if dep not in skipped:
+              return (False, f"{dep} not in skip list {sorted(skipped)}")
+          rc = str(ws.get("reason_contains", "")).lower()
+          if rc and rc not in skipped[dep]:
+              return (False, f"{dep} reason {skipped[dep]!r} missing {rc!r}")
+      return (True, f"skipped={sorted(skipped)}")
+
+  - name: actions_correct
+    description: File/update/leave/dry-run decisions and created-bug content match
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      keys = ("expected_actions", "expected_create_count", "expected_bug_labels",
+              "expected_description_contains")
+      if not any(k in ann for k in keys):
+          return (True, "n/a")
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("result.json")}
+      if not rf:
+          return (False, "No result.json found")
+      data = json.loads(list(rf.values())[0])
+      actions = data.get("actions", [])
+      by = {a.get("deployment"): a for a in actions}
+      for ea in ann.get("expected_actions", []):
+          dep, act = ea["deployment"], ea["action"]
+          if dep not in by:
+              return (False, f"{dep} has no action {sorted(by)}")
+          if by[dep].get("action") != act:
+              return (False, f"{dep}: action {by[dep].get('action')} != {act}")
+      creates = [a for a in actions if a.get("action") == "create"]
+      if "expected_create_count" in ann and len(creates) != int(ann["expected_create_count"]):
+          return (False, f"{len(creates)} creates != {ann['expected_create_count']}")
+      if "expected_bug_labels" in ann:
+          for a in creates:
+              missing = set(ann["expected_bug_labels"]) - set(a.get("labels", []))
+              if missing:
+                  return (False, f"{a.get('deployment')} missing labels {missing}")
+      if "expected_description_contains" in ann:
+          blob = json.dumps(creates).lower()
+          for sub in ann["expected_description_contains"]:
+              if str(sub).lower() not in blob:
+                  return (False, f"created bugs missing {sub!r}")
+      return (True, f"{len(creates)} create(s)")

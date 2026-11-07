@@ -586,6 +586,20 @@
         "pr-triage",
         "team-tools"
       ]
+    },
+    {
+      "name": "ocp-memory-requests",
+      "source": "./plugins/ocp-memory-requests",
+      "description": "Keep OpenShift control-plane operator memory requests accurate by detecting drift from observed usage and filing agent-ready OCPBUGS fixes",
+      "version": "0.0.3",
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "control-plane",
+        "memory-requests",
+        "operators",
+        "chai"
+      ]
     }
   ]
 }

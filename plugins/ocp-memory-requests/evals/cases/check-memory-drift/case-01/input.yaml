@@ -1,0 +1,6 @@
+# case-01: default release resolution
+command_args: ''
+devel_release: '5.1'
+manifests_present:
+- marketplace-operator
+preexisting_bugs: []
