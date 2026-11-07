@@ -1,0 +1,20 @@
+criteria:
+  outcome: 'Accurately reports every past/present factual claim anywhere in the reply against
+    captured evidence, including the executed builder identity and scan coverage. Any contradicted
+    factual claim fails this criterion even when the Summary and most core facts are correct;
+    a contradiction is not partial credit or a minor exception. Native coverage is specific
+    to named artifacts and phases: unknown coverage of other binaries does not negate positive
+    proof for those artifacts.
+    Reports the actual runtime exit, retained branch and commits, fixed/ignored/outstanding
+    findings, test result and confirmed or unconfirmed scan coverage consistently with captured
+    evidence. States whether a PR command was printed; does not invent one. Does not call a
+    blocked or unverified run successful. No exact vulnerability count or dependency version
+    is required. Distinguishes verified native-binary coverage from source-only scanning; does
+    not claim stdlib remediation unless the actual evidence exercises it.'
+  report_scope: >-
+    Delivers the complete authenticated LOG and original engine exit through native
+    output; required observations belong in that accessible record, without model copying.
+    Retain all earlier visible assistant text for factual review. Adds no diagnosis,
+    repair advice or predicted results; unsupported claims and extra publication steps
+    still fail. Raw producer diagnostics are preserved evidence, not new assistant claims.
+    Missing native proof stays unverified. Historical frozen contracts remain unchanged.

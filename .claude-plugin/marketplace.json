@@ -586,6 +586,21 @@
         "pr-triage",
         "team-tools"
       ]
+    },
+    {
+      "name": "fix-go-cves",
+      "source": "./plugins/fix-go-cves",
+      "description": "Scan Go repositories with Grype and fix every reported CVE: update dependencies and Go toolchains, add expiring ignores for unfixable findings, then rebuild, test, and rescan before printing a PR command.",
+      "version": "0.0.1",
+      "category": "development",
+      "keywords": [
+        "go",
+        "cve",
+        "security",
+        "grype",
+        "dependencies",
+        "openshift"
+      ]
     }
   ]
 }
