@@ -13,8 +13,8 @@ created regularly as adoption grows
 ([ai-helpers PR #532](https://github.com/openshift-eng/ai-helpers/pull/532)
 adds a skill to scaffold new agents).
 
-Each agent uses `agentic-ci run --backend local` to execute Claude Code
-with automatic OTEL telemetry collection. The
+Each agent uses `agentic-ci run --backend local` to execute Claude Code or
+Codex with automatic OTEL telemetry collection. The
 [prow-agent](https://github.com/openshift-eng/ai-helpers/tree/main/plugins/prow-agent)
 plugin provides `extract_metrics.py` for producing BigQuery autodl from
 the collected OTEL data.
@@ -132,6 +132,19 @@ agentic-ci):
 
 Distributed trace spans covering the full session lifecycle.
 
+Codex emits `codex.*` log events for conversation identity, prompts, tool
+decisions, and completed responses. agentic-ci adds cumulative
+`agentic_ci.codex.token.usage` and `agentic_ci.codex.cost.usage` metrics from
+those observed responses. The extractor never estimates Codex cost from a
+price table. Cumulative snapshots with the same OTEL start time are replaced by
+their latest value; resumed invocations have a new start time and remain
+additive.
+
+Codex can redact prompt text in OTEL. Callers can pass the initial harness
+prompt through `--prompt-file`; the extractor uses it only when telemetry omits
+or redacts the prompt. It reads at most the first 500 characters, matching the
+existing autodl field limit.
+
 ### CI Step Lifecycle
 
 ```bash
@@ -165,7 +178,10 @@ python3 "${EXTRACT_METRICS}" "${OTEL_LOG}" \
 
 `extract_metrics.py` parses the OTEL JSONL and produces an autodl JSON
 file for the `claude_session_metrics` BigQuery table. Cost, tokens, tool
-usage, and timing come from OTEL metrics and logs.
+usage, and timing come from OTEL metrics and logs. For Codex, `model`, turns,
+and token/cache counts describe the primary (highest-cost) model, while
+`total_cost_usd` is the full observed session cost across primary and auxiliary
+models, matching agentic-ci's console TOTAL.
 
 ### Raw OTEL JSONL as Artifact
 

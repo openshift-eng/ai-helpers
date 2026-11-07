@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tempfile
 
+import extract_metrics
+
 SCRIPT = os.path.join(os.path.dirname(__file__), "extract_metrics.py")
 TESTDATA = os.path.join(os.path.dirname(__file__), "testdata")
 
@@ -24,6 +26,65 @@ def run_script(log_file, output_file=None, extra_args=None):
 def load_autodl(path):
     with open(path) as f:
         return json.load(f)
+
+
+def otel_attributes(values):
+    """Build sanitized OTLP attributes for synthetic fixtures."""
+    result = []
+    for key, value in values.items():
+        value_key = "intValue" if isinstance(value, int) else "stringValue"
+        result.append({"key": key, "value": {value_key: value}})
+    return result
+
+
+def codex_metric_record(start, timestamp, main_cost, tokens, auxiliary_cost=0):
+    """Build one cumulative agentic-ci Codex metric snapshot."""
+    cost_points = [{
+        "asDouble": main_cost,
+        "startTimeUnixNano": start,
+        "timeUnixNano": timestamp,
+        "attributes": otel_attributes({"model": "gpt-main"}),
+    }]
+    if auxiliary_cost:
+        cost_points.append({
+            "asDouble": auxiliary_cost,
+            "startTimeUnixNano": start,
+            "timeUnixNano": timestamp,
+            "attributes": otel_attributes({"model": "gpt-auxiliary"}),
+        })
+    token_points = []
+    for token_type, value in tokens.items():
+        token_points.append({
+            "asInt": value,
+            "startTimeUnixNano": start,
+            "timeUnixNano": timestamp,
+            "attributes": otel_attributes({"model": "gpt-main", "type": token_type}),
+        })
+    return {"path": "/v1/metrics", "payload": {
+        "resourceMetrics": [{"scopeMetrics": [{"metrics": [
+            {"name": "agentic_ci.codex.cost.usage", "sum": {
+                "aggregationTemporality": 2, "isMonotonic": True,
+                "dataPoints": cost_points,
+            }},
+            {"name": "agentic_ci.codex.token.usage", "sum": {
+                "aggregationTemporality": 2, "isMonotonic": True,
+                "dataPoints": token_points,
+            }},
+        ]}]}],
+    }}
+
+
+def codex_log_record(timestamp, event, model, session, **extra):
+    """Build one sanitized Codex OTEL log record."""
+    attrs = {
+        "event.timestamp": timestamp,
+        "event.name": event,
+        "model": model,
+        "conversation.id": session,
+        "app.version": "0.164.0",
+    }
+    attrs.update(extra)
+    return {"attributes": otel_attributes(attrs)}
 
 
 def test_otel_input():
@@ -590,6 +651,90 @@ def test_stream_log_fallback_when_traces_zero():
         os.unlink(out_path)
 
 
+def test_codex_metrics_identity_and_cumulative_snapshots():
+    """Codex uses observed cost, primary identity, and de-duplicated snapshots."""
+    records = [
+        # Two cumulative snapshots for one invocation: only the later values count.
+        codex_metric_record("100", "200", 1.0, {
+            "input": 100, "cacheRead": 900, "cacheCreation": 100, "output": 50,
+        }, auxiliary_cost=0.10),
+        codex_metric_record("100", "300", 1.5, {
+            "input": 150, "cacheRead": 1350, "cacheCreation": 150, "output": 80,
+        }, auxiliary_cost=0.25),
+        # A resumed invocation has a distinct start time and remains additive.
+        codex_metric_record("400", "500", 0.5, {
+            "input": 50, "cacheRead": 450, "cacheCreation": 50, "output": 20,
+        }),
+        {"path": "/v1/logs", "payload": {"resourceLogs": [{"scopeLogs": [{
+            "logRecords": [
+                # Auxiliary activity appears first and must not supply row identity/prompt.
+                codex_log_record("2026-11-06T00:00:00Z", "codex.conversation_starts",
+                                 "gpt-auxiliary", "aux-session"),
+                codex_log_record("2026-11-06T00:00:01Z", "codex.user_prompt",
+                                 "gpt-auxiliary", "aux-session", prompt="auxiliary prompt"),
+                codex_log_record("2026-11-06T00:00:02Z", "codex.conversation_starts",
+                                 "gpt-main", "main-session"),
+                codex_log_record("2026-11-06T00:00:03Z", "codex.user_prompt",
+                                 "gpt-main", "main-session", prompt="[REDACTED]"),
+                codex_log_record("2026-11-06T00:00:04Z", "codex.turn_ttft",
+                                 "gpt-main", "main-session", duration_ms=1250),
+                codex_log_record("2026-11-06T00:00:05Z", "codex.sse_event",
+                                 "gpt-main", "main-session",
+                                 **{"event.kind": "response.completed"}),
+                codex_log_record("2026-11-06T00:00:06Z", "codex.sse_event",
+                                 "gpt-main", "main-session",
+                                 **{"event.kind": "response.completed"}),
+                codex_log_record("2026-11-06T00:00:07Z", "codex.tool_decision",
+                                 "gpt-main", "main-session", tool_name="Shell"),
+            ],
+        }]}]}},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in records:
+            tmp.write(json.dumps(record) + "\n")
+        log_path = tmp.name
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    with tempfile.NamedTemporaryFile(mode="w", suffix="-prompt.txt", delete=False) as tmp:
+        tmp.write("Fix the metrics parser")
+        prompt_path = tmp.name
+    try:
+        redacted = run_script(log_path, out_path)
+        assert redacted.returncode != 0, "A redacted prompt must not pass validation"
+        assert load_autodl(out_path)["rows"][0]["prompt"] == ""
+        result = run_script(log_path, out_path, extra_args=["--prompt-file", prompt_path])
+        assert result.returncode == 0, f"Script failed: {result.stderr}"
+        row = load_autodl(out_path)["rows"][0]
+        assert row["model"] == "gpt-main"
+        assert row["session_id"] == "main-session"
+        assert row["claude_code_version"] == "0.164.0"
+        assert row["prompt"] == "Fix the metrics parser"
+        assert row["num_turns"] == "2"
+        assert row["ttft_ms"] == "1250"
+        # Session total includes the observed auxiliary-model cost. No prices guessed.
+        assert row["total_cost_usd"] == "2.250000"
+        # Primary-model tokens add the final first-invocation snapshot and resume once.
+        assert row["input_tokens"] == "200"
+        assert row["output_tokens"] == "100"
+        assert row["cache_read_input_tokens"] == "1800"
+        assert row["cache_creation_input_tokens"] == "200"
+        assert row["cache_hit_rate_pct"] == "81.8"
+        assert row["total_tool_calls"] == "1"
+        print("PASS: test_codex_metrics_identity_and_cumulative_snapshots")
+    finally:
+        os.unlink(log_path)
+        os.unlink(out_path)
+        os.unlink(prompt_path)
+
+
+def test_redacted_prompt_placeholders_are_rejected():
+    """Prompt validation must not accept redaction markers in any common case."""
+    for prompt in ("[REDACTED]", " [redacted] ", "<REDACTED>", "Redacted"):
+        assert not extract_metrics._is_real_prompt(prompt), prompt
+    assert extract_metrics._is_real_prompt("Explain why this metric is missing")
+    print("PASS: test_redacted_prompt_placeholders_are_rejected")
+
+
 if __name__ == "__main__":
     test_otel_input()
     test_otel_with_stream_enrichment()
@@ -602,4 +747,6 @@ if __name__ == "__main__":
     test_trace_accumulator_multi_batch()
     test_trace_accumulator_prompt_ordering()
     test_stream_log_fallback_when_traces_zero()
+    test_codex_metrics_identity_and_cumulative_snapshots()
+    test_redacted_prompt_placeholders_are_rejected()
     print("\nAll tests passed.")

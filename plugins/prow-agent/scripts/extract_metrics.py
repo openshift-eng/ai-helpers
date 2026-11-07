@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
-"""Extract Claude session metrics from OTEL JSONL and produce an autodl JSON file for BigQuery.
+"""Extract agent session metrics from OTEL JSONL and produce autodl JSON.
 
 Parses the OTEL JSONL output produced by agentic-ci's OTLP collector.
-Identity fields (session_id, model, etc.) can be supplemented from a
-stream-json log via --stream-log.
+Claude Code and Codex telemetry emitted by agentic-ci are supported. Identity
+fields can also be supplemented from a Claude stream-json log via --stream-log.
 
 Usage:
     python3 extract_metrics.py claude-otel.jsonl [output-autodl.json]
     python3 extract_metrics.py claude-otel.jsonl [output-autodl.json] --stream-log claude-output.log
+    python3 extract_metrics.py claude-otel.jsonl [output-autodl.json] --prompt-file initial-prompt.txt
 """
 
 import json
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+
+
+REDACTED_PROMPTS = {"[redacted]", "<redacted>", "redacted"}
+
+
+def _is_real_prompt(prompt):
+    """Return whether a prompt is usable rather than a telemetry placeholder."""
+    return bool(prompt and prompt.strip().casefold() not in REDACTED_PROMPTS)
 
 
 def _parse_span_attrs(span):
@@ -26,6 +35,142 @@ def _parse_span_attrs(span):
         if v is not None:
             attrs[key] = v
     return attrs
+
+
+def _attribute_value(value):
+    """Return the scalar value from an OTLP AnyValue."""
+    if not isinstance(value, dict):
+        return None
+    for key in ("stringValue", "intValue", "doubleValue", "boolValue"):
+        if key in value:
+            return value[key]
+    return None
+
+
+def _attributes(item):
+    """Extract OTLP attributes as a flat dict."""
+    attrs = {}
+    for attr in item.get("attributes", []):
+        key = attr.get("key")
+        if key:
+            attrs[key] = _attribute_value(attr.get("value"))
+    return attrs
+
+
+class MetricAccumulator:
+    """Accumulate OTLP points without double-counting cumulative snapshots.
+
+    Cumulative series share a startTimeUnixNano. Only their latest snapshot is
+    retained. A resumed/new invocation has a new start time and is additive.
+    Delta points and legacy points without temporality retain the historical
+    behavior of being summed.
+    """
+
+    def __init__(self):
+        self.totals = defaultdict(float)
+        self.cumulative = {}
+
+    def add(self, metric):
+        name = metric.get("name", "")
+        data = metric.get("sum", metric.get("gauge", metric.get("histogram", {})))
+        is_cumulative = "sum" in metric and data.get("aggregationTemporality") == 2
+        for point in data.get("dataPoints", []):
+            raw = point.get("asDouble", point.get("asInt"))
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                continue
+            attrs = _attributes(point)
+            attrs_key = tuple(sorted(attrs.items()))
+            series = (name, attrs_key)
+            if not is_cumulative:
+                self.totals[series] += value
+                continue
+            start = str(point.get("startTimeUnixNano", ""))
+            try:
+                timestamp = int(point.get("timeUnixNano", 0) or 0)
+            except (TypeError, ValueError):
+                timestamp = 0
+            key = (name, attrs_key, start)
+            previous = self.cumulative.get(key)
+            if previous is None or timestamp >= previous[0]:
+                self.cumulative[key] = (timestamp, value)
+
+    def values(self):
+        totals = self.totals.copy()
+        for (name, attrs_key, _start), (_timestamp, value) in self.cumulative.items():
+            totals[(name, attrs_key)] += value
+        return [
+            (name, dict(attrs_key), value)
+            for (name, attrs_key), value in totals.items()
+        ]
+
+
+class CodexLogAccumulator:
+    """Accumulate Codex identity and activity fields from OTEL log events."""
+
+    def __init__(self):
+        self.versions = {}
+        self.sessions = {}
+        self.prompts = []
+        self.turns = Counter()
+        self.ttft = []
+        self.api_duration_ms = 0
+        self.min_timestamp = None
+        self.max_timestamp = None
+
+    def add(self, attrs):
+        event = attrs.get("event.name", "")
+        model = str(attrs.get("model", ""))
+        session_id = str(attrs.get("conversation.id", ""))
+        timestamp = str(attrs.get("event.timestamp", ""))
+        if timestamp:
+            try:
+                parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                if self.min_timestamp is None or parsed < self.min_timestamp:
+                    self.min_timestamp = parsed
+                if self.max_timestamp is None or parsed > self.max_timestamp:
+                    self.max_timestamp = parsed
+            except ValueError:
+                pass
+        version = str(attrs.get("app.version", ""))
+        if model and version and model not in self.versions:
+            self.versions[model] = version
+        if model and session_id and model not in self.sessions:
+            self.sessions[model] = session_id
+        if event == "codex.user_prompt" and model:
+            prompt = str(attrs.get("prompt", ""))
+            if _is_real_prompt(prompt):
+                self.prompts.append((timestamp, model, session_id, prompt[:500]))
+        elif (event == "codex.sse_event"
+              and attrs.get("event.kind") == "response.completed" and model):
+            self.turns[model] += 1
+        elif event == "codex.turn_ttft" and model:
+            try:
+                self.ttft.append((timestamp, model, int(float(attrs.get("duration_ms", 0)))))
+            except (TypeError, ValueError):
+                pass
+        elif event == "codex.api_request":
+            try:
+                self.api_duration_ms += int(float(attrs.get("duration_ms", 0)))
+            except (TypeError, ValueError):
+                pass
+
+    def result(self, model):
+        prompts = sorted(prompt for prompt in self.prompts if prompt[1] == model)
+        ttft = sorted(item for item in self.ttft if item[1] == model)
+        duration_ms = 0
+        if self.min_timestamp is not None and self.max_timestamp is not None:
+            duration_ms = int((self.max_timestamp - self.min_timestamp).total_seconds() * 1000)
+        return {
+            "session_id": self.sessions.get(model, prompts[0][2] if prompts else ""),
+            "claude_code_version": self.versions.get(model, ""),
+            "prompt": prompts[0][3] if prompts else "",
+            "num_turns": self.turns.get(model, 0),
+            "ttft_ms": ttft[0][2] if ttft else 0,
+            "duration_api_ms": self.api_duration_ms,
+            "duration_ms": duration_ms,
+        }
 
 
 class TraceAccumulator:
@@ -141,12 +286,11 @@ def parse_otel(path):
         print("ERROR: empty OTEL log file", file=sys.stderr)
         sys.exit(1)
 
-    token_totals = defaultdict(float)
-    cost_totals = defaultdict(float)
-    active_time = defaultdict(float)
+    metrics = MetricAccumulator()
     api_requests = []
     tool_uses = []
     traces = TraceAccumulator()
+    codex_logs = CodexLogAccumulator()
 
     for rec in records:
         rpath = rec.get("path", "")
@@ -156,57 +300,73 @@ def parse_otel(path):
             for rm in payload.get("resourceMetrics", []):
                 for sm in rm.get("scopeMetrics", []):
                     for metric in sm.get("metrics", []):
-                        name = metric.get("name", "")
-                        data = metric.get("sum", metric.get("gauge", metric.get("histogram", {})))
-                        for dp in data.get("dataPoints", []):
-                            attrs = {
-                                a["key"]: a["value"].get(
-                                    "stringValue",
-                                    a["value"].get("intValue", a["value"].get("doubleValue")),
-                                )
-                                for a in dp.get("attributes", [])
-                            }
-                            value = dp.get("asDouble", dp.get("asInt", 0))
-
-                            if name == "claude_code.token.usage":
-                                model = attrs.get("model", "unknown")
-                                token_type = attrs.get("type", "unknown")
-                                token_totals[(model, token_type)] += value
-                            elif name == "claude_code.cost.usage":
-                                model = attrs.get("model", "unknown")
-                                cost_totals[model] += value
-                            elif name == "claude_code.active_time.total":
-                                time_type = attrs.get("type", "unknown")
-                                active_time[time_type] += value
+                        metrics.add(metric)
 
         elif "/v1/logs" in rpath:
             for rl in payload.get("resourceLogs", []):
                 for sl in rl.get("scopeLogs", []):
                     for lr in sl.get("logRecords", []):
-                        event_attrs = {}
-                        event_name = ""
-                        for a in lr.get("attributes", []):
-                            key = a["key"]
-                            val = a["value"]
-                            v = val.get("stringValue", val.get("intValue", val.get("doubleValue")))
-                            event_attrs[key] = v
-                            if key == "event.name":
-                                event_name = v
+                        event_attrs = _attributes(lr)
+                        event_name = event_attrs.get("event.name", "")
                         if event_name in ("api_request", "claude_code.api_request"):
                             api_requests.append(event_attrs)
-                        elif event_name == "tool_decision":
+                        elif event_name in ("tool_decision", "codex.tool_decision"):
                             tool = event_attrs.get("tool_name", "")
                             if tool:
                                 tool_uses.append(tool)
+                        if event_name.startswith("codex."):
+                            codex_logs.add(event_attrs)
 
         elif "/v1/traces" in rpath:
             traces.add(payload)
 
-    total_cost_usd = sum(cost_totals.values())
-    input_tokens = int(sum(v for (m, t), v in token_totals.items() if t == "input"))
-    output_tokens = int(sum(v for (m, t), v in token_totals.items() if t == "output"))
-    cache_read_tokens = int(sum(v for (m, t), v in token_totals.items() if t == "cacheRead"))
-    cache_creation_tokens = int(sum(v for (m, t), v in token_totals.items() if t == "cacheCreation"))
+    token_totals = defaultdict(float)
+    cost_totals = defaultdict(float)
+    active_time = defaultdict(float)
+    codex_token_totals = defaultdict(float)
+    codex_cost_totals = defaultdict(float)
+    for name, attrs, value in metrics.values():
+        model_name = attrs.get("model", "unknown")
+        token_type = attrs.get("type", "unknown")
+        if name == "claude_code.token.usage":
+            token_totals[(model_name, token_type)] += value
+        elif name == "claude_code.cost.usage":
+            cost_totals[model_name] += value
+        elif name == "claude_code.active_time.total":
+            active_time[token_type] += value
+        elif name in ("agentic_ci.codex.token.usage", "codex.token.usage"):
+            codex_token_totals[(model_name, token_type)] += value
+        elif name in ("agentic_ci.codex.cost.usage", "codex.cost.usage"):
+            codex_cost_totals[model_name] += value
+
+    is_codex = bool(codex_cost_totals or codex_token_totals)
+    if is_codex:
+        if codex_cost_totals:
+            model = max(codex_cost_totals, key=codex_cost_totals.get)
+        else:
+            token_by_model = defaultdict(float)
+            for (model_name, _token_type), value in codex_token_totals.items():
+                token_by_model[model_name] += value
+            model = max(token_by_model, key=token_by_model.get)
+        # One autodl row represents the primary Codex conversation. Token and
+        # turn counts are scoped to its model; total cost includes auxiliary
+        # models used by that conversation (matching agentic-ci's TOTAL).
+        total_cost_usd = sum(codex_cost_totals.values())
+        input_tokens = int(codex_token_totals[(model, "input")])
+        output_tokens = int(codex_token_totals[(model, "output")])
+        cache_read_tokens = int(codex_token_totals[(model, "cacheRead")])
+        cache_creation_tokens = int(codex_token_totals[(model, "cacheCreation")])
+    else:
+        total_cost_usd = sum(cost_totals.values())
+        input_tokens = int(sum(v for (_model, token_type), v in token_totals.items()
+                               if token_type == "input"))
+        output_tokens = int(sum(v for (_model, token_type), v in token_totals.items()
+                                if token_type == "output"))
+        cache_read_tokens = int(sum(v for (_model, token_type), v in token_totals.items()
+                                    if token_type == "cacheRead"))
+        cache_creation_tokens = int(sum(v for (_model, token_type), v in token_totals.items()
+                                        if token_type == "cacheCreation"))
+        model = max(cost_totals, key=cost_totals.get) if cost_totals else ""
 
     total_input = input_tokens + cache_read_tokens + cache_creation_tokens
     cache_hit_rate = (cache_read_tokens / total_input * 100) if total_input > 0 else 0
@@ -222,26 +382,30 @@ def parse_otel(path):
     total_tool_calls = sum(tool_counts.values())
 
     duration_api_s = active_time.get("api", 0)
-    model = max(cost_totals, key=cost_totals.get) if cost_totals else ""
     analyzed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     trace_data = traces.result()
+    codex_data = codex_logs.result(model) if is_codex else {}
     skills = trace_data.get("skills", [])
     skills_str = ",".join(dict.fromkeys(skills)) if skills else ""
 
     return {
-        "session_id": trace_data.get("session_id", ""),
+        "session_id": codex_data.get("session_id", "") or trace_data.get("session_id", ""),
         "model": model,
-        "claude_code_version": trace_data.get("claude_code_version", ""),
+        "claude_code_version": (codex_data.get("claude_code_version", "")
+                                or trace_data.get("claude_code_version", "")),
         "permission_mode": trace_data.get("permission_mode", ""),
         "entrypoint": "",
-        "prompt": trace_data.get("prompt", ""),
+        "prompt": codex_data.get("prompt", "") or trace_data.get("prompt", ""),
         "plugins_loaded": "",
         "analyzed_at": analyzed_at,
-        "duration_ms": str(trace_data.get("duration_ms", 0)),
-        "duration_api_ms": str(int(duration_api_s * 1000)),
-        "ttft_ms": str(trace_data.get("ttft_ms", 0)),
-        "num_turns": str(trace_data.get("num_turns", 0)),
+        "duration_ms": str(trace_data.get("duration_ms", 0)
+                           or codex_data.get("duration_ms", 0)),
+        "duration_api_ms": str(codex_data.get("duration_api_ms", 0)
+                               if is_codex else int(duration_api_s * 1000)),
+        "ttft_ms": str(codex_data.get("ttft_ms", 0) or trace_data.get("ttft_ms", 0)),
+        "num_turns": str(codex_data.get("num_turns", 0)
+                         if is_codex else trace_data.get("num_turns", 0)),
         "total_cost_usd": f"{total_cost_usd:.6f}",
         "input_tokens": str(input_tokens),
         "output_tokens": str(output_tokens),
@@ -366,6 +530,20 @@ def enrich_from_stream_log(row, stream_log_path):
     return row
 
 
+def enrich_from_prompt_file(row, prompt_path):
+    """Use the initial harness prompt when telemetry redacts or omits it."""
+    if _is_real_prompt(row.get("prompt", "")):
+        return row
+    try:
+        with open(prompt_path) as prompt_file:
+            prompt = prompt_file.read(501)
+    except (FileNotFoundError, OSError):
+        return row
+    if _is_real_prompt(prompt):
+        row["prompt"] = prompt[:500]
+    return row
+
+
 SCHEMA = {
     "session_id": "string",
     "model": "string",
@@ -413,6 +591,7 @@ def build_autodl(row):
 
 def main():
     stream_log = None
+    prompt_file = None
     args = list(sys.argv[1:])
 
     if "--stream-log" in args:
@@ -424,8 +603,18 @@ def main():
             print("ERROR: --stream-log requires a path argument", file=sys.stderr)
             sys.exit(2)
 
+    if "--prompt-file" in args:
+        idx = args.index("--prompt-file")
+        if idx + 1 < len(args):
+            prompt_file = args[idx + 1]
+            args = args[:idx] + args[idx + 2:]
+        else:
+            print("ERROR: --prompt-file requires a path argument", file=sys.stderr)
+            sys.exit(2)
+
     if not args:
-        print(f"Usage: {sys.argv[0]} <otel.jsonl> [output-autodl.json] [--stream-log <claude-output.log>]",
+        print(f"Usage: {sys.argv[0]} <otel.jsonl> [output-autodl.json] "
+              "[--stream-log <claude-output.log>] [--prompt-file <initial-prompt.txt>]",
               file=sys.stderr)
         sys.exit(2)
 
@@ -435,6 +624,10 @@ def main():
     row = parse_otel(log_path)
     if stream_log:
         row = enrich_from_stream_log(row, stream_log)
+    if prompt_file:
+        row = enrich_from_prompt_file(row, prompt_file)
+    if not _is_real_prompt(row.get("prompt", "")):
+        row["prompt"] = ""
 
     autodl = build_autodl(row)
 

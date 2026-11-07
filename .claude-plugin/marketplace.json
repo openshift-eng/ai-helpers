@@ -540,8 +540,8 @@
     {
       "name": "prow-agent",
       "source": "./plugins/prow-agent",
-      "description": "Utilities for Claude Code sessions running inside Prow CI jobs",
-      "version": "0.0.6",
+      "description": "Utilities for AI coding-agent sessions running inside Prow CI jobs",
+      "version": "0.0.7",
       "category": "ci",
       "keywords": [
         "prow",
