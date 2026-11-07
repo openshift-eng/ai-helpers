@@ -105,21 +105,22 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.109",
+      "version": "0.0.110",
       "category": "ci",
       "keywords": [
         "prow",
         "ci",
         "openshift-ci",
         "test-failures",
-        "job-analysis"
+        "job-analysis",
+        "mcp"
       ]
     },
     {
       "name": "ci-extras",
       "source": "./plugins/ci-extras",
-      "description": "MCP server and extended tooling for OpenShift CI data access",
-      "version": "0.3.0",
+      "description": "Extended tooling for OpenShift CI data access, using the openshift-ci-mcp server bundled with the ci plugin",
+      "version": "0.4.0",
       "category": "ci",
       "keywords": [
         "openshift-ci",
@@ -515,7 +516,7 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.40",
+      "version": "1.1.41",
       "category": "bundle",
       "keywords": [
         "openshift",

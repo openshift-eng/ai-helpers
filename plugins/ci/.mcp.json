@@ -3,6 +3,13 @@
     "ship-status": {
       "type": "http",
       "url": "https://mcp.ship-status.ci.openshift.org/mcp"
+    },
+    "openshift-ci-mcp": {
+      "command": "go",
+      "args": [
+        "run",
+        "github.com/openshift-eng/openshift-ci-mcp/cmd/openshift-ci-mcp@v0.6.0"
+      ]
     }
   }
 }
