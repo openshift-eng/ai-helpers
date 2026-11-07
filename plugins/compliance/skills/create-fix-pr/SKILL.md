@@ -325,6 +325,10 @@ comm -23 <(sort "${WORK_CVE}/branch-files.txt") <(sort "${PHASE5_FILES}")
 
 IF that reports any path outside `PHASE5_FILES` → stop; do not push or open/update the PR. **Always return `status: failed` (`phase5_files_mismatch`) immediately, for manual follow-up. Never gated by `AUTO_APPROVE` and never prompt.**
 
+**Vendor changes go in their own commit.** IF `PHASE5_FILES` includes any `vendor/` path → commit those paths separately from everything else, so a reviewer can evaluate the actual change (dependency bump, source fix, whatever Phase 5 did) independently of the vendor diff. Commit the non-`vendor/` paths first, using the **Commit message** rules below; then commit the `vendor/` paths with a short subject and no body — the repo's own convention when detected (e.g. `UPSTREAM: <drop>: vendor`), or a plain `vendor: sync vendor/ for <CVE_ID>` otherwise. Both commits land on the same `BRANCH_NAME` before Step 3c's push.
+
+IF `PHASE5_FILES` has no `vendor/` paths → commit everything together as usual; no split needed.
+
 **Commit message.** Match the **actual** Phase 5 change, not a canned module bump. Use the repo's own convention when detectable — e.g. many OpenShift repos expect `UPSTREAM: <upstream-pr-or-carry>: <subject>`:
 
 ```bash
@@ -356,6 +360,8 @@ Body: one or two sentences describing what changed and why. Include `Fixes: <SOU
 ```bash
 git -C "${REPO_DIR}" commit --signoff -m "${COMMIT_SUBJECT}" -m "${COMMIT_BODY}"
 ```
+
+This is the only commit when `PHASE5_FILES` has no `vendor/` paths, or the first of two when it does (continue with the vendor commit above).
 
 Sign off (DCO) by default — most upstream/downstream OpenShift-style repos require it and a missing sign-off is a common, avoidable PR-check failure. Never use `--no-verify` or skip hooks unless the user explicitly asks.
 
@@ -520,3 +526,4 @@ Called from **Phase 6** of the [analyze-cve](../analyze-cve/SKILL.md) skill afte
 - Never include secrets in commit messages, PR text, or Jira comments
 - Stop immediately on embargo
 - Direct CVE mode must still produce a PR
+- Whenever `PHASE5_FILES` includes `vendor/` paths, never mix them into the same commit as the rest of the change — always split per Step 3b so the actual change stays independently reviewable from the vendor diff
