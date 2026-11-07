@@ -17,6 +17,10 @@ rules:
       - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '✅ Claude Code' 'Claude finished your task'"
       - "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-precommit.sh"
       - "${CLAUDE_PLUGIN_ROOT}/hooks/stop-hook.sh"
+      - "${CLAUDE_PLUGIN_ROOT}/hooks/block-module-ops.sh"
+      - "${CLAUDE_PLUGIN_ROOT}/hooks/block-push.sh"
+      - "${CLAUDE_PLUGIN_ROOT}/hooks/block-vendor-edit.sh"
+      - "${CLAUDE_PLUGIN_ROOT}/hooks/block-prior-step-rm.sh"
       - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/start-collector.sh"
       - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop-collector.sh"
   settings-dangerous:
@@ -138,6 +142,8 @@ custom-rules:
 # Use exclude: [] to disable all excludes including defaults
 exclude:
   - ".work/**"
+  # Agent worktrees are independent checkouts, not this repository's sources.
+  - "**/.claude/worktrees/**"
   - "**/__pycache__/**"
   - "node_modules/**"
   - "**/template/**"
