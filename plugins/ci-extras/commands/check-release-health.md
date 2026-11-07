@@ -2,10 +2,10 @@
 description: Summarize the CI health of an OpenShift release using live data from the openshift-ci-mcp server
 argument-hint: <release version>
 allowed-tools:
-  - mcp__plugin_ci-extras_openshift-ci-mcp__get_release_health
-  - mcp__plugin_ci-extras_openshift-ci-mcp__get_payload_status
-  - mcp__plugin_ci-extras_openshift-ci-mcp__get_recent_test_failures
-  - mcp__plugin_ci-extras_openshift-ci-mcp__get_regressions
+  - mcp__plugin_ci_openshift-ci-mcp__get_release_health
+  - mcp__plugin_ci_openshift-ci-mcp__get_payload_status
+  - mcp__plugin_ci_openshift-ci-mcp__get_recent_test_failures
+  - mcp__plugin_ci_openshift-ci-mcp__get_regressions
 ---
 
 ## Name

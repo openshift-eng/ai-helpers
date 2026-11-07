@@ -20,11 +20,55 @@ Use this skill when you need to:
 
 ## Prerequisites
 
-1. **Network Access**: Must be able to reach the GCS web proxy
+1. **openshift-ci MCP server** (preferred when available): bundled with this plugin and
+   started with Go (see the ci plugin README for the Go version); the
+   `get_prow_artifact_content` tool needs v0.6.0 or newer. Runs on the private QE deck
+   (`qe-private-deck`) need `OPENSHIFT_CI_TOKEN` set to the output of `oc whoami -t` after
+   logging in to the app.ci cluster, in the shell Claude Code was started from (the server
+   inherits its environment); the public gcsweb steps cannot read them.
+2. **Network Access**: Without the MCP server, must be able to reach the GCS web proxy
    - Check: `curl -s -o /dev/null -w '%{http_code}' https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/`
-   - No authentication required
+   - No authentication required (public runs only)
 
 ## Implementation Steps
+
+### With the openshift-ci MCP Server
+
+When the `get_prow_artifact_content` tool is available, call it with:
+
+- `run_url`: the Prow job URL as given (Prow UI, gcsweb, or private QE deck URL)
+- `path`: `prowjob.json`
+- `head_lines`: `100000` and `max_bytes`: `1048576`, because the tool returns only the
+  last 200 lines by default and `prowjob.json` is pretty-printed JSON
+
+The `text` field of the result holds the file when `mode` is `head`, `truncated` is
+false, the text does not contain `[line clipped]` (the server clips lines over 4 KiB
+without setting `truncated`), and it parses as JSON. With the complete file, continue with
+Step 4. If the tool reports a 404, follow Case 2 below; a 401 means `OPENSHIFT_CI_TOKEN`
+is missing or expired.
+
+When the result is incomplete, or the tool is not available: for a private QE deck run,
+use the private download below; for any other run, use Steps 1 to 3. When the tool rejects
+the URL as not on a known deck (the server knows only the public and private QE decks),
+use Steps 1 to 3.
+
+### Private QE Deck Runs Without a Complete MCP Result
+
+Download the file from the private gcsweb host with `OPENSHIFT_CI_TOKEN`. Pass the header
+on stdin so the token stays out of the process list, send it only to that HTTPS host, and
+never print it. `<path>/<job-name>/<build-id>` is the part of the run URL after
+`qe-private-deck/` (in a `/view/gs/` or `/gcs/` URL) up to and including the build ID,
+without any query string, fragment, or trailing slash:
+
+```bash
+printf 'Authorization: Bearer %s\n' "$OPENSHIFT_CI_TOKEN" | curl -sS --fail -H @- \
+  "https://gcsweb-qe-private-deck-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/qe-private-deck/<path>/<job-name>/<build-id>/prowjob.json"
+```
+
+gcsweb answers a missing file with HTTP 200 and its own HTML page (title `GCS browser:`),
+so use the result only if it parses as JSON, then continue with Step 4. If the token is not
+set, the download fails, or the result is not JSON, report that the file could not be read
+and stop: Steps 1 to 3 cannot read private runs.
 
 ### Step 1: Parse the Prow Job URL
 
@@ -39,6 +83,10 @@ Extract everything after `/view/` to get the GCS reference:
 ```
 gs/<bucket>/<path>/<job-name>/<build-id>
 ```
+
+For a public gcsweb run URL
+(`https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/<bucket>/...`), take everything
+after `/gcs/`, drop any trailing slash, and prefix it with `gs/`.
 
 ### Step 2: Construct the GCS Web URL
 
@@ -102,7 +150,8 @@ From the full `prowjob.json`, extract and return the following fields:
 
 ### Case 1: Invalid Prow URL Format
 
-If the URL doesn't match the expected pattern `https://prow.ci.openshift.org/view/gs/...`:
+If the URL doesn't match `https://prow.ci.openshift.org/view/gs/...`, a public gcsweb run
+URL, or (with the openshift-ci MCP server or the token) a private QE deck URL:
 
 - Report the error to the user
 - Show the expected URL format
