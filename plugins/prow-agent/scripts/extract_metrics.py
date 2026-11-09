@@ -31,6 +31,12 @@ SUPPORTED_METRICS = {
     "agentic_ci.codex.token.usage",
     "agentic_ci.codex.cost.usage",
 }
+SESSION_USAGE_METRICS = {
+    "claude_code.token.usage": ("claude", "token"),
+    "claude_code.cost.usage": ("claude", "cost"),
+    "agentic_ci.codex.token.usage": ("codex", "token"),
+    "agentic_ci.codex.cost.usage": ("codex", "cost"),
+}
 
 
 def _is_real_prompt(prompt):
@@ -96,6 +102,20 @@ def _producer_key(value):
 def _normalized_model(value):
     """Use one join key for missing model attributes in metrics and logs."""
     return str(value or "unknown")
+
+
+def _primary_model(cost_totals, token_totals):
+    """Select by cost, then tokens, then a stable source/model tie-break."""
+    token_by_model = defaultdict(float)
+    for (source, model, _token_type), value in token_totals.items():
+        token_by_model[(source, model)] += value
+    candidates = cost_totals if cost_totals else token_by_model
+    if not candidates:
+        return "", ""
+    return max(
+        candidates,
+        key=lambda key: (candidates[key], token_by_model[key], key),
+    )
 
 
 def _aware_timestamp(value):
@@ -235,8 +255,12 @@ class CodexLogAccumulator:
             except (TypeError, ValueError, OverflowError):
                 pass
 
+    def total_turns(self):
+        """Return completed turns across every model in the logical session."""
+        return sum(self.turns.values())
+
     def result(self, model):
-        """Return accumulated identity and activity for the selected model."""
+        """Return identity and timing associated with the selected model."""
         prompts = sorted(
             (prompt for prompt in self.prompts if prompt[1] == model),
             key=lambda prompt: prompt[0],
@@ -261,7 +285,6 @@ class CodexLogAccumulator:
             "session_id": identity_value(2, 1),
             "claude_code_version": identity_value(3, 2),
             "prompt": prompt_event[4] if prompt_event else "",
-            "num_turns": self.turns.get(model, 0),
             "ttft_ms": ttft[0][2] if ttft else 0,
             "duration_api_ms": self.api_duration_ms,
             "duration_ms": duration_ms,
@@ -426,50 +449,37 @@ def parse_otel(path):
     token_totals = defaultdict(float)
     cost_totals = defaultdict(float)
     active_time = defaultdict(float)
-    codex_token_totals = defaultdict(float)
-    codex_cost_totals = defaultdict(float)
     for name, attrs, value in metrics.values():
         model_name = _normalized_model(attrs.get("model"))
         token_type = attrs.get("type", "unknown")
-        if name == "claude_code.token.usage":
-            token_totals[(model_name, token_type)] += value
-        elif name == "claude_code.cost.usage":
-            cost_totals[model_name] += value
+        usage_metric = SESSION_USAGE_METRICS.get(name)
+        if usage_metric:
+            source, usage_type = usage_metric
+            if usage_type == "token":
+                token_totals[(source, model_name, token_type)] += value
+            else:
+                cost_totals[(source, model_name)] += value
         elif name == "claude_code.active_time.total":
             active_time[token_type] += value
-        elif name == "agentic_ci.codex.token.usage":
-            codex_token_totals[(model_name, token_type)] += value
-        elif name == "agentic_ci.codex.cost.usage":
-            codex_cost_totals[model_name] += value
 
-    is_codex = bool(codex_cost_totals or codex_token_totals)
-    if is_codex:
-        if codex_cost_totals:
-            model = max(codex_cost_totals, key=codex_cost_totals.get)
-        else:
-            token_by_model = defaultdict(float)
-            for (model_name, _token_type), value in codex_token_totals.items():
-                token_by_model[model_name] += value
-            model = max(token_by_model, key=token_by_model.get)
-        # One autodl row represents the primary Codex conversation. Token and
-        # turn counts are scoped to its model; total cost includes auxiliary
-        # models used by that conversation (matching agentic-ci's TOTAL).
-        total_cost_usd = sum(codex_cost_totals.values())
-        input_tokens = int(codex_token_totals[(model, "input")])
-        output_tokens = int(codex_token_totals[(model, "output")])
-        cache_read_tokens = int(codex_token_totals[(model, "cacheRead")])
-        cache_creation_tokens = int(codex_token_totals[(model, "cacheCreation")])
-    else:
-        total_cost_usd = sum(cost_totals.values())
-        input_tokens = int(sum(v for (_model, token_type), v in token_totals.items()
-                               if token_type == "input"))
-        output_tokens = int(sum(v for (_model, token_type), v in token_totals.items()
-                                if token_type == "output"))
-        cache_read_tokens = int(sum(v for (_model, token_type), v in token_totals.items()
-                                    if token_type == "cacheRead"))
-        cache_creation_tokens = int(sum(v for (_model, token_type), v in token_totals.items()
-                                        if token_type == "cacheCreation"))
-        model = max(cost_totals, key=cost_totals.get) if cost_totals else ""
+    primary_source, model = _primary_model(cost_totals, token_totals)
+    total_cost_usd = sum(cost_totals.values())
+    input_tokens = int(sum(
+        value for (_source, _model, token_type), value in token_totals.items()
+        if token_type == "input"
+    ))
+    output_tokens = int(sum(
+        value for (_source, _model, token_type), value in token_totals.items()
+        if token_type == "output"
+    ))
+    cache_read_tokens = int(sum(
+        value for (_source, _model, token_type), value in token_totals.items()
+        if token_type == "cacheRead"
+    ))
+    cache_creation_tokens = int(sum(
+        value for (_source, _model, token_type), value in token_totals.items()
+        if token_type == "cacheCreation"
+    ))
 
     total_input = input_tokens + cache_read_tokens + cache_creation_tokens
     cache_hit_rate = (cache_read_tokens / total_input * 100) if total_input > 0 else 0
@@ -488,7 +498,8 @@ def parse_otel(path):
     analyzed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     trace_data = traces.result()
-    codex_data = codex_logs.result(model) if is_codex else {}
+    primary_is_codex = primary_source == "codex"
+    codex_data = codex_logs.result(model) if primary_is_codex else {}
     codex_prompt = codex_data.get("prompt", "")
     trace_prompt = trace_data.get("prompt", "")
     prompt = (codex_prompt if _is_real_prompt(codex_prompt)
@@ -509,10 +520,9 @@ def parse_otel(path):
         "duration_ms": str(trace_data.get("duration_ms", 0)
                            or codex_data.get("duration_ms", 0)),
         "duration_api_ms": str(codex_data.get("duration_api_ms", 0)
-                               if is_codex else int(duration_api_s * 1000)),
+                               if primary_is_codex else int(duration_api_s * 1000)),
         "ttft_ms": str(codex_data.get("ttft_ms", 0) or trace_data.get("ttft_ms", 0)),
-        "num_turns": str(codex_data.get("num_turns", 0)
-                         if is_codex else trace_data.get("num_turns", 0)),
+        "num_turns": str(trace_data.get("num_turns", 0) + codex_logs.total_turns()),
         "total_cost_usd": f"{total_cost_usd:.6f}",
         "input_tokens": str(input_tokens),
         "output_tokens": str(output_tokens),

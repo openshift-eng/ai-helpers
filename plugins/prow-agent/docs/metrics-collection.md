@@ -179,10 +179,13 @@ python3 "${EXTRACT_METRICS}" "${OTEL_LOG}" \
 
 `extract_metrics.py` parses the OTEL JSONL and produces an autodl JSON
 file for the `claude_session_metrics` BigQuery table. Cost, tokens, tool
-usage, and timing come from OTEL metrics and logs. For Codex, `model`, turns,
-and token/cache counts describe the primary (highest-cost) model, while
-`total_cost_usd` is the full observed session cost across primary and auxiliary
-models, matching agentic-ci's console TOTAL.
+usage, and timing come from OTEL metrics and logs. Cost, token/cache counts, and
+turns are session-wide totals across primary and helper models for both Claude
+Code and Codex. `model` describes the highest-cost observed model, falling back
+to the highest token volume when no cost point is available. If both metric
+namespaces occur in one logical session log, they represent independent
+observed activity and both contribute to the totals; the extractor does not
+guess that cross-namespace points are duplicates.
 
 ### Raw OTEL JSONL as Artifact
 

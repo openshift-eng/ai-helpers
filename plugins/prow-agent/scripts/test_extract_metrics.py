@@ -28,6 +28,18 @@ def load_autodl(path):
         return json.load(f)
 
 
+def parse_records(records):
+    """Parse sanitized in-memory OTLP records through the real extractor."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in records:
+            tmp.write(json.dumps(record) + "\n")
+        path = tmp.name
+    try:
+        return extract_metrics.parse_otel(path)
+    finally:
+        os.unlink(path)
+
+
 def otel_attributes(values):
     """Build sanitized OTLP attributes for synthetic fixtures."""
     result = []
@@ -100,6 +112,20 @@ def cumulative_metric(name, value, attrs=None, start="100", timestamp="200"):
     }
 
 
+def delta_metric(name, value, attrs=None):
+    """Build one delta OTLP sum metric for Claude accounting tests."""
+    return {
+        "name": name,
+        "sum": {
+            "aggregationTemporality": 1,
+            "dataPoints": [{
+                "asDouble": value,
+                "attributes": otel_attributes(attrs or {}),
+            }],
+        },
+    }
+
+
 def codex_log_record(timestamp, event, model, session, **extra):
     """Build one sanitized Codex OTEL log record."""
     attrs = {
@@ -111,6 +137,36 @@ def codex_log_record(timestamp, event, model, session, **extra):
     }
     attrs.update(extra)
     return {"attributes": otel_attributes(attrs)}
+
+
+def codex_logs_record(log_records):
+    """Wrap sanitized Codex log records in one OTLP logs payload."""
+    return {"path": "/v1/logs", "payload": {"resourceLogs": [{"scopeLogs": [{
+        "logRecords": log_records,
+    }]}]}}
+
+
+def claude_trace_record(turns, session="claude-session", prompt="sanitized prompt"):
+    """Build sanitized Claude trace identity, prompt, and interaction turns."""
+    spans = [{
+        "name": "claude_code.interaction",
+        "startTimeUnixNano": "1000000000",
+        "endTimeUnixNano": "2000000000",
+        "attributes": otel_attributes({"session.id": session, "user_prompt": prompt}),
+    }]
+    for index in range(turns):
+        spans.append({
+            "name": "claude_code.llm_request",
+            "startTimeUnixNano": str((index + 2) * 1_000_000_000),
+            "endTimeUnixNano": str((index + 3) * 1_000_000_000),
+            "attributes": otel_attributes({
+                "session.id": session,
+                "llm_request.context": "interaction",
+            }),
+        })
+    return {"path": "/v1/traces", "payload": {"resourceSpans": [{
+        "scopeSpans": [{"spans": spans}],
+    }]}}
 
 
 def test_otel_input():
@@ -988,7 +1044,7 @@ def test_metric_filtering_and_malformed_points():
 
 
 def test_metric_producer_identity_and_alias_canonicalization():
-    """Cumulative aliases deduplicate per producer but distinct producers add."""
+    """Delta points add while cumulative series deduplicate per producer/start."""
     attrs = {"model": "gpt-synthetic"}
     producer_a = {"attributes": otel_attributes({
         "service.name": "producer-a", "service.version": "1",
@@ -998,6 +1054,14 @@ def test_metric_producer_identity_and_alias_canonicalization():
     scope_a = {"name": "agentic-ci", "version": "1"}
     scope_b = {"version": "1", "name": "agentic-ci-other"}
     records = [
+        # Claude's repeated delta observations remain additive, even when a
+        # Codex model with the same label is present in the logical session.
+        metric_record([
+            delta_metric("claude_code.cost.usage", 2.0, attrs),
+            delta_metric("claude_code.cost.usage", 3.0, attrs),
+            delta_metric("claude_code.token.usage", 13.0,
+                         {"model": "gpt-synthetic", "type": "output"}),
+        ], producer_a, scope_a),
         metric_record([
             cumulative_metric("codex.cost.usage", 2.0, attrs),
             cumulative_metric("agentic_ci.codex.cost.usage", 2.0, attrs),
@@ -1028,11 +1092,174 @@ def test_metric_producer_identity_and_alias_canonicalization():
         log_path = tmp.name
     try:
         row = extract_metrics.parse_otel(log_path)
-        assert row["total_cost_usd"] == "17.000000", row
-        assert row["output_tokens"] == "11", row
+        assert row["total_cost_usd"] == "22.000000", row
+        assert row["output_tokens"] == "24", row
     finally:
         os.unlink(log_path)
     print("PASS: test_metric_producer_identity_and_alias_canonicalization")
+
+
+def test_claude_and_codex_use_session_wide_accounting():
+    """Equivalent multi-model activity should export identical session totals."""
+    primary = "primary-model"
+    helper = "helper-model"
+    token_values = {
+        (primary, "input"): 10,
+        (primary, "output"): 20,
+        (primary, "cacheRead"): 30,
+        (primary, "cacheCreation"): 40,
+        (helper, "input"): 2,
+        (helper, "output"): 3,
+        (helper, "cacheRead"): 4,
+        (helper, "cacheCreation"): 5,
+    }
+    claude_metrics = [
+        delta_metric("claude_code.cost.usage", 2.0, {"model": primary}),
+        delta_metric("claude_code.cost.usage", 3.0, {"model": primary}),
+        delta_metric("claude_code.cost.usage", 1.0, {"model": helper}),
+    ]
+    codex_metrics = [
+        cumulative_metric("agentic_ci.codex.cost.usage", 5.0, {"model": primary}),
+        cumulative_metric("agentic_ci.codex.cost.usage", 1.0, {"model": helper}),
+    ]
+    for (model, token_type), value in token_values.items():
+        attrs = {"model": model, "type": token_type}
+        claude_metrics.append(delta_metric("claude_code.token.usage", value, attrs))
+        codex_metrics.append(cumulative_metric(
+            "agentic_ci.codex.token.usage", value, attrs,
+        ))
+
+    claude_row = parse_records([
+        metric_record(claude_metrics),
+        claude_trace_record(3, session="claude-session", prompt="claude prompt"),
+    ])
+    codex_row = parse_records([
+        metric_record(codex_metrics),
+        codex_logs_record([
+            codex_log_record("2026-11-09T20:00:00Z", "codex.user_prompt",
+                             primary, "codex-session", prompt="codex prompt"),
+            codex_log_record("2026-11-09T20:00:01Z", "codex.sse_event",
+                             primary, "codex-session",
+                             **{"event.kind": "response.completed"}),
+            codex_log_record("2026-11-09T20:00:02Z", "codex.sse_event",
+                             primary, "codex-session",
+                             **{"event.kind": "response.completed"}),
+            codex_log_record("2026-11-09T20:00:03Z", "codex.sse_event",
+                             helper, "helper-session",
+                             **{"event.kind": "response.completed"}),
+        ]),
+    ])
+
+    expected = {
+        "model": primary,
+        "total_cost_usd": "6.000000",
+        "input_tokens": "12",
+        "output_tokens": "23",
+        "cache_read_input_tokens": "34",
+        "cache_creation_input_tokens": "45",
+        "num_turns": "3",
+    }
+    for row in (claude_row, codex_row):
+        assert {key: row[key] for key in expected} == expected, row
+    assert claude_row["session_id"] == "claude-session"
+    assert claude_row["prompt"] == "claude prompt"
+    assert codex_row["session_id"] == "codex-session"
+    assert codex_row["prompt"] == "codex prompt"
+    print("PASS: test_claude_and_codex_use_session_wide_accounting")
+
+
+def test_mixed_sources_preserve_selected_source_identity():
+    """Mixed namespaces add usage but source disambiguates equal model labels."""
+    model = "shared-model"
+
+    def mixed_row(claude_cost, codex_cost):
+        return parse_records([
+            metric_record([
+                delta_metric("claude_code.cost.usage", claude_cost, {"model": model}),
+                delta_metric("claude_code.token.usage", 2,
+                             {"model": model, "type": "output"}),
+                cumulative_metric("agentic_ci.codex.cost.usage", codex_cost,
+                                  {"model": model}),
+                cumulative_metric("agentic_ci.codex.token.usage", 7,
+                                  {"model": model, "type": "output"}),
+            ]),
+            claude_trace_record(1, session="claude-session", prompt="claude prompt"),
+            codex_logs_record([
+                codex_log_record("2026-11-09T20:00:00Z", "codex.user_prompt",
+                                 model, "codex-session", prompt="codex prompt"),
+                codex_log_record("2026-11-09T20:00:01Z", "codex.sse_event",
+                                 model, "codex-session",
+                                 **{"event.kind": "response.completed"}),
+            ]),
+        ])
+
+    cases = [
+        (1.0, 2.0, "codex-session", "codex prompt"),
+        (2.0, 1.0, "claude-session", "claude prompt"),
+    ]
+    for claude_cost, codex_cost, session, prompt in cases:
+        row = mixed_row(claude_cost, codex_cost)
+        assert row["model"] == model
+        assert row["total_cost_usd"] == "3.000000"
+        assert row["output_tokens"] == "9"
+        assert row["num_turns"] == "2"
+        assert row["session_id"] == session
+        assert row["prompt"] == prompt
+    print("PASS: test_mixed_sources_preserve_selected_source_identity")
+
+
+def test_token_only_model_selection_is_consistent():
+    """Both sources should select by tokens when cost is absent or tied at zero."""
+    rows = []
+    for source in ("claude", "codex"):
+        if source == "claude":
+            token_metrics = [
+                delta_metric("claude_code.token.usage", 3,
+                             {"model": "helper", "type": "output"}),
+                delta_metric("claude_code.token.usage", 7,
+                             {"model": "primary", "type": "output"}),
+            ]
+            zero_cost_metrics = [
+                delta_metric("claude_code.cost.usage", 0, {"model": "helper"}),
+                delta_metric("claude_code.cost.usage", 0, {"model": "primary"}),
+            ]
+        else:
+            token_metrics = [
+                cumulative_metric("agentic_ci.codex.token.usage", 3,
+                                  {"model": "helper", "type": "output"}),
+                cumulative_metric("agentic_ci.codex.token.usage", 7,
+                                  {"model": "primary", "type": "output"}),
+            ]
+            zero_cost_metrics = [
+                cumulative_metric("agentic_ci.codex.cost.usage", 0,
+                                  {"model": "helper"}),
+                cumulative_metric("agentic_ci.codex.cost.usage", 0,
+                                  {"model": "primary"}),
+            ]
+        rows.append(parse_records([metric_record(token_metrics)]))
+        rows.append(parse_records([metric_record(token_metrics + zero_cost_metrics)]))
+    for row in rows:
+        assert row["model"] == "primary", row
+        assert row["output_tokens"] == "10", row
+        assert row["total_cost_usd"] == "0.000000", row
+    print("PASS: test_token_only_model_selection_is_consistent")
+
+
+def test_primary_model_exact_ties_are_deterministic():
+    """Insertion order must not affect an exact source/model usage tie."""
+    token_totals = {
+        ("claude", "shared-model", "output"): 5,
+        ("codex", "shared-model", "output"): 5,
+    }
+    costs_forward = {
+        ("claude", "shared-model"): 1,
+        ("codex", "shared-model"): 1,
+    }
+    costs_reverse = dict(reversed(list(costs_forward.items())))
+    expected = ("codex", "shared-model")
+    assert extract_metrics._primary_model(costs_forward, token_totals) == expected
+    assert extract_metrics._primary_model(costs_reverse, token_totals) == expected
+    print("PASS: test_primary_model_exact_ties_are_deterministic")
 
 
 def test_modelless_metrics_join_modelless_logs():
@@ -1181,6 +1408,10 @@ if __name__ == "__main__":
     test_prompt_file_errors_and_real_prompt_precedence()
     test_metric_filtering_and_malformed_points()
     test_metric_producer_identity_and_alias_canonicalization()
+    test_claude_and_codex_use_session_wide_accounting()
+    test_mixed_sources_preserve_selected_source_identity()
+    test_token_only_model_selection_is_consistent()
+    test_primary_model_exact_ties_are_deterministic()
     test_modelless_metrics_join_modelless_logs()
     test_codex_log_chronology_and_identity()
     test_prompt_file_utf8_prefix_boundaries()
