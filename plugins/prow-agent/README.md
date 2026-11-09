@@ -1,11 +1,11 @@
 # prow-agent
 
-Utilities for Claude Code sessions running inside Prow CI jobs.
+Utilities for Claude Code and Codex sessions running inside Prow CI jobs.
 
 ## Session Metrics
 
-Extracts cost, token, duration, and tool-usage metrics from Claude Code
-sessions and writes an autodl JSON file for BigQuery ingestion.
+Extracts cost, token, duration, and tool-usage metrics from Claude Code and
+Codex sessions and writes an autodl JSON file for BigQuery ingestion.
 
 ### With agentic-ci (Preferred)
 

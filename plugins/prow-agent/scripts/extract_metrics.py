@@ -11,13 +11,26 @@ Usage:
     python3 extract_metrics.py claude-otel.jsonl [output-autodl.json] --prompt-file initial-prompt.txt
 """
 
+import codecs
 import json
+import math
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 
 REDACTED_PROMPTS = {"[redacted]", "<redacted>", "redacted"}
+CODEX_METRIC_ALIASES = {
+    "codex.token.usage": "agentic_ci.codex.token.usage",
+    "codex.cost.usage": "agentic_ci.codex.cost.usage",
+}
+SUPPORTED_METRICS = {
+    "claude_code.token.usage",
+    "claude_code.cost.usage",
+    "claude_code.active_time.total",
+    "agentic_ci.codex.token.usage",
+    "agentic_ci.codex.cost.usage",
+}
 
 
 def _is_real_prompt(prompt):
@@ -57,6 +70,54 @@ def _attributes(item):
     return attrs
 
 
+def _canonical_structure(value):
+    """Return a stable representation of structured OTLP producer identity."""
+    if isinstance(value, dict):
+        return {key: _canonical_structure(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        items = [_canonical_structure(item) for item in value]
+        return sorted(items, key=lambda item: json.dumps(
+            item, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+        ))
+    return value
+
+
+def _producer_key(value):
+    """Serialize resource or instrumentation-scope identity deterministically."""
+    return json.dumps(
+        _canonical_structure(value or {}),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+
+
+def _normalized_model(value):
+    """Use one join key for missing model attributes in metrics and logs."""
+    return str(value or "unknown")
+
+
+def _aware_timestamp(value):
+    """Parse an ISO timestamp only when it includes an explicit UTC offset."""
+    if not value:
+        return None
+    timestamp = str(value)
+    if timestamp.endswith("Z"):
+        timestamp = f"{timestamp[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(timestamp)
+    except ValueError:
+        return None
+    if parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _chronology_key(parsed, sequence):
+    """Sort valid timestamps chronologically, then undated events by input order."""
+    return (0, parsed) if parsed is not None else (1, sequence)
+
+
 class MetricAccumulator:
     """Accumulate OTLP points without double-counting cumulative snapshots.
 
@@ -71,29 +132,35 @@ class MetricAccumulator:
         self.totals = defaultdict(float)
         self.cumulative = {}
 
-    def add(self, metric):
+    def add(self, metric, resource_identity=None, scope_identity=None):
         """Add all numeric data points from one OTLP metric."""
-        name = metric.get("name", "")
+        name = CODEX_METRIC_ALIASES.get(metric.get("name", ""), metric.get("name", ""))
+        if name not in SUPPORTED_METRICS:
+            return
+        resource_key = _producer_key(resource_identity)
+        scope_key = _producer_key(scope_identity)
         data = metric.get("sum", metric.get("gauge", metric.get("histogram", {})))
         is_cumulative = "sum" in metric and data.get("aggregationTemporality") == 2
         for point in data.get("dataPoints", []):
             raw = point.get("asDouble", point.get("asInt"))
             try:
                 value = float(raw)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if not math.isfinite(value):
                 continue
             attrs = _attributes(point)
             attrs_key = tuple(sorted(attrs.items()))
-            series = (name, attrs_key)
+            series = (name, resource_key, scope_key, attrs_key)
             if not is_cumulative:
                 self.totals[series] += value
                 continue
             start = str(point.get("startTimeUnixNano", ""))
             try:
                 timestamp = int(point.get("timeUnixNano", 0) or 0)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 timestamp = 0
-            key = (name, attrs_key, start)
+            key = (name, resource_key, scope_key, attrs_key, start)
             previous = self.cumulative.get(key)
             if previous is None or timestamp >= previous[0]:
                 self.cumulative[key] = (timestamp, value)
@@ -101,11 +168,15 @@ class MetricAccumulator:
     def values(self):
         """Return totals with only the latest value of each cumulative series."""
         totals = self.totals.copy()
-        for (name, attrs_key, _start), (_timestamp, value) in self.cumulative.items():
-            totals[(name, attrs_key)] += value
+        for key, (_timestamp, value) in self.cumulative.items():
+            name, resource_key, scope_key, attrs_key, _start = key
+            totals[(name, resource_key, scope_key, attrs_key)] += value
+        combined = defaultdict(float)
+        for (name, _resource_key, _scope_key, attrs_key), value in totals.items():
+            combined[(name, attrs_key)] += value
         return [
             (name, dict(attrs_key), value)
-            for (name, attrs_key), value in totals.items()
+            for (name, attrs_key), value in combined.items()
         ]
 
 
@@ -114,64 +185,77 @@ class CodexLogAccumulator:
 
     def __init__(self):
         """Initialize per-model identity, prompt, timing, and turn state."""
-        self.versions = {}
-        self.sessions = {}
+        self.identity_events = defaultdict(list)
         self.prompts = []
         self.turns = Counter()
         self.ttft = []
         self.api_duration_ms = 0
         self.min_timestamp = None
         self.max_timestamp = None
+        self.sequence = 0
 
     def add(self, attrs):
         """Add one flattened Codex OTEL log event."""
+        sequence = self.sequence
+        self.sequence += 1
         event = attrs.get("event.name", "")
-        model = str(attrs.get("model", ""))
-        session_id = str(attrs.get("conversation.id", ""))
+        model = _normalized_model(attrs.get("model"))
+        session_id = str(attrs.get("conversation.id") or "")
         timestamp = str(attrs.get("event.timestamp", ""))
-        if timestamp:
-            try:
-                parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                if self.min_timestamp is None or parsed < self.min_timestamp:
-                    self.min_timestamp = parsed
-                if self.max_timestamp is None or parsed > self.max_timestamp:
-                    self.max_timestamp = parsed
-            except ValueError:
-                pass
-        version = str(attrs.get("app.version", ""))
-        if model and version and model not in self.versions:
-            self.versions[model] = version
-        if model and session_id and model not in self.sessions:
-            self.sessions[model] = session_id
-        if event == "codex.user_prompt" and model:
+        parsed = _aware_timestamp(timestamp)
+        chronology = _chronology_key(parsed, sequence)
+        if parsed is not None:
+            if self.min_timestamp is None or parsed < self.min_timestamp:
+                self.min_timestamp = parsed
+            if self.max_timestamp is None or parsed > self.max_timestamp:
+                self.max_timestamp = parsed
+        version = str(attrs.get("app.version") or "")
+        self.identity_events[model].append((chronology, session_id, version))
+        if event == "codex.user_prompt":
             prompt = str(attrs.get("prompt", ""))
             if _is_real_prompt(prompt):
-                self.prompts.append((timestamp, model, session_id, prompt[:500]))
+                self.prompts.append((chronology, model, session_id, version, prompt[:500]))
         elif (event == "codex.sse_event"
-              and attrs.get("event.kind") == "response.completed" and model):
+              and attrs.get("event.kind") == "response.completed"):
             self.turns[model] += 1
-        elif event == "codex.turn_ttft" and model:
+        elif event == "codex.turn_ttft":
             try:
-                self.ttft.append((timestamp, model, int(float(attrs.get("duration_ms", 0)))))
-            except (TypeError, ValueError):
+                duration = int(float(attrs.get("duration_ms", 0)))
+                self.ttft.append((chronology, model, duration))
+            except (TypeError, ValueError, OverflowError):
                 pass
         elif event == "codex.api_request":
             try:
                 self.api_duration_ms += int(float(attrs.get("duration_ms", 0)))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 pass
 
     def result(self, model):
         """Return accumulated identity and activity for the selected model."""
-        prompts = sorted(prompt for prompt in self.prompts if prompt[1] == model)
-        ttft = sorted(item for item in self.ttft if item[1] == model)
+        prompts = sorted(
+            (prompt for prompt in self.prompts if prompt[1] == model),
+            key=lambda prompt: prompt[0],
+        )
+        identity_events = sorted(self.identity_events.get(model, []), key=lambda item: item[0])
+        prompt_event = prompts[0] if prompts else None
+
+        def identity_value(prompt_index, event_index):
+            """Prefer the first prompt identity, then the earliest populated event."""
+            if prompt_event and prompt_event[prompt_index]:
+                return prompt_event[prompt_index]
+            return next((item[event_index] for item in identity_events if item[event_index]), "")
+
+        ttft = sorted(
+            (item for item in self.ttft if item[1] == model),
+            key=lambda item: item[0],
+        )
         duration_ms = 0
         if self.min_timestamp is not None and self.max_timestamp is not None:
             duration_ms = int((self.max_timestamp - self.min_timestamp).total_seconds() * 1000)
         return {
-            "session_id": self.sessions.get(model, prompts[0][2] if prompts else ""),
-            "claude_code_version": self.versions.get(model, ""),
-            "prompt": prompts[0][3] if prompts else "",
+            "session_id": identity_value(2, 1),
+            "claude_code_version": identity_value(3, 2),
+            "prompt": prompt_event[4] if prompt_event else "",
             "num_turns": self.turns.get(model, 0),
             "ttft_ms": ttft[0][2] if ttft else 0,
             "duration_api_ms": self.api_duration_ms,
@@ -304,9 +388,17 @@ def parse_otel(path):
 
         if "/v1/metrics" in rpath:
             for rm in payload.get("resourceMetrics", []):
+                resource_identity = {
+                    "resource": rm.get("resource", {}),
+                    "schemaUrl": rm.get("schemaUrl", ""),
+                }
                 for sm in rm.get("scopeMetrics", []):
+                    scope_identity = {
+                        "scope": sm.get("scope", {}),
+                        "schemaUrl": sm.get("schemaUrl", ""),
+                    }
                     for metric in sm.get("metrics", []):
-                        metrics.add(metric)
+                        metrics.add(metric, resource_identity, scope_identity)
 
         elif "/v1/logs" in rpath:
             for rl in payload.get("resourceLogs", []):
@@ -332,7 +424,7 @@ def parse_otel(path):
     codex_token_totals = defaultdict(float)
     codex_cost_totals = defaultdict(float)
     for name, attrs, value in metrics.values():
-        model_name = attrs.get("model", "unknown")
+        model_name = _normalized_model(attrs.get("model"))
         token_type = attrs.get("type", "unknown")
         if name == "claude_code.token.usage":
             token_totals[(model_name, token_type)] += value
@@ -340,9 +432,9 @@ def parse_otel(path):
             cost_totals[model_name] += value
         elif name == "claude_code.active_time.total":
             active_time[token_type] += value
-        elif name in ("agentic_ci.codex.token.usage", "codex.token.usage"):
+        elif name == "agentic_ci.codex.token.usage":
             codex_token_totals[(model_name, token_type)] += value
-        elif name in ("agentic_ci.codex.cost.usage", "codex.cost.usage"):
+        elif name == "agentic_ci.codex.cost.usage":
             codex_cost_totals[model_name] += value
 
     is_codex = bool(codex_cost_totals or codex_token_totals)
@@ -571,12 +663,24 @@ def enrich_from_prompt_file(row, prompt_path):
     if _is_real_prompt(row.get("prompt", "")):
         return row
     try:
-        with open(prompt_path, encoding="utf-8") as prompt_file:
-            prompt = prompt_file.read(501)
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="strict")
+        characters = []
+        with open(prompt_path, "rb") as prompt_file:
+            while len(characters) < 500:
+                byte = prompt_file.read(1)
+                if not byte:
+                    tail = decoder.decode(b"", final=True)
+                    if tail:
+                        characters.extend(tail)
+                    break
+                decoded = decoder.decode(byte, final=False)
+                if decoded:
+                    characters.extend(decoded)
+        prompt = "".join(characters[:500])
     except (OSError, UnicodeError):
         return row
     if _is_real_prompt(prompt):
-        row["prompt"] = prompt[:500]
+        row["prompt"] = prompt
     return row
 
 

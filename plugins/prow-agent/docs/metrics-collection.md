@@ -4,8 +4,9 @@
 
 ### What are Prow Agents?
 
-Prow agents are autonomous Claude Code sessions that run inside OpenShift
-CI (Prow) jobs. They perform tasks that require AI reasoning — analyzing
+Prow agents are autonomous Claude Code or Codex sessions that run inside
+OpenShift CI (Prow) jobs through the shared `agentic-ci` telemetry pipeline.
+They perform tasks that require AI reasoning — analyzing
 payload failures, triaging regressions, generating reports — and produce
 structured artifacts for downstream consumption. A growing number of
 teams run prow agents for various CI workflows, and new agents are being

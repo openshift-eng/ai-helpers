@@ -74,6 +74,32 @@ def codex_metric_record(start, timestamp, main_cost, tokens, auxiliary_cost=0):
     }}
 
 
+def metric_record(metrics, resource=None, scope=None):
+    """Build a sanitized OTLP metrics record with explicit producer identity."""
+    resource_metrics = {
+        "resource": resource or {},
+        "scopeMetrics": [{"scope": scope or {}, "metrics": metrics}],
+    }
+    return {"path": "/v1/metrics", "payload": {"resourceMetrics": [resource_metrics]}}
+
+
+def cumulative_metric(name, value, attrs=None, start="100", timestamp="200"):
+    """Build one cumulative OTLP sum metric for focused accumulator tests."""
+    return {
+        "name": name,
+        "sum": {
+            "aggregationTemporality": 2,
+            "isMonotonic": True,
+            "dataPoints": [{
+                "asDouble": value,
+                "startTimeUnixNano": start,
+                "timeUnixNano": timestamp,
+                "attributes": otel_attributes(attrs or {}),
+            }],
+        },
+    }
+
+
 def codex_log_record(timestamp, event, model, session, **extra):
     """Build one sanitized Codex OTEL log record."""
     attrs = {
@@ -829,6 +855,199 @@ def test_prompt_file_errors_and_real_prompt_precedence():
     print("PASS: test_prompt_file_errors_and_real_prompt_precedence")
 
 
+def test_metric_filtering_and_malformed_points():
+    """Only finite supported metric points should reach numeric aggregation."""
+    accumulator = extract_metrics.MetricAccumulator()
+    accumulator.add({
+        "name": "unrelated.metric",
+        "sum": {"dataPoints": [{"asInt": 10 ** 400}]},
+    }, {}, {})
+    for value in (10 ** 400, "NaN", "Infinity", None, "not-a-number"):
+        accumulator.add(cumulative_metric(
+            "agentic_ci.codex.cost.usage", value, {"model": "gpt-synthetic"},
+        ), {}, {})
+    accumulator.add(cumulative_metric(
+        "agentic_ci.codex.cost.usage", 2.5, {"model": "gpt-synthetic"},
+    ), {}, {})
+    assert accumulator.values() == [
+        ("agentic_ci.codex.cost.usage", {"model": "gpt-synthetic"}, 2.5),
+    ]
+    print("PASS: test_metric_filtering_and_malformed_points")
+
+
+def test_metric_producer_identity_and_alias_canonicalization():
+    """Cumulative aliases deduplicate per producer but distinct producers add."""
+    attrs = {"model": "gpt-synthetic"}
+    producer_a = {"attributes": otel_attributes({
+        "service.name": "producer-a", "service.version": "1",
+    })}
+    producer_a_reordered = {"attributes": list(reversed(producer_a["attributes"]))}
+    producer_b = {"attributes": otel_attributes({"service.name": "producer-b"})}
+    scope_a = {"name": "agentic-ci", "version": "1"}
+    scope_b = {"version": "1", "name": "agentic-ci-other"}
+    records = [
+        metric_record([
+            cumulative_metric("codex.cost.usage", 2.0, attrs),
+            cumulative_metric("agentic_ci.codex.cost.usage", 2.0, attrs),
+            cumulative_metric("codex.token.usage", 11.0,
+                              {"model": "gpt-synthetic", "type": "output"}),
+            cumulative_metric("agentic_ci.codex.token.usage", 11.0,
+                              {"model": "gpt-synthetic", "type": "output"}),
+        ], producer_a, scope_a),
+        metric_record([
+            cumulative_metric("agentic_ci.codex.cost.usage", 3.0, attrs),
+        ], producer_b, scope_a),
+        metric_record([
+            cumulative_metric("agentic_ci.codex.cost.usage", 5.0, attrs),
+        ], producer_a, scope_b),
+        # Attribute/dict order is not producer identity, so this is the same
+        # cumulative observation as producer A above and remains de-duplicated.
+        metric_record([
+            cumulative_metric("codex.cost.usage", 2.0, attrs),
+        ], producer_a_reordered, {"version": "1", "name": "agentic-ci"}),
+        # A new cumulative start is a real resumed observation and remains additive.
+        metric_record([
+            cumulative_metric("codex.cost.usage", 7.0, attrs, start="300", timestamp="400"),
+        ], producer_a, scope_a),
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in records:
+            tmp.write(json.dumps(record) + "\n")
+        log_path = tmp.name
+    try:
+        row = extract_metrics.parse_otel(log_path)
+        assert row["total_cost_usd"] == "17.000000", row
+        assert row["output_tokens"] == "11", row
+    finally:
+        os.unlink(log_path)
+    print("PASS: test_metric_producer_identity_and_alias_canonicalization")
+
+
+def test_modelless_metrics_join_modelless_logs():
+    """Model-less Codex metrics and logs should share the unknown-model row."""
+    records = [
+        metric_record([
+            cumulative_metric("agentic_ci.codex.cost.usage", 1.0),
+            cumulative_metric("agentic_ci.codex.token.usage", 7, {"type": "output"}),
+        ]),
+        {"path": "/v1/logs", "payload": {"resourceLogs": [{"scopeLogs": [{
+            "logRecords": [
+                codex_log_record("2026-11-06T00:00:00Z", "codex.user_prompt",
+                                 "", "synthetic-session", prompt="synthetic prompt"),
+                codex_log_record("2026-11-06T00:00:01Z", "codex.sse_event",
+                                 "", "synthetic-session",
+                                 **{"event.kind": "response.completed"}),
+            ],
+        }]}]}},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in records:
+            tmp.write(json.dumps(record) + "\n")
+        log_path = tmp.name
+    try:
+        row = extract_metrics.parse_otel(log_path)
+        assert row["model"] == "unknown"
+        assert row["session_id"] == "synthetic-session"
+        assert row["prompt"] == "synthetic prompt"
+        assert row["num_turns"] == "1"
+    finally:
+        os.unlink(log_path)
+    print("PASS: test_modelless_metrics_join_modelless_logs")
+
+
+def test_codex_log_chronology_and_identity():
+    """Chronology should ignore unsafe timestamps and bind identity to first prompt."""
+    accumulator = extract_metrics.CodexLogAccumulator()
+    events = [
+        {
+            "event.name": "codex.user_prompt",
+            "event.timestamp": "2026-11-06T00:00:05Z",
+            "model": "gpt-synthetic",
+            "conversation.id": "later-session",
+            "app.version": "later-version",
+            "prompt": "later prompt",
+        },
+        {
+            "event.name": "codex.user_prompt",
+            "event.timestamp": "2026-11-06T00:00:01Z",
+            "model": "gpt-synthetic",
+            "conversation.id": "earliest-session",
+            "app.version": "earliest-version",
+            "prompt": "earliest prompt",
+        },
+        {
+            "event.name": "codex.turn_ttft",
+            "event.timestamp": "2026-11-06T00:00:00",
+            "model": "gpt-synthetic",
+            "conversation.id": "naive-session",
+            "app.version": "naive-version",
+            "duration_ms": 999,
+        },
+        {
+            "event.name": "codex.turn_ttft",
+            "event.timestamp": "not-a-timestamp",
+            "model": "gpt-synthetic",
+            "duration_ms": 888,
+        },
+        {
+            "event.name": "codex.turn_ttft",
+            "event.timestamp": "2026-11-06T00:00:02Z",
+            "model": "gpt-synthetic",
+            "duration_ms": 123,
+        },
+    ]
+    for event in events:
+        accumulator.add(event)
+    result = accumulator.result("gpt-synthetic")
+    assert result["session_id"] == "earliest-session", result
+    assert result["claude_code_version"] == "earliest-version", result
+    assert result["prompt"] == "earliest prompt", result
+    assert result["ttft_ms"] == 123, result
+    assert result["duration_ms"] == 4000, result
+
+    fallback = extract_metrics.CodexLogAccumulator()
+    fallback.add({
+        "event.name": "codex.conversation_starts",
+        "event.timestamp": "2026-11-06T00:00:00Z",
+        "model": "gpt-synthetic",
+        "conversation.id": "fallback-session",
+        "app.version": "fallback-version",
+    })
+    fallback.add({
+        "event.name": "codex.user_prompt",
+        "event.timestamp": "2026-11-06T00:00:01Z",
+        "model": "gpt-synthetic",
+        "conversation.id": "",
+        "app.version": "",
+        "prompt": "prompt without identity",
+    })
+    result = fallback.result("gpt-synthetic")
+    assert result["session_id"] == "fallback-session", result
+    assert result["claude_code_version"] == "fallback-version", result
+    print("PASS: test_codex_log_chronology_and_identity")
+
+
+def test_prompt_file_utf8_prefix_boundaries():
+    """Prompt fallback strictly decodes at most the first 500 characters."""
+    cases = [
+        (b"a" * 500 + b"\xff", "a" * 500),
+        (("a" * 499 + "é").encode("utf-8") + b"\xff", "a" * 499 + "é"),
+        (("é" * 500).encode("utf-8"), "é" * 500),
+        (b"a" * 500, "a" * 500),
+        (b"a" * 501, "a" * 500),
+        ("x".encode("utf-8") * 499 + b"\xff", ""),
+    ]
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        for index, (content, expected) in enumerate(cases):
+            prompt_path = os.path.join(tmp_dir, f"prompt-{index}.txt")
+            with open(prompt_path, "wb") as prompt_file:
+                prompt_file.write(content)
+            row = {"prompt": ""}
+            extract_metrics.enrich_from_prompt_file(row, prompt_path)
+            assert row["prompt"] == expected, (index, row)
+    print("PASS: test_prompt_file_utf8_prefix_boundaries")
+
+
 if __name__ == "__main__":
     test_otel_input()
     test_otel_with_stream_enrichment()
@@ -846,4 +1065,9 @@ if __name__ == "__main__":
     test_codex_prompt_precedes_trace_and_stream_prompts()
     test_redacted_prompt_placeholders_are_rejected()
     test_prompt_file_errors_and_real_prompt_precedence()
+    test_metric_filtering_and_malformed_points()
+    test_metric_producer_identity_and_alias_canonicalization()
+    test_modelless_metrics_join_modelless_logs()
+    test_codex_log_chronology_and_identity()
+    test_prompt_file_utf8_prefix_boundaries()
     print("\nAll tests passed.")
