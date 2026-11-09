@@ -33,10 +33,10 @@ python3 "${EXTRACT_METRICS}" "${OTEL_LOG}" \
 ```
 
 Keep the full prompt file private, outside the artifact directory, and remove
-it after extraction. When telemetry omits or redacts the prompt, the extractor
-intentionally copies the first 500 characters into the exported `prompt` field,
-so the prompt must not contain secrets. Claude Code and Codex telemetry prompts
-still take precedence over this fallback.
+it after extraction. When neither telemetry nor the `--stream-log` input provides
+a usable prompt, the extractor intentionally copies the first 500 characters
+into the exported `prompt` field, so the prompt must not contain secrets. Usable
+telemetry and `--stream-log` prompts take precedence over this fallback.
 
 See [docs/metrics-collection.md](docs/metrics-collection.md) for the
 full design and BigQuery schema.
