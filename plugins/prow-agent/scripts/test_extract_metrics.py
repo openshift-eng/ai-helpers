@@ -832,6 +832,80 @@ def test_redacted_prompt_placeholders_are_rejected():
     print("PASS: test_redacted_prompt_placeholders_are_rejected")
 
 
+def test_whitespace_prompts_are_rejected_without_stripping_valid_content():
+    """Whitespace is empty, while valid prompt contents retain their spacing."""
+    for prompt in (" ", "\t", "\n", "\u00a0", "\u2003", " \t\n\u2003"):
+        assert not extract_metrics._is_real_prompt(prompt), repr(prompt)
+
+    prompt = "  sanitized prompt with surrounding whitespace\t"
+    assert extract_metrics._is_real_prompt(prompt)
+    accumulator = extract_metrics.CodexLogAccumulator()
+    accumulator.add({
+        "event.name": "codex.user_prompt",
+        "event.timestamp": "2026-11-09T15:00:00Z",
+        "model": "gpt-main",
+        "conversation.id": "synthetic-session",
+        "prompt": prompt,
+    })
+    assert accumulator.result("gpt-main")["prompt"] == prompt
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as tmp:
+        tmp.write("different sanitized file prompt")
+        prompt_path = tmp.name
+    try:
+        row = {"prompt": prompt}
+        extract_metrics.enrich_from_prompt_file(row, prompt_path)
+        assert row["prompt"] == prompt
+    finally:
+        os.unlink(prompt_path)
+    print("PASS: test_whitespace_prompts_are_rejected_without_stripping_valid_content")
+
+
+def test_whitespace_telemetry_uses_stream_then_file_fallbacks():
+    """Blank prompt sources fall through in CLI order and never validate a row."""
+    whitespace = " \t\n\u2003"
+    records = [
+        codex_metric_record("100", "200", 1.0, {"input": 10, "output": 5}),
+        {"path": "/v1/logs", "payload": {"resourceLogs": [{"scopeLogs": [{
+            "logRecords": [
+                codex_log_record("2026-11-09T15:00:00Z", "codex.user_prompt",
+                                 "gpt-main", "synthetic-session", prompt=whitespace),
+                codex_log_record("2026-11-09T15:00:01Z", "codex.sse_event",
+                                 "gpt-main", "synthetic-session",
+                                 **{"event.kind": "response.completed"}),
+            ],
+        }]}]}},
+    ]
+    cases = [
+        ("sanitized stream fallback", "sanitized file fallback", 0,
+         "sanitized stream fallback"),
+        (whitespace, "sanitized file fallback", 0, "sanitized file fallback"),
+        (whitespace, whitespace, 1, ""),
+    ]
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        log_path = os.path.join(tmp_dir, "otel.jsonl")
+        with open(log_path, "w", encoding="utf-8") as log_file:
+            for record in records:
+                log_file.write(json.dumps(record) + "\n")
+        for index, (stream_prompt, file_prompt, exit_code, expected) in enumerate(cases):
+            stream_path = os.path.join(tmp_dir, f"stream-{index}.jsonl")
+            prompt_path = os.path.join(tmp_dir, f"prompt-{index}.txt")
+            output_path = os.path.join(tmp_dir, f"output-{index}.json")
+            with open(stream_path, "w", encoding="utf-8") as stream_file:
+                stream_file.write(json.dumps({
+                    "type": "user", "message": {"content": stream_prompt},
+                }) + "\n")
+            with open(prompt_path, "w", encoding="utf-8") as prompt_file:
+                prompt_file.write(file_prompt)
+            result = run_script(
+                log_path,
+                output_path,
+                extra_args=["--stream-log", stream_path, "--prompt-file", prompt_path],
+            )
+            assert result.returncode == exit_code, (index, result.stderr)
+            assert load_autodl(output_path)["rows"][0]["prompt"] == expected, index
+    print("PASS: test_whitespace_telemetry_uses_stream_then_file_fallbacks")
+
+
 def test_prompt_file_errors_and_real_prompt_precedence():
     """Prompt-file failures preserve the row, and real telemetry wins."""
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1064,6 +1138,8 @@ if __name__ == "__main__":
     test_codex_metrics_identity_and_cumulative_snapshots()
     test_codex_prompt_precedes_trace_and_stream_prompts()
     test_redacted_prompt_placeholders_are_rejected()
+    test_whitespace_prompts_are_rejected_without_stripping_valid_content()
+    test_whitespace_telemetry_uses_stream_then_file_fallbacks()
     test_prompt_file_errors_and_real_prompt_precedence()
     test_metric_filtering_and_malformed_points()
     test_metric_producer_identity_and_alias_canonicalization()

@@ -35,7 +35,8 @@ SUPPORTED_METRICS = {
 
 def _is_real_prompt(prompt):
     """Return whether a prompt is usable rather than a telemetry placeholder."""
-    return bool(prompt and prompt.strip().casefold() not in REDACTED_PROMPTS)
+    normalized = prompt.strip() if prompt else ""
+    return bool(normalized and normalized.casefold() not in REDACTED_PROMPTS)
 
 
 def _parse_span_attrs(span):
