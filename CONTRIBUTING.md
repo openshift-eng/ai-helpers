@@ -91,9 +91,6 @@ To change an eval's model, budget, judges or thresholds, change its eval YAML in
 exercises the change. The manifest contract is documented in
 [openshift/release `hack/claude-agent-eval/README.md`](https://github.com/openshift/release/blob/main/hack/claude-agent-eval/README.md).
 
-Entries marked `run: manual` are listed for completeness but don't run on PRs yet. Their legacy per-eval jobs still
-cover them.
-
 ## Documentation Site
 
 The marketplace website uses MkDocs Material and is published to GitHub Pages
