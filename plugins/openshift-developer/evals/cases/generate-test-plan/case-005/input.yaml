@@ -1,0 +1,3 @@
+jira_key: "OCPSTRAT-3154"
+# Synthetic, deliberately trimmed source. See annotations.yaml.
+jira_fixture: "jira-issue.json"
