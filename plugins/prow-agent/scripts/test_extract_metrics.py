@@ -940,12 +940,50 @@ def test_metric_filtering_and_malformed_points():
         accumulator.add(cumulative_metric(
             "agentic_ci.codex.cost.usage", value, {"model": "gpt-synthetic"},
         ), {}, {})
+    malformed_points = []
+    for malformed_value in ([], {"unexpected": "mapping"}):
+        malformed_attrs = cumulative_metric(
+            "agentic_ci.codex.cost.usage", 1.0, {"model": "gpt-synthetic"},
+        )
+        point = malformed_attrs["sum"]["dataPoints"][0]
+        point["attributes"] = [
+            {"key": "model", "value": {"stringValue": malformed_value}},
+        ]
+        malformed_points.append(point)
+        accumulator.add(malformed_attrs, {}, {})
     accumulator.add(cumulative_metric(
         "agentic_ci.codex.cost.usage", 2.5, {"model": "gpt-synthetic"},
     ), {}, {})
     assert accumulator.values() == [
         ("agentic_ci.codex.cost.usage", {"model": "gpt-synthetic"}, 2.5),
     ]
+
+    record = codex_metric_record("100", "200", 2.5, {})
+    cost_points = record["payload"]["resourceMetrics"][0]["scopeMetrics"][0][
+        "metrics"][0]["sum"]["dataPoints"]
+    cost_points[0:0] = malformed_points
+    records = [
+        record,
+        {"path": "/v1/logs", "payload": {"resourceLogs": [{"scopeLogs": [{
+            "logRecords": [
+                codex_log_record("2026-11-09T16:00:00Z", "codex.user_prompt",
+                                 "gpt-main", "synthetic-session",
+                                 prompt="sanitized synthetic prompt"),
+                codex_log_record("2026-11-09T16:00:01Z", "codex.sse_event",
+                                 "gpt-main", "synthetic-session",
+                                 **{"event.kind": "response.completed"}),
+            ],
+        }]}]}},
+    ]
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        log_path = os.path.join(tmp_dir, "otel.jsonl")
+        output_path = os.path.join(tmp_dir, "autodl.json")
+        with open(log_path, "w", encoding="utf-8") as log_file:
+            for item in records:
+                log_file.write(json.dumps(item) + "\n")
+        result = run_script(log_path, output_path)
+        assert result.returncode == 0, result.stderr
+        assert load_autodl(output_path)["rows"][0]["total_cost_usd"] == "2.500000"
     print("PASS: test_metric_filtering_and_malformed_points")
 
 

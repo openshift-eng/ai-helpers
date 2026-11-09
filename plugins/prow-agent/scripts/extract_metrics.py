@@ -152,6 +152,10 @@ class MetricAccumulator:
                 continue
             attrs = _attributes(point)
             attrs_key = tuple(sorted(attrs.items()))
+            try:
+                hash(attrs_key)
+            except TypeError:
+                continue
             series = (name, resource_key, scope_key, attrs_key)
             if not is_cumulative:
                 self.totals[series] += value
