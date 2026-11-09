@@ -742,6 +742,10 @@ ITEM_COUNT=$(echo "$ITEMS_JSON" | python3 -c "import json,sys; print(len(json.lo
 populate_pr_authors
 
 echo ""
+echo "--- Operation H: Order open PRs newest first ---"
+python3 "$SCRIPT_DIR/order-open-prs.py" --project-id "$PROJECT_ID"
+
+echo ""
 echo "=== Sync Complete ==="
 echo "  Shared PRs added: $SHARED_ADDED"
 echo "  Bug PRs added (non-team): $BUGPR_ADDED"
