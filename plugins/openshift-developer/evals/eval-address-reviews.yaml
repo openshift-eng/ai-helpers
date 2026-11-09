@@ -27,6 +27,7 @@ runner:
     Do not wrap the JSON in markdown code fences in the file.
 
 models:
+  skill: claude-opus-4-6
   judge: claude-opus-4-6
 
 permissions:

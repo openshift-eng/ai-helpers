@@ -115,7 +115,7 @@ mlflow:
   experiment: solve-eval
 
 dataset:
-  path: plugins/openshift-developer/evals/cases/solve
+  path: cases/solve
   schema: |
     Each case directory contains:
     - input.yaml: YAML file with fields:

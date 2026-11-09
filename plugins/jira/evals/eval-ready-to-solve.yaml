@@ -58,7 +58,7 @@ mlflow:
   experiment: ready-to-solve-eval
 
 dataset:
-  path: plugins/jira/evals/cases/ready-to-solve
+  path: cases/ready-to-solve
   schema: |
     Each case directory contains:
     - input.yaml: YAML file with fields:

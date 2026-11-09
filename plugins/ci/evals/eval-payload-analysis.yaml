@@ -47,6 +47,7 @@ runner:
     every subagent to do the same.
 
 models:
+  skill: claude-opus-4-6
   judge: claude-opus-4-8
 
 permissions:

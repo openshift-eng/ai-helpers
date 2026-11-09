@@ -30,6 +30,7 @@ runner:
     Write the file even if artifacts are incomplete.
 
 models:
+  skill: claude-opus-4-6
   judge: claude-opus-4-6
 
 permissions:
@@ -46,7 +47,7 @@ mlflow:
   experiment: ci-prow-job-analysis-eval
 
 dataset:
-  path: plugins/ci/evals/cases/prow-job-analysis
+  path: cases/prow-job-analysis
   schema: |
     Each case directory contains:
     - input.yaml: YAML file with fields:
