@@ -1,18 +1,27 @@
-"""Tests for download_timelines.py — input parsing, target extraction, output formatting."""
+"""Tests for download_timelines.py — input parsing, target extraction, payloads, gather-extra, output formatting."""
+import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
+from contextlib import redirect_stdout
 from unittest.mock import patch, MagicMock
+
+import pytest
 
 from download_timelines import (
     download_file,
     exit_code,
+    extract_payloads,
     extract_target,
     gcloud_env,
     list_timeline_files,
     main,
     parse_runs,
+    payload_tag,
+    payloads_from_clusterversion,
+    print_text,
     process_run,
     sanitize_process_output,
 )
@@ -317,7 +326,7 @@ def test_main_exit_status(tmp_path=None):
               "error": None},
     }
 
-    def fake_process(job, build_id, output_dir):
+    def fake_process(job, build_id, output_dir, gather=False):
         return runs[build_id]
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -336,3 +345,228 @@ def test_main_exit_status(tmp_path=None):
             runs["1"] = {"build_id": "1", "job": "job-a", "target": "e2e",
                          "timeline_files": ["/tmp/b.json"], "error": None}
             main(["--runs", "job-a:1", "--output-dir", tmpdir, "--format", "text"])
+
+
+
+# ---------------------------------------------------------------------------
+# Payloads and gather-extra
+# ---------------------------------------------------------------------------
+
+UPGRADE_PROWJOB = {
+    "metadata": {"annotations": {
+        "release.openshift.io/from-tag": "5.0.0-0.nightly-2026-11-09-184859",
+        "release.openshift.io/tag": "5.1.0-0.nightly-2026-11-10-075706",
+    }},
+    "spec": {"pod_spec": {"containers": [{
+        "args": ["--target=e2e-gcp-ovn-rt-upgrade"],
+        "env": [
+            {"name": "RELEASE_IMAGE_LATEST",
+             "value": "registry.ci.openshift.org/ocp/release-5:5.1.0-0.nightly-2026-11-10-075706"},
+            {"name": "RELEASE_IMAGE_INITIAL",
+             "value": "registry.ci.openshift.org/ocp/release-5:5.0.0-0.nightly-2026-11-09-184859"},
+        ],
+    }]}},
+}
+
+CLUSTERVERSION = {"kind": "List", "items": [{"status": {"history": [
+    {"state": "Completed", "version": "5.1.0-0.ci-2026-11-09-112923",
+     "image": "registry.build04.ci.openshift.org/ci-op-x/release@sha256:d7e1"},
+    {"state": "Completed", "version": "5.1.0-0.ci-2026-11-08-232923",
+     "image": "registry.build04.ci.openshift.org/ci-op-x/release@sha256:3030"},
+]}}]}
+
+
+def _write_json(data):
+    f = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+    json.dump(data, f)
+    f.close()
+    return f.name
+
+
+def test_extract_payloads_from_env():
+    path = _write_json(UPGRADE_PROWJOB)
+    try:
+        payloads = extract_payloads(path)
+    finally:
+        os.unlink(path)
+    assert payloads == {
+        "initial": "registry.ci.openshift.org/ocp/release-5:5.0.0-0.nightly-2026-11-09-184859",
+        "target": "registry.ci.openshift.org/ocp/release-5:5.1.0-0.nightly-2026-11-10-075706",
+        "source": "prowjob-env",
+    }
+
+
+def test_extract_payloads_from_annotations_and_missing():
+    data = {"metadata": UPGRADE_PROWJOB["metadata"],
+            "spec": {"pod_spec": {"containers": [{"args": ["--target=e2e"]}]}}}
+    path = _write_json(data)
+    try:
+        payloads = extract_payloads(path)
+    finally:
+        os.unlink(path)
+    assert payloads == {"initial": "5.0.0-0.nightly-2026-11-09-184859",
+                        "target": "5.1.0-0.nightly-2026-11-10-075706",
+                        "source": "prowjob-annotations"}
+
+    path = _write_json({"spec": {"pod_spec": {"containers": [{"args": ["--target=e2e-gcp-runc-upgrade"]}]}}})
+    try:
+        assert extract_payloads(path) == {"initial": None, "target": None, "source": None}
+    finally:
+        os.unlink(path)
+    assert extract_payloads("/nonexistent/prowjob.json")["target"] is None
+
+
+def test_payloads_from_clusterversion():
+    path = _write_json(CLUSTERVERSION)
+    try:
+        payloads = payloads_from_clusterversion(path)
+    finally:
+        os.unlink(path)
+    assert payloads["initial"] == "5.1.0-0.ci-2026-11-08-232923"
+    assert payloads["target"] == "5.1.0-0.ci-2026-11-09-112923"
+    assert payloads["source"] == "clusterversion-history"
+    assert payloads["target_image"].endswith("sha256:d7e1")
+    assert payloads["target_state"] == "Completed"
+
+    path = _write_json({"kind": "List", "items": [{"status": {}}]})
+    try:
+        assert payloads_from_clusterversion(path)["target"] is None
+    finally:
+        os.unlink(path)
+
+
+def test_payload_tag():
+    assert payload_tag("registry.ci.openshift.org/ocp/release-5:5.1.0-0.nightly-2026-11-09-143447") == \
+        "5.1.0-0.nightly-2026-11-09-143447"
+    assert payload_tag("registry.build04.ci.openshift.org:443/ci-op-x/release@sha256:abc") == \
+        "registry.build04.ci.openshift.org:443/ci-op-x/release@sha256:abc"
+    assert payload_tag("5.1.0-0.nightly-2026-11-09-143447") == "5.1.0-0.nightly-2026-11-09-143447"
+    assert payload_tag(None) is None
+
+
+def _gcs_mock(prowjob, files, calls):
+    """subprocess.run stand-in: prowjob.json, one timeline, and gather-extra files by name."""
+    def run(cmd, **kwargs):
+        calls.append(cmd)
+        result = MagicMock()
+        result.stdout = ""
+        result.stderr = ""
+        result.returncode = 0
+        if "ls" in cmd:
+            result.stdout = "gs://bucket/e2e-timelines_spyglass_1.json\n"
+            return result
+        src, dest = cmd[3], cmd[4]
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        name = os.path.basename(src)
+        if name == "prowjob.json":
+            content = prowjob
+        elif name in files:
+            content = files[name]
+        elif name.startswith("e2e-timelines"):
+            content = {}
+        else:
+            result.returncode = 1
+            result.stderr = "ERROR: One or more URLs matched no objects."
+            return result
+        with open(dest, "w") as f:
+            json.dump(content, f)
+        return result
+    return run
+
+
+def test_process_run_payloads_from_env_skip_clusterversion():
+    calls = []
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("download_timelines.subprocess.run", side_effect=_gcs_mock(UPGRADE_PROWJOB, {}, calls)):
+            r = process_run("my-job", "999", tmpdir)
+    assert r["error"] is None
+    assert r["payload_source"] == "prowjob-env"
+    assert r["initial_payload"].endswith("5.0.0-0.nightly-2026-11-09-184859")
+    assert not any("clusterversion.json" in " ".join(c) for c in calls)
+    assert "gather_files" not in r
+
+
+def test_process_run_falls_back_to_clusterversion():
+    prowjob = {"spec": {"pod_spec": {"containers": [{"args": ["--target=e2e-gcp-runc-upgrade"]}]}}}
+    calls = []
+    with tempfile.TemporaryDirectory() as tmpdir:
+        mock = _gcs_mock(prowjob, {"clusterversion.json": CLUSTERVERSION}, calls)
+        with patch("download_timelines.subprocess.run", side_effect=mock):
+            r = process_run("my-job", "999", tmpdir)
+        assert os.path.isfile(os.path.join(tmpdir, "999", "gather", "clusterversion.json"))
+    cv_calls = [c for c in calls if c[3].endswith("clusterversion.json")]
+    assert cv_calls[0][3] == ("gs://test-platform-results-public/logs/my-job/999/artifacts/"
+                              "e2e-gcp-runc-upgrade/gather-extra/artifacts/clusterversion.json")
+    assert r["error"] is None
+    assert r["initial_payload"] == "5.1.0-0.ci-2026-11-08-232923"
+    assert r["target_payload"] == "5.1.0-0.ci-2026-11-09-112923"
+    assert r["payload_source"] == "clusterversion-history"
+    assert "payload_warning" not in r
+
+
+def test_process_run_payload_warning_does_not_set_error():
+    prowjob = {"spec": {"pod_spec": {"containers": [{"args": ["--target=e2e"]}]}}}
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("download_timelines.subprocess.run", side_effect=_gcs_mock(prowjob, {}, [])):
+            r = process_run("my-job", "999", tmpdir)
+    assert r["error"] is None
+    assert r["target_payload"] is None
+    assert "clusterversion.json" in r["payload_warning"]
+    assert exit_code([r]) == 0
+
+
+def test_process_run_gather_downloads_gather_extra():
+    calls = []
+    files = {"events.json": {"items": []}, "configmaps.json": {"items": []},
+             "releaseinfo.json": {"references": {}}}
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("download_timelines.subprocess.run", side_effect=_gcs_mock(UPGRADE_PROWJOB, files, calls)):
+            r = process_run("my-job", "999", tmpdir, gather=True)
+        gather_dir = os.path.join(tmpdir, "999", "gather")
+        assert sorted(os.listdir(gather_dir)) == ["configmaps.json", "events.json", "releaseinfo.json"]
+    assert [os.path.basename(p) for p in r["gather_files"]] == [
+        "events.json", "configmaps.json", "releaseinfo.json"]
+    assert r["gather_error"].startswith("clusterversion.json:")
+    assert r["error"] is None
+    assert all(c[0] == "gcloud" for c in calls)
+
+
+def test_print_text_shows_payloads_and_warnings():
+    out = io.StringIO()
+    with redirect_stdout(out):
+        print_text([
+            {"build_id": "1", "target": "e2e", "timeline_files": ["/a.json"], "error": None,
+             "initial_payload": "registry.ci.openshift.org/ocp/release-5:5.0.0-a",
+             "target_payload": "registry.ci.openshift.org/ocp/release-5:5.1.0-b",
+             "payload_source": "prowjob-env"},
+            {"build_id": "2", "target": "e2e", "timeline_files": ["/b.json"], "error": None,
+             "initial_payload": None, "target_payload": None, "payload_source": None,
+             "payload_warning": "no history", "gather_files": ["/g/events.json"],
+             "gather_error": "releaseinfo.json: exited 1"},
+        ])
+    text = out.getvalue()
+    assert "  payloads: 5.0.0-a -> 5.1.0-b (from prowjob-env)" in text
+    assert "  payloads: unknown (no history)" in text
+    assert "  /g/events.json" in text
+    assert "  WARNING: gather-extra: releaseinfo.json: exited 1" in text
+
+
+def test_main_passes_gather_flag():
+    seen = []
+
+    def fake_process(job, build_id, output_dir, gather=False):
+        seen.append(gather)
+        return {"build_id": build_id, "job": job, "target": "e2e", "timeline_files": ["/a.json"],
+                "error": None}
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("download_timelines.check_gcloud"), \
+                patch("download_timelines.process_run", side_effect=fake_process), \
+                redirect_stdout(io.StringIO()):
+            main(["--runs", "job-a:1", "--output-dir", tmpdir, "--gather"])
+            main(["--runs", "job-a:1", "--output-dir", tmpdir])
+    assert seen == [True, False]
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main([__file__, "-v"]))

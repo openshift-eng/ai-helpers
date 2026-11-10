@@ -10,17 +10,24 @@ from unittest.mock import patch
 import pytest
 
 from find_disruption_runs import (
+    backend_summary,
+    correlated_runs,
+    default_full_table_path,
+    dominant_probe_family,
     extract_disruption_failures,
     format_timestamp,
+    is_upgrade_series,
+    job_summary,
     main,
     max_disruption_for_backend,
     print_json,
     print_table,
+    probe_family,
     select_representative_runs,
 )
 
 
-def _flat_disruption(prow_ids):
+def _flat_disruption(prow_ids, **_kwargs):
     """Equal exact-backend seconds so display order follows timestamp."""
     return {
         str(pid): [{"backend_name": "kube-api-new-connections", "disruption_seconds": 10}]
@@ -318,7 +325,8 @@ def test_select_prefers_job_diversity():
     assert "job-c" in jobs_selected
 
 
-def test_select_includes_disruption_diversity():
+def test_select_follows_where_the_seconds_come_from():
+    # One run per job: picks go down by each job's contribution, not across severity tiers.
     rows = [
         {"prow_id": str(i+1), "job": "job-%s" % chr(97+i), "timestamp": "1970-01-01T%02d:00:00Z" % i}
         for i in range(9)
@@ -327,14 +335,7 @@ def test_select_includes_disruption_diversity():
         "1": 100, "2": 90, "3": 80, "4": 50, "5": 40,
         "6": 30, "7": 10, "8": 5, "9": 0,
     })
-    result = select_representative_runs(rows, dd, "kube-api", n=5)
-    secs = []
-    for i in result:
-        pid = str(rows[i]["prow_id"])
-        s = max_disruption_for_backend(dd.get(pid, []), "kube-api")
-        secs.append(s)
-    assert any(s >= 80 for s in secs)
-    assert any(s <= 10 for s in secs)
+    assert select_representative_runs(rows, dd, "kube-api", n=5) == [0, 1, 2, 3, 4]
 
 
 def test_select_excludes_none_disruption():
@@ -906,6 +907,286 @@ def test_print_json_matches_target_failures_by_backend_base(capsys):
     assert output[0]["disruption_backends"] == data["1"]
     assert output[2]["disruption_seconds"] is None
     assert [entry["recommended"] for entry in output] == [True, False, False]
+
+
+
+def _run(pid, job, ts, **extra):
+    row = {"prow_id": pid, "job": job, "timestamp": ts, "overall_result": "S",
+           "url": "https://prow.example/%s" % pid, "failed_test_names": []}
+    row.update(extra)
+    return row
+
+
+def test_select_never_drops_the_top_row():
+    # One fips run outweighs nothing else in its job, but it is the worst run, so it is kept.
+    rows = [_run("fips", "e2e-fips", "2026-11-03T17:10:00Z")]
+    secs = {"fips": 226}
+    for i in range(12):
+        job = "e2e-upgrade" if i % 2 else "e2e-rt-upgrade"
+        pid = "u%d" % i
+        rows.append(_run(pid, job, "2026-11-%02dT08:00:00Z" % (4 + i)))
+        secs[pid] = 60 + i
+    result = select_representative_runs(rows, _make_disruption_data(secs), "kube-api", n=3)
+    assert 0 in result
+
+
+def test_select_gives_the_job_with_most_seconds_more_picks():
+    rows, secs = [], {}
+    for i in range(6):
+        rows.append(_run("big%d" % i, "big-job", "2026-11-%02dT00:00:00Z" % (1 + i)))
+        secs["big%d" % i] = 90 - i
+    rows.append(_run("small", "small-job", "2026-11-09T00:00:00Z"))
+    secs["small"] = 95
+    rows.append(_run("tiny", "tiny-job", "2026-11-10T00:00:00Z"))
+    secs["tiny"] = 2
+    result = select_representative_runs(rows, _make_disruption_data(secs), "kube-api", n=4)
+    jobs = [rows[i]["job"] for i in result]
+    # small-job is the top run; big-job (535s) takes the rest; tiny-job (2s) gets nothing.
+    assert jobs.count("big-job") == 3
+    assert "small-job" in jobs and "tiny-job" not in jobs
+
+
+def test_select_second_pick_of_a_job_is_its_most_typical_run():
+    rows = [_run(str(i), "job-a", "2026-11-%02dT00:00:00Z" % (1 + i)) for i in range(5)]
+    secs = {"0": 100, "1": 52, "2": 50, "3": 48, "4": 10}
+    result = select_representative_runs(rows, _make_disruption_data(secs), "kube-api", n=2)
+    assert result == [0, 2]
+
+
+def test_select_counts_a_launch_batch_once():
+    # Three job-a runs start within 3 minutes: one batch. The fourth is a new batch.
+    rows = [
+        _run("a1", "job-a", "2026-11-09T23:36:00Z"),
+        _run("a2", "job-a", "2026-11-09T23:37:30Z"),
+        _run("a3", "job-a", "2026-11-09T23:39:00Z"),
+        _run("a4", "job-a", "2026-11-10T05:36:00Z"),
+        _run("b1", "job-b", "2026-11-08T00:00:00Z"),
+    ]
+    secs = {"a1": 115, "a2": 103, "a3": 99, "a4": 76, "b1": 20}
+    result = select_representative_runs(rows, _make_disruption_data(secs), "kube-api", n=5)
+    assert result == [0, 3, 4]
+
+
+def test_select_same_instant_rival_does_not_hide_a_jobs_batch():
+    # rt-upgrade's worst batch starts in the same second as a minor job's run. The minor
+    # run is not picked, so it must not knock out the rt-upgrade batch.
+    rows = [
+        _run("top", "ovn-upgrade", "2026-11-09T23:36:00Z"),
+        _run("ovn2", "ovn-upgrade", "2026-11-07T17:38:00Z"),
+        _run("rt1", "rt-upgrade", "2026-11-10T08:05:00Z"),
+        _run("minor", "minor-upgrade", "2026-11-10T08:05:02Z"),
+        _run("rt2", "rt-upgrade", "2026-11-06T04:48:00Z"),
+    ]
+    secs = {"top": 115, "ovn2": 45, "rt1": 99, "minor": 101, "rt2": 62}
+    result = select_representative_runs(rows, _make_disruption_data(secs), "kube-api", n=3)
+    # rt-upgrade adds the most seconds (161s) after the top run's job, so it takes both slots.
+    assert [rows[i]["prow_id"] for i in result] == ["top", "rt1", "rt2"]
+
+
+def test_select_prefers_upgrade_jobs_in_an_upgrade_series():
+    rows = [
+        _run("top", "e2e-gcp-ovn-upgrade", "2026-11-01T00:00:00Z"),
+        _run("plain", "e2e-gcp-ovn", "2026-11-02T00:00:00Z"),
+        _run("rt", "e2e-gcp-ovn-rt-upgrade", "2026-11-03T00:00:00Z"),
+    ]
+    dd = _make_disruption_data({"top": 100, "plain": 60, "rt": 40})
+    assert select_representative_runs(rows, dd, "kube-api", n=2, upgrade_series=True) == [0, 2]
+    assert select_representative_runs(rows, dd, "kube-api", n=2, upgrade_series=False) == [0, 1]
+
+
+def test_is_upgrade_series():
+    assert is_upgrade_series({"Upgrade": "micro"})
+    assert is_upgrade_series({"Upgrade": "micro,minor,none"})
+    assert not is_upgrade_series({"Upgrade": "none"})
+    assert not is_upgrade_series({})
+
+
+_LOCALHOST = ["kube-api-http1-localhost-new-connections", "openshift-api-http2-localhost-new-connections",
+              "kube-api-new-connections"]
+
+
+def _entries(**secs):
+    return [{"backend_name": name.replace("_", "-"), "disruption_seconds": value} for name, value in secs.items()]
+
+
+def _localhost_data():
+    return {
+        "1": _entries(kube_api_http1_localhost_new_connections=50,
+                      openshift_api_http2_localhost_new_connections=54, kube_api_new_connections=0),
+        "2": _entries(kube_api_http1_localhost_new_connections=90,
+                      openshift_api_http2_localhost_new_connections=95, kube_api_new_connections=94),
+        "3": _entries(kube_api_http1_localhost_new_connections=1,
+                      openshift_api_http2_localhost_new_connections=1, kube_api_new_connections=30),
+        "4": _entries(kube_api_new_connections=0),
+    }
+
+
+def _localhost_rows():
+    return [_run(str(i), "job-%s" % ("a" if i < 3 else "b"), "2026-11-0%dT00:00:00Z" % i) for i in range(1, 5)]
+
+
+def test_backend_summary_counts_nonzero_max_and_median():
+    summary = {s["name"]: s for s in backend_summary(_localhost_rows(), _localhost_data(), _LOCALHOST)}
+    assert summary["openshift-api-http2-localhost-new-connections"] == {
+        "name": "openshift-api-http2-localhost-new-connections", "nonzero": 3, "max_in": 2, "median": 54}
+    assert summary["kube-api-new-connections"]["max_in"] == 1
+    assert summary["kube-api-new-connections"]["median"] == 62
+    assert summary["kube-api-http1-localhost-new-connections"]["max_in"] == 0
+
+
+def test_dominant_probe_family_needs_a_mixed_selection_and_a_majority():
+    summary = backend_summary(_localhost_rows(), _localhost_data(), _LOCALHOST)
+    assert dominant_probe_family(summary) == ("*-localhost-*", 2, 3)
+    only_localhost = [s for s in summary if probe_family(s["name"])]
+    assert dominant_probe_family(only_localhost) is None
+    assert probe_family("cache-kube-api-new-connections") == "cache-*"
+    assert probe_family("kube-api-new-connections") is None
+
+
+def test_correlated_runs_requires_every_backend_within_tolerance():
+    # Run 2 is the only one where all three are within 15% of its max; run 4 is not disrupted.
+    assert correlated_runs(_localhost_rows(), _localhost_data(), _LOCALHOST) == (1, 3)
+    # Without kube-api-new-connections, run 1 (50 vs 54) and run 3 (1 and 1) also count.
+    assert correlated_runs(_localhost_rows(), _localhost_data(), _LOCALHOST[:2]) == (3, 3)
+
+
+def test_job_summary_sorts_by_total_seconds():
+    summary = job_summary(_localhost_rows(), _localhost_data(), _LOCALHOST)
+    assert summary == [{"job": "job-a", "runs": 2, "disrupted": 2, "total": 149, "median": 74.5},
+                       {"job": "job-b", "runs": 2, "disrupted": 1, "total": 30, "median": 30}]
+
+
+def _many_rows(count):
+    rows = [_run(str(i), "job-%d" % (i % 3), "2026-11-01T%02d:%02d:00Z" % (i // 60, i % 60))
+            for i in range(count)]
+    data = {str(i): [{"backend_name": "kube-api-new-connections", "disruption_seconds": count - i}]
+            for i in range(count)}
+    return rows, data
+
+
+def test_print_table_top_keeps_numbering_and_recommended_rows(capsys):
+    rows, data = _many_rows(30)
+    print_table(rows, {"_dashboard_name": "dash", "releases": "5.1"}, ["kube-api-new-connections"], data,
+                selected_indices=[0, 27], top=5, full_table_path="/tmp/full.md")
+    text = capsys.readouterr().out
+    assert "| 5 |   | job-1 | 4 |" in text
+    assert "\n| 6 |" not in text
+    assert "| 28 | * | job-0 | 27 |" in text
+    assert "Showing rows 1-5 plus 1 recommended row(s) below them of 30." in text
+    assert "Full table (30 rows, all backends and jobs): /tmp/full.md" in text
+    assert "Per-job disruption" in text and "| job-0 | 10 | 10 |" in text
+    assert "| kube-api-new-connections | 30 | 30 | 15.5 |" in text
+    # One selected backend: no correlation line.
+    assert "correlated" not in text
+
+
+def test_print_table_omits_master_nodes_when_y_and_n(capsys):
+    rows, data = _many_rows(1)
+    print_table(rows, {"_dashboard_name": "dash", "master_nodes_updated": "Y,N"},
+                ["kube-api-new-connections"], data)
+    assert "MasterNodesUpdated" not in capsys.readouterr().out
+
+
+_URL = ("https://grafana-loki.ci.openshift.org/d/abc/dash"
+        "?var-backend=kube-api-new-connections&var-releases=5.1")
+
+
+def test_main_table_writes_full_table_and_prints_compact(tmp_path, capsys):
+    rows, data = _many_rows(30)
+    out_path = str(tmp_path / "sub" / "full.md")
+    with patch("disruption_common.sippy.collect_runs", return_value=(rows, False)), \
+            patch("disruption_common.sippy.fetch_disruption_data", return_value=data):
+        main(["--grafana-url", _URL, "--top", "10", "--full-table-out", out_path])
+    text = capsys.readouterr().out
+    assert "\n| 10 |" in text and "\n| 11 |" not in text
+    assert "Full table (30 rows, all backends and jobs): %s" % out_path in text
+    full = open(out_path).read()
+    assert "\n| 30 |" in full and "Showing rows" not in full and "Full table" not in full
+
+
+def test_main_table_default_full_table_path_and_top_zero(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    rows, data = _many_rows(25)
+    with patch("disruption_common.sippy.collect_runs", return_value=(rows, False)), \
+            patch("disruption_common.sippy.fetch_disruption_data", return_value=data):
+        main(["--grafana-url", _URL])
+        text = capsys.readouterr().out
+        written = list((tmp_path / ".work" / "disruption-analysis").glob("*/find-runs-*.md"))
+        assert len(written) == 1
+        assert "\n| 20 |" in text and "\n| 21 |" not in text
+
+        main(["--grafana-url", _URL, "--top", "0"])
+        text = capsys.readouterr().out
+        assert "\n| 25 |" in text and "Full table" not in text
+        # Fewer rows than --top: nothing is cut, so no file either.
+        main(["--grafana-url", _URL, "--top", "50"])
+        assert "Full table" not in capsys.readouterr().out
+    assert len(list((tmp_path / ".work").rglob("*.md"))) == 1
+
+
+def test_main_json_stays_complete(capsys):
+    rows, data = _many_rows(30)
+    with patch("disruption_common.sippy.collect_runs", return_value=(rows, False)), \
+            patch("disruption_common.sippy.fetch_disruption_data", return_value=data):
+        main(["--grafana-url", _URL, "--format", "json", "--top", "5"])
+    assert len(json.loads(capsys.readouterr().out)) == 30
+
+
+def test_default_full_table_path():
+    now = datetime.datetime(2026, 11, 10, 8, 5, 3, tzinfo=datetime.timezone.utc)
+    assert default_full_table_path(now) == ".work/disruption-analysis/2026-11-10/find-runs-080503.md"
+
+
+@patch("disruption_common.sippy.fetch_runs")
+@patch("disruption_common.sippy.fetch_disruption_data")
+def test_master_nodes_y_and_n_keeps_every_run_without_warning(mock_disruption, mock_fetch_runs, capsys):
+    mock_fetch_runs.return_value = [_run("Yrun", "job", "2026-11-04T00:00:00Z"),
+                                    _run("Nrun", "job", "2026-11-04T01:00:00Z")]
+    mock_disruption.return_value = {
+        "Yrun": [{"backend_name": "kube-api-new-connections", "disruption_seconds": 5, "master_nodes_updated": "Y"}],
+        "Nrun": [{"backend_name": "kube-api-new-connections", "disruption_seconds": 7, "master_nodes_updated": "N"}],
+    }
+    main(["--grafana-url", _URL + "&var-master_nodes_updated=Y&var-master_nodes_updated=N", "--format", "json"])
+    captured = capsys.readouterr()
+    assert sorted(row["build_id"] for row in json.loads(captured.out)) == ["Nrun", "Yrun"]
+    assert "master_nodes_updated" not in captured.err
+
+
+@patch("disruption_common.sippy.fetch_runs")
+@patch("disruption_common.sippy.fetch_disruption_data")
+def test_main_warns_about_a_malformed_backend(mock_disruption, mock_fetch_runs, capsys):
+    mock_fetch_runs.return_value = [_run("1", "job", "2026-11-04T00:00:00Z")]
+    mock_disruption.return_value = {"1": [
+        {"backend_name": "kube-api-new-connections", "disruption_seconds": 5},
+        {"backend_name": "host-to-host-new-connections", "disruption_seconds": 0},
+    ]}
+    main(["--grafana-url", _URL + "&var-backend=host-to-host-new-connec%20%20tions", "--format", "json"])
+    err = capsys.readouterr().err
+    assert "Warning: backend 'host-to-host-new-connec  tions' contains whitespace" in err
+    assert "did you mean 'host-to-host-new-connections'?" in err
+
+
+
+@patch("disruption_common.sippy.fetch_runs")
+@patch("disruption_common.sippy.fetch_disruption_data")
+def test_main_warns_when_the_disruption_api_loses_runs(mock_disruption, mock_fetch_runs, capsys):
+    mock_fetch_runs.return_value = [
+        {"prow_id": pid, "job": "periodic-e2e-upgrade", "timestamp": "2026-11-0%dT10:00:00Z" % pid,
+         "overall_result": "F", "url": "https://prow/%d" % pid}
+        for pid in (1, 2)]
+
+    def lose_one(prow_ids, failed=None, **_kwargs):
+        failed.append("2")
+        return {"1": [{"backend_name": "kube-api-new-connections", "disruption_seconds": 9}]}
+
+    mock_disruption.side_effect = lose_one
+
+    main(["--release", "5.1", "--backend", "kube-api-new-connections", "--format", "json",
+          "--since-hours", "48"])
+
+    err = capsys.readouterr().err
+    assert "failed for 1 of 2 runs" in err
+    assert "unknown, not zero" in err
 
 
 if __name__ == "__main__":

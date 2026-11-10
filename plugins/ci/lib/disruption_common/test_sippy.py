@@ -1,5 +1,6 @@
 """Tests for disruption_common.sippy — windowed paging and disruption lookups."""
 import datetime
+import email.utils
 import http.client
 import json
 import os
@@ -19,6 +20,7 @@ from disruption_common.sippy import (  # noqa: E402
     build_sippy_filter,
     collect_runs,
     fetch_disruption_data,
+    fetch_disruption_data_with_failures,
     fetch_runs,
     fetch_runs_in_window,
     parse_timestamp,
@@ -441,6 +443,187 @@ def test_collect_runs_reports_every_failed_combo(mock_window):
     assert message.startswith("2 of 3 variant combinations failed")
     assert "Platform=gcp: HTTP 500 from Sippy runs API: gcp down" in message
     assert "Platform=azure: HTTP 500 from Sippy runs API: azure down" in message
+
+
+def _http_error(code, headers=None, body=b'{"code":429,"message":"Rate limit exceeded."}'):
+    return urllib.error.HTTPError("https://sippy/x", code, "error", headers or {}, BytesIO(body))
+
+
+def _rows_for(ids, seconds=5):
+    return [{"backend_name": "x", "disruption_seconds": seconds, "job_run_name": pid} for pid in ids]
+
+
+class _Sleeper:
+    def __init__(self):
+        self.delays = []
+
+    def __call__(self, seconds):
+        self.delays.append(seconds)
+
+
+def test_rate_limit_is_retried_with_backoff_and_then_succeeds(capsys):
+    sleeper = _Sleeper()
+    outcomes = [_http_error(429), _http_error(429), _rows_for(["1"])]
+
+    def fake_batch(ids):
+        outcome = outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise SippyError("HTTP 429 from Sippy disruption API", status=429)
+        return outcome
+
+    with patch.object(sippy, "_fetch_disruption_batch", side_effect=fake_batch):
+        lookup, failed = fetch_disruption_data_with_failures(["1"], max_wait=100, sleep=sleeper)
+    assert lookup["1"][0]["disruption_seconds"] == 5
+    assert failed == []
+    assert sleeper.delays == [15, 30]
+    assert "rate limit (HTTP 429); retrying in 15s" in capsys.readouterr().err
+
+
+def test_rate_limit_honors_retry_after_header():
+    sleeper = _Sleeper()
+    responses = [_http_error(429, {"Retry-After": "7"}), _urlopen_returning({"rows": _rows_for(["1"])})]
+
+    def fake_urlopen(url, timeout=None):
+        response = responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        lookup, failed = fetch_disruption_data_with_failures(["1"], max_wait=60, sleep=sleeper)
+    assert sleeper.delays == [7]
+    assert "1" in lookup and failed == []
+
+
+def test_rate_limit_gives_up_within_the_wait_budget_and_reports_failed_ids(capsys):
+    sleeper = _Sleeper()
+    with patch("urllib.request.urlopen", side_effect=lambda url, timeout=None: (_ for _ in ()).throw(
+            _http_error(429))):
+        lookup, failed = fetch_disruption_data_with_failures(["1", "2"], max_wait=40, sleep=sleeper)
+    assert lookup == {}
+    assert failed == ["1", "2"]
+    assert sum(sleeper.delays) <= 40
+    assert sleeper.delays == [15, 25]
+    assert "could not fetch disruption data for 2 run(s): HTTP 429" in capsys.readouterr().err
+
+
+def test_retry_after_longer_than_the_budget_is_not_slept():
+    sleeper = _Sleeper()
+    with patch.object(sippy, "_fetch_disruption_batch",
+                      side_effect=SippyError("HTTP 429", status=429, retry_after=3600)):
+        _lookup, failed = fetch_disruption_data_with_failures(["1"], max_wait=90, sleep=sleeper)
+    assert sleeper.delays == []
+    assert failed == ["1"]
+
+
+def test_wait_budget_is_shared_across_batches(monkeypatch):
+    monkeypatch.setattr(sippy, "DISRUPTION_BATCH_SIZE", 1)
+    sleeper = _Sleeper()
+    with patch.object(sippy, "_fetch_disruption_batch", side_effect=SippyError("HTTP 429", status=429)):
+        _lookup, failed = fetch_disruption_data_with_failures(["1", "2", "3"], max_wait=20, sleep=sleeper)
+    assert failed == ["1", "2", "3"]
+    assert sum(sleeper.delays) == 20
+
+
+def test_other_http_errors_are_not_retried():
+    sleeper = _Sleeper()
+    with patch.object(sippy, "_fetch_disruption_batch", side_effect=SippyError("HTTP 500", status=500)) as batch:
+        _lookup, failed = fetch_disruption_data_with_failures(["1"], sleep=sleeper)
+    assert batch.call_count == 1 and sleeper.delays == [] and failed == ["1"]
+
+
+def test_oversized_request_is_split_in_half():
+    def fake_batch(ids):
+        if len(ids) > 2:
+            raise SippyError("HTTP 414", status=414)
+        return _rows_for(ids)
+
+    with patch.object(sippy, "_fetch_disruption_batch", side_effect=fake_batch) as batch:
+        lookup, failed = fetch_disruption_data_with_failures(["1", "2", "3", "4"])
+    assert sorted(lookup) == ["1", "2", "3", "4"] and failed == []
+    assert [call[0][0] for call in batch.call_args_list] == [["1", "2", "3", "4"], ["1", "2"], ["3", "4"]]
+
+
+def test_cache_is_written_after_each_batch_so_a_rerun_fetches_only_what_failed(tmp_path, monkeypatch):
+    monkeypatch.setattr(sippy, "DISRUPTION_BATCH_SIZE", 2)
+    cache = tmp_path / "disruption.json"
+    writes = []
+    real_write = sippy.write_json_atomic
+
+    def recording_write(path, data, indent=None):
+        writes.append(sorted(data))
+        real_write(path, data, indent)
+
+    def first_run(ids):
+        if ids == ["3", "4"]:
+            raise SippyError("HTTP 429", status=429)
+        return _rows_for(ids)
+
+    with patch.object(sippy, "write_json_atomic", side_effect=recording_write), \
+            patch.object(sippy, "_fetch_disruption_batch", side_effect=first_run):
+        lookup, failed = fetch_disruption_data_with_failures(
+            ["1", "2", "3", "4", "5"], cache_path=str(cache), max_wait=0)
+    assert failed == ["3", "4"]
+    assert sorted(lookup) == ["1", "2", "5"]
+    assert writes == [["1", "2"], ["1", "2", "5"]]
+    assert set(json.loads(cache.read_text())) == {"1", "2", "5"}
+    assert not [p for p in os.listdir(tmp_path) if p.endswith(".tmp")]
+
+    with patch.object(sippy, "_fetch_disruption_batch", side_effect=_rows_for) as batch:
+        lookup, failed = fetch_disruption_data_with_failures(
+            ["1", "2", "3", "4", "5"], cache_path=str(cache))
+    batch.assert_called_once_with(["3", "4"])
+    assert sorted(lookup) == ["1", "2", "3", "4", "5"] and failed == []
+
+
+def test_fetch_disruption_data_keeps_its_dict_contract_when_batches_fail():
+    with patch.object(sippy, "_fetch_disruption_batch", side_effect=SippyError("HTTP 429", status=429)):
+        assert fetch_disruption_data(["1"], max_wait=0) == {}
+
+
+def test_disruption_batch_url_keeps_commas_and_batches_are_large():
+    seen = []
+
+    def fake_urlopen(url, timeout=None):
+        seen.append(url)
+        return _urlopen_returning({"rows": []})
+
+    ids = [str(2100000000000000000 + i) for i in range(sippy.DISRUPTION_BATCH_SIZE + 1)]
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        fetch_disruption_data(ids)
+    assert len(seen) == 2
+    assert "job_run_names=%s,%s," % (ids[0], ids[1]) in seen[0]
+    assert len(seen[0]) < 12000
+
+
+def test_retry_after_seconds_parses_delays_dates_and_reset_headers():
+    now = 1_800_000_000.0
+    assert sippy._retry_after_seconds({"Retry-After": "12"}, now) == 12
+    date = email.utils.formatdate(now + 30, usegmt=True)
+    assert sippy._retry_after_seconds({"Retry-After": date}, now) == pytest.approx(30, abs=1)
+    assert sippy._retry_after_seconds({"X-RateLimit-Reset": str(int(now + 45))}, now) == 45
+    assert sippy._retry_after_seconds({"RateLimit-Reset": "20"}, now) == 20
+    assert sippy._retry_after_seconds({"Retry-After": "soon"}, now) is None
+    assert sippy._retry_after_seconds({}, now) is None
+    assert sippy._retry_after_seconds(None, now) is None
+
+
+def test_http_error_carries_status_and_retry_after():
+    with patch("urllib.request.urlopen", side_effect=_http_error(429, {"Retry-After": "5"})):
+        with pytest.raises(SippyError) as excinfo:
+            fetch_runs("5.0", build_sippy_filter({}, SINCE), 10)
+    assert excinfo.value.status == 429 and excinfo.value.retry_after == 5
+
+
+
+def test_fetch_disruption_data_appends_lost_ids_to_failed():
+    with patch.object(sippy, "fetch_disruption_data_with_failures",
+                      return_value=({"1": []}, ["2", "3"])) as inner:
+        failed = []
+        assert sippy.fetch_disruption_data(["1", "2", "3"], failed=failed) == {"1": []}
+
+    assert failed == ["2", "3"]
+    assert inner.call_args[0][0] == ["1", "2", "3"]
 
 
 if __name__ == "__main__":

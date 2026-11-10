@@ -97,6 +97,7 @@ def test_recent_days_and_tool_args():
     assert query["args"]["cloudId"] == "redhat.atlassian.net"
     assert query["args"]["maxResults"] == MAX_RESULTS == 100
     assert "status" in query["args"]["fields"]
+    assert "assignee" not in query["args"]["fields"]
 
 
 if __name__ == "__main__":

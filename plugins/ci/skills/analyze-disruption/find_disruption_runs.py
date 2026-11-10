@@ -13,15 +13,20 @@ Usage:
     python3 find_disruption_runs.py --release 5.0 --platform gcp --backend host-to-host-new-connections --upgrade-type micro --architecture amd64 --topology ha --network ovn
 
 Output formats:
-    --format table   (default) Human-readable table with disruption status
-    --format json    Machine-readable JSON array
+    --format table   (default) Compact report: series header, per-backend and
+                     per-job summaries, recommended rows, and the top --top rows.
+                     The full table is written to --full-table-out (or a default
+                     path under .work/disruption-analysis/) when rows are cut.
+    --format json    Machine-readable JSON array of every row
 """
 import argparse
+import functools
 import json
-import math
 import os
 import re
+import statistics
 import sys
+from datetime import datetime, timezone
 
 # disruption_common is in plugins/ci/lib when the whole plugin is installed, or
 # beside the skill directories when a Chai persona lists it in supporting_dirs.
@@ -42,12 +47,22 @@ from disruption_common import series, sippy  # noqa: E402
 from disruption_common.series import (  # noqa: E402
     GRAFANA_TO_VARIANT,
     disruption_peak,
+    expand_backend_selectors,
     is_all_sentinel,
+    master_nodes_means_all,
     selector_bases,
+    split_backends,
 )
 
 # A single page is not the candidate set — scoring happens after the scan.
 MAX_SCANNED_RUNS = 5000
+# Same-job runs starting this close to a batch's first run share a launch (and payload).
+BATCH_WINDOW_SECONDS = 300
+CROSS_JOB_WINDOW_SECONDS = 5
+# Rows printed by default in table format; the full table goes to a file.
+DEFAULT_TOP_ROWS = 20
+# A disrupted run is correlated when every selected backend is within this fraction of its max.
+CORRELATION_TOLERANCE = 0.15
 
 
 def max_disruption_for_backend(disruption_entries, selectors):
@@ -72,190 +87,178 @@ def extract_disruption_failures(failed_test_names):
     return sorted(set(backends))
 
 
-def select_representative_runs(rows, disruption_data, base_backend, n=5):
-    """Select a diverse, representative sample of job runs for analysis.
+def is_upgrade_job(job):
+    """True when the job name says it is an upgrade job."""
+    return "upgrade" in (job or "").lower()
 
-    Algorithm:
-    1. Deduplicate same-job runs within 60s (keep highest disruption)
-    2. Deduplicate cross-job runs within 5s (keep highest disruption)
-    3. Categorize into high/moderate/low disruption tiers
-    4. Round-robin across jobs within each tier for diversity
+
+def is_upgrade_series(variants):
+    """True when the series' Upgrade filter names at least one value other than none."""
+    values = split_backends((variants or {}).get("Upgrade"))
+    return any(value.lower() != "none" for value in values)
+
+
+def select_representative_runs(rows, disruption_data, base_backend, n=5, upgrade_series=False):
+    """Select a representative sample of job runs for analysis.
+
+    Rules (documented in references/run-discovery.md):
+    1. The top run (most seconds, newest on a tie) is always picked.
+    2. One run per launch batch: same-job runs that start within
+       BATCH_WINDOW_SECONDS of the batch's first run keep only the worst.
+       At most one pick among runs of any job that start within
+       CROSS_JOB_WINDOW_SECONDS of each other.
+    3. Jobs are weighted by the seconds they add to the series, over every
+       disrupted run. In an upgrade series a non-upgrade job counts half.
+       Each next pick goes to the job with the most weight per pick so far.
+    4. A job's first pick is its worst batch, the next its most typical
+       (closest to the job's median), then down by seconds.
+    5. With n >= 3, a 0s run from a picked job is added as a clean comparison.
     """
     if not rows or n <= 0:
         return []
+    known = [e for e in _enrich_runs(rows, disruption_data, base_backend)
+             if e["disruption_seconds"] is not None]
+    disrupted = [e for e in known if e["disruption_seconds"] > 0]
+    if not disrupted:
+        return []
 
-    def get_disruption(row):
-        pid = str(row.get("prow_id", ""))
-        return max_disruption_for_backend(disruption_data.get(pid), base_backend)
+    top = max(disrupted, key=_rank_key)
+    candidates = _dedupe_batches(known)
+    zero_runs = [c for c in candidates if c["disruption_seconds"] == 0]
+    batches = [c for c in candidates if c["disruption_seconds"] > 0 and c is not top]
 
+    clusters = _same_instant_clusters(candidates)
+    picks = [top] + _weighted_picks(batches, disrupted, upgrade_series, n - 1, top, clusters)
+    if n >= 3:
+        picks = _add_clean_comparison(picks, zero_runs, n, top)
+    return sorted(p["index"] for p in picks)
+
+
+def _enrich_runs(rows, disruption_data, selectors):
     enriched = []
     for i, row in enumerate(rows):
+        pid = str(row.get("prow_id", ""))
         enriched.append({
             "index": i,
             "job": row.get("job", ""),
             "timestamp": sippy.parse_timestamp(row.get("timestamp", "")),
-            "disruption_seconds": get_disruption(row),
+            "disruption_seconds": max_disruption_for_backend(disruption_data.get(pid), selectors),
         })
+    return enriched
 
-    def dedup_key(e):
-        return (e["disruption_seconds"] if e["disruption_seconds"] is not None else -1, -e["index"])
 
-    # Phase 2: Deduplicate same-job runs within 60s (chaining)
-    by_job_ts = sorted(enriched, key=lambda e: (e["job"], e["timestamp"]))
-    groups = [[by_job_ts[0]]]
-    for entry in by_job_ts[1:]:
-        prev = groups[-1][-1]
-        if entry["job"] == prev["job"] and abs((entry["timestamp"] - prev["timestamp"]).total_seconds()) <= 60:
+def _rank_key(entry):
+    """Most seconds first, then newest, then earliest row: the display order."""
+    return (entry["disruption_seconds"], entry["timestamp"], -entry["index"])
+
+
+def _dedupe_batches(entries):
+    """Keep the worst run of each launch batch (same job, start within the batch window)."""
+    groups = []
+    for entry in sorted(entries, key=lambda e: (e["job"], e["timestamp"])):
+        anchor = groups[-1][0] if groups else None
+        if (anchor and entry["job"] == anchor["job"]
+                and (entry["timestamp"] - anchor["timestamp"]).total_seconds() <= BATCH_WINDOW_SECONDS):
             groups[-1].append(entry)
         else:
             groups.append([entry])
-    deduped = [max(g, key=dedup_key) for g in groups]
-
-    # Phase 3: Deduplicate cross-job runs within 5s (anchor-based)
-    by_ts = sorted(deduped, key=lambda e: e["timestamp"])
-    clusters = [[by_ts[0]]]
-    for entry in by_ts[1:]:
-        anchor = clusters[-1][0]
-        if abs((entry["timestamp"] - anchor["timestamp"]).total_seconds()) <= 5:
-            clusters[-1].append(entry)
-        else:
-            clusters.append([entry])
-    candidates = [max(c, key=dedup_key) for c in clusters]
-
-    # Exclude runs with no disruption data (None = BQ data unavailable)
-    candidates = [c for c in candidates if c["disruption_seconds"] is not None]
-
-    # Separate 0s runs — they're only useful as a dedicated clean comparison, not
-    # for diversity selection. A same-job 0s run is added when n is at least 3.
-    zero_runs = [c for c in candidates if c["disruption_seconds"] == 0]
-    candidates = [c for c in candidates if c["disruption_seconds"] > 0]
-
-    if not candidates:
-        return []
-
-    if len(candidates) <= n:
-        selected = [c["index"] for c in candidates]
-        if n >= 3:
-            selected_jobs = {c["job"] for c in candidates}
-            clean = [c for c in zero_runs if c["job"] in selected_jobs]
-            if clean:
-                clean_pick = min(clean, key=lambda c: c["index"])
-                if len(selected) < n:
-                    selected.append(clean_pick["index"])
-                else:
-                    selected = _replace_disrupted_with_clean(selected, candidates, clean_pick)
-        return sorted(selected)
-
-    # Phase 4: Categorize by disruption level
-    non_zero = sorted([c["disruption_seconds"] for c in candidates])
-
-    if len(non_zero) < 3:
-        p50 = non_zero[len(non_zero) // 2]
-        high = [c for c in candidates if c["disruption_seconds"] >= p50]
-        low = [c for c in candidates if c not in high]
-        tiers = [high, low]
-        high_slots = min(len(high), max(1, n // 2))
-        low_slots = n - high_slots
-        slot_counts = [high_slots, low_slots]
-    else:
-        p33_idx = len(non_zero) // 3
-        p66_idx = 2 * len(non_zero) // 3
-        low_thresh = non_zero[p33_idx]
-        high_thresh = non_zero[p66_idx]
-
-        high = [c for c in candidates if c["disruption_seconds"] >= high_thresh]
-        moderate = [c for c in candidates if low_thresh <= c["disruption_seconds"] < high_thresh]
-        low = [c for c in candidates if c not in high and c not in moderate]
-        tiers = [high, moderate, low]
-        high_slots = math.ceil(n * 0.4)
-        mod_slots = math.floor(n * 0.4)
-        low_slots = n - high_slots - mod_slots
-        slot_counts = [high_slots, mod_slots, low_slots]
-
-    # Redistribute slots from empty/small tiers
-    for _ in range(len(tiers)):
-        overflow = 0
-        for i, (tier, slots) in enumerate(zip(tiers, slot_counts)):
-            if len(tier) < slots:
-                overflow += slots - len(tier)
-                slot_counts[i] = len(tier)
-        if overflow == 0:
-            break
-        for i in range(len(tiers)):
-            available = len(tiers[i]) - slot_counts[i]
-            give = min(overflow, available)
-            slot_counts[i] += give
-            overflow -= give
-            if overflow == 0:
-                break
-
-    # Phase 6: Round-robin within tiers for job diversity
-    selected = []
-    for tier, slots in zip(tiers, slot_counts):
-        selected.extend(_select_by_job_diversity(tier, slots))
-
-    # Phase 6.5: Reserve one slot for a clean comparison (0s disruption) when available.
-    # Only pick a clean run from a job that is actually in the selected set — a clean run
-    # from a job that has disrupted runs in the pool but is not in that set is not useful.
-    idx_to_job = {c["index"]: c["job"] for c in candidates}
-    selected_jobs = set(idx_to_job[idx] for idx in selected if idx in idx_to_job)
-    clean = [c for c in zero_runs if c["job"] in selected_jobs]
-    if clean and n >= 3 and len(selected) >= n:
-        clean_pick = min(clean, key=lambda c: c["index"])
-        selected = _replace_disrupted_with_clean(selected, candidates, clean_pick)
-
-    return sorted(selected)
+    return [max(g, key=_rank_key) for g in groups]
 
 
-def _replace_disrupted_with_clean(selected, candidates, clean_pick):
-    """Swap one selected disrupted run for clean_pick without breaking its pair.
+def _same_instant_clusters(entries):
+    """Map row index to a cluster of runs (any job) starting within the cross-job window of its first run."""
+    clusters = {}
+    anchor = None
+    for entry in sorted(entries, key=lambda e: e["timestamp"]):
+        if anchor is None or (entry["timestamp"] - anchor["timestamp"]).total_seconds() > CROSS_JOB_WINDOW_SECONDS:
+            anchor = entry
+        clusters[entry["index"]] = anchor["index"]
+    return clusters
 
-    The only selected disrupted run from clean_pick's job stays. When a
-    disrupted run from another job is selected, that run is the one replaced.
+
+def _job_weights(disrupted, upgrade_series):
+    """Seconds each job adds to the series; non-upgrade jobs count half in an upgrade series."""
+    weights = {}
+    for entry in disrupted:
+        weights[entry["job"]] = weights.get(entry["job"], 0) + entry["disruption_seconds"]
+    if upgrade_series:
+        for job in weights:
+            if not is_upgrade_job(job):
+                weights[job] /= 2.0
+    return weights
+
+
+def _weighted_picks(batches, disrupted, upgrade_series, slots, top, clusters):
+    """Hand out slots one at a time to the job with the most weight per pick.
+
+    Ties go to the job with fewer picks, then the job name. The top run
+    already holds one pick. A batch in the same instant cluster as an
+    earlier pick is skipped.
     """
-    job_of = {c["index"]: c["job"] for c in candidates}
-    clean_job = clean_pick["job"]
-    same_job = [idx for idx in selected if job_of.get(idx) == clean_job]
-    others = [idx for idx in selected if job_of.get(idx) != clean_job]
-    if len(same_job) <= 1:
-        if not others:
-            return list(selected)
-        drop = others[-1]
-    else:
-        drop = selected[-1]
-    return [clean_pick["index"] if idx == drop else idx for idx in selected]
-
-
-def _select_by_job_diversity(candidates, n):
-    """Select n candidates with maximum job diversity via round-robin."""
-    if not candidates or n <= 0:
-        return []
-    if len(candidates) <= n:
-        return [c["index"] for c in candidates]
-
+    top_job = top["job"]
+    weights = _job_weights(disrupted, upgrade_series)
+    medians = {}
+    for entry in disrupted:
+        medians.setdefault(entry["job"], []).append(entry["disruption_seconds"])
     by_job = {}
-    for c in candidates:
-        by_job.setdefault(c["job"], []).append(c)
-    for job in by_job:
-        by_job[job].sort(key=lambda c: (-(c["disruption_seconds"] or 0), c["index"]))
+    for batch in batches:
+        by_job.setdefault(batch["job"], []).append(batch)
+    queues = {job: _pick_order(items, statistics.median(medians[job]), job == top_job)
+              for job, items in by_job.items()}
+    counts = {top_job: 1}
+    used = {clusters[top["index"]]}
 
-    job_order = sorted(by_job.keys(), key=lambda j: (len(by_job[j]), j))
-
-    selected = []
-    pointers = {j: 0 for j in job_order}
-    while len(selected) < n:
-        picked_this_round = False
-        for job in job_order:
-            if len(selected) >= n:
-                break
-            if pointers[job] < len(by_job[job]):
-                selected.append(by_job[job][pointers[job]]["index"])
-                pointers[job] += 1
-                picked_this_round = True
-        if not picked_this_round:
+    picks = []
+    while len(picks) < slots:
+        for queue in queues.values():
+            while queue and clusters[queue[0]["index"]] in used:
+                queue.pop(0)
+        open_jobs = [job for job, queue in queues.items() if queue]
+        if not open_jobs:
             break
+        job = min(open_jobs, key=lambda j: (-weights[j] / (counts.get(j, 0) + 1), counts.get(j, 0), j))
+        picks.append(queues[job].pop(0))
+        used.add(clusters[picks[-1]["index"]])
+        counts[job] = counts.get(job, 0) + 1
+    return picks
 
-    return selected
+
+def _pick_order(batches, median, worst_taken):
+    """One job's batches in pick order: worst, most typical, then down by seconds."""
+    ordered = sorted(batches, key=_rank_key, reverse=True)
+    first = [] if worst_taken else ordered[:1]
+    rest = ordered[len(first):]
+    if rest:
+        typical = min(rest, key=lambda b: (abs(b["disruption_seconds"] - median), -b["disruption_seconds"], b["index"]))
+        rest.remove(typical)
+        first.append(typical)
+    return first + rest
+
+
+def _add_clean_comparison(picks, zero_runs, n, top):
+    """Add a 0s run from the highest-priority picked job, in a free slot or by replacement."""
+    picked_jobs = [p["job"] for p in picks]
+    clean = [z for z in zero_runs if z["job"] in picked_jobs]
+    if not clean:
+        return picks
+    clean_pick = min(clean, key=lambda z: (picked_jobs.index(z["job"]), z["index"]))
+    if len(picks) < n:
+        return picks + [clean_pick]
+    return _replace_disrupted_with_clean(picks, clean_pick, top)
+
+
+def _replace_disrupted_with_clean(picks, clean_pick, top):
+    """Swap the last droppable pick for clean_pick.
+
+    The top run and the only pick from clean_pick's job are never dropped,
+    so the clean run always has a disrupted partner.
+    """
+    same_job = [p for p in picks if p["job"] == clean_pick["job"]]
+    droppable = [p for p in picks if p is not top and not (len(same_job) == 1 and p is same_job[0])]
+    if not droppable:
+        return picks
+    drop = droppable[-1]
+    return [clean_pick if p is drop else p for p in picks]
 
 
 def format_timestamp(ts):
@@ -276,9 +279,103 @@ def _backend_label(selectors):
     return ", ".join(selectors)
 
 
-def print_table(rows, grafana_params, selectors, disruption_data, selected_indices=None,
-                scanned_count=None, window_start=None, truncated=False):
-    """Print human-readable candidate table."""
+# Derived probe families; any other name is a main (load-balancer or in-cluster) backend.
+_PROBE_FAMILIES = (
+    ("*-localhost-*", lambda name: "-localhost-" in name),
+    ("*-service-network-*", lambda name: "-service-network-" in name),
+    ("*-internal-lb-*", lambda name: "-internal-lb-" in name),
+    ("cache-*", lambda name: name.startswith("cache-")),
+)
+
+
+def probe_family(name):
+    """The derived probe family of a backend name, or None for a main backend."""
+    for family, matches in _PROBE_FAMILIES:
+        if matches(name):
+            return family
+    return None
+
+
+def _fmt_secs(value):
+    return "%d" % value if float(value).is_integer() else "%.1f" % value
+
+
+def _run_secs(row, disruption_data, selectors):
+    return disruption_peak(disruption_data.get(str(row.get("prow_id", ""))), selectors)
+
+
+def backend_summary(rows, disruption_data, selectors):
+    """Per exact selected backend: runs > 0, runs where it was the max, median seconds when > 0."""
+    stats = {name: {"name": name, "nonzero": [], "max_in": 0} for name in expand_backend_selectors(selectors)}
+    for row in rows:
+        entries = disruption_data.get(str(row.get("prow_id", ""))) or []
+        for entry in entries:
+            name = entry.get("backend_name")
+            if name in stats and (entry.get("disruption_seconds") or 0) > 0:
+                stats[name]["nonzero"].append(entry["disruption_seconds"])
+        secs, peak = disruption_peak(entries, selectors)
+        if peak and secs > 0:
+            stats[peak]["max_in"] += 1
+    summary = [{"name": s["name"], "nonzero": len(s["nonzero"]), "max_in": s["max_in"],
+                "median": statistics.median(s["nonzero"]) if s["nonzero"] else None}
+               for s in stats.values()]
+    return sorted(summary, key=lambda s: (-s["max_in"], -s["nonzero"], s["name"]))
+
+
+def dominant_probe_family(summary):
+    """(family, runs, disrupted runs) when one derived probe family is the max in most disrupted runs.
+
+    Only reported when the selection spans more than one family (main
+    backends count as one), since then the ranking may not be what was meant.
+    """
+    families = {probe_family(s["name"]) for s in summary}
+    disrupted = sum(s["max_in"] for s in summary)
+    if len(families) < 2 or not disrupted:
+        return None
+    by_family = {}
+    for s in summary:
+        family = probe_family(s["name"])
+        if family:
+            by_family[family] = by_family.get(family, 0) + s["max_in"]
+    for family, count in sorted(by_family.items(), key=lambda item: -item[1]):
+        if count * 2 > disrupted:
+            return family, count, disrupted
+    return None
+
+
+def correlated_runs(rows, disruption_data, selectors, tolerance=CORRELATION_TOLERANCE):
+    """(correlated, disrupted): disrupted runs where every selected backend with data is
+    nonzero and within tolerance of that run's max."""
+    allowed = expand_backend_selectors(selectors)
+    correlated = disrupted = 0
+    for row in rows:
+        entries = [e for e in disruption_data.get(str(row.get("prow_id", ""))) or []
+                   if e.get("backend_name") in allowed]
+        peak = max([e.get("disruption_seconds") or 0 for e in entries] or [0])
+        if peak <= 0:
+            continue
+        disrupted += 1
+        if len(entries) > 1 and all((e.get("disruption_seconds") or 0) >= peak * (1 - tolerance) for e in entries):
+            correlated += 1
+    return correlated, disrupted
+
+
+def job_summary(rows, disruption_data, selectors):
+    """Per job with disruption: runs, disrupted runs, total and median seconds, sorted by total."""
+    jobs = {}
+    for row in rows:
+        job = jobs.setdefault(row.get("job", "?"), {"job": row.get("job", "?"), "runs": 0, "secs": []})
+        job["runs"] += 1
+        secs = _run_secs(row, disruption_data, selectors)[0]
+        if secs:
+            job["secs"].append(secs)
+    summary = [{"job": j["job"], "runs": j["runs"], "disrupted": len(j["secs"]),
+                "total": sum(j["secs"]), "median": statistics.median(j["secs"])}
+               for j in jobs.values() if j["secs"]]
+    return sorted(summary, key=lambda j: (-j["total"], j["job"]))
+
+
+def _print_header(emit, grafana_params, window_start, scanned_count, truncated, row_count):
     dashboard_name = grafana_params.get("_dashboard_name", "")
     filters = []
     for gkey, variant_key in GRAFANA_TO_VARIANT.items():
@@ -286,11 +383,8 @@ def print_table(rows, grafana_params, selectors, disruption_data, selected_indic
         if val and not is_all_sentinel(val):
             filters.append("%s=%s" % (variant_key, val))
     masters = grafana_params.get("master_nodes_updated")
-    if masters and not is_all_sentinel(masters):
+    if masters and not is_all_sentinel(masters) and not master_nodes_means_all(masters):
         filters.append("MasterNodesUpdated=%s" % masters)
-    backend = grafana_params.get("backend", "")
-    release = grafana_params.get("releases", "")
-    percentile = grafana_params.get("percentile", "")
     summary_extra = []
     lookback = grafana_params.get("lookback")
     if lookback:
@@ -299,81 +393,166 @@ def print_table(rows, grafana_params, selectors, disruption_data, selected_indic
     if compare_release:
         summary_extra.append("CompareRelease=%s" % compare_release)
 
-    print("Dashboard: %s" % dashboard_name)
-    print("Filters: %s" % " | ".join(filters))
-    release_line = "Release: %s | Percentile: %s | Backend: %s" % (release, percentile, backend)
+    emit("Dashboard: %s" % dashboard_name)
+    emit("Filters: %s" % " | ".join(filters))
+    release_line = "Release: %s | Percentile: %s | Backend: %s" % (
+        grafana_params.get("releases", ""), grafana_params.get("percentile", ""), grafana_params.get("backend", ""))
     if summary_extra:
         release_line += " | " + " | ".join(summary_extra)
-    print(release_line)
+    emit(release_line)
     if window_start is not None:
-        print("Window start: %s" % format_timestamp(window_start.isoformat().replace("+00:00", "Z")))
+        emit("Window start: %s" % format_timestamp(window_start.isoformat().replace("+00:00", "Z")))
     if scanned_count is not None:
-        print("Scanned %d runs." % scanned_count)
+        emit("Scanned %d runs." % scanned_count)
     if truncated:
-        print("Warning: stopped after %d runs; the lookback window was not fully scanned." % (
-            scanned_count if scanned_count is not None else len(rows)))
-    print()
+        emit("Warning: stopped after %d runs; the lookback window was not fully scanned." % (
+            scanned_count if scanned_count is not None else row_count))
+    emit()
 
-    positive = sum(1 for row in rows if (disruption_peak(
-        disruption_data.get(str(row.get("prow_id", ""))), selectors)[0] or 0) > 0)
-    percentile_label = percentile or "the dashboard percentile"
-    print("Showing %d runs with disruption > 0s on %s (per-run seconds, not %s):" % (
+
+def _print_backend_summary(emit, rows, disruption_data, selectors, limit):
+    summary = backend_summary(rows, disruption_data, selectors)
+    active = [s for s in summary if s["nonzero"]]
+    shown = summary if limit is None else active[:limit]
+    emit("Selected backends (runs > 0, runs where it was the max, median seconds when > 0):")
+    emit()
+    emit("| Backend | Runs > 0 | Max in | Median (s) |")
+    emit("|---------|----------|--------|------------|")
+    for s in shown:
+        median = _fmt_secs(s["median"]) if s["median"] is not None else "—"
+        emit("| %s | %d | %d | %s |" % (s["name"], s["nonzero"], s["max_in"], median))
+    hidden_active = len(active) - len([s for s in shown if s["nonzero"]])
+    zero = len(summary) - len(active)
+    if limit is not None and (hidden_active or zero):
+        emit("(%d more backends with seconds > 0 and %d with 0s in every run are in the full table.)" % (
+            hidden_active, zero))
+    emit()
+
+    if len(summary) > 1:
+        correlated, disrupted = correlated_runs(rows, disruption_data, selectors)
+        emit("Selected backends correlated (every selected backend in the run within %d%% of that run's "
+             "max) in %d of %d disrupted runs." % (round(CORRELATION_TOLERANCE * 100), correlated, disrupted))
+    dominant = dominant_probe_family(summary)
+    if dominant:
+        emit("Note: %s backends were the max in %d of %d disrupted runs, so that probe family drives this "
+             "ranking. Ask the user which backend family they mean before choosing runs." % dominant)
+    if len(summary) > 1 or dominant:
+        emit()
+
+
+def _print_job_summary(emit, rows, disruption_data, selectors, limit):
+    summary = job_summary(rows, disruption_data, selectors)
+    if not summary:
+        return
+    grand_total = sum(j["total"] for j in summary)
+    shown = summary if limit is None else summary[:limit]
+    emit("Per-job disruption (sorted by total seconds on the selected backends):")
+    emit()
+    emit("| Job | Runs | Disrupted | Total (s) | Share | Median (s) |")
+    emit("|-----|------|-----------|-----------|-------|------------|")
+    for j in shown:
+        emit("| %s | %d | %d | %s | %d%% | %s |" % (
+            j["job"], j["runs"], j["disrupted"], _fmt_secs(j["total"]),
+            round(100.0 * j["total"] / grand_total), _fmt_secs(j["median"])))
+    if len(shown) < len(summary):
+        emit("(%d more jobs are in the full table.)" % (len(summary) - len(shown)))
+    emit()
+
+
+def _visible_rows(row_count, selected_set, top):
+    if top is None or row_count <= top:
+        return list(range(row_count))
+    return sorted(set(range(top)) | {i for i in selected_set if i < row_count})
+
+
+def print_table(rows, grafana_params, selectors, disruption_data, selected_indices=None,
+                scanned_count=None, window_start=None, truncated=False,
+                scanned_rows=None, top=None, full_table_path=None, out=None):
+    """Print the candidate report: header, backend and job summaries, then run rows.
+
+    top limits the run rows to the first top plus recommended rows, and the
+    summaries to top lines; None prints everything. scanned_rows (default
+    rows) are every run in the series, for run counts in the summaries.
+    """
+    emit = functools.partial(print, file=out or sys.stdout)
+    _print_header(emit, grafana_params, window_start, scanned_count, truncated, len(rows))
+    summary_rows = scanned_rows if scanned_rows is not None else rows
+    _print_backend_summary(emit, summary_rows, disruption_data, selectors, top)
+    _print_job_summary(emit, summary_rows, disruption_data, selectors, top)
+
+    positive = sum(1 for row in rows if (_run_secs(row, disruption_data, selectors)[0] or 0) > 0)
+    percentile_label = grafana_params.get("percentile", "") or "the dashboard percentile"
+    emit("Showing %d runs with disruption > 0s on %s (per-run seconds, not %s):" % (
         positive, _backend_label(selectors), percentile_label))
-    print()
+    emit()
 
     selected_set = set(selected_indices) if selected_indices else set()
     has_selection = bool(selected_set)
-
     if has_selection:
-        header = "| # | Rec | Job | Build ID | Result | Disruption (s) | Backend | Disruption Failures | Timestamp |"
-        sep = "|---|-----|-----|----------|--------|----------------|---------|---------------------|-----------|"
+        emit("| # | Rec | Job | Build ID | Result | Disruption (s) | Backend | Disruption Failures | Timestamp |")
+        emit("|---|-----|-----|----------|--------|----------------|---------|---------------------|-----------|")
     else:
-        header = "| # | Job | Build ID | Result | Disruption (s) | Backend | Disruption Failures | Timestamp |"
-        sep = "|---|-----|----------|--------|----------------|---------|---------------------|-----------|"
-    print(header)
-    print(sep)
+        emit("| # | Job | Build ID | Result | Disruption (s) | Backend | Disruption Failures | Timestamp |")
+        emit("|---|-----|----------|--------|----------------|---------|---------------------|-----------|")
 
-    for i, row in enumerate(rows):
-        job = row.get("job", "?")
-        prow_id = row.get("prow_id", "?")
-        result = row.get("overall_result", "?")
-        ts = format_timestamp(row.get("timestamp", ""))
-        disruption = extract_disruption_failures(row.get("failed_test_names"))
-        disruption_str = ", ".join(disruption) if disruption else "—"
+    visible = _visible_rows(len(rows), selected_set, top)
+    for i in visible:
+        emit(_format_row(i, rows[i], disruption_data, selectors, selected_set if has_selection else None))
 
-        pid = str(prow_id)
-        secs, peak_backend = disruption_peak(disruption_data.get(pid), selectors)
-        secs_str = str(secs) if secs is not None else "—"
-        peak_str = peak_backend or "—"
-
-        if len(job) > 60:
-            job = "..." + job[-57:]
-
-        if has_selection:
-            if i in selected_set and secs == 0:
-                rec = "C"
-            elif i in selected_set:
-                rec = "*"
-            else:
-                rec = " "
-            print("| %d | %s | %s | %s | %s | %s | %s | %s | %s |" % (
-                i + 1, rec, job, prow_id, result, secs_str, peak_str, disruption_str, ts))
-        else:
-            print("| %d | %s | %s | %s | %s | %s | %s | %s |" % (
-                i + 1, job, prow_id, result, secs_str, peak_str, disruption_str, ts))
-
-    print()
-    clean_rows = sum(1 for i in selected_set if disruption_peak(
-        disruption_data.get(str(rows[i].get("prow_id", "")), []), selectors)[0] == 0)
+    emit()
+    if len(visible) < len(rows):
+        extra = len(visible) - top
+        emit("Showing rows 1-%d%s of %d." % (
+            top, " plus %d recommended row(s) below them" % extra if extra else "", len(rows)))
+    if full_table_path:
+        emit("Full table (%d rows, all backends and jobs): %s" % (len(rows), full_table_path))
+    clean_rows = sum(1 for i in selected_set if _run_secs(rows[i], disruption_data, selectors)[0] == 0)
     if clean_rows:
-        print("Total: %d (%d disrupted, %d clean comparison)" % (len(rows), positive, clean_rows))
+        emit("Total: %d (%d disrupted, %d clean comparison)" % (len(rows), positive, clean_rows))
     else:
-        print("Total: %d" % len(rows))
+        emit("Total: %d" % len(rows))
     if has_selection:
         if clean_rows:
-            print("Auto-selected %d runs (* = disrupted, C = clean comparison from same job) for diverse coverage." % len(selected_set))
+            emit("Auto-selected %d runs (* = disrupted, C = clean comparison from same job)." % len(selected_set))
         else:
-            print("Auto-selected %d runs (marked with *) for diverse coverage." % len(selected_set))
+            emit("Auto-selected %d runs (marked with *)." % len(selected_set))
+
+
+def _format_row(i, row, disruption_data, selectors, selected_set):
+    """One markdown run row. selected_set is None when nothing was auto-selected."""
+    job = row.get("job", "?")
+    if len(job) > 60:
+        job = "..." + job[-57:]
+    disruption = extract_disruption_failures(row.get("failed_test_names"))
+    secs, peak_backend = _run_secs(row, disruption_data, selectors)
+    cells = [str(i + 1)]
+    if selected_set is not None:
+        cells.append(("C" if secs == 0 else "*") if i in selected_set else " ")
+    cells += [job, str(row.get("prow_id", "?")), str(row.get("overall_result", "?")),
+              str(secs) if secs is not None else "—", peak_backend or "—",
+              ", ".join(disruption) if disruption else "—", format_timestamp(row.get("timestamp", ""))]
+    return "| %s |" % " | ".join(cells)
+
+
+def default_full_table_path(now=None):
+    """Where the full table goes when --full-table-out is not given."""
+    now = now or datetime.now(timezone.utc)
+    return os.path.join(".work", "disruption-analysis", now.strftime("%Y-%m-%d"),
+                        "find-runs-%s.md" % now.strftime("%H%M%S"))
+
+
+def write_full_table(path, *args, **kwargs):
+    """Write the uncapped report to path. Returns path, or None after warning on failure."""
+    try:
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        with open(path, "w") as f:
+            print_table(*args, top=None, out=f, **kwargs)
+    except OSError as e:
+        print("Warning: could not write the full table to %s: %s" % (path, e), file=sys.stderr)
+        return None
+    return path
 
 
 def print_json(rows, selectors, disruption_data, selected_indices=None):
@@ -438,7 +617,13 @@ def main(argv=None):
     parser.add_argument("--disruption-only", action="store_true",
                         help="Only show runs with disruption > 0 for the selected backends")
     parser.add_argument("--auto-select", type=int, default=None, metavar="N",
-                        help="Auto-select N representative runs for diverse coverage")
+                        help="Auto-select N representative runs, weighted by each job's share of the seconds")
+    parser.add_argument("--top", type=int, default=DEFAULT_TOP_ROWS, metavar="N",
+                        help="Table format: print the top N rows plus recommended rows, and up to N "
+                             "backend and job summary lines (default: %d; 0 prints everything)" % DEFAULT_TOP_ROWS)
+    parser.add_argument("--full-table-out", metavar="PATH",
+                        help="Table format: write the full table here. Default when rows are cut: "
+                             ".work/disruption-analysis/<UTC date>/find-runs-<HHMMSS>.md")
     args = parser.parse_args(argv)
 
     try:
@@ -473,7 +658,15 @@ def main(argv=None):
 
     scanned_count = len(rows)
     prow_ids = [str(r["prow_id"]) for r in rows if r.get("prow_id")]
-    raw_disruption = sippy.fetch_disruption_data(prow_ids)
+    lost_ids = []
+    raw_disruption = sippy.fetch_disruption_data(prow_ids, failed=lost_ids)
+    if lost_ids:
+        print("Warning: the Sippy disruption API failed for %d of %d runs (rate limit or error). Their "
+              "disruption is unknown, not zero, and they are missing from the table. Rerun later; "
+              "Sippy allows about 25 disruption requests per hour across all users."
+              % (len(lost_ids), len(prow_ids)), file=sys.stderr)
+    for warning in series.backend_name_warnings(selectors, raw_disruption):
+        print("Warning: %s" % warning, file=sys.stderr)
     master_wanted = resolved["master_nodes_updated"]
     field_present = series.disruption_api_has_master_field(raw_disruption)
     disruption_data = series.filter_disruption_data(raw_disruption, selectors)
@@ -502,7 +695,8 @@ def main(argv=None):
     selected_ids = set()
     if args.auto_select is not None:
         selected_indices_full = select_representative_runs(
-            rows, disruption_data, selectors, n=args.auto_select)
+            rows, disruption_data, selectors, n=args.auto_select,
+            upgrade_series=is_upgrade_series(variants))
         selected_ids = {str(rows[i].get("prow_id", "")) for i in selected_indices_full}
 
     include_clean = bool(selected_ids) and not args.disruption_only
@@ -536,8 +730,15 @@ def main(argv=None):
                   file=sys.stderr)
         print_json(display, selectors, disruption_data, selected_indices)
     else:
-        print_table(display, grafana_params, selectors, disruption_data, selected_indices,
-                    scanned_count=scanned_count, window_start=since, truncated=truncated)
+        table_args = (display, grafana_params, selectors, disruption_data, selected_indices)
+        table_kwargs = {"scanned_count": scanned_count, "window_start": since,
+                        "truncated": truncated, "scanned_rows": rows}
+        top = args.top if args.top and args.top > 0 else None
+        full_path = None
+        if args.full_table_out or (top is not None and len(display) > top):
+            full_path = write_full_table(args.full_table_out or default_full_table_path(),
+                                         *table_args, **table_kwargs)
+        print_table(*table_args, top=top, full_table_path=full_path, **table_kwargs)
 
 
 if __name__ == "__main__":

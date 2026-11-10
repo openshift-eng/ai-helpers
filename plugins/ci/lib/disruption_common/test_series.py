@@ -11,10 +11,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from disruption_common.series import (  # noqa: E402
     SeriesError,
     apply_master_nodes_filter,
+    backend_name_warnings,
     disruption_peak,
     expand_backend_selectors,
     filter_disruption_data,
     grafana_params_from_inputs,
+    master_nodes_filter_value,
+    master_nodes_means_all,
     parse_backend,
     parse_grafana_url,
     resolve_series,
@@ -289,6 +292,59 @@ def test_apply_master_nodes_filter_drops_other_runs_including_clean():
     kept = apply_master_nodes_filter(rows, data, "Y", True)
     assert [row["prow_id"] for row in kept] == ["Y1", "Y0"]
     assert apply_master_nodes_filter(rows, data, "Y", False) == []
+
+
+
+@pytest.mark.parametrize("raw", ["Y,N", "N,Y", "y, n", "Y,N,Y"])
+def test_master_nodes_y_and_n_together_means_all_without_warning(raw, capsys):
+    assert master_nodes_means_all(raw)
+    assert master_nodes_filter_value(raw) is None
+    assert capsys.readouterr().err == ""
+
+
+def test_master_nodes_single_value_filters_and_unknown_warns(capsys):
+    assert master_nodes_filter_value("y") == "Y"
+    assert master_nodes_filter_value("N,N") == "N"
+    assert capsys.readouterr().err == ""
+    assert not master_nodes_means_all("Y")
+    assert master_nodes_filter_value("Y,X") is None
+    assert "is not Y or N" in capsys.readouterr().err
+
+
+def test_resolve_series_master_nodes_y_and_n_from_url(capsys):
+    series = resolve_series(
+        "https://grafana.example/d/x/dash?var-releases=5.1&var-backend=kube-api-new-connections"
+        "&var-master_nodes_updated=Y&var-master_nodes_updated=N")
+    assert series["master_nodes_updated"] is None
+    assert "master_nodes_updated" not in capsys.readouterr().err
+
+
+_SEEN = {"1": [{"backend_name": "host-to-host-new-connections"},
+               {"backend_name": "kube-api-new-connections"},
+               {"backend_name": "kube-api-reused-connections"}]}
+
+
+def test_backend_name_warnings_flags_whitespace_and_suggests_the_seen_name():
+    warnings = backend_name_warnings(["host-to-host-new-connec  tions", "kube-api-new-connections"], _SEEN)
+    assert warnings == [
+        "backend 'host-to-host-new-connec  tions' contains whitespace and is not in the disruption data "
+        "for any scanned run; did you mean 'host-to-host-new-connections'? It is used exactly as given."]
+
+
+def test_backend_name_warnings_flags_names_missing_from_the_data():
+    warnings = backend_name_warnings(["kube-api-new-conections", "kube-api", "no-such-thing-at-all"], _SEEN)
+    assert len(warnings) == 2
+    assert "'kube-api-new-conections' is not in the disruption data" in warnings[0]
+    assert "did you mean 'kube-api-new-connections'?" in warnings[0]
+    # A bare base matches through its connection variants; nothing close means no suggestion.
+    assert "no-such-thing-at-all" in warnings[1] and "did you mean" not in warnings[1]
+
+
+def test_backend_name_warnings_without_data_checks_only_whitespace():
+    assert backend_name_warnings(["kube-api-new-conections"], {}) == []
+    warnings = backend_name_warnings(["kube-api new-connections"], {})
+    assert len(warnings) == 1 and "contains whitespace" in warnings[0]
+    assert "not in the disruption data" not in warnings[0]
 
 
 if __name__ == "__main__":

@@ -43,6 +43,13 @@ The output lists queries, most specific first. Run **every** query with
 until there are no more pages. Results are sorted by update time, not by relevance, so a
 match can be anywhere in the list. Read every summary.
 
+If a response is too large for the tool output and is saved to a file instead, read the file
+with one `jq` command rather than skipping it:
+
+```bash
+jq -r '.issues.nodes[] | [.key, .fields.status.name, .fields.updated[0:10], .fields.summary] | @tsv' {saved_file}
+```
+
 The queries cover open cards and cards that reached a Done status (Verified, Closed, and so
 on) in the last 90 days. A bug that was just fixed is often the explanation for a regression
 alert. `backend-family-history` returns older closed investigations. Use them as context,
@@ -115,9 +122,9 @@ Searched with: backends openshift-api; keywords "watch cache", imagestream; comp
 | [OCPBUGS-1111](url) | openshift-apiserver watch cache disabled | Verified | internal-lb backends, P50 | 5.1.0-0.nightly-2026-11-06-043907: fixed (signature absent on payloads from 2026-11-08) |
 
 ### Open
-| Key | Summary | Status | Labels | Assignee | Updated |
-|-----|---------|--------|--------|----------|---------|
-| [OCPBUGS-1234](url) | openshift-api disruption on AWS | In Progress | disruption | @engineer | 2026-07-28 |
+| Key | Summary | Status | Labels | Updated |
+|-----|---------|--------|--------|---------|
+| [OCPBUGS-1234](url) | openshift-api disruption on AWS | In Progress | disruption | 2026-07-28 |
 
 ### Previously Resolved
 | Key | Summary | Resolution | Labels | Updated |
@@ -174,6 +181,18 @@ and edit before creation:
   - Key evidence (timeline data links, etcd signals, OVS stalls, CPU metrics)
   - Disruption counts and durations
 - **Labels**: `["disruption", "ai-generated-jira"]`
+- **Affects Version and Target Version**: on redhat.atlassian.net both are version arrays of
+  IDs, for example `[{"id": "109996"}]`, not plain strings. Do not guess the IDs. Copy them
+  from an existing OCPBUGS bug for the same release:
+
+  ```jql
+  project = OCPBUGS AND affectedVersion = "{release}" AND "Target Version" is not EMPTY ORDER BY created DESC
+  ```
+
+  Run it with `searchJiraIssuesUsingJql` and `fields: ["versions", "customfield_10855"]`. The
+  first result is enough. Take its `versions[].id` for Affects Version (for example `109996`,
+  named `5.1`) and its `customfield_10855[].id` for Target Version (for example `109998`, named
+  `5.1.0`), and pass them in that shape when the bug is created.
 
 Present the proposed summary and description to the user. Allow them to confirm, edit, or cancel
 before creating. Follow the `jira:create` skill's interactive workflow and project conventions

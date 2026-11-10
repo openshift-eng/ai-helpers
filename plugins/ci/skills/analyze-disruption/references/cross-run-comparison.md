@@ -9,6 +9,17 @@ For each backend that shows disruption across multiple runs:
 - Compare which backends are disrupted in each run
 - Identify backends that are **consistently disrupted** across all runs (systemic issue)
 - Identify backends that are **disrupted in only some runs** (intermittent or infrastructure-specific)
+- Compare the **episode and wave shape** from the parser summary, not the disruption counts
+  (for example "3 episodes in 1 wave" against "6 episodes in 2 waves (3+3)"). A doubled count
+  with the same per-episode duration means more outages, not longer ones.
+- Compare the **static-pod rollouts** (`rollouts:`) and which waves fall inside them. A wave
+  inside a rollout that the other runs do not have points to whatever triggered that rollout;
+  follow 4.3 and 4.4 in `references/artifacts.md`.
+- For upgrade jobs, line up each run's **payload pair** (initial → target, from the
+  downloader or the parser's `payload:`). Group runs by the pair before calling a difference
+  "before" or "after" a change: the same target reached from a different initial payload can
+  behave differently. Do not claim which payload a run started from or upgraded to without
+  this pair.
 
 ## 6.2: Pattern Detection
 

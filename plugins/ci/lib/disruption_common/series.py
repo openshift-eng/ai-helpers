@@ -5,6 +5,7 @@ filters, and an optional run-level master_nodes_updated filter. Every
 disruption skill that queries Sippy resolves its input through this module so
 the dashboard and alert label mapping lives in one place.
 """
+import difflib
 import re
 import sys
 import urllib.parse
@@ -257,10 +258,22 @@ def resolve_window_start(since_hours, lookback_days, now=None):
     return now - timedelta(hours=DEFAULT_SINCE_HOURS)
 
 
+def master_nodes_values(raw):
+    """The set of Y/N values named by a master_nodes_updated value, upper-cased."""
+    return {part.strip().upper() for part in str(raw or "").split(",") if part.strip()}
+
+
+def master_nodes_means_all(raw):
+    """True when master_nodes_updated names both Y and N, which selects every run."""
+    return master_nodes_values(raw) == {"Y", "N"}
+
+
 def master_nodes_filter_value(raw):
     """Return Y or N when runs should be filtered, else None.
 
-    All / $__all / empty means the series is not limited to one value.
+    All / $__all / empty means the series is not limited to one value. So does
+    Y and N together (`var-master_nodes_updated=Y&var-master_nodes_updated=N`),
+    which is All by another name and is not warned about.
     """
     if raw is None or str(raw).strip() == "":
         return None
@@ -268,9 +281,11 @@ def master_nodes_filter_value(raw):
         print("Warning: master_nodes_updated=%s is an All sentinel, not applied as a run filter" % (
             raw), file=sys.stderr)
         return None
-    value = str(raw).strip().upper()
-    if value in ("Y", "N"):
-        return value
+    values = master_nodes_values(raw)
+    if values == {"Y", "N"}:
+        return None
+    if len(values) == 1 and values <= {"Y", "N"}:
+        return values.pop()
     print("Warning: master_nodes_updated '%s' is not Y or N; not applied as a run filter" % (
         raw), file=sys.stderr)
     return None
@@ -428,3 +443,40 @@ def apply_master_nodes_filter(rows, disruption_data, wanted, field_present):
     print("Kept %d of %d runs with master_nodes_updated=%s." % (
         len(kept), len(rows), wanted), file=sys.stderr)
     return kept
+
+
+def backend_name_warnings(selectors, raw_disruption):
+    """Warnings for selected backend names that look malformed.
+
+    A name with whitespace is usually a URL-encoding slip. A name none of
+    whose exact backends appears in the unfiltered disruption data for any
+    scanned run is probably misspelled. Each warning suggests the closest
+    name seen in the data. Names are reported, never rewritten. With no
+    disruption data at all, only the whitespace check runs.
+    """
+    seen = sorted({entry.get("backend_name") for entries in (raw_disruption or {}).values()
+                   for entry in entries or [] if entry.get("backend_name")})
+    warnings = []
+    for selector in selectors or []:
+        problems = []
+        if re.search(r"\s", selector):
+            problems.append("contains whitespace")
+        if seen and not expand_backend_selectors(selector) & set(seen):
+            problems.append("is not in the disruption data for any scanned run")
+        if not problems:
+            continue
+        message = "backend '%s' %s" % (selector, " and ".join(problems))
+        suggestion = _closest_backend(selector, seen)
+        if suggestion:
+            message += "; did you mean '%s'?" % suggestion
+        warnings.append(message + " It is used exactly as given.")
+    return warnings
+
+
+def _closest_backend(selector, seen):
+    """The seen backend name closest to selector, trying it without whitespace first."""
+    for candidate in (re.sub(r"\s+", "", selector), selector):
+        matches = difflib.get_close_matches(candidate, seen, n=1, cutoff=0.6)
+        if matches and matches[0] != selector:
+            return matches[0]
+    return None

@@ -3,13 +3,20 @@
 Sippy ignores offset/page, so a window is walked newest-first with a
 timestamp cursor. Disruption seconds come from BigQuery through Sippy's
 disruption endpoint and lag job completion by up to about four hours.
+
+The disruption endpoint allows 25 requests per rolling hour, shared by every
+client, and answers HTTP 429 beyond that without a Retry-After header. A
+rejected request does not count against the limit, and a repeated URL is
+served from a one-hour response cache without counting.
 """
+import email.utils
 import http.client
 import itertools
 import json
 import numbers
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,13 +28,29 @@ SIPPY_BASE = "https://sippy.dptools.openshift.org/api/jobs/runs"
 SIPPY_DISRUPTION_URL = "https://sippy.dptools.openshift.org/api/jobs/runs/disruption"
 
 PAGE_SIZE = 500
-DISRUPTION_BATCH_SIZE = 100
+# 500 comma-separated build IDs make a URL of about 10 KB, which Sippy accepts
+# (checked 2026-11-10). Larger batches spend fewer of the 25 hourly requests.
+DISRUPTION_BATCH_SIZE = 500
 MAX_VARIANT_COMBOS = 20
+# Total seconds one disruption fetch may sleep on HTTP 429, across all batches.
+RATE_LIMIT_MAX_WAIT = 90
+RATE_LIMIT_FIRST_DELAY = 15
+# Request too large: split the batch in half and try each half.
+_SPLIT_STATUSES = (413, 414, 431)
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
 class SippyError(RuntimeError):
-    """Sippy could not be reached or returned something unusable."""
+    """Sippy could not be reached or returned something unusable.
+
+    `status` is the HTTP status when Sippy answered with an error, and
+    `retry_after` the delay in seconds its headers asked for, if any.
+    """
+
+    def __init__(self, message, status=None, retry_after=None):
+        super().__init__(message)
+        self.status = status
+        self.retry_after = retry_after
 
 
 def parse_timestamp(value):
@@ -79,6 +102,41 @@ def build_sippy_filter(variants, since, until=None):
     return {"items": items, "linkOperator": "and"}
 
 
+def _retry_after_seconds(headers, now=None):
+    """Seconds to wait from Retry-After or a rate-limit reset header, or None.
+
+    Retry-After may be seconds or an HTTP date. A reset header above 1e9 is
+    read as an epoch time, anything smaller as a delay. Sippy sends neither
+    today; they are honored in case it starts to.
+    """
+    if headers is None:
+        return None
+    now = time.time() if now is None else now
+    value = (headers.get("Retry-After") or "").strip()
+    if value:
+        try:
+            return max(0.0, float(value))
+        except ValueError:
+            pass
+        try:
+            when = email.utils.parsedate_to_datetime(value)
+        except (TypeError, ValueError, IndexError):
+            when = None
+        if when is not None:
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=timezone.utc)
+            return max(0.0, when.timestamp() - now)
+    for name in ("RateLimit-Reset", "X-RateLimit-Reset"):
+        try:
+            seconds = float(headers.get(name))
+        except (TypeError, ValueError):
+            continue
+        if seconds > 1e9:
+            seconds -= now
+        return max(0.0, seconds)
+    return None
+
+
 def _get_json(url, what):
     try:
         with urllib.request.urlopen(url, timeout=60) as resp:
@@ -88,7 +146,8 @@ def _get_json(url, what):
             detail = e.read().decode("utf-8", errors="replace").strip()
         except (OSError, ValueError):
             detail = "<unable to read response body>"
-        raise SippyError("HTTP %d from %s: %s" % (e.code, what, detail)) from e
+        raise SippyError("HTTP %d from %s: %s" % (e.code, what, detail), status=e.code,
+                         retry_after=_retry_after_seconds(e.headers)) from e
     except urllib.error.URLError as e:
         raise SippyError("failed to connect to %s: %s" % (what, e.reason)) from e
     except (OSError, http.client.HTTPException) as e:
@@ -276,19 +335,65 @@ def collect_runs(release, variants, since, max_runs=None, progress=None):
 
 
 def _fetch_disruption_batch(prow_ids):
-    """Query one batch of prow IDs. Returns the raw rows list, or None on failure.
+    """Query one batch of prow IDs. Returns the raw rows list; raises SippyError.
 
     The backend_name query param is a substring filter and is intentionally
     not sent: `kube-api` also returns localhost, http, and cache derivatives.
-    Callers keep only the exact selected names.
+    Callers keep only the exact selected names. Commas are left unescaped to
+    keep the URL short.
     """
     params = {"job_run_names": ",".join(str(pid) for pid in prow_ids)}
-    url = "%s?%s" % (SIPPY_DISRUPTION_URL, urllib.parse.urlencode(params))
-    try:
-        return _rows(_get_json(url, "Sippy disruption API"), "Sippy disruption API")
-    except SippyError as e:
-        print("Warning: could not fetch disruption data: %s" % e, file=sys.stderr)
-        return None
+    url = "%s?%s" % (SIPPY_DISRUPTION_URL, urllib.parse.urlencode(params, safe=","))
+    return _rows(_get_json(url, "Sippy disruption API"), "Sippy disruption API")
+
+
+class _WaitBudget:
+    """Seconds left to sleep on rate limits during one disruption fetch."""
+
+    def __init__(self, seconds, sleep):
+        self.remaining = max(0.0, float(seconds))
+        self.sleep = sleep
+
+
+def _rate_limit_delay(error, attempt, budget):
+    """Seconds to sleep before retrying a 429, or None when the budget cannot cover it.
+
+    A delay the server asked for must fit whole; sleeping part of it would
+    only earn another 429. A computed backoff is trimmed to what is left.
+    """
+    if error.retry_after is not None:
+        delay = max(1.0, error.retry_after)
+        return delay if delay <= budget.remaining else None
+    delay = min(RATE_LIMIT_FIRST_DELAY * 2 ** attempt, budget.remaining)
+    return delay if delay >= 1 else None
+
+
+def _fetch_batch_rows(prow_ids, budget, failed):
+    """Rows for one batch, retrying HTTP 429 within the budget.
+
+    A request too large for the server is split in half. IDs that still
+    fail are appended to `failed`, and the rows that did arrive are returned.
+    """
+    attempt = 0
+    while True:
+        try:
+            return _fetch_disruption_batch(prow_ids)
+        except SippyError as e:
+            if e.status in _SPLIT_STATUSES and len(prow_ids) > 1:
+                half = len(prow_ids) // 2
+                return (_fetch_batch_rows(prow_ids[:half], budget, failed)
+                        + _fetch_batch_rows(prow_ids[half:], budget, failed))
+            delay = _rate_limit_delay(e, attempt, budget) if e.status == 429 else None
+            if delay is None:
+                print("Warning: could not fetch disruption data for %d run(s): %s" % (len(prow_ids), e),
+                      file=sys.stderr)
+                failed.extend(prow_ids)
+                return []
+            print("  Sippy disruption API rate limit (HTTP 429); retrying in %ds (%ds of wait budget left)"
+                  % (delay, budget.remaining), file=sys.stderr)
+            budget.sleep(delay)
+            budget.remaining -= delay
+            attempt += 1
 
 
 def _seconds(value):
@@ -331,7 +436,59 @@ def _load_cache(path):
     return data if isinstance(data, dict) else {}
 
 
-def fetch_disruption_data(prow_ids, cache_path=None, progress=None):
+def _save_cache(path, cache):
+    """Write the cache atomically. Returns False, after a warning, when it cannot."""
+    try:
+        write_json_atomic(path, cache)
+    except OSError as e:
+        print("Warning: could not write disruption cache %s: %s" % (path, e), file=sys.stderr)
+        return False
+    return True
+
+
+def fetch_disruption_data_with_failures(prow_ids, cache_path=None, progress=None,
+                                        max_wait=RATE_LIMIT_MAX_WAIT, sleep=time.sleep):
+    """Like fetch_disruption_data, but also return the IDs the API failed for.
+
+    Returns (lookup, failed). `failed` lists the prow IDs whose batch still
+    failed after retries (rate limit, HTTP or connection error); they are
+    not in `lookup`, but they are not known to lack data either. An HTTP 429
+    is retried with backoff, honoring Retry-After or a rate-limit reset
+    header when present, while the total sleep stays within `max_wait`
+    seconds. `sleep` is injectable for tests. With `cache_path`, the cache is
+    rewritten after every batch that returned rows, so a run that stops
+    early or loses batches keeps what it fetched and a rerun asks only for
+    the rest.
+    """
+    if not prow_ids:
+        return {}, []
+    ids = [str(pid) for pid in prow_ids]
+    cache = _load_cache(cache_path)
+    lookup = {pid: cache[pid] for pid in ids if cache.get(pid)}
+    missing = [pid for pid in ids if pid not in lookup]
+    budget = _WaitBudget(max_wait, sleep)
+    failed = []
+    cache_writable = bool(cache_path)
+    for start in range(0, len(missing), DISRUPTION_BATCH_SIZE):
+        batch = missing[start:start + DISRUPTION_BATCH_SIZE]
+        fetched = {}
+        for row in _fetch_batch_rows(batch, budget, failed):
+            entry = _entry(row)
+            if entry is not None:
+                fetched.setdefault(str(row.get("job_run_name", "")), []).append(entry)
+        wanted = set(batch)
+        fetched = {pid: entries for pid, entries in fetched.items() if pid in wanted}
+        lookup.update(fetched)
+        if cache_writable and fetched:
+            cache.update(fetched)
+            cache_writable = _save_cache(cache_path, cache)
+        if progress:
+            progress(len(ids) - len(missing) + min(start + DISRUPTION_BATCH_SIZE, len(missing)), len(ids))
+    return lookup, failed
+
+
+def fetch_disruption_data(prow_ids, cache_path=None, progress=None, max_wait=RATE_LIMIT_MAX_WAIT,
+                          sleep=time.sleep, failed=None):
     """Query Sippy for per-run disruption seconds.
 
     Returns dict prow_id -> list of {backend_name, disruption_seconds,
@@ -341,26 +498,12 @@ def fetch_disruption_data(prow_ids, cache_path=None, progress=None):
     `cache_path`, runs that already have rows are read from and written to
     that JSON file. Runs with no rows are not cached, because BigQuery may
     not have them yet. `progress`, when set, is called with (done, total).
+    Runs the API failed for are absent from the result. Pass a list as
+    `failed` to have their IDs appended, so they can be told apart from runs
+    with no data.
     """
-    if not prow_ids:
-        return {}
-    ids = [str(pid) for pid in prow_ids]
-    cache = _load_cache(cache_path)
-    lookup = {pid: cache[pid] for pid in ids if cache.get(pid)}
-    missing = [pid for pid in ids if pid not in lookup]
-    for start in range(0, len(missing), DISRUPTION_BATCH_SIZE):
-        rows = _fetch_disruption_batch(missing[start:start + DISRUPTION_BATCH_SIZE])
-        if rows is not None:
-            for row in rows:
-                entry = _entry(row)
-                if entry is not None:
-                    lookup.setdefault(str(row.get("job_run_name", "")), []).append(entry)
-        if progress:
-            progress(len(ids) - len(missing) + min(start + DISRUPTION_BATCH_SIZE, len(missing)), len(ids))
-    if cache_path and missing:
-        cache.update({pid: lookup[pid] for pid in missing if lookup.get(pid)})
-        try:
-            write_json_atomic(cache_path, cache)
-        except OSError as e:
-            print("Warning: could not write disruption cache %s: %s" % (cache_path, e), file=sys.stderr)
+    lookup, lost = fetch_disruption_data_with_failures(
+        prow_ids, cache_path=cache_path, progress=progress, max_wait=max_wait, sleep=sleep)
+    if failed is not None:
+        failed.extend(lost)
     return lookup

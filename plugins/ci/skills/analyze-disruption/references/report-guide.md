@@ -43,6 +43,21 @@ the [timeline data][timeline1]..." — where `[timeline1]` links to the specific
 5. **Do NOT truncate or abbreviate job names** — always use the full job name (e.g.,
    `periodic-ci-openshift-release-main-ci-4.22-e2e-azure-ovn-upgrade`, not `periodic-ci-...-e2e-azure-ovn-upgrade`)
 
+## Payload Claims
+
+For upgrade jobs, every run's initial and target payload goes in the report (the Payloads
+column of the runs table, or the Job Information block for a single run). Take them from
+`download_timelines.py` (`payloads:` line, or `initial_payload` / `target_payload`) or the
+parser (`payload:` in the summary, `payloads` in JSON), and give the payload tag, not the
+registry path.
+
+Do not make a claim that depends on which payload a run started from or upgraded to, such
+as "this run already started from a payload with the fix" or "only upgrades into X are
+affected", unless that run's pair was checked. When the pair is unknown (`payloads:
+unknown`), write "payloads not checked" for that run and leave payload-dependent
+conclusions out. When the target alone does not explain a difference between runs, say
+whether the initial payloads differ.
+
 ## Report Structure
 
 **For single run:**
@@ -61,10 +76,13 @@ the [timeline data][timeline1]..." — where `[timeline1]` links to the specific
 - **Prow Job**: [{job-name}]({prow_url})
 - **Build ID**: {build_id}
 - **Target**: {target}
+- **Payloads**: {initial_payload} → {target_payload} (upgrade jobs; "payloads not checked" when unknown)
 - **Sippy Intervals**: [View intervals]({sippy_intervals_url})
 
 ## Disruption Summary
-{Disruption count, backend classification, network-liveness assessment}
+{Episodes and waves (e.g. "6 episodes in 2 waves (3+3), wave gap 12m"), the static-pod
+rollouts each wave falls inside, disruption count, backend classification,
+network-liveness assessment}
 
 ## Disruption Timeline
 - **{from} — {to}** ({duration}s): {message}
@@ -104,10 +122,14 @@ overlaps the same window; exclude unrelated disruption at other times.}
 - **Percentile**: {percentile} | **Release**: {release} | **Lookback**: {lookback}d | **Compare release**: {compare_release}
 
 ## Runs Analyzed
-| # | Build ID | Job | Disrupted Backends | Network Liveness |
-|---|----------|-----|-------------------|------------------|
-| 1 | {build_id_1} ([Prow]({prow_url}) \| [Intervals]({sippy_url})) | {job} | {backends} | {status} |
-| 2 | {build_id_2} ([Prow]({prow_url}) \| [Intervals]({sippy_url})) | {job} | {backends} | {status} |
+| # | Build ID | Job | Payloads (initial → target) | Episodes / Waves | Rollouts | Disrupted Backends | Network Liveness |
+|---|----------|-----|-----------------------------|------------------|----------|-------------------|------------------|
+| 1 | {build_id_1} ([Prow]({prow_url}) \| [Intervals]({sippy_url})) | {job} | {initial_payload} → {target_payload} | {e.g. 3 in 1 wave} | {e.g. KAS 6->7 (w1)} | {backends} | {status} |
+| 2 | {build_id_2} ([Prow]({prow_url}) \| [Intervals]({sippy_url})) | {job} | {initial_payload} → {target_payload} | {e.g. 6 in 2 waves (3+3)} | {e.g. KAS 6->7 (w1), KAS 8->9 (w2)} | {backends} | {status} |
+
+The Payloads column is required for upgrade jobs (see Payload Claims); use "—" for
+non-upgrade jobs and "not checked" when the pair is unknown. Rollouts lists the
+static-pod revision rollouts that contain disruption episodes.
 
 ## Disruption Events
 ### Run 1 ({build_id_1})

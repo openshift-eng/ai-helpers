@@ -15,13 +15,26 @@ Output (JSON mode):
         "concurrent_events": {...},
         "source_node_analysis": {...},
         "network_liveness": {...},
+        "episodes": {"episodes": [...], "waves": [...], ...},
+        "revision_rollouts": [...],
+        "payloads": {"initial": ..., "target": ..., "source": ..., ...},
         "summary": {...}
     }
+
+Episodes group intervals across the selected backends that overlap or start
+within EPISODE_GAP_SECONDS of each other; waves group episodes separated by a
+large idle gap (see find_waves). Revision rollouts are the static-pod
+NodeInstaller rollouts of kube-apiserver, etcd, kube-controller-manager and
+kube-scheduler, with the episodes and waves that fall inside each one.
+Payloads come from the prowjob.json beside the timeline files (or --prowjob),
+falling back to ../gather/clusterversion.json when the prowjob has no
+RELEASE_IMAGE_* env.
 """
 
 import argparse
 import json
 import os
+import re
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -42,6 +55,20 @@ else:
              % ", ".join(os.path.abspath(p) for p in _LIB_PARENTS))
 
 from disruption_common.series import expand_backend_selectors  # noqa: E402
+
+# download_timelines.py sits beside this script and reads payloads from
+# prowjob.json and clusterversion.json. Add the directory explicitly so the
+# import also works under `python3 -I`, which leaves it off sys.path. Without
+# it (the parser copied on its own) payloads are reported as unknown.
+if _HERE not in sys.path:
+    sys.path.append(_HERE)
+try:
+    from download_timelines import extract_payloads, payload_tag, payloads_from_clusterversion  # noqa: E402
+except ImportError:
+    extract_payloads = payloads_from_clusterversion = None
+
+    def payload_tag(pullspec):
+        return pullspec
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +247,374 @@ def extract_network_liveness(items):
             "type": classify_backend(backend),
         }
     return summary
+
+
+# ---------------------------------------------------------------------------
+# Episodes and waves
+# ---------------------------------------------------------------------------
+
+# Intervals on the selected backends that overlap, or start within this many
+# seconds of the current episode's end, belong to one episode. The probes of
+# one outage start within a second of each other and often continue as
+# back-to-back intervals, while separate outages (one master after another in
+# a static-pod rollout) are minutes apart.
+EPISODE_GAP_SECONDS = 30
+
+# A new wave starts where the idle time between two episodes exceeds twice the
+# typical (lower median) idle time, clamped to this range. Gaps under the
+# minimum never split; gaps over the maximum always do. One kube-apiserver
+# rollout gives ~3 minutes between masters; two rollouts are 10+ minutes apart.
+WAVE_GAP_MIN_SECONDS = 300
+WAVE_GAP_MAX_SECONDS = 600
+WAVE_GAP_FACTOR = 2
+
+
+def _seconds(start, end):
+    return int((parse_ts(end) - parse_ts(start)).total_seconds())
+
+
+def _lower_median(values):
+    ordered = sorted(values)
+    return ordered[(len(ordered) - 1) // 2]
+
+
+def find_episodes(disruptions, gap_seconds=EPISODE_GAP_SECONDS):
+    """Group disruption intervals across backends into episodes.
+
+    Returns a list of dicts with 1-based index, from, to, duration_seconds,
+    backends (sorted), interval_count, and phases.
+    """
+    episodes = []
+    for d in sorted(disruptions, key=lambda x: (x["from"], x["to"])):
+        d_from, d_to = parse_ts(d["from"]), parse_ts(d["to"])
+        if episodes and d_from <= episodes[-1]["_to"] + timedelta(seconds=gap_seconds):
+            ep = episodes[-1]
+            if d_to > ep["_to"]:
+                ep["_to"] = d_to
+                ep["to"] = d["to"]
+        else:
+            ep = {"from": d["from"], "to": d["to"], "_to": d_to,
+                  "_backends": set(), "_phases": set(), "interval_count": 0}
+            episodes.append(ep)
+        ep["_backends"].add(d["backend"])
+        ep["_phases"].add(d.get("phase", "unknown"))
+        ep["interval_count"] += 1
+
+    result = []
+    for idx, ep in enumerate(episodes, 1):
+        result.append({
+            "index": idx,
+            "from": ep["from"],
+            "to": ep["to"],
+            "duration_seconds": _seconds(ep["from"], ep["to"]),
+            "backends": sorted(ep["_backends"]),
+            "interval_count": ep["interval_count"],
+            "phases": sorted(ep["_phases"]),
+        })
+    return result
+
+
+def find_waves(episodes):
+    """Group consecutive episodes into waves separated by a large idle gap.
+
+    Returns (waves, split_threshold_seconds). Each wave has a 1-based index,
+    episode_indices, from, to, median_spacing_seconds (start to start inside
+    the wave, None for one episode), gap_before_seconds (idle time since the
+    previous wave ended) and start_spacing_before_seconds (previous wave start
+    to this wave start).
+    """
+    if not episodes:
+        return [], None
+    idle = [_seconds(a["to"], b["from"]) for a, b in zip(episodes, episodes[1:])]
+    threshold = None
+    if idle:
+        threshold = WAVE_GAP_FACTOR * _lower_median(idle)
+        threshold = max(WAVE_GAP_MIN_SECONDS, min(WAVE_GAP_MAX_SECONDS, threshold))
+
+    groups = [[episodes[0]]]
+    for gap, ep in zip(idle, episodes[1:]):
+        if gap > threshold:
+            groups.append([ep])
+        else:
+            groups[-1].append(ep)
+
+    waves = []
+    for idx, group in enumerate(groups, 1):
+        spacings = [_seconds(a["from"], b["from"]) for a, b in zip(group, group[1:])]
+        wave = {
+            "index": idx,
+            "episode_indices": [ep["index"] for ep in group],
+            "from": group[0]["from"],
+            "to": group[-1]["to"],
+            "median_spacing_seconds": _lower_median(spacings) if spacings else None,
+            "gap_before_seconds": None,
+            "start_spacing_before_seconds": None,
+        }
+        if waves:
+            wave["gap_before_seconds"] = _seconds(waves[-1]["to"], wave["from"])
+            wave["start_spacing_before_seconds"] = _seconds(waves[-1]["from"], wave["from"])
+        waves.append(wave)
+    return waves, threshold
+
+
+def analyze_episodes(disruptions):
+    """Episodes and waves for the selected disruptions, as one JSON-ready dict."""
+    episodes = find_episodes(disruptions)
+    waves, threshold = find_waves(episodes)
+    return {
+        "episodes": episodes,
+        "waves": waves,
+        "episode_gap_seconds": EPISODE_GAP_SECONDS,
+        "wave_split_threshold_seconds": threshold,
+    }
+
+
+def _fmt_minutes(seconds):
+    """Compact duration: 45s, 3.4m, 19m."""
+    if seconds is None:
+        return "?"
+    if seconds < 60:
+        return "%ds" % seconds
+    minutes = seconds / 60.0
+    if minutes < 10:
+        return "%.1fm" % minutes
+    return "%dm" % round(minutes)
+
+
+def describe_episodes(episode_data):
+    """One-line episode/wave description, e.g. '6 episodes in 2 waves (3+3), wave gap 12m (starts 20m apart)'."""
+    episodes = episode_data.get("episodes") or []
+    waves = episode_data.get("waves") or []
+    if not episodes:
+        return ""
+    n = len(episodes)
+    text = "%d episode%s" % (n, "" if n == 1 else "s")
+    if n == 1:
+        return text
+    if len(waves) == 1:
+        spacing = waves[0].get("median_spacing_seconds")
+        return "%s in 1 wave, ~%s apart" % (text, _fmt_minutes(spacing))
+    sizes = "+".join(str(len(w["episode_indices"])) for w in waves)
+    gaps = [w["gap_before_seconds"] for w in waves[1:]]
+    starts = [w["start_spacing_before_seconds"] for w in waves[1:]]
+    text += " in %d waves (%s), wave gap %s (starts %s apart)" % (
+        len(waves), sizes,
+        "/".join(_fmt_minutes(g) for g in gaps),
+        "/".join(_fmt_minutes(s) for s in starts))
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Static-pod revision rollouts
+# ---------------------------------------------------------------------------
+
+# Operators that roll out static pods one master at a time through node
+# installers. Their OperatorState Progressing intervals carry messages like
+# "NodeInstallerProgressing: 3 nodes are at revision 6; 0 nodes have achieved
+# new revision 7".
+STATIC_POD_OPERATORS = ("kube-apiserver", "etcd", "kube-controller-manager", "kube-scheduler")
+STATIC_POD_SHORT = {
+    "kube-apiserver": "KAS",
+    "etcd": "etcd",
+    "kube-controller-manager": "KCM",
+    "kube-scheduler": "sched",
+}
+
+_AT_REVISION_RE = re.compile(r"(\d+) nodes? (?:is|are) at revision (\d+)")
+_NEW_REVISION_RE = re.compile(r"(\d+) nodes? ha(?:s|ve) achieved new revision (\d+)")
+
+# An episode counts as inside a rollout when it overlaps the rollout's
+# Progressing interval widened by this much on each side. The interval ends
+# when Progressing goes False, which can lag the last master by a few seconds,
+# or lead a disruption that the probe records late.
+ROLLOUT_SLACK_SECONDS = 15
+
+
+def parse_revision_message(message):
+    """Return (from_revision, to_revision) from a NodeInstaller message, or None."""
+    at = [int(rev) for _count, rev in _AT_REVISION_RE.findall(message or "")]
+    new = [int(rev) for _count, rev in _NEW_REVISION_RE.findall(message or "")]
+    if new:
+        revisions = at or new
+        return min(revisions), max(new)
+    if len(set(at)) > 1:
+        return min(at), max(at)
+    return None
+
+
+def extract_revision_rollouts(items):
+    """Extract static-pod revision rollouts from OperatorState intervals.
+
+    Consecutive intervals for the same operator and target revision that
+    touch or overlap are merged into one rollout. Returns rollouts sorted by
+    start, each with operator, from_revision, to_revision, from, to,
+    duration_seconds and message.
+    """
+    raw = []
+    seen = set()
+    for item in items:
+        if item.get("source") == "Disruption":
+            continue
+        keys = item.get("locator", {}).get("keys", {})
+        operator = keys.get("clusteroperator", "")
+        if operator not in STATIC_POD_OPERATORS:
+            continue
+        human = item.get("message", {}).get("humanMessage", "")
+        if "revision" not in human:
+            continue
+        revisions = parse_revision_message(human)
+        if not revisions:
+            continue
+        key = (operator, item["from"], item.get("to", item["from"]), revisions)
+        if key in seen:
+            continue
+        seen.add(key)
+        raw.append({
+            "operator": operator,
+            "from_revision": revisions[0],
+            "to_revision": revisions[1],
+            "from": item["from"],
+            "to": item.get("to", item["from"]),
+            "message": human.split("\n", 1)[0][:200],
+        })
+
+    raw.sort(key=lambda r: (r["operator"], r["from"]))
+    merged = []
+    for r in raw:
+        prev = merged[-1] if merged else None
+        if (prev and prev["operator"] == r["operator"]
+                and prev["to_revision"] == r["to_revision"]
+                and parse_ts(r["from"]) <= parse_ts(prev["to"])):
+            if parse_ts(r["to"]) > parse_ts(prev["to"]):
+                prev["to"] = r["to"]
+            prev["from_revision"] = min(prev["from_revision"], r["from_revision"])
+            continue
+        merged.append(dict(r))
+
+    for r in merged:
+        r["duration_seconds"] = _seconds(r["from"], r["to"])
+    merged.sort(key=lambda r: (r["from"], r["operator"]))
+    return merged
+
+
+def link_rollouts_to_episodes(rollouts, episode_data, slack_seconds=ROLLOUT_SLACK_SECONDS):
+    """Record which episodes and waves fall inside each rollout.
+
+    Adds episode_indices and waves (list of {wave, episodes_inside,
+    episodes_in_wave}) to each rollout, and rollouts (list of short labels)
+    to each wave. Mutates and returns the rollouts list.
+    """
+    episodes = episode_data.get("episodes") or []
+    waves = episode_data.get("waves") or []
+    wave_of = {}
+    for w in waves:
+        w.setdefault("rollouts", [])
+        for idx in w["episode_indices"]:
+            wave_of[idx] = w
+
+    slack = timedelta(seconds=slack_seconds)
+    for r in rollouts:
+        r_from = parse_ts(r["from"]) - slack
+        r_to = parse_ts(r["to"]) + slack
+        inside = [ep["index"] for ep in episodes
+                  if parse_ts(ep["from"]) <= r_to and parse_ts(ep["to"]) >= r_from]
+        r["episode_indices"] = inside
+        r["waves"] = []
+        for w in waves:
+            count = sum(1 for idx in inside if wave_of.get(idx) is w)
+            if not count:
+                continue
+            r["waves"].append({
+                "wave": w["index"],
+                "episodes_inside": count,
+                "episodes_in_wave": len(w["episode_indices"]),
+            })
+            w["rollouts"].append("%s %d->%d (%d/%d)" % (
+                r["operator"], r["from_revision"], r["to_revision"],
+                count, len(w["episode_indices"])))
+    return rollouts
+
+
+def describe_rollouts(rollouts, short=True):
+    """Compact rollout list for the summary line.
+
+    Rollouts that contain disruption episodes are listed with their wave
+    coverage; the rest are counted.
+    """
+    if not rollouts:
+        return ""
+    parts = []
+    quiet = 0
+    for r in rollouts:
+        if not r.get("episode_indices"):
+            quiet += 1
+            continue
+        name = STATIC_POD_SHORT.get(r["operator"], r["operator"]) if short else r["operator"]
+        coverage = ",".join("w%d %d/%d" % (w["wave"], w["episodes_inside"], w["episodes_in_wave"])
+                            for w in r.get("waves", []))
+        parts.append("%s %d->%d (%s)" % (name, r["from_revision"], r["to_revision"], coverage))
+    if quiet:
+        parts.append("+%d without disruption" % quiet)
+    return ", ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Payloads
+# ---------------------------------------------------------------------------
+
+_WORKING_TOWARDS_RE = re.compile(r"Working towards (\S+?):?(?:\s|$)")
+
+
+def extract_timeline_target_version(items):
+    """Version the cluster upgraded to, from ClusterVersion 'Working towards X' intervals."""
+    for item in sorted(items, key=lambda i: i.get("from", "")):
+        keys = item.get("locator", {}).get("keys", {})
+        if "clusterversion" not in keys:
+            continue
+        match = _WORKING_TOWARDS_RE.search(item.get("message", {}).get("humanMessage", ""))
+        if match:
+            return match.group(1)
+    return None
+
+
+def find_payloads(timeline_files, items, prowjob_path=None):
+    """Initial and target payload for the run.
+
+    Reads prowjob.json (explicit path, or the one download_timelines.py saved
+    beside the timelines) and falls back to gather/clusterversion.json history.
+    Always adds timeline_target_version from the timeline itself.
+    """
+    payloads = {"initial": None, "target": None, "source": None}
+    if extract_payloads is None:
+        payloads["warning"] = "download_timelines.py not found beside parse_disruption.py"
+        payloads["timeline_target_version"] = extract_timeline_target_version(items)
+        return payloads
+    logs_dir = os.path.dirname(os.path.abspath(timeline_files[0])) if timeline_files else None
+    if not prowjob_path and logs_dir:
+        candidate = os.path.join(logs_dir, "prowjob.json")
+        if os.path.isfile(candidate):
+            prowjob_path = candidate
+    if prowjob_path:
+        payloads.update(extract_payloads(prowjob_path))
+    if not payloads.get("target") and logs_dir:
+        cv_path = os.path.join(logs_dir, "..", "gather", "clusterversion.json")
+        if os.path.isfile(cv_path):
+            from_cv = payloads_from_clusterversion(cv_path)
+            if from_cv.get("target"):
+                payloads.update(from_cv)
+    payloads["timeline_target_version"] = extract_timeline_target_version(items)
+    return payloads
+
+
+def describe_payloads(payloads):
+    """'initial -> target' using tags, or '' when nothing is known."""
+    if not payloads:
+        return ""
+    initial = payload_tag(payloads.get("initial"))
+    target = payload_tag(payloads.get("target")) or payloads.get("timeline_target_version")
+    if not initial and not target:
+        return ""
+    return "%s -> %s" % (initial or "?", target or "?")
 
 
 # ---------------------------------------------------------------------------
@@ -484,7 +879,8 @@ def analyze_source_nodes(disruptions):
 # Summary generation
 # ---------------------------------------------------------------------------
 
-def generate_summary(disruptions, network_liveness, concurrent, source_analysis):
+def generate_summary(disruptions, network_liveness, concurrent, source_analysis,
+                     episode_data=None, rollouts=None):
     """Generate a high-level summary dict."""
     backends = defaultdict(int)
     for d in disruptions:
@@ -545,13 +941,23 @@ def generate_summary(disruptions, network_liveness, concurrent, source_analysis)
     if etcd and etcd.get("count", 0) > 0:
         signals.append(f"etcd pressure: {etcd['count']} events")
 
+    # More than one kube-apiserver rollout doubles the localhost-probe outages.
+    kas = [r for r in (rollouts or []) if r["operator"] == "kube-apiserver"]
+    if len(kas) > 1:
+        signals.append("%d kube-apiserver revision rollouts (%s)" % (
+            len(kas), ", ".join("%d->%d" % (r["from_revision"], r["to_revision"]) for r in kas)))
+
     # Phase breakdown
     phase_counts = defaultdict(int)
     for d in disruptions:
         phase_counts[d.get("phase", "unknown")] += 1
 
+    episode_data = episode_data or {}
     return {
         "disruption_count": len(disruptions),
+        "episode_count": len(episode_data.get("episodes") or []),
+        "wave_count": len(episode_data.get("waves") or []),
+        "episode_summary": describe_episodes(episode_data),
         "backends": dict(backends),
         "time_range": time_range,
         "phase_breakdown": dict(phase_counts),
@@ -679,6 +1085,10 @@ def format_summary(data):
     count = summary["disruption_count"]
     parts.append(f"{count} disruption{'s' if count != 1 else ''}")
 
+    episodes_text = summary.get("episode_summary")
+    if episodes_text:
+        parts.append(episodes_text)
+
     backends = summary.get("backends", {})
     if backends:
         merged = {}
@@ -734,6 +1144,14 @@ def format_summary(data):
         phase_parts = [f"{p}:{c}" for p, c in sorted(phase.items())]
         parts.append(f"phase: {','.join(phase_parts)}")
 
+    rollouts_text = describe_rollouts(data.get("revision_rollouts") or [])
+    if rollouts_text:
+        parts.append(f"rollouts: {rollouts_text}")
+
+    payload_text = describe_payloads(data.get("payloads"))
+    if payload_text:
+        parts.append(f"payload: {payload_text}")
+
     return " | ".join(parts)
 
 
@@ -762,8 +1180,15 @@ def format_text(data):
         lines.append("")
 
     lines.append(f"Disruptions: {summary['disruption_count']}")
+    if summary.get("episode_summary"):
+        lines.append(f"Episodes: {summary['episode_summary']}")
     if summary["time_range"]:
         lines.append(f"Time range: {summary['time_range']['from']} to {summary['time_range']['to']}")
+    payloads = data.get("payloads") or {}
+    payload_text = describe_payloads(payloads)
+    if payload_text:
+        source = payloads.get("source") or "timeline"
+        lines.append(f"Payloads: {payload_text} (from {source})")
     lines.append(f"Network liveness: {summary['network_liveness_status']} -- {summary['network_liveness_detail']}")
     lines.append(f"Source pattern: {summary['source_node_pattern']}")
     phase = summary.get("phase_breakdown", {})
@@ -786,6 +1211,50 @@ def format_text(data):
         lines.append(f"  Source: {sa['source_node_full']}")
         lines.append(f"  Targets: {', '.join(sa['target_nodes'])}")
     lines.append("")
+
+    # Episodes and waves
+    episode_data = data.get("episodes") or {}
+    if episode_data.get("episodes"):
+        wave_of = {}
+        for w in episode_data.get("waves", []):
+            for idx in w["episode_indices"]:
+                wave_of[idx] = w["index"]
+        lines.append("Disruption episodes (intervals within %ss merged across backends):"
+                     % episode_data.get("episode_gap_seconds"))
+        for ep in episode_data["episodes"]:
+            lines.append(
+                f"  #{ep['index']} wave {wave_of.get(ep['index'], '?')} | {ep['from']}-{ep['to']} "
+                f"({ep['duration_seconds']}s) | {len(ep['backends'])} backends, "
+                f"{ep['interval_count']} intervals | phase={','.join(ep['phases'])}"
+            )
+        for w in episode_data.get("waves", []):
+            gap = ""
+            if w.get("gap_before_seconds") is not None:
+                gap = (f", {_fmt_minutes(w['gap_before_seconds'])} after previous wave "
+                       f"(starts {_fmt_minutes(w['start_spacing_before_seconds'])} apart)")
+            spacing = ""
+            if w.get("median_spacing_seconds") is not None:
+                spacing = f", episodes ~{_fmt_minutes(w['median_spacing_seconds'])} apart"
+            inside = w.get("rollouts") or []
+            lines.append(
+                f"  Wave {w['index']}: episodes {','.join(str(i) for i in w['episode_indices'])} "
+                f"{w['from']}-{w['to']}{spacing}{gap}"
+                + (f" | inside {'; '.join(inside)}" if inside else " | inside no static-pod rollout")
+            )
+        lines.append("")
+
+    # Static-pod revision rollouts
+    rollouts = data.get("revision_rollouts") or []
+    if rollouts:
+        lines.append("Static-pod revision rollouts (OperatorState NodeInstallerProgressing):")
+        for r in rollouts:
+            eps = r.get("episode_indices") or []
+            where = f"episodes {','.join(str(i) for i in eps)}" if eps else "no disruption episodes"
+            lines.append(
+                f"  {r['operator']} {r['from_revision']}->{r['to_revision']} | "
+                f"{r['from']}-{r['to']} ({_fmt_minutes(r['duration_seconds'])}) | {where}"
+            )
+        lines.append("")
 
     # Key signals
     if summary["key_signals"]:
@@ -900,6 +1369,10 @@ def main():
         "--blast-radius", action="store_true",
         help="Append a compact list of ALL disrupted backends (ignoring --backends filter)"
     )
+    parser.add_argument(
+        "--prowjob", default=None,
+        help="prowjob.json for the initial/target payloads (default: prowjob.json beside the timelines)"
+    )
 
     args = parser.parse_args()
     backend_filter = args.backends.split(",") if args.backends else None
@@ -909,7 +1382,11 @@ def main():
     network_liveness = extract_network_liveness(items)
     concurrent = extract_concurrent_events(items, disruptions, args.window)
     source_analysis = analyze_source_nodes(disruptions)
-    summary = generate_summary(disruptions, network_liveness, concurrent, source_analysis)
+    episode_data = analyze_episodes(disruptions)
+    rollouts = link_rollouts_to_episodes(extract_revision_rollouts(items), episode_data)
+    payloads = find_payloads(args.files, items, args.prowjob)
+    summary = generate_summary(disruptions, network_liveness, concurrent, source_analysis,
+                               episode_data, rollouts)
     links = generate_links(args.job_name, args.build_id, args.target, args.files)
 
     blast_radius = None
@@ -924,6 +1401,9 @@ def main():
         "concurrent_events": concurrent,
         "source_node_analysis": source_analysis,
         "network_liveness": network_liveness,
+        "episodes": episode_data,
+        "revision_rollouts": rollouts,
+        "payloads": payloads,
         "summary": summary,
         "links": links,
     }

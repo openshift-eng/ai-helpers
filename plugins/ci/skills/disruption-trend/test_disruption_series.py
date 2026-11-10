@@ -22,6 +22,12 @@ SERIES = {"release": "5.0", "selectors": ["kube-api-new-connections"], "variants
           "dashboard": "(manual query)"}
 
 
+@pytest.fixture(autouse=True)
+def no_gcs(monkeypatch):
+    """Keep main() off the network; tests that need payloads patch fetch_payloads themselves."""
+    monkeypatch.setattr(ds.payload_pairs, "fetch_payloads", lambda runs, **kwargs: ({}, []))
+
+
 def _zero_heavy(rng, nonzero_rate, scale):
     return 0 if rng.random() >= nonzero_rate else 1 + int(rng.expovariate(1.0 / scale))
 
@@ -123,7 +129,8 @@ def test_caveats_for_missing_data_liveness_and_late_start():
     assert "BigQuery lag" in text
     assert "1 older run(s) have no disruption data" in text
     assert "ci-cluster-network-liveness" in text
-    assert trend["runs"] == {"scanned": 100, "used": 97, "no_data": 2, "liveness_unreliable": 1}
+    assert trend["runs"] == {"scanned": 100, "used": 97, "no_data": 2, "fetch_failed": 0, "liveness_unreliable": 1}
+    assert trend["degraded"] is False
 
 
 def test_build_runs_uses_exact_backends_and_flags_liveness():
@@ -181,9 +188,9 @@ def _fake_rows(n):
              "timestamp": (NOW - timedelta(hours=1 + i)).strftime("%Y-%m-%dT%H:%M:%SZ")} for i in range(n)]
 
 
-def _fake_disruption(ids, cache_path=None, progress=None):
+def _fake_disruption(ids, cache_path=None, progress=None, max_wait=None):
     return {pid: [{"backend_name": "kube-api-new-connections", "disruption_seconds": 9 if int(pid) < 100 else 0,
-                   "release_tag": "tag-%s" % pid, "master_nodes_updated": "Y"}] for pid in ids}
+                   "release_tag": "tag-%s" % pid, "master_nodes_updated": "Y"}] for pid in ids}, []
 
 
 def test_main_writes_state_and_runs_file(tmp_path, capsys):
@@ -191,7 +198,7 @@ def test_main_writes_state_and_runs_file(tmp_path, capsys):
     state.parent.mkdir()
     state.write_text(json.dumps({"schema_version": 1, "request": {"workflow": "W2"}}))
     with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(400), False)), \
-            patch.object(ds.sippy, "fetch_disruption_data", side_effect=_fake_disruption):
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=_fake_disruption):
         code = ds.main(["--release", "5.0", "--backend", "kube-api-new-connections", "--days", "30",
                         "--state-file", str(state), "--cache-dir", ""])
     assert code == 0
@@ -212,7 +219,7 @@ def _alert(master_nodes_updated):
 
 def test_main_stops_when_master_nodes_filter_matches_nothing(capsys):
     with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(50), False)), \
-            patch.object(ds.sippy, "fetch_disruption_data", side_effect=_fake_disruption):
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=_fake_disruption):
         code = ds.main(["--alert-text", _alert("N"), "--format", "json", "--cache-dir", ""])
     assert code == 0
     captured = capsys.readouterr()
@@ -222,7 +229,7 @@ def test_main_stops_when_master_nodes_filter_matches_nothing(capsys):
 
 def test_main_json_output_describes_the_series_and_trend(capsys):
     with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(400), False)), \
-            patch.object(ds.sippy, "fetch_disruption_data", side_effect=_fake_disruption):
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=_fake_disruption):
         code = ds.main(["--alert-text", _alert("Y"), "--format", "json", "--cache-dir", ""])
     assert code == 0
     output = json.loads(capsys.readouterr().out)
@@ -230,7 +237,8 @@ def test_main_json_output_describes_the_series_and_trend(capsys):
     assert output["series"]["backends"] == ["kube-api-new-connections"]
     assert output["series"]["variants"] == {"Platform": "aws"}
     assert output["series"]["master_nodes_updated"] == "Y"
-    assert output["trend"]["runs"] == {"scanned": 400, "used": 400, "no_data": 0, "liveness_unreliable": 0}
+    assert output["trend"]["runs"] == {"scanned": 400, "used": 400, "no_data": 0, "fetch_failed": 0,
+                                       "liveness_unreliable": 0}
     assert output["trend"]["runs_file"] is None
     (transition,) = output["trend"]["transitions"]
     assert transition["direction"] == "increase"
@@ -251,12 +259,14 @@ def test_bootstrap_finds_lib_in_whole_plugin_and_flat_layouts(tmp_path):
     plugin_skill = tmp_path / "plugin" / "skills" / "disruption-trend"
     plugin_skill.mkdir(parents=True)
     shutil.copy(os.path.join(HERE, "disruption_series.py"), plugin_skill)
+    shutil.copy(os.path.join(HERE, "payload_pairs.py"), plugin_skill)
     shutil.copytree(LIB, tmp_path / "plugin" / "lib" / "disruption_common")
     assert _run_help(str(plugin_skill)).returncode == 0
 
     flat_skill = tmp_path / "skills" / "disruption-trend"
     flat_skill.mkdir(parents=True)
     shutil.copy(os.path.join(HERE, "disruption_series.py"), flat_skill)
+    shutil.copy(os.path.join(HERE, "payload_pairs.py"), flat_skill)
     shutil.copytree(LIB, tmp_path / "skills" / "disruption_common")
     assert _run_help(str(flat_skill)).returncode == 0
 
@@ -272,7 +282,7 @@ def test_bootstrap_explains_a_missing_lib(tmp_path):
 
 def test_main_caps_window_at_max_days(capsys):
     with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(400), False)) as collect, \
-            patch.object(ds.sippy, "fetch_disruption_data", side_effect=_fake_disruption):
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=_fake_disruption):
         code = ds.main(["--release", "5.0", "--backend", "kube-api-new-connections", "--days", "730",
                         "--format", "json", "--cache-dir", ""])
     assert code == 0
@@ -303,7 +313,7 @@ def test_main_keeps_a_corrupt_state_file_and_still_prints(tmp_path, capsys):
     state = tmp_path / "investigation.json"
     state.write_text("{not json")
     with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(50), False)), \
-            patch.object(ds.sippy, "fetch_disruption_data", side_effect=_fake_disruption):
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=_fake_disruption):
         code = ds.main(["--release", "5.0", "--backend", "kube-api-new-connections",
                         "--state-file", str(state), "--cache-dir", ""])
     assert code == 1
@@ -321,6 +331,262 @@ def test_build_runs_orders_mixed_precision_timestamps_by_time():
             {"prow_id": "later-fraction", "job": "j", "timestamp": "2026-11-01T00:00:05.250Z"}]
     runs = ds.build_runs(rows, {}, ["kube-api-new-connections"])
     assert [r["prow_id"] for r in runs] == ["fraction", "whole", "later-fraction"]
+
+
+def _lose(runs, indexes):
+    for i in indexes:
+        runs[i]["seconds"] = None
+        runs[i]["fetch_failed"] = True
+    return runs
+
+
+def test_lost_runs_get_their_own_caveat_and_are_not_counted_as_no_data():
+    runs = _lose(make_runs([0, 1] * 300), range(10, 14))
+    trend = ds.analyze(SERIES, runs, START, NOW, "day", False)
+    text = " ".join(trend["caveats"])
+    assert "4 run(s) from %s" % runs[10]["timestamp"][:16] in text
+    assert "to %s" % runs[13]["timestamp"][:16] in text
+    assert "Sippy disruption API failed" in text and "Rerun later" in text
+    assert "have no disruption data (often" not in text
+    assert trend["runs"]["fetch_failed"] == 4 and trend["runs"]["no_data"] == 0
+    loss = trend["data_loss"]
+    assert loss["runs"] == 4 and loss["first"] == runs[10]["timestamp"] and loss["last"] == runs[13]["timestamp"]
+    assert sum(loss["buckets"].values()) == 4
+    assert trend["degraded"] is False
+    assert "The result is degraded" not in text
+
+
+def test_more_than_a_few_percent_lost_marks_the_trend_degraded():
+    runs = _lose(make_runs([0, 1] * 300), range(0, 60))
+    trend = ds.analyze(SERIES, runs, START, NOW, "day", False)
+    assert trend["degraded"] is True and trend["data_loss"]["fraction"] == 0.1
+    assert any("The result is degraded" in c for c in trend["caveats"])
+    out = io.StringIO()
+    ds.print_table(SERIES, trend, out=out)
+    assert "DEGRADED: 60 run(s) (10.0%) lost to Sippy disruption API failures" in out.getvalue()
+
+
+def test_loss_concentrated_after_a_step_degrades_that_transition():
+    values = [0] * 600 + [10] * 200
+    runs = _lose(make_runs(values), range(780, 795))
+    trend = ds.analyze(SERIES, runs, START, NOW, "day", False)
+    (t,) = trend["transitions"]
+    assert t["lost_runs"] == {"before": 0, "after": 15}
+    assert t["degraded"] is True
+    assert trend["degraded"] is True
+    assert trend["data_loss"]["fraction"] < ds.DEGRADED_LOST_FRACTION
+    out = io.StringIO()
+    ds.print_table(SERIES, trend, out=out)
+    assert "DEGRADED: 0 run(s) before and 15 after this step" in out.getvalue()
+
+
+def test_build_runs_marks_api_failures():
+    rows = [{"prow_id": "1", "job": "j", "timestamp": "2026-11-01T00:00:00Z"},
+            {"prow_id": "2", "job": "j", "timestamp": "2026-11-02T00:00:00Z"}]
+    runs = ds.build_runs(rows, {}, ["kube-api-new-connections"], failed=["2"])
+    assert [(r["prow_id"], r["seconds"], r["fetch_failed"]) for r in runs] == [("1", None, False), ("2", None, True)]
+
+
+def _step_with_jobs():
+    """600 quiet runs over jobs a-c, then 120 runs where job-a and job-b step up and job-c stays flat.
+
+    job-d runs only twice before and once after; job-new appears only after the step.
+    """
+    before_jobs = ["job-a", "job-b", "job-c"] * 200
+    before_jobs[5], before_jobs[300] = "job-d", "job-d"
+    after_jobs = ["job-a", "job-b", "job-c"] * 39 + ["job-d", "job-new", "job-a"]
+    values = [2] * 600 + [60 if job in ("job-a", "job-b", "job-new") else 2 for job in after_jobs]
+    runs = make_runs(values)
+    for run, job in zip(runs, before_jobs + after_jobs):
+        run["job"] = job
+    return runs
+
+
+def test_per_job_table_lists_every_job_with_a_run_after_the_step():
+    trend = ds.analyze(SERIES, _step_with_jobs(), START, NOW, "day", False)
+    t = trend["transitions"][0]
+    rows = {row["job"]: row for row in t["per_job"]["jobs"]}
+    assert set(rows) == {"job-a", "job-b", "job-c", "job-d", "job-new"}
+    assert [row["job"] for row in t["per_job"]["jobs"]][:1] == ["job-a"]
+    a = rows["job-a"]
+    assert (a["n_after"], a["before_p50"], a["before_p95"], a["after_p50"], a["after_max"]) == (40, 2, 2, 60, 60)
+    assert a["after_vs_before"] == "above_p95" and a["small_n"] is False
+    assert rows["job-c"]["after_vs_before"] == "at_or_below_p50"
+    assert rows["job-d"]["small_n"] is True and rows["job-d"]["n_before"] == 2 and rows["job-d"]["n_after"] == 1
+    assert rows["job-new"]["n_before"] == 0 and rows["job-new"]["before_p50"] is None
+    assert rows["job-new"]["after_vs_before"] is None
+    out = io.StringIO()
+    ds.print_table(SERIES, trend, out=out)
+    text = out.getvalue()
+    assert "| Job | n before | n after | Before P50 | Before P95 | After P50 | After max | Note |" in text
+    assert "| job-d | 2 | 1 | 2 | 2 | 2 | 2 | small n |" in text
+    assert "| job-new | 0 | 1 | — | — | 60 | 60 | small n, new after the step |" in text
+    assert "| job-a | 199 | 40 | 2 | 2 | 60 | 60 | after P50 above before P95 |" in text
+
+
+def test_handoff_pairs_use_same_job_nearest_runs_as_prow_urls():
+    trend = ds.analyze(SERIES, _step_with_jobs(), START, NOW, "day", False)
+    t = trend["transitions"][0]
+    handoff = t["handoff"]
+    assert len(handoff["pairs"]) == ds.PAIRS_PER_TRANSITION
+    jobs = [pair["job"] for pair in handoff["pairs"]]
+    assert jobs == ["job-a", "job-b", "job-c"]
+    for pair in handoff["pairs"]:
+        assert pair["before"]["job"] == pair["after"]["job"] == pair["job"]
+        assert pair["before"]["timestamp"] < t["at"] <= pair["after"]["timestamp"]
+    first = handoff["pairs"][0]
+    assert first["after"]["representative"] and first["after"]["seconds"] == 60
+    assert handoff["pairs"][2]["after"]["representative"] is False
+    assert first["before"]["prow_id"] == "1597"
+    assert handoff["prow_urls"][:2] == [first["before"]["url"], first["after"]["url"]]
+    assert handoff["download_runs"].split(",")[0] == "job-a:1597"
+    out = io.StringIO()
+    ds.print_table(SERIES, trend, out=out)
+    assert 'download_timelines.py --runs "job-a:1597,' in out.getvalue()
+
+
+def _run(pid, job, minutes, seconds):
+    ts = datetime(2026, 11, 9, 12, tzinfo=timezone.utc) + timedelta(minutes=minutes)
+    return {"prow_id": pid, "job": job, "timestamp": ts.strftime("%Y-%m-%dT%H:%M:%SZ"), "seconds": seconds,
+            "release_tag": "", "url": "https://prow/%s" % pid}
+
+
+def test_handoff_pairs_take_one_run_per_launch_batch_and_prefer_representative_runs():
+    before = [_run("b-old", "up", -300, 40), _run("b1", "up", -30, 40), _run("b2", "up", -28, 40),
+              _run("b-high", "up", -5, 90)]
+    after = [_run("a-low", "up", 1, 10), _run("a1", "up", 2, 90), _run("a2", "up", 3, 95),
+             _run("a3", "up", 4, 100), _run("a-late", "up", 200, 90)]
+    handoff = ds.suggest_pairs(before, after, "increase", limit=3)
+    picked = [(pair["before"]["prow_id"], pair["after"]["prow_id"]) for pair in handoff["pairs"]]
+    # a-low and a1-a3 are one launch, as are b1 and b2. a-low is not above the job's before P95,
+    # and b-high is above it, so neither is representative.
+    assert picked == [("b2", "a1"), ("b-old", "a-late")]
+    assert all(pair["before"]["representative"] and pair["after"]["representative"] for pair in handoff["pairs"])
+
+
+def test_handoff_pairs_for_a_decrease_prefer_runs_that_show_the_drop():
+    before = [_run("b-low", "j", -5, 0), _run("b-high", "j", -60, 50), _run("b-mid", "j", -200, 40)]
+    after = [_run("a-high", "j", 1, 50), _run("a-low", "j", 30, 0)]
+    handoff = ds.suggest_pairs(before, after, "decrease")
+    pair = handoff["pairs"][0]
+    assert (pair["before"]["prow_id"], pair["after"]["prow_id"]) == ("b-high", "a-low")
+    assert pair["before"]["representative"] and pair["after"]["representative"]
+
+
+def test_handoff_pairs_skip_a_launch_batch_that_straddles_the_step():
+    before = [_run("b-batch", "up", -2, 40), _run("b-old", "up", -120, 40)]
+    after = [_run("a-batch", "up", 1, 90)]
+    handoff = ds.suggest_pairs(before, after, "increase")
+    assert [(p["before"]["prow_id"], p["after"]["prow_id"]) for p in handoff["pairs"]] == [("b-old", "a-batch")]
+
+
+def _pair(initial, target):
+    return {"initial": "5.%s" % initial if initial else "", "target": "5.%s" % target if target else ""}
+
+
+def test_payload_summary_detects_overlapping_targets_and_initial_payload_dependence():
+    nightly = "1.0-0.nightly-2026-11-%s"
+    before = [_run("b%d" % i, "up", -100 + i, 40) for i in range(4)]
+    after = [_run("a%d" % i, "up", i + 1, 100) for i in range(4)] + [_run("a-fresh", "up", 10, 40),
+                                                                      _run("a-plain", "plain", 11, 5)]
+    payloads = {
+        "b0": _pair(nightly % "08-120000", nightly % "09-143447"),
+        "b1": _pair("0.0-0.nightly-2026-11-01-000000", nightly % "09-143447"),
+        "b2": _pair(nightly % "08-120000", nightly % "08-180000"),
+        "a0": _pair(nightly % "08-173648", nightly % "09-143447"),
+        "a1": _pair(nightly % "08-173648", nightly % "09-143447"),
+        "a2": _pair("0.0-0.nightly-2026-11-01-000000", nightly % "09-200000"),
+        "a-fresh": _pair(nightly % "09-143447", nightly % "09-200000"),
+        "a-plain": _pair(nightly % "09-200000", nightly % "09-200000"),
+    }
+    summary = ds.payload_summary(before, after, payloads, failed=["a3"])
+    assert summary["fetch_failed"] == 1 and summary["no_payload"] == 0
+    assert summary["newest_target_before"] == "5." + nightly % "09-143447"
+    assert summary["oldest_target_after"] == "5." + nightly % "09-143447"
+    assert summary["target_separates"] is False and summary["after_on_old_target"] == 2
+    groups = summary["after_upgrades_by_initial"]
+    assert groups["pre_step"] == {"n": 3, "p50": 100, "max": 100}
+    assert groups["post_step"] == {"n": 1, "p50": 40, "max": 40}
+    assert groups["not_upgrade"]["n"] == 1
+    pairs = {(p["from"], p["to"]): p for p in summary["version_pairs"]}
+    assert pairs[("5.0", "5.1")]["before"]["n"] == 1 and pairs[("5.0", "5.1")]["after"]["n"] == 1
+    assert pairs[("5.1", "5.1")]["after"]["n"] == 3
+
+
+def test_payload_summary_reports_clean_target_separation():
+    before = [_run("b", "j", -10, 0)]
+    after = [_run("a", "j", 10, 50)]
+    payloads = {"b": _pair("", "1.0-0.nightly-2026-11-09-100000"), "a": _pair("", "1.0-0.ci-2026-11-09-120000")}
+    summary = ds.payload_summary(before, after, payloads, failed=[])
+    assert summary["target_separates"] is True and summary["after_on_old_target"] == 0
+
+
+def test_apply_payloads_annotates_runs_pairs_and_caveats():
+    runs = _step_with_jobs()
+    trend = ds.analyze(SERIES, runs, START, NOW, "day", False)
+    sample = ds.payload_sample(trend, runs)
+    ids = [r["prow_id"] for r in sample]
+    assert len(ids) == len(set(ids)) and len(ids) <= 2 * ds.PAYLOAD_SAMPLE_PER_SIDE + 2 * ds.PAIRS_PER_TRANSITION
+    assert "1599" in ids and "1600" in ids and "1000" not in ids
+    payloads = {pid: {"initial": "", "target": ""} for pid in ids[1:]}
+    ds.apply_payloads(trend, runs, payloads, failed=ids[:1])
+    t = trend["transitions"][0]
+    assert t["payloads"]["fetch_failed"] == 1
+    assert "target_payload" in t["handoff"]["pairs"][0]["after"]
+    assert any("prowjob.json could not be fetched for 1 of 40" in c for c in trend["caveats"])
+    assert any("cannot be placed by payload" in c for c in trend["caveats"])
+    by_id = {run["prow_id"]: run for run in runs}
+    assert by_id[ids[1]]["target_payload"] == "" and "target_payload" not in by_id["1000"]
+
+
+def test_main_reports_lost_runs_fetches_payloads_and_writes_pairs_to_state(tmp_path, capsys):
+    state = tmp_path / "investigation.json"
+    lost_ids = {str(i) for i in range(300, 340)}
+
+    def disruption(ids, cache_path=None, progress=None, max_wait=None):
+        data, _ = _fake_disruption([pid for pid in ids if pid not in lost_ids])
+        return data, sorted(lost_ids)
+
+    calls = {}
+
+    def fake_payloads(runs, cache_path=None, write=None):
+        calls["runs"], calls["cache_path"] = runs, cache_path
+        return {r["prow_id"]: {"initial": "5.0.0-0.nightly-2026-11-01-000000",
+                               "target": "5.1.0-0.nightly-2026-11-09-143447"} for r in runs}, []
+
+    with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(400), False)), \
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=disruption) as fetch, \
+            patch.object(ds.payload_pairs, "fetch_payloads", side_effect=fake_payloads):
+        code = ds.main(["--release", "5.0", "--backend", "kube-api-new-connections", "--state-file", str(state),
+                        "--cache-dir", str(tmp_path / "cache"), "--rate-limit-wait", "60"])
+    assert code == 0
+    assert fetch.call_args[1]["max_wait"] == 60
+    assert calls["cache_path"] == str(tmp_path / "cache" / "prowjob-payloads.json")
+    trend = json.loads(state.read_text())["trend"]
+    assert trend["runs"]["fetch_failed"] == 40 and trend["degraded"] is True
+    t = trend["transitions"][0]
+    assert t["handoff"]["pairs"] and t["handoff"]["download_runs"]
+    assert t["payloads"]["oldest_target_after"] == "5.1.0-0.nightly-2026-11-09-143447"
+    runs = json.loads((tmp_path / "trend-runs.json").read_text())
+    assert sum(1 for r in runs if r["fetch_failed"]) == 40
+    assert any(r.get("target_payload") for r in runs)
+    captured = capsys.readouterr()
+    assert "reported as lost" in captured.err
+    assert "DEGRADED:" in captured.out and "Suggested before/after pairs" in captured.out
+    assert "Upgrades 5.0 → 5.1" in captured.out
+
+
+def test_main_keeps_lost_runs_when_filtering_on_master_nodes_updated(capsys):
+    def disruption(ids, cache_path=None, progress=None, max_wait=None):
+        data, _ = _fake_disruption([pid for pid in ids if pid != "7"])
+        return data, ["7"]
+
+    with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(50), False)), \
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=disruption):
+        code = ds.main(["--alert-text", _alert("Y"), "--format", "json", "--cache-dir", "", "--no-payloads"])
+    assert code == 0
+    trend = json.loads(capsys.readouterr().out)["trend"]
+    assert trend["runs"]["scanned"] == 50 and trend["runs"]["fetch_failed"] == 1
 
 
 if __name__ == "__main__":

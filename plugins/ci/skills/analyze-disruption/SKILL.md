@@ -28,6 +28,7 @@ The user will provide one of the following as input:
 
 1. **One or more Prow job URLs** (at least 1)
    - Example: `https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn/1983307151598161920`
+   - After `disruption-trend`, use its suggested pairs instead of picking runs by hand: `trend.transitions[].handoff` in its state file (`investigation.json`) has `prow_urls` and `download_runs` (`job:build_id`, ready for `download_timelines.py --runs`). The pairs are same-job runs on each side of the step, one per launch batch
 
 **Option B — Grafana disruption dashboard URL (run discovery + analysis):**
 
@@ -59,7 +60,7 @@ The user will provide one of the following as input:
 Load these only at the step that needs them — not up front:
 
 - **`references/run-discovery.md`** — Grafana URL and alert resolution into Prow job runs (Step 1.5)
-- **`references/artifacts.md`** — timeline download and optional audit/etcd/PromQL deep dive (Steps 2 and 4)
+- **`references/artifacts.md`** — timeline download with payload pairs, and the optional deep dive: audit/etcd logs, revision trigger (`revision_triggers.py`), payload diff (`payload_diff.py`), PromQL (Steps 2 and 4)
 - **`references/timeline-analysis.md`** — parser modes, signal interpretation, and extra diagnostic checks (Steps 3 and 5)
 - **`references/cross-run-comparison.md`** — multi-run pattern detection and same-job clean comparison (Step 6)
 - **`references/report-guide.md`** — deep-link shapes, inline linking rules, and report structure (Step 7)
@@ -107,13 +108,19 @@ Read `references/artifacts.md` and follow **Timeline download**. Write files und
 
 The downloader uses anonymous access to the public `test-platform-results-public` bucket. Do not run `gcloud auth login`. On exit 2, continue with the runs that downloaded. On exit 1, stop and report each run's error.
 
+The downloader prints each run's payload pair (initial → target). Keep it for the runs table. For upgrade jobs, do not make any claim that depends on which payload a run started from or upgraded to without checking that run's pair; if it is unknown, say so.
+
 ### Step 3: Analyze Interval/Timeline Data
 
 Read `references/timeline-analysis.md` and follow sections 3.1 through 3.4. Pass exact backend names as `--backends`. A shortened name is not the selected backend.
 
+Compare runs by the parser's episodes and waves (for example "3 episodes in 1 wave" against "6 episodes in 2 waves (3+3)"), not by the disruption count. Check which static-pod revision rollout (`rollouts:`) each wave falls inside. If some runs have an extra rollout that others do not, Step 4 is needed: follow **4.3 Revision Trigger** and **4.4 Payload Diff**.
+
 ### Step 4: Deep-Dive Artifact Download (Optional)
 
 Only if the parser output from Step 3 is insufficient for root cause determination, read the **Deep-dive artifact download** section of `references/artifacts.md` and follow it. Prefix any direct `gcloud storage` command with `CLOUDSDK_AUTH_DISABLE_CREDENTIALS=true`. Do not run `gcloud auth login`.
+
+When a disruption wave sits inside a static-pod revision rollout that comparison runs do not have, run `revision_triggers.py` on a run with the rollout and one without it (4.3) to find the write that started the revision, then `payload_diff.py --component {component}` (4.4) to list the commits that changed that component. Use the scripts rather than reading events.json or configmaps.json by hand.
 
 ### Step 5: Additional Diagnostic Checks
 

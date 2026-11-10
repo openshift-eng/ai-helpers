@@ -12,7 +12,8 @@ import re
 
 CLOUD_ID = "redhat.atlassian.net"
 PROJECTS = "project in (TRT, OCPBUGS)"
-FIELDS = ["summary", "status", "resolution", "labels", "components", "assignee", "updated"]
+# No assignee: it carries avatar URLs and pushes a 100-row page past the MCP output limit.
+FIELDS = ["summary", "status", "resolution", "labels", "components", "updated"]
 # The MCP tool accepts 50-100. Read every page: relevance is not the sort order.
 MAX_RESULTS = 100
 DEFAULT_RECENT_DAYS = 90

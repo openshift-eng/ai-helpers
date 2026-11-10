@@ -22,10 +22,17 @@ done
 
 Example summary output:
 ```text
-2084831773824389120: 11 disruptions | host-to-host:8 cache-host-to-host:3 | OVS:12 (max 9000ms) | etcd:5 | CPU: master-0 | src-node: abc12 | phase: upgrade:11
-2084701838124257280: 3 disruptions | kube-api:3 | net-liveness: degraded | phase: conformance:3
+2084831773824389120: 11 disruptions | 4 episodes in 1 wave, ~6.2m apart | host-to-host:8 cache-host-to-host:3 | OVS:12 (max 9000ms) | etcd:5 | CPU: master-0 | src-node: abc12 | phase: upgrade:11
+2084701838124257280: 3 disruptions | 1 episode | kube-api:3 | net-liveness: degraded | phase: conformance:3
+2119804233229275136: 24 disruptions | 3 episodes in 1 wave, ~3.5m apart | openshift-api-http2-localhost:12 kube-api-http1-localhost:6 kube-api-http2-localhost:6 | etcd:4 | phase: upgrade:24 | rollouts: etcd 8->9 (w1 2/3), KAS 10->11 (w1 3/3), +2 without disruption | payload: 5.1.0-0.nightly-2026-11-08-173648 -> 5.1.0-0.nightly-2026-11-09-143447
+2119937168964063232: 48 disruptions | 6 episodes in 2 waves (3+3), wave gap 12m (starts 19m apart) | openshift-api-http2-localhost:24 kube-api-http1-localhost:12 kube-api-http2-localhost:12 | etcd:1 | phase: upgrade:48 | rollouts: KAS 8->9 (w1 3/3), KAS 9->10 (w2 3/3), +2 without disruption | payload: rc_payload__5.1.0-0.ci-2026-11-09-112923 -> rc_payload__5.1.0-0.ci-2026-11-09-232923
 2084417286357127168: 0 disruptions
 ```
+
+Compare runs by **episodes and waves**, not by the disruption count. The count adds up
+every interval on every selected backend, so six probes failing together in one outage
+count six times. In the last two lines, 24 and 48 disruptions are really 3 outages in one
+kube-apiserver rollout against 6 outages in two rollouts. How to read each field is in 3.4.
 
 Use the summary output to identify which runs need deep investigation (highest disruption,
 interesting signal combinations, or unusual patterns). If the auto-selection included a
@@ -74,6 +81,15 @@ The parser automatically:
   E2E test names active during disruption (for cross-run test correlation)
 - Summarizes OVS vswitchd stalls, CPU pressure, Azure disk metrics, etcd pressure
 - Assesses network-liveness status (clean, minor, degraded, unreliable)
+- Groups the selected backends' intervals into **episodes** and **waves** (`episodes` in
+  JSON, `Disruption episodes` in text)
+- Extracts **static-pod revision rollouts** for kube-apiserver, etcd,
+  kube-controller-manager, and kube-scheduler, and says which episodes and waves fall
+  inside each (`revision_rollouts` in JSON)
+- Reports the run's **payload pair** (`payloads` in JSON): initial and target payload
+  from the `prowjob.json` saved beside the timelines (or `--prowjob`), falling back to
+  `../gather/clusterversion.json`; `timeline_target_version` is the target the timeline's
+  ClusterVersion "Working towards" message names
 
 If the parser output is insufficient for a particular signal, query the timeline JSON directly.
 
@@ -94,6 +110,39 @@ the output — you should not need to query the timeline files directly for most
 resource exhaustion** (disk I/O → etcd stalls → apiserver timeouts), not a networking issue.
 Look for etcd `slow fdatasync`, `apply took too long`, and `ExtremelyHighIndividualControlPlaneCPU`
 alerts as confirming evidence.
+
+**Episodes and waves:**
+- An **episode** is one outage across the selected backends: intervals that overlap or start
+  within 30s of the previous one's end (`episode_gap_seconds`). JSON has `from`, `to`,
+  `duration_seconds`, `backends`, `interval_count`, and `phases` per episode.
+- A **wave** is a run of episodes with no large idle gap. A new wave starts where the idle
+  time between two episodes is more than twice the typical idle time, clamped to 5–10
+  minutes (`wave_split_threshold_seconds`). JSON has `episode_indices`,
+  `median_spacing_seconds`, `gap_before_seconds` (idle time since the previous wave), and
+  `start_spacing_before_seconds` per wave. The summary's "wave gap 12m (starts 20m apart)"
+  shows those two numbers.
+- **Three episodes about 3 minutes apart** in one wave is the shape of one static-pod rollout
+  taking each master's local apiserver down in turn. That is the normal baseline for
+  `*-localhost-*` probes on upgrade jobs. **Two such waves** means two rollouts.
+
+**Static-pod revision rollouts (`rollouts:`):**
+- Each entry is `{operator} {from}->{to}` from the OperatorState
+  `NodeInstallerProgressing: N nodes are at revision X; M nodes have achieved new revision Y`
+  interval, from when Progressing went True until it went False. `KAS` is kube-apiserver,
+  `KCM` kube-controller-manager, `sched` kube-scheduler.
+- `(w2 3/3)` means 3 of the 3 episodes in wave 2 fall inside that rollout (±15s).
+  `+N without disruption` counts rollouts that contain no episode. JSON
+  `revision_rollouts[].episode_indices` and `waves` carry the same data, and text output
+  lists every rollout with its time range.
+- A gap in revision numbers (`KAS 6->7`, then `KAS 8->9`) means revision 8 was created and
+  superseded before it rolled out.
+- The parser adds a key signal when a run has more than one kube-apiserver rollout.
+- **When a wave sits inside a rollout that a comparison run does not have** (for example
+  two KAS rollouts after a change and one before), the disruption is explained by the extra
+  rollout, and the question becomes what triggered it. Go to Step 4 and follow
+  **4.3 Revision Trigger** and then **4.4 Payload Diff** in `references/artifacts.md`.
+  Check both runs' payload pairs first: an extra rollout on upgrade often depends on the
+  payload the run started from, not only the one it upgraded to.
 
 **Source-node patterns:**
 - **single-source-fan-out**: All disruptions from one node → source-side issue (OVS stall,
