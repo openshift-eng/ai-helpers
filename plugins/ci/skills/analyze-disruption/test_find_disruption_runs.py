@@ -1,60 +1,19 @@
-"""Tests for find_disruption_runs.py — URL parsing, backend parsing, disruption extraction."""
+"""Tests for find_disruption_runs.py — run selection, disruption extraction, output, and the CLI.
+
+URL, alert, and Sippy parsing are tested with the shared library in plugins/ci/lib/disruption_common.
+"""
 import datetime
 import json
-from io import BytesIO
 from unittest.mock import patch
 
 from find_disruption_runs import (
-    _parse_timestamp,
-    apply_master_nodes_filter,
-    build_sippy_filter,
     extract_disruption_failures,
-    fetch_disruption_data,
-    fetch_runs_in_window,
     format_timestamp,
-    grafana_params_from_inputs,
     main,
     max_disruption_for_backend,
-    parse_backend,
-    parse_grafana_url,
     print_table,
-    resolve_window_start,
     select_representative_runs,
 )
-
-
-def test_parse_grafana_url_extracts_vars():
-    url = (
-        "https://grafana-loki.ci.openshift.org/d/gEdw_aLvk/"
-        "disruption-for-5-0-os-agnostic"
-        "?orgId=1&var-percentile=P50&var-platform=gcp"
-        "&var-backend=host-to-host-new-connections"
-        "&var-upgrade_type=micro&var-releases=5.0"
-    )
-    result = parse_grafana_url(url)
-    assert result["platform"] == "gcp"
-    assert result["backend"] == "host-to-host-new-connections"
-    assert result["upgrade_type"] == "micro"
-    assert result["releases"] == "5.0"
-    assert result["percentile"] == "P50"
-    assert result["_dashboard_name"] == "disruption-for-5-0-os-agnostic"
-    assert "orgId" not in result
-
-
-def test_parse_grafana_url_multi_value():
-    url = (
-        "https://grafana-loki.ci.openshift.org/d/abc/dash"
-        "?var-platform=azure&var-platform=gcp"
-        "&var-backend=host-to-host-new-connections"
-        "&var-releases=5.0&var-ipmode=ipv6&var-ipmode=ipv4"
-        "&var-os=rhcos10&var-os=rhcos9"
-    )
-    result = parse_grafana_url(url)
-    assert result["platform"] == "azure,gcp"
-    assert result["backend"] == "host-to-host-new-connections"
-    assert result["ipmode"] == "ipv6,ipv4"
-    assert result["os"] == "rhcos10,rhcos9"
-    assert result["releases"] == "5.0"
 
 
 def _flat_disruption(prow_ids):
@@ -65,8 +24,8 @@ def _flat_disruption(prow_ids):
     }
 
 
-@patch("find_disruption_runs.fetch_disruption_data", side_effect=_flat_disruption)
-@patch("find_disruption_runs.fetch_runs")
+@patch("disruption_common.sippy.fetch_disruption_data", side_effect=_flat_disruption)
+@patch("disruption_common.sippy.fetch_runs")
 def test_multi_value_queries_and_dedup(mock_fetch_runs, _mock_disruption):
     """Multi-value params expand into separate queries, dedup by prow_id, sort by timestamp, and cap at --limit."""
     import io
@@ -120,8 +79,8 @@ def test_multi_value_queries_and_dedup(mock_fetch_runs, _mock_disruption):
     assert timestamps[0] > timestamps[-1]
 
 
-@patch("find_disruption_runs.fetch_runs")
-@patch("find_disruption_runs.fetch_disruption_data")
+@patch("disruption_common.sippy.fetch_runs")
+@patch("disruption_common.sippy.fetch_disruption_data")
 def test_multi_value_backends_score_exact_names(mock_disruption, mock_fetch_runs):
     """Every var-backend is scored. Derived and cache names do not win the max."""
     import io
@@ -162,8 +121,8 @@ def test_multi_value_backends_score_exact_names(mock_disruption, mock_fetch_runs
     assert "cache-kube-api-new-connections" not in names
 
 
-@patch("find_disruption_runs.fetch_disruption_data", return_value={})
-@patch("find_disruption_runs.fetch_runs", return_value=[])
+@patch("disruption_common.sippy.fetch_disruption_data", return_value={})
+@patch("disruption_common.sippy.fetch_runs", return_value=[])
 def test_multi_value_release_rejected(_mock_fetch, _mock_disruption):
     """Multi-value var-releases should error, not silently query nonsense."""
     import io
@@ -182,61 +141,6 @@ def test_multi_value_release_rejected(_mock_fetch, _mock_disruption):
     except SystemExit as e:
         assert e.code == 1
     assert "multiple releases not supported" in buf.getvalue()
-
-
-def test_parse_grafana_url_all_variants():
-    url = (
-        "https://grafana-loki.ci.openshift.org/d/abc/dash"
-        "?var-platform=aws&var-architectures=arm64"
-        "&var-topologies=single&var-networks=sdn"
-        "&var-upgrade_type=minor&var-releases=4.18"
-        "&var-backend=kube-api-reused-connections"
-    )
-    result = parse_grafana_url(url)
-    assert result["platform"] == "aws"
-    assert result["architectures"] == "arm64"
-    assert result["topologies"] == "single"
-    assert result["networks"] == "sdn"
-    assert result["upgrade_type"] == "minor"
-    assert result["releases"] == "4.18"
-    assert result["backend"] == "kube-api-reused-connections"
-
-
-def test_parse_grafana_url_featureset_ipmode_os():
-    url = (
-        "https://grafana-loki.ci.openshift.org/d/abc/dash"
-        "?var-platform=aws&var-backend=kube-api-new-connections"
-        "&var-releases=5.0&var-featureset=techpreview"
-        "&var-ipmode=ipv6&var-os=rhcos10"
-    )
-    result = parse_grafana_url(url)
-    assert result["featureset"] == "techpreview"
-    assert result["ipmode"] == "ipv6"
-    assert result["os"] == "rhcos10"
-
-
-def test_parse_backend_new_connections():
-    base, conn = parse_backend("host-to-host-new-connections")
-    assert base == "host-to-host"
-    assert conn == "new"
-
-
-def test_parse_backend_reused_connections():
-    base, conn = parse_backend("kube-api-reused-connections")
-    assert base == "kube-api"
-    assert conn == "reused"
-
-
-def test_parse_backend_no_suffix():
-    base, conn = parse_backend("oauth-api")
-    assert base == "oauth-api"
-    assert conn is None
-
-
-def test_parse_backend_cache_prefix():
-    base, conn = parse_backend("cache-kube-api-new-connections")
-    assert base == "cache-kube-api"
-    assert conn == "new"
 
 
 def test_extract_disruption_failures_typical():
@@ -315,55 +219,6 @@ def test_max_disruption_ignores_derived_and_cache_backends():
     # Bare base: only the two connection variants.
     assert max_disruption_for_backend(entries, "kube-api") == 17
     assert max_disruption_for_backend(entries, ["pod-to-host-new-connections", "kube-api-new-connections"]) == 17
-
-
-def _mock_urlopen(response_data):
-    """Create a mock context manager for urllib.request.urlopen."""
-    body = json.dumps(response_data).encode("utf-8")
-    mock_resp = BytesIO(body)
-    mock_resp.status = 200
-
-    class ContextManager:
-        def __enter__(self):
-            return mock_resp
-        def __exit__(self, *args):
-            pass
-
-    return ContextManager()
-
-
-def test_fetch_disruption_data_builds_lookup():
-    api_response = {
-        "rows": [
-            {"backend_name": "kube-api-new-connections", "disruption_seconds": 73,
-             "job_run_name": "123"},
-            {"backend_name": "cache-kube-api-new-connections", "disruption_seconds": 75,
-             "job_run_name": "123"},
-            {"backend_name": "kube-api-new-connections", "disruption_seconds": 10,
-             "job_run_name": "456"},
-        ],
-    }
-    with patch("find_disruption_runs.urllib.request.urlopen",
-               return_value=_mock_urlopen(api_response)):
-        result = fetch_disruption_data(["123", "456"])
-
-    assert "123" in result
-    assert len(result["123"]) == 2
-    assert result["123"][0]["disruption_seconds"] == 73
-    assert "456" in result
-    assert len(result["456"]) == 1
-
-
-def test_fetch_disruption_data_empty_ids():
-    assert fetch_disruption_data([]) == {}
-
-
-def test_fetch_disruption_data_handles_error():
-    import urllib.error
-    with patch("find_disruption_runs.urllib.request.urlopen",
-               side_effect=urllib.error.URLError("connection refused")):
-        result = fetch_disruption_data(["123"])
-    assert result == {}
 
 
 def _make_disruption_data(mapping):
@@ -644,68 +499,6 @@ def test_select_no_clean_from_unrelated_job():
     assert all(s > 0 for s in selected_secs)
 
 
-def test_parse_timestamp_parses_z():
-    assert _parse_timestamp("2026-08-14T00:01:05Z") == datetime.datetime(
-        2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc
-    )
-
-
-def test_parse_timestamp_handles_missing_and_bad():
-    # None, empty string, and unparseable strings all fall back to the epoch sentinel (no raise).
-    epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
-    assert _parse_timestamp(None) == epoch
-    assert _parse_timestamp("") == epoch
-    assert _parse_timestamp("not-a-timestamp") == epoch
-
-
-def test_parse_timestamp_normalizes_offset_to_utc():
-    # A non-UTC offset is converted to the equivalent UTC time.
-    utc = datetime.datetime(2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc)
-    assert _parse_timestamp("2026-08-14T02:01:05+02:00") == _parse_timestamp("2026-08-14T00:01:05Z")
-    assert _parse_timestamp("2026-08-14T02:01:05+02:00") == utc
-
-
-def test_parse_timestamp_accepts_int_epoch_ms():
-    # Integer epoch-milliseconds convert to the matching UTC datetime.
-    assert _parse_timestamp(1704067200000) == datetime.datetime(
-        2024, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc
-    )
-    # Epoch-ms 0 maps to the 1970 epoch.
-    assert _parse_timestamp(0) == datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
-
-
-def test_parse_timestamp_accepts_float_epoch_ms():
-    # Float epoch-milliseconds keep sub-second precision (500 ms -> 500000 us).
-    assert _parse_timestamp(1704067200500.0) == datetime.datetime(
-        2024, 1, 1, 0, 0, 0, 500000, tzinfo=datetime.timezone.utc
-    )
-
-
-def test_parse_timestamp_rejects_bool():
-    # bool is a subclass of int, but True/False are not epoch-ms values, so they
-    # fall through to the epoch sentinel instead of converting as 1/0.
-    epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
-    assert _parse_timestamp(True) == epoch
-    assert _parse_timestamp(False) == epoch
-
-
-def test_parse_timestamp_non_finite_or_overflow_returns_epoch():
-    # Infinity, NaN, and out-of-range magnitudes fall back to the epoch sentinel
-    # rather than raising out of datetime.fromtimestamp.
-    epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
-    assert _parse_timestamp(float("inf")) == epoch
-    assert _parse_timestamp(float("-inf")) == epoch
-    assert _parse_timestamp(float("nan")) == epoch
-    assert _parse_timestamp(10**1000) == epoch
-
-
-def test_parse_timestamp_naive_string_is_utc():
-    # A string with no Z suffix or offset is interpreted as UTC.
-    utc = datetime.datetime(2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc)
-    assert _parse_timestamp("2026-08-14T00:01:05") == utc
-    assert _parse_timestamp("2026-08-14T00:01:05") == _parse_timestamp("2026-08-14T00:01:05Z")
-
-
 def test_format_timestamp_accepts_rfc3339_string():
     assert format_timestamp("2026-08-14T00:01:05Z") == "2026-08-14 00:01"
 
@@ -721,25 +514,8 @@ def test_format_timestamp_zero_is_epoch():
     assert format_timestamp(0) == "1970-01-01 00:00"
 
 
-def test_build_sippy_filter_timestamp_is_rfc3339():
-    since = datetime.datetime(2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc)
-    f = build_sippy_filter({"Platform": "gcp"}, since)
-    assert f["items"][0] == {
-        "columnField": "variants", "operatorValue": "has entry", "value": "Platform:gcp",
-    }
-    assert {
-        "columnField": "timestamp", "operatorValue": ">", "value": "2026-08-14T00:01:05Z",
-    } in f["items"]
-    assert f["linkOperator"] == "and"
-
-
-def test_build_sippy_filter_no_since():
-    f = build_sippy_filter({"Platform": "gcp"}, None)
-    assert all(item["columnField"] != "timestamp" for item in f["items"])
-
-
-@patch("find_disruption_runs.fetch_disruption_data", side_effect=_flat_disruption)
-@patch("find_disruption_runs.fetch_runs")
+@patch("disruption_common.sippy.fetch_disruption_data", side_effect=_flat_disruption)
+@patch("disruption_common.sippy.fetch_runs")
 def test_multi_value_sort_with_rfc3339_timestamps(mock_fetch_runs, _mock_disruption):
     """Multi-value queries dedup and sort merged rows by RFC 3339 timestamp
     descending, then format timestamps without crashing (real API-shaped data)."""
@@ -779,8 +555,8 @@ def test_multi_value_sort_with_rfc3339_timestamps(mock_fetch_runs, _mock_disrupt
     assert output[0]["timestamp_human"] == "2026-08-15 10:00"
 
 
-@patch("find_disruption_runs.fetch_disruption_data", side_effect=_flat_disruption)
-@patch("find_disruption_runs.fetch_runs")
+@patch("disruption_common.sippy.fetch_disruption_data", side_effect=_flat_disruption)
+@patch("disruption_common.sippy.fetch_runs")
 def test_sort_key_orders_mixed_timestamp_types_by_time(mock_fetch_runs, _mock_disruption):
     """The merged-row sort key parses each timestamp to a datetime, so rows with
     mixed representations (RFC 3339 strings and numeric epoch-ms) order by actual
@@ -849,17 +625,6 @@ def test_table_names_the_dashboard_percentile():
     assert "Scanned 164 runs." in text
 
 
-def test_resolve_window_start_lookback_is_calendar_days():
-    now = datetime.datetime(2026, 10, 5, 15, 0, tzinfo=datetime.timezone.utc)
-    assert resolve_window_start(None, 7, now=now) == datetime.datetime(
-        2026, 9, 28, tzinfo=datetime.timezone.utc)
-    # Explicit --since-hours wins over var-lookback.
-    assert resolve_window_start(48, 7, now=now) == datetime.datetime(
-        2026, 10, 3, 15, 0, tzinfo=datetime.timezone.utc)
-    # No lookback and no --since-hours: 30 days rolling.
-    assert resolve_window_start(None, None, now=now) == now - datetime.timedelta(hours=720)
-
-
 def _freeze_now():
     real = datetime.datetime
 
@@ -871,14 +636,14 @@ def _freeze_now():
     return Frozen
 
 
-@patch("find_disruption_runs.fetch_disruption_data", return_value={})
-@patch("find_disruption_runs.fetch_runs", return_value=[])
+@patch("disruption_common.sippy.fetch_disruption_data", return_value={})
+@patch("disruption_common.sippy.fetch_runs", return_value=[])
 def test_lookback_sets_filter_and_since_hours_overrides(mock_fetch_runs, _mock_disruption):
     url = (
         "https://grafana-loki.ci.openshift.org/d/abc/dash"
         "?var-backend=kube-api-new-connections&var-releases=5.0&var-lookback=7"
     )
-    with patch("find_disruption_runs.datetime", _freeze_now()):
+    with patch("disruption_common.series.datetime", _freeze_now()):
         try:
             main(["--grafana-url", url])
         except SystemExit as e:
@@ -887,7 +652,7 @@ def test_lookback_sets_filter_and_since_hours_overrides(mock_fetch_runs, _mock_d
     assert since == "2026-09-28T00:00:00Z"
 
     mock_fetch_runs.reset_mock()
-    with patch("find_disruption_runs.datetime", _freeze_now()):
+    with patch("disruption_common.series.datetime", _freeze_now()):
         try:
             main(["--grafana-url", url, "--since-hours", "48"])
         except SystemExit as e:
@@ -896,8 +661,8 @@ def test_lookback_sets_filter_and_since_hours_overrides(mock_fetch_runs, _mock_d
     assert since == "2026-10-03T15:00:00Z"
 
 
-@patch("find_disruption_runs.fetch_disruption_data", return_value={})
-@patch("find_disruption_runs.fetch_runs", return_value=[])
+@patch("disruption_common.sippy.fetch_disruption_data", return_value={})
+@patch("disruption_common.sippy.fetch_runs", return_value=[])
 def test_featureset_all_is_not_a_sippy_filter(mock_fetch_runs, _mock_disruption):
     try:
         main([
@@ -919,89 +684,6 @@ def _timestamp_lower_bound(filter_dict):
         if item["columnField"] == "timestamp" and item["operatorValue"] == ">":
             return item["value"]
     raise AssertionError("no timestamp lower bound in %s" % filter_dict)
-
-
-def _timestamp_filters(filter_dict):
-    return [
-        (item["operatorValue"], item["value"])
-        for item in filter_dict["items"]
-        if item["columnField"] == "timestamp"
-    ]
-
-
-@patch("find_disruption_runs.fetch_runs")
-def test_fetch_runs_in_window_pages_until_short_page_and_dedups(mock_fetch_runs):
-    since = datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
-
-    def fake_fetch(_release, filter_dict, _limit):
-        bounds = _timestamp_filters(filter_dict)
-        if ("<", "2026-09-29T12:00:00Z") in bounds:
-            return [{"prow_id": "EDGE", "timestamp": "2026-09-28T03:00:00Z"}]
-        if ("<", "2026-10-01T00:00:00Z") in bounds:
-            return [
-                {"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"},
-                {"prow_id": "OLDER", "timestamp": "2026-09-29T12:00:00Z"},
-            ]
-        if ("<", "2026-10-05T00:00:00Z") in bounds:
-            return [{"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"}]
-        return [
-            {"prow_id": "NEW", "timestamp": "2026-10-05T00:00:00Z"},
-            {"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"},
-        ]
-
-    mock_fetch_runs.side_effect = fake_fetch
-    rows, truncated = fetch_runs_in_window(
-        "5.0", {"Platform": "aws"}, since, page_size=2, max_runs=5000)
-    assert truncated is False
-    assert [row["prow_id"] for row in rows] == ["NEW", "MID", "OLDER", "EDGE"]
-    filters = [_timestamp_filters(call[0][1]) for call in mock_fetch_runs.call_args_list]
-    assert any(("<", "2026-10-01T00:00:00Z") in bounds for bounds in filters)
-    assert any(("<", "2026-09-29T12:00:00Z") in bounds for bounds in filters)
-
-
-@patch("find_disruption_runs.fetch_runs")
-def test_fetch_runs_in_window_keeps_equal_timestamps_across_page_boundary(mock_fetch_runs):
-    since = datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
-
-    def fake_fetch(_release, filter_dict, limit):
-        bounds = _timestamp_filters(filter_dict)
-        if any(op == "<" and value == "2026-10-02T00:00:00Z" for op, value in bounds):
-            return [
-                {"prow_id": "TIE-HIGH", "timestamp": "2026-10-01T00:00:00Z"},
-                {"prow_id": "TIE-LOW", "timestamp": "2026-10-01T00:00:00Z"},
-            ]
-        if any(op == "<" and value == "2026-10-01T00:00:00Z" for op, value in bounds):
-            return [{"prow_id": "OLDER", "timestamp": "2026-09-30T00:00:00Z"}]
-        return [
-            {"prow_id": "NEW", "timestamp": "2026-10-02T00:00:00Z"},
-            {"prow_id": "TIE-HIGH", "timestamp": "2026-10-01T00:00:00Z"},
-        ]
-
-    mock_fetch_runs.side_effect = fake_fetch
-    rows, truncated = fetch_runs_in_window(
-        "5.0", {"Platform": "aws"}, since, page_size=2, max_runs=5000)
-    assert truncated is False
-    assert [row["prow_id"] for row in rows] == ["NEW", "TIE-HIGH", "TIE-LOW", "OLDER"]
-    tie_calls = [
-        call for call in mock_fetch_runs.call_args_list
-        if ("<", "2026-10-02T00:00:00Z") in _timestamp_filters(call[0][1])
-    ]
-    assert tie_calls
-    assert tie_calls[0][0][2] > 2
-
-
-@patch("find_disruption_runs.fetch_runs")
-def test_fetch_runs_in_window_stops_at_window_start(mock_fetch_runs):
-    since = datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
-    mock_fetch_runs.return_value = [
-        {"prow_id": "NEW", "timestamp": "2026-10-05T00:00:00Z"},
-        {"prow_id": "AT_START", "timestamp": "2026-09-28T00:00:00Z"},
-    ]
-    rows, truncated = fetch_runs_in_window(
-        "5.0", {"Platform": "aws"}, since, page_size=2, max_runs=5000)
-    assert truncated is False
-    assert mock_fetch_runs.call_count == 1
-    assert [row["prow_id"] for row in rows] == ["NEW", "AT_START"]
 
 
 SAMPLE_ALERT = """\
@@ -1027,77 +709,15 @@ Details:
    • upgrade_type: micro
 """
 
-ALERT_LINK = (
-    "https://grafana-loki.ci.openshift.org/d/gEdw_aLvk/disruption-for-5-0-os-agnostic"
-    "?orgId=1&var-percentile=P95&var-platform=azure"
-    "&var-backend=openshift-api-http2-service-network-reused-connections"
-    "&var-upgrade_type=micro&var-master_nodes_updated=Y"
-    "&var-architectures=amd64&var-topologies=ha&var-networks=ovn"
-    "&var-releases=5.0&var-lookback=7"
-)
-
-
-def test_parse_grafana_url_feature_set_alias():
-    url = (
-        "https://grafana-loki.ci.openshift.org/d/abc/dash"
-        "?var-feature_set=default&var-backend=kube-api-new-connections&var-releases=5.0"
-    )
-    result = parse_grafana_url(url)
-    assert result["featureset"] == "default"
-    assert "feature_set" not in result
-
-
-def test_alert_without_link_uses_series_labels_and_three_day_lookback():
-    params = grafana_params_from_inputs(alert_text=SAMPLE_ALERT + "   • os: rhcos10\n")
-    assert params["_dashboard_name"] == "(alert)"
-    assert params["lookback"] == "3"
-    assert params["releases"] == "5.0"
-    assert params["backend"] == "openshift-api-http2-service-network-reused-connections"
-    assert params["platform"] == "azure"
-    assert params["architectures"] == "amd64"
-    assert params["topologies"] == "ha"
-    assert params["networks"] == "ovn"
-    assert params["upgrade_type"] == "micro"
-    assert params["featureset"] == "default"
-    assert params["os"] == "rhcos10"
-    assert params["master_nodes_updated"] == "Y"
-    assert params["percentile"] == "P95"
-    assert params["compare_release"] == "4.22"
-    assert "releaseStatus" not in params
-
-
-def test_alert_link_wins_and_omitted_labels_are_overlaid():
-    text = SAMPLE_ALERT + "link: " + ALERT_LINK + "\n   • os: rhcos10\n"
-    params = grafana_params_from_inputs(alert_text=text)
-    assert params["_dashboard_name"] == "disruption-for-5-0-os-agnostic"
-    assert params["lookback"] == "7"
-    assert params["percentile"] == "P95"
-    assert params["featureset"] == "default"
-    assert params["os"] == "rhcos10"
-    assert params["compare_release"] == "4.22"
-    assert params["master_nodes_updated"] == "Y"
-
-
-def test_explicit_url_is_not_replaced_by_alert_link():
-    params = grafana_params_from_inputs(
-        grafana_url="https://grafana-loki.ci.openshift.org/d/abc/other?var-releases=5.0&var-backend=kube-api-new-connections&var-lookback=1",
-        alert_text=SAMPLE_ALERT + "link: " + ALERT_LINK + "\n",
-    )
-    assert params["_dashboard_name"] == "other"
-    assert params["lookback"] == "1"
-    assert params["backend"] == "kube-api-new-connections"
-    assert params["featureset"] == "default"
-    assert params["platform"] == "azure"
-
 
 def _variant_values(filter_dict):
     return [item["value"] for item in filter_dict["items"] if item["columnField"] == "variants"]
 
 
-@patch("find_disruption_runs.fetch_disruption_data", return_value={})
-@patch("find_disruption_runs.fetch_runs", return_value=[])
+@patch("disruption_common.sippy.fetch_disruption_data", return_value={})
+@patch("disruption_common.sippy.fetch_runs", return_value=[])
 def test_alert_text_filters_sippy_and_lookback(mock_fetch_runs, _mock_disruption):
-    with patch("find_disruption_runs.datetime", _freeze_now()):
+    with patch("disruption_common.series.datetime", _freeze_now()):
         try:
             main(["--alert-text", SAMPLE_ALERT + "   • os: rhcos10\n"])
         except SystemExit as e:
@@ -1114,8 +734,8 @@ def test_alert_text_filters_sippy_and_lookback(mock_fetch_runs, _mock_disruption
     assert _timestamp_lower_bound(mock_fetch_runs.call_args_list[0][0][1]) == "2026-10-02T00:00:00Z"
 
 
-@patch("find_disruption_runs.fetch_disruption_data", return_value={})
-@patch("find_disruption_runs.fetch_runs", return_value=[])
+@patch("disruption_common.sippy.fetch_disruption_data", return_value={})
+@patch("disruption_common.sippy.fetch_runs", return_value=[])
 def test_feature_set_alias_is_a_sippy_filter(mock_fetch_runs, _mock_disruption):
     try:
         main([
@@ -1129,40 +749,8 @@ def test_feature_set_alias_is_a_sippy_filter(mock_fetch_runs, _mock_disruption):
     assert "FeatureSet:techpreview" in values
 
 
-def test_fetch_disruption_data_keeps_master_nodes_updated():
-    api_response = {
-        "rows": [
-            {"backend_name": "kube-api-new-connections", "disruption_seconds": 12,
-             "job_run_name": "123", "master_nodes_updated": "Y"},
-            {"backend_name": "kube-api-new-connections", "disruption_seconds": 4,
-             "job_run_name": "456", "master_nodes_updated": None},
-        ],
-    }
-    with patch("find_disruption_runs.urllib.request.urlopen",
-               return_value=_mock_urlopen(api_response)):
-        result = fetch_disruption_data(["123", "456"])
-    assert result["123"][0]["master_nodes_updated"] == "Y"
-    assert result["456"][0]["master_nodes_updated"] == ""
-
-
-def test_apply_master_nodes_filter_drops_other_runs_including_clean():
-    rows = [
-        {"prow_id": "Y1"},
-        {"prow_id": "N1"},
-        {"prow_id": "Y0"},
-    ]
-    data = {
-        "Y1": [{"backend_name": "b", "disruption_seconds": 20, "master_nodes_updated": "Y"}],
-        "N1": [{"backend_name": "b", "disruption_seconds": 90, "master_nodes_updated": "N"}],
-        "Y0": [{"backend_name": "b", "disruption_seconds": 0, "master_nodes_updated": "Y"}],
-    }
-    kept = apply_master_nodes_filter(rows, data, "Y", True)
-    assert [row["prow_id"] for row in kept] == ["Y1", "Y0"]
-    assert apply_master_nodes_filter(rows, data, "Y", False) == []
-
-
-@patch("find_disruption_runs.fetch_runs")
-@patch("find_disruption_runs.fetch_disruption_data")
+@patch("disruption_common.sippy.fetch_runs")
+@patch("disruption_common.sippy.fetch_disruption_data")
 def test_master_nodes_updated_drops_nonmatching_runs(mock_disruption, mock_fetch_runs):
     import io
     from contextlib import redirect_stderr, redirect_stdout
@@ -1200,8 +788,8 @@ def test_master_nodes_updated_drops_nonmatching_runs(mock_disruption, mock_fetch
     assert "Kept 1 of 2 runs with master_nodes_updated=Y." in err.getvalue()
 
 
-@patch("find_disruption_runs.fetch_runs")
-@patch("find_disruption_runs.fetch_disruption_data")
+@patch("disruption_common.sippy.fetch_runs")
+@patch("disruption_common.sippy.fetch_disruption_data")
 def test_missing_master_nodes_field_does_not_return_unfiltered(mock_disruption, mock_fetch_runs):
     import io
     from contextlib import redirect_stderr, redirect_stdout
@@ -1273,3 +861,24 @@ def test_table_prints_series_context():
     assert "Lookback=3d" in text
     assert "CompareRelease=4.22" in text
     assert "Percentile: P95" in text
+
+
+def test_scripts_explain_a_missing_lib(tmp_path):
+    import os
+    import shutil
+    import subprocess
+    import sys
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    lonely = tmp_path / "skills" / "analyze-disruption"
+    lonely.mkdir(parents=True)
+    for script in ("find_disruption_runs.py", "parse_disruption.py"):
+        shutil.copy(os.path.join(here, script), lonely)
+        result = subprocess.run([sys.executable, str(lonely / script), "--help"], capture_output=True, text=True)
+        assert result.returncode != 0
+        assert "supporting_dirs: [lib/disruption_common]" in result.stderr
+
+    shutil.copytree(os.path.join(here, "..", "..", "lib", "disruption_common"), tmp_path / "skills" / "disruption_common")
+    for script in ("find_disruption_runs.py", "parse_disruption.py"):
+        result = subprocess.run([sys.executable, str(lonely / script), "--help"], capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr

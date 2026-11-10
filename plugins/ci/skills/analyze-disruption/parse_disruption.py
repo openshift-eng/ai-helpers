@@ -26,6 +26,21 @@ import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
 
+# disruption_common is in plugins/ci/lib when the whole plugin is installed, or
+# beside the skill directories when a Chai persona lists it in supporting_dirs.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_LIB_PARENTS = (os.path.join(_HERE, "..", "..", "lib"), os.path.join(_HERE, ".."))
+for _parent in _LIB_PARENTS:
+    if os.path.isfile(os.path.join(_parent, "disruption_common", "__init__.py")):
+        sys.path.insert(0, os.path.abspath(_parent))
+        break
+else:
+    sys.exit("Error: disruption_common library not found. Install the whole ci plugin, or add "
+             "`supporting_dirs: [lib/disruption_common]` to the persona's ci plugin entry. Looked in: %s"
+             % ", ".join(os.path.abspath(p) for p in _LIB_PARENTS))
+
+from disruption_common.series import expand_backend_selectors  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
 # Backend classification
@@ -42,33 +57,13 @@ def classify_backend(name):
     return "non-cache"
 
 
-_CONNECTION_SUFFIXES = ("-new-connections", "-reused-connections")
+def backend_matches_filter(backend_name, backend_filter):
+    """True when backend_name is one of the exact names backend_filter selects.
 
-
-def expand_backend_selectors(selectors):
-    """Exact backend names a --backends selector scores.
-
-    Kept in step with find_disruption_runs.expand_backend_selectors. A full
-    connection name matches only itself. A bare base matches only
+    A full connection name matches only itself. A bare base matches only
     `{base}-new-connections` and `{base}-reused-connections`, not localhost,
     http1/http2, service-network, internal-lb, or cache derivatives.
     """
-    if isinstance(selectors, str):
-        selectors = [selectors]
-    names = set()
-    for selector in selectors or []:
-        if not selector:
-            continue
-        if selector.endswith(_CONNECTION_SUFFIXES):
-            names.add(selector)
-        else:
-            for suffix in _CONNECTION_SUFFIXES:
-                names.add(selector + suffix)
-    return names
-
-
-def backend_matches_filter(backend_name, backend_filter):
-    """True when backend_name is one of the exact names backend_filter selects."""
     if not backend_filter:
         return True
     return backend_name in expand_backend_selectors(backend_filter)

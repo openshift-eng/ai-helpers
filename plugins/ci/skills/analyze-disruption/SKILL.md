@@ -18,6 +18,8 @@ audit logs, and pod logs, then correlates disruption across backends and job run
 
 2. **Python 3** (3.7 or later)
 
+3. **The `disruption_common` library.** `find_disruption_runs.py` and `parse_disruption.py` import it. It comes with the whole `ci` plugin (Claude Code). A Chai persona must list `supporting_dirs: [lib/disruption_common]` on its `ci` plugin entry. If the library is missing, the scripts exit and say exactly that. Report the message; do not work around it.
+
 ## Input Format
 
 The user will provide one of the following as input:

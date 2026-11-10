@@ -18,17 +18,23 @@ from disruption_common.series import (
 
 SAMPLE_ALERT = """\
 Alert:  - warning
+Description: P95 disruption has regressed over the past several days when compared to the 30 days prior to previous GA release for: openshift-api-http2-service-network-reused-connections azure micro ovn
 Details:
    • alertname: DisruptionRegressionP95
    • architecture: amd64
    • backend: openshift-api-http2-service-network-reused-connections
+   • category: disruption
    • compare_release: 4.22
    • delta: P95
    • feature_set: default
    • master_nodes_updated: Y
+   • namespace: trt-monitoring
    • network: ovn
    • platform: azure
+   • prometheus: trt-monitoring/trt
    • release: 5.0
+   • releaseStatus: Development
+   • severity: warning
    • topology: ha
    • upgrade_type: micro
 """
@@ -43,46 +49,12 @@ ALERT_LINK = (
 )
 
 
-def test_parse_grafana_url_multi_value_and_alias():
-    url = (
-        "https://grafana-loki.ci.openshift.org/d/abc/dash"
-        "?var-platform=azure&var-platform=gcp&var-feature_set=default"
-        "&var-backend=kube-api-new-connections&var-releases=5.0"
-    )
-    result = parse_grafana_url(url)
-    assert result["platform"] == "azure,gcp"
-    assert result["featureset"] == "default"
-    assert "feature_set" not in result
-    assert result["_dashboard_name"] == "dash"
-
-
-def test_alert_without_link_uses_three_day_lookback():
-    params = grafana_params_from_inputs(alert_text=SAMPLE_ALERT)
-    assert params["lookback"] == "3"
-    assert params["platform"] == "azure"
-    assert params["featureset"] == "default"
-
-
-def test_alert_link_wins_and_omitted_labels_are_overlaid():
-    params = grafana_params_from_inputs(alert_text=SAMPLE_ALERT + "   • os: rhcos10\nlink: " + ALERT_LINK)
-    assert params["lookback"] == "7"
-    assert params["os"] == "rhcos10"
-    assert params["featureset"] == "default"
-
-
 def test_parse_backend_and_expand_selectors():
     assert parse_backend("cache-kube-api-reused-connections") == ("cache-kube-api", "reused")
     assert parse_backend("oauth-api") == ("oauth-api", None)
     assert expand_backend_selectors("kube-api") == {
         "kube-api-new-connections", "kube-api-reused-connections"}
     assert expand_backend_selectors(["kube-api-new-connections"]) == {"kube-api-new-connections"}
-
-
-def test_resolve_window_start_lookback_is_calendar_days():
-    now = datetime.datetime(2026, 10, 5, 15, 30, tzinfo=datetime.timezone.utc)
-    start = resolve_window_start(None, "7", now=now)
-    assert start == datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
-    assert resolve_window_start(24, "7", now=now) == now - datetime.timedelta(hours=24)
 
 
 def test_resolve_series_from_alert():
@@ -145,12 +117,170 @@ def test_disruption_peak_uses_exact_names_only():
     assert filter_disruption_data({"1": entries}, ["kube-api-new-connections"]) == {"1": entries[2:]}
 
 
-def test_apply_master_nodes_filter():
-    rows = [{"prow_id": "1"}, {"prow_id": "2"}]
+def test_parse_grafana_url_extracts_vars():
+    url = (
+        "https://grafana-loki.ci.openshift.org/d/gEdw_aLvk/"
+        "disruption-for-5-0-os-agnostic"
+        "?orgId=1&var-percentile=P50&var-platform=gcp"
+        "&var-backend=host-to-host-new-connections"
+        "&var-upgrade_type=micro&var-releases=5.0"
+    )
+    result = parse_grafana_url(url)
+    assert result["platform"] == "gcp"
+    assert result["backend"] == "host-to-host-new-connections"
+    assert result["upgrade_type"] == "micro"
+    assert result["releases"] == "5.0"
+    assert result["percentile"] == "P50"
+    assert result["_dashboard_name"] == "disruption-for-5-0-os-agnostic"
+    assert "orgId" not in result
+
+
+def test_parse_grafana_url_multi_value():
+    url = (
+        "https://grafana-loki.ci.openshift.org/d/abc/dash"
+        "?var-platform=azure&var-platform=gcp"
+        "&var-backend=host-to-host-new-connections"
+        "&var-releases=5.0&var-ipmode=ipv6&var-ipmode=ipv4"
+        "&var-os=rhcos10&var-os=rhcos9"
+    )
+    result = parse_grafana_url(url)
+    assert result["platform"] == "azure,gcp"
+    assert result["backend"] == "host-to-host-new-connections"
+    assert result["ipmode"] == "ipv6,ipv4"
+    assert result["os"] == "rhcos10,rhcos9"
+    assert result["releases"] == "5.0"
+
+
+def test_parse_grafana_url_all_variants():
+    url = (
+        "https://grafana-loki.ci.openshift.org/d/abc/dash"
+        "?var-platform=aws&var-architectures=arm64"
+        "&var-topologies=single&var-networks=sdn"
+        "&var-upgrade_type=minor&var-releases=4.18"
+        "&var-backend=kube-api-reused-connections"
+    )
+    result = parse_grafana_url(url)
+    assert result["platform"] == "aws"
+    assert result["architectures"] == "arm64"
+    assert result["topologies"] == "single"
+    assert result["networks"] == "sdn"
+    assert result["upgrade_type"] == "minor"
+    assert result["releases"] == "4.18"
+    assert result["backend"] == "kube-api-reused-connections"
+
+
+def test_parse_grafana_url_featureset_ipmode_os():
+    url = (
+        "https://grafana-loki.ci.openshift.org/d/abc/dash"
+        "?var-platform=aws&var-backend=kube-api-new-connections"
+        "&var-releases=5.0&var-featureset=techpreview"
+        "&var-ipmode=ipv6&var-os=rhcos10"
+    )
+    result = parse_grafana_url(url)
+    assert result["featureset"] == "techpreview"
+    assert result["ipmode"] == "ipv6"
+    assert result["os"] == "rhcos10"
+
+
+def test_parse_grafana_url_feature_set_alias():
+    url = (
+        "https://grafana-loki.ci.openshift.org/d/abc/dash"
+        "?var-feature_set=default&var-backend=kube-api-new-connections&var-releases=5.0"
+    )
+    result = parse_grafana_url(url)
+    assert result["featureset"] == "default"
+    assert "feature_set" not in result
+
+
+def test_parse_backend_new_connections():
+    base, conn = parse_backend("host-to-host-new-connections")
+    assert base == "host-to-host"
+    assert conn == "new"
+
+
+def test_parse_backend_reused_connections():
+    base, conn = parse_backend("kube-api-reused-connections")
+    assert base == "kube-api"
+    assert conn == "reused"
+
+
+def test_parse_backend_no_suffix():
+    base, conn = parse_backend("oauth-api")
+    assert base == "oauth-api"
+    assert conn is None
+
+
+def test_parse_backend_cache_prefix():
+    base, conn = parse_backend("cache-kube-api-new-connections")
+    assert base == "cache-kube-api"
+    assert conn == "new"
+
+
+def test_resolve_window_start_lookback_is_calendar_days():
+    now = datetime.datetime(2026, 10, 5, 15, 0, tzinfo=datetime.timezone.utc)
+    assert resolve_window_start(None, 7, now=now) == datetime.datetime(
+        2026, 9, 28, tzinfo=datetime.timezone.utc)
+    # Explicit --since-hours wins over var-lookback.
+    assert resolve_window_start(48, 7, now=now) == datetime.datetime(
+        2026, 10, 3, 15, 0, tzinfo=datetime.timezone.utc)
+    # No lookback and no --since-hours: 30 days rolling.
+    assert resolve_window_start(None, None, now=now) == now - datetime.timedelta(hours=720)
+
+
+def test_alert_without_link_uses_series_labels_and_three_day_lookback():
+    params = grafana_params_from_inputs(alert_text=SAMPLE_ALERT + "   • os: rhcos10\n")
+    assert params["_dashboard_name"] == "(alert)"
+    assert params["lookback"] == "3"
+    assert params["releases"] == "5.0"
+    assert params["backend"] == "openshift-api-http2-service-network-reused-connections"
+    assert params["platform"] == "azure"
+    assert params["architectures"] == "amd64"
+    assert params["topologies"] == "ha"
+    assert params["networks"] == "ovn"
+    assert params["upgrade_type"] == "micro"
+    assert params["featureset"] == "default"
+    assert params["os"] == "rhcos10"
+    assert params["master_nodes_updated"] == "Y"
+    assert params["percentile"] == "P95"
+    assert params["compare_release"] == "4.22"
+    assert "releaseStatus" not in params
+
+
+def test_alert_link_wins_and_omitted_labels_are_overlaid():
+    text = SAMPLE_ALERT + "link: " + ALERT_LINK + "\n   • os: rhcos10\n"
+    params = grafana_params_from_inputs(alert_text=text)
+    assert params["_dashboard_name"] == "disruption-for-5-0-os-agnostic"
+    assert params["lookback"] == "7"
+    assert params["percentile"] == "P95"
+    assert params["featureset"] == "default"
+    assert params["os"] == "rhcos10"
+    assert params["compare_release"] == "4.22"
+    assert params["master_nodes_updated"] == "Y"
+
+
+def test_explicit_url_is_not_replaced_by_alert_link():
+    params = grafana_params_from_inputs(
+        grafana_url="https://grafana-loki.ci.openshift.org/d/abc/other?var-releases=5.0&var-backend=kube-api-new-connections&var-lookback=1",
+        alert_text=SAMPLE_ALERT + "link: " + ALERT_LINK + "\n",
+    )
+    assert params["_dashboard_name"] == "other"
+    assert params["lookback"] == "1"
+    assert params["backend"] == "kube-api-new-connections"
+    assert params["featureset"] == "default"
+    assert params["platform"] == "azure"
+
+
+def test_apply_master_nodes_filter_drops_other_runs_including_clean():
+    rows = [
+        {"prow_id": "Y1"},
+        {"prow_id": "N1"},
+        {"prow_id": "Y0"},
+    ]
     data = {
-        "1": [{"backend_name": "kube-api-new-connections", "master_nodes_updated": "Y"}],
-        "2": [{"backend_name": "kube-api-new-connections", "master_nodes_updated": "N"}],
+        "Y1": [{"backend_name": "b", "disruption_seconds": 20, "master_nodes_updated": "Y"}],
+        "N1": [{"backend_name": "b", "disruption_seconds": 90, "master_nodes_updated": "N"}],
+        "Y0": [{"backend_name": "b", "disruption_seconds": 0, "master_nodes_updated": "Y"}],
     }
-    assert apply_master_nodes_filter(rows, data, "Y", True) == [{"prow_id": "1"}]
+    kept = apply_master_nodes_filter(rows, data, "Y", True)
+    assert [row["prow_id"] for row in kept] == ["Y1", "Y0"]
     assert apply_master_nodes_filter(rows, data, "Y", False) == []
-    assert apply_master_nodes_filter(rows, data, None, False) == rows

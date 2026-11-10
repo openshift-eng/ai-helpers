@@ -37,15 +37,6 @@ def _timestamp_filters(filter_dict):
             for item in filter_dict["items"] if item["columnField"] == "timestamp"]
 
 
-def test_parse_timestamp_variants():
-    utc = datetime.timezone.utc
-    assert parse_timestamp("2026-08-14T00:01:05Z") == datetime.datetime(2026, 8, 14, 0, 1, 5, tzinfo=utc)
-    assert parse_timestamp("2026-08-14T02:00:00+02:00") == datetime.datetime(2026, 8, 14, tzinfo=utc)
-    assert parse_timestamp(0) == datetime.datetime(1970, 1, 1, tzinfo=utc)
-    assert parse_timestamp(True) == datetime.datetime(1970, 1, 1, tzinfo=utc)
-    assert parse_timestamp("garbage") == datetime.datetime(1970, 1, 1, tzinfo=utc)
-
-
 def test_build_sippy_filter_rfc3339_bounds():
     until = SINCE + datetime.timedelta(days=1)
     f = build_sippy_filter({"Platform": "aws"}, SINCE, until)
@@ -57,46 +48,6 @@ def test_fetch_runs_raises_on_connection_error():
     with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
         with pytest.raises(SippyError, match="failed to connect"):
             fetch_runs("5.0", build_sippy_filter({}, SINCE), 10)
-
-
-@patch("disruption_common.sippy.fetch_runs")
-def test_fetch_runs_in_window_pages_and_dedups(mock_fetch_runs):
-    def fake_fetch(_release, filter_dict, _limit):
-        bounds = _timestamp_filters(filter_dict)
-        if ("<", "2026-09-29T12:00:00Z") in bounds:
-            return [{"prow_id": "EDGE", "timestamp": "2026-09-28T03:00:00Z"}]
-        if ("<", "2026-10-01T00:00:00Z") in bounds:
-            return [{"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"},
-                    {"prow_id": "OLDER", "timestamp": "2026-09-29T12:00:00Z"}]
-        if ("<", "2026-10-05T00:00:00Z") in bounds:
-            return [{"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"}]
-        return [{"prow_id": "NEW", "timestamp": "2026-10-05T00:00:00Z"},
-                {"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"}]
-
-    mock_fetch_runs.side_effect = fake_fetch
-    progress = []
-    rows, truncated = fetch_runs_in_window(
-        "5.0", {"Platform": "aws"}, SINCE, page_size=2, progress=lambda n, _ts: progress.append(n))
-    assert truncated is False
-    assert [row["prow_id"] for row in rows] == ["NEW", "MID", "OLDER", "EDGE"]
-    assert progress and progress[-1] == 4
-
-
-@patch("disruption_common.sippy.fetch_runs")
-def test_fetch_runs_in_window_keeps_ties_across_page_boundary(mock_fetch_runs):
-    def fake_fetch(_release, filter_dict, _limit):
-        bounds = _timestamp_filters(filter_dict)
-        if any(op == "<" and value == "2026-10-02T00:00:00Z" for op, value in bounds):
-            return [{"prow_id": "TIE-HIGH", "timestamp": "2026-10-01T00:00:00Z"},
-                    {"prow_id": "TIE-LOW", "timestamp": "2026-10-01T00:00:00Z"}]
-        if any(op == "<" and value == "2026-10-01T00:00:00Z" for op, value in bounds):
-            return [{"prow_id": "OLDER", "timestamp": "2026-09-30T00:00:00Z"}]
-        return [{"prow_id": "NEW", "timestamp": "2026-10-02T00:00:00Z"},
-                {"prow_id": "TIE-HIGH", "timestamp": "2026-10-01T00:00:00Z"}]
-
-    mock_fetch_runs.side_effect = fake_fetch
-    rows, _truncated = fetch_runs_in_window("5.0", {"Platform": "aws"}, SINCE, page_size=2)
-    assert [row["prow_id"] for row in rows] == ["NEW", "TIE-HIGH", "TIE-LOW", "OLDER"]
 
 
 @patch("disruption_common.sippy.fetch_runs")
@@ -144,12 +95,6 @@ def test_fetch_disruption_data_keeps_tag_job_and_master_field():
     assert "master_nodes_updated" not in result["2"][0]
 
 
-def test_fetch_disruption_data_failure_is_a_warning():
-    with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
-        assert fetch_disruption_data(["1"]) == {}
-    assert fetch_disruption_data([]) == {}
-
-
 def test_fetch_disruption_data_cache_skips_known_runs_and_empty_results(tmp_path):
     cache = tmp_path / "cache" / "disruption.json"
     cache.parent.mkdir()
@@ -162,3 +107,206 @@ def test_fetch_disruption_data_cache_skips_known_runs_and_empty_results(tmp_path
     assert result["2"][0]["disruption_seconds"] == 5
     saved = json.loads(cache.read_text())
     assert set(saved) == {"1", "2"}
+
+
+def test_fetch_disruption_data_builds_lookup():
+    api_response = {
+        "rows": [
+            {"backend_name": "kube-api-new-connections", "disruption_seconds": 73,
+             "job_run_name": "123"},
+            {"backend_name": "cache-kube-api-new-connections", "disruption_seconds": 75,
+             "job_run_name": "123"},
+            {"backend_name": "kube-api-new-connections", "disruption_seconds": 10,
+             "job_run_name": "456"},
+        ],
+    }
+    with patch("urllib.request.urlopen",
+               return_value=_urlopen_returning(api_response)):
+        result = fetch_disruption_data(["123", "456"])
+
+    assert "123" in result
+    assert len(result["123"]) == 2
+    assert result["123"][0]["disruption_seconds"] == 73
+    assert "456" in result
+    assert len(result["456"]) == 1
+
+
+def test_fetch_disruption_data_empty_ids():
+    assert fetch_disruption_data([]) == {}
+
+
+def test_fetch_disruption_data_handles_error():
+    with patch("urllib.request.urlopen",
+               side_effect=urllib.error.URLError("connection refused")):
+        result = fetch_disruption_data(["123"])
+    assert result == {}
+
+
+def test_fetch_disruption_data_keeps_master_nodes_updated():
+    api_response = {
+        "rows": [
+            {"backend_name": "kube-api-new-connections", "disruption_seconds": 12,
+             "job_run_name": "123", "master_nodes_updated": "Y"},
+            {"backend_name": "kube-api-new-connections", "disruption_seconds": 4,
+             "job_run_name": "456", "master_nodes_updated": None},
+        ],
+    }
+    with patch("urllib.request.urlopen",
+               return_value=_urlopen_returning(api_response)):
+        result = fetch_disruption_data(["123", "456"])
+    assert result["123"][0]["master_nodes_updated"] == "Y"
+    assert result["456"][0]["master_nodes_updated"] == ""
+
+
+def test_parse_timestamp_parses_z():
+    assert parse_timestamp("2026-08-14T00:01:05Z") == datetime.datetime(
+        2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc
+    )
+
+
+def test_parse_timestamp_handles_missing_and_bad():
+    # None, empty string, and unparseable strings all fall back to the epoch sentinel (no raise).
+    epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    assert parse_timestamp(None) == epoch
+    assert parse_timestamp("") == epoch
+    assert parse_timestamp("not-a-timestamp") == epoch
+
+
+def test_parse_timestamp_normalizes_offset_to_utc():
+    # A non-UTC offset is converted to the equivalent UTC time.
+    utc = datetime.datetime(2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc)
+    assert parse_timestamp("2026-08-14T02:01:05+02:00") == parse_timestamp("2026-08-14T00:01:05Z")
+    assert parse_timestamp("2026-08-14T02:01:05+02:00") == utc
+
+
+def test_parse_timestamp_accepts_int_epoch_ms():
+    # Integer epoch-milliseconds convert to the matching UTC datetime.
+    assert parse_timestamp(1704067200000) == datetime.datetime(
+        2024, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc
+    )
+    # Epoch-ms 0 maps to the 1970 epoch.
+    assert parse_timestamp(0) == datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+
+
+def test_parse_timestamp_accepts_float_epoch_ms():
+    # Float epoch-milliseconds keep sub-second precision (500 ms -> 500000 us).
+    assert parse_timestamp(1704067200500.0) == datetime.datetime(
+        2024, 1, 1, 0, 0, 0, 500000, tzinfo=datetime.timezone.utc
+    )
+
+
+def test_parse_timestamp_rejects_bool():
+    # bool is a subclass of int, but True/False are not epoch-ms values, so they
+    # fall through to the epoch sentinel instead of converting as 1/0.
+    epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    assert parse_timestamp(True) == epoch
+    assert parse_timestamp(False) == epoch
+
+
+def test_parse_timestamp_non_finite_or_overflow_returns_epoch():
+    # Infinity, NaN, and out-of-range magnitudes fall back to the epoch sentinel
+    # rather than raising out of datetime.fromtimestamp.
+    epoch = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    assert parse_timestamp(float("inf")) == epoch
+    assert parse_timestamp(float("-inf")) == epoch
+    assert parse_timestamp(float("nan")) == epoch
+    assert parse_timestamp(10**1000) == epoch
+
+
+def test_parse_timestamp_naive_string_is_utc():
+    # A string with no Z suffix or offset is interpreted as UTC.
+    utc = datetime.datetime(2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc)
+    assert parse_timestamp("2026-08-14T00:01:05") == utc
+    assert parse_timestamp("2026-08-14T00:01:05") == parse_timestamp("2026-08-14T00:01:05Z")
+
+
+def test_build_sippy_filter_timestamp_is_rfc3339():
+    since = datetime.datetime(2026, 8, 14, 0, 1, 5, tzinfo=datetime.timezone.utc)
+    f = build_sippy_filter({"Platform": "gcp"}, since)
+    assert f["items"][0] == {
+        "columnField": "variants", "operatorValue": "has entry", "value": "Platform:gcp",
+    }
+    assert {
+        "columnField": "timestamp", "operatorValue": ">", "value": "2026-08-14T00:01:05Z",
+    } in f["items"]
+    assert f["linkOperator"] == "and"
+
+
+def test_build_sippy_filter_no_since():
+    f = build_sippy_filter({"Platform": "gcp"}, None)
+    assert all(item["columnField"] != "timestamp" for item in f["items"])
+
+
+@patch("disruption_common.sippy.fetch_runs")
+def test_fetch_runs_in_window_pages_until_short_page_and_dedups(mock_fetch_runs):
+    since = datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
+
+    def fake_fetch(_release, filter_dict, _limit):
+        bounds = _timestamp_filters(filter_dict)
+        if ("<", "2026-09-29T12:00:00Z") in bounds:
+            return [{"prow_id": "EDGE", "timestamp": "2026-09-28T03:00:00Z"}]
+        if ("<", "2026-10-01T00:00:00Z") in bounds:
+            return [
+                {"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"},
+                {"prow_id": "OLDER", "timestamp": "2026-09-29T12:00:00Z"},
+            ]
+        if ("<", "2026-10-05T00:00:00Z") in bounds:
+            return [{"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"}]
+        return [
+            {"prow_id": "NEW", "timestamp": "2026-10-05T00:00:00Z"},
+            {"prow_id": "MID", "timestamp": "2026-10-01T00:00:00Z"},
+        ]
+
+    mock_fetch_runs.side_effect = fake_fetch
+    rows, truncated = fetch_runs_in_window(
+        "5.0", {"Platform": "aws"}, since, page_size=2, max_runs=5000)
+    assert truncated is False
+    assert [row["prow_id"] for row in rows] == ["NEW", "MID", "OLDER", "EDGE"]
+    filters = [_timestamp_filters(call[0][1]) for call in mock_fetch_runs.call_args_list]
+    assert any(("<", "2026-10-01T00:00:00Z") in bounds for bounds in filters)
+    assert any(("<", "2026-09-29T12:00:00Z") in bounds for bounds in filters)
+
+
+@patch("disruption_common.sippy.fetch_runs")
+def test_fetch_runs_in_window_keeps_equal_timestamps_across_page_boundary(mock_fetch_runs):
+    since = datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
+
+    def fake_fetch(_release, filter_dict, limit):
+        bounds = _timestamp_filters(filter_dict)
+        if any(op == "<" and value == "2026-10-02T00:00:00Z" for op, value in bounds):
+            return [
+                {"prow_id": "TIE-HIGH", "timestamp": "2026-10-01T00:00:00Z"},
+                {"prow_id": "TIE-LOW", "timestamp": "2026-10-01T00:00:00Z"},
+            ]
+        if any(op == "<" and value == "2026-10-01T00:00:00Z" for op, value in bounds):
+            return [{"prow_id": "OLDER", "timestamp": "2026-09-30T00:00:00Z"}]
+        return [
+            {"prow_id": "NEW", "timestamp": "2026-10-02T00:00:00Z"},
+            {"prow_id": "TIE-HIGH", "timestamp": "2026-10-01T00:00:00Z"},
+        ]
+
+    mock_fetch_runs.side_effect = fake_fetch
+    rows, truncated = fetch_runs_in_window(
+        "5.0", {"Platform": "aws"}, since, page_size=2, max_runs=5000)
+    assert truncated is False
+    assert [row["prow_id"] for row in rows] == ["NEW", "TIE-HIGH", "TIE-LOW", "OLDER"]
+    tie_calls = [
+        call for call in mock_fetch_runs.call_args_list
+        if ("<", "2026-10-02T00:00:00Z") in _timestamp_filters(call[0][1])
+    ]
+    assert tie_calls
+    assert tie_calls[0][0][2] > 2
+
+
+@patch("disruption_common.sippy.fetch_runs")
+def test_fetch_runs_in_window_stops_at_window_start(mock_fetch_runs):
+    since = datetime.datetime(2026, 9, 28, tzinfo=datetime.timezone.utc)
+    mock_fetch_runs.return_value = [
+        {"prow_id": "NEW", "timestamp": "2026-10-05T00:00:00Z"},
+        {"prow_id": "AT_START", "timestamp": "2026-09-28T00:00:00Z"},
+    ]
+    rows, truncated = fetch_runs_in_window(
+        "5.0", {"Platform": "aws"}, since, page_size=2, max_runs=5000)
+    assert truncated is False
+    assert mock_fetch_runs.call_count == 1
+    assert [row["prow_id"] for row in rows] == ["NEW", "AT_START"]
