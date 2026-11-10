@@ -38,7 +38,7 @@ else:
              "Looked in: %s" % ", ".join(os.path.abspath(p) for p in _LIB_PARENTS))
 
 from disruption_common import series as series_mod  # noqa: E402
-from disruption_common import sippy  # noqa: E402
+from disruption_common import sippy, state  # noqa: E402
 
 DEFAULT_DAYS = 30
 STATE_SCHEMA_VERSION = 1
@@ -316,7 +316,10 @@ def detect_onset(scored, transitions, window_start):
     before_window: disruption is already present in the earliest runs and no
     increase from a near-zero baseline is found. sporadic: occasional
     disruption throughout, with no sustained start. none: no disruption.
+    unknown: no run had usable disruption data, so nothing can be said.
     """
+    if not scored:
+        return {"status": "unknown", "first_nonzero_run": None}
     nonzero = [r for r in scored if r["seconds"] > 0]
     if not nonzero:
         return {"status": "none", "first_nonzero_run": None}
@@ -425,20 +428,12 @@ def series_summary(series):
 
 
 def write_state(path, series, trend, runs_file):
-    state = {}
-    if os.path.exists(path):
-        with open(path) as f:
-            state = json.load(f)
-    state.setdefault("schema_version", STATE_SCHEMA_VERSION)
-    state["series"] = series_summary(series)
-    state["trend"] = dict(trend, runs_file=runs_file)
-    directory = os.path.dirname(path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(state, f, indent=2)
-    os.replace(tmp, path)
+    """Merge series and trend into the state file. Raises state.StateError if it is unreadable."""
+    current = state.load_state(path)
+    current.setdefault("schema_version", STATE_SCHEMA_VERSION)
+    current["series"] = series_summary(series)
+    current["trend"] = dict(trend, runs_file=runs_file)
+    state.write_json_atomic(path, current, indent=2)
 
 
 def _fmt(value):
@@ -489,6 +484,8 @@ def print_table(series, trend, out=None):
             o["window_start"][:10], round(100 * o["earliest_runs_nonzero_rate"])), file=out)
     elif o["status"] == "sporadic":
         print("Onset: none sustained; disruption is occasional throughout the window.", file=out)
+    elif o["status"] == "unknown":
+        print("Onset: unknown; no run had usable disruption data (see caveats).", file=out)
     else:
         print("Onset: no disruption in the window.", file=out)
     for c in trend["caveats"]:
@@ -582,19 +579,20 @@ def main(argv=None):
     if not runs_file and args.state_file:
         runs_file = os.path.join(os.path.dirname(args.state_file) or ".", "trend-runs.json")
     if runs_file:
-        directory = os.path.dirname(runs_file)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        with open(runs_file, "w") as f:
-            json.dump(runs, f, indent=1)
+        state.write_json_atomic(runs_file, runs, indent=1)
+    code = 0
     if args.state_file:
-        write_state(args.state_file, series, trend, runs_file)
+        try:
+            write_state(args.state_file, series, trend, runs_file)
+        except state.StateError as e:
+            print("Error: %s" % e, file=sys.stderr)
+            code = 1
 
     if args.format == "json":
         print(json.dumps({"series": series_summary(series), "trend": dict(trend, runs_file=runs_file)}, indent=2))
     else:
         print_table(series, trend)
-    return 0
+    return code
 
 
 if __name__ == "__main__":

@@ -6,12 +6,15 @@ disruption endpoint and lag job completion by up to about four hours.
 """
 import itertools
 import json
+import numbers
 import os
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
+
+from .state import write_json_atomic
 
 SIPPY_BASE = "https://sippy.dptools.openshift.org/api/jobs/runs"
 SIPPY_DISRUPTION_URL = "https://sippy.dptools.openshift.org/api/jobs/runs/disruption"
@@ -32,7 +35,8 @@ def parse_timestamp(value):
     Accepts an RFC 3339 string (e.g. "2026-08-14T00:01:05Z") or a numeric
     epoch-milliseconds value. Booleans are not treated as numeric. A string
     with no timezone is read as UTC. Anything unparseable returns the epoch
-    as a sentinel so sorting and arithmetic keep working.
+    as a sentinel so sorting and arithmetic keep working. A trailing `Z` is
+    rewritten to `+00:00` because fromisoformat only accepts it from 3.11.
     """
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         try:
@@ -41,7 +45,8 @@ def parse_timestamp(value):
             return _EPOCH
     if isinstance(value, str) and value:
         try:
-            dt = datetime.fromisoformat(value)
+            text = value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value
+            dt = datetime.fromisoformat(text)
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             return dt.astimezone(timezone.utc)
@@ -94,6 +99,16 @@ def _get_json(url, what):
     return data
 
 
+def _rows(data, what):
+    """The `rows` list of a Sippy reply, keeping only object rows."""
+    rows = data.get("rows")
+    if rows is None:
+        return []
+    if not isinstance(rows, list):
+        raise SippyError("unexpected rows type from %s" % what)
+    return [row for row in rows if isinstance(row, dict)]
+
+
 def fetch_runs(release, filter_dict, limit):
     """Query Sippy /api/jobs/runs newest-first and return rows."""
     params = {
@@ -104,7 +119,7 @@ def fetch_runs(release, filter_dict, limit):
         "sort": "desc",
     }
     url = "%s?%s" % (SIPPY_BASE, urllib.parse.urlencode(params))
-    return _get_json(url, "Sippy runs API").get("rows") or []
+    return _rows(_get_json(url, "Sippy runs API"), "Sippy runs API")
 
 
 def _just_before(timestamp):
@@ -239,16 +254,30 @@ def _fetch_disruption_batch(prow_ids):
     params = {"job_run_names": ",".join(str(pid) for pid in prow_ids)}
     url = "%s?%s" % (SIPPY_DISRUPTION_URL, urllib.parse.urlencode(params))
     try:
-        return _get_json(url, "Sippy disruption API").get("rows") or []
+        return _rows(_get_json(url, "Sippy disruption API"), "Sippy disruption API")
     except SippyError as e:
         print("Warning: could not fetch disruption data: %s" % e, file=sys.stderr)
         return None
 
 
+def _seconds(value):
+    """Disruption seconds as a number, or None when the value is missing or not numeric."""
+    if isinstance(value, numbers.Real) and not isinstance(value, bool):
+        return value
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _entry(row):
+    """One backend's disruption for a run, or None when its seconds are not usable."""
+    seconds = _seconds(row.get("disruption_seconds"))
+    if seconds is None:
+        return None
     entry = {
         "backend_name": row.get("backend_name", ""),
-        "disruption_seconds": row.get("disruption_seconds", 0),
+        "disruption_seconds": seconds,
         "release_tag": row.get("release_tag") or "",
         "job_name": row.get("job_name") or "",
     }
@@ -269,22 +298,13 @@ def _load_cache(path):
     return data if isinstance(data, dict) else {}
 
 
-def _save_cache(path, cache):
-    directory = os.path.dirname(path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(cache, f)
-    os.replace(tmp, path)
-
-
 def fetch_disruption_data(prow_ids, cache_path=None, progress=None):
     """Query Sippy for per-run disruption seconds.
 
     Returns dict prow_id -> list of {backend_name, disruption_seconds,
     release_tag, job_name, [master_nodes_updated]}. Every backend the API
-    returns is kept; exact-name filtering is the caller's job. With
+    returns with numeric seconds is kept; exact-name filtering is the
+    caller's job. With
     `cache_path`, runs that already have rows are read from and written to
     that JSON file. Runs with no rows are not cached, because BigQuery may
     not have them yet. `progress`, when set, is called with (done, total).
@@ -299,10 +319,12 @@ def fetch_disruption_data(prow_ids, cache_path=None, progress=None):
         rows = _fetch_disruption_batch(missing[start:start + DISRUPTION_BATCH_SIZE])
         if rows is not None:
             for row in rows:
-                lookup.setdefault(str(row.get("job_run_name", "")), []).append(_entry(row))
+                entry = _entry(row)
+                if entry is not None:
+                    lookup.setdefault(str(row.get("job_run_name", "")), []).append(entry)
         if progress:
             progress(len(ids) - len(missing) + min(start + DISRUPTION_BATCH_SIZE, len(missing)), len(ids))
     if cache_path and missing:
         cache.update({pid: lookup[pid] for pid in missing if lookup.get(pid)})
-        _save_cache(cache_path, cache)
+        write_json_atomic(cache_path, cache)
     return lookup

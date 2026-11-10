@@ -81,6 +81,7 @@ Read `trend.onset.status`:
 - **`before_window`:** disruption was already present in the earliest runs. **Never report the window's first day as the onset.** Say it started before the window, and offer a longer `--days` if the window is under 90 days. At 90 days, or if a caveat says Sippy returned nothing earlier, say the public data does not reach back far enough.
 - **`sporadic`:** occasional disruption throughout, with no sustained start. Say there is no onset to point at.
 - **`none`:** no disruption on these backends in the window.
+- **`unknown`:** no run had usable disruption data, so the window says nothing about onset. Do not report this as "no disruption". Give the caveats that explain why: disruption data missing, the disruption API unreachable, or every run excluded for liveness disruption.
 
 ## Step 4: Report and checkpoint
 

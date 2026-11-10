@@ -1,9 +1,14 @@
 """Tests for disruption_common.series — dashboard/alert parsing and series resolution."""
 import datetime
+import os
+import sys
 
 import pytest
 
-from disruption_common.series import (
+# Run as a script (make test), the package parent is not on sys.path yet.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from disruption_common.series import (  # noqa: E402
     SeriesError,
     apply_master_nodes_filter,
     disruption_peak,
@@ -284,3 +289,7 @@ def test_apply_master_nodes_filter_drops_other_runs_including_clean():
     kept = apply_master_nodes_filter(rows, data, "Y", True)
     assert [row["prow_id"] for row in kept] == ["Y1", "Y0"]
     assert apply_master_nodes_filter(rows, data, "Y", False) == []
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main([__file__, "-v"]))

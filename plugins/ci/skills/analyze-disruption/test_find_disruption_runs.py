@@ -4,7 +4,10 @@ URL, alert, and Sippy parsing are tested with the shared library in plugins/ci/l
 """
 import datetime
 import json
+import sys
 from unittest.mock import patch
+
+import pytest
 
 from find_disruption_runs import (
     extract_disruption_failures,
@@ -867,7 +870,6 @@ def test_scripts_explain_a_missing_lib(tmp_path):
     import os
     import shutil
     import subprocess
-    import sys
 
     here = os.path.dirname(os.path.abspath(__file__))
     lonely = tmp_path / "skills" / "analyze-disruption"
@@ -882,3 +884,7 @@ def test_scripts_explain_a_missing_lib(tmp_path):
     for script in ("find_disruption_runs.py", "parse_disruption.py"):
         result = subprocess.run([sys.executable, str(lonely / script), "--help"], capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main([__file__, "-v"]))

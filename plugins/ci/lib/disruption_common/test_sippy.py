@@ -1,14 +1,19 @@
 """Tests for disruption_common.sippy — windowed paging and disruption lookups."""
 import datetime
 import json
+import os
+import sys
 import urllib.error
 from io import BytesIO
 from unittest.mock import patch
 
 import pytest
 
-from disruption_common import sippy
-from disruption_common.sippy import (
+# Run as a script (make test), the package parent is not on sys.path yet.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from disruption_common import sippy  # noqa: E402
+from disruption_common.sippy import (  # noqa: E402
     SippyError,
     build_sippy_filter,
     collect_runs,
@@ -310,3 +315,36 @@ def test_fetch_runs_in_window_stops_at_window_start(mock_fetch_runs):
     assert truncated is False
     assert mock_fetch_runs.call_count == 1
     assert [row["prow_id"] for row in rows] == ["NEW", "AT_START"]
+
+
+def test_parse_timestamp_z_suffix_does_not_need_python_311():
+    utc = datetime.timezone.utc
+    assert parse_timestamp("2026-08-14T00:01:05.123456Z") == datetime.datetime(2026, 8, 14, 0, 1, 5, 123456, tzinfo=utc)
+    assert parse_timestamp("2026-08-14T00:01:05z") == datetime.datetime(2026, 8, 14, 0, 1, 5, tzinfo=utc)
+
+
+def test_malformed_rows_reach_the_sippy_error_path():
+    with patch("urllib.request.urlopen", return_value=_urlopen_returning({"rows": "oops"})):
+        with pytest.raises(SippyError, match="unexpected rows type"):
+            fetch_runs("5.0", build_sippy_filter({}, SINCE), 10)
+    with patch("urllib.request.urlopen", return_value=_urlopen_returning({"rows": ["junk", {"prow_id": "1"}]})):
+        assert fetch_runs("5.0", build_sippy_filter({}, SINCE), 10) == [{"prow_id": "1"}]
+    with patch("urllib.request.urlopen", return_value=_urlopen_returning({"rows": {"a": 1}})):
+        assert fetch_disruption_data(["1"]) == {}
+
+
+def test_fetch_disruption_data_drops_non_numeric_seconds():
+    api = {"rows": [
+        {"backend_name": "a", "disruption_seconds": None, "job_run_name": "1"},
+        {"backend_name": "b", "disruption_seconds": "4", "job_run_name": "1"},
+        {"backend_name": "c", "disruption_seconds": "n/a", "job_run_name": "1"},
+        {"backend_name": "d", "disruption_seconds": True, "job_run_name": "1"},
+        {"backend_name": "e", "disruption_seconds": 3, "job_run_name": "1"},
+    ]}
+    with patch("urllib.request.urlopen", return_value=_urlopen_returning(api)):
+        result = fetch_disruption_data(["1"])
+    assert [(e["backend_name"], e["disruption_seconds"]) for e in result["1"]] == [("b", 4.0), ("d", 1.0), ("e", 3)]
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main([__file__, "-v"]))

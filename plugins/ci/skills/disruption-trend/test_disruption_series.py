@@ -1,4 +1,5 @@
 """Tests for disruption_series.py — transition detection, onset, caveats, and the lib bootstrap."""
+import io
 import json
 import os
 import random
@@ -7,6 +8,8 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
+
+import pytest
 
 import disruption_series as ds
 
@@ -237,3 +240,34 @@ def test_main_caps_window_at_max_days(capsys):
 def test_main_rejects_nonpositive_days(capsys):
     assert ds.main(["--release", "5.0", "--backend", "kube-api-new-connections", "--days", "0"]) == 1
     assert "--days must be positive" in capsys.readouterr().err
+
+
+def test_onset_is_unknown_when_no_run_has_data():
+    runs = make_runs([0] * 50)
+    for run in runs:
+        run["seconds"] = None
+    trend = ds.analyze(SERIES, runs, START, NOW, "day", False)
+    assert trend["onset"]["status"] == "unknown"
+    out = io.StringIO()
+    ds.print_table(SERIES, trend, out=out)
+    assert "Onset: unknown" in out.getvalue()
+
+
+def test_main_keeps_a_corrupt_state_file_and_still_prints(tmp_path, capsys):
+    state = tmp_path / "investigation.json"
+    state.write_text("{not json")
+    with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(50), False)), \
+            patch.object(ds.sippy, "fetch_disruption_data", side_effect=_fake_disruption):
+        code = ds.main(["--release", "5.0", "--backend", "kube-api-new-connections",
+                        "--state-file", str(state), "--cache-dir", ""])
+    assert code == 1
+    assert state.read_text() == "{not json"
+    captured = capsys.readouterr()
+    assert "it was not overwritten" in captured.err
+    assert "| Bucket |" in captured.out
+    assert json.loads((tmp_path / "trend-runs.json").read_text())
+    assert not [p for p in os.listdir(tmp_path) if p.endswith(".tmp")]
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main([__file__, "-v"]))
