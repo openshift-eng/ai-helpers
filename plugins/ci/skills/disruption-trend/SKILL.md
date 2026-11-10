@@ -93,7 +93,7 @@ Write a short answer to the user's question first: when, how confident, and what
 4. The onset, if the question was about when it started.
 5. Every caveat from `trend.caveats`, in plain words. Do not drop any.
 
-Do not guess at causes. This skill establishes when. Explaining why is the job of the cohort comparison and run analysis steps.
+Do not guess at causes. This skill establishes when. Explaining why is the job of the `analyze-disruption` skill, which analyzes the runs themselves.
 
 End the turn with a checkpoint block, so a person or an orchestrating persona can choose the next step:
 
@@ -103,19 +103,25 @@ stage: trend
 state_file: <path to investigation.json>
 summary: <one line: shape, the transition or onset with its change window, confidence>
 next:
-  - compare runs before and after <at> (disruption-find-runs cohorts-around <at>)
+  - analyze runs on both sides of <at> (analyze-disruption with Prow URLs from the runs file)
   - pick a different transition or date
   - widen the window (--days <N>, at most 90)
-  - no credible transition: sample the currently disrupted runs (disruption-find-runs sample-disrupted)
+  - no credible transition: analyze the currently disrupted runs (analyze-disruption with the same alert or dashboard URL)
 ```
 ````
 
-List only the `next` options that fit the result. Then **stop and wait** for the user's choice, unless the request said to run without pausing (`--auto`, or "just run it"). In that case, record the default you chose and why: the strongest practical increase, or for `none` the sampling option. Then continue.
+What each `next` option means:
+
+- **Analyze runs on both sides of a transition:** give `analyze-disruption` Prow job URLs from `trend.runs_file`. Pick disrupted runs from after `at`, and runs of the same jobs from before it, with `last_run_before.url` and `first_run_after.url` as the first picks. It downloads and compares their timelines.
+- **Analyze the currently disrupted runs:** give `analyze-disruption` the same alert text or dashboard URL. Its run finder auto-selects representative disrupted runs from the dashboard window.
+
+List only the `next` options that fit the result. Then **stop and wait** for the user's choice, unless the request said to run without pausing (`--auto`, or "just run it"). In that case, record the default you chose and why: the strongest practical increase, or for `none` the option to analyze the currently disrupted runs. Then continue.
 
 ## Error handling
 
 - **Missing release or backend:** the script exits with code 1 and names the missing field. Ask the user for it.
 - **No runs found:** the filters or window match nothing. Report the filters that were tried and suggest widening `--days` or dropping a filter.
 - **`master_nodes_updated` matched nothing:** report the warning. Do not rerun without the filter unless the user agrees.
-- **Sippy unreachable:** report the error. Without data, there is no fallback for this skill.
+- **Sippy runs API fails** (connection error, HTTP error, timeout, or malformed reply): the script exits with code 1 and prints the error. If several platforms or other variant values were queried, the message lists every combination that failed. Report it; without runs there is no fallback for this skill.
+- **Sippy disruption API fails for some runs:** the script prints a warning for each failed batch and continues. Those runs have no disruption data and are counted in the "no disruption data" caveat. If no run has usable data, the onset is `unknown`. Report the warning and the caveat, and suggest a rerun later; do not present the result as clean.
 - **Library not found:** report the script's message, which names the `supporting_dirs` fix.

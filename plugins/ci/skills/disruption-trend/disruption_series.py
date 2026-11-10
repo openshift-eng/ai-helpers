@@ -213,7 +213,8 @@ def build_runs(rows, disruption_data, selectors):
             "liveness_unreliable": liveness,
             "url": row.get("url") or row.get("test_grid_url") or "",
         })
-    runs.sort(key=lambda r: r["timestamp"])
+    # Sort on the parsed time: as strings, "…05Z" sorts after "…05.5Z".
+    runs.sort(key=lambda run: sippy.parse_timestamp(run["timestamp"]))
     return runs
 
 
@@ -255,9 +256,10 @@ def per_job_shift(before, after, min_runs):
 
 def job_mix_shift(before, after):
     """Total variation distance between job shares before and after (0 same, 1 disjoint)."""
-    cb, ca = Counter(r["job"] for r in before), Counter(r["job"] for r in after)
-    nb, na = sum(cb.values()) or 1, sum(ca.values()) or 1
-    return round(0.5 * sum(abs(cb[j] / nb - ca[j] / na) for j in set(cb) | set(ca)), 3)
+    jobs_before, jobs_after = Counter(r["job"] for r in before), Counter(r["job"] for r in after)
+    total_before, total_after = sum(jobs_before.values()) or 1, sum(jobs_after.values()) or 1
+    return round(0.5 * sum(abs(jobs_before[job] / total_before - jobs_after[job] / total_after)
+                           for job in set(jobs_before) | set(jobs_after)), 3)
 
 
 def is_practical(before, after):
@@ -271,30 +273,30 @@ def is_practical(before, after):
 
 
 def describe_transitions(scored, splits, min_seg):
-    out = []
-    bounds = [0] + [k for k, _z in splits] + [len(scored)]
-    for i, (k, z) in enumerate(splits):
-        before = scored[bounds[i]:k]
-        after = scored[k:bounds[i + 2]]
-        sb = summarize([r["seconds"] for r in before])
-        sa = summarize([r["seconds"] for r in after])
-        out.append({
+    transitions = []
+    bounds = [0] + [split_at for split_at, _z in splits] + [len(scored)]
+    for i, (split_at, z) in enumerate(splits):
+        before = scored[bounds[i]:split_at]
+        after = scored[split_at:bounds[i + 2]]
+        before_stats = summarize([r["seconds"] for r in before])
+        after_stats = summarize([r["seconds"] for r in after])
+        transitions.append({
             "at": after[0]["timestamp"],
             "between": [before[-1]["timestamp"], after[0]["timestamp"]],
             "direction": "increase" if z > 0 else "decrease",
             "z": round(z, 2),
             "strength": "strong" if abs(z) >= Z_STRONG else "moderate",
-            "practical": is_practical(sb, sa),
-            "before": dict(sb, start=before[0]["timestamp"]),
-            "after": dict(sa, end=after[-1]["timestamp"]),
+            "practical": is_practical(before_stats, after_stats),
+            "before": dict(before_stats, start=before[0]["timestamp"]),
+            "after": dict(after_stats, end=after[-1]["timestamp"]),
             "last_run_before": _run_ref(before[-1]),
             "first_run_after": _run_ref(after[0]),
-            "payload_before": _nearest_tag(scored, k - 1, -1),
-            "payload_after": _nearest_tag(scored, k, 1),
+            "payload_before": _nearest_tag(scored, split_at - 1, -1),
+            "payload_after": _nearest_tag(scored, split_at, 1),
             "job_mix_shift": job_mix_shift(before, after),
             "per_job": per_job_shift(before, after, max(3, min_seg // 4)),
         })
-    return out
+    return transitions
 
 
 def classify_shape(scored, transitions):
@@ -364,9 +366,14 @@ def build_buckets(scored, size):
 
 def analyze(series, runs, window_start, now, bucket, truncated):
     """Assemble the trend result from per-run records."""
-    no_data = [r for r in runs if r["seconds"] is None]
-    unreliable = [r for r in runs if r["seconds"] is not None and r["liveness_unreliable"]]
-    scored = [r for r in runs if r["seconds"] is not None and not r["liveness_unreliable"]]
+    no_data, unreliable, scored = [], [], []
+    for run in runs:
+        if run["seconds"] is None:
+            no_data.append(run)
+        elif run["liveness_unreliable"]:
+            unreliable.append(run)
+        else:
+            scored.append(run)
     min_seg = max(8, min(40, len(scored) // 25))
     splits = find_transitions([r["seconds"] for r in scored], min_seg)
     transitions = describe_transitions(scored, splits, min_seg)
@@ -397,10 +404,10 @@ def analyze(series, runs, window_start, now, bucket, truncated):
     if sparse:
         caveats.append("%d of %d %s bucket(s) have fewer than %d runs; their percentiles are noisy."
                        % (len(sparse), len(buckets), bucket, MIN_BUCKET_RUNS))
-    for t in transitions:
-        if t["job_mix_shift"] >= 0.3:
+    for transition in transitions:
+        if transition["job_mix_shift"] >= 0.3:
             caveats.append("The job mix changed across the %s transition (shift %.2f); check per_job before "
-                           "treating it as a product change." % (t["at"][:10], t["job_mix_shift"]))
+                           "treating it as a product change." % (transition["at"][:10], transition["job_mix_shift"]))
     if len(scored) < 2 * min_seg:
         caveats.append("Only %d usable runs; too few to test for a transition." % len(scored))
 
@@ -442,54 +449,58 @@ def _fmt(value):
 
 def print_table(series, trend, out=None):
     out = out or sys.stdout
-    s = series_summary(series)
-    filters = " | ".join("%s=%s" % kv for kv in s["variants"].items()) or "(none)"
-    if s["master_nodes_updated"]:
-        filters += " | MasterNodesUpdated=%s" % s["master_nodes_updated"]
-    w = trend["window"]
-    print("Series: release %s | backends %s" % (s["release"], ", ".join(s["backends"])), file=out)
+    summary = series_summary(series)
+    filters = " | ".join("%s=%s" % kv for kv in summary["variants"].items()) or "(none)"
+    if summary["master_nodes_updated"]:
+        filters += " | MasterNodesUpdated=%s" % summary["master_nodes_updated"]
+    window = trend["window"]
+    print("Series: release %s | backends %s" % (summary["release"], ", ".join(summary["backends"])), file=out)
     print("Filters: %s" % filters, file=out)
     print("Window: %s to %s (%s buckets) | runs scanned %d, used %d" % (
-        w["start"][:10], w["end"][:10], w["bucket"], trend["runs"]["scanned"], trend["runs"]["used"]), file=out)
+        window["start"][:10], window["end"][:10], window["bucket"], trend["runs"]["scanned"],
+        trend["runs"]["used"]), file=out)
     print("Per-run peak seconds on the selected backends (not the dashboard percentile).", file=out)
     print("", file=out)
     print("| Bucket | Runs | Nonzero | P50 | P75 | P95 | Max | Jobs | Payloads |", file=out)
     print("|---|---|---|---|---|---|---|---|---|", file=out)
-    for b in trend["buckets"]:
-        payloads = b["first_payload"] if b["first_payload"] == b["last_payload"] else (
-            "%s … %s" % (b["first_payload"], b["last_payload"]))
+    for row in trend["buckets"]:
+        payloads = row["first_payload"] if row["first_payload"] == row["last_payload"] else (
+            "%s … %s" % (row["first_payload"], row["last_payload"]))
         print("| %s%s | %d | %d%% | %s | %s | %s | %s | %d | %s |" % (
-            b["bucket"], " (sparse)" if b["sparse"] else "", b["n"], round(100 * b["nonzero_rate"]),
-            _fmt(b["p50"]), _fmt(b["p75"]), _fmt(b["p95"]), _fmt(b["max"]), b["jobs"], payloads or "—"), file=out)
+            row["bucket"], " (sparse)" if row["sparse"] else "", row["n"], round(100 * row["nonzero_rate"]),
+            _fmt(row["p50"]), _fmt(row["p75"]), _fmt(row["p95"]), _fmt(row["max"]), row["jobs"],
+            payloads or "—"), file=out)
     print("", file=out)
     print("Shape (heuristic): %s | trend rho %s" % (trend["shape"], _fmt(trend["trend_rho"])), file=out)
     if not trend["transitions"]:
         print("Transitions: none detected (|z| < %g)" % Z_MODERATE, file=out)
-    for t in trend["transitions"]:
+    for transition in trend["transitions"]:
+        before, after, per_job = transition["before"], transition["after"], transition["per_job"]
         print("Transition %s at %s (z=%s, %s%s): P50 %s→%s, P95 %s→%s, nonzero %d%%→%d%%, payloads %s → %s, "
               "job mix shift %s, jobs up/down %d/%d of %d" % (
-                  t["direction"], t["at"][:16], t["z"], t["strength"], "" if t["practical"] else ", small effect",
-                  _fmt(t["before"]["p50"]), _fmt(t["after"]["p50"]), _fmt(t["before"]["p95"]),
-                  _fmt(t["after"]["p95"]), round(100 * t["before"]["nonzero_rate"]),
-                  round(100 * t["after"]["nonzero_rate"]), t["payload_before"] or "?", t["payload_after"] or "?",
-                  t["job_mix_shift"], t["per_job"]["jobs_increased"], t["per_job"]["jobs_decreased"],
-                  t["per_job"]["jobs_compared"]), file=out)
-    o = trend["onset"]
-    if o["status"] == "in_window":
+                  transition["direction"], transition["at"][:16], transition["z"], transition["strength"],
+                  "" if transition["practical"] else ", small effect",
+                  _fmt(before["p50"]), _fmt(after["p50"]), _fmt(before["p95"]), _fmt(after["p95"]),
+                  round(100 * before["nonzero_rate"]), round(100 * after["nonzero_rate"]),
+                  transition["payload_before"] or "?", transition["payload_after"] or "?",
+                  transition["job_mix_shift"], per_job["jobs_increased"], per_job["jobs_decreased"],
+                  per_job["jobs_compared"]), file=out)
+    onset = trend["onset"]
+    if onset["status"] == "in_window":
         print("Onset: %s (nonzero rate %d%% → %d%%, payloads %s → %s)" % (
-            o["at"][:16], round(100 * o["baseline_nonzero_rate"]), round(100 * o["after_nonzero_rate"]),
-            o["payload_before"] or "?", o["payload_after"] or "?"), file=out)
-    elif o["status"] == "before_window":
+            onset["at"][:16], round(100 * onset["baseline_nonzero_rate"]), round(100 * onset["after_nonzero_rate"]),
+            onset["payload_before"] or "?", onset["payload_after"] or "?"), file=out)
+    elif onset["status"] == "before_window":
         print("Onset: before the window start (%s); %d%% of the earliest runs already had disruption." % (
-            o["window_start"][:10], round(100 * o["earliest_runs_nonzero_rate"])), file=out)
-    elif o["status"] == "sporadic":
+            onset["window_start"][:10], round(100 * onset["earliest_runs_nonzero_rate"])), file=out)
+    elif onset["status"] == "sporadic":
         print("Onset: none sustained; disruption is occasional throughout the window.", file=out)
-    elif o["status"] == "unknown":
+    elif onset["status"] == "unknown":
         print("Onset: unknown; no run had usable disruption data (see caveats).", file=out)
     else:
         print("Onset: no disruption in the window.", file=out)
-    for c in trend["caveats"]:
-        print("Caveat: %s" % c, file=out)
+    for caveat in trend["caveats"]:
+        print("Caveat: %s" % caveat, file=out)
 
 
 def main(argv=None):

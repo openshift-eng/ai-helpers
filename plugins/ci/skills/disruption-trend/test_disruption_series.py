@@ -143,13 +143,37 @@ def test_build_runs_uses_exact_backends_and_flags_liveness():
     assert runs[2]["seconds"] is None
 
 
-def test_buckets_and_choose_bucket():
-    assert ds.choose_bucket(30) == "day"
-    assert ds.choose_bucket(90) == "week"
-    assert ds.choose_bucket(730) == "month"
-    trend = analyze([0, 2, 4] * 40)
-    assert len(trend["buckets"]) in (30, 31)
-    assert all({"bucket", "n", "p95", "sparse", "top_job"} <= set(b) for b in trend["buckets"])
+def test_choose_bucket_picks_day_week_or_month_by_window():
+    assert ds.choose_bucket(45) == "day"
+    assert ds.choose_bucket(46) == "week"
+    assert ds.choose_bucket(270) == "week"
+    assert ds.choose_bucket(271) == "month"
+
+
+def test_bucket_key_week_starts_monday_and_month_rolls_over():
+    utc = timezone.utc
+    sunday = datetime(2026, 11, 8, 23, 59, tzinfo=utc)
+    monday = datetime(2026, 11, 9, 0, 0, tzinfo=utc)
+    assert ds.bucket_key(sunday, "week") == "2026-11-02"
+    assert ds.bucket_key(monday, "week") == "2026-11-09"
+    assert ds.bucket_key(datetime(2026, 10, 31, 23, 59, tzinfo=utc), "month") == "2026-10"
+    assert ds.bucket_key(datetime(2026, 11, 1, 0, 0, tzinfo=utc), "month") == "2026-11"
+    assert ds.bucket_key(datetime(2026, 1, 1, tzinfo=utc), "week") == "2025-12-29"
+
+
+def test_build_buckets_values():
+    def run(ts, seconds, job, tag):
+        return {"timestamp": ts, "seconds": seconds, "job": job, "release_tag": tag}
+
+    scored = [run("2026-11-02T01:00:00Z", 0, "job-a", "tag-1"), run("2026-11-02T02:00:00Z", 4, "job-a", "tag-2"),
+              run("2026-11-02T03:00:00Z", 10, "job-b", ""), run("2026-11-03T00:00:00Z", 2, "job-a", "tag-3")]
+    day1, day2 = ds.build_buckets(scored, "day")
+    assert (day1["bucket"], day1["n"], day1["nonzero_rate"], day1["p50"], day1["max"]) == ("2026-11-02", 3, 0.667, 4, 10)
+    assert (day1["jobs"], day1["top_job"], day1["top_job_share"]) == (2, "job-a", 0.67)
+    assert (day1["first_payload"], day1["last_payload"], day1["sparse"]) == ("tag-1", "tag-2", True)
+    assert (day2["bucket"], day2["n"], day2["p50"], day2["first_payload"]) == ("2026-11-03", 1, 2, "tag-3")
+    (week,) = ds.build_buckets(scored, "week")
+    assert (week["bucket"], week["n"], week["max"]) == ("2026-11-02", 4, 10)
 
 
 def _fake_rows(n):
@@ -181,14 +205,36 @@ def test_main_writes_state_and_runs_file(tmp_path, capsys):
     assert "Transition increase" in out and "| Bucket |" in out
 
 
-def test_main_json_and_master_nodes_filter(capsys):
-    alert = "alertname: DisruptionRegressionP50\nbackend: kube-api-new-connections\nrelease: 5.0\n" \
-            "master_nodes_updated: N\nplatform: aws\n"
+def _alert(master_nodes_updated):
+    return ("alertname: DisruptionRegressionP50\nbackend: kube-api-new-connections\nrelease: 5.0\n"
+            "master_nodes_updated: %s\nplatform: aws\n" % master_nodes_updated)
+
+
+def test_main_stops_when_master_nodes_filter_matches_nothing(capsys):
     with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(50), False)), \
             patch.object(ds.sippy, "fetch_disruption_data", side_effect=_fake_disruption):
-        code = ds.main(["--alert-text", alert, "--format", "json", "--cache-dir", ""])
+        code = ds.main(["--alert-text", _alert("N"), "--format", "json", "--cache-dir", ""])
     assert code == 0
-    assert "No runs matched master_nodes_updated=N" in capsys.readouterr().err
+    captured = capsys.readouterr()
+    assert "No runs matched master_nodes_updated=N" in captured.err
+    assert captured.out == ""
+
+
+def test_main_json_output_describes_the_series_and_trend(capsys):
+    with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(400), False)), \
+            patch.object(ds.sippy, "fetch_disruption_data", side_effect=_fake_disruption):
+        code = ds.main(["--alert-text", _alert("Y"), "--format", "json", "--cache-dir", ""])
+    assert code == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["series"]["release"] == "5.0"
+    assert output["series"]["backends"] == ["kube-api-new-connections"]
+    assert output["series"]["variants"] == {"Platform": "aws"}
+    assert output["series"]["master_nodes_updated"] == "Y"
+    assert output["trend"]["runs"] == {"scanned": 400, "used": 400, "no_data": 0, "liveness_unreliable": 0}
+    assert output["trend"]["runs_file"] is None
+    (transition,) = output["trend"]["transitions"]
+    assert transition["direction"] == "increase"
+    assert transition["before"]["p50"] == 0 and transition["after"]["p50"] == 9
 
 
 def test_main_reports_missing_release(capsys):
@@ -267,6 +313,14 @@ def test_main_keeps_a_corrupt_state_file_and_still_prints(tmp_path, capsys):
     assert "| Bucket |" in captured.out
     assert json.loads((tmp_path / "trend-runs.json").read_text())
     assert not [p for p in os.listdir(tmp_path) if p.endswith(".tmp")]
+
+
+def test_build_runs_orders_mixed_precision_timestamps_by_time():
+    rows = [{"prow_id": "whole", "job": "j", "timestamp": "2026-11-01T00:00:05Z"},
+            {"prow_id": "fraction", "job": "j", "timestamp": "2026-11-01T00:00:04.500Z"},
+            {"prow_id": "later-fraction", "job": "j", "timestamp": "2026-11-01T00:00:05.250Z"}]
+    runs = ds.build_runs(rows, {}, ["kube-api-new-connections"])
+    assert [r["prow_id"] for r in runs] == ["fraction", "whole", "later-fraction"]
 
 
 if __name__ == "__main__":

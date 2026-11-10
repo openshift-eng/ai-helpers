@@ -14,6 +14,7 @@ from find_disruption_runs import (
     format_timestamp,
     main,
     max_disruption_for_backend,
+    print_json,
     print_table,
     select_representative_runs,
 )
@@ -884,6 +885,27 @@ def test_scripts_explain_a_missing_lib(tmp_path):
     for script in ("find_disruption_runs.py", "parse_disruption.py"):
         result = subprocess.run([sys.executable, str(lonely / script), "--help"], capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
+
+
+def test_print_json_matches_target_failures_by_backend_base(capsys):
+    rows = [
+        {"prow_id": "1", "job": "job-a", "timestamp": "2026-11-01T00:00:00Z",
+         "failed_test_names": ["[Monitor:x] disruption/kube-api connection/new should be available"]},
+        {"prow_id": "2", "job": "job-a", "timestamp": "2026-11-01T01:00:00Z",
+         "failed_test_names": ["[Monitor:x] disruption/kube-api-http2-localhost connection/new should be available"]},
+        {"prow_id": "3", "job": "job-b", "timestamp": "2026-11-01T02:00:00Z", "failed_test_names": None},
+    ]
+    data = {"1": [{"backend_name": "kube-api-new-connections", "disruption_seconds": 6,
+                   "release_tag": "tag-1", "job_name": "job-a"}]}
+    print_json(rows, ["kube-api-new-connections"], data, selected_indices=[0])
+    output = json.loads(capsys.readouterr().out)
+    assert [entry["has_target_disruption"] for entry in output] == [True, False, False]
+    assert output[0]["disruption_failures"] == ["kube-api"]
+    assert output[1]["disruption_failures"] == ["kube-api-http2-localhost"]
+    assert (output[0]["disruption_seconds"], output[0]["disruption_backend"]) == (6, "kube-api-new-connections")
+    assert output[0]["disruption_backends"] == data["1"]
+    assert output[2]["disruption_seconds"] is None
+    assert [entry["recommended"] for entry in output] == [True, False, False]
 
 
 if __name__ == "__main__":

@@ -334,6 +334,15 @@ def test_malformed_rows_reach_the_sippy_error_path():
         assert fetch_disruption_data(["1"]) == {}
 
 
+def test_seconds_rejects_booleans_and_non_numeric_values():
+    assert sippy._seconds(True) is None
+    assert sippy._seconds(False) is None
+    assert sippy._seconds(None) is None
+    assert sippy._seconds("n/a") is None
+    assert sippy._seconds("4") == 4.0
+    assert sippy._seconds(3) == 3
+
+
 def test_fetch_disruption_data_drops_non_numeric_seconds():
     api = {"rows": [
         {"backend_name": "a", "disruption_seconds": None, "job_run_name": "1"},
@@ -344,7 +353,7 @@ def test_fetch_disruption_data_drops_non_numeric_seconds():
     ]}
     with patch("urllib.request.urlopen", return_value=_urlopen_returning(api)):
         result = fetch_disruption_data(["1"])
-    assert [(e["backend_name"], e["disruption_seconds"]) for e in result["1"]] == [("b", 4.0), ("d", 1.0), ("e", 3)]
+    assert [(e["backend_name"], e["disruption_seconds"]) for e in result["1"]] == [("b", 4.0), ("e", 3)]
 
 
 @pytest.mark.parametrize("error", [TimeoutError("timed out"), http.client.IncompleteRead(b"par")])
@@ -376,6 +385,62 @@ def test_cache_write_failure_is_a_warning(tmp_path, capsys):
         result = fetch_disruption_data(["2"], cache_path=str(cache))
     assert result["2"][0]["disruption_seconds"] == 5
     assert "could not write disruption cache" in capsys.readouterr().err
+
+
+def _tie_rows(count):
+    return [{"prow_id": "TIE-%02d" % i, "timestamp": "2026-10-01T00:00:00Z"} for i in range(count)]
+
+
+@patch("disruption_common.sippy.fetch_runs")
+def test_fetch_runs_in_window_keeps_a_tie_larger_than_the_page(mock_fetch_runs):
+    ties = _tie_rows(7)
+
+    def fake_fetch(_release, filter_dict, limit):
+        bounds = _timestamp_filters(filter_dict)
+        if ("<", "2026-10-02T00:00:00Z") in bounds:
+            return ties[:limit]
+        if ("<", "2026-10-01T00:00:00Z") in bounds:
+            return [{"prow_id": "OLDER", "timestamp": "2026-09-30T00:00:00Z"}]
+        return [{"prow_id": "NEW", "timestamp": "2026-10-02T00:00:00Z"}, ties[0]]
+
+    mock_fetch_runs.side_effect = fake_fetch
+    rows, truncated = fetch_runs_in_window("5.0", {}, SINCE, page_size=2)
+    assert truncated is False
+    assert [row["prow_id"] for row in rows] == ["NEW"] + [row["prow_id"] for row in ties] + ["OLDER"]
+    tie_limits = [call[0][2] for call in mock_fetch_runs.call_args_list
+                  if ("<", "2026-10-02T00:00:00Z") in _timestamp_filters(call[0][1])]
+    assert tie_limits == [2, 4, 8]
+
+
+@patch("disruption_common.sippy.fetch_runs")
+def test_fetch_runs_in_window_marks_truncated_when_a_full_tie_page_has_nothing_new(mock_fetch_runs):
+    seen_tie_row = _tie_rows(1)[0]
+
+    def fake_fetch(_release, filter_dict, limit):
+        if ("<", "2026-10-02T00:00:00Z") in _timestamp_filters(filter_dict):
+            return [seen_tie_row] * limit
+        return [{"prow_id": "NEW", "timestamp": "2026-10-02T00:00:00Z"}, seen_tie_row]
+
+    mock_fetch_runs.side_effect = fake_fetch
+    rows, truncated = fetch_runs_in_window("5.0", {}, SINCE, page_size=2)
+    assert truncated is True
+    assert [row["prow_id"] for row in rows] == ["NEW", "TIE-00"]
+
+
+@patch("disruption_common.sippy.fetch_runs_in_window")
+def test_collect_runs_reports_every_failed_combo(mock_window):
+    def fake_window(_release, variants, _since, max_runs=None, progress=None):
+        if variants["Platform"] == "aws":
+            return [{"prow_id": "A", "timestamp": "2026-10-02T00:00:00Z"}], False
+        raise SippyError("HTTP 500 from Sippy runs API: %s down" % variants["Platform"])
+
+    mock_window.side_effect = fake_window
+    with pytest.raises(SippyError) as excinfo:
+        collect_runs("5.0", {"Platform": "aws,gcp,azure"}, SINCE)
+    message = str(excinfo.value)
+    assert message.startswith("2 of 3 variant combinations failed")
+    assert "Platform=gcp: HTTP 500 from Sippy runs API: gcp down" in message
+    assert "Platform=azure: HTTP 500 from Sippy runs API: azure down" in message
 
 
 if __name__ == "__main__":

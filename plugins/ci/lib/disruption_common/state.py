@@ -7,6 +7,7 @@ partial file, and concurrent writers do not collide on the temporary name.
 """
 import json
 import os
+import sys
 import tempfile
 
 
@@ -26,8 +27,8 @@ def write_json_atomic(path, data, indent=None):
     except BaseException:
         try:
             os.unlink(tmp)
-        except OSError:
-            pass
+        except OSError as cleanup_error:
+            print("Warning: could not remove temporary file %s: %s" % (tmp, cleanup_error), file=sys.stderr)
         raise
 
 

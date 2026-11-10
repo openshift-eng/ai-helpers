@@ -163,19 +163,35 @@ def _fetch_timestamp_ties(release, variants, since, oldest, upper, max_runs, see
 
     Sippy has no offset, so `timestamp < oldest` alone would drop the rest of
     that tie. This asks for `oldest` inclusive up to the next newer timestamp.
+    With a run budget, one request uses the remaining budget. Without one, the
+    limit doubles until Sippy returns a short page (the whole tie). A full page
+    with no unseen runs means Sippy will not return more, so the result is
+    reported as truncated. Returns True when the scan is truncated.
     """
     lower = _just_before(oldest)
     if since is not None and lower < since:
         lower = since
+    tie_filter = build_sippy_filter(variants, lower, upper)
     room = _room(rows, max_runs)
-    if room is not None and room <= 0:
-        return True
-    limit = room if room is not None else page_size
-    batch = fetch_runs(release, build_sippy_filter(variants, lower, upper), limit)
-    if not batch:
-        return False
-    _oldest, truncated = _take_unseen(batch, seen, rows, max_runs)
-    return truncated
+    if room is not None:
+        if room <= 0:
+            return True
+        batch = fetch_runs(release, tie_filter, room)
+        if not batch:
+            return False
+        _oldest, truncated = _take_unseen(batch, seen, rows, max_runs)
+        return truncated
+
+    limit = page_size
+    while True:
+        batch = fetch_runs(release, tie_filter, limit)
+        count_before = len(rows)
+        _take_unseen(batch, seen, rows, None)
+        if len(batch) < limit:
+            return False
+        if len(rows) == count_before:
+            return True
+        limit *= 2
 
 
 def fetch_runs_in_window(release, variants, since, page_size=PAGE_SIZE, max_runs=None, progress=None):
@@ -234,15 +250,24 @@ def collect_runs(release, variants, since, max_runs=None, progress=None):
     seen = set()
     rows = []
     truncated = False
+    failures = []
     for combo in combos:
-        batch, batch_truncated = fetch_runs_in_window(
-            release, dict(variants, **combo), since, max_runs=max_runs, progress=progress)
+        try:
+            batch, batch_truncated = fetch_runs_in_window(
+                release, dict(variants, **combo), since, max_runs=max_runs, progress=progress)
+        except SippyError as e:
+            failures.append("%s: %s" % (", ".join("%s=%s" % kv for kv in combo.items()), e))
+            continue
         truncated = truncated or batch_truncated
         for row in batch:
             pid = str(row.get("prow_id", ""))
             if pid and pid not in seen:
                 seen.add(pid)
                 rows.append(row)
+    if failures:
+        # Partial results would skew the series toward the combinations that worked.
+        raise SippyError("%d of %d variant combinations failed: %s" % (
+            len(failures), len(combos), "; ".join(failures)))
     rows.sort(key=lambda row: parse_timestamp(row.get("timestamp", "")), reverse=True)
     if max_runs is not None and len(rows) > max_runs:
         rows = rows[:max_runs]
@@ -268,7 +293,9 @@ def _fetch_disruption_batch(prow_ids):
 
 def _seconds(value):
     """Disruption seconds as a number, or None when the value is missing or not numeric."""
-    if isinstance(value, numbers.Real) and not isinstance(value, bool):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, numbers.Real):
         return value
     try:
         return float(value)
