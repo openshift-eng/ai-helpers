@@ -1,75 +1,118 @@
 # Known Disruption Issues (Step 8)
 
 Skip this step if `--skip-jira` was passed. This step searches Jira for existing cards that
-may already track the disruption pattern identified in the analysis, and offers to file a new
-bug if none are found.
+may already track the disruption pattern identified in the analysis, checks whether a matching
+fix already landed, and offers to file a new bug only if nothing matches.
 
-## 8.1: Search for Known Disruption Cards
+**Run this step only after the root cause is final.** If later work changes the root cause
+(a comparison against `compare_release`, more runs, an audit-log trace), run 8.1 again with
+the new signals and update the report before answering. A search built from an earlier
+hypothesis does not count.
 
-Extract the base backend names from the analysis (e.g., `openshift-api`, `kube-api`, `oauth-api`
-— strip `cache-` prefix and `-new-connections`/`-reused-connections` suffixes to get the base name).
+## 8.1: Search Jira
 
-Run two JQL queries using `searchJiraIssuesUsingJql` (cloudId: `redhat.atlassian.net`) —
-one for open cards, one for closed. Combine all backend names into a single query to avoid
-excessive API calls:
+Do not write JQL by hand. `known_issue_queries.py` prints the queries:
 
-**Query 1 — Open cards:**
-
-```jql
-project in (TRT, OCPBUGS) AND status != Closed AND (labels = "disruption" OR text ~ "disruption") AND (text ~ "{backend_name_1}" OR text ~ "{backend_name_2}") ORDER BY updated DESC
+```bash
+python3 "${CLAUDE_SKILL_DIR}/known_issue_queries.py" \
+  --backends {exact_backend_names} \
+  --keyword "{root cause term}" --keyword "{resource or error string}" \
+  [--component "{component}"] [--signal etcd] [--signal ovs] [--signal cpu]
 ```
 
-**Query 2 — Closed cards (prior investigations):**
+- `--backends`: the exact comma-separated names from the analysis. The script reduces each
+  one to the API it probes (`openshift-api-http2-service-network-reused-connections` →
+  `openshift-api`), so cards filed against a sibling probe (internal-lb, localhost,
+  service-network, http1/http2, new/reused) also match. This applies to the Jira search
+  only. Run discovery and the parser still use exact names, as `run-discovery.md` requires.
+- `--keyword` (**required once a root cause is known**): what the root cause is, in the words
+  a bug author would use. Use the resource, the mechanism, and the error string from the
+  evidence, for example `--keyword "watch cache" --keyword imagestream`, or
+  `--keyword "connection reset" --keyword conntrack`. Use two to four terms. Multi-word
+  terms are matched as phrases.
+- `--component`: an OCPBUGS component, only when the evidence names it (for example, the
+  audit log shows the stall inside openshift-apiserver). Do not guess one from the backend
+  name.
+- `--signal`: add `etcd`, `ovs`, or `cpu` when the parser's `concurrent_events` show that
+  mechanism (`EtcdLog` count > 0; `OVSVswitchdLog` with `max_poll_interval_ms` > 500;
+  `CPUMonitor`).
 
-```jql
-project in (TRT, OCPBUGS) AND status = Closed AND (labels = "disruption" OR text ~ "disruption") AND (text ~ "{backend_name_1}" OR text ~ "{backend_name_2}") ORDER BY updated DESC
-```
+The output lists queries, most specific first. Run **every** query with
+`searchJiraIssuesUsingJql`, passing its `args` unchanged. If a response has
+`pageInfo.hasNextPage: true`, call it again with `nextPageToken` set to `pageInfo.endCursor`
+until there are no more pages. Results are sorted by update time, not by relevance, so a
+match can be anywhere in the list. Read every summary.
 
-Use `maxResults: 10` and `fields: ["summary", "status", "labels", "assignee", "updated", "priority", "resolution"]`
-for each query. Deduplicate results across queries by issue key.
+The queries cover open cards and cards that reached a Done status (Verified, Closed, and so
+on) in the last 90 days. A bug that was just fixed is often the explanation for a regression
+alert. `backend-family-history` returns older closed investigations. Use them as context,
+not as matches.
 
-Closed cards are valuable — they may document a prior investigation into the same disruption
-pattern that provides context (root cause, fix applied, affected versions).
+Deduplicate by issue key. For each card whose summary plausibly matches the root cause, call
+`getJiraIssue` with `fields: ["summary", "description", "status", "components", "comment",
+"issuelinks", "labels"]` and compare its mechanism with the evidence. A matching card filed
+against a different backend or percentile is still a match. Say so in the report.
 
-## 8.1.1: Search by Root Cause Signals
+## 8.1.1: Check Whether a Matching Fix Already Landed
 
-The backend-name queries above find bugs filed about the symptom (which backend was disrupted).
-Many bugs are filed about the root cause mechanism instead (CPU exhaustion, OVS stalls, etcd
-pressure). Build additional JQL queries from the root cause signals identified during analysis.
+Do this for every matching card in MODIFIED, ON_QA, Verified, or Closed.
 
-Check the `concurrent_events` and `key_signals` from the parsed data. For each signal category
-present, run one additional open-card query:
+1. Find the first payload with the fix. Look in the card's comments (bots post "Fixed in
+   payload ..." or the release controller link) and linked PRs. If only a merge date is
+   known, use the first nightly built after the merge, and say it is an estimate.
+2. Get every run for the series over a window that starts at least a week before the fix
+   (disruption-trend has 0s runs too; the finder lists only disrupted runs):
 
-**If OVS stalls were detected** (`OVSVswitchdLog` in concurrent events with `max_poll_interval_ms > 500`):
+   ```bash
+   python3 "${CLAUDE_SKILL_DIR}/../disruption-trend/disruption_series.py" {same series input as Step 1.5} \
+     --days {days back to a week before the fix, max 90} \
+     --runs-out .work/disruption-analysis/{date}/fix-check-runs.json --format json > /dev/null
+   ```
 
-```jql
-project in (TRT, OCPBUGS) AND status != Closed AND (summary ~ "OVS" OR summary ~ "vswitchd" OR summary ~ "ovs-vswitchd" OR text ~ "vswitchd stall") ORDER BY updated DESC
-```
+3. Download timelines for every disrupted run in that window (`references/artifacts.md`,
+   one `download_timelines.py` call with all their URLs), then run:
 
-**If CPU pressure was detected** (`CPUMonitor` in concurrent events):
+   ```bash
+   python3 "${CLAUDE_SKILL_DIR}/fix_payload_check.py" \
+     --runs .work/disruption-analysis/{date}/fix-check-runs.json \
+     --fix-payload {first payload with the fix} \
+     --timelines-dir .work/disruption-analysis/{date} \
+     --backends {exact_backend_names} \
+     --signature '{regex for the bug's error text}'
+   ```
 
-```jql
-project in (TRT, OCPBUGS) AND status != Closed AND (summary ~ "CPU exhaustion" OR summary ~ "ExtremelyHigh" OR text ~ "ExtremelyHighIndividualControlPlaneCPU" OR summary ~ "high CPU") ORDER BY updated DESC
-```
+   The signature is a regex over the full disruption message, for example
+   `'Client.Timeout exceeded|roundtrip=15'`. It must match the bug's failure mode and not the
+   background noise you found in clean-period runs.
 
-**If etcd pressure was detected** (`EtcdLog` in concurrent events with count > 0):
-
-```jql
-project in (TRT, OCPBUGS) AND status != Closed AND (summary ~ "etcd leader" OR summary ~ "etcd slow" OR text ~ "took too long" OR summary ~ "etcd pressure") ORDER BY updated DESC
-```
-
-Use the same `maxResults: 10` and field list. Deduplicate all results across all queries
-(backend queries + signal queries) by issue key before presenting.
+4. Report the result in the Known Disruption Issues section:
+   - the per-payload-day table, or a short version: when the signature starts, its share of
+     disrupted runs while the bug was live, and whether it is gone after the fix;
+   - **fixed**: the signature is absent on payloads after the fix (allow a day or two for
+     upgrades that started from an unfixed payload, and say that lag is unconfirmed);
+   - **not fixed**: the signature continues at the same rate after the fix. Reopening or
+     commenting on the card is the user's decision;
+   - **too early**: fewer than about 10 runs on fixed payloads.
+   - Whether the runs analyzed earlier in this investigation came before or after the fix.
+     If they all came after it, the regression itself may not have been analyzed. Say so.
 
 ## 8.2: Present Results and Offer Actions
 
 **If matching cards are found:**
 
-Add a "Known Disruption Issues" section to the report. Group results into open and closed,
-with open cards listed first (most actionable), then closed cards (useful for context):
+Add a "Known Disruption Issues" section to the report. Start with the search line, then put
+matches to the root cause first, with the fix check from 8.1.1 under each fixed match. Then
+list other open cards and previously resolved cards for context:
 
 ```markdown
 ## Known Disruption Issues
+
+Searched with: backends openshift-api; keywords "watch cache", imagestream; component openshift-apiserver.
+
+### Matches the root cause
+| Key | Summary | Status | Filed against | Fix |
+|-----|---------|--------|---------------|-----|
+| [OCPBUGS-1111](url) | openshift-apiserver watch cache disabled | Verified | internal-lb backends, P50 | 5.1.0-0.nightly-2026-11-06-043907: fixed (signature absent on payloads from 2026-11-08) |
 
 ### Open
 | Key | Summary | Status | Labels | Assignee | Updated |
@@ -88,12 +131,15 @@ For each card missing the "disruption" label, note it:
 > OCPBUGS-5678 does not have the "disruption" label. Consider adding it for tracking.
 ```
 
+If a match is fixed and the fix check shows the signature is gone, say plainly that the
+regression is already fixed and no new bug is needed. Do not offer to file one.
+
 Ask the user:
 1. Whether any of the found cards match this specific disruption
 2. Whether to add the "disruption" label to any unlabeled cards that match — use `editJiraIssue`
    to append `"disruption"` to the existing labels array
 
-**If no matching cards are found:**
+**If no matching cards are found** (after every query and page in 8.1, with root-cause keywords):
 
 Add to the report:
 

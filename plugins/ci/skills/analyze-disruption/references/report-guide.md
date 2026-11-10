@@ -120,6 +120,17 @@ Run 2 [timeline]({gcsweb_timeline_url_2}) shows disk IOPS at 100% ([cloud metric
 ## Cross-Run Comparison
 {Pattern analysis referencing specific runs with inline links}
 
+{If triggered from a disruption alert, include this section:}
+## Do These Runs Represent the Regression?
+{The alert compares its lookback window (often 3 days) with {compare_release}. The runs
+analyzed come from that window, so they can miss the regression: it may have started
+earlier, or a fix may have landed inside the window. State which of these holds:
+- The runs' failure modes are also present in {compare_release} at a similar rate (from a
+  comparison, if one was run). Then the regression has not been explained yet.
+- A matching fix from Step 8.1.1 landed before most of the analyzed runs. Then they show
+  what is left after the fix, not the regression.
+- Neither was checked. Say so, and offer the comparison in the closing question.}
+
 ## Root Cause Hypothesis
 {Synthesis with links to key evidence}
 

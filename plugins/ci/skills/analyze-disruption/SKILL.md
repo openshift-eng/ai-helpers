@@ -63,7 +63,7 @@ Load these only at the step that needs them — not up front:
 - **`references/timeline-analysis.md`** — parser modes, signal interpretation, and extra diagnostic checks (Steps 3 and 5)
 - **`references/cross-run-comparison.md`** — multi-run pattern detection and same-job clean comparison (Step 6)
 - **`references/report-guide.md`** — deep-link shapes, inline linking rules, and report structure (Step 7)
-- **`references/known-issues.md`** — Jira search and bug filing (Step 8)
+- **`references/known-issues.md`** — Jira search, fix check, and bug filing (Step 8)
 
 ## Implementation Steps
 
@@ -131,9 +131,25 @@ Read `references/report-guide.md` and follow it. Save the report at `.work/disru
 
 Links go inline where the evidence is discussed. Do not add an Artifacts or Links table. Do not truncate job names.
 
+Leave the Known Disruption Issues section for Step 8. For alert input, fill in "Do These Runs Represent the Regression?" after Step 8, because the fix check can change the answer.
+
 ### Step 8: Known Disruption Issue Lookup
 
 Skip this step if `--skip-jira` was passed. Otherwise read `references/known-issues.md` and follow it.
+
+- Step 8 runs only after the root cause in the report is final. Build the search from that root cause: the component, the resource, and the error string, not just the backend name.
+- If anything later changes the root cause (a comparison against `compare_release`, more runs, a deeper trace), run Step 8 again with the new root cause and update the report before answering. The investigation is not finished while the Known Disruption Issues section reflects a superseded hypothesis.
+- If a matching card is already fixed, run the fix check in 8.1.1 before saying whether the regression is fixed. Do not offer to file a bug for a regression a fixed card already explains.
+
+### Step 9: Closing Question (Alert Input)
+
+For alert input, end by stating whether the analyzed runs represent the regression (see the report section). If that was not checked, or the runs post-date a fix, offer a failure-mode comparison:
+
+- Run the finder twice with the same alert text and `--since-hours 720 --disruption-only --format json`: once as is, and once with `--release {compare_release}`.
+- Download timelines for every disrupted run in both, and classify each error interval on the backend by its error text (`parse_disruption.py --format json`).
+- Compare which failure modes are new or more frequent.
+
+This costs one timeline download per disrupted run (often 100–200), so do not run it without the user's agreement. If the comparison changes the root cause, Step 8 runs again.
 
 ## Error Handling
 

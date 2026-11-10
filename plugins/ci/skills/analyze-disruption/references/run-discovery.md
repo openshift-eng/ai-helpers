@@ -54,6 +54,10 @@ the URL include:
 - `*-service-network-*` and `*-internal-lb-*`
 - `cache-*` (unless the URL selected that cache backend)
 
+The Jira search in Step 8 is different: `known_issue_queries.py` deliberately searches the
+whole API family, because a bug is often filed against a sibling probe. That does not
+change how runs are found or ranked here.
+
 `Disruption (s)` is the max seconds among the exact selected names for that run, from
 BigQuery. The summary line names the dashboard percentile (`var-percentile` or alert
 `delta`, such as P75) so those seconds are not read as that percentile. It also prints
