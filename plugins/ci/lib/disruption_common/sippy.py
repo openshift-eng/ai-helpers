@@ -4,6 +4,7 @@ Sippy ignores offset/page, so a window is walked newest-first with a
 timestamp cursor. Disruption seconds come from BigQuery through Sippy's
 disruption endpoint and lag job completion by up to about four hours.
 """
+import http.client
 import itertools
 import json
 import numbers
@@ -90,6 +91,11 @@ def _get_json(url, what):
         raise SippyError("HTTP %d from %s: %s" % (e.code, what, detail)) from e
     except urllib.error.URLError as e:
         raise SippyError("failed to connect to %s: %s" % (what, e.reason)) from e
+    except (OSError, http.client.HTTPException) as e:
+        # Read timeouts and truncated bodies, which urlopen does not wrap in URLError.
+        raise SippyError("failed to read from %s: %s" % (what, e or type(e).__name__)) from e
+    except UnicodeDecodeError as e:
+        raise SippyError("response from %s is not UTF-8" % what) from e
     try:
         data = json.loads(body)
     except ValueError as e:
@@ -326,5 +332,8 @@ def fetch_disruption_data(prow_ids, cache_path=None, progress=None):
             progress(len(ids) - len(missing) + min(start + DISRUPTION_BATCH_SIZE, len(missing)), len(ids))
     if cache_path and missing:
         cache.update({pid: lookup[pid] for pid in missing if lookup.get(pid)})
-        write_json_atomic(cache_path, cache)
+        try:
+            write_json_atomic(cache_path, cache)
+        except OSError as e:
+            print("Warning: could not write disruption cache %s: %s" % (cache_path, e), file=sys.stderr)
     return lookup

@@ -1,5 +1,6 @@
 """Tests for disruption_common.sippy — windowed paging and disruption lookups."""
 import datetime
+import http.client
 import json
 import os
 import sys
@@ -344,6 +345,37 @@ def test_fetch_disruption_data_drops_non_numeric_seconds():
     with patch("urllib.request.urlopen", return_value=_urlopen_returning(api)):
         result = fetch_disruption_data(["1"])
     assert [(e["backend_name"], e["disruption_seconds"]) for e in result["1"]] == [("b", 4.0), ("d", 1.0), ("e", 3)]
+
+
+@pytest.mark.parametrize("error", [TimeoutError("timed out"), http.client.IncompleteRead(b"par")])
+def test_read_failures_reach_the_sippy_error_path(error):
+    with patch("urllib.request.urlopen", side_effect=error):
+        with pytest.raises(SippyError, match="failed to read"):
+            fetch_runs("5.0", build_sippy_filter({}, SINCE), 10)
+        assert fetch_disruption_data(["1"]) == {}
+
+
+def test_non_utf8_body_reaches_the_sippy_error_path():
+    class Response:
+        def __enter__(self):
+            return BytesIO(b"\xff\xfe")
+
+        def __exit__(self, *args):
+            return False
+
+    with patch("urllib.request.urlopen", return_value=Response()):
+        with pytest.raises(SippyError, match="not UTF-8"):
+            fetch_runs("5.0", build_sippy_filter({}, SINCE), 10)
+
+
+def test_cache_write_failure_is_a_warning(tmp_path, capsys):
+    cache = tmp_path / "cache" / "disruption.json"
+    api = [{"backend_name": "x", "disruption_seconds": 5, "job_run_name": "2"}]
+    with patch.object(sippy, "_fetch_disruption_batch", return_value=api), \
+            patch.object(sippy, "write_json_atomic", side_effect=PermissionError("read-only")):
+        result = fetch_disruption_data(["2"], cache_path=str(cache))
+    assert result["2"][0]["disruption_seconds"] == 5
+    assert "could not write disruption cache" in capsys.readouterr().err
 
 
 if __name__ == "__main__":
