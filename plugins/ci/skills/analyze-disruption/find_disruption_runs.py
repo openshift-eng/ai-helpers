@@ -22,6 +22,7 @@ Output formats:
 import argparse
 import functools
 import json
+import math
 import os
 import re
 import statistics
@@ -59,6 +60,12 @@ MAX_SCANNED_RUNS = 5000
 # Same-job runs starting this close to a batch's first run share a launch (and payload).
 BATCH_WINDOW_SECONDS = 300
 CROSS_JOB_WINDOW_SECONDS = 5
+# Sister shards of one job (-1of2, -2of2) launched together share an event.
+_SHARD_SUFFIX = re.compile(r"-\d+of\d+$")
+# Runs above this multiple of the percentile value are outliers; the rest set the tail.
+OUTLIER_FACTOR = 2
+DEFAULT_PERCENTILE = 95.0
+TIERS = ("outlier", "tail")
 # Rows printed by default in table format; the full table goes to a file.
 DEFAULT_TOP_ROWS = 20
 # A disrupted run is correlated when every selected backend is within this fraction of its max.
@@ -98,21 +105,32 @@ def is_upgrade_series(variants):
     return any(value.lower() != "none" for value in values)
 
 
-def select_representative_runs(rows, disruption_data, base_backend, n=5, upgrade_series=False):
+def select_representative_runs(rows, disruption_data, base_backend, n=5, upgrade_series=False,
+                               percentile=None, explain=None):
     """Select a representative sample of job runs for analysis.
 
     Rules (documented in references/run-discovery.md):
     1. The top run (most seconds, newest on a tie) is always picked.
-    2. One run per launch batch: same-job runs that start within
-       BATCH_WINDOW_SECONDS of the batch's first run keep only the worst.
-       At most one pick among runs of any job that start within
-       CROSS_JOB_WINDOW_SECONDS of each other.
-    3. Jobs are weighted by the seconds they add to the series, over every
-       disrupted run. In an upgrade series a non-upgrade job counts half.
-       Each next pick goes to the job with the most weight per pick so far.
-    4. A job's first pick is its worst batch, the next its most typical
-       (closest to the job's median), then down by seconds.
-    5. With n >= 3, a 0s run from a picked job is added as a clean comparison.
+    2. One pick per event. Same-job runs that start within BATCH_WINDOW_SECONDS
+       of the batch's first run keep only the worst. Runs of any job that start
+       within CROSS_JOB_WINDOW_SECONDS, and sister shards (-1of2, -2of2) that
+       start within BATCH_WINDOW_SECONDS, are one event. Runs in the top run's
+       event add no weight to their jobs.
+    3. Runs split into two tiers at the dashboard percentile (P95 by default)
+       of all runs in the series: outliers above OUTLIER_FACTOR times that
+       value, and tail runs at or below it. Picks alternate between populated
+       tiers, so both the large outages and the runs that set the percentile
+       are covered. The top run is the first pick of its tier.
+    4. Within a tier, a job's weight is its disrupted events times their
+       median seconds, so one large run cannot buy a job extra picks. In an
+       upgrade series a non-upgrade job counts half. Each next pick goes to
+       the job with the most weight per pick it already has in that tier.
+    5. A job's first pick in a tier is its worst batch, the next its most
+       typical (closest to the median), then down by seconds.
+    6. With n >= 3, a 0s run from a picked job is added as a clean comparison.
+
+    explain, when a dict, receives the cutoff, tier sizes, and the runs merged
+    into each picked event, for the table summary.
     """
     if not rows or n <= 0:
         return []
@@ -122,16 +140,50 @@ def select_representative_runs(rows, disruption_data, base_backend, n=5, upgrade
     if not disrupted:
         return []
 
+    pct = _percentile_number(percentile)
+    cutoff = _nearest_rank([e["disruption_seconds"] for e in known], pct)
+    tier_of = functools.partial(_tier, cutoff=cutoff)
     top = max(disrupted, key=_rank_key)
     candidates = _dedupe_batches(known)
     zero_runs = [c for c in candidates if c["disruption_seconds"] == 0]
+    clusters = _event_clusters(candidates)
+    top_event = clusters[top["index"]]
+    # Weight comes from every disrupted run, except the ones the top run already stands for.
+    weighed = [e for e in _dedupe_batches(disrupted) if e is top or clusters.get(e["index"]) != top_event]
     batches = [c for c in candidates if c["disruption_seconds"] > 0 and c is not top]
 
-    clusters = _same_instant_clusters(candidates)
-    picks = [top] + _weighted_picks(batches, disrupted, upgrade_series, n - 1, top, clusters)
+    picks = [top] + _tiered_picks(batches, weighed, upgrade_series, n - 1, top, clusters, tier_of)
     if n >= 3:
         picks = _add_clean_comparison(picks, zero_runs, n, top)
+    if explain is not None:
+        explain.update(_explanation(rows, known, disrupted, picks, clusters, pct, cutoff, tier_of))
     return sorted(p["index"] for p in picks)
+
+
+def _percentile_number(value):
+    """95 from "P95", 95, or None; the dashboard default when unreadable."""
+    match = re.search(r"\d+(\.\d+)?", str(value or ""))
+    number = float(match.group(0)) if match else DEFAULT_PERCENTILE
+    return number if 0 < number <= 100 else DEFAULT_PERCENTILE
+
+
+def _nearest_rank(values, pct):
+    """Nearest-rank percentile of values; 0 for none."""
+    if not values:
+        return 0
+    ordered = sorted(values)
+    return ordered[max(0, math.ceil(pct / 100.0 * len(ordered)) - 1)]
+
+
+def _tier(seconds, cutoff):
+    """"outlier" above OUTLIER_FACTOR times the cutoff, else "tail". A 0s cutoff makes every disrupted run an outlier."""
+    return "outlier" if seconds > OUTLIER_FACTOR * cutoff else "tail"
+
+
+def _shard_family(job):
+    """The job name without a -1of2 style shard suffix, or None when it has none."""
+    stripped = _SHARD_SUFFIX.sub("", job or "")
+    return stripped if stripped != job else None
 
 
 def _enrich_runs(rows, disruption_data, selectors):
@@ -165,47 +217,72 @@ def _dedupe_batches(entries):
     return [max(g, key=_rank_key) for g in groups]
 
 
-def _same_instant_clusters(entries):
-    """Map row index to a cluster of runs (any job) starting within the cross-job window of its first run."""
-    clusters = {}
-    anchor = None
-    for entry in sorted(entries, key=lambda e: e["timestamp"]):
-        if anchor is None or (entry["timestamp"] - anchor["timestamp"]).total_seconds() > CROSS_JOB_WINDOW_SECONDS:
-            anchor = entry
-        clusters[entry["index"]] = anchor["index"]
-    return clusters
+def _event_clusters(entries):
+    """Map row index to an event ID.
 
-
-def _job_weights(disrupted, upgrade_series):
-    """Seconds each job adds to the series; non-upgrade jobs count half in an upgrade series."""
-    weights = {}
-    for entry in disrupted:
-        weights[entry["job"]] = weights.get(entry["job"], 0) + entry["disruption_seconds"]
-    if upgrade_series:
-        for job in weights:
-            if not is_upgrade_job(job):
-                weights[job] /= 2.0
-    return weights
-
-
-def _weighted_picks(batches, disrupted, upgrade_series, slots, top, clusters):
-    """Hand out slots one at a time to the job with the most weight per pick.
-
-    Ties go to the job with fewer picks, then the job name. The top run
-    already holds one pick. A batch in the same instant cluster as an
-    earlier pick is skipped.
+    One event is runs of any job that start within the cross-job window of
+    the first, or sister shards that start within the batch window of the
+    first. Each window is anchored at its first run, not chained.
     """
-    top_job = top["job"]
-    weights = _job_weights(disrupted, upgrade_series)
-    medians = {}
-    for entry in disrupted:
-        medians.setdefault(entry["job"], []).append(entry["disruption_seconds"])
-    by_job = {}
+    parent = {e["index"]: e["index"] for e in entries}
+
+    def find(index):
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    def link(groups, window):
+        for _key, items in groups:
+            anchor = None
+            for entry in sorted(items, key=lambda e: e["timestamp"]):
+                if anchor is None or (entry["timestamp"] - anchor["timestamp"]).total_seconds() > window:
+                    anchor = entry
+                parent[find(entry["index"])] = find(anchor["index"])
+
+    link([(None, entries)], CROSS_JOB_WINDOW_SECONDS)
+    shards = {}
+    for entry in entries:
+        family = _shard_family(entry["job"])
+        if family:
+            shards.setdefault(family, []).append(entry)
+    link(shards.items(), BATCH_WINDOW_SECONDS)
+    return {index: find(index) for index in parent}
+
+
+def _group_weights(weighed, upgrade_series, tier_of):
+    """(tier, job) -> disrupted events times their median seconds; non-upgrade jobs count half in an upgrade series."""
+    seconds = {}
+    for entry in weighed:
+        key = (tier_of(entry["disruption_seconds"]), entry["job"])
+        seconds.setdefault(key, []).append(entry["disruption_seconds"])
+    weights = {}
+    for key, values in seconds.items():
+        weights[key] = len(values) * statistics.median(values)
+        if upgrade_series and not is_upgrade_job(key[1]):
+            weights[key] /= 2.0
+    return weights, {key: statistics.median(values) for key, values in seconds.items()}
+
+
+def _tiered_picks(batches, weighed, upgrade_series, slots, top, clusters, tier_of):
+    """Hand out slots, alternating between tiers, to the job with the most weight per pick.
+
+    The tier with fewer picks goes next (outliers first on a tie). Within it,
+    ties go to the job with fewer picks in any tier, then the job name. The top run
+    already holds one pick. A batch in the same event as an earlier pick is
+    skipped.
+    """
+    weights, medians = _group_weights(weighed, upgrade_series, tier_of)
+    top_key = (tier_of(top["disruption_seconds"]), top["job"])
+    by_key = {}
     for batch in batches:
-        by_job.setdefault(batch["job"], []).append(batch)
-    queues = {job: _pick_order(items, statistics.median(medians[job]), job == top_job)
-              for job, items in by_job.items()}
-    counts = {top_job: 1}
+        key = (tier_of(batch["disruption_seconds"]), batch["job"])
+        if key in weights:
+            by_key.setdefault(key, []).append(batch)
+    queues = {key: _pick_order(items, medians[key], key == top_key) for key, items in by_key.items()}
+    counts = {top_key: 1}
+    job_counts = {top["job"]: 1}
+    tier_counts = {top_key[0]: 1}
     used = {clusters[top["index"]]}
 
     picks = []
@@ -213,14 +290,36 @@ def _weighted_picks(batches, disrupted, upgrade_series, slots, top, clusters):
         for queue in queues.values():
             while queue and clusters[queue[0]["index"]] in used:
                 queue.pop(0)
-        open_jobs = [job for job, queue in queues.items() if queue]
-        if not open_jobs:
+        open_keys = [key for key, queue in queues.items() if queue]
+        if not open_keys:
             break
-        job = min(open_jobs, key=lambda j: (-weights[j] / (counts.get(j, 0) + 1), counts.get(j, 0), j))
-        picks.append(queues[job].pop(0))
+        tier = min({key[0] for key in open_keys}, key=lambda t: (tier_counts.get(t, 0), TIERS.index(t)))
+        key = min((k for k in open_keys if k[0] == tier),
+                  key=lambda k: (-weights[k] / (counts.get(k, 0) + 1), job_counts.get(k[1], 0), k[1]))
+        picks.append(queues[key].pop(0))
         used.add(clusters[picks[-1]["index"]])
-        counts[job] = counts.get(job, 0) + 1
+        counts[key] = counts.get(key, 0) + 1
+        job_counts[key[1]] = job_counts.get(key[1], 0) + 1
+        tier_counts[tier] = tier_counts.get(tier, 0) + 1
     return picks
+
+
+def _explanation(rows, known, disrupted, picks, clusters, pct, cutoff, tier_of):
+    """What the table summary says about the picks."""
+    outliers = sum(1 for e in disrupted if tier_of(e["disruption_seconds"]) == "outlier")
+    by_event = {}
+    for entry in disrupted:
+        by_event.setdefault(clusters.get(entry["index"]), []).append(entry)
+    shared = []
+    for pick in picks:
+        if pick["disruption_seconds"] == 0:
+            continue
+        others = [e for e in by_event.get(clusters.get(pick["index"]), []) if e is not pick]
+        if others:
+            shared.append({"prow_id": str(rows[pick["index"]].get("prow_id", "")),
+                           "with": [str(rows[e["index"]].get("prow_id", "")) for e in others]})
+    return {"percentile": pct, "cutoff": cutoff, "outlier_above": OUTLIER_FACTOR * cutoff,
+            "runs": len(known), "outliers": outliers, "tail": len(disrupted) - outliers, "shared": shared}
 
 
 def _pick_order(batches, median, worst_taken):
@@ -467,12 +566,13 @@ def _visible_rows(row_count, selected_set, top):
 
 def print_table(rows, grafana_params, selectors, disruption_data, selected_indices=None,
                 scanned_count=None, window_start=None, truncated=False,
-                scanned_rows=None, top=None, full_table_path=None, out=None):
+                scanned_rows=None, top=None, full_table_path=None, selection=None, out=None):
     """Print the candidate report: header, backend and job summaries, then run rows.
 
     top limits the run rows to the first top plus recommended rows, and the
     summaries to top lines; None prints everything. scanned_rows (default
     rows) are every run in the series, for run counts in the summaries.
+    selection is select_representative_runs' explain dict.
     """
     emit = functools.partial(print, file=out or sys.stdout)
     _print_header(emit, grafana_params, window_start, scanned_count, truncated, len(rows))
@@ -516,6 +616,25 @@ def print_table(rows, grafana_params, selectors, disruption_data, selected_indic
             emit("Auto-selected %d runs (* = disrupted, C = clean comparison from same job)." % len(selected_set))
         else:
             emit("Auto-selected %d runs (marked with *)." % len(selected_set))
+        _print_selection(emit, rows, selection)
+
+
+def _print_selection(emit, rows, selection):
+    """Two lines on how the picks were made: the tiers, and runs that share a picked event."""
+    if not selection:
+        return
+    emit("Tiers: P%s of %d runs is %ss, so outliers are > %ss (%d runs) and the tail is the rest (%d runs). "
+         "Picks alternate between tiers." % (
+             _fmt_secs(selection["percentile"]), selection["runs"], _fmt_secs(selection["cutoff"]),
+             _fmt_secs(selection["outlier_above"]), selection["outliers"], selection["tail"]))
+    number = {str(row.get("prow_id", "")): i + 1 for i, row in enumerate(rows)}
+    notes = []
+    for event in selection.get("shared", []):
+        others = ["#%d" % number[pid] for pid in event["with"] if pid in number]
+        if others and event["prow_id"] in number:
+            notes.append("%s with #%d" % (", ".join(others), number[event["prow_id"]]))
+    if notes:
+        emit("Same event, not picked separately: %s." % "; ".join(notes))
 
 
 def _format_row(i, row, disruption_data, selectors, selected_set):
@@ -693,10 +812,12 @@ def main(argv=None):
         grafana_params["backend"] = ",".join(selectors)
 
     selected_ids = set()
+    selection = {}
     if args.auto_select is not None:
         selected_indices_full = select_representative_runs(
             rows, disruption_data, selectors, n=args.auto_select,
-            upgrade_series=is_upgrade_series(variants))
+            upgrade_series=is_upgrade_series(variants),
+            percentile=grafana_params.get("percentile"), explain=selection)
         selected_ids = {str(rows[i].get("prow_id", "")) for i in selected_indices_full}
 
     include_clean = bool(selected_ids) and not args.disruption_only
@@ -732,7 +853,7 @@ def main(argv=None):
     else:
         table_args = (display, grafana_params, selectors, disruption_data, selected_indices)
         table_kwargs = {"scanned_count": scanned_count, "window_start": since,
-                        "truncated": truncated, "scanned_rows": rows}
+                        "truncated": truncated, "scanned_rows": rows, "selection": selection}
         top = args.top if args.top and args.top > 0 else None
         full_path = None
         if args.full_table_out or (top is not None and len(display) > top):

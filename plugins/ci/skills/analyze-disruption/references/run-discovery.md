@@ -138,22 +138,34 @@ ask whether they meant the suggested name; do not substitute it yourself.
 
 The auto-selection rules, in order:
 1. The top run (most seconds, newest on a tie) is always selected.
-2. Launch batches count once. Runs of the same job that start within 5 minutes of the
-   batch's first run share a launch, and usually a payload; only the worst of them can be
-   picked. Runs of any job that start within 5 seconds of each other give at most one pick.
-3. Picks follow where the series' seconds come from. Each job's weight is the total
-   seconds it adds over every disrupted run (the `Per-job disruption` totals). Each next
-   pick goes to the job with the most weight per pick it already has, so a job with 60%
-   of the seconds gets about 60% of the picks. The top run counts as its job's first pick.
-4. In an upgrade series (the Upgrade filter names any value other than `none`, such as
+2. Each event gives at most one pick. Runs of the same job that start within 5 minutes of
+   the batch's first run share a launch, and usually a payload; only the worst of them can be
+   picked. Runs of any job that start within 5 seconds of each other are one event, and so
+   are sister shards (`-1of2`, `-2of2`) that start within 5 minutes of each other. Runs in
+   the top run's event add no weight to their jobs. The table's `Same event` line lists
+   runs left out this way.
+3. Runs split into two tiers at the dashboard percentile (`var-percentile` or the alert's
+   `delta`, P95 when absent), taken over every run in the series, 0s runs included.
+   Outliers are runs above twice that value. The tail is the rest, the runs that set
+   the percentile. Picks alternate between the tiers, so a sample shows both the large
+   outages and what moves the plotted line. When the percentile is 0s, every disrupted run
+   is an outlier and there is one tier. The table's `Tiers` line gives the numbers.
+4. Within a tier, a job's weight is its disrupted events times their median seconds, so
+   a job with one large run does not get extra picks for its small ones, and a job that is
+   disrupted in most runs gets a pick ahead of a one-off. Each next pick in the tier goes to
+   the job with the most weight per pick it already has there.
+5. In an upgrade series (the Upgrade filter names any value other than `none`, such as
    `micro` or `micro,minor,none`), a job without `upgrade` in its name counts at half
-   weight, so upgrade jobs are preferred when contributions are close.
-5. A job's first pick is its worst batch, its second its most typical batch (closest to
-   the job's median seconds), and later picks go down by seconds.
-6. With 3 or more picks, one slot is a clean comparison: a 0s run from the
+   weight, so upgrade jobs are preferred when weights are close.
+6. A job's first pick in a tier is its worst batch, its second its most typical batch
+   (closest to the median seconds), and later picks go down by seconds.
+7. With 3 or more picks, one slot is a clean comparison: a 0s run from the
    highest-priority selected job. It takes a free slot, or replaces the last pick. It never
    replaces the top run or the only disrupted pick from its own job. Step 6.3 uses it for
    same-job A/B comparison to filter out red herrings.
+
+If the question is narrower than the series (only the large outages, or only why the
+percentile moved), pick runs from the matching tier by hand instead.
 
 The `Disruption (s)` column shows the max disruption seconds among the exact
 `var-backend` names from BigQuery. A `—` means BigQuery data is not yet available
@@ -235,7 +247,7 @@ seconds, count each launch batch once, and always include the top run (rules abo
 After showing the table (more than one run), ask:
 
 ```text
-Recommended runs are marked with * (auto-selected by where the seconds come from).
+Recommended runs are marked with * (auto-selected across the outlier and tail tiers; see the rules above).
 Proceed with recommended runs, or specify different numbers from the table or the full table file? (e.g., "1,3,5" or "all" or "yes" for recommended)
 ```
 

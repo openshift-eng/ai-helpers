@@ -3,6 +3,7 @@
 URL, alert, and Sippy parsing are tested with the shared library in plugins/ci/lib/disruption_common.
 """
 import datetime
+import io
 import json
 import sys
 from unittest.mock import patch
@@ -992,6 +993,106 @@ def test_select_prefers_upgrade_jobs_in_an_upgrade_series():
     dd = _make_disruption_data({"top": 100, "plain": 60, "rt": 40})
     assert select_representative_runs(rows, dd, "kube-api", n=2, upgrade_series=True) == [0, 2]
     assert select_representative_runs(rows, dd, "kube-api", n=2, upgrade_series=False) == [0, 1]
+
+
+# Metal ingress-to-oauth-server series from 2026-11-10 (find-runs-230927.md): 212 runs, P95.
+_METAL_PREFIX = "periodic-ci-openshift-release-main-nightly-5.1-e2e-metal-ipi-"
+_METAL_DISRUPTED = [
+    ("ovn-serial-virtualmedia-2of2", "2118177396950568960", 182, "2026-11-05T03:03:20Z"),
+    ("ovn-serial-virtualmedia-1of2", "2118177271108866048", 181, "2026-11-05T03:03:05Z"),
+    ("bgp-vip-ovn-bgp-metallb", "2119611341911101440", 31, "2026-11-09T02:00:00Z"),
+    ("bgp-vip-ovn-bgp-metallb", "2117799474456694784", 14, "2026-11-04T02:01:00Z"),
+    ("bgp-vip-ovn-bgp-metallb", "2118524082776444928", 8, "2026-11-06T02:00:00Z"),
+    ("serial-ovn-ipv6", "2120065387394502656", 1, "2026-11-10T08:05:00Z"),
+    ("ovn-serial-virtualmedia-2of2", "2119690799170981888", 1, "2026-11-09T07:16:30Z"),
+    ("serial-ovn-ipv6", "2119690540793466880", 1, "2026-11-09T07:16:00Z"),
+    ("ovn-serial-virtualmedia-2of2", "2119584640590155776", 1, "2026-11-09T00:15:00Z"),
+    ("serial-ovn-dualstack", "2119486942994239488", 1, "2026-11-08T17:46:00Z"),
+    ("serial-ovn-ipv6", "2119486839810166784", 1, "2026-11-08T17:46:30Z"),
+    ("ovn-serial-virtualmedia-2of2", "2119399417168531456", 1, "2026-11-08T11:59:00Z"),
+    ("ovn-serial-virtualmedia-2of2", "2119303540282232832", 1, "2026-11-08T05:38:00Z"),
+    ("serial-ovn-ipv6", "2119069708463378432", 1, "2026-11-07T14:09:00Z"),
+    ("ovn-serial-ipv4", "2118966641550168064", 1, "2026-11-07T07:19:00Z"),
+    ("serial-ovn-ipv6-runc", "2118876475875659776", 1, "2026-11-07T01:21:00Z"),
+    ("serial-ovn-ipv6", "2118672025131159552", 1, "2026-11-06T11:48:00Z"),
+    ("serial-ovn-ipv6", "2118566177235013632", 1, "2026-11-06T04:48:00Z"),
+    ("serial-ovn-dualstack", "2118480766777167872", 1, "2026-11-05T23:08:00Z"),
+    ("ovn-serial-virtualmedia-2of2", "2118480640109187072", 1, "2026-11-05T23:08:30Z"),
+    ("ovn-serial-virtualmedia-2of2", "2118350113309986816", 1, "2026-11-05T14:29:00Z"),
+    ("ovn-serial-virtualmedia-2of2", "2118069348168896512", 1, "2026-11-04T19:53:00Z"),
+    ("serial-ovn-ipv6", "2118068974909394944", 1, "2026-11-04T19:52:00Z"),
+    ("ovn-serial-ipv4", "2117964165975904256", 1, "2026-11-04T12:56:00Z"),
+    ("serial-ovn-ipv6", "2117862498282508288", 1, "2026-11-04T06:12:00Z"),
+    ("serial-ovn-ipv6-runc", "2117789367614312449", 1, "2026-11-04T01:21:00Z"),
+    ("ovn-serial-ipv4", "2117652197033381888", 1, "2026-11-03T16:16:00Z"),
+    ("ovn-serial-virtualmedia-2of2", "2117532180757352448", 1, "2026-11-03T08:19:00Z"),
+]
+_METAL_CLEAN = ("ovn-serial-virtualmedia-2of2", "2120065473658753024", 0, "2026-11-10T08:05:30Z")
+
+
+def _metal_series():
+    runs = _METAL_DISRUPTED + [_METAL_CLEAN]
+    # 0s runs fill the series to 212, so P95 lands on the 1s tail as it did on the dashboard.
+    for i in range(212 - len(runs)):
+        runs.append(("serial-ovn-ipv4" if i % 2 else "ovn-serial-virtualmedia-1of2", "z%d" % i, 0,
+                     "2026-11-%02dT%02d:30:00Z" % (3 + i % 7, i % 24)))
+    rows = [_run(pid, _METAL_PREFIX + job, ts) for job, pid, _secs, ts in runs]
+    return rows, _make_disruption_data({pid: secs for _job, pid, secs, _ts in runs})
+
+
+def test_select_covers_outliers_and_the_p95_tail_from_the_metal_session():
+    rows, dd = _metal_series()
+    explain = {}
+    result = select_representative_runs(rows, dd, "kube-api", n=5, percentile="P95", explain=explain)
+    picked = {rows[i]["prow_id"]: rows[i]["job"][len(_METAL_PREFIX):] for i in result}
+    secs = {pid: s for _job, pid, s, _ts in _METAL_DISRUPTED + [_METAL_CLEAN]}
+
+    # The top run, and the 1of2 shard that launched with it counts as the same event.
+    assert "2118177396950568960" in picked
+    assert "2118177271108866048" not in picked
+    assert explain["shared"] == [{"prow_id": "2118177396950568960", "with": ["2118177271108866048"]}]
+    # bgp-metallb was disrupted in 3 of 3 runs at 8-31s.
+    assert "bgp-vip-ovn-bgp-metallb" in picked.values()
+    # At most one extra 2of2 1s blip; the tail picks come from more than one job.
+    blips = [job for pid, job in picked.items() if secs[pid] == 1]
+    assert blips.count("ovn-serial-virtualmedia-2of2") <= 1
+    assert len(set(blips)) == 2
+    assert "2120065473658753024" in picked  # clean comparison
+    assert (explain["cutoff"], explain["outliers"], explain["tail"]) == (1, 5, 23)
+
+
+def test_select_reads_the_percentile_for_the_tiers():
+    rows, dd = _metal_series()
+    explain = {}
+    select_representative_runs(rows, dd, "kube-api", n=5, percentile="P50", explain=explain)
+    # Most runs are 0s, so P50 is 0 and every disrupted run is an outlier.
+    assert (explain["percentile"], explain["cutoff"], explain["outliers"]) == (50, 0, 28)
+
+
+def test_select_merges_sister_shards_only_within_the_batch_window():
+    rows = [
+        _run("a", "e2e-serial-1of2", "2026-11-05T03:00:00Z"),
+        _run("b", "e2e-serial-2of2", "2026-11-05T03:04:00Z"),
+        _run("c", "e2e-serial-2of2", "2026-11-06T03:00:00Z"),
+        _run("d", "e2e-other", "2026-11-05T03:01:00Z"),
+    ]
+    dd = _make_disruption_data({"a": 100, "b": 90, "c": 80, "d": 70})
+    result = select_representative_runs(rows, dd, "kube-api", n=3)
+    assert [rows[i]["prow_id"] for i in result] == ["a", "c", "d"]
+
+
+def test_table_explains_tiers_and_shared_events():
+    rows, dd = _metal_series()
+    explain = {}
+    selected = select_representative_runs(rows, dd, "kube-api", n=5, percentile="P95", explain=explain)
+    display = [rows[i] for i in range(len(_METAL_DISRUPTED) + 1)]
+    out = io.StringIO()
+    print_table(display, {"percentile": "P95"}, "kube-api", dd, selected_indices=selected,
+                selection=explain, out=out)
+    text = out.getvalue()
+    assert ("Tiers: P95 of 212 runs is 1s, so outliers are > 2s (5 runs) and the tail is the rest (23 runs)."
+            in text)
+    assert "Same event, not picked separately: #2 with #1." in text
 
 
 def test_is_upgrade_series():
