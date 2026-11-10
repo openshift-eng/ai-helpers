@@ -1,11 +1,9 @@
 # case-02: raise bug content
-expected_candidates:
-- {deployment: marketplace-operator, direction: raise, recommended_mb: 49.9}
-expected_actions:
-- {deployment: marketplace-operator, action: create}
 expected_create_count: 1
+expected_creates:
+- {deployment: marketplace-operator}
 expected_bug_labels: [issue-for-agent, ocp-memory-requests, ai-generated-jira]
 expected_description_contains:
 - 'memory-drift-key: 5.1/openshift-marketplace/marketplace-operator'
 - single-node
-notes: Under-provisioned operator; one bug with the key and the SNO/HyperShift warning.
+notes: Under-provisioned operator; one created bug carries both labels, the key, and the SNO/HyperShift warning.

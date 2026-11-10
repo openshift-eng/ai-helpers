@@ -1,6 +1,6 @@
-# case-07: reconcile — open bug, same key, similar value -> leave
-expected_actions:
-- {deployment: etcd-operator, action: leave}
+# case-07: reconcile - same key, similar value -> leave
 expected_create_count: 0
-notes: 'Open bug has the same key and a value within one rounding increment of the new
-  recommendation (~176.7 vs 175): leave it, do not update or duplicate.'
+expected_no_write:
+- etcd-operator
+notes: Open bug has the same memory-drift-key and a value within one rounding increment
+  of the new recommendation; leave it — no create and no update in the log.

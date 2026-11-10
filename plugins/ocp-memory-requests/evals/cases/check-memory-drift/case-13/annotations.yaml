@@ -1,5 +1,5 @@
 # case-13: no drift
-expected_not_candidates:
-- console-operator
 expected_create_count: 0
-notes: recommended 110.0 vs request 110 -> 0% drift -> no candidate, no bug.
+expected_no_write:
+- console-operator
+notes: recommended 110.0 vs request 110 -> 0% drift -> not a candidate -> no write.

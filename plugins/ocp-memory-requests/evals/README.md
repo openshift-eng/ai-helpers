@@ -14,15 +14,24 @@ provides:
   [`queries/singleton-usage.sql`](../skills/check-memory-drift/queries/singleton-usage.sql),
   used in place of running `bq`.
 
-The agent runs the skill's real pipeline: feed `usage.json` to
-[`select-candidates.py`](../skills/check-memory-drift/scripts/select-candidates.py),
-confirm each candidate ships (against `manifests_present`), reconcile against
-`preexisting_bugs` by exact `memory-drift-key`, render each bug with
-[`render-bug.py`](../skills/check-memory-drift/scripts/render-bug.py), and record
-what it would file/update/leave in `result.json`. The judges in
-[`eval-check-memory-drift.yaml`](eval-check-memory-drift.yaml) score the result
+The eval's `runner.system_prompt` only sets up the **mock** dependencies
+(`usage.json` stands in for `bq`; `devel_release` for the release lookup;
+`manifests_present` for the manifest check; `preexisting_bugs` for the store; a
+`jira-mock.py` command for Jira writes). It deliberately does **not** describe the
+pipeline, name the scripts, or give the output schema — the agent must read the
+skill's [SKILL.md](../skills/check-memory-drift/SKILL.md) to know what to do, so
+deleting or breaking SKILL.md breaks this eval.
+
+Jira writes go through the staged [`jira-mock.py`](stubs/jira-mock.py) stub, which
+appends one line per `create`/`update`/`comment` to **`jira-calls.jsonl`**. The
+judges in [`eval-check-memory-drift.yaml`](eval-check-memory-drift.yaml) score that
+call log (the writes the skill actually made) plus a small `result.json` report,
 against the case `annotations.yaml`; every judge is a no-op (pass) when its
 annotation field is absent, so one judge set serves all cases.
+
+The harness stages `input.yaml`, `usage.json`, and `jira-mock.py` into each case
+workspace (`dataset.workspace.files`); `annotations.yaml` (the answer key) is held
+back as evaluation material and is never visible to the agent.
 
 **These cases test decisions, not arithmetic.** The +10% recommendation, drift,
 threshold, direction, and Mi rounding are deterministic and covered by the script
@@ -64,10 +73,11 @@ tests (run with `python3 -m pytest` from the `scripts/` directory):
 
 ## Scope notes
 
-- Jira actions are **self-reported** in `result.json` (the eval does not yet assert
-  on real tool calls). Asserting on a logged Jira stub (`jira-calls.jsonl`) is
-  future work and would require the stub-MCP harness used by `eval-jira-refine`.
-- The manifest "still ships" check (step 4) is a model judgment with no prescribed
+- Jira actions are scored from a **real call log** (`jira-calls.jsonl`) written by
+  the `jira-mock.py` stub when the skill invokes it — not from a self-report. A run
+  that writes a correct-looking `result.json` without actually filing passes
+  nothing, because the create/update judges read the log.
+- The manifest "still ships" check is a model judgment with no prescribed
   mechanism, so it is exercised via a `manifests_present` fixture rather than a
   stubbed lookup.
 - Percentiles are computed in BigQuery (`APPROX_QUANTILES`) by
