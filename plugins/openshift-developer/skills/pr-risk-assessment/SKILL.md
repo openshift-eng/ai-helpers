@@ -27,9 +27,11 @@ coordinator.
 You need the pull request's repository, base branch, title, description, and
 changed files with their patches. Use them as your caller supplies them (for
 example chai-bot's `prepare_pr_risk_assessment` tool, sometimes with objective
-`signals` and a `minimum` tier); otherwise read them with `gh pr view` and
-`gh pr diff`. Do not read the pull request's labels, comments, or reviews:
-existing risk labels and records would anchor the assessment.
+`signals` and a `minimum` tier); otherwise read them with
+`gh pr view <pr> --json title,body,baseRefName,baseRefOid,headRefOid` and
+`gh pr diff <pr>`, never plain `gh pr view`, which prints labels and reviewers.
+Do not read the pull request's labels, comments, or reviews: existing risk
+labels and records would anchor the assessment.
 
 When you trace impact, read source at the pull request's base commit: a local
 checkout, a shallow clone, or code search tools scoped to the repository and

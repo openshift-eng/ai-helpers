@@ -1,6 +1,8 @@
 pr_url: https://github.com/openshift/hypershift/pull/9818
 expected_tier: critical
 acceptable_tiers: [critical]
+# In the root AGENTS.md at base_sha, in none of the nested ones.
+agents_md_marker: "## Fleet-Wide Rollout Impact"
 ground_truth: >
   Critical. Re-lands a reverted change to NodePool rollout control in the
   HyperShift operator: new rollout hashes decide when machines are replaced, a

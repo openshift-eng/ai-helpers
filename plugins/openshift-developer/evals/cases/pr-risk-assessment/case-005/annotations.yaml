@@ -3,6 +3,8 @@ expected_tier: critical
 # A maintainer labelled it Moderate; without that repository knowledge in the
 # repository's AGENTS.md, Critical is accepted. Low is never right.
 acceptable_tiers: [critical, moderate]
+# In the root AGENTS.md at base_sha, in none of the nested ones.
+agents_md_marker: "## Fleet-Wide Rollout Impact"
 ground_truth: >
   Critical or Moderate, never Low. Sorts the mirrors of each source in the
   OPENSHIFT_IMG_OVERRIDES value built by

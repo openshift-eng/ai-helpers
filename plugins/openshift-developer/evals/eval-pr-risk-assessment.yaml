@@ -23,20 +23,15 @@ runner:
     - plugins/openshift-developer
   settings:
     hooks:
-      # Blocks reads of pull requests, issues, repository events, searches, and
-      # this repository's eval answers. Exit code 2 denies the tool call and
-      # returns the message to the model.
+      # stubs/pr_evidence_guard.py, staged next to input.json: blocks reads of
+      # pull requests, issues, searches, this repository's eval answers, and
+      # the target repository at any commit but base_sha. Exit code 2 denies
+      # the tool call and returns the reason to the model.
       PreToolUse:
         - matcher: "Bash|WebFetch|Read|Grep|Glob"
           hooks:
             - type: command
-              command: >-
-                python3 -c "import json,re,sys;
-                t=json.dumps(json.load(sys.stdin).get('tool_input') or {});
-                p=r'repos/[^/ ]+/[^/ ]+/(pulls|issues|events)\b|github[.]com/[^/ ]+/[^/ ]+/(pull|pulls|issues)/|commits/[0-9a-f]+/pulls|\bgh +(pr|issue|search)\b|search/(issues|code|commits)\b|graphql|/evals/';
-                hit=re.search(p, t);
-                hit and sys.stderr.write('Blocked by the eval harness: the pull request is frozen in input.json. Read source at base_sha with git or the contents API.');
-                sys.exit(2 if hit else 0)"
+              command: python3 "$CLAUDE_PROJECT_DIR/pr_evidence_guard.py"
   system_prompt: |
     You are running a configured, unattended pr-risk-assessment evaluation job.
 
@@ -57,11 +52,13 @@ runner:
       git fetch -q --depth 1 --filter=blob:none origin <base_sha>
       git checkout -q FETCH_HEAD
 
-    or read single files with the GitHub contents API at ref=base_sha. Do not
-    fetch other commits.
+    then `git show <base_sha>:<path>` for files outside the sparse checkout,
+    or read single files with the GitHub contents API at ref=base_sha. Reads
+    at any other commit or branch, including the pull request's head, are
+    blocked.
 
-    When the skill finishes, write output/risk-result.json (valid JSON, no code
-    fences) with these fields:
+    When the skill finishes, write output/risk-result.json with the Write tool
+    (valid JSON, no code fences) with these fields:
     - pr_url: string
     - tier: low | moderate | critical
     - reason: the skill's reason paragraph
@@ -92,6 +89,10 @@ mlflow:
 
 dataset:
   path: cases/pr-risk-assessment
+  workspace:
+    files:
+      - dest: pr_evidence_guard.py
+        source: plugins/openshift-developer/evals/stubs/pr_evidence_guard.py
   schema: |
     Each case directory contains:
     - input.json: the frozen evidence for one pull request, made with
@@ -101,6 +102,9 @@ dataset:
       people's names are removed.
     - annotations.yaml: expected outcome and ground truth for judges:
       - 'expected_tier' and 'acceptable_tiers'
+      - 'agents_md_marker': a line only the repository's root AGENTS.md at
+        base_sha contains, which a run that read that file has in a tool
+        output
       - 'ground_truth': the verified analysis the LLM judge compares against
 
 outputs:
@@ -160,52 +164,31 @@ judges:
 
   - name: agents_md_read
     description: >
-      Verify the run read the repository's AGENTS.md from its base, as the skill
-      directs: in the clone under .work/, from git, or through the contents API
+      Verify the run read the repository's root AGENTS.md, as the skill
+      directs: a tool output holds the case's agents_md_marker, whatever the
+      tool, working directory, or exit status (base_sha is the guard's job)
     check: |
-      reads = []
-      for e in outputs.get("events", []):
-          if e.get("type") != "assistant":
-              continue
-          for t in e.get("tools", []):
-              inp = t.get("input") or {}
-              if t.get("name") == "Read":
-                  reads.append(str(inp.get("file_path", "")))
-              elif t.get("name") in ("Bash", "Grep", "Glob"):
-                  reads.append(str(inp))
-      # The target repository's AGENTS.md is in the clone under .work/, in its
-      # git objects, or behind the contents API; any other AGENTS.md (this
-      # repository's, behind the workspace's CLAUDE.md) does not count.
-      places = (".work/", ":AGENTS.md", "contents/AGENTS.md")
-      hits = [r for r in reads if "AGENTS.md" in r and any(p in r for p in places)]
+      import json
+      marker = outputs.get("annotations", {}).get("agents_md_marker")
+      if not marker:
+          return (False, "annotations.yaml sets no agents_md_marker")
+      def text(e):
+          c = e.get("content")
+          return c if isinstance(c, str) else json.dumps(c)
+      hits = [e for e in outputs.get("events", [])
+              if e.get("type") == "tool_result" and marker in text(e)]
       if not hits:
-          return (False, "The repository's AGENTS.md was not read")
-      return (True, f"Read AGENTS.md ({len(hits)} call(s))")
+          return (False, f"No tool output holds {marker!r} from the root AGENTS.md")
+      return (True, f"Read the root AGENTS.md ({len(hits)} output(s))")
 
   - name: pull_request_not_read
     description: >
-      Verify no tool call read the pull request, its labels, comments, or
-      searches from GitHub (a read would leak the expected tier)
-    check: |
-      import re
-      pattern = re.compile(
-          r"repos/[^/ ]+/[^/ ]+/(pulls|issues|events)\b|github[.]com/[^/ ]+/[^/ ]+/(pull|pulls|issues)/"
-          r"|commits/[0-9a-f]+/pulls|\bgh +(pr|issue|search)\b|search/(issues|code|commits)\b|graphql|/evals/")
-      events = outputs.get("events", [])
-      results = {e.get("tool_use_id"): e for e in events if e.get("type") == "tool_result"}
-      leaks = []
-      for e in events:
-          if e.get("type") != "assistant":
-              continue
-          for t in e.get("tools", []):
-              if t.get("name") not in ("Bash", "WebFetch", "Read", "Grep", "Glob"):
-                  continue
-              text = str(t.get("input"))
-              if pattern.search(text) and not results.get(t.get("id"), {}).get("is_error"):
-                  leaks.append(text[:160])
-      if leaks:
-          return (False, f"Unblocked reads: {leaks[:3]}")
-      return (True, "No pull request read reached GitHub")
+      Verify no tool call reached the pull request, its labels, comments,
+      searches, or the repository beyond base_sha (the hook's policy, applied
+      again to every call it let through), and no tool output carried a
+      risk-tier label or this eval's answers, however it was read
+    module: plugins.openshift-developer.evals.stubs.pr_evidence_guard
+    function: judge_pull_request_not_read
 
   # ── LLM judges ──
 

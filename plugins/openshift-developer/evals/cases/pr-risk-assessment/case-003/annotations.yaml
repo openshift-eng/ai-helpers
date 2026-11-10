@@ -1,6 +1,8 @@
 pr_url: https://github.com/openshift/hypershift/pull/10213
 expected_tier: moderate
 acceptable_tiers: [moderate]
+# In the root AGENTS.md at base_sha, in none of the nested ones.
+agents_md_marker: "## Fleet-Wide Rollout Impact"
 ground_truth: >
   Moderate. The HostedCluster controller's Karpenter finalizer fallback now
   removes the finalizer without waiting for the guest API server when the
