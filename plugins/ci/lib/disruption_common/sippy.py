@@ -1,0 +1,308 @@
+"""Fetch job runs and per-run disruption seconds from the public Sippy API.
+
+Sippy ignores offset/page, so a window is walked newest-first with a
+timestamp cursor. Disruption seconds come from BigQuery through Sippy's
+disruption endpoint and lag job completion by up to about four hours.
+"""
+import itertools
+import json
+import os
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timedelta, timezone
+
+SIPPY_BASE = "https://sippy.dptools.openshift.org/api/jobs/runs"
+SIPPY_DISRUPTION_URL = "https://sippy.dptools.openshift.org/api/jobs/runs/disruption"
+
+PAGE_SIZE = 500
+DISRUPTION_BATCH_SIZE = 100
+MAX_VARIANT_COMBOS = 20
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+class SippyError(RuntimeError):
+    """Sippy could not be reached or returned something unusable."""
+
+
+def parse_timestamp(value):
+    """Parse a Sippy `timestamp` value to a timezone-aware UTC datetime.
+
+    Accepts an RFC 3339 string (e.g. "2026-08-14T00:01:05Z") or a numeric
+    epoch-milliseconds value. Booleans are not treated as numeric. A string
+    with no timezone is read as UTC. Anything unparseable returns the epoch
+    as a sentinel so sorting and arithmetic keep working.
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            return datetime.fromtimestamp(value / 1000, tz=timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            return _EPOCH
+    if isinstance(value, str) and value:
+        try:
+            dt = datetime.fromisoformat(value)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
+        except ValueError:
+            return _EPOCH
+    return _EPOCH
+
+
+def rfc3339(dt):
+    """Format a timezone-aware datetime as RFC 3339 UTC for Sippy filters."""
+    return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def build_sippy_filter(variants, since, until=None):
+    """Build a Sippy filter dict from variant key-value pairs.
+
+    `since` and `until`, when set, are datetimes. `until` is an exclusive
+    cursor (`timestamp <`) used to page older runs.
+    """
+    items = []
+    for key, value in variants.items():
+        items.append(
+            {"columnField": "variants", "operatorValue": "has entry", "value": "%s:%s" % (key, value)}
+        )
+    if since is not None:
+        items.append({"columnField": "timestamp", "operatorValue": ">", "value": rfc3339(since)})
+    if until is not None:
+        items.append({"columnField": "timestamp", "operatorValue": "<", "value": rfc3339(until)})
+    return {"items": items, "linkOperator": "and"}
+
+
+def _get_json(url, what):
+    try:
+        with urllib.request.urlopen(url, timeout=60) as resp:
+            body = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        try:
+            detail = e.read().decode("utf-8", errors="replace").strip()
+        except (OSError, ValueError):
+            detail = "<unable to read response body>"
+        raise SippyError("HTTP %d from %s: %s" % (e.code, what, detail)) from e
+    except urllib.error.URLError as e:
+        raise SippyError("failed to connect to %s: %s" % (what, e.reason)) from e
+    try:
+        data = json.loads(body)
+    except ValueError as e:
+        raise SippyError("invalid JSON from %s" % what) from e
+    if not isinstance(data, dict):
+        raise SippyError("unexpected response type from %s" % what)
+    return data
+
+
+def fetch_runs(release, filter_dict, limit):
+    """Query Sippy /api/jobs/runs newest-first and return rows."""
+    params = {
+        "release": release,
+        "filter": json.dumps(filter_dict),
+        "limit": str(limit),
+        "sortField": "timestamp",
+        "sort": "desc",
+    }
+    url = "%s?%s" % (SIPPY_BASE, urllib.parse.urlencode(params))
+    return _get_json(url, "Sippy runs API").get("rows") or []
+
+
+def _just_before(timestamp):
+    """A timestamp strictly earlier than `timestamp`, still after any older instant."""
+    return timestamp - timedelta(microseconds=1)
+
+
+def _room(rows, max_runs):
+    return None if max_runs is None else max_runs - len(rows)
+
+
+def _take_unseen(batch, seen, rows, max_runs):
+    """Append unseen rows. Returns (oldest timestamp, truncated)."""
+    oldest = None
+    truncated = False
+    for row in batch:
+        ts = parse_timestamp(row.get("timestamp", ""))
+        if oldest is None or ts < oldest:
+            oldest = ts
+        if max_runs is not None and len(rows) >= max_runs:
+            truncated = True
+            break
+        pid = str(row.get("prow_id", ""))
+        if pid and pid not in seen:
+            seen.add(pid)
+            rows.append(row)
+            if max_runs is not None and len(rows) >= max_runs:
+                truncated = True
+                break
+    return oldest, truncated
+
+
+def _fetch_timestamp_ties(release, variants, since, oldest, upper, max_runs, seen, rows, page_size):
+    """Fetch runs that share `oldest` and did not fit on the page that ended there.
+
+    Sippy has no offset, so `timestamp < oldest` alone would drop the rest of
+    that tie. This asks for `oldest` inclusive up to the next newer timestamp.
+    """
+    lower = _just_before(oldest)
+    if since is not None and lower < since:
+        lower = since
+    room = _room(rows, max_runs)
+    if room is not None and room <= 0:
+        return True
+    limit = room if room is not None else page_size
+    batch = fetch_runs(release, build_sippy_filter(variants, lower, upper), limit)
+    if not batch:
+        return False
+    _oldest, truncated = _take_unseen(batch, seen, rows, max_runs)
+    return truncated
+
+
+def fetch_runs_in_window(release, variants, since, page_size=PAGE_SIZE, max_runs=None, progress=None):
+    """Page Sippy newest-first until the window start or a short page.
+
+    max_runs=None scans the whole window. `progress`, when set, is called
+    with (runs so far, oldest timestamp so far) after each page. Rows are
+    deduped by prow_id. Returns (rows, truncated).
+    """
+    seen = set()
+    rows = []
+    until = None
+    truncated = False
+    while True:
+        room = _room(rows, max_runs)
+        if room is not None and room <= 0:
+            truncated = True
+            break
+        request_limit = page_size if room is None else min(page_size, room)
+        batch = fetch_runs(release, build_sippy_filter(variants, since, until), request_limit)
+        if not batch:
+            break
+        oldest, truncated = _take_unseen(batch, seen, rows, max_runs)
+        if progress:
+            progress(len(rows), oldest)
+        if truncated or len(batch) < request_limit:
+            break
+        if oldest is None or oldest <= since:
+            break
+        if until is not None and oldest >= until:
+            break
+        newer = [ts for ts in (parse_timestamp(row.get("timestamp", "")) for row in batch) if ts > oldest]
+        upper = min(newer) if newer else until
+        if _fetch_timestamp_ties(release, variants, since, oldest, upper, max_runs, seen, rows, page_size):
+            truncated = True
+            break
+        until = oldest
+    return rows, truncated
+
+
+def collect_runs(release, variants, since, max_runs=None, progress=None):
+    """Fetch every matching run in the window, across multi-value variant combos.
+
+    Sippy matches one value per filter, so multi-value variants are queried
+    separately, merged, deduped, and sorted newest-first.
+    """
+    multi_keys = [(key, value.split(",")) for key, value in variants.items() if "," in value]
+    if not multi_keys:
+        return fetch_runs_in_window(release, variants, since, max_runs=max_runs, progress=progress)
+
+    keys = [key for key, _values in multi_keys]
+    combos = [dict(zip(keys, combo)) for combo in itertools.product(*[v for _k, v in multi_keys])]
+    if len(combos) > MAX_VARIANT_COMBOS:
+        raise SippyError("%d variant combinations exceeds limit of %d" % (len(combos), MAX_VARIANT_COMBOS))
+
+    seen = set()
+    rows = []
+    truncated = False
+    for combo in combos:
+        batch, batch_truncated = fetch_runs_in_window(
+            release, dict(variants, **combo), since, max_runs=max_runs, progress=progress)
+        truncated = truncated or batch_truncated
+        for row in batch:
+            pid = str(row.get("prow_id", ""))
+            if pid and pid not in seen:
+                seen.add(pid)
+                rows.append(row)
+    rows.sort(key=lambda row: parse_timestamp(row.get("timestamp", "")), reverse=True)
+    if max_runs is not None and len(rows) > max_runs:
+        rows = rows[:max_runs]
+        truncated = True
+    return rows, truncated
+
+
+def _fetch_disruption_batch(prow_ids):
+    """Query one batch of prow IDs. Returns the raw rows list, or None on failure.
+
+    The backend_name query param is a substring filter and is intentionally
+    not sent: `kube-api` also returns localhost, http, and cache derivatives.
+    Callers keep only the exact selected names.
+    """
+    params = {"job_run_names": ",".join(str(pid) for pid in prow_ids)}
+    url = "%s?%s" % (SIPPY_DISRUPTION_URL, urllib.parse.urlencode(params))
+    try:
+        return _get_json(url, "Sippy disruption API").get("rows") or []
+    except SippyError as e:
+        print("Warning: could not fetch disruption data: %s" % e, file=sys.stderr)
+        return None
+
+
+def _entry(row):
+    entry = {
+        "backend_name": row.get("backend_name", ""),
+        "disruption_seconds": row.get("disruption_seconds", 0),
+        "release_tag": row.get("release_tag") or "",
+        "job_name": row.get("job_name") or "",
+    }
+    if "master_nodes_updated" in row:
+        entry["master_nodes_updated"] = row.get("master_nodes_updated") or ""
+    return entry
+
+
+def _load_cache(path):
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        print("Warning: ignoring unreadable disruption cache %s" % path, file=sys.stderr)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_cache(path, cache):
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(cache, f)
+    os.replace(tmp, path)
+
+
+def fetch_disruption_data(prow_ids, cache_path=None, progress=None):
+    """Query Sippy for per-run disruption seconds.
+
+    Returns dict prow_id -> list of {backend_name, disruption_seconds,
+    release_tag, job_name, [master_nodes_updated]}. Every backend the API
+    returns is kept; exact-name filtering is the caller's job. With
+    `cache_path`, runs that already have rows are read from and written to
+    that JSON file. Runs with no rows are not cached, because BigQuery may
+    not have them yet. `progress`, when set, is called with (done, total).
+    """
+    if not prow_ids:
+        return {}
+    ids = [str(pid) for pid in prow_ids]
+    cache = _load_cache(cache_path)
+    lookup = {pid: cache[pid] for pid in ids if cache.get(pid)}
+    missing = [pid for pid in ids if pid not in lookup]
+    for start in range(0, len(missing), DISRUPTION_BATCH_SIZE):
+        rows = _fetch_disruption_batch(missing[start:start + DISRUPTION_BATCH_SIZE])
+        if rows is not None:
+            for row in rows:
+                lookup.setdefault(str(row.get("job_run_name", "")), []).append(_entry(row))
+        if progress:
+            progress(len(ids) - len(missing) + min(start + DISRUPTION_BATCH_SIZE, len(missing)), len(ids))
+    if cache_path and missing:
+        cache.update({pid: lookup[pid] for pid in missing if lookup.get(pid)})
+        _save_cache(cache_path, cache)
+    return lookup
