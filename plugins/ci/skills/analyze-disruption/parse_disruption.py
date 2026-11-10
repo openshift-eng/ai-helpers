@@ -30,9 +30,11 @@ from datetime import datetime, timedelta
 # beside the skill directories when a Chai persona lists it in supporting_dirs.
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _LIB_PARENTS = (os.path.join(_HERE, "..", "..", "lib"), os.path.join(_HERE, ".."))
-for _parent in _LIB_PARENTS:
+# Normalize before checking: through a symlinked skill directory the OS resolves
+# ".." physically, but sys.path entries resolve it as text.
+for _parent in map(os.path.abspath, _LIB_PARENTS):
     if os.path.isfile(os.path.join(_parent, "disruption_common", "__init__.py")):
-        sys.path.insert(0, os.path.abspath(_parent))
+        sys.path.insert(0, _parent)
         break
 else:
     sys.exit("Error: disruption_common library not found. Install the whole ci plugin, or add "
