@@ -4,8 +4,9 @@
 
 ### What are Prow Agents?
 
-Prow agents are autonomous Claude Code sessions that run inside OpenShift
-CI (Prow) jobs. They perform tasks that require AI reasoning — analyzing
+Prow agents are autonomous Claude Code or Codex sessions that run inside
+OpenShift CI (Prow) jobs through the shared `agentic-ci` telemetry pipeline.
+They perform tasks that require AI reasoning — analyzing
 payload failures, triaging regressions, generating reports — and produce
 structured artifacts for downstream consumption. A growing number of
 teams run prow agents for various CI workflows, and new agents are being
@@ -13,8 +14,8 @@ created regularly as adoption grows
 ([ai-helpers PR #532](https://github.com/openshift-eng/ai-helpers/pull/532)
 adds a skill to scaffold new agents).
 
-Each agent uses `agentic-ci run --backend local` to execute Claude Code
-with automatic OTEL telemetry collection. The
+Each agent uses `agentic-ci run --backend local` to execute Claude Code or
+Codex with automatic OTEL telemetry collection. The
 [prow-agent](https://github.com/openshift-eng/ai-helpers/tree/main/plugins/prow-agent)
 plugin provides `extract_metrics.py` for producing BigQuery autodl from
 the collected OTEL data.
@@ -132,6 +133,19 @@ agentic-ci):
 
 Distributed trace spans covering the full session lifecycle.
 
+Codex emits `codex.*` log events for conversation identity, prompts, tool
+decisions, and completed responses. agentic-ci adds cumulative
+`agentic_ci.codex.token.usage` and `agentic_ci.codex.cost.usage` metrics from
+those observed responses. The extractor never estimates Codex cost from a
+price table. Cumulative snapshots with the same OTEL start time are replaced by
+their latest value; resumed invocations have a new start time and remain
+additive.
+
+Codex can redact prompt text in OTEL. Callers can pass the initial harness
+prompt through `--prompt-file`; the extractor uses it only when telemetry omits
+or redacts the prompt. It reads at most the first 500 characters, matching the
+existing autodl field limit.
+
 ### CI Step Lifecycle
 
 ```bash
@@ -165,7 +179,13 @@ python3 "${EXTRACT_METRICS}" "${OTEL_LOG}" \
 
 `extract_metrics.py` parses the OTEL JSONL and produces an autodl JSON
 file for the `claude_session_metrics` BigQuery table. Cost, tokens, tool
-usage, and timing come from OTEL metrics and logs.
+usage, and timing come from OTEL metrics and logs. Cost, token/cache counts, and
+turns are session-wide totals across primary and helper models for both Claude
+Code and Codex. `model` describes the highest-cost observed model, falling back
+to the highest token volume when no cost point is available. If both metric
+namespaces occur in one logical session log, they represent independent
+observed activity and both contribute to the totals; the extractor does not
+guess that cross-namespace points are duplicates.
 
 ### Raw OTEL JSONL as Artifact
 

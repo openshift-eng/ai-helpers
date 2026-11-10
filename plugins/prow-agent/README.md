@@ -1,11 +1,11 @@
 # prow-agent
 
-Utilities for Claude Code sessions running inside Prow CI jobs.
+Utilities for Claude Code and Codex sessions running inside Prow CI jobs.
 
 ## Session Metrics
 
-Extracts cost, token, duration, and tool-usage metrics from Claude Code
-sessions and writes an autodl JSON file for BigQuery ingestion.
+Extracts cost, token, duration, and tool-usage metrics from Claude Code and
+Codex sessions and writes an autodl JSON file for BigQuery ingestion.
 
 ### With agentic-ci (Preferred)
 
@@ -16,13 +16,27 @@ files and pass them to `extract_metrics.py`:
 ```bash
 EXTRACT_METRICS="/opt/ai-helpers/plugins/prow-agent/scripts/extract_metrics.py"
 OTEL_LOG="${ARTIFACT_DIR}/claude-otel.jsonl"
+PROMPT_ARGS=()
+
+# Optional fallback when telemetry redacts the prompt. The file must contain
+# the real initial harness prompt, not a placeholder.
+if [[ -n "${INITIAL_PROMPT_FILE:-}" ]]; then
+    PROMPT_ARGS=(--prompt-file "${INITIAL_PROMPT_FILE}")
+fi
 
 # agentic-ci writes OTEL JSONL to /tmp/agentic-ci-run.*/claude-otel.jsonl
 # Concatenate after each invocation (see run_claude wrapper pattern)
 
 python3 "${EXTRACT_METRICS}" "${OTEL_LOG}" \
-    "${ARTIFACT_DIR}/claude-session-metrics-autodl.json"
+    "${ARTIFACT_DIR}/claude-session-metrics-autodl.json" \
+    "${PROMPT_ARGS[@]}"
 ```
+
+Keep the full prompt file private, outside the artifact directory, and remove
+it after extraction. When neither telemetry nor the `--stream-log` input provides
+a usable prompt, the extractor intentionally copies the first 500 characters
+into the exported `prompt` field, so the prompt must not contain secrets. Usable
+telemetry and `--stream-log` prompts take precedence over this fallback.
 
 See [docs/metrics-collection.md](docs/metrics-collection.md) for the
 full design and BigQuery schema.
