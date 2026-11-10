@@ -77,10 +77,11 @@ Only after `cloudId` is available, make a smoke-test issue/search call if needed
 
 **Release-wide mode**:
 
-1. Build JQL:
+1. Build JQL using the configured `target_version_field` from [references/readiness-criteria.md](references/readiness-criteria.md) Configuration (default `Target Version`) — substitute that name; do not hardcode a different field:
    ```
-   project = OCPSTRAT AND type = Feature AND "Target Version" = "openshift-X.Y"
+   project = OCPSTRAT AND type = Feature AND "<target_version_field>" = "openshift-X.Y"
    ```
+   Example with the default: `... AND "Target Version" = "openshift-X.Y"`.
    If `--team <component>` was provided, append:
    ```
    AND component = "<component>"
@@ -89,10 +90,15 @@ Only after `cloudId` is available, make a smoke-test issue/search call if needed
 3. For each feature, request fields: `summary`, `description`, `priority`, `status`, `subtasks`, `issuelinks`, `comment`, `labels`, `components`, and the configured QA Contact field ID from [references/readiness-criteria.md](references/readiness-criteria.md) Configuration (`qa_contact_field`, default `customfield_12319243`). Substitute that configured value — do not hardcode a different ID. **Do not** request `remotelinks` as an issue field — remote links are not part of the main issue response (`/rest/api/3/issue/{key}`); they live at `/rest/api/3/issue/{key}/remotelink`. Include `comment` so the remote-link fallback can find URLs that exist only in comments.
 4. **Fetch remote links separately** for each feature (required for R1, R9, R10, R11, R12):
    - Confirm the parameter/tool name for the discovered MCP namespace (examples seen elsewhere: `properties=remoteLinks`, `include="remote_links"`, or a dedicated remote-links call). Name the tool in logs only after it is confirmed to return data.
-   - Collect remote link entries (`title`/`url`) when present.
+   - Attempt the remote-links call. Set `remote_links_status` on the feature:
+     - `"ok"` — call succeeded (list may be empty)
+     - `"unavailable"` — tool missing, call failed, or response unusable (distinguish from a true empty list)
+     - Do **not** treat `"unavailable"` as `"ok"` with zero links
+   - When the call succeeds, collect remote link entries (`title`/`url`).
    - **Always** also scan the description **and comments** for artifact URLs (test plans, GitHub PRs, docs.openshift.com, Prow/Sippy links) and **merge** them into `remote_links[]` — even when the remote-link response is nonempty. An unrelated remote link must not skip a test-plan or docs URL that lives only in a comment. If the search response truncates comments, fetch comments separately via the issue API and paginate until exhausted before concluding no URL exists.
-   - Deduplicate by URL, then store the merged result as `remote_links[]` on the feature object.
-5. Store all features in a `features[]` array with their full issue data plus `remote_links[]`.
+   - Deduplicate by URL, then store the merged result as `remote_links[]` plus `remote_links_status` on the feature object.
+   - Checks that depend on remote links (R1, R9 design/plan, R10, R11, R12) must propagate ⚠️ Unknown when `remote_links_status == "unavailable"` and no substitute URL was found in description/comments — never invent ❌ Missing from a failed fetch.
+5. Store all features in a `features[]` array with their full issue data plus `remote_links[]` and `remote_links_status`.
 6. Report the total feature count (and team filter if applicable) to the user before proceeding.
 
 ### Step 5: Per feature — run readiness checks
@@ -119,7 +125,7 @@ For each feature in `features[]`, run the checks specified by the invocation mod
 
 **Data reuse**: R2 and R3 share the same description fetch. R4 feeds R5 and R8. R1 and R6 feed R9. Avoid redundant MCP calls by reusing fetched data across checks.
 
-**Hierarchy traversal**: R4 uses **two-level traversal** — for each OCPSTRAT Feature, it collects direct subtasks and linked issues (level 1), also searches `parent = <feature-key>` for children that omit those fields, then expands each linked engineering Epic via JQL `parent = <epic-key>` (paginated — same cursor/`startAt` contract as Step 4) to discover Story/Task children (level 2). Do not rely on Epic `subtasks`/`issuelinks` alone. Cap at 20 Epics per feature to bound API calls. **If the cap is hit**, set `traversal_complete = false` and treat R5 completion as non-definitive (never report ✅ All Done / R13-eligible 100% from a truncated set). See [references/readiness-criteria.md](references/readiness-criteria.md) for the full R4/R5 specification.
+**Hierarchy traversal**: R4 uses **two-level traversal** — for each OCPSTRAT Feature, it collects direct subtasks and Feature `issuelinks` (level 1), also searches `parent = <feature-key>` for children that omit those fields, then expands each linked engineering Epic via JQL `parent = <epic-key>` **plus Epic `subtasks` only** (level 2). Do **not** count an Epic's arbitrary `issuelinks` as children. Cap at 20 Epics per feature to bound API calls. **If the cap is hit**, set `traversal_complete = false` and treat R5 `%` as an incomplete sample (never report ✅ All Done / R13-eligible 100% from a truncated set). See [references/readiness-criteria.md](references/readiness-criteria.md) for the full R4/R5 specification.
 
 ```
 OCPSTRAT Feature (assessed)
@@ -127,8 +133,8 @@ OCPSTRAT Feature (assessed)
   ├── issuelinks[]            ← level 1: linked Epics, Stories, Tasks
   ├── parent = <feature-key>  ← level 1: children missing from the fields above
   │     ├── SPLAT-2137 (Epic)
-  │     │     ├── Story-1     ← level 2: children inside the Epic
-  │     │     └── Story-2
+  │     │     ├── Story-1     ← level 2: parent=<epic> + epic subtasks only
+  │     │     └── Story-2     ← (Epic issuelinks are NOT children)
   │     └── OSDOCS-20703 (Epic)  ← excluded from R4/R5 (passed to R12)
   │           └── Task-1      ← not counted in engineering totals
   └── (R5 computes completion % across engineering items only from both levels)
@@ -293,6 +299,7 @@ Write the JSON sidecar to `.work/assess-feature-readiness/readiness-report.json`
 - Use Jira MCP tools for all Jira data — never scrape or guess
 - Reuse fetched data across checks to minimize MCP calls
 - Resolve QA Contact via `qa_contact_field` in readiness-criteria.md Configuration (default `customfield_12319243`); substitute that value in Step 4 field requests and R6
+- Resolve release JQL via `target_version_field` in readiness-criteria.md Configuration (default `Target Version`); substitute that value in Step 4 JQL
 - Do not check ownership/process items (PM assignment, rank, capacity) — only quality artifacts
 - Sort output by severity so the most critical gaps appear first
-- When a check cannot be evaluated (e.g. no PR links for R10), report as ⚠️ Unknown rather than ❌
+- When a check cannot be evaluated (e.g. no PR links for R10, or `remote_links_status=unavailable`), report as ⚠️ Unknown rather than ❌
