@@ -1,7 +1,5 @@
 # case-12: dry run
-expected_candidates:
-- {deployment: marketplace-operator, direction: raise}
-expected_actions:
-- {deployment: marketplace-operator, action: dry-run}
 expected_create_count: 0
-notes: '--dry-run: compute and report the candidate, but create no bug.'
+expected_no_write:
+- marketplace-operator
+notes: '--dry-run: a candidate exists and is reported, but no Jira write occurs.'

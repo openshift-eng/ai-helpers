@@ -1,9 +1,8 @@
 # case-06: variable requests across variants
-expected_candidates:
-- {deployment: kube-apiserver-operator, var: true}
-expected_actions:
-- {deployment: kube-apiserver-operator, action: create}
 expected_create_count: 1
+expected_creates:
+- {deployment: kube-apiserver-operator}
 expected_description_contains:
 - differs across variants
-notes: Request differs across variants (50/100); flag var and tell the reviewer to check every manifest.
+notes: Request differs across variants (50/100); the created bug tells the reviewer to
+  check every manifest. The var flag itself is covered by the scripts' unit tests.
