@@ -626,5 +626,12 @@ def test_fetch_disruption_data_appends_lost_ids_to_failed():
     assert inner.call_args[0][0] == ["1", "2", "3"]
 
 
+
+def test_read_failure_without_a_message_names_the_exception():
+    with patch("urllib.request.urlopen", side_effect=TimeoutError()):
+        with pytest.raises(SippyError, match="failed to read from .*: TimeoutError$"):
+            fetch_runs("5.0", build_sippy_filter({}, SINCE), 10)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

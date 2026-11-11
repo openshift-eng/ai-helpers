@@ -1290,5 +1290,22 @@ def test_main_warns_when_the_disruption_api_loses_runs(mock_disruption, mock_fet
     assert "unknown, not zero" in err
 
 
+
+def test_scripts_find_the_lib_through_a_symlinked_skill_directory(tmp_path):
+    import os
+    import subprocess
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    trend = os.path.join(here, "..", "disruption-trend")
+    (tmp_path / "skills").mkdir()
+    os.symlink(here, tmp_path / "skills" / "analyze-disruption")
+    os.symlink(trend, tmp_path / "skills" / "disruption-trend")
+    for script in ("analyze-disruption/find_disruption_runs.py", "analyze-disruption/parse_disruption.py",
+                   "analyze-disruption/known_issue_queries.py", "disruption-trend/disruption_series.py"):
+        result = subprocess.run([sys.executable, str(tmp_path / "skills" / script), "--help"],
+                                capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

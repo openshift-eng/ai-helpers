@@ -152,7 +152,7 @@ def _get_json(url, what):
         raise SippyError("failed to connect to %s: %s" % (what, e.reason)) from e
     except (OSError, http.client.HTTPException) as e:
         # Read timeouts and truncated bodies, which urlopen does not wrap in URLError.
-        raise SippyError("failed to read from %s: %s" % (what, e or type(e).__name__)) from e
+        raise SippyError("failed to read from %s: %s" % (what, str(e) or type(e).__name__)) from e
     except UnicodeDecodeError as e:
         raise SippyError("response from %s is not UTF-8" % what) from e
     try:

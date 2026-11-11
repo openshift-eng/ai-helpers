@@ -504,6 +504,24 @@ def test_process_run_falls_back_to_clusterversion():
     assert "payload_warning" not in r
 
 
+def test_process_run_falls_back_to_clusterversion_when_listing_fails():
+    prowjob = {"spec": {"pod_spec": {"containers": [{"args": ["--target=e2e-gcp-runc-upgrade"]}]}}}
+    base = _gcs_mock(prowjob, {"clusterversion.json": CLUSTERVERSION}, [])
+
+    def mock(cmd, **kwargs):
+        if "ls" in cmd:
+            result = MagicMock(returncode=1, stdout="", stderr="ERROR: network is unreachable")
+            return result
+        return base(cmd, **kwargs)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("download_timelines.subprocess.run", side_effect=mock):
+            r = process_run("my-job", "999", tmpdir)
+    assert r["error"].startswith("failed to list timeline files:")
+    assert r["target_payload"] == "5.1.0-0.ci-2026-11-09-112923"
+    assert r["payload_source"] == "clusterversion-history"
+
+
 def test_process_run_payload_warning_does_not_set_error():
     prowjob = {"spec": {"pod_spec": {"containers": [{"args": ["--target=e2e"]}]}}}
     with tempfile.TemporaryDirectory() as tmpdir:

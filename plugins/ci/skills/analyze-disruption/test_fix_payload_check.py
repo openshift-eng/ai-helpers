@@ -181,5 +181,13 @@ def test_queries_cli_rejects_unknown_signal(capsys):
     assert "unknown signal disk" in capsys.readouterr().err
 
 
+
+def test_clean_run_timelines_do_not_hide_missing_disrupted_ones():
+    runs = [_trend_run("1", "5.1.0-0.nightly-2026-11-01-000000", 15),
+            _trend_run("2", "5.1.0-0.nightly-2026-11-01-000000", 0)]
+    result = check_fix(runs, FIX, signature_ids=set(), scanned_ids={"2"})
+    assert any("Only 0 of 1 disrupted runs had timelines" in c for c in result["caveats"])
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

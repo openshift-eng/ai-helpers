@@ -16,17 +16,21 @@ import sys
 # disruption_common is in plugins/ci/lib when the whole plugin is installed, or
 # beside the skill directories when a Chai persona lists it in supporting_dirs.
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_LIB_PARENTS = (os.path.join(_HERE, "..", "..", "lib"), os.path.join(_HERE, ".."))
-# Normalize before checking: through a symlinked skill directory the OS resolves
-# ".." physically, but sys.path entries resolve it as text.
-for _parent in map(os.path.abspath, _LIB_PARENTS):
+# Search beside the skill directory as reached, then beside its resolved target,
+# since a symlinked skill directory can sit outside the plugin checkout. abspath
+# keeps ".." textual, the way sys.path entries resolve it.
+_LIB_PARENTS = list(dict.fromkeys(
+    os.path.abspath(os.path.join(base, *rel))
+    for base in (_HERE, os.path.realpath(_HERE))
+    for rel in (("..", "..", "lib"), ("..",))))
+for _parent in _LIB_PARENTS:
     if os.path.isfile(os.path.join(_parent, "disruption_common", "__init__.py")):
         sys.path.insert(0, _parent)
         break
 else:
     sys.exit("Error: disruption_common library not found. Install the whole ci plugin, or add "
              "`supporting_dirs: [lib/disruption_common]` to the persona's ci plugin entry. Looked in: %s"
-             % ", ".join(os.path.abspath(p) for p in _LIB_PARENTS))
+             % ", ".join(_LIB_PARENTS))
 
 from disruption_common import known_issues  # noqa: E402
 from disruption_common.series import split_backends  # noqa: E402

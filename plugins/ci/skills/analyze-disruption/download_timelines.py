@@ -351,6 +351,8 @@ def process_run(job, build_id, output_dir, gather=False):
     result["initial_payload"] = payloads["initial"]
     result["target_payload"] = payloads["target"]
     result["payload_source"] = payloads["source"]
+    # Before the timeline listing, so runs without timelines still get gather files and payloads.
+    add_gather_and_payloads(result, job, build_id, target, output_dir, gather)
 
     gcs_files, list_error = list_timeline_files(job, build_id)
     if list_error:
@@ -379,8 +381,6 @@ def process_run(job, build_id, output_dir, gather=False):
         else:
             result["error"] = "%d of %d timeline file downloads failed: %s" % (
                 len(failures), len(gcs_files), summary)
-
-    add_gather_and_payloads(result, job, build_id, target, output_dir, gather)
     return result
 
 

@@ -589,5 +589,37 @@ def test_main_keeps_lost_runs_when_filtering_on_master_nodes_updated(capsys):
     assert trend["runs"]["scanned"] == 50 and trend["runs"]["fetch_failed"] == 1
 
 
+
+def test_main_reports_the_loss_when_every_run_is_lost_under_master_nodes_updated(capsys):
+    def disruption(ids, cache_path=None, progress=None, max_wait=None):
+        return {}, list(ids)
+
+    with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(50), False)), \
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=disruption):
+        code = ds.main(["--alert-text", _alert("Y"), "--format", "json", "--cache-dir", "", "--no-payloads"])
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "No runs matched" not in captured.err
+    trend = json.loads(captured.out)["trend"]
+    assert trend["runs"]["fetch_failed"] == 50 and trend["degraded"]
+
+
+def test_main_still_prints_when_the_runs_file_cannot_be_written(tmp_path, capsys):
+    state = tmp_path / "investigation.json"
+    state.write_text(json.dumps({"schema_version": 1}))
+    blocked = tmp_path / "not-a-dir"
+    blocked.write_text("")
+    with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(400), False)), \
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=_fake_disruption):
+        code = ds.main(["--release", "5.0", "--backend", "kube-api-new-connections", "--days", "30",
+                        "--runs-out", str(blocked / "runs.json"), "--state-file", str(state),
+                        "--cache-dir", "", "--format", "json", "--no-payloads"])
+    captured = capsys.readouterr()
+    assert code == 1
+    assert "cannot write runs file" in captured.err
+    assert json.loads(captured.out)["trend"]["runs_file"] is None
+    assert json.loads(state.read_text()) == {"schema_version": 1}
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

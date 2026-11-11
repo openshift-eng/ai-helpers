@@ -166,8 +166,10 @@ def check_fix(runs, fix_payload, signature_ids=None, scanned_ids=None):
     if untagged:
         result["caveats"].append("%d runs had no payload tag and are not counted." % untagged)
     if scanned_ids is not None:
-        disrupted = sum(day["disrupted"] for day in days)
-        searched = sum(day["timelines"] for day in days)
+        # Only disrupted runs count: a leftover clean-run timeline must not hide a missing one.
+        disrupted_ids = [r["prow_id"] for r in before + after if r["seconds"] > 0]
+        disrupted = len(disrupted_ids)
+        searched = sum(1 for prow_id in disrupted_ids if prow_id in scanned_ids)
         if searched < disrupted:
             result["caveats"].append("Only %d of %d disrupted runs had timelines to search, so signature "
                                      "counts are a lower bound. Download timelines for every disrupted run "

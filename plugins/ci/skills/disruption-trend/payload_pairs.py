@@ -11,6 +11,7 @@ prowjob.json is public in the test-platform-results-public bucket and is
 fetched anonymously over HTTPS. Fetches are few, parallel with a small pool,
 and cached, because the file never changes once the job has started.
 """
+import http.client
 import json
 import os
 import re
@@ -79,8 +80,9 @@ def fetch_prowjob(job, build_id, timeout=FETCH_TIMEOUT):
         raise PayloadError("HTTP %d for %s" % (e.code, url)) from e
     except urllib.error.URLError as e:
         raise PayloadError("failed to connect for %s: %s" % (url, e.reason)) from e
-    except (OSError, ValueError) as e:
-        raise PayloadError("failed to read %s: %s" % (url, e or type(e).__name__)) from e
+    except (OSError, ValueError, http.client.HTTPException) as e:
+        # Read timeouts and truncated bodies, which urlopen does not wrap in URLError.
+        raise PayloadError("failed to read %s: %s" % (url, str(e) or type(e).__name__)) from e
 
 
 def _load_cache(path):

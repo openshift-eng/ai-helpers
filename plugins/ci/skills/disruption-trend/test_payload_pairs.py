@@ -1,4 +1,5 @@
 """Tests for payload_pairs.py — payload pairs from prowjob.json, fetching, and caching."""
+import http.client
 import json
 import os
 import sys
@@ -80,6 +81,12 @@ def test_fetch_prowjob_wraps_errors():
 
     with patch("urllib.request.urlopen", return_value=Response()):
         with pytest.raises(pp.PayloadError, match="failed to read"):
+            pp.fetch_prowjob("job", "1")
+    with patch("urllib.request.urlopen", side_effect=http.client.IncompleteRead(b"par")):
+        with pytest.raises(pp.PayloadError, match="failed to read"):
+            pp.fetch_prowjob("job", "1")
+    with patch("urllib.request.urlopen", side_effect=TimeoutError()):
+        with pytest.raises(pp.PayloadError, match="TimeoutError$"):
             pp.fetch_prowjob("job", "1")
 
 

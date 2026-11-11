@@ -26,20 +26,21 @@ from datetime import datetime, timedelta, timezone
 _HERE = os.path.dirname(os.path.abspath(__file__))
 # disruption_common is at plugins/ci/lib/ when the whole plugin is installed,
 # and beside the skills when a Chai persona installs it with supporting_dirs.
-_LIB_PARENTS = (
-    os.path.join(_HERE, "..", "..", "lib"),
-    os.path.join(_HERE, ".."),
-)
-# Normalize before checking: through a symlinked skill directory the OS resolves
-# ".." physically, but sys.path entries resolve it as text.
-for _parent in map(os.path.abspath, _LIB_PARENTS):
+# Search beside the skill directory as reached, then beside its resolved target,
+# since a symlinked skill directory can sit outside the plugin checkout. abspath
+# keeps ".." textual, the way sys.path entries resolve it.
+_LIB_PARENTS = list(dict.fromkeys(
+    os.path.abspath(os.path.join(base, *rel))
+    for base in (_HERE, os.path.realpath(_HERE))
+    for rel in (("..", "..", "lib"), ("..",))))
+for _parent in _LIB_PARENTS:
     if os.path.isfile(os.path.join(_parent, "disruption_common", "__init__.py")):
         sys.path.insert(0, _parent)
         break
 else:
     sys.exit("Error: disruption_common library not found. Install the whole ci plugin, or add "
              "`supporting_dirs: [lib/disruption_common]` to the persona's ci plugin entry. "
-             "Looked in: %s" % ", ".join(os.path.abspath(p) for p in _LIB_PARENTS))
+             "Looked in: %s" % ", ".join(_LIB_PARENTS))
 
 from disruption_common import series as series_mod  # noqa: E402
 from disruption_common import sippy, state  # noqa: E402
@@ -990,11 +991,12 @@ def main(argv=None):
         rows = series_mod.apply_master_nodes_filter(
             rows, selected, series["master_nodes_updated"],
             series_mod.disruption_api_has_master_field(disruption))
+        # Lost runs cannot be classified Y or N. They stay in, so the loss is reported
+        # instead of "no runs matched".
+        rows = rows + lost_rows
         if not rows:
             print("No runs matched master_nodes_updated=%s." % series["master_nodes_updated"], file=sys.stderr)
             return 0
-        # Lost runs cannot be classified Y or N. They stay in, so the loss is reported.
-        rows = rows + lost_rows
 
     runs = build_runs(rows, disruption, series["selectors"], failed)
     trend = analyze(series, runs, window_start, now, bucket, truncated)
@@ -1013,13 +1015,19 @@ def main(argv=None):
     runs_file = args.runs_out
     if not runs_file and args.state_file:
         runs_file = os.path.join(os.path.dirname(args.state_file) or ".", "trend-runs.json")
-    if runs_file:
-        state.write_json_atomic(runs_file, runs, indent=1)
     code = 0
-    if args.state_file:
+    if runs_file:
+        try:
+            state.write_json_atomic(runs_file, runs, indent=1)
+        except OSError as e:
+            print("Error: cannot write runs file %s: %s" % (runs_file, e), file=sys.stderr)
+            runs_file = None
+            code = 1
+    # A state file must not point at a runs file that was not written.
+    if args.state_file and code == 0:
         try:
             write_state(args.state_file, series, trend, runs_file)
-        except state.StateError as e:
+        except (state.StateError, OSError) as e:
             print("Error: %s" % e, file=sys.stderr)
             code = 1
 
