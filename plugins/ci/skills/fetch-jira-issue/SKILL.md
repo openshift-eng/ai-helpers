@@ -19,11 +19,13 @@ Use this skill when you need to:
 
 ## Prerequisites
 
-1. **JIRA API Token**: Required for authentication
-   - Set environment variable: `export JIRA_API_TOKEN="your-token"`
-   - Set environment variable: `export JIRA_USERNAME="your-atlassian-email"`
-   - Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens
-   - Alternatively, pass `--token TOKEN` and `--username USERNAME` on the command line
+1. **JIRA credentials**: Required for authentication, one of:
+   - **API token**:
+     - Set environment variable: `export JIRA_API_TOKEN="your-token"`
+     - Set environment variable: `export JIRA_USERNAME="your-atlassian-email"`
+     - Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens
+     - Alternatively, pass `--token TOKEN` and `--username USERNAME` on the command line
+   - **Service account** (OAuth client credentials): set `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET` and `JIRA_CLOUD_ID`. Used whenever the client ID or secret is set and neither `--token` nor `--username` is passed; there is no fallback to the API token. Requests then go to `api.atlassian.com` instead of `redhat.atlassian.net`
 
 2. **Network Access**: Must be able to reach redhat.atlassian.net
    - Check: `curl -s -o /dev/null -w '%{http_code}' https://redhat.atlassian.net`
@@ -103,16 +105,16 @@ esac
 
 The script exits with code 1 and prints errors to stderr for these cases:
 
-- **No token**: `JIRA_API_TOKEN` not set and `--token` not provided
-- **Auth failure (401)**: Token is invalid or expired
+- **No credentials**: neither the API token variables (or `--token`) nor the service-account variables are set, or the service-account set is incomplete
+- **Auth failure (401)**: Token is invalid or expired, or the service-account credential was rejected
 - **Access denied (403)**: Token lacks permissions for the project
 - **Not found (404)**: Issue key doesn't exist
 - **Network error**: Cannot reach redhat.atlassian.net
 
 ```bash
 # Example: Handle missing token gracefully
-if [ -z "$JIRA_API_TOKEN" ] || [ -z "$JIRA_USERNAME" ]; then
-  echo "Warning: JIRA_API_TOKEN or JIRA_USERNAME not set. Skipping JIRA analysis."
+if [ -z "$JIRA_CLIENT_ID" ] && { [ -z "$JIRA_API_TOKEN" ] || [ -z "$JIRA_USERNAME" ]; }; then
+  echo "Warning: JIRA credentials not set. Skipping JIRA analysis."
 else
   jira_data=$(python3 "$script_path" "$jira_key" --format json 2>/dev/null)
   if [ $? -ne 0 ]; then
@@ -206,7 +208,7 @@ Recent Comments (1 of 5 total):
 - All comments are returned in the JSON output; the summary format shows only the last 3
 - PR links are extracted from comment bodies using pattern matching for GitHub PR URLs
 - Progress classification uses configurable thresholds: 7 days for "recent", 14 days for "stale"
-- The `--token` flag takes precedence over the `JIRA_API_TOKEN` environment variable
+- The `--token` flag takes precedence over the `JIRA_API_TOKEN` environment variable and over service-account credentials
 
 ## See Also
 

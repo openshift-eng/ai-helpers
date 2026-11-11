@@ -5,7 +5,6 @@ Retrieves status, assignee, priority, resolution, comments, and linked PRs.
 Classifies issue progress as ACTIVE, STALLED, or NEEDS_ATTENTION.
 """
 
-import base64
 import os
 import re
 import sys
@@ -14,6 +13,9 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
+import jira_auth  # noqa: E402
 
 
 def _adf_to_text(node: Any) -> str:
@@ -53,8 +55,6 @@ def _adf_to_text(node: Any) -> str:
 
 class JiraIssueFetcher:
     """Fetches and parses JIRA issue data from the Red Hat JIRA REST API."""
-
-    BASE_URL = "https://redhat.atlassian.net/rest/api/3/issue"
 
     # Fields to request from the API
     FIELDS = [
@@ -105,24 +105,18 @@ class JiraIssueFetcher:
             token: JIRA API token. If not provided, reads from JIRA_API_TOKEN env var.
             username: Atlassian account email. If not provided, reads from JIRA_USERNAME env var.
 
+        With neither argument, service-account credentials (JIRA_CLIENT_ID,
+        JIRA_CLIENT_SECRET, JIRA_CLOUD_ID) are used when present in the environment.
+
         Raises:
-            ValueError: If no token or username is available
+            ValueError: If no usable credentials are available
         """
         self.jira_key = jira_key.upper().strip()
-        self.token = token or os.environ.get("JIRA_API_TOKEN", "")
-        if not self.token:
-            raise ValueError(
-                "JIRA API token required.\n"
-                "Set JIRA_API_TOKEN environment variable or pass --token.\n"
-                "Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens"
-            )
-        self.username = username or os.environ.get("JIRA_USERNAME", "")
-        if not self.username:
-            raise ValueError(
-                "JIRA username (Atlassian account email) required.\n"
-                "Set JIRA_USERNAME environment variable or pass --username."
-            )
-        self.api_url = f"{self.BASE_URL}/{self.jira_key}"
+        try:
+            self.auth = jira_auth.resolve(username=username, token=token)
+        except jira_auth.JiraAuthError as e:
+            raise ValueError(str(e))
+        self.api_url = self.auth.url(f"/rest/api/3/issue/{self.jira_key}")
 
     def fetch(self) -> Dict[str, Any]:
         """
@@ -138,8 +132,10 @@ class JiraIssueFetcher:
         url = f"{self.api_url}?fields={fields_param}"
 
         req = urllib.request.Request(url)
-        credentials = base64.b64encode(f"{self.username}:{self.token}".encode()).decode()
-        req.add_header("Authorization", f"Basic {credentials}")
+        try:
+            req.add_header("Authorization", self.auth.authorization())
+        except jira_auth.JiraAuthError as e:
+            raise ValueError(str(e))
         req.add_header("Accept", "application/json")
 
         try:
@@ -148,8 +144,7 @@ class JiraIssueFetcher:
         except urllib.error.HTTPError as e:
             if e.code == 401:
                 raise ValueError(
-                    "Authentication failed. Check that JIRA_API_TOKEN and JIRA_USERNAME are valid.\n"
-                    "Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens"
+                    "Authentication failed. Check that the Jira credentials in the environment are valid."
                 )
             elif e.code == 403:
                 raise ValueError(
@@ -479,8 +474,8 @@ def main():
         print("  fetch_jira_issue.py OCPBUGS-74401 --format summary", file=sys.stderr)
         print("", file=sys.stderr)
         print("Environment:", file=sys.stderr)
-        print("  JIRA_API_TOKEN: API token for redhat.atlassian.net (required)", file=sys.stderr)
-        print("  JIRA_USERNAME: Atlassian account email (required)", file=sys.stderr)
+        print("  JIRA_USERNAME and JIRA_API_TOKEN: Atlassian account email and API token, or", file=sys.stderr)
+        print("  JIRA_CLIENT_ID, JIRA_CLIENT_SECRET and JIRA_CLOUD_ID: service-account credentials", file=sys.stderr)
         sys.exit(1)
 
     jira_key = sys.argv[1]
