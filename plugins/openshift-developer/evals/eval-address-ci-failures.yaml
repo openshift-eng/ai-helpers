@@ -31,8 +31,8 @@ runner:
     analysis.json.
 
 models:
-  skill: opus
-  judge: opus
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
 
 permissions:
   allow:
