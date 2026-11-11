@@ -100,6 +100,19 @@ def components(data, only=None):
     return result
 
 
+def _check_complete(data, from_tag, to_tag):
+    """Raise when the changelog does not cover exactly from_tag..to_tag.
+
+    The release controller answers 200 with an empty changeLogJson when generating the
+    changelog outlasts its internal wait, which would otherwise read as zero PRs.
+    """
+    changelog = (data or {}).get("changeLogJson") or {}
+    got = ((changelog.get("from") or {}).get("name"), (changelog.get("to") or {}).get("name"))
+    if got != (from_tag, to_tag):
+        raise ChangelogError("the release controller has not finished the changelog for %s..%s yet; "
+                             "retry in a minute" % (from_tag, to_tag))
+
+
 def load_changelog(from_tag, to_tag, arch=None, cache_dir=None, fetch=None):
     url = changelog_url(from_tag, to_tag, arch)
     fetch = fetch or fetch_json
@@ -110,10 +123,13 @@ def load_changelog(from_tag, to_tag, arch=None, cache_dir=None, fetch=None):
         if os.path.exists(cache_path):
             try:
                 with open(cache_path) as f:
-                    return json.load(f), url
-            except (OSError, ValueError):
+                    cached = json.load(f)
+                _check_complete(cached, from_tag, to_tag)
+                return cached, url
+            except (OSError, ValueError, ChangelogError):
                 pass
     data = fetch(url)
+    _check_complete(data, from_tag, to_tag)
     if cache_path:
         try:
             os.makedirs(os.path.dirname(cache_path), exist_ok=True)

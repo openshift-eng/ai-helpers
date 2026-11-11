@@ -94,7 +94,7 @@ def build_queries(backends, components=(), keywords=(), signals=(), recent_days=
 
     Open cards and cards that reached Done within recent_days are searched
     together, so a bug that was just fixed is not missed. Older closed cards get
-    their own query because they are context, not candidates.
+    their own query so they are classified by their evidence, apart from recent cards.
     """
     unknown = [s for s in signals if s not in SIGNAL_KEYWORDS]
     if unknown:
@@ -128,7 +128,7 @@ def build_queries(backends, components=(), keywords=(), signals=(), recent_days=
             "%s AND %s AND %s AND %s ORDER BY updated DESC" % (PROJECTS, labelled, family_text, current)))
         queries.append(_query(
             "backend-family-history",
-            "Older closed investigations, for context only",
+            "Older closed investigations, to classify by their evidence",
             "%s AND %s AND %s AND statusCategory = Done AND updated < -%dd ORDER BY updated DESC"
             % (PROJECTS, labelled, family_text, recent_days)))
     for signal in _unique(signals):

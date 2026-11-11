@@ -63,8 +63,9 @@ DEFAULT_WINDOW_DAYS = 7
 LAUNCH_BATCH_GAP = timedelta(minutes=10)
 LIVENESS_BACKENDS = {"ci-cluster-network-liveness-new-connections", "ci-cluster-network-liveness-reused-connections"}
 PROW_VIEW = "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/%s/%s"
-# .../logs/<job>/<build_id> or .../pr-logs/pull/<org_repo>/<pr>/<job>/<build_id>
-_PROW_PATH = re.compile(r"/(?:logs|pr-logs/pull/[^/]+/\d+)/([^/]+)/(\d{6,})(?:/|$)")
+# .../logs/<job>/<build_id>; presubmits live under .../pr-logs/pull/<org_repo>/<pr>/<job>/<build_id>
+_PROW_PATH = re.compile(r"/logs/([^/]+)/(\d{6,})(?:/|$)")
+_PR_LOGS = re.compile(r"/pr-logs/pull/")
 _JOB_RELEASE = re.compile(r"-(\d+\.\d+)-")
 
 
@@ -134,11 +135,16 @@ def _pick_side(candidates, jobs, split, per_side):
 def build_around(runs, split, per_side=DEFAULT_PER_SIDE, window_days=DEFAULT_WINDOW_DAYS):
     """Propose cohorts around `split` (a datetime). Returns the cohorts dict."""
     window = timedelta(days=window_days)
-    usable = [r for r in runs if not r.get("fetch_failed") and r.get("seconds") is not None]
+    in_window = [r for r in runs if split - window <= _time(r) <= split + window]
+    lost = {"before": 0, "after": 0}
+    for r in in_window:
+        if r.get("fetch_failed") or r.get("seconds") is None:
+            lost["before" if _time(r) < split else "after"] += 1
+    usable = [r for r in in_window if not r.get("fetch_failed") and r.get("seconds") is not None]
     skipped_liveness = [r for r in usable if r.get("liveness_unreliable")]
     usable = [r for r in usable if not r.get("liveness_unreliable")]
-    before = [r for r in usable if split - window <= _time(r) < split]
-    after = [r for r in usable if split <= _time(r) <= split + window]
+    before = [r for r in usable if _time(r) < split]
+    after = [r for r in usable if _time(r) >= split]
     if not before or not after:
         raise CohortError("no usable runs on the %s side within %d day(s) of %s; widen --window-days"
                           % ("before" if not before else "after", window_days, sippy.rfc3339(split)))
@@ -168,6 +174,10 @@ def build_around(runs, split, per_side=DEFAULT_PER_SIDE, window_days=DEFAULT_WIN
         if got["n"] and (got["p50"] > pop["p95"] or got["max"] < pop["p50"]):
             notes.append("The %s cohort (median %gs, max %gs) is not typical of the %s side (median %gs, P95 %gs)."
                          % (side, got["p50"], got["max"], side, pop["p50"], pop["p95"]))
+    if lost["before"] or lost["after"]:
+        notes.append("DEGRADED: disruption data is missing for %d before and %d after run(s) in the window "
+                     "(Sippy fetch failed or no value), so the cohorts and population stats leave them out."
+                     % (lost["before"], lost["after"]))
     if skipped_liveness:
         notes.append("%d run(s) in the window were left out because ci-cluster-network-liveness was disrupted."
                      % len(skipped_liveness))
@@ -186,13 +196,18 @@ def build_around(runs, split, per_side=DEFAULT_PER_SIDE, window_days=DEFAULT_WIN
         "population": population,
         "cohort_stats": cohort_stats,
         "jobs": jobs,
+        "data_loss": lost,
         "notes": notes,
     }
 
 
 def parse_prow_url(url):
     """(job, build_id) from a Prow or gcsweb URL. Raises CohortError when it is neither."""
-    match = _PROW_PATH.search(url.split("?", 1)[0])
+    path = url.split("?", 1)[0]
+    if _PR_LOGS.search(path):
+        raise CohortError("presubmit (pr-logs) runs are not supported; the timeline download reads only "
+                          "periodic and release job artifacts under /logs/: %s" % url)
+    match = _PROW_PATH.search(path)
     if not match:
         raise CohortError("not a Prow job URL: %s" % url)
     return match.group(1), match.group(2)
@@ -368,6 +383,11 @@ def run_around(args):
     runs_path = args.runs_file or trend.get("runs_file")
     if not runs_path:
         raise CohortError("no runs file: run disruption-trend with --state-file first, or pass --runs-file")
+    if not args.runs_file and not os.path.exists(runs_path):
+        # The investigation directory moved, or an older state file kept a relative path.
+        beside_state = os.path.join(os.path.dirname(os.path.abspath(args.state_file)), os.path.basename(runs_path))
+        if os.path.exists(beside_state):
+            runs_path = beside_state
     runs = _load_runs(runs_path)
     transition_index = None
     if args.at:

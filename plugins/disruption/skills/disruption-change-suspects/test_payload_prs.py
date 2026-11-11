@@ -11,7 +11,7 @@ import payload_prs as pp  # noqa: E402
 
 FROM = "5.0.0-0.nightly-2026-11-07-182718"
 TO = "5.0.0-0.nightly-2026-11-09-184859"
-RESPONSE = {"changeLogJson": {"updatedImages": [
+RESPONSE = {"changeLogJson": {"from": {"name": FROM}, "to": {"name": TO}, "updatedImages": [
     {"name": "ironic-agent", "path": "https://github.com/openshift/ironic-agent-image/tree/5c81",
      "fullChangeLog": "https://github.com/openshift/ironic-agent-image/compare/601c...5c81",
      "commits": [{"subject": "Bump urllib3", "pullID": 326,
@@ -63,6 +63,17 @@ def test_load_changelog_caches_the_response(tmp_path):
     second, _ = pp.load_changelog(FROM, TO, cache_dir=str(tmp_path), fetch=fetch)
     assert first == second == RESPONSE
     assert len(calls) == 1
+
+
+def test_load_changelog_rejects_and_does_not_cache_an_unfinished_changelog(tmp_path):
+    unfinished = {"name": TO, "changeLogJson": {}}
+    with pytest.raises(pp.ChangelogError, match="not finished"):
+        pp.load_changelog(FROM, TO, cache_dir=str(tmp_path), fetch=lambda url: unfinished)
+    assert not (tmp_path / "changelog").exists()
+
+    empty = {"changeLogJson": {"from": {"name": FROM}, "to": {"name": TO}, "updatedImages": []}}
+    data, _ = pp.load_changelog(FROM, TO, cache_dir=str(tmp_path), fetch=lambda url: empty)
+    assert pp.components(data) == []
 
 
 def test_main_prints_prs_and_reports_errors(tmp_path, capsys, monkeypatch):

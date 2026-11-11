@@ -756,7 +756,7 @@ def write_state(path, series, trend, runs_file):
     current = state.load_state(path)
     current.setdefault("schema_version", STATE_SCHEMA_VERSION)
     current["series"] = series_summary(series)
-    current["trend"] = dict(trend, runs_file=runs_file)
+    current["trend"] = dict(trend, runs_file=os.path.abspath(runs_file) if runs_file else None)
     state.write_json_atomic(path, current, indent=2)
 
 

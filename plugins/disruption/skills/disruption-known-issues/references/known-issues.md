@@ -51,8 +51,9 @@ jq -r '.issues.nodes[] | [.key, .fields.status.name, .fields.updated[0:10], .fie
 
 The queries cover open cards and cards that reached a Done status (Verified, Closed, and so
 on) in the last 90 days. A bug that was just fixed is often the explanation for a regression
-alert. `backend-family-history` returns older closed investigations. Use them as context,
-not as matches.
+alert. `backend-family-history` returns older closed investigations. Classify them by their
+evidence like any other card (8.1.2): an old card can still describe the mechanism the runs
+show, and it may have regressed.
 
 Deduplicate by issue key. For each card whose summary plausibly matches the mechanism, call
 `getJiraIssue` with `fields: ["summary", "description", "status", "components", "comment",
@@ -96,6 +97,9 @@ Do this for every matching card in MODIFIED, ON_QA, Verified, or Closed.
      --days {days back to a week before the fix, max 90} \
      --runs-out {investigation_dir}/fix-check-runs.json --format json > /dev/null
    ```
+
+   If the window has no runs from before the fix payload, say that a before-and-after
+   comparison is not possible, and widen `--days` (at most 90) if the user wants one.
 
 3. Download timelines for every disrupted run in that window (`references/artifacts.md`,
    one `download_timelines.py` call with all their URLs), then run:

@@ -29,7 +29,7 @@ The scripts are in this skill's directory: `${CLAUDE_SKILL_DIR}` in Claude Code,
 - **Backends** (`--backends`): the exact names. Take them from the request, or from the state file's `series.backends`. Without either, analyze every backend that shows disruption and say so.
 - When the runs are cohorts (before/after), keep each run's cohort; the analysis of each run is the same, but the checkpoint says which cohort each run is in.
 
-From each Prow URL take the job name and build ID: the last two path segments after `/logs/` (or after `/pr-logs/pull/<org_repo>/<pr>/`). Prow URLs may say `origin-ci-test`; the bucket is always `test-platform-results-public`.
+From each Prow URL take the job name and build ID: the last two path segments after `/logs/`. Presubmit runs (`/pr-logs/pull/...`) are not supported: the download reads only `/logs/` artifacts, so say so and skip them. Prow URLs may say `origin-ci-test`; the bucket is always `test-platform-results-public`.
 
 ## Step 2: Download timelines
 

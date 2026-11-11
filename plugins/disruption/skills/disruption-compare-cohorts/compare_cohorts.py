@@ -185,8 +185,12 @@ def _load(path):
 
 
 def _build_id(path):
+    """The build ID from runs/<build_id>/parsed.json or <build_id>.json, else the path itself."""
     parent = os.path.basename(os.path.dirname(os.path.abspath(path)))
-    return parent if parent.isdigit() else os.path.splitext(os.path.basename(path))[0]
+    if parent.isdigit():
+        return parent
+    stem = os.path.splitext(os.path.basename(path))[0]
+    return stem if stem.isdigit() else path
 
 
 def load_cohorts(args):
@@ -196,11 +200,18 @@ def load_cohorts(args):
     if args.before or args.after:
         if not (args.before and args.after):
             raise CompareError("pass both --before and --after")
+        seen = {}
         for side in ("before", "after"):
             for path in getattr(args, side).split(","):
                 path = path.strip()
-                if path:
-                    cohort_runs[side][_build_id(path)] = _load(path)
+                if not path:
+                    continue
+                bid = _build_id(path)
+                if bid in seen:
+                    raise CompareError("%s and %s are the same run (%s); pass each run once"
+                                       % (seen[bid], path, bid))
+                seen[bid] = path
+                cohort_runs[side][bid] = _load(path)
     else:
         if not args.state_file or not args.runs_dir:
             raise CompareError("pass --state-file and --runs-dir, or --before and --after parser outputs")

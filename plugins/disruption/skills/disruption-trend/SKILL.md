@@ -119,7 +119,7 @@ next:
   - pick a different transition or date
   - widen the window (--days <N>, at most 90)
   - rerun later to fill runs lost to the disruption API (only when trend.degraded)
-  - no credible transition: analyze the currently disrupted runs (disruption-find-runs sample-disrupted with the same alert or dashboard URL)
+  - no credible transition: analyze the currently disrupted runs (disruption-find-runs sample-disrupted with the same alert, dashboard URL, or series fields)
 ```
 ````
 
@@ -127,10 +127,15 @@ What each `next` option means:
 
 - **Compare runs before and after:** `disruption-find-runs` with purpose `cohorts-around` and this state file builds larger before/after cohorts (5 per side by default) from the same per-run records. This is the regression path.
 - **Analyze just the suggested pairs:** a quick look. Give `disruption-analyze-run` the runs in `transitions[].handoff.download_runs` (or the Prow URLs in `handoff.prow_urls`), unchanged. They are up to three before/after pairs (`handoff.pairs`), each from one job, nearest the step, with at most one run per launch batch, and with runs that show the change preferred (`representative: true`). `handoff.download_runs` is the same runs as `job:build_id` pairs for `download_timelines.py --runs`. Do not filter the runs file by hand. If a pair is marked not representative, or there are no pairs (no job ran on both sides), say so and pick runs from `trend.runs_file` for the jobs that moved in the per-job table.
-- **Analyze the currently disrupted runs:** give `disruption-find-runs` (purpose `sample-disrupted`) the same alert text or dashboard URL. It auto-selects representative disrupted runs from the dashboard window.
+- **Analyze the currently disrupted runs:** give `disruption-find-runs` (purpose `sample-disrupted`) the same input this skill got: the alert text or dashboard URL, or, when the request named the series directly, the release, exact backend names, and any variant fields (platform, upgrade type, architecture, topology, network). It auto-selects representative disrupted runs from that window. Do not offer this when every disruption fetch failed (`trend.runs.fetch_failed` equals `trend.runs.scanned`): it queries the same API, so offer only to rerun after the rate limit clears.
 - **Rerun later:** the cache keeps every run already fetched, so a rerun after the rate limit frees up (up to an hour) only asks for the lost runs.
 
-List only the `next` options that fit the result. Then **stop and wait** for the user's choice, unless the request said to run without pausing (`--auto`, or "just run it"). In that case, record the default you chose and why: cohorts around the strongest practical increase, or for `none` the option to analyze the currently disrupted runs. Then continue.
+List only the `next` options that fit the result. Then **stop and wait** for the user's choice, unless the request said to run without pausing (`--auto`, or "just run it"). In that case, record the default you chose and why, then continue:
+
+- Cohorts around the strongest practical increase.
+- When the request asks why disruption improved, cohorts around the strongest practical decrease, passed as its index (`disruption-find-runs` takes `--transition N`).
+- When the only practical transitions run the other way from the request (only decreases for a "what made it worse" request, or the reverse), stop and report the transitions found instead of picking one.
+- For `none`, analyze the currently disrupted runs, unless every disruption fetch failed: then stop and say to rerun after the rate limit clears (up to an hour).
 
 ## Error handling
 

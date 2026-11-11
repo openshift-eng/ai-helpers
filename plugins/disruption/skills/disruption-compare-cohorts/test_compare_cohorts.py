@@ -99,5 +99,21 @@ def test_main_with_parser_files_and_bad_input(tmp_path, capsys):
     assert "run disruption-find-runs first" in capsys.readouterr().err
 
 
+def test_main_keeps_files_without_build_ids_apart_and_rejects_repeats(tmp_path, capsys):
+    paths = []
+    for name in ("good-a", "good-b"):
+        path = tmp_path / name / "parsed.json"
+        path.parent.mkdir()
+        path.write_text(json.dumps(_parsed(etcd=1)))
+        paths.append(str(path))
+    after = tmp_path / "333.json"
+    after.write_text(json.dumps(_parsed(disruptions=3, episodes=1, etcd=1)))
+    assert cc.main(["--before", ",".join(paths), "--after", str(after), "--format", "json"]) == 0
+    assert len(json.loads(capsys.readouterr().out)["runs"]["before"]) == 2
+
+    assert cc.main(["--before", paths[0], "--after", "%s,%s" % (after, after)]) == 1
+    assert "are the same run (333)" in capsys.readouterr().err
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

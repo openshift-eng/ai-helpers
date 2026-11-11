@@ -70,6 +70,8 @@ def test_around_leaves_out_liveness_and_failed_runs_and_says_so():
     ids = {r["prow_id"] for r in result["before"] + result["after"]}
     assert not ids & {"990", "991"}
     assert any("ci-cluster-network-liveness" in n for n in result["notes"])
+    assert result["data_loss"] == {"before": 0, "after": 1}
+    assert any(n.startswith("DEGRADED: disruption data is missing for 0 before and 1 after") for n in result["notes"])
 
 
 def test_around_notes_jobs_on_one_side_and_falls_back_without_shared_jobs():
@@ -122,12 +124,24 @@ def test_around_reads_the_trend_state_and_records_cohorts(tmp_path, capsys):
     assert saved["cohorts"]["handoff"]["download_runs"].count(":") == 6
 
 
+def test_around_finds_a_relative_runs_file_beside_the_state_file(tmp_path, capsys, monkeypatch):
+    (tmp_path / "trend-runs.json").write_text(json.dumps(_series()))
+    state_file = tmp_path / "investigation.json"
+    state_file.write_text(json.dumps({"trend": {"runs_file": ".work/elsewhere/trend-runs.json", "transitions": [
+        {"at": sippy.rfc3339(SPLIT), "direction": "increase", "practical": True, "z": 7}]}}))
+    other = tmp_path / "cwd"
+    other.mkdir()
+    monkeypatch.chdir(other)
+    assert cohorts.main(["around", "--state-file", str(state_file), "--per-side", "2", "--no-payloads"]) == 0
+    capsys.readouterr()
+
+
 def test_around_without_a_runs_file_explains_what_to_run(tmp_path, capsys):
     assert cohorts.main(["around", "--state-file", str(tmp_path / "none.json")]) == 1
     assert "run disruption-trend with --state-file first" in capsys.readouterr().err
 
 
-def test_parse_prow_url_accepts_prow_gcsweb_and_pr_logs():
+def test_parse_prow_url_accepts_prow_and_gcsweb_and_rejects_pr_logs():
     view = "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/%s/2084701838124257280" % JOB_A
     assert cohorts.parse_prow_url(view) == (JOB_A, "2084701838124257280")
     gcsweb = ("https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/logs/"
@@ -135,7 +149,8 @@ def test_parse_prow_url_accepts_prow_gcsweb_and_pr_logs():
     assert cohorts.parse_prow_url(gcsweb) == (JOB_A, "2084701838124257280")
     pr = ("https://prow.ci.openshift.org/view/gs/test-platform-results-public/pr-logs/pull/"
           "openshift_origin/30123/pull-ci-openshift-origin-main-e2e-aws/2084701838124257281")
-    assert cohorts.parse_prow_url(pr) == ("pull-ci-openshift-origin-main-e2e-aws", "2084701838124257281")
+    with pytest.raises(cohorts.CohortError, match="presubmit"):
+        cohorts.parse_prow_url(pr)
     with pytest.raises(cohorts.CohortError, match="not a Prow job URL"):
         cohorts.parse_prow_url("https://grafana-loki.ci.openshift.org/d/abc")
 
