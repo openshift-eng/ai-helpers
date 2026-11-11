@@ -77,10 +77,11 @@ _GITHUB_RE = re.compile(r"github\.com[/:]([^/]+)/([^/.]+?)(?:\.git)?/?$")
 
 
 class PayloadError(Exception):
-    pass
+    """A payload could not be read or resolved."""
 
 
 def load_json(path):
+    """Parsed JSON from path. Raises PayloadError when it cannot be read."""
     try:
         with open(path) as f:
             return json.load(f)
@@ -148,6 +149,7 @@ def resolve_payload(ref, output_dir):
 
 
 def payload_version(info):
+    """The release version named by a releaseinfo document, or ''."""
     return ((info.get("metadata") or {}).get("version")
             or (info.get("references", {}).get("metadata") or {}).get("name") or "")
 
@@ -198,6 +200,7 @@ def changed_repos(before, after):
 
 
 def compare_url(repo, before, after):
+    """GitHub compare URL between two commits of repo, or None without both."""
     if not repo or "/" not in repo or not before or not after:
         return None
     return "https://github.com/%s/compare/%s...%s" % (repo, before, after)
@@ -215,6 +218,7 @@ def select_component(component, before, after):
 
 
 def gh_compare_command(repo, before, after):
+    """The gh command that lists the commits between two commits of repo."""
     return ["gh", "api", "repos/%s/compare/%s...%s" % (repo, before, after)]
 
 
@@ -266,6 +270,7 @@ def summarize_compare(data, include_vendor=False):
 
 
 def format_text(result):
+    """The payload pair and the changed components as plain text."""
     lines = ["before: %s (%s)" % (result["before"]["label"], result["before"]["version"] or "?"),
              "after:  %s (%s)" % (result["after"]["label"], result["after"]["version"] or "?"), ""]
     comp = result.get("component")
@@ -309,6 +314,7 @@ def format_text(result):
 
 
 def main(argv=None):
+    """Compare two payloads and print which components changed, as text or JSON."""
     parser = argparse.ArgumentParser(description="Component commits changed between two payloads")
     parser.add_argument("before", help="releaseinfo.json, build dir, job:build_id, or pullspec")
     parser.add_argument("after", help="releaseinfo.json, build dir, job:build_id, or pullspec")

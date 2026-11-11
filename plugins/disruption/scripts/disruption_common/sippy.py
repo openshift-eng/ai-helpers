@@ -48,6 +48,7 @@ class SippyError(RuntimeError):
     """
 
     def __init__(self, message, status=None, retry_after=None):
+        """Keep the HTTP status and Retry-After seconds, when Sippy sent them."""
         super().__init__(message)
         self.status = status
         self.retry_after = retry_after
@@ -138,6 +139,7 @@ def _retry_after_seconds(headers, now=None):
 
 
 def _get_json(url, what):
+    """Fetch and decode JSON from url. Raises SippyError naming what was being fetched."""
     try:
         with urllib.request.urlopen(url, timeout=60) as resp:
             body = resp.read().decode("utf-8")
@@ -193,6 +195,7 @@ def _just_before(timestamp):
 
 
 def _room(rows, max_runs):
+    """How many more rows fit under max_runs, or None when there is no limit."""
     return None if max_runs is None else max_runs - len(rows)
 
 
@@ -351,6 +354,7 @@ class _WaitBudget:
     """Seconds left to sleep on rate limits during one disruption fetch."""
 
     def __init__(self, seconds, sleep):
+        """Track the seconds left to spend waiting on rate limits."""
         self.remaining = max(0.0, float(seconds))
         self.sleep = sleep
 
@@ -425,6 +429,7 @@ def _entry(row):
 
 
 def _load_cache(path):
+    """The disruption cache at path, or {} when it is missing or unreadable."""
     if not path or not os.path.exists(path):
         return {}
     try:

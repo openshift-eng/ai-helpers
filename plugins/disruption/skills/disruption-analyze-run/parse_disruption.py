@@ -73,6 +73,7 @@ except ImportError:
     extract_payloads = payloads_from_clusterversion = None
 
     def payload_tag(pullspec):
+        """Fallback when download_timelines cannot be imported: keep the pullspec as is."""
         return pullspec
 
 
@@ -241,10 +242,12 @@ WAVE_GAP_FACTOR = 2
 
 
 def _seconds(start, end):
+    """Whole seconds between two interval timestamps."""
     return int((parse_ts(end) - parse_ts(start)).total_seconds())
 
 
 def _lower_median(values):
+    """The lower of the two middle values, so the result is always one of values."""
     ordered = sorted(values)
     return ordered[(len(ordered) - 1) // 2]
 
@@ -618,6 +621,7 @@ def extract_concurrent_events(items, disruptions, window_seconds=60):
         ))
 
     def overlaps(item_from, item_to):
+        """True when the interval touches any disruption window."""
         return any(item_from <= win_end and item_to >= win_start for win_start, win_end in disruption_windows)
 
     return _summarize_context(_collect_context(items, CONTEXT_SOURCES, overlaps))
@@ -1336,6 +1340,7 @@ def format_text(data):
 # ---------------------------------------------------------------------------
 
 def main():
+    """Parse the timeline files and print the disruption report as text or JSON."""
     parser = argparse.ArgumentParser(
         description="Parse disruption from OpenShift CI interval/timeline JSON files"
     )

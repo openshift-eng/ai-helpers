@@ -44,6 +44,7 @@ from disruption_common.series import split_backends  # noqa: E402
 
 
 def main(argv=None):
+    """Print the Jira queries for the known-issue lookup, or record the classified cards."""
     parser = argparse.ArgumentParser(description="Print the Jira queries for the known-issue lookup")
     parser.add_argument("--backends",
                         help="Comma-separated exact backend names from the analysis")

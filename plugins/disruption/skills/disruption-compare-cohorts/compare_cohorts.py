@@ -111,6 +111,7 @@ def run_features(parsed):
 
 
 def _side(values, n):
+    """How many of n runs show a signal, and its median and max over all n (absent counts as 0)."""
     sizes = values + [0] * (n - len(values))
     return {"runs": len(values), "of": n, "median": statistics.median(sizes) if sizes else 0,
             "max": max(values) if values else 0}
@@ -174,6 +175,7 @@ def run_facts(cohort_runs):
 
 
 def _load(path):
+    """One parse_disruption.py JSON output. Raises CompareError when it is unreadable or another file."""
     try:
         with open(path) as f:
             data = json.load(f)
@@ -234,10 +236,12 @@ def load_cohorts(args):
 
 
 def _fmt(value):
+    """A number in short form, or the value as a string."""
     return ("%g" % value) if isinstance(value, (int, float)) else str(value)
 
 
 def print_text(result, out=None):
+    """The signal matrix and notes as plain text."""
     out = out or sys.stdout
     n_before, n_after = len(result["runs"]["before"]), len(result["runs"]["after"])
     out.write("Signals across cohorts (before: %d run(s), after: %d run(s))\n\n" % (n_before, n_after))
@@ -259,6 +263,7 @@ def print_text(result, out=None):
 
 
 def main(argv=None):
+    """Compare the cohorts, print the matrix, and record it in the state file when given one."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--state-file", help="investigation.json with cohorts from disruption-find-runs")
     parser.add_argument("--runs-dir", help="directory holding <build_id>/parsed.json per run")

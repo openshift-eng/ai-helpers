@@ -117,5 +117,6 @@ def extract_target(prowjob_path):
 
 
 def gather_gcs_path(job, build_id, target, filename):
+    """GCS path of one gather-extra artifact for a run and its test target."""
     return "gs://%s/logs/%s/%s/artifacts/%s/gather-extra/artifacts/%s" % (
         GCS_BUCKET, job, build_id, target, filename)

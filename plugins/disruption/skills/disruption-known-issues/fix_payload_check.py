@@ -117,6 +117,7 @@ def _matches(item, regex, backends):
 
 
 def _summary(runs, signature_ids, scanned_ids=None):
+    """Run count, disrupted count, P95, and max for one side of the fix, plus signature and timeline counts."""
     seconds = [r["seconds"] for r in runs]
     summary = {
         "runs": len(runs),
@@ -198,12 +199,14 @@ def check_fix(runs, fix_payload, signature_ids=None, scanned_ids=None):
 
 
 def _share(summary):
+    """Disrupted runs with their percentage of all runs, as text."""
     if not summary["runs"]:
         return "0"
     return "%d (%d%%)" % (summary["disrupted"], round(100.0 * summary["disrupted"] / summary["runs"]))
 
 
 def print_table(result):
+    """Print disruption per payload day, marking the days that have the fix."""
     has_signature = "signature" in result["before_fix"]
     has_timelines = "timelines" in result["before_fix"]
     header = "%-12s %-6s %5s %10s %5s %5s" % ("Payload day", "Fixed", "Runs", "Disrupted", "P95", "Max")
@@ -243,6 +246,7 @@ def read_signature_ids(value):
 
 
 def main(argv=None):
+    """Compare disruption before and after a fix payload and print the result."""
     parser = argparse.ArgumentParser(description="Compare disruption before and after a fix payload")
     parser.add_argument("--runs", required=True,
                         help="disruption-trend runs file (preferred) or find_disruption_runs.py JSON")

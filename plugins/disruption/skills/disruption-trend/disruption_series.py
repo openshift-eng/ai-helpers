@@ -188,6 +188,7 @@ def spearman(xs, ys):
 
 
 def bucket_key(ts, size):
+    """The bucket label of a timestamp: its day, its week's Monday, or its month."""
     if size == "day":
         return ts.strftime("%Y-%m-%d")
     if size == "week":
@@ -197,6 +198,7 @@ def bucket_key(ts, size):
 
 
 def choose_bucket(days):
+    """The bucket size for a window of days."""
     if days <= 45:
         return "day"
     if days <= 270:
@@ -238,12 +240,14 @@ def build_runs(rows, disruption_data, selectors, failed=None):
 
 
 def _run_ref(run):
+    """The fields of a run that transitions and pairs keep, or None."""
     if not run:
         return None
     return {key: run[key] for key in ("prow_id", "job", "timestamp", "seconds", "release_tag", "url")}
 
 
 def _nearest_tag(runs, start, step):
+    """The first payload tag found walking runs from start by step, or None."""
     i = start
     while 0 <= i < len(runs):
         if runs[i]["release_tag"]:
@@ -274,6 +278,7 @@ def per_job_shift(before, after, min_runs):
 
 
 def _p(values, q):
+    """The q percentile of values rounded to 0.1, or None for no values."""
     return round(percentile(values, q), 1) if values else None
 
 
@@ -309,15 +314,18 @@ def per_job_table(before, after, min_runs):
 
 
 def _time(run):
+    """The start time of a run record."""
     return sippy.parse_timestamp(run["timestamp"])
 
 
 def _same_batch(run, others):
+    """True when a run of the same job launched within one batch gap of another run."""
     return any(other["job"] == run["job"] and abs(_time(other) - _time(run)) <= LAUNCH_BATCH_GAP
                for other in others)
 
 
 def _pair_ref(run, representative):
+    """A run reference marked with whether it shows the change."""
     return dict(_run_ref(run), representative=representative)
 
 
@@ -348,9 +356,11 @@ def suggest_pairs(before, after, direction, limit=PAIRS_PER_TRANSITION):
         p50, p95 = percentile(values, 50), percentile(values, 95)
 
         def after_rep(run, p50=p50, p95=p95):
+            """True when an after run shows the change."""
             return run["seconds"] > p95 if direction == "increase" else run["seconds"] <= p50
 
         def before_rep(run, p50=p50, p95=p95):
+            """True when a before run shows the state before the change."""
             return run["seconds"] <= p95 if direction == "increase" else run["seconds"] >= p50
 
         afters = sorted(by_job_after[job], key=lambda r: (not after_rep(r), _time(r) - step))
@@ -405,6 +415,7 @@ def is_practical(before, after):
 
 
 def describe_transitions(scored, splits, min_seg):
+    """Size, per-job breakdown, and payload range for each split of the scored runs."""
     transitions = []
     bounds = [0] + [split_at for split_at, _z in splits] + [len(scored)]
     min_runs = max(3, min_seg // 4)
@@ -476,6 +487,7 @@ def detect_onset(scored, transitions, window_start):
 
 
 def build_buckets(scored, size):
+    """Per-bucket run counts and percentiles of the scored runs."""
     groups = {}
     for run in scored:
         key = bucket_key(sippy.parse_timestamp(run["timestamp"]), size)
@@ -528,6 +540,7 @@ def transition_segments(scored, transitions):
 
 
 def _lost_fraction(lost, kept):
+    """The share of runs lost out of lost plus kept."""
     return lost / float(lost + kept) if lost + kept else 0.0
 
 
@@ -650,6 +663,7 @@ def payload_sample(trend, runs):
 
 
 def _group(runs):
+    """Run count, P50, and max seconds of runs."""
     values = [r["seconds"] for r in runs]
     return {"n": len(values), "p50": _p(values, 50), "max": max(values) if values else None}
 
@@ -668,6 +682,7 @@ def payload_summary(before, after, payloads, failed):
     failed = set(failed)
 
     def pair(run):
+        """The payload pair of a run, or {}."""
         return payloads.get(run["prow_id"]) or {}
 
     sampled = before + after
@@ -745,6 +760,7 @@ def apply_payloads(trend, runs, payloads, failed):
 
 
 def series_summary(series):
+    """The series fields recorded in the state file, with selectors named backends."""
     out = {key: series[key] for key in ("release", "selectors", "variants", "master_nodes_updated",
                                         "percentile", "compare_release", "dashboard")}
     out["backends"] = out.pop("selectors")
@@ -761,10 +777,12 @@ def write_state(path, series, trend, runs_file):
 
 
 def _fmt(value):
+    """A number in short form, or a dash for None."""
     return "—" if value is None else ("%g" % value)
 
 
 def print_table(series, trend, out=None):
+    """Print the bucket table, the transitions, the onset, and the caveats."""
     out = out or sys.stdout
     summary = series_summary(series)
     filters = " | ".join("%s=%s" % kv for kv in summary["variants"].items()) or "(none)"
@@ -832,6 +850,7 @@ def print_table(series, trend, out=None):
 
 
 def _job_note(row):
+    """Short notes on a per-job row: small samples and jobs on only one side."""
     notes = []
     if row["small_n"]:
         notes.append("small n")
@@ -845,6 +864,7 @@ def _job_note(row):
 
 
 def _fmt_group(group):
+    """Run count, P50, and max of a group as text."""
     if not group or not group["n"]:
         return "n=0"
     return "n=%d P50 %s max %s" % (group["n"], _fmt(group["p50"]), _fmt(group["max"]))
@@ -905,6 +925,7 @@ def print_transition_details(transition, out):
 
 
 def main(argv=None):
+    """Resolve the series, fetch its runs and disruption, and report the trend."""
     parser = argparse.ArgumentParser(description="Disruption time series, transitions, and onset for one series")
     parser.add_argument("--grafana-url", help="Grafana disruption dashboard URL")
     parser.add_argument("--alert-text", help="Pasted DisruptionRegression alert text")
@@ -955,10 +976,12 @@ def main(argv=None):
     bucket = choose_bucket(days) if args.bucket == "auto" else args.bucket
 
     def run_progress(count, oldest):
+        """Report run paging progress on stderr."""
         if oldest is not None:
             print("  fetched %d runs (back to %s)" % (count, oldest.strftime("%Y-%m-%d")), file=sys.stderr)
 
     def disruption_progress(done, total):
+        """Report disruption lookup progress on stderr."""
         print("  disruption data %d/%d runs" % (done, total), file=sys.stderr)
 
     print("Fetching runs for release %s since %s..." % (series["release"], window_start.strftime("%Y-%m-%d")),

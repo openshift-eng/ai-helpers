@@ -66,6 +66,7 @@ _VERSION_MSG_RE = re.compile(
 
 
 def parse_ts(value):
+    """A naive datetime from an ISO timestamp, or None when it is missing or malformed."""
     if not value:
         return None
     try:
@@ -107,11 +108,13 @@ def event_time(event):
 
 
 def event_namespace(event):
+    """The namespace of an event, from its metadata or its involved object."""
     return (event.get("metadata", {}).get("namespace")
             or event.get("involvedObject", {}).get("namespace") or "")
 
 
 def event_component(event):
+    """The component that reported an event."""
     return event.get("source", {}).get("component") or event.get("reportingComponent") or ""
 
 
@@ -227,12 +230,14 @@ def upgrade_markers(versions):
 
 
 def _phase(when, upgrade_started):
+    """Whether a time falls in the install or the upgrade, or unknown without the upgrade start."""
     if not upgrade_started or not when:
         return "unknown"
     return "upgrade" if when >= upgrade_started else "install"
 
 
 def analyze_run(label, events, configmaps, operator, tolerance):
+    """Revision triggers, revision statuses, and upgrade markers for one run and operator."""
     namespace, operator_namespace = OPERATOR_NAMESPACES[operator]
     triggers = revision_triggers(events, operator_namespace, tolerance)
     versions = operator_version_changes(events, operator, operator_namespace)
@@ -263,6 +268,7 @@ def analyze_run(label, events, configmaps, operator, tolerance):
 
 
 def _reasons(run, upgrade_only):
+    """The trigger and revision reasons of a run, optionally only those during the upgrade."""
     entries = list(run["triggers"]) + list(run["revision_statuses"])
     return {e["reason"] for e in entries
             if e["reason"] and (not upgrade_only or e["phase"] == "upgrade")}
@@ -291,6 +297,7 @@ def compare_runs(runs):
 
 
 def format_text(runs, differences, show_all=False):
+    """The per-run triggers and the cross-run differences as plain text."""
     lines = []
     for run in runs:
         lines.append("== %s (%s)" % (run["run"], run["operator"]))
@@ -339,6 +346,7 @@ def format_text(runs, differences, show_all=False):
 
 
 def main(argv=None):
+    """List static-pod revision triggers for each run and compare them across runs."""
     parser = argparse.ArgumentParser(
         description="List static-pod revision triggers from gather-extra events and configmaps")
     parser.add_argument("build_dirs", nargs="*",

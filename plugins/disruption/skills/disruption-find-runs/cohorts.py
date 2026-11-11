@@ -74,6 +74,7 @@ class CohortError(RuntimeError):
 
 
 def nearest_rank(values, pct):
+    """The pct percentile of values by nearest rank, or None for no values."""
     if not values:
         return None
     ordered = sorted(values)
@@ -81,6 +82,7 @@ def nearest_rank(values, pct):
 
 
 def stats(values):
+    """Run count, disrupted count, P50, P95, and max of the given seconds."""
     values = [v for v in values if v is not None]
     if not values:
         return {"n": 0, "nonzero": 0, "p50": None, "p95": None, "max": None}
@@ -89,15 +91,18 @@ def stats(values):
 
 
 def _time(run):
+    """The start time of a run record."""
     return sippy.parse_timestamp(run["timestamp"])
 
 
 def _same_batch(run, chosen):
+    """True when a run of the same job launched within one batch gap of a chosen run."""
     return any(other["job"] == run["job"] and abs(_time(other) - _time(run)) <= LAUNCH_BATCH_GAP
                for other in chosen)
 
 
 def _ref(run):
+    """The fields of a run that the cohorts keep."""
     keys = ("prow_id", "job", "timestamp", "seconds", "url", "initial_payload", "target_payload")
     return {key: run.get(key) for key in keys if key in run}
 
@@ -214,6 +219,7 @@ def parse_prow_url(url):
 
 
 def _start_time(prowjob):
+    """The start time recorded in a prowjob.json, or ''."""
     return ((prowjob or {}).get("status") or {}).get("startTime") or ""
 
 
@@ -320,6 +326,7 @@ def payload_note(before, after):
 
 
 def add_handoff(cohorts):
+    """Add the Prow URLs and the job:build_id list that disruption-analyze-run takes."""
     refs = cohorts["before"] + cohorts["after"]
     cohorts["handoff"] = {
         "prow_urls": {side: [r["url"] for r in cohorts[side] if r.get("url")] for side in ("before", "after")},
@@ -329,10 +336,12 @@ def add_handoff(cohorts):
 
 
 def _fmt(value):
+    """A number in short form, or a dash for None."""
     return "—" if value is None else "%g" % value
 
 
 def print_text(cohorts, out=None):
+    """The cohorts, their stats, and the comparability notes as plain text."""
     out = out or sys.stdout
     if cohorts["source"] == "proposed":
         out.write("Cohorts around %s (±%d days), jobs that ran on both sides:\n"
@@ -361,12 +370,14 @@ def print_text(cohorts, out=None):
 
 
 def record(state_path, cohorts):
+    """Save the cohorts in the state file, keeping its other sections."""
     current = state.load_state(state_path)
     current["cohorts"] = cohorts
     state.write_json_atomic(state_path, current, indent=2)
 
 
 def _load_runs(path):
+    """The per-run records from a trend runs file. Raises CohortError when unreadable."""
     try:
         with open(path) as f:
             runs = json.load(f)
@@ -378,6 +389,7 @@ def _load_runs(path):
 
 
 def run_around(args):
+    """The around mode: cohorts on each side of a trend transition or --at time."""
     current = state.load_state(args.state_file) if args.state_file else {}
     trend = current.get("trend") or {}
     runs_path = args.runs_file or trend.get("runs_file")
@@ -418,6 +430,7 @@ def run_around(args):
 
 
 def run_validate(args):
+    """The validate mode: check the user's cohorts and keep them as given."""
     selectors = split_backends(args.backends) if args.backends else []
     if not selectors and args.state_file:
         selectors = (state.load_state(args.state_file).get("series") or {}).get("backends") or []
@@ -428,6 +441,7 @@ def run_validate(args):
 
 
 def main(argv=None):
+    """Build or validate cohorts, print them, and record them in the state file when given one."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="mode", required=True)
     around = sub.add_parser("around", help="propose cohorts around a transition")

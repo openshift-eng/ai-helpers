@@ -32,6 +32,7 @@ class PayloadError(RuntimeError):
 
 
 def prowjob_url(job, build_id):
+    """Public URL of a run's prowjob.json."""
     return "%s/%s/%s/prowjob.json" % (GCS_LOGS_URL, job, build_id)
 
 
@@ -86,6 +87,7 @@ def fetch_prowjob(job, build_id, timeout=FETCH_TIMEOUT):
 
 
 def _load_cache(path):
+    """The payload cache at path, or {} when it is missing or unreadable."""
     if not path or not os.path.exists(path):
         return {}
     try:
@@ -120,6 +122,7 @@ def fetch_payloads(runs, cache_path=None, fetch=fetch_prowjob, max_workers=MAX_W
             todo.append((pid, run["job"]))
 
     def one(item):
+        """(prow_id, payload pair or None, error or None) for one run."""
         pid, job = item
         try:
             return pid, payloads_from_prowjob(fetch(job, pid)), None
@@ -165,4 +168,5 @@ def payload_minor(payload):
 
 
 def is_upgrade(pair):
+    """True when the pair moves from one payload to a different one."""
     return bool(pair and pair.get("initial") and pair.get("target") and pair["initial"] != pair["target"])

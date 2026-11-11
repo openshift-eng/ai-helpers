@@ -45,6 +45,7 @@ def backend_family(backend):
 
 
 def _unique(items):
+    """Non-empty items in their first-seen order, without repeats."""
     seen = []
     for item in items:
         if item and item not in seen:
@@ -53,6 +54,7 @@ def _unique(items):
 
 
 def _quote(value):
+    """A JQL string literal for value, with backslashes and quotes escaped."""
     return '"%s"' % value.replace("\\", "\\\\").replace('"', '\\"')
 
 
@@ -66,15 +68,18 @@ def _phrase(value):
 
 
 def _any(field, values, phrase=False):
+    """A JQL clause matching any of values in field, as phrases or plain terms."""
     term = _phrase if phrase else _quote
     return "(%s)" % " OR ".join("%s ~ %s" % (field, term(v)) for v in values)
 
 
 def _components(components):
+    """A JQL clause matching any of the given Jira components."""
     return "component in (%s)" % ", ".join(_quote(c) for c in components)
 
 
 def _query(name, purpose, jql):
+    """One named Jira search, in the shape the agent passes to searchJiraIssuesUsingJql."""
     return {
         "name": name,
         "purpose": purpose,

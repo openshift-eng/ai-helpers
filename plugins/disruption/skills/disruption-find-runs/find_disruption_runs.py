@@ -192,6 +192,7 @@ def _shard_family(job):
 
 
 def _enrich_runs(rows, disruption_data, selectors):
+    """Run rows with their index, job, start time, and peak seconds for the selected backends."""
     enriched = []
     for i, row in enumerate(rows):
         pid = str(row.get("prow_id", ""))
@@ -232,12 +233,14 @@ def _event_clusters(entries):
     parent = {e["index"]: e["index"] for e in entries}
 
     def find(index):
+        """The root of an index's group, compressing the path on the way."""
         while parent[index] != index:
             parent[index] = parent[parent[index]]
             index = parent[index]
         return index
 
     def link(groups, window):
+        """Join each group's runs that start within window seconds of the run anchoring their event."""
         for _key, items in groups:
             anchor = None
             for entry in sorted(items, key=lambda e: e["timestamp"]):
@@ -378,6 +381,7 @@ def format_timestamp(ts):
 
 
 def _backend_label(selectors):
+    """The selected backends as one display string."""
     if isinstance(selectors, str):
         return selectors
     return ", ".join(selectors)
@@ -401,10 +405,12 @@ def probe_family(name):
 
 
 def _fmt_secs(value):
+    """Seconds without a decimal when whole, else with one."""
     return "%d" % value if float(value).is_integer() else "%.1f" % value
 
 
 def _run_secs(row, disruption_data, selectors):
+    """Peak seconds of a run row for the selected backends."""
     return disruption_peak(disruption_data.get(str(row.get("prow_id", ""))), selectors)
 
 
@@ -480,6 +486,7 @@ def job_summary(rows, disruption_data, selectors):
 
 
 def _print_header(emit, grafana_params, window_start, scanned_count, truncated, row_count):
+    """Print the dashboard name, filters, window, and how many runs were scanned."""
     dashboard_name = grafana_params.get("_dashboard_name", "")
     filters = []
     for gkey, variant_key in GRAFANA_TO_VARIANT.items():
@@ -515,6 +522,7 @@ def _print_header(emit, grafana_params, window_start, scanned_count, truncated, 
 
 
 def _print_backend_summary(emit, rows, disruption_data, selectors, limit):
+    """Print how often each selected backend was disrupted and how badly."""
     summary = backend_summary(rows, disruption_data, selectors)
     active = [s for s in summary if s["nonzero"]]
     shown = summary if limit is None else active[:limit]
@@ -545,6 +553,7 @@ def _print_backend_summary(emit, rows, disruption_data, selectors, limit):
 
 
 def _print_job_summary(emit, rows, disruption_data, selectors, limit):
+    """Print the disrupted seconds per job."""
     summary = job_summary(rows, disruption_data, selectors)
     if not summary:
         return
@@ -564,6 +573,7 @@ def _print_job_summary(emit, rows, disruption_data, selectors, limit):
 
 
 def _visible_rows(row_count, selected_set, top):
+    """Row indexes to print: the first top rows plus every selected row."""
     if top is None or row_count <= top:
         return list(range(row_count))
     return sorted(set(range(top)) | {i for i in selected_set if i < row_count})
@@ -713,6 +723,7 @@ def print_json(rows, selectors, disruption_data, selected_indices=None):
 
 
 def main(argv=None):
+    """Find disrupted runs for the series, select representative ones, and print them."""
     parser = argparse.ArgumentParser(
         description="Find Prow job runs with disruption from Grafana dashboard parameters")
 

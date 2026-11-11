@@ -104,6 +104,7 @@ def parse_runs(runs_str):
 
 
 def _prowjob_containers(data):
+    """The containers of a prowjob.json pod spec, or [] when it has none."""
     return data.get("spec", {}).get("pod_spec", {}).get("containers", []) or []
 
 
@@ -382,6 +383,7 @@ def exit_code(results):
 
 
 def main(argv=None):
+    """Download prowjob.json and timelines for every run, and print where they landed."""
     parser = argparse.ArgumentParser(
         description="Download prowjob.json and timeline files for multiple job runs")
     parser.add_argument("--runs", required=True,

@@ -51,6 +51,7 @@ def parse_tag(tag):
 
 
 def changelog_url(from_tag, to_tag, arch=None):
+    """Release controller changelog URL for from_tag..to_tag. Raises ChangelogError for a bad range."""
     stream_from, time_from = parse_tag(from_tag)
     stream_to, time_to = parse_tag(to_tag)
     if stream_from != stream_to:
@@ -68,6 +69,7 @@ def changelog_url(from_tag, to_tag, arch=None):
 
 
 def fetch_json(url, timeout=FETCH_TIMEOUT):
+    """Fetch and decode JSON from url. Raises ChangelogError on HTTP, network, or JSON errors."""
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
             return json.load(resp)
@@ -114,6 +116,7 @@ def _check_complete(data, from_tag, to_tag):
 
 
 def load_changelog(from_tag, to_tag, arch=None, cache_dir=None, fetch=None):
+    """(changelog, url) for the payload range, from the cache when it holds a finished one."""
     url = changelog_url(from_tag, to_tag, arch)
     fetch = fetch or fetch_json
     cache_path = None
@@ -141,6 +144,7 @@ def load_changelog(from_tag, to_tag, arch=None, cache_dir=None, fetch=None):
 
 
 def print_text(from_tag, to_tag, comps, url, out=None):
+    """The PRs per component as plain text."""
     out = out or sys.stdout
     total = sum(len(c["prs"]) for c in comps)
     out.write("PRs from %s to %s: %d in %d component(s)\n" % (from_tag, to_tag, total, len(comps)))
@@ -155,6 +159,7 @@ def print_text(from_tag, to_tag, comps, url, out=None):
 
 
 def main(argv=None):
+    """Print the PRs between two payloads, as text or JSON."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("from_tag", help="older payload tag")
     parser.add_argument("to_tag", help="newer payload tag, in the same stream")
