@@ -1103,15 +1103,17 @@ regression, heavier test workloads, infrastructure degradation).
 ## Tooling: The Disruption Parser
 
 `parse_disruption.py` is the primary tool for structured disruption analysis — it extracts,
-classifies, and correlates disruption data from timeline files. The
-[analyze-disruption skill](../../analyze-disruption/SKILL.md) owns this tool and documents its
-full usage, flags (`--backends`, `--window`, `--format`, `--job-name`, `--build-id`,
-`--target`), JSON output schema, and feature list (backend classification, phase detection,
-source-node fan-out, concurrent-event extraction, OVS/CPU/cloud/etcd summarization, network
-liveness). Quick invocation:
+classifies, and correlates disruption data from timeline files. The `disruption-analyze-run` skill
+in the separate `disruption` plugin owns this tool and documents its full usage, flags
+(`--backends`, `--window`, `--format`, `--job-name`, `--build-id`, `--target`), JSON output
+schema, and feature list (backend classification, phase detection, source-node fan-out,
+concurrent-event extraction, OVS/CPU/cloud/etcd summarization, network liveness). It needs the
+rest of that plugin, so run it from the installed skill's directory. If the `disruption` plugin
+is not installed, read the timeline and `backend-disruption` files directly as described above.
+Quick invocation:
 
 ```bash
-python3 plugins/ci/skills/analyze-disruption/parse_disruption.py \
+python3 <disruption-analyze-run skill dir>/parse_disruption.py \
   <timeline.json> [timeline2.json ...] --window 60 --format text
 ```
 
@@ -1226,7 +1228,7 @@ during the conformance phase.
 
 **1. Run the parser:**
 ```bash
-python3 plugins/ci/skills/analyze-disruption/parse_disruption.py \
+python3 <disruption-analyze-run skill dir>/parse_disruption.py \
   timeline_upgrade.json timeline_conformance.json \
   --window 60 --format text
 ```
