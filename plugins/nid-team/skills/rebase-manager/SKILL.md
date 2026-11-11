@@ -48,6 +48,14 @@ Reuse `--state-dir` when supplied. The directory is for one pinned rebase plan;
 changes of target or carry decisions create a new run while preserving the old
 artifacts. Never overwrite an existing run to start over.
 
+A workflow may span several invocations. A closed, unmerged PR ends that workflow;
+its state cannot resume even if someone later reopens the PR on GitHub. Inspect a
+supplied terminal state directory and report its outcome; new planning uses a
+fresh directory even when the target is unchanged. When publishing that new
+workflow, create its own PR and link relevant previous attempts. The shared plan
+stage automatically discovers prior rebase PRs and assesses reusable analysis;
+pass along any known prior PR links and retained reports as starting context.
+
 A request for a plan stops after planning. A new bare command defaults to a plan;
 a request to perform a complete rebase authorizes the local stages. Continue
 within existing authorization rather than asking again at each stage. Publishing
@@ -69,9 +77,11 @@ pending feedback. Preserve human edits and partial Git operations.
 
 1. Delegate **plan** with the requested target, repository, and state directory.
    Inspect `plan.json` and `release-report.md`: full input SHAs, previous upstream
-   base, all carry IDs and tree deltas, application order, rationale, and real
-   validation commands. Investigate unresolved entries. A reviewable unresolved
-   plan is a valid planning result, but cannot be applied.
+   base, guidance files read, repository naming/message/title choices and sources,
+   relevant prior PRs and reassessed conclusions, all carry IDs and tree deltas,
+   application order, rationale, and real validation commands. Investigate
+   unresolved entries. A reviewable unresolved plan is a valid planning result,
+   but cannot be applied.
 2. Initialize the helper from the accepted plan. When execution is authorized,
    delegate **apply** with that immutable plan. Require completed commands, a
    committed clean candidate, every carry outcome in `result.json`, and explanations
@@ -145,7 +155,9 @@ Import the observed non-draft PR snapshot to record review state.
 Continue monitoring on manual invocation. If the PR head differs from the local
 candidate, inspect and reconcile those changes before using local evidence. Query
 the persisted PR after it closes; `MERGED` records completion, while `CLOSED`
-records an abandoned run. If a human changed the head before closure, retain the
+ends the run, including when the team decides the rebase is unnecessary. Preserve
+the report, discussion links, and decision rationale for discovery by future plan
+stages. If a human changed the head before closure, retain the
 observed terminal head separately from the last-tested candidate and disclose the
 unvalidated difference; closure is a remote fact, not proof of passing checks.
 Retain plans, logs, decisions, and feedback. Do not delete

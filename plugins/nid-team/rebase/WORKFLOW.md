@@ -25,8 +25,20 @@ plan → applied → validated
 
 A draft can obtain CI evidence before validation passes. Review readiness requires
 all required gates to pass at the current candidate and all imported feedback to
-be resolved at that revision. A closed, unmerged PR records `closed`. Completion
-records the actual remote merge, rather than inventing missing validation.
+be resolved at that revision. A closed, unmerged PR records terminal `closed`,
+including when the team decides not to rebase. That run cannot resume, even if
+the PR is later reopened on GitHub. Completion records the actual remote merge,
+rather than inventing missing validation.
+
+A workflow can span multiple invocations, but each new workflow has its own state
+directory, candidate branch, and PR when published. For example, after a weekly
+rebase report is discussed and its PR closed as unnecessary, the next week's
+planning starts a new workflow. The shared rebase skill automatically finds
+relevant recent PRs, including closed attempts, reads their reports/discussions
+and closure rationale, and links them in the new plan/report. It reuses applicable
+analysis after comparing current inputs and policies; old validation and resolved
+feedback do not establish readiness for the new run. Preserve the old artifacts
+and PR; publish a new PR for the new workflow rather than reopening the old one.
 
 Keep state outside the target checkout. `plan.json` is immutable; `result.json`
 records application outcomes. `state.json` contains their digests, last recorded

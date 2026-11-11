@@ -14,10 +14,19 @@ their structure and revision binding, not the truth of a semantic judgment.
 | `downstream_ref`, `downstream_sha` | Selected local or remote-tracking branch ref and full commit SHA; a remote-tracking ref needs a configured, discovered remote. The branch determines the PR base. |
 | `upstream_tag`, `upstream_sha` | Selected upstream tag and full commit SHA. |
 | `previous_upstream_sha` | Full SHA of the previous upstream base. |
-| `branch` | Short feature-branch name, distinct from the downstream/default branch; never `main`, `master`, a fully qualified ref, or a repository-protected branch. |
+| `branch` | Short feature-branch name following the repository's convention and distinct from the downstream/default branch; never `main`, `master`, a fully qualified ref, or a repository-protected branch. A fresh workflow uses an unused name. |
+| `guidance` | Object with `searched` (paths/patterns checked) and `files` (array of `{path, source_sha}` for repository guidance actually read). Paths are repository-relative; source SHAs identify the full commits inspected. |
+| `conventions` | Object with the exact `merge_message`, prepared `pr_title`, and `rationale` identifying sources for the branch/message/title choices, or explaining defaults where the repository has no convention. The selected branch is in `branch`. |
+| `prior_rebases` | Array of `{url, state, rationale}` for relevant earlier PRs, including closed, unmerged attempts. Record observed `OPEN`, `CLOSED`, or `MERGED` state and why the prior work is relevant; explain reuse/reassessment in the report. Use an empty array if none were found, and disclose lookup limitations in the report. |
 | `carries` | Ordered array of the carry objects below. |
 | `tree_deltas` | Array of `{path, status, disposition, rationale}` objects accounting for the downstream tree difference. |
 | `validations` | Array of `{id, command, required}` objects; `required` is Boolean. |
+
+New plans include `guidance`, `conventions`, and `prior_rebases`. Existing schema-1
+plans without these metadata fields remain readable by the helper; preserve an
+accepted plan rather than editing it to add metadata. The helper retains and
+hashes supplied metadata; the agent verifies discovery, convention choices, and
+the continuing applicability of prior analysis. Old evidence is not a new pass.
 
 Each carry has `id`, `source_sha`, `action`, and `rationale`. Use a full commit SHA
 for `source_sha`; IDs remain stable across replay and subject changes. Actions

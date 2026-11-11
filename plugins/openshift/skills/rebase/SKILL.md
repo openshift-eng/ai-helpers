@@ -7,8 +7,10 @@ description: "Rebase an OpenShift downstream fork onto an upstream release, incl
 
 Use this as the shared procedure behind `/openshift:rebase` and callers such as
 `nid-team:rebase-manager`. The agent performs the work; a slash command is not a
-shell executable. Follow the repository's rebase instructions and commit policy.
-The baseline convention is documented in
+shell executable. Follow the repository's rebase instructions and commit policy,
+including its branch names, merge messages, and PR titles. Repository conventions
+take precedence over this skill's naming defaults; candidate destination and
+publication protections still apply. The baseline convention is documented in
 [OpenShift Kubernetes's rebase guide](https://github.com/openshift/kubernetes/blob/master/REBASE.openshift.md).
 
 ## Invocation and boundaries
@@ -30,21 +32,48 @@ Git rebase implementation.
 
 ## Plan
 
-1. Inspect repository guidance and discover remotes with `git remote -v`.
+1. Discover remotes with `git remote -v`.
    Resolve the upstream project, downstream project/branch, and publishing fork
    by their fetch and push URLs. Record the discovered role-to-remote/URL mapping
    in the release report before using it; never assume a remote name.
    Fetch the required refs and tags. Record full commit SHAs for the selected
    upstream tag, downstream tip, and previous upstream base. A caller's supplied
-   target is authoritative. Uncertain previous-base detection is a blocker. If
-   the selected upstream revision is already the current upstream base, report
-   that no release rebase is needed and return without creating a candidate.
-2. Inventory downstream commits since the previous upstream base and compare
+   target is authoritative. Uncertain previous-base detection is a blocker.
+
+   Before creating a candidate, read rebase guidance from the pinned downstream
+   tree. Check root and applicable nested `AGENTS.md`/`CLAUDE.md`, `REBASE*.md`
+   in the root and documentation directories, `openshift-rebase/REBASE.md`,
+   `openshift-rebase/carries/`, and repository-local rebase commands such as
+   `.claude/commands/rebase.md`. Follow their links to relevant policy files.
+   Record searched locations and the paths/full source SHAs of files actually
+   read in `plan.json` and summarize the applicable rules in `release-report.md`.
+   Discover toolchain, vendoring/commit order, dependency automation, test, branch,
+   merge-message, and PR-title policies here; keep repository-specific rules in
+   the repository. If guidance conflicts or is incomplete, record the uncertainty
+   rather than silently replacing it with a generic default.
+2. Automatically look for relevant recent rebase PRs in the downstream repository
+   for the selected base branch, including closed, unmerged attempts. Search using
+   the repository's title/branch conventions. Include same-target attempts and
+   recent related attempts for other releases. Read their reports, discussion,
+   review feedback, and closure rationale. Record exact PR links and
+   outcomes in `prior_rebases` and the release report, or disclose an unavailable
+   lookup. Compare their upstream/downstream SHAs and policies with current inputs.
+   Reuse analysis that still applies with its source and explain what changed or
+   was reassessed, including an earlier decision that a rebase was unnecessary.
+   Prior validation and feedback resolutions do not satisfy this run's gates.
+   A closed PR ends its workflow: a later workflow uses fresh state and its own
+   candidate branch/PR when publishing, linking the earlier work without reopening
+   or updating it. Resuming an active workflow retains that workflow's PR.
+
+   If the selected upstream revision is already the current upstream base, report
+   that no release rebase is needed, with relevant prior context, and return
+   without creating a candidate.
+3. Inventory downstream commits since the previous upstream base and compare
    that base's tree with the downstream tree. Include unmarked commits, merge
    resolutions, additions, deletions, and old persistent differences. Commit
    subjects and an arbitrary recent date window cannot establish completeness.
    Assign every tree difference a disposition or leave it explicitly unresolved.
-3. Analyze carries in their dependency order. Use full source SHAs and stable
+4. Analyze carries in their dependency order. Use full source SHAs and stable
    IDs; duplicate subjects do not identify duplicate changes. Treat labels as
    policy hints:
    - `<carry>` normally persists; inspect its purpose and present implementation.
@@ -61,13 +90,20 @@ Git rebase implementation.
    establish that a bundled compiler-selection or download policy is obsolete.
    Explain those policies separately in tree accounting; leave uncertain policy
    changes unresolved instead of inferring permission from a `<drop>` subject.
-4. Record the repository's actual generation/build/test commands, required CI
+5. Record the repository's actual generation/build/test commands, required CI
    checks, and behavior that the carries must preserve. Distinguish checks that
    can run locally from checks requiring CI. Write `plan.json` and
    `release-report.md`, including upstream changelog links, major changes,
    compatibility concerns, carry rationale, and unresolved questions. A plan can
    contain `undecided` entries; application cannot.
-   Choose a short feature-branch name distinct from the downstream/default branch.
+   Record the chosen branch name, exact merge-helper message, and prepared PR title
+   in the plan, with sources explaining the repository convention or fallback.
+   Use `Rebase to <tag> for OCP <version>` only when no repository title format
+   exists, resolving the OCP version from repository context.
+   Choose a short feature-branch name following the repository convention and
+   distinct from the downstream/default branch. For a fresh workflow, use an
+   unused name; add a run suffix only if the convention permits it. A naming
+   collision that the convention cannot accommodate is a planning blocker.
    Reject `main`, `master`, fully qualified refs, and repository-protected branches
    as candidate destinations.
 
@@ -86,9 +122,10 @@ If a source moved, report the changed input and return for replanning. Never
 silently retarget an active run to a newer release.
 
 Create the planned branch at the pinned upstream SHA. Establish downstream
-ancestry with an `ours` strategy merge of the pinned downstream SHA, following
-the repository's history convention. Verify that this merge preserves the
-upstream tree; preserving history does not preserve downstream content.
+ancestry with an `ours` strategy merge of the pinned downstream SHA, using the
+planned merge-helper message and repository history convention. Verify that this
+merge preserves the upstream tree; preserving history does not preserve downstream
+content.
 
 Record each carry's start and completed outcome in `apply-progress.json`, with
 the plan digest, branch, pre-operation head, and source/result identities. Apply
@@ -164,10 +201,11 @@ results rather than presenting an old check as a fresh run.
 
 Render `release-report.md` and `pr-body.md` from the current plan, result, and
 evidence. Include upstream changelogs, significant changes, carry decisions,
-conflict adaptations, tests with failures/pending checks, previous rebase, and
-diff to upstream. Follow the target PR template. Mark stale results clearly and
-identify the actual tested head; never retain a success claim from an earlier
-candidate. The report can also serve as the rebase review meeting agenda.
+conflict adaptations, tests with failures/pending checks, previous rebase, relevant
+prior attempts and decisions, and diff to upstream. Explain reused analysis and
+changes since those attempts. Follow the target PR template. Mark stale results
+clearly and identify the actual tested head; never retain a success claim from an
+earlier candidate. The report can also serve as the rebase review meeting agenda.
 
 Delegated report mode returns these files without publishing. In interactive
 mode, stop on unresolved code/build/test failures and present the evidence.
@@ -178,8 +216,8 @@ never force-push, including with a lease. Publishing requires explicit user
 authorization for the concrete branch and PR; preserve authorization already
 given, otherwise present the branch and PR body for approval.
 
-Derive the OCP version from repository context and prepare the title
-`Rebase to <tag> for OCP <version>`. Open the form with
+Use the PR title recorded during planning, preserving the repository's format.
+Open the form with
 `gh pr create --web --repo <downstream-owner>/<repo> --base <downstream-branch> --head <fork-owner>:<candidate-branch> --title "<prepared-title>" --body-file <state-dir>/pr-body.md`
 so the user can edit the prepared submission. Resolve every placeholder from the
 plan and discovered URLs; quote all shell arguments as needed.
