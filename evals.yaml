@@ -51,6 +51,7 @@ evals:
   - plugins/openshift-developer/evals/cases/address-ci-failures
   - plugins/openshift-developer/skills/address-ci-failures
   - plugins/openshift-developer/skills/has-review-work/scripts
+  - plugins/ci/skills/prow-job-analysis/references/flaky-test-identification.md
 
 - config: plugins/openshift-developer/evals/eval-preassessment.yaml
   eval_cases_dir: plugins/openshift-developer/evals/cases/preassessment
@@ -61,13 +62,3 @@ evals:
   - plugins/openshift-developer/evals/eval-preassessment.yaml
   - plugins/openshift-developer/evals/cases/preassessment
   - plugins/openshift-developer/skills/preassessment
-
-- config: plugins/openshift-developer/evals/eval-generate-test-plan.yaml
-  eval_cases_dir: plugins/openshift-developer/evals/cases/generate-test-plan
-  run: pr
-  parallelism: 5
-  max_turns: 100
-  triggers:
-  - plugins/openshift-developer/evals/eval-generate-test-plan.yaml
-  - plugins/openshift-developer/evals/cases/generate-test-plan
-  - plugins/openshift-developer/skills/generate-test-plan
