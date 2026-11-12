@@ -178,34 +178,36 @@ Skip this step when `REBASE_REQUESTED` is not `true`. A branch being behind base
 
    For the linear range, require trusted exact-range provenance matching local evidence, or inspect every commit's metadata, single parent, and full binary patch (`git show --no-patch --format=fuller`, `git rev-list --parents -n 1`, `git diff --binary <parent> <commit>`). Also inspect the aggregate to expose reverted/binary changes. Refuse omissions, errors, truncation, unassessable binaries, or multiple parents. Workflow claims, ancestry, authorship, or messages alone are insufficient. On failure, set `REBASE_RESULT=failed` and report without modifying files.
 
-3. **Pin and inspect the base; skip when current**: fetch once and pin its exact commit for all checks and rebase. Require complete, non-shallow history. Always capture the complete merge list for replay range `BASE_TIP..PRE_REBASE_HEAD`; on error or any merge, report all returned hashes and stop because plain rebase can lose merge-only resolutions. Keep this separate from `LOCAL_COMMITS` provenance. For each local hash, `merge-base --is-ancestor` exit 0 means reachable, 1 means not, and anything else is an error. Report reachable hashes and stop: base may contain then revert the exact commit, which rebase would not select even with `--reapply-cherry-picks`. Preserve the checkout and local commits.
+3. **Pin and classify the base**: run only after Step 2 succeeds; never overwrite failure. Fetch once, pin its commit, and require complete, non-shallow history. Test whether `BASE_TIP` is an ancestor of `PRE_REBASE_HEAD`: exit 0 is `up_to_date` and skips rewrite guards/mutation, exit 1 continues, and other results fail closed. Only for exit 1, capture all merges in `BASE_TIP..PRE_REBASE_HEAD`; on error or any merge, report hashes and stop because plain rebase can lose merge-only resolutions. Separately reject local hashes reachable from base, which may contain then revert an exact commit rebase would not select. Preserve the checkout and local commits.
 
    ```sh
    git fetch --no-tags "$TARGET_REMOTE" "$BASE_BRANCH" || exit 1
    BASE_TIP=$(git rev-parse --verify 'FETCH_HEAD^{commit}') || exit 1
    [ "$(git rev-parse --is-shallow-repository)" = "false" ] || exit 1
-   REPLAY_MERGES=""
-   if ! REPLAY_MERGES=$(git rev-list --merges "$BASE_TIP..$PRE_REBASE_HEAD"); then
-     REBASE_RESULT=failed
-   elif [ -n "$REPLAY_MERGES" ]; then
+   if git merge-base --is-ancestor "$BASE_TIP" "$PRE_REBASE_HEAD"; then
+     REBASE_RESULT=up_to_date
+   elif [ "$?" -ne 1 ]; then
      REBASE_RESULT=failed
    else
-     REACHABLE_LOCAL_COMMITS=""
-     LOCAL_QUERY_FAILED=false
-     for commit in $LOCAL_COMMITS; do
-       if git merge-base --is-ancestor "$commit" "$BASE_TIP"; then
-         REACHABLE_LOCAL_COMMITS="$REACHABLE_LOCAL_COMMITS $commit"
-       elif [ "$?" -ne 1 ]; then
-         LOCAL_QUERY_FAILED=true
-         break
+     REPLAY_MERGES=""
+     if ! REPLAY_MERGES=$(git rev-list --merges "$BASE_TIP..$PRE_REBASE_HEAD"); then
+       REBASE_RESULT=failed
+     elif [ -n "$REPLAY_MERGES" ]; then
+       REBASE_RESULT=failed
+     else
+       REACHABLE_LOCAL_COMMITS=""
+       LOCAL_QUERY_FAILED=false
+       for commit in $LOCAL_COMMITS; do
+         if git merge-base --is-ancestor "$commit" "$BASE_TIP"; then
+           REACHABLE_LOCAL_COMMITS="$REACHABLE_LOCAL_COMMITS $commit"
+         elif [ "$?" -ne 1 ]; then
+           LOCAL_QUERY_FAILED=true
+           break
+         fi
+       done
+       if [ "$LOCAL_QUERY_FAILED" = true ] || [ -n "$REACHABLE_LOCAL_COMMITS" ]; then
+         REBASE_RESULT=failed
        fi
-     done
-     if [ "$LOCAL_QUERY_FAILED" = true ] || [ -n "$REACHABLE_LOCAL_COMMITS" ]; then
-       REBASE_RESULT=failed
-     elif git merge-base --is-ancestor "$BASE_TIP" "$PRE_REBASE_HEAD"; then
-       REBASE_RESULT=up_to_date
-     elif [ "$?" -ne 1 ]; then
-       REBASE_RESULT=failed
      fi
    fi
    ```
