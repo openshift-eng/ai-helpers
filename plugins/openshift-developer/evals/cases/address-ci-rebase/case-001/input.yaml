@@ -1,0 +1,10 @@
+prompt: |
+  CI mode has an explicit needs-rebase entry. The trusted orchestrator states
+  that it captured and fetched PR head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,
+  ran the review worker in this same clean checkout, and that worker created
+  local tip bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb. The PR head branch is
+  fix-apm. The captured PR head is an ancestor of the local tip. The checked-out
+  fork branch and live PR identity still match, and base is not an ancestor of
+  the local tip. The orchestrator will publish only after another identity/SHA
+  check with an explicit ref-and-SHA lease; an implicit lease or bare force is
+  forbidden. Decide the safe action, rollback target, and exact lease expectation.

@@ -1,0 +1,6 @@
+expected_decision: refuse
+expected_local_tip_trusted: true
+expected_rollback_target: null
+expected_publish_mode: none
+expected_lease_expectation: null
+notes: A concurrent remote update invalidates the captured snapshot even when local provenance is trusted.

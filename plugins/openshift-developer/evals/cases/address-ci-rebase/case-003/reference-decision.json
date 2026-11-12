@@ -1,0 +1,8 @@
+{
+  "decision": "refuse",
+  "local_tip_trusted": true,
+  "rollback_target": null,
+  "publish_mode": "none",
+  "lease_expectation": null,
+  "rationale": "The remote SHA changed after capture, so the concurrency check fails. The worker must leave the checkout untouched and must not authorize any push, regardless of trusted local provenance."
+}

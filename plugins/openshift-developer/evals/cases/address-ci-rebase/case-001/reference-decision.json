@@ -1,0 +1,8 @@
+{
+  "decision": "rebase",
+  "local_tip_trusted": true,
+  "rollback_target": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "publish_mode": "pipeline_explicit_lease",
+  "lease_expectation": "refs/heads/fix-apm:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "rationale": "The explicit rebase request, clean matching branch, verified remote identity, captured-head ancestry, and trusted same-workflow provenance permit rebasing the local review tip. Any abort or failed verification must restore the saved local tip, and CI publication requires an explicit lease on the captured remote SHA."
+}

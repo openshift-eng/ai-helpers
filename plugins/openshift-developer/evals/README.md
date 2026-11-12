@@ -49,6 +49,20 @@ decides fix vs report per TRT-2831 guardrails.
 | case-003 | Infrastructure failure (pod_pending) |
 | case-004 | Optional job — do not fix without slam-dunk PR-caused evidence |
 
+## address-ci-rebase (`cases/address-ci-rebase`)
+
+Whether the address-ci-failures rebase flow preserves remote concurrency and
+explicit-lease safeguards while accepting verified same-workflow local review
+commits and restoring the actual pre-rebase tip on failure.
+
+| Case | Description |
+|------|-------------|
+| case-001 | Trusted same-workflow local-ahead review commit may be rebased |
+| case-002 | Ancestry and familiar authorship alone do not establish provenance |
+| case-003 | Concurrent remote head update blocks rebase and publication |
+| case-004 | Behind-base CI state without an explicit request does not trigger rebase |
+| case-005 | Failed verification restores the saved local review tip |
+
 ## solve (`cases/solve`)
 
 Direct end-to-end evaluation of the jira-solve orchestrator against the

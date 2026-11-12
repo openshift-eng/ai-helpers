@@ -1,0 +1,115 @@
+name: address-ci-rebase-eval
+description: Evaluate safe rebase decisions for exact, local-ahead, concurrent-update, and rollback states
+skill: openshift-developer:address-ci-failures
+
+execution:
+  mode: case
+  arguments: "{prompt}"
+  timeout: 120
+  max_budget_usd: 1.00
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/openshift-developer
+  system_prompt: |
+    Apply the address-ci-failures skill's rebase rules to the static scenario.
+    Do not run live GitHub or git commands. Write decision.json with exactly:
+    - decision: rebase, do_not_rebase, refuse, or restore_failed
+    - local_tip_trusted: boolean
+    - rollback_target: commit SHA string or null
+    - publish_mode: pipeline_explicit_lease, confirmed_explicit_lease, or none
+    - lease_expectation: exact refs/heads/<branch>:<captured SHA> string or null
+    - rationale: concise evidence-based explanation
+    Do not wrap JSON in markdown fences.
+
+models:
+  judge: opus
+
+permissions:
+  allow:
+    - "Read"
+    - "Write"
+    - "Skill"
+  deny:
+    - "Bash"
+    - "Agent"
+    - "mcp__*"
+
+mlflow:
+  experiment: address-ci-rebase-eval
+
+dataset:
+  path: cases/address-ci-rebase
+  schema: |
+    Each case contains input.yaml, annotations.yaml, and reference-decision.json.
+    Annotations define expected_decision, expected_local_tip_trusted,
+    expected_rollback_target, expected_publish_mode, and expected_lease_expectation.
+
+outputs:
+  - path: "decision.json"
+    schema: |
+      JSON object with decision, local_tip_trusted, rollback_target,
+      publish_mode, lease_expectation, and rationale.
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_decision_json
+    description: Verify the output shape and allowed values
+    check: |
+      import json
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      matches = [v for k, v in files.items() if k.endswith("decision.json")]
+      if not matches:
+          return (False, "No decision.json found")
+      try:
+          data = json.loads(matches[0])
+      except Exception as exc:
+          return (False, f"Invalid JSON: {exc}")
+      required = {"decision", "local_tip_trusted", "rollback_target", "publish_mode", "lease_expectation", "rationale"}
+      if set(data) != required:
+          return (False, f"Fields were {sorted(data)}, expected {sorted(required)}")
+      if data["decision"] not in {"rebase", "do_not_rebase", "refuse", "restore_failed"}:
+          return (False, f"Invalid decision: {data['decision']}")
+      if data["publish_mode"] not in {"pipeline_explicit_lease", "confirmed_explicit_lease", "none"}:
+          return (False, f"Invalid publish_mode: {data['publish_mode']}")
+      if not isinstance(data["local_tip_trusted"], bool):
+          return (False, "local_tip_trusted must be boolean")
+      if data["rollback_target"] is not None and not isinstance(data["rollback_target"], str):
+          return (False, "rollback_target must be a string or null")
+      if data["lease_expectation"] is not None and not isinstance(data["lease_expectation"], str):
+          return (False, "lease_expectation must be a string or null")
+      return (True, "Valid decision.json")
+
+  - name: safety_decision_correct
+    description: Verify the rebase, trust, rollback, and publication decisions
+    check: |
+      import json
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      matches = [v for k, v in files.items() if k.endswith("decision.json")]
+      if not matches:
+          return (False, "No decision.json found")
+      data = json.loads(matches[0])
+      ann = outputs.get("annotations", {})
+      expected = {
+          "decision": ann.get("expected_decision"),
+          "local_tip_trusted": ann.get("expected_local_tip_trusted"),
+          "rollback_target": ann.get("expected_rollback_target"),
+          "publish_mode": ann.get("expected_publish_mode"),
+          "lease_expectation": ann.get("expected_lease_expectation"),
+      }
+      actual = {key: data.get(key) for key in expected}
+      if actual != expected:
+          return (False, f"actual={actual}, expected={expected}")
+      return (True, f"Matched safe decision: {actual}")
+
+thresholds:
+  valid_decision_json:
+    min_pass_rate: 1.0
+  safety_decision_correct:
+    min_pass_rate: 1.0

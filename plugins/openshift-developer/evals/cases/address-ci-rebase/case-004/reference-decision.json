@@ -1,0 +1,8 @@
+{
+  "decision": "do_not_rebase",
+  "local_tip_trusted": true,
+  "rollback_target": null,
+  "publish_mode": "none",
+  "lease_expectation": null,
+  "rationale": "No explicit trusted rebase request exists. Being behind base or wanting to refresh CI is not sufficient authority to rewrite and publish PR history."
+}

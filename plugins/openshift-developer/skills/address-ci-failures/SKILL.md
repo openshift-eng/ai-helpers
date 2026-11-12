@@ -83,11 +83,17 @@ Resolve PR number and repository into named variables before any shell commands.
 
 5. **PR diff context** (required for triage; fail closed if unavailable):
 
-   Resolve the PR base branch and head commit, then diff base..head. Select the git remote whose fetch URL points at `"${REPO}"` on GitHub — do not use the current branch's tracking remote when that points at a contributor fork. Fail closed when no remote matches:
+   Resolve the PR base branch and the complete head identity in one response, then diff base..head. Select the git remote whose fetch URL points at `"${REPO}"` on GitHub — do not use the current branch's tracking remote when that points at a contributor fork. Fail closed when metadata is incomplete or no remote matches:
 
    ```sh
-   BASE_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json baseRefName -q .baseRefName)
-   HEAD_SHA=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefOid -q .headRefOid)
+   PR_HEAD_JSON=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+     --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner) || exit 1
+   BASE_BRANCH=$(printf '%s' "$PR_HEAD_JSON" | jq -er '.baseRefName | strings | select(length > 0)') || exit 1
+   HEAD_BRANCH=$(printf '%s' "$PR_HEAD_JSON" | jq -er '.headRefName | strings | select(length > 0)') || exit 1
+   HEAD_SHA=$(printf '%s' "$PR_HEAD_JSON" | jq -er '.headRefOid | strings | select(test("^[0-9a-f]{40}$"))') || exit 1
+   HEAD_OWNER=$(printf '%s' "$PR_HEAD_JSON" | jq -er '.headRepositoryOwner.login | strings | select(length > 0)') || exit 1
+   HEAD_REPO_NAME=$(printf '%s' "$PR_HEAD_JSON" | jq -er '.headRepository.name | strings | select(length > 0)') || exit 1
+   HEAD_REPO="${HEAD_OWNER}/${HEAD_REPO_NAME}"
 
    TARGET_REMOTE=""
    while read -r remote url; do
@@ -104,54 +110,99 @@ Resolve PR number and repository into named variables before any shell commands.
      exit 1
    fi
 
-   git fetch "$TARGET_REMOTE" "${BASE_BRANCH}" || exit 1
+   git fetch --no-tags "$TARGET_REMOTE" "${BASE_BRANCH}" || exit 1
    if ! git fetch "$TARGET_REMOTE" "pull/${PR_NUMBER}/head" 2>/dev/null; then
      git fetch "$TARGET_REMOTE" "${HEAD_SHA}" || exit 1
    fi
-
-   CURRENT_HEAD=$(git rev-parse HEAD 2>/dev/null || true)
-   if [ "$CURRENT_HEAD" != "$HEAD_SHA" ]; then
-     DIFF_HEAD="${HEAD_SHA}"
-   else
-     DIFF_HEAD="HEAD"
+   FETCHED_PR_HEAD=$(git rev-parse --verify 'FETCH_HEAD^{commit}') || exit 1
+   if [ "$FETCHED_PR_HEAD" != "$HEAD_SHA" ]; then
+     echo "ERROR: fetched PR head does not match ${HEAD_SHA}" >&2
+     exit 1
    fi
 
-   git diff "${TARGET_REMOTE}/${BASE_BRANCH}...${DIFF_HEAD}" --stat || exit 1
-   git diff "${TARGET_REMOTE}/${BASE_BRANCH}...${DIFF_HEAD}" --name-only || exit 1
+   git diff "${TARGET_REMOTE}/${BASE_BRANCH}...${HEAD_SHA}" --stat || exit 1
+   git diff "${TARGET_REMOTE}/${BASE_BRANCH}...${HEAD_SHA}" --name-only || exit 1
    ```
 
    Do not continue triage if fetch or either diff command fails.
 
-### Step 0b: Rebase onto the base branch (only when `REBASE_REQUESTED=true`)
+### Step 0b: Rebase onto the base branch (only when explicitly requested)
 
-Skip this step when no rebase was requested. Use `TARGET_REMOTE`, `BASE_BRANCH`, and `HEAD_SHA` from Step 0.
+Skip this step when `REBASE_REQUESTED` is not `true`. A branch being behind base or having CI failures is never by itself permission to rewrite history. Rebase only for the explicit rebase entry/user request, and only when conflicts or the requested base update require it. Use the captured head identity from Step 0.
 
-1. **Preconditions**: there are no uncommitted changes to tracked files (`git status --porcelain --untracked-files=no` is empty) and `git rev-parse HEAD` equals `HEAD_SHA`. If either fails, do not rebase; report it and continue with Step 1.
+1. **Revalidate the remote snapshot**: immediately before touching history, re-read `baseRefName`, `headRefName`, `headRefOid`, `headRepository`, and `headRepositoryOwner`. Require the base, head owner/repository/branch, and SHA to match the values captured in Step 0:
 
-2. **Skip when up to date**: Prow can take a few minutes to remove the label after a push.
+   ```sh
+   LIVE_PR_HEAD_JSON=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+     --json baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner) || exit 1
+   LIVE_BASE_BRANCH=$(printf '%s' "$LIVE_PR_HEAD_JSON" | jq -er '.baseRefName') || exit 1
+   LIVE_HEAD_BRANCH=$(printf '%s' "$LIVE_PR_HEAD_JSON" | jq -er '.headRefName') || exit 1
+   LIVE_HEAD_SHA=$(printf '%s' "$LIVE_PR_HEAD_JSON" | jq -er '.headRefOid') || exit 1
+   LIVE_HEAD_REPO=$(printf '%s' "$LIVE_PR_HEAD_JSON" | \
+     jq -er '(.headRepositoryOwner.login + "/" + .headRepository.name)') || exit 1
+   if [ "$LIVE_BASE_BRANCH" != "$BASE_BRANCH" ] || \
+      [ "$LIVE_HEAD_BRANCH" != "$HEAD_BRANCH" ] || \
+      [ "$LIVE_HEAD_SHA" != "$HEAD_SHA" ] || \
+      [ "$LIVE_HEAD_REPO" != "$HEAD_REPO" ]; then
+     REBASE_RESULT=failed
+   fi
+   ```
+
+   If any identity field or the SHA changed, do not rebase; report the concurrent update and continue with Step 1 without making code changes.
+
+2. **Snapshot and validate the local tip**: require a clean tracked worktree and the checked-out branch to equal `HEAD_BRANCH`, then save the actual local tip before rebase:
+
+   ```sh
+   REBASE_PRECONDITIONS=ok
+   PRE_REBASE_HEAD=$(git rev-parse --verify 'HEAD^{commit}') || exit 1
+   if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+     REBASE_PRECONDITIONS="tracked worktree changes prevent rebase"
+   elif [ "$(git symbolic-ref --quiet --short HEAD)" != "$HEAD_BRANCH" ]; then
+     REBASE_PRECONDITIONS="checked-out branch is not ${HEAD_BRANCH}"
+   fi
+   ```
+
+   Accept either of these local states:
+
+   - `PRE_REBASE_HEAD` equals `HEAD_SHA`; or
+   - `PRE_REBASE_HEAD` is a descendant of `HEAD_SHA`, and every commit in `HEAD_SHA..PRE_REBASE_HEAD` is verified review work from this task/workflow.
+
+   For a local-ahead tip, first prove ancestry with `git merge-base --is-ancestor "$HEAD_SHA" "$PRE_REBASE_HEAD"`. Then establish provenance in one of two ways: trusted orchestration context identifies the exact captured `HEAD_SHA` and post-review `PRE_REBASE_HEAD`, states that its review worker produced that exact commit range in this same checkout, and both values match the local evidence; or inspect every commit and the full diff with `git log --reverse --format=fuller "$HEAD_SHA..$PRE_REBASE_HEAD"` and `git diff "$HEAD_SHA..$PRE_REBASE_HEAD"` and confirm all changes are expected review work for this PR. A generic same-workflow assertion is insufficient. Commit ancestry, author, committer, or message alone never proves ownership. If `REBASE_PRECONDITIONS` is not `ok`, neither provenance path succeeds, or `HEAD_SHA` is not an ancestor, set `REBASE_RESULT=failed`; do not rebase or make code changes, and report the untrusted local state.
+
+3. **Skip when up to date**: Prow can take a few minutes to remove the label after a push.
 
    ```sh
    git fetch "$TARGET_REMOTE" "$BASE_BRANCH" || exit 1
-   if git merge-base --is-ancestor "$TARGET_REMOTE/$BASE_BRANCH" HEAD; then
+   if git merge-base --is-ancestor "$TARGET_REMOTE/$BASE_BRANCH" "$PRE_REBASE_HEAD"; then
      REBASE_RESULT=up_to_date
    fi
    ```
 
-3. **Rebase**: `git rebase "$TARGET_REMOTE/$BASE_BRANCH"`.
+4. **Rebase**: only when the requested base is not already an ancestor, run `git rebase "$TARGET_REMOTE/$BASE_BRANCH"`.
 
-4. **Resolve conflicts** until the rebase completes:
+5. **Resolve conflicts** until the rebase completes:
    - Keep both the base branch's changes and the PR's intent. Never resolve by discarding the base branch's side, and never drop a PR commit to make conflicts go away.
    - Regenerate generated files and lock or vendor files (for example `go.sum`, `vendor/`, generated code) with the repository's generators instead of merging them by hand.
    - `git add` the resolved files, then `GIT_EDITOR=true git rebase --continue`.
-   - If a conflict cannot be resolved with confidence, run `git rebase --abort`.
+   - If a conflict cannot be resolved with confidence, run `git rebase --abort`, then verify `HEAD` is exactly `PRE_REBASE_HEAD`. If it is not, restore the saved tip with `git reset --hard "$PRE_REBASE_HEAD"`. Never restore to `HEAD_SHA` when the saved local tip was ahead of it.
 
-5. **Verify**: run the repo's verification commands (same detection as `address-review-pr` Step 3.5). Fix breakage the rebase introduced with a new commit on top. If it still fails after 3 attempts, restore the original branch with `git reset --hard "$HEAD_SHA"`.
+6. **Verify**: run the repo's verification commands (same detection as `address-review-pr` Step 3.5). Fix breakage the rebase introduced with a new commit on top. If it still fails after 3 attempts, restore the complete pre-rebase state with `git reset --hard "$PRE_REBASE_HEAD"` and verify `git rev-parse HEAD` equals that saved tip. This preserves trusted local review commits.
 
-6. **Record** `REBASE_RESULT` as `rebased`, `up_to_date`, or `failed`. When it is `failed`, post a PR conversation comment (same `gh api` pattern as Step 2) explaining which files conflicted or which verification failed, and that a human needs to rebase.
+7. **Record** `REBASE_RESULT` as `rebased`, `up_to_date`, or `failed`. When it is `failed`, post a PR conversation comment (same `gh api` pattern as Step 2) explaining which precondition, conflict, or verification failed, that the saved local tip was restored, and that a human needs to rebase.
 
-7. **Publishing**: a rebase rewrites history. In `--ci` mode, do not push; the pipeline publishes the rewritten branch. Outside `--ci`, tell the user a force push is required and do not force push without explicit confirmation.
+8. **Publishing**: a rebase rewrites history.
 
-8. **Remaining checks**: when `REBASE_RESULT=rebased`, the other failing checks ran against the pre-rebase HEAD, and CI will rerun on the rebased branch. Classify them in Step 1 for the summary, but do not fix or report them. Mark their action as `deferred (rebased)`. Otherwise continue normally.
+   - In `--ci` mode, do not push. The trusted caller may publish only after re-reading the PR and proving the head owner/repository/branch are unchanged and the remote SHA still equals `HEAD_SHA`. It must target that exact fork branch and use an explicit expected-SHA lease equivalent to `--force-with-lease=refs/heads/${HEAD_BRANCH}:${HEAD_SHA}`. An implicit lease, bare `--force`, or a caller that does not guarantee these checks is not acceptable; report instead of authorizing publication.
+   - Outside `--ci`, re-read and compare the same complete PR head identity, select a push remote whose effective push URL is the captured `HEAD_REPO`, and require explicit user confirmation. After confirmation, push only with:
+
+     ```sh
+     git push --force-with-lease="refs/heads/${HEAD_BRANCH}:${HEAD_SHA}" \
+       "$PUSH_REMOTE" "HEAD:refs/heads/${HEAD_BRANCH}"
+     ```
+
+     Never use an implicit lease or bare `--force`.
+
+9. **Remaining checks**: when `REBASE_RESULT=rebased`, the other failing checks ran against the pre-rebase remote HEAD, and CI will rerun on the rebased branch. Classify them in Step 1 for the summary, but do not fix or report them. Mark their action as `deferred (rebased)`. Otherwise continue normally.
 
 ### Step 1: Triage each failing check (mandatory before any code change)
 
@@ -267,7 +318,9 @@ Include commit hashes for fixes and comment URLs for reports.
 - Do not fix failures classified as infrastructure, pre-existing, flake, or out-of-scope.
 - Do not change code to green an optional job unless the Step 1 optional-job bar is fully met.
 - Do not `/retest` or trigger CI jobs — report only.
-- Do not force push in `--ci` mode; the pipeline publishes rebased history.
+- Do not rebase merely because the branch is behind base or CI needs updating; require an explicit trusted rebase request.
+- Do not treat local commits as trusted merely because they descend from the PR head or have a familiar author/message; require same-workflow provenance or review their complete contents.
+- Do not force push in `--ci` mode; a trusted pipeline may publish only after remote identity/concurrency checks and with an explicit lease on `HEAD_SHA`. Outside `--ci`, require the same checks plus confirmation.
 
 ## Arguments
 - `$1`: PR number (optional — current branch if omitted)
