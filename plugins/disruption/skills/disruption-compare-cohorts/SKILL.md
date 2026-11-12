@@ -40,6 +40,8 @@ Each row is one signal, with how many runs in each cohort show it (`runs/of`) an
 
 The `suggested` label compares counts only. A run listed as missing `parsed.json` was not analyzed; analyze it or say the comparison is without it.
 
+After the matrix, **component repos whose commit differs** come from each run's `gather/releaseinfo.json` (the runs must have been downloaded with `--gather`). `changed` means no after run shares a commit with any before run for that repo; `mixed` means some after runs still have a before commit, so the repo does not separate the cohorts. releaseinfo is the payload each cluster ran last, which for upgrade jobs is the target, not the payload it started from. A component changed in every after run whose role fits a candidate (for example the kube-apiserver operator for a new rollout) is a lead for `disruption-change-suspects`, not proof. If the script says component versions were not compared, say so; the change search still works from payload tags.
+
 ## Step 2: Classify each candidate
 
 A candidate is a mechanism the run analyses named (for example "second kube-apiserver rollout", "etcd slow fdatasync on master-0", "OVS poll stalls on the source node"), with the matrix rows that measure it. Read `references/cross-run-comparison.md` for how to line up episodes, waves, rollouts, payload pairs, and same-job pairs.
@@ -58,7 +60,8 @@ Rules:
 - Judge "present before" from the run-wide rows, not only the `during` rows: a before run with no disruption has no `during` rows at all.
 - A symptom shared by both cohorts (CPU pressure, etcd slowness) is pre-existing unless its size or its link to episodes changed. Do not let a familiar symptom stand in for the change.
 - With 5 runs per cohort, one run is 20%. Say how many runs each conclusion rests on, and call a difference of one run noise.
-- Name what would settle an open candidate: more runs, a deep dive, or the change search.
+- Name what would settle an open candidate: more runs, a deep dive, the change search, or a control series.
+- **A platform-specific candidate** (a cloud signal, or something only this platform's jobs do) needs a control: the same series on another platform over the same period. If it rose at the same time there, the cause is not specific to this platform. Offer the control below; until it is run, say the platform question is open.
 
 ## Output
 
@@ -76,6 +79,7 @@ next:
   - search Jira for <mechanism> (disruption-known-issues)
   - analyze more runs (disruption-find-runs with a larger --per-side, then disruption-analyze-run)
   - deep-dive run <build_id> (disruption-analyze-run)
+  - check the same series on <platform> as a control (disruption-trend --control platform-<platform> --platform <platform>)
 ```
 ````
 

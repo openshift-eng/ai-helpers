@@ -225,6 +225,34 @@ def test_main_writes_state_and_runs_file(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Transition increase" in out and "| Bucket |" in out
 
+    # A control run of another platform leaves the investigated series alone.
+    with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(400), False)), \
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=_fake_disruption):
+        code = ds.main(["--release", "5.0", "--backend", "kube-api-new-connections", "--days", "30",
+                        "--platform", "gcp", "--control", "platform-gcp", "--state-file", str(state),
+                        "--cache-dir", ""])
+    assert code == 0
+    after = json.loads(state.read_text())
+    assert after["series"] == saved["series"] and after["trend"] == saved["trend"]
+    control = after["controls"]["platform-gcp"]
+    assert control["series"]["variants"] == {"Platform": "gcp"}
+    assert control["runs_file"].endswith("control-platform-gcp-runs.json")
+    assert (tmp_path / "inv" / "control-platform-gcp-runs.json").exists()
+    compared = control["at_investigated_transitions"]
+    assert compared[0]["at"] == saved["trend"]["transitions"][0]["at"]
+    assert compared[0]["before"]["n"] > 0 and compared[0]["after"]["n"] > 0
+    assert "Control platform-gcp around the investigated transitions:" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("argv, message", [
+    (["--control", "platform-gcp"], "--control needs --state-file"),
+    (["--control", "Bad Name", "--state-file", "x.json"], "--control must be lowercase"),
+])
+def test_main_rejects_bad_control_options(argv, message, capsys):
+    with pytest.raises(SystemExit):
+        ds.main(["--release", "5.0", "--backend", "kube-api-new-connections"] + argv)
+    assert message in capsys.readouterr().err
+
 
 def _alert(master_nodes_updated):
     return ("alertname: DisruptionRegressionP50\nbackend: kube-api-new-connections\nrelease: 5.0\n"

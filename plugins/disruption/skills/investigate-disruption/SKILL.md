@@ -41,10 +41,10 @@ Every skill ends its turn with a `disruption-checkpoint` block:
 Read `references/report-guide.md` and follow it. Assemble the report from the investigation files (`analysis.md` per run, `comparison.md`, `suspects.md`, `known-issues.md`) and the state file; do not redo their analysis. Save it as `{investigation_dir}/{backend_names}-analysis.md`.
 
 - **W3 and W4** end with exactly one verdict from `references/workflows.md`: regression explained, partially explained, or regression cause unresolved. Lead the answer with it. When the evidence explains the disrupted runs but not the increase, the verdict is unresolved; say so plainly and list the open hypotheses.
-- **W5** explains the current disrupted runs. Say it is not a regression analysis, and offer W3 if the user wants to know what made it worse.
+- **W5** explains the current disrupted runs. Say it is not a regression analysis, and offer W3 if the user wants to know what made it worse. When W5 was reached from W3 (no transition in the window), the request was still a regression: keep the verdict, normally "regression cause unresolved, no transition in the window" (`references/workflows.md`).
 - **W2** answers when; offer W3 to find out why.
 
-Never present a related Jira card, a symptom both cohorts share, or the alert's platform as the explanation.
+Never present a related Jira card, a symptom both cohorts share, or the alert's platform as the explanation. A platform-specific cause needs a platform control (`disruption-trend --control`); report the controls that were run.
 
 ## Error handling
 

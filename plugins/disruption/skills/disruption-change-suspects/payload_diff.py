@@ -66,14 +66,14 @@ else:
 from disruption_common.gcs import (  # noqa: E402
     GCS_BUCKET, download_file, extract_target, gather_gcs_path,
 )
+from disruption_common.releaseinfo import (  # noqa: E402,F401  (parse_repo and payload_version re-exported for tests)
+    COMMIT_ANNOTATION, component_commits, parse_repo, payload_version,
+)
 
-COMMIT_ANNOTATION = "io.openshift.build.commit.id"
-SOURCE_ANNOTATION = "io.openshift.build.source-location"
 GH_TIMEOUT_SECONDS = 120
 OC_TIMEOUT_SECONDS = 300
 
 _RUN_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*:\d{6,}$")
-_GITHUB_RE = re.compile(r"github\.com[/:]([A-Za-z0-9_.-]+)/([A-Za-z0-9_-]+?)(?:\.git)?/?$")
 _COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}$")
 
 
@@ -147,38 +147,6 @@ def resolve_payload(ref, output_dir):
     if "/" in ref and (":" in ref or "@" in ref) and not ref.startswith("-"):
         return ref, oc_release_info(ref)
     raise PayloadError("%s is not a file, build dir, job:build_id, or pullspec" % ref)
-
-
-def payload_version(info):
-    """The release version named by a releaseinfo document, or ''."""
-    return ((info.get("metadata") or {}).get("version")
-            or (info.get("references", {}).get("metadata") or {}).get("name") or "")
-
-
-def parse_repo(url):
-    """(owner, repo) from a GitHub source-location URL, or None."""
-    match = _GITHUB_RE.search(url or "")
-    if not match:
-        return None
-    return match.group(1), match.group(2)
-
-
-def component_commits(info):
-    """tag name -> {commit, source, repo} from references.spec.tags."""
-    result = {}
-    for tag in (info.get("references", {}).get("spec", {}).get("tags") or []):
-        annotations = tag.get("annotations") or {}
-        commit = annotations.get(COMMIT_ANNOTATION)
-        if not commit:
-            continue
-        source = annotations.get(SOURCE_ANNOTATION, "")
-        repo = parse_repo(source)
-        result[tag["name"]] = {
-            "commit": commit,
-            "source": source,
-            "repo": "%s/%s" % repo if repo else None,
-        }
-    return result
 
 
 def changed_repos(before, after):

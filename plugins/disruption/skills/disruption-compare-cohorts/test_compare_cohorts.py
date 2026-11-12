@@ -118,5 +118,48 @@ def test_main_keeps_files_without_build_ids_apart_and_rejects_repeats(tmp_path, 
     assert "are the same run (333)" in capsys.readouterr().err
 
 
+def _releaseinfo(commits):
+    tags = [{"name": name, "annotations": {"io.openshift.build.commit.id": commit,
+                                           "io.openshift.build.source-location": "https://github.com/openshift/%s" % repo}}
+            for name, (repo, commit) in commits.items()]
+    return {"references": {"spec": {"tags": tags}}}
+
+
+def test_main_lists_component_repos_whose_commit_differs(tmp_path, capsys):
+    old = {"cluster-kube-apiserver-operator": ("cluster-kube-apiserver-operator", "aaaa1111"),
+           "hyperkube": ("kubernetes", "bbbb2222"), "ovn-kubernetes": ("ovn-kubernetes", "cccc3333")}
+    new = dict(old, **{"cluster-kube-apiserver-operator": ("cluster-kube-apiserver-operator", "dddd4444")})
+    mixed = dict(old, **{"ovn-kubernetes": ("ovn-kubernetes", "eeee5555")})
+    paths = {}
+    for bid, info, side in (("1", old, "before"), ("2", old, "before"), ("3", new, "after"),
+                            ("4", dict(new, **{"ovn-kubernetes": mixed["ovn-kubernetes"]}), "after"),
+                            ("5", None, "after")):
+        run = tmp_path / bid
+        (run / "gather").mkdir(parents=True)
+        (run / "parsed.json").write_text(json.dumps(_parsed(disruptions=3 if side == "after" else 0)))
+        if info:
+            (run / "gather" / "releaseinfo.json").write_text(json.dumps(_releaseinfo(info)))
+        paths.setdefault(side, []).append(str(run / "parsed.json"))
+    assert cc.main(["--before", ",".join(paths["before"]), "--after", ",".join(paths["after"]),
+                    "--format", "json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    rows = {c["repo"]: c for c in result["components"]}
+    assert set(rows) == {"openshift/cluster-kube-apiserver-operator", "openshift/ovn-kubernetes"}
+    assert rows["openshift/cluster-kube-apiserver-operator"]["label"] == "changed"
+    assert rows["openshift/cluster-kube-apiserver-operator"]["after"] == {"dddd4444": 2}
+    assert rows["openshift/ovn-kubernetes"]["label"] == "mixed"
+    assert any("Component versions leave out 5" in n for n in result["notes"])
+
+
+def test_components_are_skipped_without_releaseinfo(tmp_path, capsys):
+    before, after = tmp_path / "1.json", tmp_path / "2.json"
+    before.write_text(json.dumps(_parsed()))
+    after.write_text(json.dumps(_parsed(disruptions=2)))
+    assert cc.main(["--before", str(before), "--after", str(after), "--format", "json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["components"] is None
+    assert any("Component versions were not compared: neither cohort" in n for n in result["notes"])
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

@@ -60,9 +60,10 @@ on which payload a run started from or upgraded to without it.
 
 **`--gather`** also downloads gather-extra `events.json`, `configmaps.json`,
 `releaseinfo.json`, and `clusterversion.json` into `{build_id}/gather/` for the
-revision-trigger recipe below and for `disruption-change-suspects`. Add it when the parser shows more
-static-pod revision rollouts in one run than in another, or when payloads will be
-compared (`disruption-change-suspects`). The per-run `gather_files` and `gather_error` fields report what was saved;
+revision-trigger recipe below and for `disruption-change-suspects`. Add it for before/after cohorts
+(`disruption-compare-cohorts` compares component versions from `releaseinfo.json`), when the
+parser shows more static-pod revision rollouts in one run than in another, or when payloads
+will be compared (`disruption-change-suspects`). The per-run `gather_files` and `gather_error` fields report what was saved;
 a missing gather-extra file does not change the exit status.
 
 Exit status:

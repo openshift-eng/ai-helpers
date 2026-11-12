@@ -9,10 +9,10 @@ Start with **`investigate-disruption`**. It picks a workflow for the question an
 | Skill | Answers |
 |---|---|
 | [`investigate-disruption`](skills/investigate-disruption/SKILL.md) | Entry point: chooses the workflow, runs the skills with checkpoints, and writes the report with a verdict |
-| [`disruption-trend`](skills/disruption-trend/SKILL.md) | When did disruption on a series start, get worse, or improve? |
+| [`disruption-trend`](skills/disruption-trend/SKILL.md) | When did disruption on a series start, get worse, or improve? Also runs control series on another platform or the previous release |
 | [`disruption-find-runs`](skills/disruption-find-runs/SKILL.md) | Which runs to analyze: current disrupted runs, before/after cohorts around a transition, or your own cohorts checked |
 | [`disruption-analyze-run`](skills/disruption-analyze-run/SKILL.md) | Why was each run disrupted? Intervals, rollouts, and etcd, OVS, CPU, and cloud signals |
-| [`disruption-compare-cohorts`](skills/disruption-compare-cohorts/SKILL.md) | What differs between before and after: new, pre-existing with more impact, or unchanged |
+| [`disruption-compare-cohorts`](skills/disruption-compare-cohorts/SKILL.md) | What differs between before and after: new, pre-existing with more impact, or unchanged, plus which component versions changed |
 | [`disruption-change-suspects`](skills/disruption-change-suspects/SKILL.md) | Which PRs between two payloads fit the mechanism |
 | [`disruption-known-issues`](skills/disruption-known-issues/SKILL.md) | Is it tracked? Demonstrated mechanism matches kept apart from related cards |
 
@@ -33,7 +33,7 @@ Regression investigations end with a verdict: explained, partially explained, or
 
 ## Shared library
 
-`scripts/disruption_common/` holds the code several skills use: series resolution from alerts and dashboards, Sippy access, payload pairs, anonymous GCS reads, interval loading, investigation state, and Jira query building. Its tests are in `tests/`. Install the whole plugin: Claude Code does, and Chai copies the plugin's `scripts/` tree into every skill it installs, so no extra persona configuration is needed. A skill installed without it exits with a message saying the library is missing.
+`scripts/disruption_common/` holds the code several skills use: series resolution from alerts and dashboards, Sippy access, payload pairs, anonymous GCS reads, interval loading, investigation state, releaseinfo component parsing, shared statistics, and Jira query building. Its tests are in `tests/`. Install the whole plugin: Claude Code does, and Chai copies the plugin's `scripts/` tree into every skill it installs, so no extra persona configuration is needed. A skill installed without it exits with a message saying the library is missing.
 
 ## Prerequisites
 

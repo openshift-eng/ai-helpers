@@ -33,7 +33,7 @@ From each Prow URL take the job name and build ID: the last two path segments af
 
 ## Step 2: Download timelines
 
-Read `references/artifacts.md` and follow **Timeline download**: one `download_timelines.py` call for every run, with `--output-dir {runs_dir}`. On exit 2, continue with the runs that downloaded; on exit 1, stop and report each run's error.
+Read `references/artifacts.md` and follow **Timeline download**: one `download_timelines.py` call for every run, with `--output-dir {runs_dir}`. When the runs are before/after cohorts, add `--gather`: `disruption-compare-cohorts` compares component versions from each run's `releaseinfo.json`, and the revision-trigger check needs the events and configmaps. On exit 2, continue with the runs that downloaded; on exit 1, stop and report each run's error.
 
 Keep each run's payload pair (initial → target) from the output. For upgrade jobs, make no claim that depends on which payload a run started from or upgraded to without that run's pair; if it is unknown, say so.
 

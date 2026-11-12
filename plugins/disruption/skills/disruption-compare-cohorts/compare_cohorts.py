@@ -19,6 +19,11 @@ Each row gets a suggested label (new, more in after, pre-existing similar,
 less in after, before only, sporadic). The label only compares counts; the
 skill decides what the evidence shows.
 
+When runs have gather/releaseinfo.json (download_timelines.py --gather), it
+also lists the component repositories whose commit differs between the
+cohorts. releaseinfo describes the payload each cluster ran last: the target
+of an upgrade, not the payload it started from.
+
 Usage:
     python3 compare_cohorts.py --state-file .work/disruption-analysis/<id>/investigation.json \
         --runs-dir .work/disruption-analysis/<id>/runs
@@ -53,8 +58,10 @@ else:
              "the library is its scripts/disruption_common. Looked in: %s" % ", ".join(_LIB_PARENTS))
 
 from disruption_common import state  # noqa: E402
+from disruption_common.releaseinfo import component_commits  # noqa: E402
 
 PARSED_NAME = "parsed.json"
+RELEASEINFO_PATH = os.path.join("gather", "releaseinfo.json")
 RATE_SHIFT = 0.3
 SIZE_RATIO = 1.5
 
@@ -196,9 +203,10 @@ def _build_id(path):
 
 
 def load_cohorts(args):
-    """{"before": {build_id: parsed}, "after": {...}} and notes about runs that were skipped."""
+    """({"before": {build_id: parsed}, "after": {...}}, notes about skipped runs, {build_id: run dir})."""
     notes = []
     cohort_runs = {"before": {}, "after": {}}
+    run_dirs = {}
     if args.before or args.after:
         if not (args.before and args.after):
             raise CompareError("pass both --before and --after")
@@ -214,6 +222,7 @@ def load_cohorts(args):
                                        % (seen[bid], path, bid))
                 seen[bid] = path
                 cohort_runs[side][bid] = _load(path)
+                run_dirs[bid] = os.path.dirname(os.path.abspath(path))
     else:
         if not args.state_file or not args.runs_dir:
             raise CompareError("pass --state-file and --runs-dir, or --before and --after parser outputs")
@@ -230,17 +239,70 @@ def load_cohorts(args):
                     continue
                 try:
                     cohort_runs[side][bid] = _load(path)
+                    run_dirs[bid] = os.path.join(args.runs_dir, bid)
                 except CompareError as e:
                     notes.append("Run %s (%s) was skipped: %s. Re-run disruption-analyze-run for it." % (bid, side, e))
     for side, runs in cohort_runs.items():
         if not runs:
             raise CompareError("the %s cohort has no parsed run" % side)
-    return cohort_runs, notes
+    return cohort_runs, notes, run_dirs
+
+
+def component_versions(cohort_runs, run_dirs):
+    """Component repos whose commit differs between the cohorts, from each run's releaseinfo.json.
+
+    Returns (rows, notes). Each row has the repo, its release tags, and for each cohort
+    {commit: runs}. label is "changed" when no after run shares a commit with any before
+    run, else "mixed". rows is None when a cohort has no releaseinfo at all.
+    """
+    commits = {"before": {}, "after": {}}
+    missing = []
+    for side, runs in cohort_runs.items():
+        for bid in runs:
+            path = os.path.join(run_dirs.get(bid, ""), RELEASEINFO_PATH)
+            try:
+                with open(path) as f:
+                    commits[side][bid] = component_commits(json.load(f))
+            except (OSError, ValueError):
+                missing.append(bid)
+    notes = []
+    if not commits["before"] or not commits["after"]:
+        notes.append("Component versions were not compared: %s cohort has no %s. Download the runs with "
+                     "download_timelines.py --gather to add them." % (
+                         "neither" if not (commits["before"] or commits["after"])
+                         else ("the before" if not commits["before"] else "the after"), RELEASEINFO_PATH))
+        return None, notes
+    if missing:
+        notes.append("Component versions leave out %s (no %s)." % (", ".join(sorted(missing)), RELEASEINFO_PATH))
+    by_repo = {}
+    for side, runs in commits.items():
+        for components in runs.values():
+            seen = set()
+            for tag, info in components.items():
+                repo = info["repo"] or tag
+                entry = by_repo.setdefault(repo, {"repo": repo, "tags": set(), "before": {}, "after": {}})
+                entry["tags"].add(tag)
+                if (repo, info["commit"]) not in seen:
+                    seen.add((repo, info["commit"]))
+                    entry[side][info["commit"]] = entry[side].get(info["commit"], 0) + 1
+    rows = []
+    for entry in by_repo.values():
+        if set(entry["before"]) == set(entry["after"]):
+            continue
+        shared = set(entry["before"]) & set(entry["after"])
+        rows.append(dict(entry, tags=sorted(entry["tags"]), label="mixed" if shared else "changed"))
+    rows.sort(key=lambda r: (r["label"] != "changed", r["repo"]))
+    return rows, notes
 
 
 def _fmt(value):
     """A number in short form, or the value as a string."""
     return ("%g" % value) if isinstance(value, (int, float)) else str(value)
+
+
+def _fmt_commits(counts):
+    """Short commits with their run counts, as text."""
+    return ", ".join("%s(%d)" % (commit[:8], n) for commit, n in sorted(counts.items())) or "—"
 
 
 def print_text(result, out=None):
@@ -261,6 +323,14 @@ def print_text(result, out=None):
         out.write("  %-6s %s  liveness=%s  %s -> %s  %s\n" % (
             fact["cohort"], bid, fact["network_liveness"], fact["initial_payload"] or "?",
             fact["target_payload"] or "?", fact["episodes"] or ""))
+    components = result.get("components")
+    if components:
+        changed = [c for c in components if c["label"] == "changed"]
+        out.write("\nComponent repos whose commit differs (target payloads; %d changed in every after run, "
+                  "%d mixed):\n" % (len(changed), len(components) - len(changed)))
+        for comp in components:
+            out.write("  %-8s %-55s before %s -> after %s\n" % (
+                comp["label"], comp["repo"][:55], _fmt_commits(comp["before"]), _fmt_commits(comp["after"])))
     for note in result["notes"]:
         out.write("Note: %s\n" % note)
 
@@ -275,13 +345,15 @@ def main(argv=None):
     parser.add_argument("--format", choices=["text", "json"], default="text")
     args = parser.parse_args(argv)
     try:
-        cohort_runs, notes = load_cohorts(args)
+        cohort_runs, notes, run_dirs = load_cohorts(args)
     except (CompareError, state.StateError) as e:
         print("Error: %s" % e, file=sys.stderr)
         return 1
     rows, _per_run = build_matrix(cohort_runs)
+    components, component_notes = component_versions(cohort_runs, run_dirs)
+    notes.extend(component_notes)
     result = {"matrix": rows, "runs": {side: sorted(runs) for side, runs in cohort_runs.items()},
-              "facts": run_facts(cohort_runs), "notes": notes}
+              "facts": run_facts(cohort_runs), "components": components, "notes": notes}
     unreliable = sorted(bid for bid, f in result["facts"].items() if f["network_liveness"] in ("degraded", "unreliable"))
     if unreliable:
         notes.append("Network liveness is degraded or unreliable in %s: do not rest a conclusion on their "
@@ -290,7 +362,7 @@ def main(argv=None):
         try:
             current = state.load_state(args.state_file)
             current["comparison"] = dict(current.get("comparison") or {}, matrix=rows, runs=result["runs"],
-                                         facts=result["facts"], notes=notes)
+                                         facts=result["facts"], components=components, notes=notes)
             state.write_json_atomic(args.state_file, current, indent=2)
         except (state.StateError, OSError) as e:
             print("Error: comparison not recorded: %s" % e, file=sys.stderr)

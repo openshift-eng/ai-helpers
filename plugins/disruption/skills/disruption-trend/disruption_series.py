@@ -14,11 +14,13 @@ Usage:
     python3 disruption_series.py --grafana-url "<url>"
     python3 disruption_series.py --release 5.0 --backend kube-api-new-connections --platform gcp --upgrade-type micro
     python3 disruption_series.py ... --format json --state-file .work/disruption-analysis/<id>/investigation.json
+    python3 disruption_series.py --alert-file alert.txt --platform gcp --control platform-gcp --state-file ...
 """
 import argparse
 import json
 import math
 import os
+import re
 import sys
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -79,6 +81,10 @@ PAYLOAD_SAMPLE_PER_SIDE = 20
 PAIRS_PER_TRANSITION = 3
 # Runs of one job that start this close together came from one launch and share a payload.
 LAUNCH_BATCH_GAP = timedelta(minutes=10)
+# A control series is compared with the investigated one over this many days on each side of
+# each of its transitions.
+CONTROL_SIDE_DAYS = 7
+_CONTROL_NAME = re.compile(r"^[a-z0-9][a-z0-9.-]*$")
 
 
 def summarize(values):
@@ -780,6 +786,54 @@ def series_summary(series):
     return out
 
 
+def control_at_transitions(runs, transitions, side_days=CONTROL_SIDE_DAYS):
+    """How a control series looked on each side of the investigated series' transitions.
+
+    For each transition, the control's usable runs (with data, not lost, liveness
+    reliable) in the side_days before and after its `at`, summarized like the trend's
+    overall stats, so "did the control move at the same time?" has numbers.
+    """
+    usable = [r for r in runs if r.get("seconds") is not None and not r.get("fetch_failed")
+              and not r.get("liveness_unreliable")]
+    side = timedelta(days=side_days)
+    result = []
+    for transition in transitions or []:
+        at = sippy.parse_timestamp(transition.get("at"))
+        before = [r["seconds"] for r in usable if at - side <= sippy.parse_timestamp(r["timestamp"]) < at]
+        after = [r["seconds"] for r in usable if at <= sippy.parse_timestamp(r["timestamp"]) <= at + side]
+        result.append({"at": transition.get("at"), "direction": transition.get("direction"),
+                       "side_days": side_days, "before": summarize(before), "after": summarize(after)})
+    return result
+
+
+def control_record(series, trend, runs, investigated, runs_file):
+    """The controls.<name> entry: the control's series and trend summary, and how it
+    looked around the investigated series' transitions."""
+    keep = ("window", "runs", "degraded", "overall", "shape", "onset", "caveats")
+    summary = {key: trend.get(key) for key in keep}
+    summary["transitions"] = [{key: t.get(key) for key in ("at", "direction", "z", "strength", "practical")}
+                              for t in trend.get("transitions") or []]
+    return {
+        "series": series_summary(series),
+        "trend": summary,
+        "at_investigated_transitions": control_at_transitions(runs, (investigated or {}).get("transitions")),
+        "runs_file": os.path.abspath(runs_file) if runs_file else None,
+    }
+
+
+def write_control(path, name, series, trend, runs, runs_file):
+    """Record a control series under controls.<name>, leaving the investigated series alone.
+
+    Raises state.StateError if the state file is unreadable.
+    """
+    current = state.load_state(path)
+    current.setdefault("schema_version", STATE_SCHEMA_VERSION)
+    record = control_record(series, trend, runs, current.get("trend"), runs_file)
+    current.setdefault("controls", {})[name] = record
+    state.write_json_atomic(path, current, indent=2)
+    return record
+
+
 def write_state(path, series, trend, runs_file):
     """Merge series and trend into the state file. Raises state.StateError if it is unreadable."""
     current = state.load_state(path)
@@ -860,6 +914,26 @@ def print_table(series, trend, out=None):
         print("Onset: no disruption in the window.", file=out)
     for caveat in trend["caveats"]:
         print("Caveat: %s" % caveat, file=out)
+
+
+def print_control_comparison(name, rows, out=None):
+    """Print how the control looked around each of the investigated series' transitions."""
+    out = out or sys.stdout
+    out.write("\nControl %s around the investigated transitions:\n" % name)
+    if not rows:
+        out.write("  (the state file has no investigated transitions to compare at)\n")
+    for row in rows:
+        b, a = row["before"], row["after"]
+        out.write("  %s (%s): before %s | after %s  (%d days each side)\n" % (
+            row["at"][:16], row["direction"], _fmt_side(b), _fmt_side(a), row["side_days"]))
+
+
+def _fmt_side(side):
+    """Run count, nonzero rate, P50, and P95 of one side, as text."""
+    if not side.get("n"):
+        return "n=0"
+    return "n=%d nonzero %.0f%% P50 %s P95 %s" % (side["n"], 100 * side["nonzero_rate"], _fmt(side["p50"]),
+                                                   _fmt(side["p95"]))
 
 
 def _job_note(row):
@@ -956,6 +1030,10 @@ def main(argv=None):
     parser.add_argument("--bucket", choices=["auto", "day", "week", "month"], default="auto")
     parser.add_argument("--format", choices=["table", "json"], default="table")
     parser.add_argument("--state-file", help="Investigation state JSON to update with series and trend")
+    parser.add_argument("--control", metavar="NAME",
+                        help="Record this run as a control series under controls.NAME in --state-file "
+                             "(for example platform-gcp or release-4.22), leaving the investigated "
+                             "series and trend unchanged")
     parser.add_argument("--runs-out", help="Write per-run records here (default: beside --state-file)")
     parser.add_argument("--cache-dir", default=".work/disruption-analysis/cache",
                         help="Disruption data and prowjob payload cache directory (default: %(default)s). "
@@ -966,6 +1044,10 @@ def main(argv=None):
     parser.add_argument("--no-payloads", action="store_true",
                         help="Do not read prowjob.json from GCS for the payload pairs near each transition")
     args = parser.parse_args(argv)
+    if args.control and not args.state_file:
+        parser.error("--control needs --state-file")
+    if args.control and not _CONTROL_NAME.match(args.control):
+        parser.error("--control must be lowercase letters, digits, '.', and '-' (got %r)" % args.control)
 
     try:
         alert_text = series_mod.read_alert_file(args.alert_file) if args.alert_file else args.alert_text
@@ -1063,7 +1145,8 @@ def main(argv=None):
 
     runs_file = args.runs_out
     if not runs_file and args.state_file:
-        runs_file = os.path.join(os.path.dirname(args.state_file) or ".", "trend-runs.json")
+        name = "control-%s-runs.json" % args.control if args.control else "trend-runs.json"
+        runs_file = os.path.join(os.path.dirname(args.state_file) or ".", name)
     code = 0
     if runs_file:
         try:
@@ -1073,17 +1156,27 @@ def main(argv=None):
             runs_file = None
             code = 1
     # A state file must not point at a runs file that was not written.
+    control = None
     if args.state_file and code == 0:
         try:
-            write_state(args.state_file, series, trend, runs_file)
+            if args.control:
+                control = write_control(args.state_file, args.control, series, trend, runs, runs_file)
+            else:
+                write_state(args.state_file, series, trend, runs_file)
         except (state.StateError, OSError) as e:
             print("Error: %s" % e, file=sys.stderr)
             code = 1
 
     if args.format == "json":
-        print(json.dumps({"series": series_summary(series), "trend": dict(trend, runs_file=runs_file)}, indent=2))
+        output = {"series": series_summary(series), "trend": dict(trend, runs_file=runs_file)}
+        if control:
+            output["control"] = {"name": args.control,
+                                 "at_investigated_transitions": control["at_investigated_transitions"]}
+        print(json.dumps(output, indent=2))
     else:
         print_table(series, trend)
+        if control:
+            print_control_comparison(args.control, control["at_investigated_transitions"])
     return code
 
 

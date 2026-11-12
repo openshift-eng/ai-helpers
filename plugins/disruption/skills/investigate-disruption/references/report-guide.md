@@ -16,7 +16,9 @@ a run's payload pair unless that pair was checked.
 ## Report Structure
 
 Use the regression structure for W3 and W4, the single-run structure for one run, and the
-multiple-run structure for W1 and W5 with several runs.
+multiple-run structure for W1 and W5 with several runs. When a W3 investigation switched to
+W5 (no transition in the window), use the multiple-run structure with the **Verdict** section
+from the regression structure at the top.
 
 **For a regression investigation (W3, W4):**
 
@@ -33,6 +35,12 @@ the increase, and list the open hypotheses.}
 {From disruption-trend: the transition's change window, payloads, before → after nonzero rate,
 P50, P95, strength, which jobs moved, and every caveat. Link the last run before and the first
 run after.}
+
+## Controls
+{From `controls` in the state file, one line each: the control (platform or release), its
+before → after numbers around the transition, and what it shows. "None run" when there were
+none; then a platform-specific cause stays unsupported. Omit the section only when no candidate
+was platform-specific and the onset was in the window.}
 
 ## Cohorts
 {From disruption-find-runs: before and after runs (linked), how they were chosen or that the
@@ -61,6 +69,9 @@ Each run's details stay in its `analysis.md`; link to it rather than repeating i
 
 ```text
 # Disruption Analysis
+
+{If this is a W3 investigation that switched to W5, start with the Verdict section from the
+regression structure: normally "Regression cause unresolved, no transition in the window".}
 
 {If triggered from a Grafana URL or a disruption alert, include this section:}
 ## Dashboard Context
@@ -144,8 +155,9 @@ Run 2 [timeline]({gcsweb_timeline_url_2}) shows disk IOPS at 100% ([cloud metric
 {The alert compares its lookback window (often 3 days) with {compare_release}. The runs
 analyzed come from that window, so they can miss the regression: it may have started
 earlier, or a fix may have landed inside the window. State which of these holds:
-- The runs' failure modes are also present in {compare_release} at a similar rate (from a
-  comparison, if one was run). Then the regression has not been explained yet.
+- {compare_release} is at a similar level over the same window (the release control from
+  `disruption-trend --control release-<compare_release>`, if it was run). Then the regression
+  is not visible in the current data and has not been explained.
 - A matching fix (the fix check in `disruption-known-issues`) landed before most of the analyzed runs. Then they show
   what is left after the fix, not the regression.
 - Neither was checked. Say so, and offer a regression investigation (W3) to find out.}

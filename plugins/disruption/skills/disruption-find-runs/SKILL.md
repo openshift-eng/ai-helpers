@@ -1,6 +1,6 @@
 ---
 name: disruption-find-runs
-description: Use when choosing which Prow job runs to analyze for a disruption question — sampling currently disrupted runs from a DisruptionRegression alert or Grafana disruption dashboard URL, proposing before/after cohorts around a disruption-trend transition, or checking cohorts the user supplied. Usually one step of a disruption investigation (see investigate-disruption).
+description: Use when choosing which Prow job runs to analyze for a disruption question — sampling the currently disrupted runs of a series, proposing before/after cohorts around a disruption-trend transition, or checking cohorts the user supplied. To investigate a DisruptionRegression alert or dashboard, start with investigate-disruption; this skill is usually one of its steps.
 ---
 
 # Disruption Find Runs

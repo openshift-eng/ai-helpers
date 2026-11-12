@@ -1,6 +1,6 @@
 ---
 name: disruption-trend
-description: Use when asked when disruption started, got worse, improved, or changed for a disruption backend or series — from a DisruptionRegression alert, a Grafana disruption dashboard URL, or a release plus backend. Builds the per-run disruption time series and locates transitions and onset with stated uncertainty. Usually the first step of a disruption regression investigation.
+description: Use when asked only when disruption started, got worse, improved, or changed for a disruption backend or series (given as an alert, a Grafana disruption dashboard URL, or a release plus backend), or to run a control series on another platform or release. Builds the per-run disruption time series and locates transitions and onset with stated uncertainty. To investigate why a DisruptionRegression alert fired, start with investigate-disruption; this skill is usually its first step.
 ---
 
 # Disruption Trend
@@ -81,14 +81,14 @@ The script's `shape` (`none`, `step`, `multiple`, or `gradual`) is a heuristic. 
   - the regression is relative to the previous GA (`compare_release`) and happened before this window, or
   - it is too gradual or too small to locate.
 
-  Say which the data supports, and offer a longer window if the current one is under 90 days.
+  Say which the data supports, offer a longer window if the current one is under 90 days, and offer the `compare_release` control (Step 5) when the series names one.
 
 ## Step 3: Judge the onset (for "when did it start?")
 
 Read `trend.onset.status`:
 
 - **`in_window`:** disruption rose from a near-zero baseline (nonzero rate ≤ 10%) at `at`. Give the date, the payload range, and the before and after nonzero rates.
-- **`before_window`:** disruption was already present in the earliest runs. **Never report the window's first day as the onset.** Say it started before the window, and offer a longer `--days` if the window is under 90 days. At 90 days, or if a caveat says Sippy returned nothing earlier, say the public data does not reach back far enough.
+- **`before_window`:** disruption was already present in the earliest runs. **Never report the window's first day as the onset.** Say it started before the window, and offer a longer `--days` if the window is under 90 days. At 90 days, or if a caveat says Sippy returned nothing earlier, say the public data does not reach back far enough, and offer the `compare_release` control (Step 5): it shows whether the previous release has the same level now.
 - **`sporadic`:** occasional disruption throughout, with no sustained start. Say there is no onset to point at.
 - **`none`:** no disruption on these backends in the window.
 - **`unknown`:** no run had usable disruption data, so the window says nothing about onset. Do not report this as "no disruption". Give the caveats that explain why: disruption data missing, the disruption API unreachable, or every run excluded for liveness disruption.
@@ -120,6 +120,7 @@ next:
   - widen the window (--days <N>, at most 90)
   - rerun later to fill runs lost to the disruption API (only when trend.degraded)
   - no credible transition: analyze the currently disrupted runs (disruption-find-runs sample-disrupted with the same alert, dashboard URL, or series fields)
+  - compare with <compare_release> over the same window (disruption-trend --control release-<compare_release> --release <compare_release>; when the onset is before the window or there is no transition, and series.compare_release is set)
 ```
 ````
 
@@ -129,6 +130,7 @@ What each `next` option means:
 - **Analyze just the suggested pairs:** a quick look. Give `disruption-analyze-run` the runs in `transitions[].handoff.download_runs` (or the Prow URLs in `handoff.prow_urls`), unchanged. They are up to three before/after pairs (`handoff.pairs`), each from one job, nearest the step, with at most one run per launch batch, and with runs that show the change preferred (`representative: true`). `handoff.download_runs` is the same runs as `job:build_id` pairs for `download_timelines.py --runs`. Do not filter the runs file by hand. If a pair is marked not representative, or there are no pairs (no job ran on both sides), say so and pick runs from `trend.runs_file` for the jobs that moved in the per-job table.
 - **Analyze the currently disrupted runs:** give `disruption-find-runs` (purpose `sample-disrupted`) the same input this skill got: the alert text or dashboard URL, or, when the request named the series directly, the release, exact backend names, and any variant fields (platform, upgrade type, architecture, topology, network). It auto-selects representative disrupted runs from that window. Do not offer this when every disruption fetch failed (`trend.runs.fetch_failed` equals `trend.runs.scanned`): it queries the same API, so offer only to rerun after the rate limit clears.
 - **Rerun later:** the cache keeps every run already fetched, so a rerun after the rate limit frees up (up to an hour) only asks for the lost runs.
+- **Compare with `compare_release`:** a control series (Step 5) for the previous release the alert compares against.
 
 List only the `next` options that fit the result. Then **stop and wait** for the user's choice, unless the request said to run without pausing (`--auto`, or "just run it"). In that case, record the default you chose and why, then continue:
 
@@ -136,6 +138,30 @@ List only the `next` options that fit the result. Then **stop and wait** for the
 - When the request asks why disruption improved, cohorts around the strongest practical decrease, passed as its index (`disruption-find-runs` takes `--transition N`).
 - When the only practical transitions run the other way from the request (only decreases for a "what made it worse" request, or the reverse), stop and report the transitions found instead of picking one.
 - For `none`, analyze the currently disrupted runs, unless every disruption fetch failed: then stop and say to rerun after the rate limit clears (up to an hour).
+
+## Step 5: Control series
+
+A control is the same series with one thing changed, run to test an explanation:
+
+- **Another platform** (`platform-<name>`): is the cause specific to this platform? Asked for at the `disruption-compare-cohorts` or `disruption-change-suspects` checkpoint.
+- **The previous release** (`release-<compare_release>`): does the release the alert compares against show the same disruption now? Offered at this skill's checkpoint when the onset is before the window or there is no transition.
+
+Run the script with the same input as the investigated series, the one changed field, the same `--days`, the investigation's state file, and `--control <name>`:
+
+```bash
+python3 "<skill-dir>/disruption_series.py" \
+  --alert-file ".work/disruption-analysis/<id>/alert.txt" --platform gcp --days 30 \
+  --control platform-gcp --state-file ".work/disruption-analysis/<id>/investigation.json"
+```
+
+Use `--release <compare_release>` instead of `--platform` for the release control, and the same `--grafana-url` or explicit fields when there is no alert. With `--control`, the script records the control under `controls.<name>` and its runs in `control-<name>-runs.json`. It leaves the investigated `series` and `trend` unchanged. After the usual table it prints the control's runs in the 7 days before and after each of the investigated series' transitions (`at_investigated_transitions`).
+
+Judge it:
+
+- **Platform control.** If the control rose at the same transition (higher nonzero rate or P50 after than before, by about as much), the cause is not specific to the investigated platform. If it stayed flat with enough runs on each side (10 or more), a platform-specific cause is supported but not shown: it still needs a mechanism in the runs. If the control has few runs, it settles nothing; say so. Different platforms run different job mixes, so compare against the control's own before level, never its raw seconds against the investigated series.
+- **Release control.** If `compare_release` is at a similar level over the same window, the alert's regression is not visible in the current data: it predates the window, or the alert's baseline is from an older period. If `compare_release` is clearly lower now, the gap is real and current, even without a transition in the window; say the onset is before the window and that the cause stays unresolved.
+
+A control spends Sippy disruption requests from the same shared budget (25 per hour), so run one only when it answers an open question. End with the checkpoint (`stage: control`), with the control's verdict in `summary` and the investigation's previous `next` options.
 
 ## Error handling
 

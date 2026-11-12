@@ -27,6 +27,13 @@ A regression investigation starts with the trend because an alert compares again
 | **W5. Sample current disruption** | `disruption-find-runs` (sample-disrupted) ⏸ → `disruption-analyze-run` ⏸ → `disruption-known-issues` ⏸ → report, labelled as explaining runs, **not** a regression |
 | **W6. What changed** | `disruption-change-suspects` alone |
 
+**Controls (W3, W4).** A control reruns `disruption-trend` with one field changed and `--control <name>`, recorded under `controls` in the state file without touching the investigated trend:
+
+- **Platform control** (`--platform <other>`): offered at the `disruption-compare-cohorts` and `disruption-change-suspects` checkpoints when a candidate or suspect is platform-specific. It is the only evidence that can support a platform-specific cause.
+- **Release control** (`--release <compare_release>`): offered at the trend checkpoint when the onset is before the window or there is no transition, for alerts that compare against a previous release.
+
+Controls are never run by `--auto`; they spend the shared Sippy budget, so each one answers a question someone asked.
+
 The checkpoints that need the user's judgment most are the trend (is this the right transition?) and the cohorts (are these the right runs?). After `disruption-analyze-run`, `disruption-compare-cohorts`, and `disruption-change-suspects`, the checkpoint can be a one-line progress note with a **[Change]** option when the default next step is obvious.
 
 ## Moving between workflows
@@ -34,7 +41,7 @@ The checkpoints that need the user's judgment most are the trend (is this the ri
 At any checkpoint the user can switch, and the state file carries over:
 
 - W2 → W3 to ask why.
-- W3 → W5 when the trend shows no credible transition (`shape: none`), or the user only wants the current disruption explained.
+- W3 → W5 when the trend shows no credible transition (`shape: none`), or the user only wants the current disruption explained. The investigation is still a regression investigation: the report keeps a verdict (see Verdicts).
 - W3 or W4 → W1 to deep-dive one run.
 - W5 → W3 when the user wants to know what made it worse.
 - Any → W6 when a suspect component or payload range comes up.
@@ -51,6 +58,8 @@ Every regression investigation ends with exactly one of these, at the top of the
 - **Partially explained:** the mechanism is demonstrated but the triggering change is not identified, or a change is identified but its mechanism is not demonstrated in the runs.
 - **Regression cause unresolved:** the evidence explains the disrupted runs but not the increase: every candidate is pre-existing and unchanged, or the cohorts do not show the change. Say exactly this, and list the hypotheses still open with what would test each.
 
+An investigation that started as W3 and switched to W5 (no transition in the window) still ends with a verdict. It is normally **regression cause unresolved, no transition in the window**: the runs analyzed show what disrupts the series now, not what changed. Say whether the release control was run and what it showed (the gap to `compare_release` is current, or not visible now). Use explained or partially explained only when the evidence meets their definitions above.
+
 Never upgrade a related Jira card, a shared symptom, or the alert's platform into an explanation.
 
 ## Onset results (W2)
@@ -63,7 +72,8 @@ One investigation directory holds everything: `.work/disruption-analysis/<YYYY-M
 
 | File | Written by |
 |---|---|
-| `investigation.json` (`series`, `trend`, `cohorts`, `comparison`, `jira`) | the scripts of each skill |
+| `investigation.json` (`series`, `trend`, `controls`, `cohorts`, `comparison`, `jira`) | the scripts of each skill |
+| `control-<name>-runs.json` | `disruption-trend --control` |
 | `trend-runs.json` | `disruption-trend` |
 | `runs/<build_id>/` (timelines, `parsed.json`, `analysis.md`) | `disruption-analyze-run` |
 | `comparison.md` | `disruption-compare-cohorts` |
