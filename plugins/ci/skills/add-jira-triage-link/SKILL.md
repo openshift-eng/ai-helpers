@@ -13,7 +13,9 @@ Use this skill after creating or updating a triage record via the `triage-regres
 
 ## Prerequisites
 
-1. **JIRA_USERNAME** and **JIRA_API_TOKEN** environment variables must be set
+1. Jira credentials in the environment, either:
+   - **JIRA_USERNAME** and **JIRA_API_TOKEN** (Atlassian account email and API token), or
+   - **JIRA_CLIENT_ID**, **JIRA_CLIENT_SECRET** and **JIRA_CLOUD_ID** (service-account OAuth credential; used whenever the client ID or secret is set, with no fallback to the API token)
 2. **Python 3.6+**
 
 ## Implementation Steps

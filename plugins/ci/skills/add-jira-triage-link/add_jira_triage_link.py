@@ -9,11 +9,11 @@ regressions triaged to it.
 Usage:
     python3 add_jira_triage_link.py OCPBUGS-12345 --triage-id 456
 
-Requires JIRA_API_TOKEN and JIRA_USERNAME environment variables.
+Requires Jira credentials in the environment: JIRA_USERNAME and JIRA_API_TOKEN, or
+JIRA_CLIENT_ID, JIRA_CLIENT_SECRET and JIRA_CLOUD_ID for a service account.
 """
 
 import argparse
-import base64
 import json
 import os
 import re
@@ -22,19 +22,16 @@ import urllib.request
 import urllib.error
 from typing import Any, Dict, List
 
-JIRA_BASE_URL = "https://redhat.atlassian.net"
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
+import jira_auth  # noqa: E402
+
 TRIAGE_UI_BASE = "https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages"
 
 
-def _get_auth_header(username: str, token: str) -> str:
-    credentials = base64.b64encode(f"{username}:{token}".encode()).decode()
-    return f"Basic {credentials}"
-
-
-def _fetch_description(issue_key: str, auth: str) -> Dict[str, Any]:
-    url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}?fields=description"
+def _fetch_description(issue_key: str, auth: "jira_auth.JiraAuth") -> Dict[str, Any]:
+    url = auth.url(f"/rest/api/3/issue/{issue_key}?fields=description")
     req = urllib.request.Request(url, method="GET")
-    req.add_header("Authorization", auth)
+    req.add_header("Authorization", auth.authorization())
     req.add_header("Accept", "application/json")
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read().decode("utf-8"))
@@ -86,12 +83,17 @@ def _build_triage_section(triage_id: int) -> List[Dict[str, Any]]:
     ]
 
 
-def add_triage_link(issue_key: str, triage_id: int, token: str, username: str) -> dict:
-    auth = _get_auth_header(username, token)
+def add_triage_link(issue_key: str, triage_id: int, auth: "jira_auth.JiraAuth") -> dict:
     triage_url = f"{TRIAGE_UI_BASE}/{triage_id}"
 
     try:
         issue_data = _fetch_description(issue_key, auth)
+    except jira_auth.JiraAuthError as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "issue_key": issue_key,
+        }
     except urllib.error.HTTPError as e:
         return {
             "success": False,
@@ -121,15 +123,21 @@ def add_triage_link(issue_key: str, triage_id: int, token: str, username: str) -
     triage_nodes = _build_triage_section(triage_id)
     description["content"].extend(triage_nodes)
 
-    url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}"
+    url = auth.url(f"/rest/api/3/issue/{issue_key}")
     payload = json.dumps({"fields": {"description": description}}).encode("utf-8")
     req = urllib.request.Request(url, data=payload, method="PUT")
-    req.add_header("Authorization", auth)
     req.add_header("Content-Type", "application/json")
 
     try:
+        req.add_header("Authorization", auth.authorization())
         with urllib.request.urlopen(req, timeout=30) as resp:
             pass
+    except jira_auth.JiraAuthError as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "issue_key": issue_key,
+        }
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8", errors="replace")
         return {
@@ -171,17 +179,13 @@ def main():
     )
     args = parser.parse_args()
 
-    token = os.environ.get("JIRA_API_TOKEN")
-    if not token:
-        print("Error: JIRA_API_TOKEN environment variable is not set.", file=sys.stderr)
+    try:
+        auth = jira_auth.resolve()
+    except jira_auth.JiraAuthError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    username = os.environ.get("JIRA_USERNAME")
-    if not username:
-        print("Error: JIRA_USERNAME environment variable is not set.", file=sys.stderr)
-        sys.exit(1)
-
-    result = add_triage_link(args.issue_key, args.triage_id, token, username)
+    result = add_triage_link(args.issue_key, args.triage_id, auth)
 
     if args.format == "json":
         print(json.dumps(result, indent=2))

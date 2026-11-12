@@ -10,7 +10,6 @@
   audit.py receipt-decide --receipt F [--ack RUN]   -> prints "<decision>\t<origin>\t<reason>"
 """
 import argparse
-import base64
 import json
 import os
 import re
@@ -19,11 +18,14 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "scripts"))
+import jira_auth  # noqa: E402
+
 SCHEMA_VERSION = "1.0"
 SIPPY_TRIAGES_URL = "https://sippy.dptools.openshift.org/api/component_readiness/triages"
-JIRA_SEARCH_URL = "https://redhat.atlassian.net/rest/api/3/search/jql"
-JIRA_MYSELF_URL = "https://redhat.atlassian.net/rest/api/3/myself"
-JIRA_MYPERMISSIONS_URL = "https://redhat.atlassian.net/rest/api/3/mypermissions"
+JIRA_SEARCH_PATH = "/rest/api/3/search/jql"
+JIRA_MYSELF_PATH = "/rest/api/3/myself"
+JIRA_MYPERMISSIONS_PATH = "/rest/api/3/mypermissions"
 DEFAULT_PERMISSION_PROJECTS = ("OCPBUGS", "TRT", "DPTP", "OCPQUAL")
 PERMISSION_KEYS = ("CREATE_ISSUES", "EDIT_ISSUES", "BROWSE_PROJECTS")
 MAX_PAGES = 10
@@ -238,22 +240,30 @@ def build_jql(start, end, reporter):
         reporter, _jira_ts(start), _jira_ts(end))
 
 
-def build_auth_header(user, token):
-    return "Basic " + base64.b64encode(("%s:%s" % (user, token)).encode("utf-8")).decode("ascii")
+def _jira_auth():
+    try:
+        return jira_auth.resolve()
+    except jira_auth.JiraAuthError as e:
+        raise RuntimeError(str(e))
+
+
+def _jira_headers(auth):
+    try:
+        return {"Authorization": auth.authorization()}
+    except jira_auth.JiraAuthError as e:
+        raise RuntimeError(str(e))
 
 
 def _default_search(jql, page_token=None):
-    user, token = os.environ.get("JIRA_USERNAME"), os.environ.get("JIRA_API_TOKEN")
-    if not user or not token:
-        raise RuntimeError("JIRA_USERNAME/JIRA_API_TOKEN not set")
+    auth = _jira_auth()
     if page_token is None:
         # First page: prove the credentials authenticate (401 here, not an anonymous 200 later).
-        _get_json(JIRA_MYSELF_URL, {"Authorization": build_auth_header(user, token)})
+        _get_json(auth.url(JIRA_MYSELF_PATH), _jira_headers(auth))
     params = {"jql": jql, "fields": "key,created,summary,reporter", "maxResults": 100}
     if page_token:
         params["nextPageToken"] = page_token
-    return _get_json("%s?%s" % (JIRA_SEARCH_URL, urllib.parse.urlencode(params)),
-                     {"Authorization": build_auth_header(user, token)})
+    return _get_json("%s?%s" % (auth.url(JIRA_SEARCH_PATH), urllib.parse.urlencode(params)),
+                     _jira_headers(auth))
 
 
 def jql_creations(start, end, reporter, search=None):
@@ -287,11 +297,9 @@ def jql_creations(start, end, reporter, search=None):
 
 
 def _default_permissions_fetch(project):
-    user, token = os.environ.get("JIRA_USERNAME"), os.environ.get("JIRA_API_TOKEN")
-    if not user or not token:
-        raise RuntimeError("JIRA_USERNAME/JIRA_API_TOKEN not set")
+    auth = _jira_auth()
     q = urllib.parse.urlencode({"projectKey": project, "permissions": ",".join(PERMISSION_KEYS)})
-    return _get_json("%s?%s" % (JIRA_MYPERMISSIONS_URL, q), {"Authorization": build_auth_header(user, token)})
+    return _get_json("%s?%s" % (auth.url(JIRA_MYPERMISSIONS_PATH), q), _jira_headers(auth))
 
 
 def permissions(projects=None, fetch=None):

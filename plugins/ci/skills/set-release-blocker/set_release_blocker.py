@@ -12,16 +12,19 @@ Examples:
     python3 set_release_blocker.py OCPBUGS-76523 --value Rejected
     python3 set_release_blocker.py OCPBUGS-76523 --value ""  # Clear the field
 
-Requires JIRA_API_TOKEN and JIRA_USERNAME environment variables to be set.
+Requires Jira credentials in the environment: JIRA_USERNAME and JIRA_API_TOKEN, or
+JIRA_CLIENT_ID, JIRA_CLIENT_SECRET and JIRA_CLOUD_ID for a service account.
 """
 
 import argparse
-import base64
 import json
 import os
 import sys
 import urllib.request
 import urllib.error
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
+import jira_auth  # noqa: E402
 
 JIRA_BASE_URL = "https://redhat.atlassian.net"
 RELEASE_BLOCKER_FIELD = "customfield_10847"
@@ -34,19 +37,18 @@ RELEASE_BLOCKER_OPTIONS = {
 }
 
 
-def set_release_blocker(issue_key: str, value: str, token: str, username: str) -> dict:
+def set_release_blocker(issue_key: str, value: str, auth: "jira_auth.JiraAuth") -> dict:
     """Set the Release Blocker field on a JIRA issue.
 
     Args:
         issue_key: JIRA issue key (e.g., OCPBUGS-76523)
         value: "Approved", "Proposed", "Rejected", or "" to clear
-        token: JIRA API token
-        username: Atlassian account email
+        auth: Jira credentials from jira_auth.resolve()
 
     Returns:
         dict with success status, issue key, and value set
     """
-    url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}"
+    url = auth.url(f"/rest/api/3/issue/{issue_key}")
 
     if value == "":
         payload = {"fields": {RELEASE_BLOCKER_FIELD: None}}
@@ -62,14 +64,19 @@ def set_release_blocker(issue_key: str, value: str, token: str, username: str) -
 
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="PUT")
-    credentials = base64.b64encode(f"{username}:{token}".encode()).decode()
-    req.add_header("Authorization", f"Basic {credentials}")
     req.add_header("Content-Type", "application/json")
 
     try:
+        req.add_header("Authorization", auth.authorization())
         with urllib.request.urlopen(req, timeout=30) as response:
             # PUT returns 204 No Content on success
             pass
+    except jira_auth.JiraAuthError as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "issue_key": issue_key,
+        }
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8", errors="replace")
         return {
@@ -88,9 +95,9 @@ def set_release_blocker(issue_key: str, value: str, token: str, username: str) -
     verify_req = urllib.request.Request(
         f"{url}?fields={RELEASE_BLOCKER_FIELD}", method="GET"
     )
-    verify_req.add_header("Authorization", f"Basic {credentials}")
 
     try:
+        verify_req.add_header("Authorization", auth.authorization())
         with urllib.request.urlopen(verify_req, timeout=30) as response:
             verify_data = json.loads(response.read().decode("utf-8"))
             current_value = verify_data.get("fields", {}).get(RELEASE_BLOCKER_FIELD)
@@ -143,19 +150,13 @@ Examples:
 
     args = parser.parse_args()
 
-    token = os.environ.get("JIRA_API_TOKEN")
-    if not token:
-        print("Error: JIRA_API_TOKEN environment variable is not set.", file=sys.stderr)
-        print("Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens", file=sys.stderr)
+    try:
+        auth = jira_auth.resolve()
+    except jira_auth.JiraAuthError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    username = os.environ.get("JIRA_USERNAME")
-    if not username:
-        print("Error: JIRA_USERNAME environment variable is not set.", file=sys.stderr)
-        print("Set to your Atlassian account email address.", file=sys.stderr)
-        sys.exit(1)
-
-    result = set_release_blocker(args.issue_key, args.value, token, username)
+    result = set_release_blocker(args.issue_key, args.value, auth)
 
     if args.format == "json":
         print(json.dumps(result, indent=2))

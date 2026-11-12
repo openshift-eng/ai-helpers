@@ -332,7 +332,7 @@ class JqlTests(unittest.TestCase):
             def read(self): return b'{"issues": [], "isLast": true}'
             def __enter__(self): return self
             def __exit__(self, *a): return False
-        with mock.patch.dict(os.environ, {"JIRA_USERNAME": "u", "JIRA_API_TOKEN": "t"}), \
+        with mock.patch.dict(os.environ, {"JIRA_USERNAME": "u", "JIRA_API_TOKEN": "t"}, clear=True), \
              mock.patch("urllib.request.urlopen", return_value=Resp()):
             r = audit.jql_creations(*W, "bot")
         self.assertEqual(r["status"], "unknown")
@@ -345,7 +345,7 @@ class JqlTests(unittest.TestCase):
             if req.full_url.endswith("/rest/api/3/myself"):
                 raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", {}, None)
             raise AssertionError("search must not be attempted when /myself fails")
-        with mock.patch.dict(os.environ, {"JIRA_USERNAME": "u", "JIRA_API_TOKEN": "t"}), \
+        with mock.patch.dict(os.environ, {"JIRA_USERNAME": "u", "JIRA_API_TOKEN": "t"}, clear=True), \
              mock.patch("urllib.request.urlopen", side_effect=urlopen):
             r = audit.jql_creations(*W, "bot")
         self.assertEqual(r["status"], "unknown")
@@ -408,12 +408,55 @@ class JqlTests(unittest.TestCase):
         self.assertTrue(r["truncated"])
         self.assertEqual(r["count"], 10)
 
-    def test_jql_builds_exact_string_and_auth_header(self):
+    def test_jql_builds_exact_string(self):
         self.assertEqual(
             audit.build_jql("2026-10-12T01:05:59Z", "2026-10-12T02:00:00+00:00", "bot"),
             'reporter = "bot" AND created >= "2026-10-12 01:05" AND created <= "2026-10-12 02:00" ORDER BY created ASC')
-        h = audit.build_auth_header("u", "t")
-        self.assertEqual(h, "Basic " + base64.b64encode(b"u:t").decode())
+
+    def _search_requests(self, env):
+        seen = []
+
+        class Resp:
+            headers = {}
+            def __init__(self, body): self.body = body
+            def read(self): return json.dumps(self.body).encode()
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def urlopen(req, timeout=None):
+            seen.append(req)
+            if req.full_url == "https://auth.atlassian.com/oauth/token":
+                return Resp({"access_token": "tok", "expires_in": 3600})
+            return Resp({"issues": [], "isLast": True})
+        with mock.patch.dict(os.environ, env, clear=True), \
+             mock.patch("urllib.request.urlopen", side_effect=urlopen):
+            r = audit.jql_creations(*W, "bot")
+        self.assertEqual((r["status"], r["count"]), ("ok", 0), r["error"])
+        return [q for q in seen if "/rest/api/3/" in q.full_url]
+
+    def test_api_token_search_uses_site_and_basic_auth(self):
+        reqs = self._search_requests({"JIRA_USERNAME": "u", "JIRA_API_TOKEN": "t"})
+        self.assertEqual([q.full_url.split("?")[0] for q in reqs],
+                         ["https://redhat.atlassian.net/rest/api/3/myself",
+                          "https://redhat.atlassian.net/rest/api/3/search/jql"])
+        for q in reqs:
+            self.assertEqual(q.get_header("Authorization"), "Basic " + base64.b64encode(b"u:t").decode())
+
+    def test_service_account_search_uses_gateway_and_bearer(self):
+        cloud = "11111111-2222-3333-4444-555555555555"
+        reqs = self._search_requests({"JIRA_CLIENT_ID": "c", "JIRA_CLIENT_SECRET": "s", "JIRA_CLOUD_ID": cloud})
+        base = "https://api.atlassian.com/ex/jira/%s/rest/api/3/" % cloud
+        self.assertEqual([q.full_url.split("?")[0] for q in reqs], [base + "myself", base + "search/jql"])
+        for q in reqs:
+            self.assertEqual(q.get_header("Authorization"), "Bearer tok")
+
+    def test_incomplete_service_account_is_unknown_not_api_token(self):
+        env = {"JIRA_USERNAME": "u", "JIRA_API_TOKEN": "t", "JIRA_CLIENT_ID": "c"}
+        with mock.patch.dict(os.environ, env, clear=True), \
+             mock.patch("urllib.request.urlopen", side_effect=AssertionError("no request expected")):
+            r = audit.jql_creations(*W, "bot")
+        self.assertEqual(r["status"], "unknown")
+        self.assertIn("JIRA_CLIENT_SECRET", r["error"])
 
     def test_jql_non_utc_offset_converts_and_reporter_escaped(self):
         q = audit.build_jql("2026-10-12T03:00:00+02:00", "2026-10-12T04:00:00+0200", 'a"b\\c')
