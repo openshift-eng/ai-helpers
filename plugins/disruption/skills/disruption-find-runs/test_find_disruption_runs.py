@@ -5,6 +5,7 @@ URL, alert, and Sippy parsing are tested with the shared library in plugins/disr
 import datetime
 import io
 import json
+import os
 import sys
 from unittest.mock import patch
 
@@ -126,6 +127,9 @@ def test_multi_value_backends_score_exact_names(mock_disruption, mock_fetch_runs
     output = json.loads(buf.getvalue())
     assert len(output) == 1
     assert output[0]["disruption_seconds"] == 476
+    # The disruption cache is the one disruption-trend and cohorts.py share.
+    assert mock_disruption.call_args.kwargs["cache_path"] == os.path.join(
+        ".work/disruption-analysis/cache", "disruption.json")
     assert output[0]["disruption_backend"] == "pod-to-host-new-connections"
     names = [entry["backend_name"] for entry in output[0]["disruption_backends"]]
     assert names == ["pod-to-host-new-connections", "kube-api-new-connections"]

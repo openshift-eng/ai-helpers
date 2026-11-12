@@ -72,7 +72,8 @@ def test_check_fix_splits_runs_at_the_fix_payload():
                                    "signature": 0}
     assert [(d["day"], d["fixed"], d["runs"], d["signature"]) for d in result["by_payload_day"]] == [
         ("2026-11-04", "no", 2, 1), ("2026-11-06", "split", 2, 1), ("2026-11-08", "yes", 1, 0)]
-    assert result["excluded"] == {"no_disruption_data": 1, "no_payload_tag": 1, "liveness_unreliable": 1}
+    assert result["excluded"] == {"no_disruption_data": 1, "no_payload_tag": 1, "liveness_unreliable": 1,
+                                  "other_release": 0}
     assert any("Fixed=split" in c for c in result["caveats"])
     assert any("1 runs had no payload tag" in c for c in result["caveats"])
 
@@ -89,6 +90,18 @@ def test_check_fix_warns_when_one_side_is_empty_and_input_is_the_finder():
 def test_check_fix_rejects_a_fix_payload_without_a_timestamp():
     with pytest.raises(ValueError, match="cannot read a timestamp"):
         check_fix([], "5.1.0")
+
+
+def test_check_fix_leaves_out_runs_of_another_release():
+    runs = [_trend_run("a", "5.1.0-0.nightly-2026-11-04-010000", 15),
+            _trend_run("b", "5.0.0-0.nightly-2026-11-08-000000", 15)]
+    result = check_fix(runs, FIX)
+    assert result["before_fix"]["runs"] == 1 and result["after_fix"]["runs"] == 0
+    assert result["excluded"]["other_release"] == 1
+    assert any("another release (5.0)" in c for c in result["caveats"])
+
+    with pytest.raises(ValueError, match="fix status cannot be determined"):
+        check_fix([_trend_run("b", "5.0.0-0.nightly-2026-11-08-000000", 15)], FIX)
 
 
 def _write_timeline(root, build_id, intervals):
@@ -109,11 +122,21 @@ def test_scan_signature_matches_full_messages_on_the_selected_backends(tmp_path)
     _write_timeline(str(tmp_path), "3", [("kube-api-new-connections", "Error", "Client.Timeout exceeded")])
     _write_timeline(str(tmp_path), "4", [(BACKEND, "Info", "Client.Timeout exceeded")])
     os.makedirs(os.path.join(str(tmp_path), "5", "logs"))  # no timeline downloaded
+    # Partial downloads: a match counts, but no match is unknown.
+    _write_timeline(str(tmp_path), "6", [(BACKEND, "Error", "Client.Timeout exceeded")])
+    _write_timeline(str(tmp_path), "7", [(BACKEND, "Error", "connection reset by peer")])
+    for build_id in ("6", "7"):
+        with open(os.path.join(str(tmp_path), build_id, "logs", "timelines-incomplete.txt"), "w") as handle:
+            handle.write("e2e-timelines_spyglass_other.json: exited 1\n")
+    # Not a timeline: a JSON scalar.
+    os.makedirs(os.path.join(str(tmp_path), "8", "logs"))
+    with open(os.path.join(str(tmp_path), "8", "logs", "e2e-timelines_spyglass_x.json"), "w") as handle:
+        handle.write("3")
 
     matched, scanned = scan_signature(str(tmp_path), "Client.Timeout exceeded", [BACKEND])
 
-    assert matched == {"1"}
-    assert scanned == {"1", "2", "3", "4"}
+    assert matched == {"1", "6"}
+    assert scanned == {"1", "2", "3", "4", "6"}
 
 
 def test_main_reports_runs_without_timelines(tmp_path, capsys):

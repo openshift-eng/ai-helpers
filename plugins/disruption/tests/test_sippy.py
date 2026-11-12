@@ -343,6 +343,8 @@ def test_seconds_rejects_booleans_and_non_numeric_values():
     assert sippy._seconds("n/a") is None
     assert sippy._seconds("4") == 4.0
     assert sippy._seconds(3) == 3
+    for value in ("NaN", "Infinity", "-inf", float("nan"), float("inf")):
+        assert sippy._seconds(value) is None
 
 
 def test_fetch_disruption_data_drops_non_numeric_seconds():
@@ -411,7 +413,23 @@ def test_fetch_runs_in_window_keeps_a_tie_larger_than_the_page(mock_fetch_runs):
     assert [row["prow_id"] for row in rows] == ["NEW"] + [row["prow_id"] for row in ties] + ["OLDER"]
     tie_limits = [call[0][2] for call in mock_fetch_runs.call_args_list
                   if ("<", "2026-10-02T00:00:00Z") in _timestamp_filters(call[0][1])]
-    assert tie_limits == [2, 4, 8]
+    assert tie_limits == [3, 6, 12]
+
+
+@patch("disruption_common.sippy.fetch_runs")
+def test_fetch_runs_in_window_widens_a_tie_that_filled_the_first_page(mock_fetch_runs):
+    ties = _tie_rows(5)
+
+    def fake_fetch(_release, filter_dict, limit):
+        bounds = _timestamp_filters(filter_dict)
+        if ("<", "2026-10-01T00:00:00Z") in bounds:
+            return [{"prow_id": "OLDER", "timestamp": "2026-09-30T00:00:00Z"}]
+        return ties[:limit]
+
+    mock_fetch_runs.side_effect = fake_fetch
+    rows, truncated = fetch_runs_in_window("5.0", {}, SINCE, page_size=2)
+    assert truncated is False
+    assert [row["prow_id"] for row in rows] == [row["prow_id"] for row in ties] + ["OLDER"]
 
 
 @patch("disruption_common.sippy.fetch_runs")

@@ -89,6 +89,17 @@ def test_around_marks_degraded_only_for_api_failures():
                for n in result["notes"])
 
 
+def test_around_measures_degradation_against_usable_runs():
+    # One lost after-run out of 41 in the window, but out of only 21 the cohort could use: degraded.
+    runs = _series()
+    runs = [r for r in runs if not (r["timestamp"] > sippy.rfc3339(SPLIT) and r["job"] == JOB_B)]
+    runs += [_run(970 + i, JOB_B, 1 + i, None) for i in range(20)]
+    runs.append(_run(999, JOB_A, 2, None, fetch_failed=True))
+    result = cohorts.build_around(runs, SPLIT, per_side=4)
+    assert any(n.startswith("DEGRADED: the Sippy disruption API failed for 0 before and 1 after")
+               for n in result["notes"])
+
+
 def test_around_notes_jobs_on_one_side_and_falls_back_without_shared_jobs():
     runs = _series() + [_run(995, JOB_C, 10, 30)]
     result = cohorts.build_around(runs, SPLIT, per_side=2)
@@ -226,6 +237,28 @@ def test_validate_needs_backends(tmp_path, capsys):
     url = "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/%s/1000001" % JOB_A
     assert cohorts.main(["validate", "--before", url, "--after", url]) == 1
     assert "pass --backends" in capsys.readouterr().err
+
+
+def test_validate_records_the_backends_beside_the_cohorts(tmp_path, monkeypatch, capsys):
+    url = "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/%s/%s"
+    given = {}
+
+    def build(before, after, selectors, cache_dir=None):
+        given["selectors"] = selectors
+        return {"source": "user", "before": [{"prow_id": "1", "job": JOB_A, "url": before[0]}],
+                "after": [{"prow_id": "2", "job": JOB_A, "url": after[0]}],
+                "cohort_stats": {side: cohorts.stats([]) for side in ("before", "after")},
+                "jobs": [JOB_A], "notes": []}
+
+    monkeypatch.setattr(cohorts, "build_validated", build)
+    state_file = tmp_path / "investigation.json"
+    state_file.write_text(json.dumps({"series": {"backends": ["kube-api-new-connections"]}}))
+    assert cohorts.main(["validate", "--before", url % (JOB_A, 1), "--after", url % (JOB_A, 2),
+                         "--backends", "openshift-api-new-connections", "--state-file", str(state_file)]) == 0
+    assert "Backends: openshift-api-new-connections" in capsys.readouterr().out
+    saved = json.loads(state_file.read_text())
+    assert saved["cohorts"]["backends"] == given["selectors"] == ["openshift-api-new-connections"]
+    assert saved["series"] == {"backends": ["kube-api-new-connections"]}
 
 
 if __name__ == "__main__":

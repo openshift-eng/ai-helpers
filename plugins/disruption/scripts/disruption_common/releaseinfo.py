@@ -8,7 +8,7 @@ import re
 COMMIT_ANNOTATION = "io.openshift.build.commit.id"
 SOURCE_ANNOTATION = "io.openshift.build.source-location"
 
-_GITHUB_RE = re.compile(r"github\.com[/:]([A-Za-z0-9_.-]+)/([A-Za-z0-9_-]+?)(?:\.git)?/?$")
+_GITHUB_RE = re.compile(r"github\.com[/:]([A-Za-z0-9_.-]+)/([A-Za-z0-9_-][A-Za-z0-9_.-]*?)(?:\.git)?/?$")
 
 
 def payload_version(info):

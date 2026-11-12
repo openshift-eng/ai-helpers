@@ -63,10 +63,10 @@ Keep the user's cohorts exactly as given. Do not add, drop, or swap runs; only r
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/cohorts.py" validate \
   --before "<url>,<url>" --after "<url>,<url>" \
-  [--backends <exact names> | --state-file "{investigation_dir}/investigation.json"]
+  --state-file "{investigation_dir}/investigation.json" [--backends <exact names>]
 ```
 
-The backends come from `--backends` or the state file's series. If neither is available, ask which backends the comparison is about. The script reads each run's `prowjob.json` (job, start time, payload pair) and its disruption seconds from Sippy, then notes: jobs in only one cohort, mixed releases, cohorts that overlap in time, payloads that do not separate them, liveness, missing data, and an after cohort that is not more disrupted. Report every note and let the user decide whether to continue.
+Always pass `--state-file`: the cohorts are recorded only there, and the comparison step reads them from it. The backends come from `--backends`, or else the state file's series. If neither is available, ask which backends the comparison is about. The script records the backends it used under `cohorts.backends`. The script reads each run's `prowjob.json` (job, start time, payload pair) and its disruption seconds from Sippy, then notes: jobs in only one cohort, mixed releases, cohorts that overlap in time, payloads that do not separate them, liveness, missing data, and an after cohort that is not more disrupted. Report every note and let the user decide whether to continue.
 
 ## Output and checkpoint
 

@@ -9,9 +9,10 @@ Reads gather-extra events.json and configmaps.json (download them with
 - every StartingNewRevision / RevisionTriggered event from the operator, with
   the SecretUpdated / ConfigMapUpdated / *Created events from any namespace
   within --tolerance seconds of it (revision controllers' own copies such as
-  config-N are left out). Those writes are the trigger chain: for
-  example the authentication operator updating
-  openshift-config/webhook-authentication-integrated-oauth, then the
+  config-N are left out). A write of the resource the revision reason names
+  is tagged [reason resource]; the other writes matched on time only and are
+  candidates for the trigger chain: for example the authentication operator
+  updating openshift-config/webhook-authentication-integrated-oauth, then the
   kube-apiserver operator copying it to openshift-kube-apiserver/webhook-authenticator
   in the same second.
 - the operator's own OperatorVersionChanged events. The first change from a
@@ -61,6 +62,8 @@ REVISION_REASONS = ("StartingNewRevision", "RevisionTriggered")
 WRITE_REASONS = ("SecretUpdated", "ConfigMapUpdated", "SecretCreated", "ConfigMapCreated")
 
 _REVISION_MSG_RE = re.compile(r'new revision (\d+) triggered by "(.*)"', re.DOTALL)
+_REASON_RESOURCE_RE = re.compile(r"\b(secret|configmap)/([a-z0-9][a-z0-9.-]*)", re.IGNORECASE)
+_WRITE_MSG_RE = re.compile(r"\b(Secret|ConfigMap)/([a-z0-9][a-z0-9.-]*)(?: -n ([a-z0-9-]+))?")
 _VERSION_MSG_RE = re.compile(
     r'clusteroperator/(\S+) version "([^"]*)" changed from "([^"]*)" to "([^"]*)"')
 
@@ -143,22 +146,48 @@ def revision_statuses(configmaps, namespace):
 
 
 def _within(event, when, tolerance):
-    """True when the event's first or last time is within tolerance seconds of when."""
+    """The event's first, last or event time that is within tolerance seconds of when, or None.
+
+    An aggregated event (count > 1) can match on its first occurrence and last
+    occur much later; the matched time is the one to report and order by.
+    """
     for stamp in (event.get("firstTimestamp"), event.get("lastTimestamp"), event.get("eventTime")):
         t = parse_ts(stamp)
         if t is not None and abs((t - when).total_seconds()) <= tolerance:
-            return True
-    return False
+            return stamp
+    return None
 
 
-def revision_triggers(events, operator_namespace, tolerance=1):
+def _resource(text, pattern):
+    """(kind, name) of the secret or configmap a revision reason or write message names, or None."""
+    match = pattern.search(text or "")
+    return (match.group(1).lower(), match.group(2)) if match else None
+
+
+def _write_target(message):
+    """(kind, name, namespace) of the secret or configmap a write event updated or created, or None."""
+    match = _WRITE_MSG_RE.search(message or "")
+    if not match:
+        return None
+    return match.group(1).lower(), match.group(2), match.group(3) or ""
+
+
+def revision_triggers(events, operator_namespace, tolerance=1, operand_namespace=None):
     """Revision events grouped by revision, each with the writes in the same second.
 
     Returns a list sorted by revision of {revision, reason, started, triggered,
     writes}. started is the StartingNewRevision time, triggered the
     RevisionTriggered time; writes are WRITE_REASONS events from any namespace
     within tolerance seconds of started (or triggered when started is absent).
+
+    A time match alone does not make a write the trigger. Each write has
+    names_reason_resource, true when it wrote the secret or configmap the
+    revision reason names into the operand namespace; the others are
+    candidates (often the source a resource-sync controller copied from).
     """
+    if operand_namespace is None:
+        operand_namespace = next((ns for ns, op_ns in OPERATOR_NAMESPACES.values() if op_ns == operator_namespace),
+                                 "")
     by_revision = {}
     for event in events:
         if event.get("reason") not in REVISION_REASONS:
@@ -184,16 +213,27 @@ def revision_triggers(events, operator_namespace, tolerance=1):
         when = parse_ts(entry["started"] or entry["triggered"])
         if when is None:
             continue
-        matched = [e for e in writes if _within(e, when, tolerance)]
-        matched.sort(key=event_time)
-        entry["writes"] = [{
-            "time": event_time(e),
-            "namespace": event_namespace(e),
-            "reason": e.get("reason"),
-            "component": event_component(e),
-            "count": e.get("count"),
-            "message": (e.get("message") or "").replace("\n", " ")[:300],
-        } for e in matched]
+        reason_resource = _resource(entry["reason"], _REASON_RESOURCE_RE)
+        matched = []
+        for e in writes:
+            stamp = _within(e, when, tolerance)
+            if stamp is not None:
+                matched.append((stamp, e))
+        matched.sort(key=lambda m: m[0])
+        entry["writes"] = []
+        for stamp, e in matched:
+            target = _write_target(e.get("message"))
+            entry["writes"].append({
+                "time": stamp,
+                "namespace": event_namespace(e),
+                "reason": e.get("reason"),
+                "component": event_component(e),
+                "count": e.get("count"),
+                "message": (e.get("message") or "").replace("\n", " ")[:300],
+                "names_reason_resource": bool(
+                    reason_resource and target and target[:2] == reason_resource
+                    and target[2] in ("", operand_namespace)),
+            })
     return [by_revision[k] for k in sorted(by_revision)]
 
 
@@ -242,7 +282,7 @@ def _phase(when, upgrade_started):
 def analyze_run(label, events, configmaps, operator, tolerance):
     """Revision triggers, revision statuses, and upgrade markers for one run and operator."""
     namespace, operator_namespace = OPERATOR_NAMESPACES[operator]
-    triggers = revision_triggers(events, operator_namespace, tolerance)
+    triggers = revision_triggers(events, operator_namespace, tolerance, namespace)
     versions = operator_version_changes(events, operator, operator_namespace)
     upgrade_started, operator_upgraded = upgrade_markers(versions)
     first_upgrade_revision = None
@@ -327,7 +367,8 @@ def format_text(runs, differences, show_all=False):
         triggers = [t for t in run["triggers"] if show_all or t["phase"] != "install"]
         hidden = len(run["triggers"]) - len(triggers)
         if triggers or hidden:
-            lines.append("  revision events (writes within the tolerance of StartingNewRevision):")
+            lines.append("  revision events (writes within the tolerance of StartingNewRevision; "
+                         "[reason resource] wrote what the reason names, the rest matched on time only):")
             if hidden:
                 lines.append("    (%d install-time revision%s hidden; --all shows them)"
                              % (hidden, "" if hidden == 1 else "s"))
@@ -336,8 +377,9 @@ def format_text(runs, differences, show_all=False):
                 lines.append("    revision %d  started %s  triggered %s  %s%s" % (
                     t["revision"], t["started"] or "-", t["triggered"] or "-", t["reason"], tag))
                 for w in t["writes"]:
-                    lines.append("      %s %s %s (%s): %s" % (
-                        w["time"], w["reason"], w["namespace"], w["component"], w["message"]))
+                    lines.append("      %s %s %s (%s): %s%s" % (
+                        w["time"], w["reason"], w["namespace"], w["component"], w["message"],
+                        " [reason resource]" if w["names_reason_resource"] else ""))
         lines.append("")
     if differences:
         lines.append("Trigger reasons not present in every run:")

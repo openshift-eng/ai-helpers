@@ -58,13 +58,19 @@ def _quote(value):
     return '"%s"' % value.replace("\\", "\\\\").replace('"', '\\"')
 
 
+# Characters Jira's text search reads as syntax, e.g. a leading "(" opens a group.
+_TEXT_SYNTAX = re.compile(r'[\s+\-&|!(){}\[\]^~*?\\:/]')
+
+
 def _phrase(value):
     """A text term that must match as a phrase, not as any of its words.
 
-    Quotes cannot nest inside a Jira phrase, so they are dropped.
+    Quotes cannot nest inside a Jira phrase, so they are dropped. A single
+    word with text-search syntax in it, such as "(EOF)", is also searched as a
+    phrase, so it matches literally instead of failing as a query.
     """
     value = value.replace('"', "")
-    return _quote('"%s"' % value) if " " in value else _quote(value)
+    return _quote('"%s"' % value) if _TEXT_SYNTAX.search(value) else _quote(value)
 
 
 def _any(field, values, phrase=False):

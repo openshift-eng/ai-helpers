@@ -651,6 +651,9 @@ def test_extract_timeline_target_version():
         "humanMessage": "changed to Progressing=True: Working towards 5.1.0-0.nightly-2026-11-10-075706"})
     assert extract_timeline_target_version([no_counts]) == "5.1.0-0.nightly-2026-11-10-075706"
     assert extract_timeline_target_version(ROLLOUT_ITEMS) is None
+    # A later target replaces an earlier one, whatever order the items arrive in.
+    later = dict(no_counts, **{"from": "2026-11-10T01:00:00Z"})
+    assert extract_timeline_target_version([later, CLUSTERVERSION_ITEM]) == "5.1.0-0.nightly-2026-11-10-075706"
 
 
 def test_find_payloads_reads_prowjob_beside_timelines():

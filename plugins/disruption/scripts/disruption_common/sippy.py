@@ -13,6 +13,7 @@ import email.utils
 import http.client
 import itertools
 import json
+import math
 import numbers
 import os
 import sys
@@ -231,7 +232,8 @@ def _fetch_timestamp_ties(release, variants, since, oldest, upper, max_runs, see
     that tie. This asks for `oldest` inclusive up to the next newer timestamp.
     With a run budget, one request asks for the remaining budget plus the tied
     runs already collected, since Sippy returns those again. Without one, the
-    limit doubles until Sippy returns a short page (the whole tie). A full page
+    limit starts at a page plus the tied runs already collected and doubles
+    until Sippy returns a short page (the whole tie). A full page
     with no unseen runs means Sippy will not return more, so the result is
     reported as truncated. Returns True when the scan is truncated.
     """
@@ -240,17 +242,17 @@ def _fetch_timestamp_ties(release, variants, since, oldest, upper, max_runs, see
         lower = since
     tie_filter = build_sippy_filter(variants, lower, upper)
     room = _room(rows, max_runs)
+    if room is not None and room <= 0:
+        return True
+    already = sum(1 for row in rows if parse_timestamp(row.get("timestamp", "")) == oldest)
     if room is not None:
-        if room <= 0:
-            return True
-        already = sum(1 for row in rows if parse_timestamp(row.get("timestamp", "")) == oldest)
         batch = fetch_runs(release, tie_filter, room + already)
         if not batch:
             return False
         _oldest, truncated = _take_unseen(batch, seen, rows, max_runs)
         return truncated
 
-    limit = page_size
+    limit = page_size + already
     while True:
         batch = fetch_runs(release, tie_filter, limit)
         count_before = len(rows)
@@ -407,15 +409,16 @@ def _fetch_batch_rows(prow_ids, budget, failed):
 
 
 def _seconds(value):
-    """Disruption seconds as a number, or None when the value is missing or not numeric."""
+    """Disruption seconds as a number, or None when the value is missing, not numeric, or not finite."""
     if isinstance(value, bool):
         return None
     if isinstance(value, numbers.Real):
-        return value
+        return value if math.isfinite(value) else None
     try:
-        return float(value)
+        seconds = float(value)
     except (TypeError, ValueError):
         return None
+    return seconds if math.isfinite(seconds) else None
 
 
 def _entry(row):

@@ -762,6 +762,8 @@ def main(argv=None):
     parser.add_argument("--full-table-out", metavar="PATH",
                         help="Table format: write the full table here. Default when rows are cut: "
                              ".work/disruption-analysis/<UTC date>/find-runs-<HHMMSS>.md")
+    parser.add_argument("--cache-dir", default=".work/disruption-analysis/cache",
+                        help="Directory for the disruption cache shared with disruption-trend ('' to disable)")
     args = parser.parse_args(argv)
 
     try:
@@ -798,7 +800,9 @@ def main(argv=None):
     scanned_count = len(rows)
     prow_ids = [str(r["prow_id"]) for r in rows if r.get("prow_id")]
     lost_ids = []
-    raw_disruption = sippy.fetch_disruption_data(prow_ids, failed=lost_ids)
+    # The same cache as disruption-trend and cohorts.py, so runs they fetched cost no Sippy request here.
+    cache_path = os.path.join(args.cache_dir, "disruption.json") if args.cache_dir else None
+    raw_disruption = sippy.fetch_disruption_data(prow_ids, cache_path=cache_path, failed=lost_ids)
     if lost_ids:
         print("Warning: the Sippy disruption API failed for %d of %d runs (rate limit or error). Their "
               "disruption is unknown, not zero, and they are missing from the table. Rerun later; "

@@ -89,6 +89,12 @@ def test_quotes_inside_keywords_are_dropped():
     assert '(text ~ "\\"say hi\\"")' in jql
 
 
+def test_keywords_with_text_search_syntax_are_phrases():
+    jql = _by_name(build_queries(["kube-api-new-connections"], keywords=["(EOF)", "i/o", "conntrack"]))["root-cause"]
+
+    assert '(text ~ "\\"(EOF)\\"" OR text ~ "\\"i/o\\"" OR text ~ "conntrack")' in jql
+
+
 def test_recent_days_and_tool_args():
     query = build_queries(["kube-api-new-connections"], recent_days=30)["queries"][0]
 

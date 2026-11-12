@@ -108,6 +108,21 @@ def parse_runs(runs_str):
     return runs
 
 
+# Written beside the timelines when some of them failed to download, so later readers
+# (fix_payload_check.py in disruption-known-issues) know the run's timelines are partial.
+INCOMPLETE_MARKER = "timelines-incomplete.txt"
+
+
+def mark_incomplete(logs_dir, failures):
+    """Write the incomplete-download marker listing failures, or remove it when there are none."""
+    marker = os.path.join(logs_dir, INCOMPLETE_MARKER)
+    if failures:
+        with open(marker, "w") as f:
+            f.write("\n".join(failures) + "\n")
+    elif os.path.exists(marker):
+        os.remove(marker)
+
+
 def download_gather_files(job, build_id, target, gather_dir, filenames):
     """Download gather-extra files. Returns (saved_paths, failures)."""
     os.makedirs(gather_dir, exist_ok=True)
@@ -200,6 +215,7 @@ def process_run(job, build_id, output_dir, gather=False):
         else:
             failures.append("%s: %s" % (filename, file_detail))
 
+    mark_incomplete(logs_dir, failures)
     if failures:
         summary = "; ".join(failures)
         if len(summary) > 500:

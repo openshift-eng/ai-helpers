@@ -145,6 +145,8 @@ def test_revision_triggers_match_writes_in_the_same_second():
         ("openshift-authentication-operator", "SecretUpdated"),
         ("openshift-kube-apiserver-operator", "SecretUpdated")]
     assert "webhook-authentication-integrated-oauth" in rev10["writes"][0]["message"]
+    # Only the operand-namespace copy is the resource the reason names; the source write matched on time.
+    assert [w["names_reason_resource"] for w in rev10["writes"]] == [False, True]
     assert [w["message"][:35] for w in triggers[1]["writes"]] == ["Updated ConfigMap/kube-apiserver-po"]
     # A wider tolerance picks up the unrelated write 4s later.
     wide = revision_triggers(AFTER_EVENTS, KAS_OP_NS, tolerance=5)
@@ -163,6 +165,8 @@ def test_aggregated_event_matches_on_first_timestamp():
     assert triggers[0]["started"] == "2026-11-10T00:15:50Z"
     assert triggers[0]["triggered"] is None
     assert triggers[0]["writes"][0]["count"] == 4
+    # The write is reported at the occurrence that matched, not its last occurrence.
+    assert triggers[0]["writes"][0]["time"] == "2026-11-10T00:15:50Z"
 
 
 def test_upgrade_markers_and_phases():

@@ -96,6 +96,9 @@ def test_parse_repo():
     assert parse_repo("https://github.com/openshift/cluster-authentication-operator") == (
         "openshift", "cluster-authentication-operator")
     assert parse_repo("https://github.com/openshift/new-thing.git") == ("openshift", "new-thing")
+    assert parse_repo("https://github.com/example/component.v2") == ("example", "component.v2")
+    assert parse_repo("https://github.com/example/component.v2.git") == ("example", "component.v2")
+    assert parse_repo("https://github.com/example/..") is None
     assert parse_repo("https://gitlab.example.com/x/y") is None
     assert parse_repo("") is None
 
@@ -134,6 +137,11 @@ def test_select_component_by_tag_or_repo():
     assert select_component("openshift/oc", before, after)[0] == "cli"
     with pytest.raises(PayloadError):
         select_component("nope", before, after)
+    # A repo whose tags moved differently needs an exact tag.
+    after["kube-proxy"] = dict(after["kube-proxy"], commit="aaaa")
+    with pytest.raises(PayloadError, match="hyperkube, kube-proxy"):
+        select_component("kubernetes", before, after)
+    assert select_component("kube-proxy", before, after)[2]["commit"] == "aaaa"
 
 
 def test_summarize_compare_hides_vendor():
@@ -143,6 +151,9 @@ def test_summarize_compare_hides_vendor():
     assert [f["filename"] for f in summary["files"]] == ["bindata/oauth-apiserver/authenticator-kubeconfig.yaml"]
     assert summary["vendor_files_hidden"] == 1
     assert len(summarize_compare(COMPARE_RESPONSE, include_vendor=True)["files"]) == 2
+    assert summary["files_truncated"] is False
+    full = dict(COMPARE_RESPONSE, files=[{"filename": "vendor/x%d.go" % i} for i in range(300)])
+    assert summarize_compare(full)["files_truncated"] is True
 
 
 def test_resolve_payload_file_and_build_dir():

@@ -86,7 +86,7 @@ next:
   - search Jira for <mechanism or suspect> (disruption-known-issues)
   - read <PR> in more depth
   - compare another range (initial payloads, or a wider window)
-  - check the same series on <platform> as a control, when the top suspect only affects some platforms (disruption-trend --control platform-<platform> --platform <platform>)
+  - check the same series on <platform> as a control, in W3 when the top suspect only affects some platforms (disruption-trend --control platform-<platform> --platform <platform>)
 ```
 ````
 

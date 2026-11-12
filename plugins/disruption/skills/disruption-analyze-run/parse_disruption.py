@@ -526,15 +526,20 @@ _WORKING_TOWARDS_RE = re.compile(r"Working towards (\S+?):?(?:\s|$)")
 
 
 def extract_timeline_target_version(items):
-    """Version the cluster upgraded to, from ClusterVersion 'Working towards X' intervals."""
+    """Version the cluster upgraded to, from the latest ClusterVersion 'Working towards X' interval.
+
+    A run can work towards more than one version (an install, then an upgrade,
+    or a retargeted upgrade); the last one is the final target.
+    """
+    target = None
     for item in sorted(items, key=lambda i: i.get("from", "")):
         keys = item.get("locator", {}).get("keys", {})
         if "clusterversion" not in keys:
             continue
         match = _WORKING_TOWARDS_RE.search(item.get("message", {}).get("humanMessage", ""))
         if match:
-            return match.group(1)
-    return None
+            target = match.group(1)
+    return target
 
 
 def find_payloads(timeline_files, items, prowjob_path=None):

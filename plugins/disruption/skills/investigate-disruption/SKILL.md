@@ -20,7 +20,7 @@ The entry point for disruption questions. It does no analysis itself: it chooses
 
 Read `references/workflows.md`. Classify the request into W1–W6 with its table. If it is ambiguous, ask the user which question they mean (when it started, what made it worse, or why these runs are disrupted) before running anything. A `DisruptionRegression*` alert or a dashboard URL with "investigate this" is W3.
 
-Keep the input exactly as given: the full alert text including every label, the dashboard URL unchanged, and exact backend names. Write a pasted alert unchanged to `alert.txt` in the investigation directory with your file-writing tool, and give skills that file, never the text on a command line. Do not open the Grafana URL; it is behind SSO.
+Keep the input exactly as given: the full alert text including every label, the dashboard URL unchanged, and exact backend names. Create the investigation directory first (Step 2 names it; `mkdir -p` it), then write a pasted alert unchanged to `alert.txt` in it with your file-writing tool, and give skills that file, never the text on a command line. Do not open the Grafana URL; it is behind SSO.
 
 ## Step 2: Start the investigation state
 
@@ -44,7 +44,7 @@ Read `references/report-guide.md` and follow it. Assemble the report from the in
 - **W5** explains the current disrupted runs. Say it is not a regression analysis, and offer W3 if the user wants to know what made it worse. When W5 was reached from W3 (no transition in the window), the request was still a regression: keep the verdict, normally "regression cause unresolved, no transition in the window" (`references/workflows.md`).
 - **W2** answers when; offer W3 to find out why.
 
-Never present a related Jira card, a symptom both cohorts share, or the alert's platform as the explanation. A platform-specific cause needs a platform control (`disruption-trend --control`); report the controls that were run.
+Never present a related Jira card, a symptom both cohorts share, or the alert's platform as the explanation. A platform-specific cause needs a platform control (`disruption-trend --control`, W3 only); report the controls that were run. In W4 a platform-specific candidate stays open.
 
 ## Error handling
 

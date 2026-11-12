@@ -76,7 +76,9 @@ The parser automatically:
 - Classifies each backend (cache, non-cache, canary, cloud)
 - Detects which **phase** each disruption occurred in (upgrade vs conformance) — the first
   timeline file (sorted by filename) is the upgrade phase, the second is the conformance/e2e
-  test phase. The phase is reported in the summary (`phase_breakdown`) and on each disruption event.
+  test phase. With only one timeline file the phase is `unknown`, because the file name does not
+  say which phase it holds (a non-upgrade job, or an upgrade job whose other timeline did not
+  download). The phase is reported in the summary (`phase_breakdown`) and on each disruption event.
 - Detects source-node fan-out patterns (critical for host-to-host analysis)
 - Extracts concurrent events within the disruption window (±`--window` seconds), including
   E2E test names active during disruption (for cross-run test correlation)

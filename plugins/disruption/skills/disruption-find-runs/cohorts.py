@@ -138,10 +138,8 @@ def build_around(runs, split, per_side=DEFAULT_PER_SIDE, window_days=DEFAULT_WIN
     in_window = [r for r in runs if split - window <= _time(r) <= split + window]
     lost = {"before": 0, "after": 0}
     no_data = {"before": 0, "after": 0}
-    side_total = {"before": 0, "after": 0}
     for r in in_window:
         side = "before" if _time(r) < split else "after"
-        side_total[side] += 1
         if r.get("fetch_failed"):
             lost[side] += 1
         elif r.get("seconds") is None:
@@ -181,7 +179,9 @@ def build_around(runs, split, per_side=DEFAULT_PER_SIDE, window_days=DEFAULT_WIN
             notes.append("The %s cohort (median %gs, max %gs) is not typical of the %s side (median %gs, P95 %gs)."
                          % (side, got["p50"], got["max"], side, pop["p50"], pop["p95"]))
     if lost["before"] or lost["after"]:
-        degraded = any(lost[side] > DEGRADED_LOST_FRACTION * side_total[side] for side in lost)
+        # Like the trend's transition check: lost out of lost plus the runs the cohort could use.
+        kept = {"before": len(before), "after": len(after)}
+        degraded = any(lost[side] > DEGRADED_LOST_FRACTION * (lost[side] + kept[side]) for side in lost)
         notes.append("%sthe Sippy disruption API failed for %d before and %d after run(s) in the window, so the "
                      "cohorts and population stats leave them out."
                      % ("DEGRADED: " if degraded else "", lost["before"], lost["after"]))
@@ -354,6 +354,8 @@ def print_text(cohorts, out=None):
                   % (cohorts["at"], cohorts["window_days"]))
     else:
         out.write("Cohorts as given by the user (kept unchanged):\n")
+        if cohorts.get("backends"):
+            out.write("Backends: %s\n" % ", ".join(cohorts["backends"]))
     for side in ("before", "after"):
         got = cohorts["cohort_stats"][side]
         line = "\n%s: %d run(s), %d disrupted, median %ss, max %ss" % (
@@ -442,8 +444,11 @@ def run_validate(args):
         selectors = (state.load_state(args.state_file).get("series") or {}).get("backends") or []
     if not selectors:
         raise CohortError("pass --backends, or a --state-file whose series names the backends")
-    return build_validated(split_backends(args.before), split_backends(args.after), selectors,
-                           cache_dir=args.cache_dir)
+    cohorts = build_validated(split_backends(args.before), split_backends(args.after), selectors,
+                              cache_dir=args.cache_dir)
+    # Kept beside the cohorts, not in the trend-owned series, so disruption-analyze-run uses the same backends.
+    cohorts["backends"] = selectors
+    return cohorts
 
 
 def main(argv=None):

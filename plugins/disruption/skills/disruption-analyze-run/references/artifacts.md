@@ -93,7 +93,7 @@ itself does not explain. For that case go straight to 4.3 and 4.4.
 
 ```bash
 CLOUDSDK_AUTH_DISABLE_CREDENTIALS=true gcloud storage cp -r \
-  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/audit_logs/" \
+  "gs://test-platform-results-public/logs/{job_name}/{build_id}/artifacts/{target}/gather-extra/artifacts/audit_logs/" \
   {runs_dir}/{build_id}/logs/audit_logs/
 ```
 
@@ -103,7 +103,7 @@ Query for sampler requests during disruption windows to identify request gaps.
 
 ```bash
 CLOUDSDK_AUTH_DISABLE_CREDENTIALS=true gcloud storage cp -r \
-  "gs://test-platform-results-public/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/" \
+  "gs://test-platform-results-public/logs/{job_name}/{build_id}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/" \
   {runs_dir}/{build_id}/logs/etcd-pods/
 ```
 
@@ -163,11 +163,18 @@ the input that started revision N?".
    ```text
    revision 10  started 2026-11-10T01:08:29Z  triggered 2026-11-10T01:08:56Z  optional secret/webhook-authenticator has changed [after operator upgrade]
      2026-11-10T01:08:29Z SecretUpdated openshift-authentication-operator (oauth-apiserver-webhook-authenticator-controller-...): Updated Secret/webhook-authentication-integrated-oauth -n openshift-config because it changed
-     2026-11-10T01:08:29Z SecretUpdated openshift-kube-apiserver-operator (kube-apiserver-operator-resource-sync-controller-...): Updated Secret/webhook-authenticator -n openshift-kube-apiserver because it changed
+     2026-11-10T01:08:29Z SecretUpdated openshift-kube-apiserver-operator (kube-apiserver-operator-resource-sync-controller-...): Updated Secret/webhook-authenticator -n openshift-kube-apiserver because it changed [reason resource]
    ```
 
-   The first write in the chain names the component that caused the rollout (here the
-   authentication operator's webhook-authenticator controller). Use `--operator etcd`,
+   Writes are listed because they happened within the tolerance, not because they are
+   known to be related. `[reason resource]` marks the write of the secret or configmap the
+   revision reason names. The other writes are candidates. One is the trigger's source only
+   when the tagged write copies it: here the resource-sync controller copies
+   `openshift-config/webhook-authentication-integrated-oauth` to
+   `openshift-kube-apiserver/webhook-authenticator`, so the authentication operator's
+   webhook-authenticator controller caused the rollout. Confirm that link from the write
+   messages or the operator's resource-sync configuration before naming a component; an
+   unrelated write in the same second looks the same. Use `--operator etcd`,
    `kube-controller-manager`, or `kube-scheduler` for the other static-pod operators,
    and `--format json` for structured output.
 
@@ -191,12 +198,12 @@ or GitHub compares by hand here. Name the component and both runs in the checkpo
 If the analysis needs live cluster metrics (not available in artifacts), provide these queries:
 
 ```promql
--- Top CPU consumers across all nodes
+# Top CPU consumers across all nodes
 topk(25, sum by (namespace) (rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])))
 
--- CPU on a specific node
+# CPU on a specific node
 topk(25, sum by (namespace) (rate(container_cpu_usage_seconds_total{container!="",pod!="",node="<node-name>"}[5m])))
 
--- E2E test CPU on a specific node
+# E2E test CPU on a specific node
 topk(10, sum by (namespace) (rate(container_cpu_usage_seconds_total{container!="",pod!="",node="<node-name>",namespace=~"^e2e-.*"}[5m])))
 ```

@@ -26,7 +26,7 @@ The scripts are in this skill's directory: `${CLAUDE_SKILL_DIR}` in Claude Code,
 ## Step 1: Inputs
 
 - **Prow URLs** (`prow.ci.openshift.org` or `gcsweb-ci`), one or more. Or `job:build_id` pairs, such as `cohorts.handoff.download_runs` from `disruption-find-runs` in the state file.
-- **Backends** (`--backends`): the exact names. Take them from the request, or from the state file's `series.backends`. Without either, analyze every backend that shows disruption and say so.
+- **Backends** (`--backends`): the exact names. Take them from the request, or from the state file's `series.backends`, or else its `cohorts.backends` (written by `cohorts.py validate`). Without any of these, analyze every backend that shows disruption and say so.
 - When the runs are cohorts (before/after), keep each run's cohort; the analysis of each run is the same, but the checkpoint says which cohort each run is in.
 
 From each Prow URL take the job name and build ID: the last two path segments after `/logs/`. The job name is letters, digits, `.`, `_`, and `-`, and the build ID is all digits; skip and report anything else rather than putting it in a shell command. Presubmit runs (`/pr-logs/pull/...`) are not supported: the download reads only `/logs/` artifacts, so say so and skip them. Prow URLs may say `origin-ci-test`; the bucket is always `test-platform-results-public`.
@@ -50,12 +50,12 @@ for run in '{job_1}:{build_id_1}' '{job_2}:{build_id_2}'; do
     python3 "${CLAUDE_SKILL_DIR}/parse_disruption.py" "${dir}"/logs/e2e-timelines_spyglass_*.json \
       --job-name "${job}" --build-id "${build_id}" --backends '{exact_backends}' --format summary
   else
-    rm -f "${dir}/parsed.json.tmp"; echo "${build_id}: the parser failed; no parsed.json written" >&2
+    rm -f "${dir}/parsed.json.tmp" "${dir}/parsed.json"; echo "${build_id}: the parser failed; no parsed.json kept" >&2
   fi
 done
 ```
 
-A run without timelines gets no `parsed.json`, so the cohort comparison reports it as missing instead of reading an empty file.
+A run without timelines gets no `parsed.json`, and a failed rerun removes the one from an earlier run, so the cohort comparison reports the run as missing instead of reading an empty or stale file.
 
 Then read `references/timeline-analysis.md` and follow 3.2 through 3.4 (blast radius, deep-dive of the runs that need it, and how to read each signal).
 

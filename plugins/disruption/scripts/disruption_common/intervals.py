@@ -20,15 +20,19 @@ def backend_matches_filter(backend_name, backend_filter):
 def load_items(paths):
     """Load and merge items from one or more timeline JSON files.
 
-    Items are tagged with a _phase ("upgrade" or "conformance") based on file
-    ordering.  Timeline files are sorted by filename timestamp — the first is
-    the upgrade phase, the second is the conformance/e2e-test phase.
+    Items are tagged with a _phase based on file ordering. Timeline files are
+    sorted by filename timestamp: with two or more, the first is the upgrade
+    phase and the rest are the conformance/e2e-test phase. The file names do
+    not say which phase they hold, so a lone file (a non-upgrade job, or an
+    upgrade job whose other timeline failed to download) is "unknown".
     """
     sorted_paths = sorted(paths, key=lambda p: os.path.basename(p))
     all_items = []
     for idx, path in enumerate(sorted_paths):
-        # First file = upgrade, second = conformance
-        phase = "upgrade" if idx == 0 and len(sorted_paths) > 1 else "conformance"
+        if len(sorted_paths) == 1:
+            phase = "unknown"
+        else:
+            phase = "upgrade" if idx == 0 else "conformance"
         with open(path) as fh:
             data = json.load(fh)
         items = data if isinstance(data, list) else data.get("items", [])

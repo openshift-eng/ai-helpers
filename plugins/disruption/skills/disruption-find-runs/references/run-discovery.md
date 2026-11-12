@@ -231,7 +231,8 @@ rows shown.
 If the output has a probe-family note (for example, `*-localhost-*` backends were the max
 in most disrupted runs), ask which backend family the user means before asking which runs
 to analyze. Rerun the finder with `--backend` set to that family's exact names from the
-URL. Do the same when a backend-name warning suggests a different name.
+URL. Do the same when a backend-name warning suggests a different name. Keep that
+`--backend` override for every later finder call, including the `--format json` rerun.
 
 Do not write a script that rebuilds or reformats the table. The finder already prints
 the compact table and writes the full one. Apart from that file, `.work/disruption-analysis/`
@@ -257,13 +258,19 @@ If the user confirms the recommendation (or says "yes"), use the recommended run
 If the user provides specific numbers, use those instead. Skip this question when the
 alert returned a single run; that run is the selection.
 
-If the finder lists no runs, no run in the window had disruption > 0 on these backends.
-Say so; do not pick runs from other backends instead.
+If the finder lists no runs, check its warnings first. When it warns that the Sippy
+disruption API failed for some runs, their disruption is unknown, not zero: say that the
+result is incomplete and suggest rerunning later. Only without that warning does an empty
+table mean no run in the window had disruption > 0 on these backends. Either way, do not
+pick runs from other backends instead.
 
 ## 3. Convert Selections to Prow URLs
 
-Re-run `find_disruption_runs.py` with `--format json` and the same `--grafana-url` or `--alert-file` to get machine-readable output with `url`
-fields. Use the `url` field from the JSON output to get Prow URLs for the selected runs. For
+Re-run `find_disruption_runs.py` with `--format json`, the same `--grafana-url` or `--alert-file`, and the same
+`--backend` override as the last table run, to get machine-readable output with `url` fields. The rerun can
+order rows differently (the window moves and Sippy refreshes), so match each selected run by its build ID
+(`prow_id`), never by row number, and take that row's `url`. If a selected run is not in the JSON output,
+say so; do not substitute another row. For
 `disruption-analyze-run`, set:
 - its `--backends` to the exact comma-separated backend list from the Grafana URL or the alert (unless the user overrides it). Do not shorten those names
 - The resolved Prow URLs, and the exact backends, are what `disruption-analyze-run` takes

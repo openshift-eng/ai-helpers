@@ -55,9 +55,13 @@ alert. `backend-family-history` returns older closed investigations. Classify th
 evidence like any other card (8.1.2): an old card can still describe the mechanism the runs
 show, and it may have regressed.
 
-Deduplicate by issue key. For each card whose summary plausibly matches the mechanism, call
-`getJiraIssue` with `fields: ["summary", "description", "status", "components", "comment",
-"issuelinks", "labels"]` and classify it (8.1.2).
+Deduplicate by issue key. Call `getJiraIssue` with `fields: ["summary", "description",
+"status", "components", "comment", "issuelinks", "labels"]` and classify it (8.1.2) for:
+
+- every card the `root-cause` query returned, whatever its summary says. That query searches
+  descriptions and comments too, so a card titled "Cluster disruption during upgrade" can hold
+  the mechanism in its description;
+- every other card whose summary plausibly matches the mechanism.
 
 ## 8.1.2: Classify Each Card
 
@@ -86,9 +90,15 @@ python3 "${CLAUDE_SKILL_DIR}/known_issue_queries.py" --record {state_file} \
 
 Do this for every matching card in MODIFIED, ON_QA, Verified, or Closed.
 
-1. Find the first payload with the fix. Look in the card's comments (bots post "Fixed in
-   payload ..." or the release controller link) and linked PRs. If only a merge date is
-   known, use the first nightly built after the merge, and say it is an estimate.
+1. Find the first payload **of the investigated release** with the fix. Look in the card's
+   comments (bots post "Fixed in payload ..." or the release controller link) and linked PRs.
+   An older card is often fixed in another release first: then find the backport card or PR
+   for the investigated release and its first payload. If only a merge date is known, use the
+   first nightly of that release built after the merge, and say it is an estimate. If no
+   payload of the investigated release is known to contain the fix, say that the fix status
+   cannot be determined, and skip the steps below: another release's payload dates say
+   nothing about these runs. `fix_payload_check.py` leaves out runs from another release than
+   the fix payload's, and refuses to compare when every run is from another release.
 2. Get every run for the series over a window that starts at least a week before the fix
    (disruption-trend has 0s runs too; the finder lists only disrupted runs):
 
@@ -125,6 +135,10 @@ Do this for every matching card in MODIFIED, ON_QA, Verified, or Closed.
    The signature is a regex over the full disruption message, for example
    `'Client.Timeout exceeded|roundtrip=15'`. It must match the bug's failure mode and not the
    background noise you found in clean-period runs.
+
+   A run whose timelines downloaded only in part counts as searched only when the signature
+   was found; otherwise the missing file could hold it, so the script warns and leaves the run
+   out of the `Timelines` count. Report every caveat it prints.
 
 4. Report the result in the Known Disruption Issues section:
    - the per-payload-day table, or a short version: when the signature starts, its share of

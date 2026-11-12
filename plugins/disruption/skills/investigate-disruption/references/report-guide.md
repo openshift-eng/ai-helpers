@@ -32,15 +32,18 @@ it rests on. For unresolved, say exactly that the evidence explains the disrupte
 the increase, and list the open hypotheses.}
 
 ## When It Changed
-{From disruption-trend: the transition's change window, payloads, before → after nonzero rate,
-P50, P95, strength, which jobs moved, and every caveat. Link the last run before and the first
-run after.}
+{W3: from disruption-trend: the transition's change window, payloads, before → after nonzero
+rate, P50, P95, strength, which jobs moved, and every caveat. Link the last run before and the
+first run after. W4 runs no trend: give the cohort boundaries the user supplied (the last before
+run and the first after run, linked, with their start times) and the payloads checked for each
+side, and say that no transition was measured.}
 
 ## Controls
 {From `controls` in the state file, one line each: the control (platform or release), its
 before → after numbers around the transition, and what it shows. "None run" when there were
-none; then a platform-specific cause stays unsupported. Omit the section only when no candidate
-was platform-specific and the onset was in the window.}
+none; then a platform-specific cause stays unsupported. W4 runs no controls: say a
+platform-specific candidate stays open. Omit the section only when no candidate was
+platform-specific and the onset was in the window.}
 
 ## Cohorts
 {From disruption-find-runs: before and after runs (linked), how they were chosen or that the
@@ -158,9 +161,13 @@ earlier, or a fix may have landed inside the window. State which of these holds:
 - {compare_release} is at a similar level over the same window (the release control from
   `disruption-trend --control release-<compare_release>`, if it was run). Then the regression
   is not visible in the current data and has not been explained.
+- {compare_release} is clearly lower now (the same release control). Then the gap is real and
+  current: the onset predates the window, and the cause stays unresolved unless the analyzed
+  runs show a mechanism that {compare_release} lacks.
 - A matching fix (the fix check in `disruption-known-issues`) landed before most of the analyzed runs. Then they show
   what is left after the fix, not the regression.
-- Neither was checked. Say so, and offer a regression investigation (W3) to find out.}
+- Neither the release control nor the fix check was run. Say so, and offer a regression
+  investigation (W3) to find out.}
 
 ## Root Cause Hypothesis
 {Synthesis with links to key evidence}

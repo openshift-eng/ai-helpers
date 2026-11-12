@@ -37,6 +37,10 @@ The commit for each component is
 `gh api repos/{owner}/{repo}/compare/{before}...{after}` and prints the commits and
 non-vendor files (`--include-vendor` shows vendor/). If `gh` is missing or fails, it
 prints that exact command and the GitHub compare URL; run it yourself or open the URL.
+GitHub's compare lists at most 300 files; when it hits that limit the script says the list
+may be incomplete, so read the full diff before ruling the component out. A repo name that
+builds several tags with different commits (for example `kubernetes`) is rejected; pass the
+tag instead.
 
 ## Caveats
 

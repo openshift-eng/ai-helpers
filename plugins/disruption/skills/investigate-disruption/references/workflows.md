@@ -27,9 +27,9 @@ A regression investigation starts with the trend because an alert compares again
 | **W5. Sample current disruption** | `disruption-find-runs` (sample-disrupted) ⏸ → `disruption-analyze-run` ⏸ → `disruption-known-issues` ⏸ → report, labelled as explaining runs, **not** a regression |
 | **W6. What changed** | `disruption-change-suspects` alone |
 
-**Controls (W3, W4).** A control reruns `disruption-trend` with one field changed and `--control <name>`, recorded under `controls` in the state file without touching the investigated trend:
+**Controls (W3).** A control reruns `disruption-trend` with one field changed and `--control <name>`, recorded under `controls` in the state file without touching the investigated trend:
 
-- **Platform control** (`--platform <other>`): offered at the `disruption-compare-cohorts` and `disruption-change-suspects` checkpoints when a candidate or suspect is platform-specific. It is the only evidence that can support a platform-specific cause.
+- **Platform control** (`--platform <other>`): offered at the W3 `disruption-compare-cohorts` and `disruption-change-suspects` checkpoints when a candidate or suspect is platform-specific. It is the only evidence that can support a platform-specific cause. It compares the control with the investigated trend's transitions, so W4, which has no trend, does not offer it: a W4 verdict leaves any platform-specific candidate open and says so.
 - **Release control** (`--release <compare_release>`): offered at the trend checkpoint when the onset is before the window or there is no transition, for alerts that compare against a previous release.
 
 Controls are never run by `--auto`; they spend the shared Sippy budget, so each one answers a question someone asked.

@@ -11,6 +11,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 from download_timelines import (
+    INCOMPLETE_MARKER,
     download_file,
     exit_code,
     extract_payloads,
@@ -158,8 +159,13 @@ def test_process_run_full_success():
         return result
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        marker = os.path.join(tmpdir, "999", "logs", INCOMPLETE_MARKER)
+        os.makedirs(os.path.dirname(marker))
+        with open(marker, "w") as f:
+            f.write("left from an earlier partial download\n")
         with patch("subprocess.run", side_effect=mock_subprocess_run):
             r = process_run("my-job", "999", tmpdir)
+        assert not os.path.exists(marker)
 
     assert r["build_id"] == "999"
     assert r["job"] == "my-job"
@@ -249,6 +255,9 @@ def test_process_run_keeps_successful_timeline_when_another_fails():
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("subprocess.run", side_effect=mock_subprocess_run):
             r = process_run("my-job", "999", tmpdir)
+        marker = os.path.join(tmpdir, "999", "logs", INCOMPLETE_MARKER)
+        with open(marker) as f:
+            assert f.read().startswith("e2e-timelines_spyglass_bad.json: ")
 
     assert len(r["timeline_files"]) == 1
     assert r["timeline_files"][0].endswith("e2e-timelines_spyglass_ok.json")

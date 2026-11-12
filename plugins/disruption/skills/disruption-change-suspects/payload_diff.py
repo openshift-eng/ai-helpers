@@ -72,6 +72,7 @@ from disruption_common.releaseinfo import (  # noqa: E402,F401  (parse_repo and 
 
 GH_TIMEOUT_SECONDS = 120
 OC_TIMEOUT_SECONDS = 300
+GITHUB_COMPARE_MAX_FILES = 300
 
 _RUN_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*:\d{6,}$")
 _COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}$")
@@ -176,14 +177,28 @@ def compare_url(repo, before, after):
 
 
 def select_component(component, before, after):
-    """(tag name, before entry, after entry) for a tag name or a repo name."""
+    """(tag name, before entry, after entry) for a tag name or a repo name.
+
+    A repo name can match several tags (hyperkube and kube-proxy both build from
+    openshift/kubernetes). They are one comparison when every matching tag has the
+    same before and after commits; otherwise the caller must name a tag, so an
+    unchanged tag cannot hide a changed one.
+    """
     if component in before or component in after:
         return component, before.get(component, {}), after.get(component, {})
+    matches = []
     for name in sorted(set(before) | set(after)):
         repo = (after.get(name) or before.get(name) or {}).get("repo") or ""
         if repo.split("/")[-1] == component or repo == component:
-            return name, before.get(name, {}), after.get(name, {})
-    raise PayloadError("component %s is not a tag or repo in either payload" % component)
+            matches.append(name)
+    if not matches:
+        raise PayloadError("component %s is not a tag or repo in either payload" % component)
+    pairs = {(before.get(n, {}).get("commit"), after.get(n, {}).get("commit")) for n in matches}
+    if len(pairs) > 1:
+        raise PayloadError("repo %s builds tags with different commits (%s); pass one tag with --component"
+                           % (component, ", ".join(matches)))
+    name = matches[0]
+    return name, before.get(name, {}), after.get(name, {})
 
 
 def gh_compare_command(repo, before, after):
@@ -211,7 +226,11 @@ def gh_compare(repo, before, after):
 
 
 def summarize_compare(data, include_vendor=False):
-    """Commits and changed files from a GitHub compare response."""
+    """Commits and changed files from a GitHub compare response.
+
+    files_truncated is true when GitHub returned its maximum number of files, so
+    the list (before vendor/ files are hidden) may be incomplete.
+    """
     commits = []
     for c in data.get("commits") or []:
         commit = c.get("commit") or {}
@@ -222,7 +241,8 @@ def summarize_compare(data, include_vendor=False):
         })
     files = []
     vendor = 0
-    for f in data.get("files") or []:
+    all_files = data.get("files") or []
+    for f in all_files:
         name = f.get("filename", "")
         if not include_vendor and (name.startswith("vendor/") or "/vendor/" in name):
             vendor += 1
@@ -237,6 +257,7 @@ def summarize_compare(data, include_vendor=False):
         "commits": commits,
         "files": files,
         "vendor_files_hidden": vendor,
+        "files_truncated": len(all_files) >= GITHUB_COMPARE_MAX_FILES,
     }
 
 
@@ -263,6 +284,10 @@ def format_text(result):
                 ", %d vendor/ hidden" % cmp["vendor_files_hidden"] if cmp["vendor_files_hidden"] else ""))
             for f in cmp["files"]:
                 lines.append("    %s %s +%s/-%s" % (f["status"], f["filename"], f["additions"], f["deletions"]))
+            if cmp.get("files_truncated"):
+                lines.append("  GitHub lists at most %d files, so this list may be incomplete; read the full diff "
+                             "(%s) before ruling the component out" % (
+                                 GITHUB_COMPARE_MAX_FILES, comp.get("compare_url") or "git diff in a clone"))
         elif not comp.get("command"):
             lines.append("  cannot compare: a commit or the repo is missing")
         else:

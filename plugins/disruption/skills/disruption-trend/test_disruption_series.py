@@ -110,6 +110,20 @@ def test_onset_before_window_and_sporadic_and_none():
     assert analyze([0] * 100)["onset"]["status"] == "none"
 
 
+def test_a_rise_after_a_quiet_stretch_is_a_recurrence_when_the_window_starts_disrupted():
+    rng = random.Random(9)
+    values = ([_zero_heavy(rng, 0.8, 6) for _ in range(300)] + [_zero_heavy(rng, 0.02, 2) for _ in range(300)]
+              + [_zero_heavy(rng, 0.8, 6) for _ in range(300)])
+    trend = analyze(values)
+    onset = trend["onset"]
+    assert onset["status"] == "before_window"
+    assert abs(int(trend["transitions"][-1]["first_run_after"]["prow_id"]) - 1600) <= 10
+    assert onset["recurrence"]["at"] == next(t["at"] for t in trend["transitions"] if t["direction"] == "increase")
+    out = io.StringIO()
+    ds.print_table(SERIES, trend, out)
+    assert "Recurrence: disruption dropped to near zero and rose again" in out.getvalue()
+
+
 def test_job_mix_shift_is_flagged():
     values = [0] * 300 + [10] * 300
     runs = make_runs(values)
@@ -241,7 +255,30 @@ def test_main_writes_state_and_runs_file(tmp_path, capsys):
     compared = control["at_investigated_transitions"]
     assert compared[0]["at"] == saved["trend"]["transitions"][0]["at"]
     assert compared[0]["before"]["n"] > 0 and compared[0]["after"]["n"] > 0
-    assert "Control platform-gcp around the investigated transitions:" in capsys.readouterr().out
+    # The step is about 4 days before the end of the window, so the after side is short.
+    assert compared[0]["before_days"] == 7 and compared[0]["after_days"] < 7 and not compared[0]["complete"]
+    out = capsys.readouterr().out
+    assert "Control platform-gcp around the investigated transitions:" in out
+    assert "INCOMPLETE" in out
+
+
+def test_control_at_transitions_records_coverage_and_exclusions():
+    at = NOW - timedelta(days=10)
+    runs = [{"timestamp": (at + timedelta(hours=h)).strftime("%Y-%m-%dT%H:%M:%SZ"), "seconds": 0}
+            for h in range(-150, 150, 6)]
+    runs[0]["fetch_failed"] = True
+    runs[-1]["liveness_unreliable"] = True
+    transition = {"at": at.strftime("%Y-%m-%dT%H:%M:%SZ"), "direction": "increase"}
+    (row,) = ds.control_at_transitions(runs, [transition], START, NOW)
+    assert (row["before_days"], row["after_days"]) == (7, 7)
+    assert (row["before_excluded"], row["after_excluded"]) == (1, 1)
+    assert row["before"]["n"] == 24 and row["after"]["n"] == 24
+    assert not row["complete"]
+    (clean,) = ds.control_at_transitions([r for r in runs if not r.get("fetch_failed")
+                                          and not r.get("liveness_unreliable")], [transition], START, NOW)
+    assert clean["complete"]
+    (short,) = ds.control_at_transitions(runs[1:-1], [transition], NOW - timedelta(days=12), NOW)
+    assert short["before_days"] == 2 and not short["complete"]
 
 
 @pytest.mark.parametrize("argv, message", [
@@ -545,6 +582,7 @@ def test_payload_summary_detects_overlapping_targets_and_initial_payload_depende
     assert summary["newest_target_before"] == "5." + nightly % "09-143447"
     assert summary["oldest_target_after"] == "5." + nightly % "09-143447"
     assert summary["target_separates"] is False and summary["after_on_old_target"] == 2
+    assert summary["after_on_shared_target"] == 2
     groups = summary["after_upgrades_by_initial"]
     assert groups["pre_step"] == {"n": 3, "p50": 100, "max": 100}
     assert groups["post_step"] == {"n": 1, "p50": 40, "max": 40}
@@ -560,6 +598,7 @@ def test_payload_summary_reports_clean_target_separation():
     payloads = {"b": _pair("", "1.0-0.nightly-2026-11-09-100000"), "a": _pair("", "1.0-0.ci-2026-11-09-120000")}
     summary = ds.payload_summary(before, after, payloads, failed=[])
     assert summary["target_separates"] is True and summary["after_on_old_target"] == 0
+    assert summary["after_on_shared_target"] == 0
 
 
 def test_apply_payloads_annotates_runs_pairs_and_caveats():
@@ -630,6 +669,23 @@ def test_main_keeps_lost_runs_when_filtering_on_master_nodes_updated(capsys):
     assert trend["runs"]["scanned"] == 50 and trend["runs"]["fetch_failed"] == 1
     assert any("upper bound" in caveat for caveat in trend["caveats"])
 
+
+def test_main_warns_about_runs_whose_selected_rows_lack_master_nodes_updated(capsys):
+    def disruption(ids, cache_path=None, progress=None, max_wait=None):
+        data, failed = _fake_disruption(ids)
+        del data["3"][0]["master_nodes_updated"]
+        data["3"].append({"backend_name": "other-backend", "disruption_seconds": 0, "master_nodes_updated": "Y"})
+        return data, failed
+
+    with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(50), False)), \
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=disruption):
+        code = ds.main(["--alert-text", _alert("Y"), "--format", "json", "--cache-dir", "", "--no-payloads"])
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "1 run(s) have no master_nodes_updated value on the selected backends and were left out: 3" in captured.err
+    trend = json.loads(captured.out)["trend"]
+    assert trend["runs"]["scanned"] == 49
+    assert any("could not be classified and were left out" in caveat for caveat in trend["caveats"])
 
 
 def test_main_reports_the_loss_when_every_run_is_lost_under_master_nodes_updated(capsys):

@@ -50,6 +50,10 @@ from disruption_common.intervals import backend_matches_filter, load_items  # no
 from disruption_common.stats import percentile  # noqa: E402
 
 _TAG_TIME = re.compile(r"(\d{4}-\d{2}-\d{2}-\d{6})$")
+_TAG_RELEASE = re.compile(r"^(\d+\.\d+)\.")
+# download_timelines.py (disruption-analyze-run) writes this beside a run's
+# timelines when some of them failed to download.
+INCOMPLETE_MARKER = "timelines-incomplete.txt"
 
 
 def payload_time(tag):
@@ -58,6 +62,12 @@ def payload_time(tag):
     if not match:
         return None
     return datetime.datetime.strptime(match.group(1), "%Y-%m-%d-%H%M%S")
+
+
+def payload_release(tag):
+    """The X.Y release a payload tag belongs to, or None."""
+    match = _TAG_RELEASE.match(tag or "")
+    return match.group(1) if match else None
 
 
 def normalize_run(run):
@@ -82,7 +92,9 @@ def scan_signature(timelines_dir, pattern, backends):
     """Build IDs under timelines_dir whose disruption messages on backends match pattern.
 
     Returns (matched, scanned). The layout is download_timelines.py's:
-    <timelines_dir>/<build_id>/logs/e2e-timelines_spyglass_*.json.
+    <timelines_dir>/<build_id>/logs/e2e-timelines_spyglass_*.json. A run whose
+    timelines downloaded only in part counts as scanned only when it matched:
+    the missing file could hold the signature.
     """
     regex = re.compile(pattern)
     matched, scanned = set(), set()
@@ -91,15 +103,20 @@ def scan_signature(timelines_dir, pattern, backends):
         if not files:
             continue
         build_id = os.path.basename(os.path.dirname(logs))
-        scanned.add(build_id)
         try:
             items = load_items(files)
-        except (OSError, ValueError) as err:
+            found = any(_matches(item, regex, backends) for item in items)
+        except (OSError, ValueError, AttributeError, TypeError) as err:
+            # AttributeError and TypeError: a JSON file that is not a timeline (scalar root, bad items).
             print("Warning: skipping %s: %s" % (build_id, err), file=sys.stderr)
-            scanned.discard(build_id)
             continue
-        if any(_matches(item, regex, backends) for item in items):
+        if found:
             matched.add(build_id)
+        elif os.path.exists(os.path.join(logs, INCOMPLETE_MARKER)):
+            print("Warning: %s: some timelines failed to download and the rest lack the signature; "
+                  "counted as not searched" % build_id, file=sys.stderr)
+            continue
+        scanned.add(build_id)
     return matched, scanned
 
 
@@ -135,9 +152,11 @@ def check_fix(runs, fix_payload, signature_ids=None, scanned_ids=None):
     fix_time = payload_time(fix_payload)
     if fix_time is None:
         raise ValueError("cannot read a timestamp from payload %r" % fix_payload)
+    fix_release = payload_release(fix_payload)
     finder_input = any("disruption_backends" in run for run in runs)
     by_day, before, after = {}, [], []
     no_data = untagged = liveness = 0
+    other_release = {}
     tag_sources = {}
     for raw in runs:
         prow_id, seconds, tag, source, unreliable = normalize_run(raw)
@@ -151,10 +170,20 @@ def check_fix(runs, fix_payload, signature_ids=None, scanned_ids=None):
         if built is None:
             untagged += 1
             continue
+        release = payload_release(tag)
+        if fix_release and release and release != fix_release:
+            # Build times of another release's payloads say nothing about whether they contain the fix.
+            other_release[release] = other_release.get(release, 0) + 1
+            continue
         tag_sources[source] = tag_sources.get(source, 0) + 1
         run = {"prow_id": prow_id, "seconds": seconds}
         by_day.setdefault(built.date().isoformat(), []).append(run)
         (after if built >= fix_time else before).append(run)
+    if other_release and not before and not after:
+        raise ValueError("the fix payload %s is a %s payload, but the runs tested %s payloads. Pass the first "
+                         "payload of the runs' release that contains the fix (its backport); if none is known, "
+                         "the fix status cannot be determined."
+                         % (fix_payload, fix_release, ", ".join(sorted(other_release))))
     fix_day = fix_time.date().isoformat()
     days = [dict(day=day, fixed="split" if day == fix_day else ("yes" if day > fix_day else "no"),
                  **_summary(by_day[day], signature_ids, scanned_ids))
@@ -165,7 +194,7 @@ def check_fix(runs, fix_payload, signature_ids=None, scanned_ids=None):
         "after_fix": _summary(after, signature_ids, scanned_ids),
         "by_payload_day": days,
         "excluded": {"no_disruption_data": no_data, "no_payload_tag": untagged,
-                     "liveness_unreliable": liveness},
+                     "liveness_unreliable": liveness, "other_release": sum(other_release.values())},
         "payload_tag_source": tag_sources,
         "caveats": [
             "release_tag is the payload the job tested. An upgrade job runs the old payload until "
@@ -186,6 +215,10 @@ def check_fix(runs, fix_payload, signature_ids=None, scanned_ids=None):
                                  "are the same. Use disruption-trend's runs file for the disrupted share.")
     if untagged:
         result["caveats"].append("%d runs had no payload tag and are not counted." % untagged)
+    if other_release:
+        result["caveats"].append("%d runs tested payloads of another release (%s) than the fix payload (%s) "
+                                 "and are not counted. Check them against that release's fix payload, if any."
+                                 % (sum(other_release.values()), ", ".join(sorted(other_release)), fix_release))
     if scanned_ids is not None:
         # Only disrupted runs count: a leftover clean-run timeline must not hide a missing one.
         disrupted_ids = [r["prow_id"] for r in before + after if r["seconds"] > 0]

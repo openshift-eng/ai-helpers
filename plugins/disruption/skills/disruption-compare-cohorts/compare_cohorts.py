@@ -76,12 +76,23 @@ def _size(source, value):
         return value.get("max_poll_interval_ms") or 0
     if source == "CPUMonitor":
         return len({n.get("node") for n in value.get("nodes") or []})
-    if source == "CloudMetrics":
-        return max([m.get("max_value") or 0 for m in (value.get("metrics") or {}).values()] or [0])
     return value.get("count") or 0
 
 
-_UNITS = {"OVSVswitchdLog": "max poll ms", "CPUMonitor": "nodes >95% CPU", "CloudMetrics": "max metric value"}
+_UNITS = {"OVSVswitchdLog": "max poll ms", "CPUMonitor": "nodes >95% CPU"}
+
+
+def _source_signals(source, value):
+    """(name, unit, size) for each signal of one context source in one run.
+
+    CloudMetrics gives one signal per metric: its metrics have different units
+    (IOPS percentage, queue depth), so one maximum across them would hide a
+    metric that appears only in one cohort.
+    """
+    if source == "CloudMetrics":
+        return [("CloudMetrics %s" % metric, "max value", info.get("max_value") or 0)
+                for metric, info in sorted((value.get("metrics") or {}).items())]
+    return [(source, _UNITS.get(source, "events"), _size(source, value))]
 
 
 def run_features(parsed):
@@ -96,13 +107,13 @@ def run_features(parsed):
         if count:
             features["disruptions in %s phase" % phase] = ("disruption", count)
     for source, value in (parsed.get("run_context") or {}).items():
-        size = _size(source, value)
-        if size:
-            features["%s (%s)" % (source, _UNITS.get(source, "events"))] = ("run-wide", size)
+        for name, unit, size in _source_signals(source, value):
+            if size:
+                features["%s (%s)" % (name, unit)] = ("run-wide", size)
     for source, value in (parsed.get("concurrent_events") or {}).items():
-        size = _size(source, value)
-        if size:
-            features["%s during disruption (%s)" % (source, _UNITS.get(source, "events"))] = ("during", size)
+        for name, unit, size in _source_signals(source, value):
+            if size:
+                features["%s during disruption (%s)" % (name, unit)] = ("during", size)
     rollouts = {}
     inside = {}
     for rollout in parsed.get("revision_rollouts") or []:
@@ -253,7 +264,9 @@ def component_versions(cohort_runs, run_dirs):
 
     Returns (rows, notes). Each row has the repo, its release tags, and for each cohort
     {commit: runs}. label is "changed" when no after run shares a commit with any before
-    run, else "mixed". rows is None when a cohort has no releaseinfo at all.
+    run, else "mixed"; both cover only the runs with usable releaseinfo. A releaseinfo
+    with no component commits counts as missing. rows is None when a cohort has no
+    usable releaseinfo at all.
     """
     commits = {"before": {}, "after": {}}
     missing = []
@@ -262,18 +275,25 @@ def component_versions(cohort_runs, run_dirs):
             path = os.path.join(run_dirs.get(bid, ""), RELEASEINFO_PATH)
             try:
                 with open(path) as f:
-                    commits[side][bid] = component_commits(json.load(f))
+                    info = json.load(f)
             except (OSError, ValueError):
+                missing.append(bid)
+                continue
+            components = component_commits(info) if isinstance(info, dict) else {}
+            if components:
+                commits[side][bid] = components
+            else:
                 missing.append(bid)
     notes = []
     if not commits["before"] or not commits["after"]:
-        notes.append("Component versions were not compared: %s cohort has no %s. Download the runs with "
-                     "download_timelines.py --gather to add them." % (
+        notes.append("Component versions were not compared: %s cohort has no %s with component commits. "
+                     "Download the runs with download_timelines.py --gather to add them." % (
                          "neither" if not (commits["before"] or commits["after"])
                          else ("the before" if not commits["before"] else "the after"), RELEASEINFO_PATH))
         return None, notes
     if missing:
-        notes.append("Component versions leave out %s (no %s)." % (", ".join(sorted(missing)), RELEASEINFO_PATH))
+        notes.append("Component versions leave out %s (no %s with component commits); the changed and "
+                     "mixed labels cover only the other runs." % (", ".join(sorted(missing)), RELEASEINFO_PATH))
     by_repo = {}
     for side, runs in commits.items():
         for components in runs.values():
@@ -326,8 +346,9 @@ def print_text(result, out=None):
     components = result.get("components")
     if components:
         changed = [c for c in components if c["label"] == "changed"]
-        out.write("\nComponent repos whose commit differs (target payloads; %d changed in every after run, "
-                  "%d mixed):\n" % (len(changed), len(components) - len(changed)))
+        out.write("\nComponent repos whose commit differs (target payloads, runs with releaseinfo only; "
+                  "%d changed: no commit shared between the cohorts; %d mixed):\n"
+                  % (len(changed), len(components) - len(changed)))
         for comp in components:
             out.write("  %-8s %-55s before %s -> after %s\n" % (
                 comp["label"], comp["repo"][:55], _fmt_commits(comp["before"]), _fmt_commits(comp["after"])))

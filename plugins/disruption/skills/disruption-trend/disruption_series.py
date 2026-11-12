@@ -471,11 +471,13 @@ def classify_shape(scored, transitions):
 def detect_onset(scored, transitions, window_start):
     """When disruption began, relative to the window.
 
-    in_window: an increase from a near-zero baseline (nonzero rate <= 10%).
-    before_window: disruption is already present in the earliest runs and no
-    increase from a near-zero baseline is found. sporadic: occasional
-    disruption throughout, with no sustained start. none: no disruption.
-    unknown: no run had usable disruption data, so nothing can be said.
+    in_window: an increase from a near-zero baseline (nonzero rate <= 10%),
+    with the earliest runs near zero too. before_window: disruption is already
+    present in the earliest runs. A later increase from a near-zero baseline
+    (after a quiet stretch) is then reported as `recurrence`, not as the onset.
+    sporadic: occasional disruption throughout, with no sustained start.
+    none: no disruption. unknown: no run had usable disruption data, so
+    nothing can be said.
     """
     if not scored:
         return {"status": "unknown", "first_nonzero_run": None}
@@ -483,18 +485,23 @@ def detect_onset(scored, transitions, window_start):
     if not nonzero:
         return {"status": "none", "first_nonzero_run": None}
     first = _run_ref(nonzero[0])
-    for t in transitions:
-        if t["direction"] == "increase" and t["before"]["nonzero_rate"] <= ONSET_BASELINE_RATE:
-            return {"status": "in_window", "at": t["at"], "between": t["between"],
-                    "baseline_nonzero_rate": t["before"]["nonzero_rate"],
-                    "after_nonzero_rate": t["after"]["nonzero_rate"],
-                    "payload_before": t["payload_before"], "payload_after": t["payload_after"],
-                    "first_nonzero_run": first}
     head = scored[:max(10, len(scored) // 10)]
     head_rate = sum(1 for r in head if r["seconds"] > 0) / len(head)
+    rise = next((t for t in transitions
+                 if t["direction"] == "increase" and t["before"]["nonzero_rate"] <= ONSET_BASELINE_RATE), None)
+    if rise:
+        found = {"at": rise["at"], "between": rise["between"],
+                 "baseline_nonzero_rate": rise["before"]["nonzero_rate"],
+                 "after_nonzero_rate": rise["after"]["nonzero_rate"],
+                 "payload_before": rise["payload_before"], "payload_after": rise["payload_after"]}
+        if head_rate <= ONSET_BASELINE_RATE:
+            return dict(found, status="in_window", first_nonzero_run=first)
     status = "before_window" if head_rate > ONSET_BASELINE_RATE else "sporadic"
-    return {"status": status, "earliest_runs_nonzero_rate": round(head_rate, 3),
-            "window_start": sippy.rfc3339(window_start), "first_nonzero_run": first}
+    onset = {"status": status, "earliest_runs_nonzero_rate": round(head_rate, 3),
+             "window_start": sippy.rfc3339(window_start), "first_nonzero_run": first}
+    if rise:
+        onset["recurrence"] = found
+    return onset
 
 
 def _tag_order(tag):
@@ -710,7 +717,8 @@ def payload_summary(before, after, payloads, failed):
         "fetch_failed": sum(1 for r in sampled if r["prow_id"] in failed),
         "no_payload": sum(1 for r in sampled if r["prow_id"] in payloads and not pair(r).get("target")),
         "newest_target_before": "", "oldest_target_after": "", "after_on_old_target": None,
-        "target_separates": None, "after_upgrades_by_initial": None, "version_pairs": [],
+        "after_on_shared_target": None, "target_separates": None, "after_upgrades_by_initial": None,
+        "version_pairs": [],
     }
     targets_before = [pair(r)["target"] for r in before if payload_pairs.payload_time(pair(r).get("target"))]
     targets_after = [pair(r)["target"] for r in after if payload_pairs.payload_time(pair(r).get("target"))]
@@ -722,6 +730,7 @@ def payload_summary(before, after, payloads, failed):
         newest = payload_pairs.payload_time(summary["newest_target_before"])
         old = sum(1 for t in targets_after if payload_pairs.payload_time(t) <= newest)
         summary["after_on_old_target"] = old
+        summary["after_on_shared_target"] = sum(1 for t in targets_after if t in set(targets_before))
         summary["target_separates"] = old == 0
     if targets_after:
         step = payload_pairs.payload_time(summary["oldest_target_after"])
@@ -786,23 +795,38 @@ def series_summary(series):
     return out
 
 
-def control_at_transitions(runs, transitions, side_days=CONTROL_SIDE_DAYS):
+def control_at_transitions(runs, transitions, window_start, now, side_days=CONTROL_SIDE_DAYS):
     """How a control series looked on each side of the investigated series' transitions.
 
     For each transition, the control's usable runs (with data, not lost, liveness
     reliable) in the side_days before and after its `at`, summarized like the trend's
-    overall stats, so "did the control move at the same time?" has numbers.
+    overall stats, so "did the control move at the same time?" has numbers. Each side
+    also records the days the control window actually covers (a transition near the
+    window's start or end has less than side_days) and how many runs were excluded
+    (lost or liveness-unreliable). `complete` is False when a side is short or its
+    exclusions exceed DEGRADED_LOST_FRACTION; such a comparison cannot show a flat control.
     """
-    usable = [r for r in runs if r.get("seconds") is not None and not r.get("fetch_failed")
-              and not r.get("liveness_unreliable")]
     side = timedelta(days=side_days)
     result = []
     for transition in transitions or []:
         at = sippy.parse_timestamp(transition.get("at"))
-        before = [r["seconds"] for r in usable if at - side <= sippy.parse_timestamp(r["timestamp"]) < at]
-        after = [r["seconds"] for r in usable if at <= sippy.parse_timestamp(r["timestamp"]) <= at + side]
-        result.append({"at": transition.get("at"), "direction": transition.get("direction"),
-                       "side_days": side_days, "before": summarize(before), "after": summarize(after)})
+        row = {"at": transition.get("at"), "direction": transition.get("direction"), "side_days": side_days}
+        complete = True
+        sides = (("before", lambda ts: at - side <= ts < at, at - window_start),
+                 ("after", lambda ts: at <= ts <= at + side, now - at))
+        for name, within, edge in sides:
+            inside = [r for r in runs if within(sippy.parse_timestamp(r["timestamp"]))]
+            excluded = sum(1 for r in inside if r.get("fetch_failed") or r.get("liveness_unreliable"))
+            usable = [r["seconds"] for r in inside if r.get("seconds") is not None and not r.get("fetch_failed")
+                      and not r.get("liveness_unreliable")]
+            days = round(max(0.0, min(side, edge).total_seconds() / 86400.0), 1)
+            row[name] = summarize(usable)
+            row["%s_days" % name] = days
+            row["%s_excluded" % name] = excluded
+            if days < side_days or _lost_fraction(excluded, len(usable)) > DEGRADED_LOST_FRACTION:
+                complete = False
+        row["complete"] = complete
+        result.append(row)
     return result
 
 
@@ -816,7 +840,9 @@ def control_record(series, trend, runs, investigated, runs_file):
     return {
         "series": series_summary(series),
         "trend": summary,
-        "at_investigated_transitions": control_at_transitions(runs, (investigated or {}).get("transitions")),
+        "at_investigated_transitions": control_at_transitions(
+            runs, (investigated or {}).get("transitions"), sippy.parse_timestamp(trend["window"]["start"]),
+            sippy.parse_timestamp(trend["window"]["end"])),
         "runs_file": os.path.abspath(runs_file) if runs_file else None,
     }
 
@@ -906,6 +932,13 @@ def print_table(series, trend, out=None):
     elif onset["status"] == "before_window":
         print("Onset: before the window start (%s); %d%% of the earliest runs already had disruption." % (
             onset["window_start"][:10], round(100 * onset["earliest_runs_nonzero_rate"])), file=out)
+        recurrence = onset.get("recurrence")
+        if recurrence:
+            print("Recurrence: disruption dropped to near zero and rose again at %s (nonzero rate %d%% → %d%%, "
+                  "payloads %s → %s); this is not the first onset." % (
+                      recurrence["at"][:16], round(100 * recurrence["baseline_nonzero_rate"]),
+                      round(100 * recurrence["after_nonzero_rate"]), recurrence["payload_before"] or "?",
+                      recurrence["payload_after"] or "?"), file=out)
     elif onset["status"] == "sporadic":
         print("Onset: none sustained; disruption is occasional throughout the window.", file=out)
     elif onset["status"] == "unknown":
@@ -924,8 +957,12 @@ def print_control_comparison(name, rows, out=None):
         out.write("  (the state file has no investigated transitions to compare at)\n")
     for row in rows:
         b, a = row["before"], row["after"]
-        out.write("  %s (%s): before %s | after %s  (%d days each side)\n" % (
-            row["at"][:16], row["direction"], _fmt_side(b), _fmt_side(a), row["side_days"]))
+        out.write("  %s (%s): before %s | after %s  (covered %g/%g days before, %g/%g after; excluded %d before, "
+                  "%d after)%s\n" % (
+                      row["at"][:16], row["direction"], _fmt_side(b), _fmt_side(a), row["before_days"],
+                      row["side_days"], row["after_days"], row["side_days"], row["before_excluded"],
+                      row["after_excluded"], "" if row["complete"] else
+                      "  INCOMPLETE: a side is short or lost runs; this cannot show a flat control"))
 
 
 def _fmt_side(side):
@@ -981,8 +1018,9 @@ def print_transition_details(transition, out):
             print("  By target payload: newest before %s, oldest after %s; %s" % (
                 payloads["newest_target_before"], payloads["oldest_target_after"],
                 "targets separate cleanly" if payloads["target_separates"] else
-                "%d of the after-step runs used a target no newer than the newest before-step target"
-                % payloads["after_on_old_target"]), file=out)
+                "%d of the after-step runs used a target no newer than the newest before-step target, %d a target "
+                "that before-step runs also used" % (payloads["after_on_old_target"],
+                                                     payloads["after_on_shared_target"])), file=out)
         groups = payloads["after_upgrades_by_initial"]
         if groups:
             print("  After the step, by initial payload: upgrades from before %s %s; from %s or later %s; "
@@ -1106,13 +1144,21 @@ def main(argv=None):
     for warning in backend_warnings:
         print("Warning: %s" % warning, file=sys.stderr)
     unclassified_lost = 0
+    unclassified = []
     if series["master_nodes_updated"]:
-        field_present = series_mod.disruption_api_has_master_field(disruption)
-        if not field_present and disruption:
-            print("Error: master_nodes_updated=%s was requested, but the disruption API response did not include "
-                  "that field." % series["master_nodes_updated"], file=sys.stderr)
-            return 1
         selected = series_mod.filter_disruption_data(disruption, series["selectors"])
+        # Only the selected backends' rows classify a run, so a field on other backends' rows does not count.
+        field_present = series_mod.disruption_api_has_master_field(selected)
+        if not field_present and selected:
+            print("Error: master_nodes_updated=%s was requested, but the disruption API response did not include "
+                  "that field on the selected backends." % series["master_nodes_updated"], file=sys.stderr)
+            return 1
+        unclassified = sorted(pid for pid, entries in selected.items()
+                              if all(entry.get("master_nodes_updated") is None for entry in entries))
+        if unclassified:
+            print("Warning: %d run(s) have no master_nodes_updated value on the selected backends and were left "
+                  "out: %s" % (len(unclassified), ", ".join(unclassified[:10])
+                               + (" …" if len(unclassified) > 10 else "")), file=sys.stderr)
         failed_ids = set(failed)
         lost_rows = [r for r in rows if str(r.get("prow_id", "")) in failed_ids]
         rows = series_mod.apply_master_nodes_filter(rows, selected, series["master_nodes_updated"], field_present)
@@ -1126,6 +1172,10 @@ def main(argv=None):
 
     runs = build_runs(rows, disruption, series["selectors"], failed)
     trend = analyze(series, runs, window_start, now, bucket, truncated)
+    if unclassified:
+        trend["caveats"].append(
+            "%d run(s) with data on the selected backends had no master_nodes_updated value there, so they could "
+            "not be classified and were left out." % len(unclassified))
     if unclassified_lost:
         trend["caveats"].append(
             "%d lost run(s) could not be classified by master_nodes_updated, so all of them are counted against "

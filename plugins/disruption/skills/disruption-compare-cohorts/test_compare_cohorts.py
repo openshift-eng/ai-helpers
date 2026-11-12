@@ -54,6 +54,18 @@ def test_matrix_labels_new_more_and_pre_existing_signals():
     assert rows[0]["kind"] == "disruption" and rows[-1]["kind"] == "run-wide"
 
 
+def test_cloud_metrics_are_one_signal_per_metric():
+    iops = {"OS Disk IOPS Consumed Percentage": {"max_value": 90, "count": 3}}
+    before = {"metrics": iops}
+    after = {"metrics": dict(iops, **{"OS Disk Queue Depth": {"max_value": 50, "count": 2}})}
+    cohorts = {"before": {"1": dict(_parsed(), run_context={"CloudMetrics": before})},
+               "after": {"2": dict(_parsed(disruptions=2), run_context={"CloudMetrics": after})}}
+    rows, _ = cc.build_matrix(cohorts)
+    iops_row = _row(rows, "CloudMetrics OS Disk IOPS Consumed Percentage (max value)")
+    assert iops_row["suggested"] == "pre-existing, similar"
+    assert _row(rows, "CloudMetrics OS Disk Queue Depth (max value)")["suggested"] == "new"
+
+
 def test_suggest_covers_less_and_before_only():
     assert cc.suggest({"runs": 3, "of": 3, "median": 10}, {"runs": 1, "of": 3, "median": 0}) == "less in after"
     assert cc.suggest({"runs": 2, "of": 3, "median": 4}, {"runs": 0, "of": 3, "median": 0}) == "before only"
@@ -149,6 +161,24 @@ def test_main_lists_component_repos_whose_commit_differs(tmp_path, capsys):
     assert rows["openshift/cluster-kube-apiserver-operator"]["after"] == {"dddd4444": 2}
     assert rows["openshift/ovn-kubernetes"]["label"] == "mixed"
     assert any("Component versions leave out 5" in n for n in result["notes"])
+    assert cc.main(["--before", ",".join(paths["before"]), "--after", ",".join(paths["after"])]) == 0
+    assert "runs with releaseinfo only; 1 changed: no commit shared between the cohorts; 1 mixed" \
+        in capsys.readouterr().out
+
+
+def test_releaseinfo_without_component_commits_counts_as_missing(tmp_path, capsys):
+    paths = {}
+    for bid, info, side in (("1", _releaseinfo({"hyperkube": ("kubernetes", "bbbb2222")}), "before"),
+                            ("2", {"references": {"spec": {"tags": [{"name": "hyperkube"}]}}}, "after")):
+        run = tmp_path / bid
+        (run / "gather").mkdir(parents=True)
+        (run / "parsed.json").write_text(json.dumps(_parsed(disruptions=3 if side == "after" else 0)))
+        (run / "gather" / "releaseinfo.json").write_text(json.dumps(info))
+        paths[side] = str(run / "parsed.json")
+    assert cc.main(["--before", paths["before"], "--after", paths["after"], "--format", "json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["components"] is None
+    assert any("the after cohort has no" in n for n in result["notes"])
 
 
 def test_components_are_skipped_without_releaseinfo(tmp_path, capsys):
