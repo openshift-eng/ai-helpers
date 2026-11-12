@@ -1,0 +1,10 @@
+pr_url: https://github.com/openshift/hypershift/pull/10223
+expected_tier: low
+acceptable_tiers: [low]
+# In the root AGENTS.md at base_sha, in none of the nested ones.
+agents_md_marker: "## Fleet-Wide Rollout Impact"
+ground_truth: >
+  Low. Adds continue-on-error to the deadcode scan step of a GitHub Actions
+  reusable workflow and updates the development and CI documentation. Nothing
+  that ships changes: no Go source, manifests, images, or release content.
+  Relaxing a CI check changes what may merge later, not product behaviour.
