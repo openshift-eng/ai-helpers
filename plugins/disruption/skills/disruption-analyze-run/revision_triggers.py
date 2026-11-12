@@ -85,7 +85,10 @@ def load_items(path):
         return []
     if isinstance(data, list):
         return data
-    return data.get("items", []) or []
+    if not isinstance(data, dict):
+        print("Warning: %s is not a Kubernetes List" % path, file=sys.stderr)
+        return []
+    return data.get("items") or []
 
 
 def clean_reason(reason):

@@ -744,12 +744,13 @@ Upgrade jobs produce **two timeline files** (sorted by filename):
 2. **Second file** = conformance/e2e test phase timeline
 
 The disruption parser (`parse_disruption.py`, from the `disruption` plugin's
-`disruption-analyze-run` skill) attributes each disruption event to a phase. Use the `phase_breakdown` output to separate upgrade-phase disruption
+`disruption-analyze-run` skill; find `$PARSER` as described under "Tooling: The Disruption
+Parser" in `disruption.md`) attributes each disruption event to a phase. Use the `phase_breakdown` output to separate upgrade-phase disruption
 (expected within bounds) from conformance-phase disruption (unexpected — a
 persistent problem).
 
 ```bash
-python3 <disruption-analyze-run skill dir>/parse_disruption.py \
+python3 "$PARSER" \
   .work/prow-job-analysis/{build_id}/logs/e2e-timelines_spyglass_*.json \
   --window 60 --format text
 ```
@@ -1072,7 +1073,7 @@ the upgrade or post-upgrade tests failed, use this document, and cross-reference
 4. **Analyze timeline/interval data.** Locate `e2e-timelines_spyglass_*.json` and run the
    disruption parser for a phased view:
    ```bash
-   python3 <disruption-analyze-run skill dir>/parse_disruption.py \
+   python3 "$PARSER" \
      .work/prow-job-analysis/{build_id}/logs/e2e-timelines_spyglass_*.json \
      --window 60 --format text
    ```

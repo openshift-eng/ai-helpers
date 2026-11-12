@@ -38,15 +38,18 @@ def test_payload_time_reads_the_tag_suffix():
 
 
 def test_normalize_run_reads_both_input_formats():
-    assert normalize_run(_trend_run("1", FIX, 0, liveness=True)) == ("1", 0, FIX, True)
-    assert normalize_run(_finder_run(2, FIX, 7)) == ("2", 7, FIX, False)
-    assert normalize_run({"prow_id": "3", "disruption_seconds": 4, "disruption_backends": []}) == ("3", 4, "", False)
+    assert normalize_run(_trend_run("1", FIX, 0, liveness=True)) == ("1", 0, FIX, "release_tag", True)
+    assert normalize_run(_finder_run(2, FIX, 7)) == ("2", 7, FIX, "release_tag", False)
+    assert normalize_run({"prow_id": "3", "disruption_seconds": 4, "disruption_backends": []}) == \
+        ("3", 4, "", None, False)
+    trend_run = dict(_trend_run("4", "", 5), target_payload=FIX)
+    assert normalize_run(trend_run) == ("4", 5, FIX, "target_payload", False)
 
 
-def test_percentile_is_nearest_rank():
-    assert percentile([], 95) == 0
+def test_percentile_matches_the_trend():
+    assert percentile([], 95) is None
     assert percentile([5], 95) == 5
-    assert percentile(list(range(1, 21)), 95) == 19
+    assert percentile(list(range(1, 21)), 95) == pytest.approx(19.05)
 
 
 def test_check_fix_splits_runs_at_the_fix_payload():
@@ -65,7 +68,7 @@ def test_check_fix_splits_runs_at_the_fix_payload():
 
     assert result["before_fix"] == {"runs": 3, "disrupted": 2, "p95_seconds": 15, "max_seconds": 15,
                                     "signature": 2}
-    assert result["after_fix"] == {"runs": 2, "disrupted": 1, "p95_seconds": 2, "max_seconds": 2,
+    assert result["after_fix"] == {"runs": 2, "disrupted": 1, "p95_seconds": 1.9, "max_seconds": 2,
                                    "signature": 0}
     assert [(d["day"], d["fixed"], d["runs"], d["signature"]) for d in result["by_payload_day"]] == [
         ("2026-11-04", "no", 2, 1), ("2026-11-06", "split", 2, 1), ("2026-11-08", "yes", 1, 0)]
@@ -140,8 +143,8 @@ def test_main_table_shows_share_and_signature_columns(tmp_path, capsys):
     assert main(["--runs", str(runs_file), "--fix-payload", FIX, "--signature-runs", "1"]) == 0
 
     out = capsys.readouterr().out
-    assert "2026-11-01   no         2    1 (50%)    15    15         1" in out
-    assert "Before fix: 2 runs, 1 (50%) disrupted, P95 15s, 1 with the signature" in out
+    assert "2026-11-01   no         2    1 (50%)  14.2    15         1" in out
+    assert "Before fix: 2 runs, 1 (50%) disrupted, P95 14.2s, 1 with the signature" in out
 
 
 @pytest.mark.parametrize("argv, message", [

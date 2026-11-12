@@ -13,6 +13,7 @@ from payload_diff import (
     PayloadError,
     changed_repos,
     component_commits,
+    gh_compare,
     main,
     parse_repo,
     payload_version,
@@ -189,7 +190,7 @@ def test_resolve_payload_pullspec_without_oc_prints_command():
     with patch("payload_diff.shutil.which", return_value=None):
         with pytest.raises(PayloadError) as exc:
             resolve_payload("registry.ci.openshift.org/ocp/release-5:5.0.0-0.nightly-2026-11-09-184859", "/tmp")
-    assert ("oc adm release info -o json "
+    assert ("oc adm release info -o json -- "
             "registry.ci.openshift.org/ocp/release-5:5.0.0-0.nightly-2026-11-09-184859") in str(exc.value)
 
 
@@ -201,9 +202,22 @@ def test_resolve_payload_pullspec_with_oc():
     with patch("payload_diff.shutil.which", return_value="/usr/bin/oc"), \
             patch("payload_diff.subprocess.run", return_value=result) as run:
         label, info = resolve_payload("quay.io/openshift-release-dev/ocp-release:5.0.1-x86_64", "/tmp")
-    assert run.call_args[0][0] == ["oc", "adm", "release", "info", "-o", "json",
+    assert run.call_args[0][0] == ["oc", "adm", "release", "info", "-o", "json", "--",
                                    "quay.io/openshift-release-dev/ocp-release:5.0.1-x86_64"]
     assert payload_version(info) == "5.1.0-0.nightly-2026-11-09-143447"
+
+
+def test_resolve_payload_rejects_an_option_like_ref():
+    with pytest.raises(PayloadError, match="is not a file"):
+        resolve_payload("--kubeconfig=/tmp/a:b", "/tmp")
+
+
+def test_gh_compare_rejects_non_sha_commits():
+    with patch("payload_diff.subprocess.run") as run:
+        data, error = gh_compare("openshift/origin", "abc1234", "../../user?x=")
+    assert data is None and "not hex SHAs" in error
+    run.assert_not_called()
+    assert parse_repo("https://github.com/open?shift/origin") is None
 
 
 def _run_main(args):

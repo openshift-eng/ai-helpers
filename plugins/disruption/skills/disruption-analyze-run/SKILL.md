@@ -23,13 +23,13 @@ The scripts are in this skill's directory: `${CLAUDE_SKILL_DIR}` in Claude Code,
 - **State.** With a state file (`investigation.json`), `{investigation_dir}` is its directory; otherwise create `.work/disruption-analysis/<YYYY-MM-DD>-<short-slug>/`. Runs go under `{runs_dir}` = `{investigation_dir}/runs`.
 - **One block.** Do not run another disruption skill yourself. End with the checkpoint below.
 
-## Inputs
+## Step 1: Inputs
 
 - **Prow URLs** (`prow.ci.openshift.org` or `gcsweb-ci`), one or more. Or `job:build_id` pairs, such as `cohorts.handoff.download_runs` from `disruption-find-runs` in the state file.
 - **Backends** (`--backends`): the exact names. Take them from the request, or from the state file's `series.backends`. Without either, analyze every backend that shows disruption and say so.
 - When the runs are cohorts (before/after), keep each run's cohort; the analysis of each run is the same, but the checkpoint says which cohort each run is in.
 
-From each Prow URL take the job name and build ID: the last two path segments after `/logs/`. Presubmit runs (`/pr-logs/pull/...`) are not supported: the download reads only `/logs/` artifacts, so say so and skip them. Prow URLs may say `origin-ci-test`; the bucket is always `test-platform-results-public`.
+From each Prow URL take the job name and build ID: the last two path segments after `/logs/`. The job name is letters, digits, `.`, `_`, and `-`, and the build ID is all digits; skip and report anything else rather than putting it in a shell command. Presubmit runs (`/pr-logs/pull/...`) are not supported: the download reads only `/logs/` artifacts, so say so and skip them. Prow URLs may say `origin-ci-test`; the bucket is always `test-platform-results-public`.
 
 ## Step 2: Download timelines
 
@@ -42,14 +42,20 @@ Keep each run's payload pair (initial → target) from the output. For upgrade j
 For every run, save the parser's full JSON (the cohort comparison reads it) and print its one-line summary, in one loop:
 
 ```bash
-for run in {job_1}:{build_id_1} {job_2}:{build_id_2}; do
-  job=${run%%:*}; build_id=${run##*:}
-  python3 "${CLAUDE_SKILL_DIR}/parse_disruption.py" {runs_dir}/${build_id}/logs/e2e-timelines_spyglass_*.json \
-    --job-name ${job} --build-id ${build_id} --backends {exact_backends} --format json > {runs_dir}/${build_id}/parsed.json
-  python3 "${CLAUDE_SKILL_DIR}/parse_disruption.py" {runs_dir}/${build_id}/logs/e2e-timelines_spyglass_*.json \
-    --job-name ${job} --build-id ${build_id} --backends {exact_backends} --format summary
+for run in '{job_1}:{build_id_1}' '{job_2}:{build_id_2}'; do
+  job="${run%%:*}"; build_id="${run##*:}"; dir="{runs_dir}/${build_id}"
+  if python3 "${CLAUDE_SKILL_DIR}/parse_disruption.py" "${dir}"/logs/e2e-timelines_spyglass_*.json \
+      --job-name "${job}" --build-id "${build_id}" --backends '{exact_backends}' --format json > "${dir}/parsed.json.tmp"; then
+    mv "${dir}/parsed.json.tmp" "${dir}/parsed.json"
+    python3 "${CLAUDE_SKILL_DIR}/parse_disruption.py" "${dir}"/logs/e2e-timelines_spyglass_*.json \
+      --job-name "${job}" --build-id "${build_id}" --backends '{exact_backends}' --format summary
+  else
+    rm -f "${dir}/parsed.json.tmp"; echo "${build_id}: the parser failed; no parsed.json written" >&2
+  fi
 done
 ```
+
+A run without timelines gets no `parsed.json`, so the cohort comparison reports it as missing instead of reading an empty file.
 
 Then read `references/timeline-analysis.md` and follow 3.2 through 3.4 (blast radius, deep-dive of the runs that need it, and how to read each signal).
 

@@ -29,7 +29,6 @@ Exit status: 0 on success, 1 on bad input or when no cohort could be built.
 """
 import argparse
 import json
-import math
 import os
 import re
 import sys
@@ -57,10 +56,13 @@ else:
 
 from disruption_common import payloads, sippy, state  # noqa: E402
 from disruption_common.series import disruption_peak, split_backends  # noqa: E402
+from disruption_common.stats import percentile  # noqa: E402
 
 DEFAULT_PER_SIDE = 5
 DEFAULT_WINDOW_DAYS = 7
 LAUNCH_BATCH_GAP = timedelta(minutes=10)
+# Same threshold as disruption-trend: more than this share of a side lost to API failures is degraded.
+DEGRADED_LOST_FRACTION = 0.03
 LIVENESS_BACKENDS = {"ci-cluster-network-liveness-new-connections", "ci-cluster-network-liveness-reused-connections"}
 PROW_VIEW = "https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/%s/%s"
 # .../logs/<job>/<build_id>; presubmits live under .../pr-logs/pull/<org_repo>/<pr>/<job>/<build_id>
@@ -73,21 +75,14 @@ class CohortError(RuntimeError):
     """The inputs cannot produce a cohort; the message says why."""
 
 
-def nearest_rank(values, pct):
-    """The pct percentile of values by nearest rank, or None for no values."""
-    if not values:
-        return None
-    ordered = sorted(values)
-    return ordered[max(0, math.ceil(pct / 100.0 * len(ordered)) - 1)]
-
-
 def stats(values):
     """Run count, disrupted count, P50, P95, and max of the given seconds."""
     values = [v for v in values if v is not None]
     if not values:
         return {"n": 0, "nonzero": 0, "p50": None, "p95": None, "max": None}
     return {"n": len(values), "nonzero": sum(1 for v in values if v > 0),
-            "p50": nearest_rank(values, 50), "p95": nearest_rank(values, 95), "max": max(values)}
+            "p50": round(percentile(values, 50), 1), "p95": round(percentile(values, 95), 1),
+            "max": max(values)}
 
 
 def _time(run):
@@ -142,9 +137,15 @@ def build_around(runs, split, per_side=DEFAULT_PER_SIDE, window_days=DEFAULT_WIN
     window = timedelta(days=window_days)
     in_window = [r for r in runs if split - window <= _time(r) <= split + window]
     lost = {"before": 0, "after": 0}
+    no_data = {"before": 0, "after": 0}
+    side_total = {"before": 0, "after": 0}
     for r in in_window:
-        if r.get("fetch_failed") or r.get("seconds") is None:
-            lost["before" if _time(r) < split else "after"] += 1
+        side = "before" if _time(r) < split else "after"
+        side_total[side] += 1
+        if r.get("fetch_failed"):
+            lost[side] += 1
+        elif r.get("seconds") is None:
+            no_data[side] += 1
     usable = [r for r in in_window if not r.get("fetch_failed") and r.get("seconds") is not None]
     skipped_liveness = [r for r in usable if r.get("liveness_unreliable")]
     usable = [r for r in usable if not r.get("liveness_unreliable")]
@@ -180,9 +181,14 @@ def build_around(runs, split, per_side=DEFAULT_PER_SIDE, window_days=DEFAULT_WIN
             notes.append("The %s cohort (median %gs, max %gs) is not typical of the %s side (median %gs, P95 %gs)."
                          % (side, got["p50"], got["max"], side, pop["p50"], pop["p95"]))
     if lost["before"] or lost["after"]:
-        notes.append("DEGRADED: disruption data is missing for %d before and %d after run(s) in the window "
-                     "(Sippy fetch failed or no value), so the cohorts and population stats leave them out."
-                     % (lost["before"], lost["after"]))
+        degraded = any(lost[side] > DEGRADED_LOST_FRACTION * side_total[side] for side in lost)
+        notes.append("%sthe Sippy disruption API failed for %d before and %d after run(s) in the window, so the "
+                     "cohorts and population stats leave them out."
+                     % ("DEGRADED: " if degraded else "", lost["before"], lost["after"]))
+    if no_data["before"] or no_data["after"]:
+        notes.append("%d before and %d after run(s) in the window have no disruption data on these backends "
+                     "(BigQuery lag, or the run ended before disruption was measured) and are left out."
+                     % (no_data["before"], no_data["after"]))
     if skipped_liveness:
         notes.append("%d run(s) in the window were left out because ci-cluster-network-liveness was disrupted."
                      % len(skipped_liveness))
@@ -305,7 +311,7 @@ def comparability_notes(before, after):
         notes.append(note)
     secs_before = [r["seconds"] for r in before if r.get("seconds") is not None]
     secs_after = [r["seconds"] for r in after if r.get("seconds") is not None]
-    if secs_before and secs_after and nearest_rank(secs_after, 50) <= nearest_rank(secs_before, 50):
+    if secs_before and secs_after and percentile(secs_after, 50) <= percentile(secs_before, 50):
         notes.append("The after cohort's median disruption is not above the before cohort's, so the cohorts "
                      "may not show a regression.")
     return notes

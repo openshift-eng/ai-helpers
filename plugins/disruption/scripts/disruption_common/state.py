@@ -4,6 +4,8 @@ The investigation state (`investigation.json`) and the files it references
 are read by other skills, so every write goes to a unique temporary file in
 the same directory and is swapped in with os.replace. A reader never sees a
 partial file, and concurrent writers do not collide on the temporary name.
+Two skills that load, change, and write the state at the same time can still
+lose one update; the workflows run their steps one at a time.
 """
 import json
 import os

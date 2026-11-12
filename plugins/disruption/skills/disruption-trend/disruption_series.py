@@ -10,7 +10,7 @@ prowjob.json), and suggested before/after run pairs for disruption-analyze-run.
 It reports facts and caveats. Interpreting them is the skill's job.
 
 Usage:
-    python3 disruption_series.py --alert-text "<alert>" [--days 30]
+    python3 disruption_series.py --alert-file alert.txt [--days 30]
     python3 disruption_series.py --grafana-url "<url>"
     python3 disruption_series.py --release 5.0 --backend kube-api-new-connections --platform gcp --upgrade-type micro
     python3 disruption_series.py ... --format json --state-file .work/disruption-analysis/<id>/investigation.json
@@ -46,6 +46,7 @@ else:
 from disruption_common import series as series_mod  # noqa: E402
 from disruption_common import payloads as payload_pairs  # noqa: E402
 from disruption_common import sippy, state  # noqa: E402
+from disruption_common.stats import percentile  # noqa: E402
 
 DEFAULT_DAYS = 30
 STATE_SCHEMA_VERSION = 1
@@ -55,9 +56,14 @@ LIVENESS_BACKENDS = {
 }
 # Under a no-change null, the max |z| over all split points of a few hundred
 # to a few thousand zero-heavy runs stays below ~4 (simulated). Recursion adds
-# more tests, so the bar is set above that.
+# more tests, so the bar is set above that. With only a handful of runs above
+# zero, heavy ties inflate z: a split that isolates two disrupted runs at the
+# end of a series of 0s scores z near 7. So a split also needs
+# MIN_SHIFT_RUNS runs above the series floor (its lowest value, usually 0) on
+# its higher side.
 Z_STRONG = 5.0
 Z_MODERATE = 4.0
+MIN_SHIFT_RUNS = 5
 MAX_TRANSITIONS = 4
 MIN_BUCKET_RUNS = 5
 BIGQUERY_LAG = timedelta(hours=4)
@@ -73,17 +79,6 @@ PAYLOAD_SAMPLE_PER_SIDE = 20
 PAIRS_PER_TRANSITION = 3
 # Runs of one job that start this close together came from one launch and share a payload.
 LAUNCH_BATCH_GAP = timedelta(minutes=10)
-
-
-def percentile(values, q):
-    """Linear-interpolated percentile (q in 0..100) of a non-empty list."""
-    ordered = sorted(values)
-    if len(ordered) == 1:
-        return float(ordered[0])
-    pos = (len(ordered) - 1) * q / 100.0
-    lo = int(math.floor(pos))
-    hi = min(lo + 1, len(ordered) - 1)
-    return ordered[lo] + (ordered[hi] - ordered[lo]) * (pos - lo)
 
 
 def summarize(values):
@@ -125,7 +120,8 @@ def best_split(values, min_seg):
 
     Returns (k, z) where z > 0 means the later segment is higher, or
     (None, 0.0) when no split leaves min_seg runs on both sides or every
-    value is tied.
+    value is tied. A split whose higher segment has fewer than
+    MIN_SHIFT_RUNS runs above the floor (the lowest value) is skipped.
     """
     n = len(values)
     if n < 2 * min_seg:
@@ -134,10 +130,15 @@ def best_split(values, min_seg):
     correction = (n + 1) - ties / float(n * (n - 1))
     if correction <= 0:
         return None, 0.0
+    floor = min(values)
+    above_total = sum(1 for v in values if v > floor)
     best_k, best_z = None, 0.0
     prefix = 0.0
+    above_before = 0
     for k in range(1, n):
         prefix += ranks[k - 1]
+        if values[k - 1] > floor:
+            above_before += 1
         if k < min_seg or n - k < min_seg:
             continue
         u_before = prefix - k * (k + 1) / 2.0
@@ -145,6 +146,9 @@ def best_split(values, min_seg):
         var = k * (n - k) / 12.0 * correction
         # u_before above its mean means the earlier segment is higher.
         z = (mean - u_before) / math.sqrt(var)
+        above_higher = above_total - above_before if z > 0 else above_before
+        if above_higher < MIN_SHIFT_RUNS:
+            continue
         if abs(z) > abs(best_z):
             best_k, best_z = k, z
     return best_k, best_z
@@ -209,10 +213,11 @@ def choose_bucket(days):
 def build_runs(rows, disruption_data, selectors, failed=None):
     """Per-run records, oldest first.
 
-    seconds is None when the disruption API has no rows for the run (BigQuery
-    lag, or the run ended before disruption was measured), or when the API
-    failed for it. `failed` holds the prow IDs the API failed for; those runs
-    get fetch_failed=True so they are not mistaken for runs without data.
+    seconds is None when the disruption API has no rows for the run on the
+    selected backends (BigQuery lag, the run ended before disruption was
+    measured, or the job does not measure them), or when the API failed for
+    it. `failed` holds the prow IDs the API failed for; those runs get
+    fetch_failed=True so they are not mistaken for runs without data.
     """
     failed = set(failed or ())
     runs = []
@@ -486,6 +491,11 @@ def detect_onset(scored, transitions, window_start):
             "window_start": sippy.rfc3339(window_start), "first_nonzero_run": first}
 
 
+def _tag_order(tag):
+    """Sort key for payload tags: build time, then the name for tags without one."""
+    return (payload_pairs.payload_time(tag), tag)
+
+
 def build_buckets(scored, size):
     """Per-bucket run counts and percentiles of the scored runs."""
     groups = {}
@@ -505,8 +515,9 @@ def build_buckets(scored, size):
             jobs=len(jobs),
             top_job=top_job,
             top_job_share=round(top_count / len(runs), 2),
-            first_payload=min(tags) if tags else "",
-            last_payload=max(tags) if tags else "",
+            # By build time, not name: nightly and ci names sort by stream first.
+            first_payload=min(tags, key=_tag_order) if tags else "",
+            last_payload=max(tags, key=_tag_order) if tags else "",
         ))
     return buckets
 
@@ -614,8 +625,9 @@ def analyze(series, runs, window_start, now, bucket, truncated):
         caveats.append("%d run(s) from the last 4 hours have no disruption data yet (BigQuery lag)."
                        % len(recent_missing))
     if len(no_data) > len(recent_missing):
-        caveats.append("%d older run(s) have no disruption data (often runs that ended before "
-                       "disruption was measured); they are excluded." % (len(no_data) - len(recent_missing)))
+        caveats.append("%d older run(s) have no disruption data on these backends (often runs that ended before "
+                       "disruption was measured, or jobs that do not measure these backends); they are excluded."
+                       % (len(no_data) - len(recent_missing)))
     if unreliable:
         caveats.append("%d run(s) had ci-cluster-network-liveness disruption, so their disruption data is "
                        "unreliable; they are excluded from the statistics." % len(unreliable))
@@ -644,7 +656,8 @@ def analyze(series, runs, window_start, now, bucket, truncated):
         "buckets": buckets,
         "caveats": caveats,
         "method": {"test": "Mann-Whitney binary segmentation on per-run peak seconds",
-                   "min_segment_runs": min_seg, "z_moderate": Z_MODERATE, "z_strong": Z_STRONG},
+                   "min_segment_runs": min_seg, "z_moderate": Z_MODERATE, "z_strong": Z_STRONG,
+                   "min_shift_runs": MIN_SHIFT_RUNS},
     }
 
 
@@ -929,6 +942,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Disruption time series, transitions, and onset for one series")
     parser.add_argument("--grafana-url", help="Grafana disruption dashboard URL")
     parser.add_argument("--alert-text", help="Pasted DisruptionRegression alert text")
+    parser.add_argument("--alert-file", help="File holding the pasted alert text ('-' for stdin)")
     parser.add_argument("--release", help="OpenShift release (e.g., 5.0)")
     parser.add_argument("--backend", help="Exact backend name(s), comma-separated")
     parser.add_argument("--platform")
@@ -954,8 +968,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     try:
+        alert_text = series_mod.read_alert_file(args.alert_file) if args.alert_file else args.alert_text
         series = series_mod.resolve_series(
-            args.grafana_url, args.alert_text, release=args.release, backend=args.backend,
+            args.grafana_url, alert_text, release=args.release, backend=args.backend,
             platform=args.platform, upgrade_type=args.upgrade_type, architecture=args.architecture,
             topology=args.topology, network=args.network)
     except series_mod.SeriesError as e:
@@ -1005,22 +1020,35 @@ def main(argv=None):
     if failed:
         print("Warning: the disruption API failed for %d run(s); they are reported as lost, not as runs without "
               "data." % len(failed), file=sys.stderr)
+    backend_warnings = series_mod.backend_name_warnings(series["selectors"], disruption)
+    for warning in backend_warnings:
+        print("Warning: %s" % warning, file=sys.stderr)
+    unclassified_lost = 0
     if series["master_nodes_updated"]:
+        field_present = series_mod.disruption_api_has_master_field(disruption)
+        if not field_present and disruption:
+            print("Error: master_nodes_updated=%s was requested, but the disruption API response did not include "
+                  "that field." % series["master_nodes_updated"], file=sys.stderr)
+            return 1
         selected = series_mod.filter_disruption_data(disruption, series["selectors"])
         failed_ids = set(failed)
         lost_rows = [r for r in rows if str(r.get("prow_id", "")) in failed_ids]
-        rows = series_mod.apply_master_nodes_filter(
-            rows, selected, series["master_nodes_updated"],
-            series_mod.disruption_api_has_master_field(disruption))
+        rows = series_mod.apply_master_nodes_filter(rows, selected, series["master_nodes_updated"], field_present)
         # Lost runs cannot be classified Y or N. They stay in, so the loss is reported
         # instead of "no runs matched".
         rows = rows + lost_rows
+        unclassified_lost = len(lost_rows)
         if not rows:
             print("No runs matched master_nodes_updated=%s." % series["master_nodes_updated"], file=sys.stderr)
             return 0
 
     runs = build_runs(rows, disruption, series["selectors"], failed)
     trend = analyze(series, runs, window_start, now, bucket, truncated)
+    if unclassified_lost:
+        trend["caveats"].append(
+            "%d lost run(s) could not be classified by master_nodes_updated, so all of them are counted against "
+            "the filtered runs; the data-loss fraction is an upper bound." % unclassified_lost)
+    trend["caveats"][:0] = [w[:1].upper() + w[1:] for w in backend_warnings]
     if requested_days > days:
         trend["caveats"].insert(0, "A %g-day window was requested, but the maximum is %d days because Sippy only "
                                    "keeps about that much run history." % (requested_days, MAX_DAYS))

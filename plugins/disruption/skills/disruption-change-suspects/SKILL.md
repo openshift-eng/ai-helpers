@@ -11,7 +11,8 @@ This skill answers **what changed** between two points that could explain a disr
 
 1. **Python 3.7+** and network access to `*.ocp.releases.ci.openshift.org` (public).
 2. **`gh`**, authenticated, to read PR descriptions and diffs. Without it, the PR list still works; say which PRs could not be read and give their URLs.
-3. **The `disruption_common` library**: the `disruption` plugin's `scripts/disruption_common`, installed with the plugin. If it is missing, `payload_diff.py` exits and says so. Report the message; do not work around it.
+3. **For `payload_diff.py`:** the gcloud CLI when given `job:build_id` runs (it reads `prowjob.json` and `releaseinfo.json` anonymously from the public `test-platform-results-public` bucket), or `oc` when given a release pullspec.
+4. **The `disruption_common` library**: the `disruption` plugin's `scripts/disruption_common`, installed with the plugin. If it is missing, `payload_diff.py` exits and says so. Report the message; do not work around it.
 
 The scripts are in this skill's directory: `${CLAUDE_SKILL_DIR}` in Claude Code, or the directory containing this `SKILL.md` elsewhere.
 
@@ -24,7 +25,7 @@ The scripts are in this skill's directory: `${CLAUDE_SKILL_DIR}` in Claude Code,
 
 ## Inputs
 
-- **Two points to compare**, newest first preference:
+- **Two points to compare**, from the first of these that is available:
   - payload tags in one stream, such as `5.0.0-0.nightly-2026-11-07-182718` → `5.0.0-0.nightly-2026-11-09-184859`;
   - from the state file: the transition's `payloads.newest_target_before` → `payloads.oldest_target_after` (from `disruption-trend`), or the newest target payload in the before cohort → the oldest in the after cohort (from `disruption-find-runs`);
   - two runs (`job:build_id`), or run directories from `disruption-analyze-run`, for `payload_diff.py`.
@@ -38,7 +39,7 @@ For upgrade jobs, the change can come from the payload a run **started** from, n
 python3 "${CLAUDE_SKILL_DIR}/payload_prs.py" {older_payload} {newer_payload} --format text
 ```
 
-It asks the release controller for the changelog across the whole range (one request, cached) and prints each updated component with its PR titles, PR URLs, Jira issues, and compare URL. Payloads from different streams (nightly and ci) cannot be compared this way; use `payload_diff.py` with two runs instead (Step 3).
+It asks the release controller for the changelog across the whole range (one request, cached) and prints each updated component with its PR titles, PR URLs, Jira issues, and compare URL. Payloads from different streams (nightly and ci) cannot be compared this way; use `payload_diff.py` with two runs instead (Step 3). (`ci:fetch-new-prs-in-payload` lists the PRs new in one payload against its predecessor; this script covers any range of payloads in one stream.)
 
 ## Step 2: Shortlist by description
 

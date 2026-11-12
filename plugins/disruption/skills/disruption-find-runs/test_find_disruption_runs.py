@@ -209,7 +209,7 @@ def test_max_disruption_for_backend_no_match():
     entries = [
         {"backend_name": "oauth-api-new-connections", "disruption_seconds": 5},
     ]
-    assert max_disruption_for_backend(entries, "kube-api") == 0
+    assert max_disruption_for_backend(entries, "kube-api") is None
 
 
 def test_max_disruption_for_backend_empty():

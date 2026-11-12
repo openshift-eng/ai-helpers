@@ -60,21 +60,7 @@ else:
              "the library is its scripts/disruption_common. Looked in: %s" % ", ".join(_LIB_PARENTS))
 
 from disruption_common.intervals import backend_matches_filter, load_items  # noqa: E402
-
-# download_timelines.py sits beside this script and reads payloads from
-# prowjob.json and clusterversion.json. Add the directory explicitly so the
-# import also works under `python3 -I`, which leaves it off sys.path. Without
-# it (the parser copied on its own) payloads are reported as unknown.
-if _HERE not in sys.path:
-    sys.path.append(_HERE)
-try:
-    from download_timelines import extract_payloads, payload_tag, payloads_from_clusterversion  # noqa: E402
-except ImportError:
-    extract_payloads = payloads_from_clusterversion = None
-
-    def payload_tag(pullspec):
-        """Fallback when download_timelines cannot be imported: keep the pullspec as is."""
-        return pullspec
+from disruption_common.payloads import extract_payloads, payload_tag, payloads_from_clusterversion  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -559,10 +545,6 @@ def find_payloads(timeline_files, items, prowjob_path=None):
     Always adds timeline_target_version from the timeline itself.
     """
     payloads = {"initial": None, "target": None, "source": None}
-    if extract_payloads is None:
-        payloads["warning"] = "download_timelines.py not found beside parse_disruption.py"
-        payloads["timeline_target_version"] = extract_timeline_target_version(items)
-        return payloads
     logs_dir = os.path.dirname(os.path.abspath(timeline_files[0])) if timeline_files else None
     if not prowjob_path and logs_dir:
         candidate = os.path.join(logs_dir, "prowjob.json")

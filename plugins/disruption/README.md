@@ -39,6 +39,7 @@ Regression investigations end with a verdict: explained, partially explained, or
 
 - Python 3.7 or later.
 - Network access to `sippy.dptools.openshift.org`, `storage.googleapis.com`, and `*.ocp.releases.ci.openshift.org`. All are public.
-- The gcloud CLI for `disruption-analyze-run` (anonymous reads from the public `test-platform-results-public` bucket).
+- The gcloud CLI for `disruption-analyze-run`, for `payload_diff.py` in `disruption-change-suspects` with `job:build_id` runs, and for the fix check in `disruption-known-issues` (anonymous reads from the public `test-platform-results-public` bucket).
+- `oc`, only when `payload_diff.py` is given a release pullspec.
 - `gh`, authenticated, for `disruption-change-suspects` to read PR descriptions and diffs.
 - The Atlassian MCP tools for `disruption-known-issues`.

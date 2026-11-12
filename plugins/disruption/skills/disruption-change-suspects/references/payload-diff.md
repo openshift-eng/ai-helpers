@@ -24,9 +24,9 @@ python3 "${CLAUDE_SKILL_DIR}/payload_diff.py" \
 Each side can be a build dir with `gather/releaseinfo.json` (from `disruption-analyze-run`'s
 `download_timelines.py --gather`), a
 `releaseinfo.json` path, `{job_name}:{build_id}` (the script downloads that run's
-gather-extra `releaseinfo.json` anonymously into
-`.work/disruption-analysis/{today}/{build_id}/gather/`), or a release pullspec (the
-script runs `oc adm release info -o json {pullspec}`, or prints that command when `oc`
+gather-extra `releaseinfo.json` anonymously into `{output-dir}/{build_id}/gather/`; pass
+`--output-dir {runs_dir}` so it lands beside the investigation's other runs), or a release pullspec (the
+script runs `oc adm release info -o json -- {pullspec}`, or prints that command when `oc`
 is missing).
 
 ## Where the commits come from

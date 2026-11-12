@@ -9,7 +9,7 @@ library (the plugin's scripts/disruption_common).
 
 Usage:
     python3 find_disruption_runs.py --grafana-url <url>
-    python3 find_disruption_runs.py --alert-text <pasted alert>
+    python3 find_disruption_runs.py --alert-file alert.txt
     python3 find_disruption_runs.py --release 5.0 --platform gcp --backend host-to-host-new-connections --upgrade-type micro --architecture amd64 --topology ha --network ovn
 
 Output formats:
@@ -733,6 +733,8 @@ def main(argv=None):
                         help="Pasted DisruptionRegression alert. A link: annotation is the dashboard "
                              "URL; other series labels fill vars that link omits. With no link, "
                              "lookback is %s days." % series.ALERT_LOOKBACK_DAYS)
+    parser.add_argument("--alert-file",
+                        help="File holding the pasted alert text ('-' for stdin); same as --alert-text")
 
     parser.add_argument("--release", help="OpenShift release (e.g., 5.0)")
     parser.add_argument("--platform", help="Platform (e.g., gcp, aws, azure)")
@@ -750,7 +752,8 @@ def main(argv=None):
     parser.add_argument("--format", choices=["table", "json"], default="table",
                         help="Output format (default: table)")
     parser.add_argument("--disruption-only", action="store_true",
-                        help="Only show runs with disruption > 0 for the selected backends")
+                        help="Leave out the 0s clean-comparison run that --auto-select adds; "
+                             "runs with disruption > 0 are listed either way")
     parser.add_argument("--auto-select", type=int, default=None, metavar="N",
                         help="Auto-select N representative runs, weighted by each job's share of the seconds")
     parser.add_argument("--top", type=int, default=DEFAULT_TOP_ROWS, metavar="N",
@@ -762,8 +765,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     try:
+        alert_text = series.read_alert_file(args.alert_file) if args.alert_file else args.alert_text
         resolved = series.resolve_series(
-            args.grafana_url, args.alert_text, release=args.release, backend=args.backend,
+            args.grafana_url, alert_text, release=args.release, backend=args.backend,
             platform=args.platform, upgrade_type=args.upgrade_type, architecture=args.architecture,
             topology=args.topology, network=args.network)
     except series.SeriesError as e:
@@ -853,7 +857,6 @@ def main(argv=None):
     if args.disruption_only and not display:
         print("No runs with disruption > 0 for %s in %d runs since %s." % (
             _backend_label(selectors), scanned_count, sippy.rfc3339(since)), file=sys.stderr)
-        print("Re-run without --disruption-only to see all runs.", file=sys.stderr)
         sys.exit(0)
 
     selected_indices = None

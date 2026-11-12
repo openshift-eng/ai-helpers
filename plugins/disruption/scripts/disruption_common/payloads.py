@@ -51,12 +51,8 @@ def payload_from_pullspec(pullspec):
     return last.split(":", 1)[1].rsplit("__", 1)[-1]
 
 
-def payloads_from_prowjob(prowjob):
-    """{"initial": ..., "target": ...} from a prowjob dict. Empty strings when not recorded.
-
-    The env values win over the annotations, because they are what the test
-    container actually installed and upgraded to.
-    """
+def _prowjob_env(prowjob):
+    """First value of each env var across the prowjob's test containers."""
     env = {}
     spec = prowjob.get("spec") if isinstance(prowjob, dict) else None
     pod_spec = (spec or {}).get("pod_spec") or {}
@@ -64,6 +60,87 @@ def payloads_from_prowjob(prowjob):
         for item in (container or {}).get("env") or []:
             if isinstance(item, dict) and item.get("name") and item.get("value"):
                 env.setdefault(item["name"], item["value"])
+    return env
+
+
+def payload_tag(pullspec):
+    """payload_from_pullspec, keeping None and empty values unchanged."""
+    return payload_from_pullspec(pullspec) if pullspec else pullspec
+
+
+def extract_payloads(prowjob_path):
+    """Initial and target payload pullspecs from a downloaded prowjob.json.
+
+    Returns {"initial", "target", "source"}. Each side takes its
+    RELEASE_IMAGE_INITIAL / RELEASE_IMAGE_LATEST pullspec when set, else the
+    release controller's from-tag / tag annotation, the same rule as
+    payloads_from_prowjob. source is "prowjob-env" when either env value was
+    used. Missing values are None.
+    """
+    payloads = {"initial": None, "target": None, "source": None}
+    try:
+        with open(prowjob_path) as f:
+            data = json.load(f)
+    except (ValueError, OSError):
+        return payloads
+    if not isinstance(data, dict):
+        return payloads
+    env = _prowjob_env(data)
+    annotations = (data.get("metadata") or {}).get("annotations") or {}
+    initial_env, target_env = env.get("RELEASE_IMAGE_INITIAL"), env.get("RELEASE_IMAGE_LATEST")
+    payloads["initial"] = initial_env or annotations.get("release.openshift.io/from-tag") or None
+    payloads["target"] = target_env or annotations.get("release.openshift.io/tag") or None
+    if initial_env or target_env:
+        payloads["source"] = "prowjob-env"
+    elif payloads["initial"] or payloads["target"]:
+        payloads["source"] = "prowjob-annotations"
+    return payloads
+
+
+def payloads_from_clusterversion(path):
+    """Initial and target version from a gather-extra clusterversion.json.
+
+    status.history is newest first: the last entry is the installed payload
+    and the first is the last update target. Returns {"initial", "target",
+    "source", "initial_image", "target_image", "target_state"}, with None
+    values when the file is missing or has no history.
+    """
+    payloads = {"initial": None, "target": None, "source": None}
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (ValueError, OSError):
+        return payloads
+    if not isinstance(data, dict):
+        return payloads
+    items = data.get("items") if data.get("kind") == "List" else [data]
+    history = []
+    for item in items or []:
+        if isinstance(item, dict):
+            history = item.get("status", {}).get("history", []) or []
+            if history:
+                break
+    if not history:
+        return payloads
+    newest, oldest = history[0], history[-1]
+    payloads.update({
+        "initial": oldest.get("version") or oldest.get("image"),
+        "target": newest.get("version") or newest.get("image"),
+        "source": "clusterversion-history",
+        "initial_image": oldest.get("image"),
+        "target_image": newest.get("image"),
+        "target_state": newest.get("state"),
+    })
+    return payloads
+
+
+def payloads_from_prowjob(prowjob):
+    """{"initial": ..., "target": ...} from a prowjob dict. Empty strings when not recorded.
+
+    The env values win over the annotations, because they are what the test
+    container actually installed and upgraded to.
+    """
+    env = _prowjob_env(prowjob)
     annotations = ((prowjob or {}).get("metadata") or {}).get("annotations") or {}
     target = payload_from_pullspec(env.get("RELEASE_IMAGE_LATEST")) or annotations.get("release.openshift.io/tag", "")
     initial = (payload_from_pullspec(env.get("RELEASE_IMAGE_INITIAL"))

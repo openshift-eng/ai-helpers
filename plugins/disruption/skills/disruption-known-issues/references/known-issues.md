@@ -93,7 +93,7 @@ Do this for every matching card in MODIFIED, ON_QA, Verified, or Closed.
    (disruption-trend has 0s runs too; the finder lists only disrupted runs):
 
    ```bash
-   python3 "${CLAUDE_SKILL_DIR}/../disruption-trend/disruption_series.py" {the same alert text, dashboard URL, or series fields} \
+   python3 "${CLAUDE_SKILL_DIR}/../disruption-trend/disruption_series.py" {the same --alert-file, --grafana-url, or series fields} \
      --days {days back to a week before the fix, max 90} \
      --runs-out {investigation_dir}/fix-check-runs.json --format json > /dev/null
    ```
@@ -101,8 +101,17 @@ Do this for every matching card in MODIFIED, ON_QA, Verified, or Closed.
    If the window has no runs from before the fix payload, say that a before-and-after
    comparison is not possible, and widen `--days` (at most 90) if the user wants one.
 
-3. Download timelines for every disrupted run in that window (`references/artifacts.md`,
-   one `download_timelines.py` call with all their URLs), then run:
+3. Download timelines for every disrupted run in that window (`seconds` > 0 in
+   `fix-check-runs.json`) with one call to the `disruption-analyze-run` skill's downloader,
+   passing each run's `job` and `prow_id` (its **Timeline download** section in
+   `references/artifacts.md` has the details):
+
+   ```bash
+   python3 "${CLAUDE_SKILL_DIR}/../disruption-analyze-run/download_timelines.py" \
+     --runs '{job}:{prow_id},{job}:{prow_id},...' --output-dir {runs_dir}
+   ```
+
+   Then run:
 
    ```bash
    python3 "${CLAUDE_SKILL_DIR}/fix_payload_check.py" \

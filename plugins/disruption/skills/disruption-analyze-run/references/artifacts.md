@@ -30,8 +30,8 @@ Output shows the target, the downloaded timeline file paths, and the payload pai
 
 ```text
 2084417286357127168: target=e2e-gcp-runc-upgrade
-  .work/disruption-analysis/2026-08-04/2084417286357127168/logs/e2e-timelines_spyglass_20260804-000654.json
-  .work/disruption-analysis/2026-08-04/2084417286357127168/logs/e2e-timelines_spyglass_20260804-012513.json
+  {runs_dir}/2084417286357127168/logs/e2e-timelines_spyglass_20260804-000654.json
+  {runs_dir}/2084417286357127168/logs/e2e-timelines_spyglass_20260804-012513.json
   payloads: 5.1.0-0.ci-2026-08-03-232923 -> 5.1.0-0.ci-2026-08-04-112923 (from clusterversion-history)
 
 2084701838124257280: target=e2e-gcp-ovn-upgrade

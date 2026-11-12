@@ -20,11 +20,11 @@ The entry point for disruption questions. It does no analysis itself: it chooses
 
 Read `references/workflows.md`. Classify the request into W1–W6 with its table. If it is ambiguous, ask the user which question they mean (when it started, what made it worse, or why these runs are disrupted) before running anything. A `DisruptionRegression*` alert or a dashboard URL with "investigate this" is W3.
 
-Keep the input exactly as given: the full alert text including every label, the dashboard URL unchanged, and exact backend names. Do not open the Grafana URL; it is behind SSO.
+Keep the input exactly as given: the full alert text including every label, the dashboard URL unchanged, and exact backend names. Write a pasted alert unchanged to `alert.txt` in the investigation directory with your file-writing tool, and give skills that file, never the text on a command line. Do not open the Grafana URL; it is behind SSO.
 
 ## Step 2: Start the investigation state
 
-Create `.work/disruption-analysis/<YYYY-MM-DD>-<short-slug>/investigation.json` (for example `2026-11-11-kube-api-aws-micro`) by passing that path as `--state-file` to the first skill that takes one. Pass the same path to every later skill. Reuse an existing state file when the user continues an investigation.
+Create `.work/disruption-analysis/<YYYY-MM-DD>-<short-slug>/investigation.json` (for example `2026-11-11-kube-api-aws-micro`) by passing that path as `--state-file` to the first skill that takes one. Pass the same path to every later skill. Reuse an existing state file when the user continues an investigation. In W1, W5, and W6 no script writes the state file before `disruption-known-issues` records its result, so `series.backends` is never set there: pass the exact backends and the selected runs to each skill inline.
 
 ## Step 3: Run the workflow
 

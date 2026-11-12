@@ -73,7 +73,8 @@ GH_TIMEOUT_SECONDS = 120
 OC_TIMEOUT_SECONDS = 300
 
 _RUN_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*:\d{6,}$")
-_GITHUB_RE = re.compile(r"github\.com[/:]([^/]+)/([^/.]+?)(?:\.git)?/?$")
+_GITHUB_RE = re.compile(r"github\.com[/:]([A-Za-z0-9_.-]+)/([A-Za-z0-9_-]+?)(?:\.git)?/?$")
+_COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}$")
 
 
 class PayloadError(Exception):
@@ -113,7 +114,7 @@ def fetch_run_releaseinfo(job, build_id, output_dir):
 
 def oc_release_info(pullspec):
     """Run `oc adm release info -o json`; raise PayloadError with the command on failure."""
-    command = ["oc", "adm", "release", "info", "-o", "json", pullspec]
+    command = ["oc", "adm", "release", "info", "-o", "json", "--", pullspec]
     printable = " ".join(command)
     if not shutil.which("oc"):
         raise PayloadError("oc not found; run `%s > releaseinfo.json` and pass the file" % printable)
@@ -143,7 +144,7 @@ def resolve_payload(ref, output_dir):
     if _RUN_REF_RE.match(ref):
         job, build_id = ref.rsplit(":", 1)
         return build_id, load_json(fetch_run_releaseinfo(job, build_id, output_dir))
-    if "/" in ref and (":" in ref or "@" in ref):
+    if "/" in ref and (":" in ref or "@" in ref) and not ref.startswith("-"):
         return ref, oc_release_info(ref)
     raise PayloadError("%s is not a file, build dir, job:build_id, or pullspec" % ref)
 
@@ -224,6 +225,8 @@ def gh_compare_command(repo, before, after):
 
 def gh_compare(repo, before, after):
     """Run gh api compare. Returns (data, error)."""
+    if not (_COMMIT_RE.match(before or "") and _COMMIT_RE.match(after or "")):
+        return None, "commit IDs in releaseinfo are not hex SHAs: %r...%r" % (before, after)
     command = gh_compare_command(repo, before, after)
     if not shutil.which("gh"):
         return None, "gh not found"

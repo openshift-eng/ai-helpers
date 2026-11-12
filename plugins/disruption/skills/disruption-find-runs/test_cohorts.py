@@ -71,7 +71,22 @@ def test_around_leaves_out_liveness_and_failed_runs_and_says_so():
     assert not ids & {"990", "991"}
     assert any("ci-cluster-network-liveness" in n for n in result["notes"])
     assert result["data_loss"] == {"before": 0, "after": 1}
-    assert any(n.startswith("DEGRADED: disruption data is missing for 0 before and 1 after") for n in result["notes"])
+    assert any(n.startswith("the Sippy disruption API failed for 0 before and 1 after") for n in result["notes"])
+    assert not any(n.startswith("DEGRADED") for n in result["notes"])
+
+
+def test_around_marks_degraded_only_for_api_failures():
+    runs = _series() + [_run(980 + i, JOB_A, 1 + i, None) for i in range(5)]
+    result = cohorts.build_around(runs, SPLIT, per_side=4)
+    assert result["data_loss"] == {"before": 0, "after": 0}
+    assert any(n.startswith("0 before and 5 after run(s) in the window have no disruption data")
+               for n in result["notes"])
+    assert not any(n.startswith("DEGRADED") for n in result["notes"])
+
+    runs = _series() + [_run(980 + i, JOB_A, 1 + i, None, fetch_failed=True) for i in range(5)]
+    result = cohorts.build_around(runs, SPLIT, per_side=4)
+    assert any(n.startswith("DEGRADED: the Sippy disruption API failed for 0 before and 5 after")
+               for n in result["notes"])
 
 
 def test_around_notes_jobs_on_one_side_and_falls_back_without_shared_jobs():

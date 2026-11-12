@@ -70,6 +70,11 @@ from disruption_common.gcs import (  # noqa: E402
     extract_target,
     gather_gcs_path,
 )
+from disruption_common.payloads import (  # noqa: E402,F401  (re-exported for parse_disruption and tests)
+    extract_payloads,
+    payload_tag,
+    payloads_from_clusterversion,
+)
 
 # gather-extra files saved by --gather, relative to artifacts/{target}/gather-extra/artifacts/.
 GATHER_FILES = ("events.json", "configmaps.json", "releaseinfo.json", "clusterversion.json")
@@ -101,99 +106,6 @@ def parse_runs(runs_str):
             sys.exit(1)
         runs.append((job, build_id))
     return runs
-
-
-def _prowjob_containers(data):
-    """The containers of a prowjob.json pod spec, or [] when it has none."""
-    return data.get("spec", {}).get("pod_spec", {}).get("containers", []) or []
-
-
-def extract_payloads(prowjob_path):
-    """Initial and target payload from prowjob.json.
-
-    Returns {"initial", "target", "source"}. RELEASE_IMAGE_INITIAL and
-    RELEASE_IMAGE_LATEST pullspecs win; the release controller's from-tag and
-    tag annotations are the fallback. Missing values are None.
-    """
-    payloads = {"initial": None, "target": None, "source": None}
-    try:
-        with open(prowjob_path) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return payloads
-    if not isinstance(data, dict):
-        return payloads
-
-    env = {}
-    for container in _prowjob_containers(data):
-        for var in container.get("env", []) or []:
-            if var.get("value"):
-                env.setdefault(var.get("name"), var["value"])
-    if env.get("RELEASE_IMAGE_INITIAL") or env.get("RELEASE_IMAGE_LATEST"):
-        payloads["initial"] = env.get("RELEASE_IMAGE_INITIAL")
-        payloads["target"] = env.get("RELEASE_IMAGE_LATEST")
-        payloads["source"] = "prowjob-env"
-        return payloads
-
-    annotations = data.get("metadata", {}).get("annotations", {}) or {}
-    if annotations.get("release.openshift.io/tag"):
-        payloads["initial"] = annotations.get("release.openshift.io/from-tag")
-        payloads["target"] = annotations["release.openshift.io/tag"]
-        payloads["source"] = "prowjob-annotations"
-    return payloads
-
-
-def payloads_from_clusterversion(path):
-    """Initial and target version from a gather-extra clusterversion.json.
-
-    status.history is newest first: the last entry is the installed payload
-    and the first is the last update target. Returns {"initial", "target",
-    "source", "initial_image", "target_image", "target_state"}, with None
-    values when the file is missing or has no history.
-    """
-    payloads = {"initial": None, "target": None, "source": None}
-    try:
-        with open(path) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return payloads
-    if not isinstance(data, dict):
-        return payloads
-    items = data.get("items") if data.get("kind") == "List" else [data]
-    history = []
-    for item in items or []:
-        if isinstance(item, dict):
-            history = item.get("status", {}).get("history", []) or []
-            if history:
-                break
-    if not history:
-        return payloads
-    newest, oldest = history[0], history[-1]
-    payloads.update({
-        "initial": oldest.get("version") or oldest.get("image"),
-        "target": newest.get("version") or newest.get("image"),
-        "source": "clusterversion-history",
-        "initial_image": oldest.get("image"),
-        "target_image": newest.get("image"),
-        "target_state": newest.get("state"),
-    })
-    return payloads
-
-
-def payload_tag(pullspec):
-    """Short payload name: the tag of a pullspec, or the value unchanged.
-
-    registry.ci.openshift.org/ocp/release-5:5.1.0-0.nightly-2026-11-09-143447
-    becomes 5.1.0-0.nightly-2026-11-09-143447. Digest pullspecs are kept whole.
-    """
-    if not pullspec:
-        return pullspec
-    if "@" in pullspec:
-        return pullspec
-    last = pullspec.rsplit("/", 1)[-1]
-    if ":" in last:
-        return last.split(":", 1)[1]
-    return pullspec
 
 
 def download_gather_files(job, build_id, target, gather_dir, filenames):

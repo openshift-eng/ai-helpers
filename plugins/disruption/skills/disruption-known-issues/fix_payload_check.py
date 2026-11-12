@@ -12,7 +12,7 @@ Input is either file:
   so only the signature counts are meaningful.
 
 Usage:
-    python3 ../disruption-trend/disruption_series.py --alert-text "<alert>" --days 30 \
+    python3 ../disruption-trend/disruption_series.py --alert-file alert.txt --days 30 \
         --runs-out runs.json --format json > /dev/null
     python3 fix_payload_check.py --runs runs.json --fix-payload 5.1.0-0.nightly-2026-11-06-043907
     python3 fix_payload_check.py --runs runs.json --fix-payload <tag> \
@@ -22,7 +22,6 @@ import argparse
 import datetime
 import glob
 import json
-import math
 import os
 import re
 import sys
@@ -48,6 +47,7 @@ else:
              "the library is its scripts/disruption_common. Looked in: %s" % ", ".join(_LIB_PARENTS))
 
 from disruption_common.intervals import backend_matches_filter, load_items  # noqa: E402
+from disruption_common.stats import percentile  # noqa: E402
 
 _TAG_TIME = re.compile(r"(\d{4}-\d{2}-\d{2}-\d{6})$")
 
@@ -61,24 +61,21 @@ def payload_time(tag):
 
 
 def normalize_run(run):
-    """(prow_id, seconds, release_tag, liveness_unreliable) from either input format.
+    """(prow_id, seconds, payload tag, tag source, liveness_unreliable) from either input format.
 
-    seconds is None when the run has no disruption data.
+    seconds is None when the run has no disruption data. The tag is Sippy's
+    release_tag, or the trend's target_payload (from prowjob.json) when
+    release_tag is empty; the source says which ("release_tag", "target_payload", or None).
     """
     if "disruption_backends" in run:
         entries = run.get("disruption_backends") or []
         tag = next((e.get("release_tag") for e in entries if e.get("release_tag")), "")
-        return str(run.get("prow_id", "")), run.get("disruption_seconds"), tag, False
-    return (str(run.get("prow_id", "")), run.get("seconds"), run.get("release_tag") or "",
+        return str(run.get("prow_id", "")), run.get("disruption_seconds"), tag, "release_tag" if tag else None, False
+    tag, source = run.get("release_tag") or "", "release_tag"
+    if not tag and run.get("target_payload"):
+        tag, source = run["target_payload"], "target_payload"
+    return (str(run.get("prow_id", "")), run.get("seconds"), tag, source if tag else None,
             bool(run.get("liveness_unreliable")))
-
-
-def percentile(values, pct):
-    """Nearest-rank percentile; 0 for no values."""
-    if not values:
-        return 0
-    ordered = sorted(values)
-    return ordered[max(0, math.ceil(pct / 100.0 * len(ordered)) - 1)]
 
 
 def scan_signature(timelines_dir, pattern, backends):
@@ -122,7 +119,7 @@ def _summary(runs, signature_ids, scanned_ids=None):
     summary = {
         "runs": len(runs),
         "disrupted": sum(1 for s in seconds if s > 0),
-        "p95_seconds": percentile(seconds, 95),
+        "p95_seconds": round(percentile(seconds, 95), 1) if seconds else 0,
         "max_seconds": max(seconds) if seconds else 0,
     }
     if signature_ids is not None:
@@ -141,8 +138,9 @@ def check_fix(runs, fix_payload, signature_ids=None, scanned_ids=None):
     finder_input = any("disruption_backends" in run for run in runs)
     by_day, before, after = {}, [], []
     no_data = untagged = liveness = 0
+    tag_sources = {}
     for raw in runs:
-        prow_id, seconds, tag, unreliable = normalize_run(raw)
+        prow_id, seconds, tag, source, unreliable = normalize_run(raw)
         if seconds is None:
             no_data += 1
             continue
@@ -153,6 +151,7 @@ def check_fix(runs, fix_payload, signature_ids=None, scanned_ids=None):
         if built is None:
             untagged += 1
             continue
+        tag_sources[source] = tag_sources.get(source, 0) + 1
         run = {"prow_id": prow_id, "seconds": seconds}
         by_day.setdefault(built.date().isoformat(), []).append(run)
         (after if built >= fix_time else before).append(run)
@@ -167,6 +166,7 @@ def check_fix(runs, fix_payload, signature_ids=None, scanned_ids=None):
         "by_payload_day": days,
         "excluded": {"no_disruption_data": no_data, "no_payload_tag": untagged,
                      "liveness_unreliable": liveness},
+        "payload_tag_source": tag_sources,
         "caveats": [
             "release_tag is the payload the job tested. An upgrade job runs the old payload until "
             "its upgrade finishes, so upgrades to a fixed payload can still show the bug for a day "

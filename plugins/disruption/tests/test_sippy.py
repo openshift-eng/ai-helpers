@@ -429,6 +429,51 @@ def test_fetch_runs_in_window_marks_truncated_when_a_full_tie_page_has_nothing_n
     assert [row["prow_id"] for row in rows] == ["NEW", "TIE-00"]
 
 
+@patch("disruption_common.sippy.fetch_runs")
+def test_fetch_runs_in_window_with_a_budget_keeps_the_newest_tied_runs(mock_fetch_runs):
+    newer = [{"prow_id": "N%d" % i, "timestamp": "2026-10-02T0%d:00:00Z" % i} for i in range(3, 0, -1)]
+    ties = _tie_rows(10)
+    older = [{"prow_id": "O%d" % i, "timestamp": "2026-09-30T00:00:00Z"} for i in range(5)]
+    everything = newer + ties + older
+
+    def fake_fetch(_release, filter_dict, limit):
+        bounds = _timestamp_filters(filter_dict)
+        upper = next((parse_timestamp(value) for op, value in bounds if op == "<"), None)
+        lower = next((parse_timestamp(value) for op, value in bounds if op == ">"), None)
+        matching = [row for row in everything
+                    if (upper is None or parse_timestamp(row["timestamp"]) < upper)
+                    and (lower is None or parse_timestamp(row["timestamp"]) > lower)]
+        return matching[:limit]
+
+    mock_fetch_runs.side_effect = fake_fetch
+    rows, truncated = fetch_runs_in_window("5.0", {}, SINCE, page_size=5, max_runs=12)
+    assert truncated is True
+    assert [row["prow_id"] for row in rows] == [row["prow_id"] for row in newer] + ["TIE-%02d" % i for i in range(9)]
+
+
+@patch("disruption_common.sippy.fetch_runs")
+def test_fetch_runs_in_window_ignores_rows_with_unparseable_timestamps(mock_fetch_runs):
+    runs = [{"prow_id": str(i), "timestamp": "2026-10-01T%02d:00:00Z" % (20 - i)} for i in range(10)]
+    runs[2]["timestamp"] = ""
+
+    def fake_fetch(_release, filter_dict, limit):
+        bounds = _timestamp_filters(filter_dict)
+        upper = next((parse_timestamp(value) for op, value in bounds if op == "<"), None)
+        lower = next((parse_timestamp(value) for op, value in bounds if op == ">"), None)
+        dated = [row for row in runs if row["timestamp"]]
+        matching = [row for row in dated
+                    if (upper is None or parse_timestamp(row["timestamp"]) < upper)
+                    and (lower is None or parse_timestamp(row["timestamp"]) > lower)]
+        if upper is None:
+            matching = runs
+        return matching[:limit]
+
+    mock_fetch_runs.side_effect = fake_fetch
+    rows, truncated = fetch_runs_in_window("5.0", {}, SINCE, page_size=3)
+    assert truncated is False
+    assert [row["prow_id"] for row in rows] == [str(i) for i in range(10)]
+
+
 @patch("disruption_common.sippy.fetch_runs_in_window")
 def test_collect_runs_reports_every_failed_combo(mock_window):
     def fake_window(_release, variants, _since, max_runs=None, progress=None):

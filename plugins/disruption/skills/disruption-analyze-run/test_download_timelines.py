@@ -441,6 +441,23 @@ def test_payload_tag():
         "registry.build04.ci.openshift.org:443/ci-op-x/release@sha256:abc"
     assert payload_tag("5.1.0-0.nightly-2026-11-09-143447") == "5.1.0-0.nightly-2026-11-09-143447"
     assert payload_tag(None) is None
+    assert payload_tag("registry.ci.openshift.org/openshift/ci:rc_payload__5.1.0-0.ci-2026-11-09-112923") == \
+        "5.1.0-0.ci-2026-11-09-112923"
+
+
+def test_extract_payloads_fills_a_missing_env_side_from_the_annotation():
+    data = {"metadata": UPGRADE_PROWJOB["metadata"],
+            "spec": {"pod_spec": {"containers": [{"env": [
+                {"name": "RELEASE_IMAGE_LATEST",
+                 "value": "registry.ci.openshift.org/ocp/release-5:5.1.0-0.nightly-2026-11-10-075706"}]}]}}}
+    path = _write_json(data)
+    try:
+        payloads = extract_payloads(path)
+    finally:
+        os.unlink(path)
+    assert payloads == {"initial": "5.0.0-0.nightly-2026-11-09-184859",
+                        "target": "registry.ci.openshift.org/ocp/release-5:5.1.0-0.nightly-2026-11-10-075706",
+                        "source": "prowjob-env"}
 
 
 def _gcs_mock(prowjob, files, calls):

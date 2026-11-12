@@ -132,6 +132,21 @@ def _overlay_alert_labels(params, labels):
     return params
 
 
+def read_alert_file(path):
+    """The alert text in `path`, or on stdin when path is "-".
+
+    A file keeps pasted text out of the shell command line, where backticks
+    and `$(...)` in an alert would be expanded.
+    """
+    try:
+        if path == "-":
+            return sys.stdin.read()
+        with open(path) as f:
+            return f.read()
+    except OSError as e:
+        raise SeriesError("cannot read alert file %s: %s" % (path, e))
+
+
 def grafana_params_from_inputs(grafana_url=None, alert_text=None):
     """Build the shared filter set from a dashboard URL, alert text, or both.
 
@@ -381,8 +396,10 @@ def filter_disruption_data(disruption_data, selectors):
 def disruption_peak(disruption_entries, selectors):
     """Return (seconds, backend_name) for the highest exact selected match.
 
-    seconds is None when there is no disruption data for the run. It is 0,
-    with backend_name None, when data exists but no selected backend matches.
+    seconds is None when there is no disruption data for the run on the
+    selected backends: no rows at all, or rows only for other backends (the
+    job does not measure them, or the name is misspelled). A measured backend
+    has a row even at 0s, so a missing one is unknown, not 0s.
     """
     allowed = expand_backend_selectors(selectors)
     if not disruption_entries:
@@ -396,8 +413,6 @@ def disruption_peak(disruption_entries, selectors):
         if best_secs is None or secs > best_secs:
             best_secs = secs
             best_name = entry.get("backend_name")
-    if best_secs is None:
-        return 0, None
     return best_secs, best_name
 
 

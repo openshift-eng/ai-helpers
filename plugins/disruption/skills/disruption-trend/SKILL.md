@@ -38,11 +38,11 @@ The script is `disruption_series.py` in this skill's directory. In Claude Code t
 
 ```bash
 python3 "<skill-dir>/disruption_series.py" \
-  --alert-text "<alert text>" \
+  --alert-file ".work/disruption-analysis/<id>/alert.txt" \
   --state-file ".work/disruption-analysis/<id>/investigation.json"
 ```
 
-Use `--grafana-url "<url>"` instead of `--alert-text` for a dashboard. For explicit fields, use `--release 5.0 --backend kube-api-new-connections --platform gcp --upgrade-type micro`. Add `--days N` when the user asked for a different window.
+Write the pasted alert unchanged to `alert.txt` in the investigation directory with your file-writing tool first; never put alert text on the command line, where backticks and `$(...)` in it would run. Use `--grafana-url '<url>'` (single quotes) instead of `--alert-file` for a dashboard. For explicit fields, use `--release 5.0 --backend kube-api-new-connections --platform gcp --upgrade-type micro`. Add `--days N` when the user asked for a different window.
 
 Run it with a 10-minute command timeout (for example `timeout: 600000` on the Bash tool). A 30-day window usually takes 15–60 seconds, but the Sippy disruption API allows only 25 requests per rolling hour, shared by every user, so the script may wait up to 5 minutes (`--rate-limit-wait`, default 300 seconds) for the limit to free up. Each request covers 500 runs. Progress and rate-limit waits go to stderr. Disruption data is cached under `.work/disruption-analysis/cache/` after every request, so a rerun only fetches runs that are not cached yet. Run the script once; do not loop on it.
 
@@ -54,7 +54,7 @@ The values are **per-run peak seconds on the exact selected backends**. They are
 
 ## Step 2: Judge the transitions
 
-The script finds candidate change points with a Mann-Whitney test, using binary segmentation over the per-run values. `strong` means |z| ≥ 5 and `moderate` means |z| ≥ 4. Under no change, noise stays below about 4. These are candidates, not conclusions. Judge each one:
+The script finds candidate change points with a Mann-Whitney test, using binary segmentation over the per-run values. `strong` means |z| ≥ 5 and `moderate` means |z| ≥ 4. Under no change, noise stays below about 4. A split also needs at least 5 runs above the series floor (usually 0s) on its higher side, so a couple of disrupted runs in a quiet series are not reported as a step. These are candidates, not conclusions. Judge each one:
 
 - **Is it practical?** `practical: false` means the shift is statistically detectable but too small to matter. Mention it at most in passing.
 - **Is it consistent across jobs?** Read the per-job table (`per_job.jobs`). It lists every job with at least one run after the step: runs before and after, the job's own before P50/P95, and its after P50 and max. A job whose after P50 is above its own before P95 moved clearly. Jobs marked `small n` have fewer than `per_job.min_runs` runs on a side: use them as supporting evidence, not proof, and say how many runs they rest on. A job with 0 runs before is new after the step and says nothing about a change. A real product change usually moves most jobs of the affected kind (for example every upgrade job) while unrelated jobs stay flat; name which jobs moved and which did not. `per_job.jobs_compared`, `jobs_increased`, and `jobs_decreased` count only jobs with enough runs on both sides.

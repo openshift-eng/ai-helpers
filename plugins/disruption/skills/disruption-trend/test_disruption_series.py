@@ -57,6 +57,12 @@ def test_flat_series_has_no_transition():
     assert trend["onset"]["status"] == "before_window"
 
 
+def test_a_few_disrupted_runs_at_the_end_are_not_a_step():
+    assert ds.find_transitions([0] * 198 + [5, 5], 8) == []
+    result = analyze([0] * 198 + [5, 5])
+    assert result["transitions"] == []
+
+
 def test_step_increase_is_found_near_the_change():
     rng = random.Random(2)
     values = [_zero_heavy(rng, 0.05, 2) for _ in range(400)] + [_zero_heavy(rng, 0.6, 8) for _ in range(200)]
@@ -181,6 +187,14 @@ def test_build_buckets_values():
     assert (day2["bucket"], day2["n"], day2["p50"], day2["first_payload"]) == ("2026-11-03", 1, 2, "tag-3")
     (week,) = ds.build_buckets(scored, "week")
     assert (week["bucket"], week["n"], week["max"]) == ("2026-11-02", 4, 10)
+
+
+def test_build_buckets_orders_mixed_stream_payloads_by_build_time():
+    runs = [{"timestamp": "2026-11-10T0%d:00:00Z" % i, "seconds": 1, "job": "job-a", "release_tag": tag}
+            for i, tag in enumerate(["5.0.0-0.ci-2026-11-10-010000", "5.0.0-0.nightly-2026-11-01-010000"])]
+    (bucket,) = ds.build_buckets(runs, "day")
+    assert bucket["first_payload"] == "5.0.0-0.nightly-2026-11-01-010000"
+    assert bucket["last_payload"] == "5.0.0-0.ci-2026-11-10-010000"
 
 
 def _fake_rows(n):
@@ -586,6 +600,7 @@ def test_main_keeps_lost_runs_when_filtering_on_master_nodes_updated(capsys):
     assert code == 0
     trend = json.loads(capsys.readouterr().out)["trend"]
     assert trend["runs"]["scanned"] == 50 and trend["runs"]["fetch_failed"] == 1
+    assert any("upper bound" in caveat for caveat in trend["caveats"])
 
 
 
@@ -601,6 +616,37 @@ def test_main_reports_the_loss_when_every_run_is_lost_under_master_nodes_updated
     assert "No runs matched" not in captured.err
     trend = json.loads(captured.out)["trend"]
     assert trend["runs"]["fetch_failed"] == 50 and trend["degraded"]
+
+
+def test_main_flags_a_misspelled_backend_instead_of_reporting_no_disruption(capsys):
+    with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(400), False)), \
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=_fake_disruption):
+        code = ds.main(["--release", "5.0", "--backend", "kube-api-new-conections", "--format", "json",
+                        "--cache-dir", "", "--no-payloads"])
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "did you mean 'kube-api-new-connections'" in captured.err
+    trend = json.loads(captured.out)["trend"]
+    assert trend["runs"]["used"] == 0 and trend["runs"]["no_data"] == 400
+    assert trend["onset"]["status"] == "unknown"
+    assert "did you mean 'kube-api-new-connections'" in trend["caveats"][0]
+
+
+def test_main_fails_when_master_nodes_updated_is_missing_from_the_response(capsys):
+    def disruption(ids, cache_path=None, progress=None, max_wait=None):
+        data, failed = _fake_disruption(ids)
+        for entries in data.values():
+            for entry in entries:
+                del entry["master_nodes_updated"]
+        return data, failed
+
+    with patch.object(ds.sippy, "collect_runs", return_value=(_fake_rows(50), False)), \
+            patch.object(ds.sippy, "fetch_disruption_data_with_failures", side_effect=disruption):
+        code = ds.main(["--alert-text", _alert("Y"), "--format", "json", "--cache-dir", "", "--no-payloads"])
+    captured = capsys.readouterr()
+    assert code == 1
+    assert "did not include that field" in captured.err
+    assert captured.out == ""
 
 
 def test_main_still_prints_when_the_runs_file_cannot_be_written(tmp_path, capsys):

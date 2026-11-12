@@ -1,5 +1,6 @@
 """Tests for disruption_common.series — dashboard/alert parsing and series resolution."""
 import datetime
+import io
 import os
 import sys
 
@@ -20,6 +21,7 @@ from disruption_common.series import (  # noqa: E402
     master_nodes_means_all,
     parse_backend,
     parse_grafana_url,
+    read_alert_file,
     resolve_series,
     resolve_window_start,
 )
@@ -113,6 +115,16 @@ def test_resolve_series_rejects_unknown_override():
         resolve_series(release="5.0", backend="kube-api", region="us-east-1")
 
 
+def test_read_alert_file_keeps_shell_characters_and_reports_a_missing_file(tmp_path, monkeypatch):
+    alert = tmp_path / "alert.txt"
+    alert.write_text("backend: kube-api-new-connections\nsummary: `oc get` $(whoami) \"quoted\"\n")
+    assert read_alert_file(str(alert)) == alert.read_text()
+    monkeypatch.setattr(sys, "stdin", io.StringIO("release: 5.0\n"))
+    assert read_alert_file("-") == "release: 5.0\n"
+    with pytest.raises(SeriesError, match="cannot read alert file"):
+        read_alert_file(str(tmp_path / "missing.txt"))
+
+
 def test_disruption_peak_uses_exact_names_only():
     entries = [
         {"backend_name": "kube-api-http2-localhost-new-connections", "disruption_seconds": 90},
@@ -120,7 +132,7 @@ def test_disruption_peak_uses_exact_names_only():
         {"backend_name": "kube-api-new-connections", "disruption_seconds": 4},
     ]
     assert disruption_peak(entries, ["kube-api-new-connections"]) == (4, "kube-api-new-connections")
-    assert disruption_peak(entries, ["oauth-api-new-connections"]) == (0, None)
+    assert disruption_peak(entries, ["oauth-api-new-connections"]) == (None, None)
     assert disruption_peak([], ["kube-api-new-connections"]) == (None, None)
     assert filter_disruption_data({"1": entries}, ["kube-api-new-connections"]) == {"1": entries[2:]}
 

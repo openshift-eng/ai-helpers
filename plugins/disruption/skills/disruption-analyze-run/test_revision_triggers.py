@@ -13,6 +13,7 @@ from revision_triggers import (
     clean_reason,
     compare_runs,
     format_text,
+    load_items,
     main,
     operator_version_changes,
     revision_statuses,
@@ -277,6 +278,13 @@ def test_main_other_operator():
     run = json.loads(out.getvalue())["runs"][0]
     assert [t["revision"] for t in run["triggers"]] == [9]
     assert [s["revision"] for s in run["revision_statuses"]] == [4]
+
+
+@pytest.mark.parametrize("content", ["not json", "null", '"x"', '{"items": null}'])
+def test_load_items_returns_empty_for_malformed_files(tmp_path, content):
+    path = tmp_path / "events.json"
+    path.write_text(content)
+    assert load_items(str(path)) == []
 
 
 if __name__ == "__main__":

@@ -1104,16 +1104,23 @@ regression, heavier test workloads, infrastructure degradation).
 
 `parse_disruption.py` is the primary tool for structured disruption analysis — it extracts,
 classifies, and correlates disruption data from timeline files. The `disruption-analyze-run` skill
-in the separate `disruption` plugin owns this tool and documents its full usage, flags
-(`--backends`, `--window`, `--format`, `--job-name`, `--build-id`, `--target`), JSON output
-schema, and feature list (backend classification, phase detection, source-node fan-out,
+in the separate `disruption` plugin owns this tool and documents its full usage, flags, JSON
+output schema, and feature list (backend classification, phase detection, source-node fan-out,
 concurrent-event extraction, OVS/CPU/cloud/etcd summarization, network liveness). It needs the
-rest of that plugin, so run it from the installed skill's directory. If the `disruption` plugin
-is not installed, read the timeline and `backend-disruption` files directly as described above.
-Quick invocation:
+rest of that plugin, so run it where the plugin is installed. Find it once, taking the newest
+installed version, else the copy in an ai-helpers checkout:
 
 ```bash
-python3 <disruption-analyze-run skill dir>/parse_disruption.py \
+PARSER=$(find ~/.claude/plugins/cache -path '*/disruption/*/skills/disruption-analyze-run/parse_disruption.py' 2>/dev/null | sort -V | tail -n 1)
+[ -n "$PARSER" ] || PARSER=$(find plugins/disruption -path '*/disruption-analyze-run/parse_disruption.py' 2>/dev/null | head -n 1)
+```
+
+Outside Claude Code, use the `parse_disruption.py` beside the installed `disruption-analyze-run`
+skill's `SKILL.md`. If none is found, the `disruption` plugin is not installed: read the timeline
+and `backend-disruption` files directly as described above. Quick invocation:
+
+```bash
+python3 "$PARSER" \
   <timeline.json> [timeline2.json ...] --window 60 --format text
 ```
 
@@ -1228,7 +1235,7 @@ during the conformance phase.
 
 **1. Run the parser:**
 ```bash
-python3 <disruption-analyze-run skill dir>/parse_disruption.py \
+python3 "$PARSER" \
   timeline_upgrade.json timeline_conformance.json \
   --window 60 --format text
 ```

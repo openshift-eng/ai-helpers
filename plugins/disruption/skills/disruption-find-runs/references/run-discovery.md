@@ -7,24 +7,27 @@ currently disrupted Prow job runs worth analyzing (`sample-disrupted`).
 and will redirect to a login page. Do NOT manually query Sippy API endpoints — the script
 below handles all URL parsing, Sippy querying, and disruption filtering in one call.
 
-## 1.5.1: Run the Disruption Run Finder
+## 1. Run the Disruption Run Finder
 
 Run `find_disruption_runs.py` with `--auto-select 5` to get a recommended default selection.
-For a dashboard URL, pass it unchanged. For an alert, pass the pasted text unchanged,
-including a `link:` annotation when the alert has one. The script maps series labels to
+For a dashboard URL, pass it unchanged in single quotes. For an alert, write the pasted
+text unchanged, including a `link:` annotation when the alert has one, to
+`{investigation_dir}/alert.txt` with your file-writing tool (not `echo` or an unquoted heredoc),
+and pass that file. Never put alert text on the command line: backticks and `$(...)` in it
+would run. The script maps series labels to
 Sippy variant filters, queries Sippy for matching runs, keeps runs whose
 `master_nodes_updated` matches, and auto-selects a representative sample.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/find_disruption_runs.py" \
-  --grafana-url "{grafana_url}" \
+  --grafana-url '{grafana_url}' \
   --auto-select 5 \
   --format table
 ```
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/find_disruption_runs.py" \
-  --alert-text "{alert_text}" \
+  --alert-file {investigation_dir}/alert.txt \
   --auto-select 5 \
   --format table
 ```
@@ -82,7 +85,7 @@ The table output is compact. Before the run rows it prints:
 - **A probe-family note** when the selection mixes probe families (`*-localhost-*`,
   `*-service-network-*`, `*-internal-lb-*`, `cache-*`, or main backends) and one probe
   family was the max in more than half of the disrupted runs. Ask the user which family
-  they mean before choosing runs (see 1.5.2).
+  they mean before choosing runs (see section 2).
 - **Per-job disruption**: for each job with disruption, its runs, disrupted runs, total
   and median seconds on the selected names, and its share of the total, sorted by total.
 
@@ -172,11 +175,11 @@ The `Disruption (s)` column shows the max disruption seconds among the exact
 for that run (data is refreshed every 4 hours). Do not re-rank these runs by
 localhost, HTTP, service-network, or internal-lb probe totals.
 
-To get machine-readable output for downstream processing, use `--format json` with the same `--grafana-url` or `--alert-text` as the table run:
+To get machine-readable output for downstream processing, use `--format json` with the same `--grafana-url` or `--alert-file` as the table run:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/find_disruption_runs.py" \
-  --grafana-url "{grafana_url}" \
+  --grafana-url '{grafana_url}' \
   --auto-select 5 \
   --format json
 ```
@@ -210,14 +213,14 @@ analyzing. When it returns one run, skip the table and the question: say it is t
 match, give that run's details, and continue. The candidate set is already limited to
 the alert or dashboard series.
 
-## 1.5.2: Present Candidates and Collect Selection
+## 2. Present Candidates and Collect Selection
 
 Run the finder with `--format table` and leave its stdout on the terminal.
 
 **One run from an alert.** If the input was an alert and the table has a single run row,
 do not paste the table and do not ask which runs to analyze. Say that this is the only
 matching run, then give the filter summary from the finder header and that run's job
-name, build ID, result, disruption seconds, backend, and timestamp. Continue to 1.5.3 with that run.
+name, build ID, result, disruption seconds, backend, and timestamp. Continue to section 3 with that run.
 
 **More than one run.** The finder stdout is the candidate list. Paste it into the reply
 inside a `text` fence, complete and unchanged, then ask which runs to analyze. Give the
@@ -254,12 +257,13 @@ If the user confirms the recommendation (or says "yes"), use the recommended run
 If the user provides specific numbers, use those instead. Skip this question when the
 alert returned a single run; that run is the selection.
 
-If no runs have disruption test failures for the target backend, note this and offer to
-analyze the most recent failed runs anyway (disruption may be within threshold but elevated).
+If the finder lists no runs, no run in the window had disruption > 0 on these backends.
+Say so; do not pick runs from other backends instead.
 
-## 1.5.3: Convert Selections to Prow URLs
+## 3. Convert Selections to Prow URLs
 
-Re-run `find_disruption_runs.py` with `--format json` and the same `--grafana-url` or `--alert-text` to get machine-readable output with `url`
-fields. Use the `url` field from the JSON output to get Prow URLs for the selected runs. Set:
-- `--backends` to the exact comma-separated backend list from the Grafana URL or the alert (unless the user overrides it). Do not shorten those names
+Re-run `find_disruption_runs.py` with `--format json` and the same `--grafana-url` or `--alert-file` to get machine-readable output with `url`
+fields. Use the `url` field from the JSON output to get Prow URLs for the selected runs. For
+`disruption-analyze-run`, set:
+- its `--backends` to the exact comma-separated backend list from the Grafana URL or the alert (unless the user overrides it). Do not shorten those names
 - The resolved Prow URLs, and the exact backends, are what `disruption-analyze-run` takes

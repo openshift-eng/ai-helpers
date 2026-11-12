@@ -694,7 +694,7 @@ def test_find_payloads_falls_back_to_clusterversion_then_timeline():
     assert payloads["source"] == "clusterversion-history"
 
 
-def test_parser_without_download_timelines_reports_unknown_payloads(tmp_path):
+def test_parser_runs_without_download_timelines_beside_it(tmp_path):
     import shutil
     import subprocess
 
@@ -711,7 +711,7 @@ def test_parser_without_download_timelines_reports_unknown_payloads(tmp_path):
     assert result.returncode == 0, result.stderr
     data = json.loads(result.stdout)
     assert data["payloads"]["target"] is None
-    assert "download_timelines.py not found" in data["payloads"]["warning"]
+    assert "warning" not in data["payloads"]
     assert data["payloads"]["timeline_target_version"] == "5.1.0-0.ci-2026-11-09-112923"
     assert data["summary"]["episode_count"] == 1
     assert [r["operator"] for r in data["revision_rollouts"]][:2] == ["etcd", "kube-apiserver"]

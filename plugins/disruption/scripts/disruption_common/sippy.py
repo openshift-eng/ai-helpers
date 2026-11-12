@@ -200,12 +200,16 @@ def _room(rows, max_runs):
 
 
 def _take_unseen(batch, seen, rows, max_runs):
-    """Append unseen rows. Returns (oldest timestamp, truncated)."""
+    """Append unseen rows. Returns (oldest timestamp, truncated).
+
+    Rows whose timestamp does not parse are kept but do not count toward the
+    oldest timestamp, so one bad row cannot end the scan at the epoch.
+    """
     oldest = None
     truncated = False
     for row in batch:
         ts = parse_timestamp(row.get("timestamp", ""))
-        if oldest is None or ts < oldest:
+        if ts != _EPOCH and (oldest is None or ts < oldest):
             oldest = ts
         if max_runs is not None and len(rows) >= max_runs:
             truncated = True
@@ -225,7 +229,8 @@ def _fetch_timestamp_ties(release, variants, since, oldest, upper, max_runs, see
 
     Sippy has no offset, so `timestamp < oldest` alone would drop the rest of
     that tie. This asks for `oldest` inclusive up to the next newer timestamp.
-    With a run budget, one request uses the remaining budget. Without one, the
+    With a run budget, one request asks for the remaining budget plus the tied
+    runs already collected, since Sippy returns those again. Without one, the
     limit doubles until Sippy returns a short page (the whole tie). A full page
     with no unseen runs means Sippy will not return more, so the result is
     reported as truncated. Returns True when the scan is truncated.
@@ -238,7 +243,8 @@ def _fetch_timestamp_ties(release, variants, since, oldest, upper, max_runs, see
     if room is not None:
         if room <= 0:
             return True
-        batch = fetch_runs(release, tie_filter, room)
+        already = sum(1 for row in rows if parse_timestamp(row.get("timestamp", "")) == oldest)
+        batch = fetch_runs(release, tie_filter, room + already)
         if not batch:
             return False
         _oldest, truncated = _take_unseen(batch, seen, rows, max_runs)

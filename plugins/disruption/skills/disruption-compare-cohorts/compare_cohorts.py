@@ -228,7 +228,10 @@ def load_cohorts(args):
                     notes.append("Run %s (%s) has no %s; analyze it with disruption-analyze-run first."
                                  % (bid, side, path))
                     continue
-                cohort_runs[side][bid] = _load(path)
+                try:
+                    cohort_runs[side][bid] = _load(path)
+                except CompareError as e:
+                    notes.append("Run %s (%s) was skipped: %s. Re-run disruption-analyze-run for it." % (bid, side, e))
     for side, runs in cohort_runs.items():
         if not runs:
             raise CompareError("the %s cohort has no parsed run" % side)

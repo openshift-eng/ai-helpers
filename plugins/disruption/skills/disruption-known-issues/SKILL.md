@@ -10,7 +10,7 @@ This skill answers **is this already tracked**. It classifies every candidate ca
 ## Prerequisites
 
 1. **Jira access** through the Atlassian MCP tools (`searchJiraIssuesUsingJql`, `getJiraIssue`). If they are unavailable or authentication fails, say "Jira search skipped (MCP unavailable)" and stop; the rest of the investigation does not depend on Jira.
-2. **Python 3.7+.**
+2. **Python 3.7+.** The fix check (8.1.1 in `references/known-issues.md`) also needs network access to `sippy.dptools.openshift.org` and the gcloud CLI for anonymous reads from the public `test-platform-results-public` bucket, because it runs the `disruption-trend` and `disruption-analyze-run` scripts.
 3. **The `disruption_common` library**: the `disruption` plugin's `scripts/disruption_common`, installed with the plugin. If it is missing, the scripts exit and say so. Report the message; do not work around it.
 
 The scripts are in this skill's directory: `${CLAUDE_SKILL_DIR}` in Claude Code, or the directory containing this `SKILL.md` elsewhere.

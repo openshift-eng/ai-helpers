@@ -65,14 +65,17 @@ def test_main_reads_cohorts_from_state_and_records_the_comparison(tmp_path, caps
         for bid, parsed in side.items():
             (runs_dir / bid).mkdir(parents=True)
             (runs_dir / bid / "parsed.json").write_text(json.dumps(parsed))
+    (runs_dir / "8").mkdir()
+    (runs_dir / "8" / "parsed.json").write_text("")
     state_file = tmp_path / "investigation.json"
     state_file.write_text(json.dumps({"cohorts": {
         "before": [{"prow_id": "1"}, {"prow_id": "2"}, {"prow_id": "3"}],
-        "after": [{"prow_id": "4"}, {"prow_id": "5"}, {"prow_id": "6"}, {"prow_id": "7"}]}}))
+        "after": [{"prow_id": "4"}, {"prow_id": "5"}, {"prow_id": "6"}, {"prow_id": "7"}, {"prow_id": "8"}]}}))
     assert cc.main(["--state-file", str(state_file), "--runs-dir", str(runs_dir)]) == 0
     out = capsys.readouterr().out
     assert "before: 3 run(s), after: 3 run(s)" in out
     assert "Run 7 (after) has no" in out
+    assert "Run 8 (after) was skipped: cannot read parser output" in out
     assert "degraded or unreliable in 6" in out
     saved = json.loads(state_file.read_text())
     assert saved["cohorts"]["before"][0]["prow_id"] == "1"
