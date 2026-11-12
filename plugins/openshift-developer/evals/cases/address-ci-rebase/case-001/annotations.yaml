@@ -1,6 +1,0 @@
-expected_decision: rebase
-expected_local_tip_trusted: true
-expected_rollback_target: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-expected_publish_mode: pipeline_explicit_lease
-expected_lease_expectation: refs/heads/fix-apm:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-notes: Trusted same-workflow local review commits may be rebased and must be the rollback target.

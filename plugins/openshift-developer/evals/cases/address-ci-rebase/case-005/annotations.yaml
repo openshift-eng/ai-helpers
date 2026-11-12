@@ -1,6 +1,0 @@
-expected_decision: restore_failed
-expected_local_tip_trusted: true
-expected_rollback_target: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-expected_publish_mode: none
-expected_lease_expectation: null
-notes: Failed verification restores the actual pre-rebase local tip, preserving review commits.

@@ -1,8 +1,0 @@
-{
-  "decision": "refuse",
-  "local_tip_trusted": false,
-  "rollback_target": null,
-  "publish_mode": "none",
-  "lease_expectation": null,
-  "rationale": "Descendant ancestry and a familiar author or message are insufficient provenance. Without an explicit same-workflow guarantee or inspection of every local commit and its full diff, the skill must not rewrite or publish this history."
-}

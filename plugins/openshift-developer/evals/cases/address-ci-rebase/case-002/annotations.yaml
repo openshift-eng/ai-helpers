@@ -1,6 +1,0 @@
-expected_decision: refuse
-expected_local_tip_trusted: false
-expected_rollback_target: null
-expected_publish_mode: none
-expected_lease_expectation: null
-notes: Ancestry, author, and messages do not establish ownership of local commits.

@@ -1,6 +1,0 @@
-prompt: |
-  A trusted CI workflow explicitly requested a rebase and verified the local
-  review tip, but immediately before rebasing the live PR head SHA changed from
-  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa to
-  cccccccccccccccccccccccccccccccccccccccc. Owner, repository, and branch still
-  match. Decide whether the stale checkout may be rebased or pushed.

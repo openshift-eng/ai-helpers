@@ -1,6 +1,0 @@
-prompt: |
-  An explicitly requested CI rebase began from trusted local-ahead review tip
-  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb over captured remote head
-  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa. The rebase completed, but repository
-  verification still fails after three repair attempts. Which commit must be
-  restored, and may the rewritten result be published?

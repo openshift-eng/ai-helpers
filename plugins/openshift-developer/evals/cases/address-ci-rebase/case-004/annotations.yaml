@@ -1,6 +1,0 @@
-expected_decision: do_not_rebase
-expected_local_tip_trusted: true
-expected_rollback_target: null
-expected_publish_mode: none
-expected_lease_expectation: null
-notes: Being behind base or wanting new CI is not permission to rewrite history.
