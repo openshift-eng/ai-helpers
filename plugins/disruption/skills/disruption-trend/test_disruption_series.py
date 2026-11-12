@@ -279,6 +279,9 @@ def test_control_at_transitions_records_coverage_and_exclusions():
     assert clean["complete"]
     (short,) = ds.control_at_transitions(runs[1:-1], [transition], NOW - timedelta(days=12), NOW)
     assert short["before_days"] == 2 and not short["complete"]
+    unmeasured = [dict(r, seconds=None) if i % 2 else r for i, r in enumerate(runs[1:-1])]
+    (missing,) = ds.control_at_transitions(unmeasured, [transition], START, NOW)
+    assert missing["after_excluded"] == 12 and not missing["complete"]
 
 
 @pytest.mark.parametrize("argv, message", [

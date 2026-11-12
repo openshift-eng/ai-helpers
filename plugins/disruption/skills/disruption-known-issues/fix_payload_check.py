@@ -153,6 +153,9 @@ def check_fix(runs, fix_payload, signature_ids=None, scanned_ids=None):
     if fix_time is None:
         raise ValueError("cannot read a timestamp from payload %r" % fix_payload)
     fix_release = payload_release(fix_payload)
+    if fix_release is None:
+        # Without a release the check could not leave out other releases' runs.
+        raise ValueError("cannot read an X.Y release from payload %r" % fix_payload)
     finder_input = any("disruption_backends" in run for run in runs)
     by_day, before, after = {}, [], []
     no_data = untagged = liveness = 0
@@ -171,7 +174,7 @@ def check_fix(runs, fix_payload, signature_ids=None, scanned_ids=None):
             untagged += 1
             continue
         release = payload_release(tag)
-        if fix_release and release and release != fix_release:
+        if release and release != fix_release:
             # Build times of another release's payloads say nothing about whether they contain the fix.
             other_release[release] = other_release.get(release, 0) + 1
             continue

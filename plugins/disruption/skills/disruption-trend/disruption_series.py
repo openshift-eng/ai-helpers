@@ -803,7 +803,7 @@ def control_at_transitions(runs, transitions, window_start, now, side_days=CONTR
     overall stats, so "did the control move at the same time?" has numbers. Each side
     also records the days the control window actually covers (a transition near the
     window's start or end has less than side_days) and how many runs were excluded
-    (lost or liveness-unreliable). `complete` is False when a side is short or its
+    (lost, liveness-unreliable, or with no measurement for the backends). `complete` is False when a side is short or its
     exclusions exceed DEGRADED_LOST_FRACTION; such a comparison cannot show a flat control.
     """
     side = timedelta(days=side_days)
@@ -816,9 +816,10 @@ def control_at_transitions(runs, transitions, window_start, now, side_days=CONTR
                  ("after", lambda ts: at <= ts <= at + side, now - at))
         for name, within, edge in sides:
             inside = [r for r in runs if within(sippy.parse_timestamp(r["timestamp"]))]
-            excluded = sum(1 for r in inside if r.get("fetch_failed") or r.get("liveness_unreliable"))
             usable = [r["seconds"] for r in inside if r.get("seconds") is not None and not r.get("fetch_failed")
                       and not r.get("liveness_unreliable")]
+            # A run with no measurement is as unknown as a lost one: it counts against completeness too.
+            excluded = len(inside) - len(usable)
             days = round(max(0.0, min(side, edge).total_seconds() / 86400.0), 1)
             row[name] = summarize(usable)
             row["%s_days" % name] = days

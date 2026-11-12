@@ -85,13 +85,17 @@ _UNITS = {"OVSVswitchdLog": "max poll ms", "CPUMonitor": "nodes >95% CPU"}
 def _source_signals(source, value):
     """(name, unit, size) for each signal of one context source in one run.
 
-    CloudMetrics gives one signal per metric: its metrics have different units
-    (IOPS percentage, queue depth), so one maximum across them would hide a
-    metric that appears only in one cohort.
+    CloudMetrics gives two signals per metric, its maximum and its warning
+    count: its metrics have different units (IOPS percentage, queue depth), so
+    one maximum across them would hide a metric that appears only in one cohort,
+    and a maximum alone would hide a metric that fires far more often.
     """
     if source == "CloudMetrics":
-        return [("CloudMetrics %s" % metric, "max value", info.get("max_value") or 0)
-                for metric, info in sorted((value.get("metrics") or {}).items())]
+        signals = []
+        for metric, info in sorted((value.get("metrics") or {}).items()):
+            signals.append(("CloudMetrics %s" % metric, "max value", info.get("max_value") or 0))
+            signals.append(("CloudMetrics %s" % metric, "warnings", info.get("count") or 0))
+        return signals
     return [(source, _UNITS.get(source, "events"), _size(source, value))]
 
 

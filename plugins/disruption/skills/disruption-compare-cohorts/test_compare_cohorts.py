@@ -66,6 +66,16 @@ def test_cloud_metrics_are_one_signal_per_metric():
     assert _row(rows, "CloudMetrics OS Disk Queue Depth (max value)")["suggested"] == "new"
 
 
+def test_cloud_metrics_compare_warning_counts_as_well_as_maxima():
+    before = {"metrics": {"OS Disk IOPS Consumed Percentage": {"max_value": 90, "count": 1}}}
+    after = {"metrics": {"OS Disk IOPS Consumed Percentage": {"max_value": 90, "count": 100}}}
+    cohorts = {"before": {str(i): dict(_parsed(), run_context={"CloudMetrics": before}) for i in (1, 2, 3)},
+               "after": {str(i): dict(_parsed(disruptions=2), run_context={"CloudMetrics": after}) for i in (4, 5, 6)}}
+    rows, _ = cc.build_matrix(cohorts)
+    assert _row(rows, "CloudMetrics OS Disk IOPS Consumed Percentage (max value)")["suggested"] == "pre-existing, similar"
+    assert _row(rows, "CloudMetrics OS Disk IOPS Consumed Percentage (warnings)")["suggested"] == "more in after"
+
+
 def test_suggest_covers_less_and_before_only():
     assert cc.suggest({"runs": 3, "of": 3, "median": 10}, {"runs": 1, "of": 3, "median": 0}) == "less in after"
     assert cc.suggest({"runs": 2, "of": 3, "median": 4}, {"runs": 0, "of": 3, "median": 0}) == "before only"

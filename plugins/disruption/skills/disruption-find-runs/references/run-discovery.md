@@ -266,8 +266,9 @@ pick runs from other backends instead.
 
 ## 3. Convert Selections to Prow URLs
 
-Re-run `find_disruption_runs.py` with `--format json`, the same `--grafana-url` or `--alert-file`, and the same
-`--backend` override as the last table run, to get machine-readable output with `url` fields. The rerun can
+Re-run `find_disruption_runs.py` with `--format json` and the same series input as the last table run, to get machine-readable output with `url` fields. Repeat that input exactly: the same `--grafana-url`, `--alert-file`, or
+`--alert-text`, or the same explicit `--release`, `--backend`, `--platform`, `--upgrade-type`, `--architecture`,
+`--topology`, and `--network`; plus any `--backend` override and `--since-hours`. The rerun can
 order rows differently (the window moves and Sippy refreshes), so match each selected run by its build ID
 (`prow_id`), never by row number, and take that row's `url`. If a selected run is not in the JSON output,
 say so; do not substitute another row. For

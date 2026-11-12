@@ -90,6 +90,8 @@ def test_check_fix_warns_when_one_side_is_empty_and_input_is_the_finder():
 def test_check_fix_rejects_a_fix_payload_without_a_timestamp():
     with pytest.raises(ValueError, match="cannot read a timestamp"):
         check_fix([], "5.1.0")
+    with pytest.raises(ValueError, match="cannot read an X.Y release"):
+        check_fix([], "mistyped-2026-11-06-043907")
 
 
 def test_check_fix_leaves_out_runs_of_another_release():
