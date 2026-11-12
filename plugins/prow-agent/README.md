@@ -60,17 +60,21 @@ script sums across all result messages.
 (inline CSS, no scripts) so the Prow Spyglass `html` lens can show it on the
 job page. It uses only the Python standard library.
 
+Usage: `markdown_to_html.py [--title TITLE] INPUT.md OUTPUT.html`
+
 ```bash
 MARKDOWN_TO_HTML="/opt/ai-helpers/plugins/prow-agent/scripts/markdown_to_html.py"
 
-python3 "${MARKDOWN_TO_HTML}" [--title TITLE] report.md "${ARTIFACT_DIR}/report-summary.html"
+python3 "${MARKDOWN_TO_HTML}" report.md "${ARTIFACT_DIR}/report-summary.html"
+python3 "${MARKDOWN_TO_HTML}" --title "Triage report" report.md "${ARTIFACT_DIR}/report-summary.html"
 ```
 
 - The title defaults to the input file name.
 - Exit status is 0 on success, 1 when the input cannot be read or the output
   cannot be written, and 2 for usage errors. On failure no output file is
   created or replaced; writes go through a temporary file in the output
-  directory.
+  directory. A replaced output file keeps its permissions; a new one gets the
+  default mode from the umask.
 - The html lens only picks up artifacts whose path matches one of its
   configured patterns (in openshift/release
   `core-services/prow/02_config/_config.yaml`, for example `.*-summary.*\.html`),
@@ -83,10 +87,14 @@ Markdown engine:
 
 - ATX headings (`#` to `######`), paragraphs, horizontal rules (`---`, `***`, `___`)
 - `**bold**`, `*emphasis*` and `` `code` `` spans
-- fenced code blocks (` ``` `)
+- fenced code blocks (` ``` ` or longer); the closing fence is at least as long
+  as the opening one and alone on its line
 - pipe tables with a header separator row; `\|` is a literal pipe in a cell
-- flat `-`/`*`/`+` and `1.`/`1)` lists (continuation lines are joined), single-level `>` quotes
-- `[text](https://...)` links and bare `http://`/`https://` URLs
+- flat `-`/`*`/`+` and `1.`/`1)` lists (continuation lines are joined; a list
+  ends at a blank line or a heading, fence, rule, quote or table), single-level
+  `>` quotes
+- `[text](https://...)` links and bare `http://`/`https://` URLs; trailing
+  punctuation and an unbalanced closing parenthesis stay outside a bare link
 
 Anything else is shown as escaped text. Nested lists, images, HTML passthrough,
 setext headings and table column alignment are not supported.

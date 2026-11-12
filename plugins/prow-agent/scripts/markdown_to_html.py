@@ -10,10 +10,13 @@ This is a deliberately small renderer, not a full Markdown engine. Supported:
 
 - ATX headings (# to ######), paragraphs, horizontal rules
 - **bold**, *emphasis* and `code` spans
-- fenced code blocks (```)
+- fenced code blocks (``` or longer; the closing fence is at least as long as
+  the opening one and alone on its line)
 - pipe tables with a header separator row (an escaped \\| is a literal pipe)
-- flat -/*/+ and 1./1) lists, single-level > quotes
-- [text](https://...) links and bare http(s):// URLs
+- flat -/*/+ and 1./1) lists that end at a blank line or another block,
+  single-level > quotes
+- [text](https://...) links and bare http(s):// URLs (trailing punctuation and
+  an unbalanced closing parenthesis stay outside the link)
 
 All text is HTML-escaped, and every escaped "<" is followed by an empty HTML
 comment so that it stays text even where the page is embedded in an iframe
@@ -27,13 +30,15 @@ Usage:
 
 The title defaults to the input file name. Exit status is 0 on success, 1 when
 the input cannot be read or the output cannot be written (no output file is
-created or replaced then), and 2 for usage errors.
+created or replaced then), and 2 for usage errors. A replaced output file keeps
+its permissions; a new one gets the default mode from the umask.
 """
 
 import argparse
 import html
 import os
 import re
+import stat
 import sys
 import tempfile
 
@@ -58,6 +63,17 @@ _TITLE_UNSAFE = re.compile(r"[<>&\"'\x00-\x1f\x7f]")
 _SAFE_LT = "&lt;<!---->"
 
 DEFAULT_TITLE = "Report"
+
+# Characters that end a sentence rather than a URL when they trail a bare link.
+_URL_TRAILING = ".,:;!?*_~'\""
+# An HTML character reference at the end of (escaped) text.
+_TRAILING_ENTITY = re.compile(r"&(?:[A-Za-z]+|#[0-9]+|#[xX][0-9A-Fa-f]+);$")
+_MAX_ENTITY_LENGTH = 40
+
+_FENCE = re.compile(r"^`{3,}")
+_TABLE_SEPARATOR = re.compile(r"^\|?\s*:?-{2,}")
+_HEADING = re.compile(r"^#{1,6}\s")
+_RULE = re.compile(r"^(-{3,}|\*{3,}|_{3,})$")
 
 # Explicit colours for both schemes: Prow shows the page in a transparent
 # iframe, so without a background the job page's own (often dark) theme shows
@@ -90,6 +106,33 @@ def safe_title(title):
     return cleaned or DEFAULT_TITLE
 
 
+def split_bare_url(url):
+    """Split a bare URL into the link target and trailing text that is not part of it.
+
+    The URL is HTML-escaped already. Sentence punctuation, an unbalanced ")"
+    and an escaped ">" at the end stay outside the link; other character
+    references (such as &amp;) are kept whole.
+    """
+    end = len(url)
+    opened, closed = url.count("("), url.count(")")
+    while end:
+        # Character references are short, so only a bounded window is searched.
+        entity = _TRAILING_ENTITY.search(url, max(0, end - _MAX_ENTITY_LENGTH), end)
+        last = url[end - 1]
+        if entity:
+            if entity.group(0) != "&gt;":
+                break
+            end = entity.start()
+        elif last in _URL_TRAILING:
+            end -= 1
+        elif last == ")" and opened < closed:
+            end -= 1
+            closed -= 1
+        else:
+            break
+    return url[:end], url[end:]
+
+
 def inline(t):
     """Render inline Markdown (code, links, bold, emphasis) in escaped text."""
     codes = []
@@ -106,10 +149,16 @@ def inline(t):
         links.append('<a href="%s">%s</a>' % (href.replace('"', "%22"), inert(text)))
         return "\x01%d\x01" % (len(links) - 1)
 
+    def bare_link(m):
+        url, rest = split_bare_url(m.group(0))
+        if url.endswith("://"):
+            return m.group(0)
+        return link(url, url) + rest
+
     # Link targets stop at the placeholder bytes, so a code span or link next to
     # a URL can never end up inside an href.
     t = re.sub(r"\[([^\]]+)\]\((https?://[^)\s\x00\x01]+)\)", lambda m: link(m.group(2), m.group(1)), t)
-    t = re.sub(r"https?://[^\s<)\]\x00\x01]+", lambda m: link(m.group(0), m.group(0)), t)
+    t = re.sub(r"https?://[^\s<\]\x00\x01]+", bare_link, t)
     t = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", t)
     t = re.sub(r"(?<![\w*])\*([^*\s][^*]*?)\*(?![\w*])", r"<em>\1</em>", t)
     t = inert(t)
@@ -127,6 +176,14 @@ def cells(row):
     return [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", row)]
 
 
+def starts_block(lines, i):
+    """True when lines[i] starts a heading, fence, rule, quote or table."""
+    s = lines[i].strip()
+    return bool(
+        _HEADING.match(s) or _FENCE.match(s) or _RULE.match(s) or s.startswith(">")
+        or (s.startswith("|") and i + 1 < len(lines) and _TABLE_SEPARATOR.match(lines[i + 1].strip())))
+
+
 def render_body(text):
     """Render the Markdown text as a sequence of HTML block elements."""
     lines = _CONTROL_CHARS.sub("", text).splitlines()
@@ -139,24 +196,27 @@ def render_body(text):
 
     while i < len(lines):
         s = lines[i].strip()
-        if s.startswith("```"):
+        fence = _FENCE.match(s)
+        if fence:
             flush()
             i += 1
             code = []
-            while i < len(lines) and not lines[i].strip().startswith("```"):
+            # The closing fence is at least as long as the opening one, with nothing after it.
+            closer = re.compile(r"^`{%d,}$" % len(fence.group(0)))
+            while i < len(lines) and not closer.match(lines[i].strip()):
                 code.append(lines[i])
                 i += 1
             body.append("<pre><code>%s</code></pre>" % inert(html.escape("\n".join(code))))
         elif not s:
             flush()
-        elif re.match(r"^#{1,6}\s", s):
+        elif _HEADING.match(s):
             flush()
             n = len(s) - len(s.lstrip("#"))
             body.append("<h%d>%s</h%d>" % (n, inline(s[n:].strip()), n))
-        elif re.match(r"^(-{3,}|\*{3,}|_{3,})$", s):
+        elif _RULE.match(s):
             flush()
             body.append("<hr>")
-        elif s.startswith("|") and i + 1 < len(lines) and re.match(r"^\|?\s*:?-{2,}", lines[i + 1].strip()):
+        elif s.startswith("|") and i + 1 < len(lines) and _TABLE_SEPARATOR.match(lines[i + 1].strip()):
             flush()
             head = cells(s)
             i += 2
@@ -177,7 +237,7 @@ def render_body(text):
                 m = re.match(r"^([-*+]|\d+[.)])\s+(.*)$", t)
                 if m:
                     items.append(m.group(2))
-                elif items:
+                elif items and not starts_block(lines, i):
                     items[-1] += " " + t
                 else:
                     break
@@ -210,14 +270,19 @@ def render(text, title=DEFAULT_TITLE):
 def write_atomic(path, content):
     """Write content to path via a temporary file in the same directory."""
     directory = os.path.dirname(os.path.abspath(path))
-    umask = os.umask(0)
-    os.umask(umask)
+    # Keep the permissions of a file being replaced; a new file gets the mode a
+    # plain open() would give it (mkstemp itself creates files 0600).
+    try:
+        mode = stat.S_IMODE(os.stat(path).st_mode)
+    except FileNotFoundError:
+        umask = os.umask(0)
+        os.umask(umask)
+        mode = 0o666 & ~umask
     fd, tmp = tempfile.mkstemp(prefix=".markdown-to-html-", suffix=".tmp", dir=directory)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
-        # mkstemp creates the file 0600; give it the mode a plain open() would.
-        os.chmod(tmp, 0o666 & ~umask)
+        os.chmod(tmp, mode)
         os.replace(tmp, path)
     except BaseException:
         try:

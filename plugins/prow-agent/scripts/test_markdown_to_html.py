@@ -93,6 +93,17 @@ class BlockTest(unittest.TestCase):
             body("```bash\n  echo <b> **x**\n```"),
             "<pre><code>  echo &lt;<!---->b&gt; **x**</code></pre>")
 
+    def test_fence_closes_only_on_a_matching_fence(self):
+        # A shorter fence inside a longer one is content.
+        self.assertEqual(
+            body("````\n```\ninner\n```\n````\nafter"),
+            "<pre><code>```\ninner\n```</code></pre>\n<p>after</p>")
+        # A fence followed by text is content; a longer fence or trailing spaces still close.
+        self.assertEqual(
+            body("```\ncode\n```python\nmore\n```  \nafter"),
+            "<pre><code>code\n```python\nmore</code></pre>\n<p>after</p>")
+        self.assertEqual(body("```\na\n`````\nb"), "<pre><code>a</code></pre>\n<p>b</p>")
+
     def test_unterminated_fence_runs_to_end(self):
         self.assertEqual(body("```\na\nb"), "<pre><code>a\nb</code></pre>")
 
@@ -118,6 +129,20 @@ class BlockTest(unittest.TestCase):
     def test_list_continuation_lines(self):
         self.assertEqual(body("- a\n  continued\n- b"), "<ul><li>a continued</li><li>b</li></ul>")
 
+    def test_list_stops_at_the_next_block(self):
+        self.assertEqual(body("- item\n# Results\nDetails"),
+                         "<ul><li>item</li></ul>\n<h1>Results</h1>\n<p>Details</p>")
+        self.assertEqual(body("1. a\n```\nx\n```"), "<ol><li>a</li></ol>\n<pre><code>x</code></pre>")
+        self.assertEqual(body("- a\n> q"), "<ul><li>a</li></ul>\n<blockquote>q</blockquote>")
+        self.assertEqual(body("- a\n---"), "<ul><li>a</li></ul>\n<hr>")
+        self.assertEqual(
+            body("- a\n| h |\n|---|\n| 1 |"),
+            "<ul><li>a</li></ul>\n<table><thead><tr><th>h</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>")
+
+    def test_list_keeps_indented_and_lazy_continuation(self):
+        self.assertEqual(body("- a\n  indented\nlazy\n- b"), "<ul><li>a indented lazy</li><li>b</li></ul>")
+        self.assertEqual(body("- a\n| not a table"), "<ul><li>a | not a table</li></ul>")
+
     def test_blockquote(self):
         self.assertEqual(body("> one\n> **two**"), "<blockquote>one <strong>two</strong></blockquote>")
 
@@ -133,6 +158,38 @@ class InlineTest(unittest.TestCase):
             markdown_to_html.inline("[run](https://prow.example/view?a=1&b=2) http://h.example/x"),
             '<a href="https://prow.example/view?a=1&amp;b=2">run</a> '
             '<a href="http://h.example/x">http://h.example/x</a>')
+
+    def test_bare_url_leaves_trailing_punctuation_outside(self):
+        cases = {
+            "See https://e.example/report.": 'See <a href="https://e.example/report">https://e.example/report</a>.',
+            "https://e.example/a?b=1!": '<a href="https://e.example/a?b=1">https://e.example/a?b=1</a>!',
+            "go to https://e.example/?a=1&b=2, then":
+                'go to <a href="https://e.example/?a=1&amp;b=2">https://e.example/?a=1&amp;b=2</a>, then',
+            'say "https://e.example/q"': 'say "<a href="https://e.example/q">https://e.example/q</a>"',
+            "**https://e.example/b**": '<strong><a href="https://e.example/b">https://e.example/b</a></strong>',
+            "https://e.example/?q=a&": '<a href="https://e.example/?q=a&amp;">https://e.example/?q=a&amp;</a>',
+            "https://.": "https://.",
+        }
+        for md, expected in cases.items():
+            with self.subTest(md=md):
+                self.assertEqual(markdown_to_html.inline(md), expected)
+
+    def test_long_trailing_punctuation_is_split_in_linear_time(self):
+        url, rest = markdown_to_html.split_bare_url("https://e.example/x" + ".)" * 100000)
+        self.assertEqual(url, "https://e.example/x")
+        self.assertEqual(len(rest), 200000)
+
+    def test_bare_url_keeps_balanced_parentheses(self):
+        wiki = "https://en.wikipedia.org/wiki/Foo_(bar)"
+        self.assertEqual(markdown_to_html.inline(wiki + "."), '<a href="%s">%s</a>.' % (wiki, wiki))
+        self.assertEqual(markdown_to_html.inline("(%s)" % wiki), '(<a href="%s">%s</a>)' % (wiki, wiki))
+        self.assertEqual(markdown_to_html.inline("(see https://e.example/a)"),
+                         '(see <a href="https://e.example/a">https://e.example/a</a>)')
+
+    def test_angle_brackets_and_markdown_links_around_urls(self):
+        self.assertEqual(markdown_to_html.inline("<https://e.example/c>"),
+                         '&lt;<!----><a href="https://e.example/c">https://e.example/c</a>&gt;')
+        self.assertEqual(markdown_to_html.inline("[t](https://e.example/d)."), '<a href="https://e.example/d">t</a>.')
 
     def test_link_text_keeps_code_spans(self):
         self.assertEqual(
@@ -206,7 +263,7 @@ class EscapingTest(unittest.TestCase):
         # Attribute values are not parsed as markup, so hrefs keep the plain escape.
         text_html = re.sub(r'href="[^"]*"', "", rendered.split("<body>", 1)[1])
         self.assertNotRegex(text_html, r"&lt;(?!<!---->)")
-        self.assertIn('href="https://e.example/&lt;d&gt;"', rendered)
+        self.assertIn('href="https://e.example/&lt;d"', rendered)
 
     def test_placeholder_bytes_in_input_do_not_crash_or_reinject(self):
         md = "a \x000\x00 b \x011\x01 c `code` [l](https://e.example) \x7f\x1b[31m"
@@ -316,6 +373,18 @@ class CliTest(unittest.TestCase):
     def test_usage_error(self):
         r = self.run_cli()
         self.assertEqual(r.returncode, 2)
+
+    def test_replacing_output_keeps_its_mode(self):
+        src = self.write("in.md", "x")
+        for mode in (0o600, 0o640):
+            with self.subTest(mode=oct(mode)):
+                self.write("out.html", "previous")
+                os.chmod(self.path("out.html"), mode)
+                r = subprocess.run(["sh", "-c", 'umask 022 && exec "$0" "$1" "$2" "$3"',
+                                    sys.executable, SCRIPT, src, self.path("out.html")], capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(stat.S_IMODE(os.stat(self.path("out.html")).st_mode), mode)
+                self.assertIn("<p>x</p>", self.read("out.html"))
 
     def test_output_mode_follows_umask(self):
         src = self.write("in.md", "x")
