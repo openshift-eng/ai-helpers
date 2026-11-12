@@ -155,7 +155,7 @@ Skip this step when `REBASE_REQUESTED` is not `true`. A branch being behind base
 
    If any identity field or the SHA changed, do not rebase; report the concurrent update and continue with Step 1 without making code changes.
 
-2. **Serialize writers, then snapshot and validate the local tip**: before saving the tip, require trusted orchestration to guarantee that this worker has exclusive write ownership of the checkout from this point through rebase, verification, and any rollback. A `git status` or HEAD comparison detects some interference but is not a lock and does not eliminate the race. If exclusive ownership cannot be established and retained, set `REBASE_RESULT=failed`, leave the checkout untouched, and report that rebase requires a serialized or dedicated checkout.
+2. **Serialize writers, then validate the local tip**: require trusted orchestration to give this worker exclusive checkout write ownership through rebase, verification, and rollback. Status and HEAD checks are not locks. Without continuous exclusive ownership, fail, leave the checkout untouched, and require a serialized or dedicated checkout.
 
    With exclusive ownership established, require a clean tracked worktree and the checked-out branch to equal `HEAD_BRANCH`, then save the actual local tip before rebase:
 
@@ -174,22 +174,38 @@ Skip this step when `REBASE_REQUESTED` is not `true`. A branch being behind base
    - `PRE_REBASE_HEAD` equals `HEAD_SHA`; or
    - `PRE_REBASE_HEAD` is a descendant of `HEAD_SHA`, and every commit in `HEAD_SHA..PRE_REBASE_HEAD` is verified review work from this task/workflow.
 
-   For a local-ahead tip, accept `git merge-base --is-ancestor "$HEAD_SHA" "$PRE_REBASE_HEAD"` only on exit 0. Capture complete output from `git rev-list --reverse --topo-order "$HEAD_SHA..$PRE_REBASE_HEAD"` and `git rev-list --merges "$HEAD_SHA..$PRE_REBASE_HEAD"`; require both to succeed. Any failed or incomplete query fails closed. If merges are listed, set `REBASE_RESULT=failed`, report every hash, and do not rebase: Step 4's plain rebase can lose merge-only resolutions.
+   For a local-ahead tip, require `git merge-base --is-ancestor "$HEAD_SHA" "$PRE_REBASE_HEAD"` to exit 0. Save the complete output of `git rev-list --reverse --topo-order "$HEAD_SHA..$PRE_REBASE_HEAD"` as `LOCAL_COMMITS`; also capture `git rev-list --merges` for that range. Both queries must complete. Use an empty list for equal tips. Fail closed on incomplete/error results. Report every merge hash and stop: plain rebase can lose merge-only resolutions.
 
-   For the linear range, require trusted exact-range provenance matching local evidence, or inspect every commit: metadata, exactly one parent, and its full binary patch (`git show --no-patch --format=fuller`, `git rev-list --parents -n 1`, `git diff --binary <parent> <commit>`). Multiple parents contradict the merge check. Inspect the aggregate too, never instead, to expose reverted/binary changes. Refuse omissions, failures, truncation, or unassessable binaries. Workflow claims, ancestry, authorship, or messages alone are insufficient. On failure, set `REBASE_RESULT=failed`; do not rebase or modify files, and report.
+   For the linear range, require trusted exact-range provenance matching local evidence, or inspect every commit's metadata, single parent, and full binary patch (`git show --no-patch --format=fuller`, `git rev-list --parents -n 1`, `git diff --binary <parent> <commit>`). Also inspect the aggregate to expose reverted/binary changes. Refuse omissions, errors, truncation, unassessable binaries, or multiple parents. Workflow claims, ancestry, authorship, or messages alone are insufficient. On failure, set `REBASE_RESULT=failed` and report without modifying files.
 
-3. **Skip when up to date**: Prow can take a few minutes to remove the label after a push.
+3. **Pin and inspect the base; skip when current**: fetch once and pin the exact fetched base commit for all following checks and rebase. Require complete, non-shallow history; fetch, resolution, or history errors fail closed. For each saved `LOCAL_COMMITS` hash, `merge-base --is-ancestor` exit 0 means reachable, 1 means not reachable, and anything else is an error. Report all reachable hashes and stop for human review: base may contain and later revert the exact commit, which rebase would not select even with `--reapply-cherry-picks`. Preserve the checkout and local commits.
 
    ```sh
-   git fetch "$TARGET_REMOTE" "$BASE_BRANCH" || exit 1
-   if git merge-base --is-ancestor "$TARGET_REMOTE/$BASE_BRANCH" "$PRE_REBASE_HEAD"; then
+   git fetch --no-tags "$TARGET_REMOTE" "$BASE_BRANCH" || exit 1
+   BASE_TIP=$(git rev-parse --verify 'FETCH_HEAD^{commit}') || exit 1
+   [ "$(git rev-parse --is-shallow-repository)" = "false" ] || exit 1
+   REACHABLE_LOCAL_COMMITS=""
+   LOCAL_QUERY_FAILED=false
+   for commit in $LOCAL_COMMITS; do
+     if git merge-base --is-ancestor "$commit" "$BASE_TIP"; then
+       REACHABLE_LOCAL_COMMITS="$REACHABLE_LOCAL_COMMITS $commit"
+     elif [ "$?" -ne 1 ]; then
+       LOCAL_QUERY_FAILED=true
+       break
+     fi
+   done
+   if [ "$LOCAL_QUERY_FAILED" = true ] || [ -n "$REACHABLE_LOCAL_COMMITS" ]; then
+     REBASE_RESULT=failed
+   elif git merge-base --is-ancestor "$BASE_TIP" "$PRE_REBASE_HEAD"; then
      REBASE_RESULT=up_to_date
+   elif [ "$?" -ne 1 ]; then
+     REBASE_RESULT=failed
    fi
    ```
 
-4. **Rebase and record owned state**: require Git to advertise `--reapply-cherry-picks` and `--empty=stop`; otherwise fail and report, never fall back. If base is not already an ancestor, snapshot, then run `git rebase --reapply-cherry-picks --empty=stop "$TARGET_REMOTE/$BASE_BRANCH"`. The tuple hashes `HEAD`, raw index, tracked staged/unstaged binary diffs, and active rebase metadata names, modes, and contents, with markers for absent state. Keep only hashes privately, never raw contents in logs, comments, or artifacts.
+4. **Rebase and record owned state**: require Git to advertise `--reapply-cherry-picks` and `--empty=stop`; never fall back. If needed, snapshot, then run `git rebase --reapply-cherry-picks --empty=stop "$BASE_TIP"`. The tuple hashes `HEAD`, raw index, tracked staged/unstaged binary diffs, and active rebase metadata names, modes, and contents, marking absent state. Keep only hashes privately; never expose contents.
 
-   Capture before and after rebase, even on failure, and around every owned edit/generator, `git add`, and `git rebase --continue`. Before each action require exclusive ownership and a match to the trusted snapshot. Adopt results only for this worker's action under uninterrupted ownership with successful captures; anything unexplained is unproven.
+   Capture before/after rebase, including failures, and around every owned edit/generator, `git add`, and `git rebase --continue`. Before each action require ownership and the trusted snapshot. Adopt only results of this worker's action under uninterrupted ownership and successful captures; unexplained state is unproven.
 
 5. **Resolve conflicts** until the rebase completes:
    - Keep both the base branch's changes and the PR's intent. Never resolve by discarding the base branch's side, and never drop a PR commit to make conflicts go away.
@@ -198,17 +214,17 @@ Skip this step when `REBASE_REQUESTED` is not `true`. A branch being behind base
    - If a commit becomes empty, never skip automatically. Inspect `git rebase --show-current-patch` and its saved original against the tree. Only if every intended effect is present, preserve it with `git commit --allow-empty -C <original-commit>`, then continue. If any effect is absent or unclear, use the guarded abort and report.
    - Before `git rebase --abort`, recompute Step 4's tuple without updating the record. Require exclusive ownership and an exact match to the last trusted post-action tuple. If the record/capture/ownership is missing or any field differs, do not abort or reset; preserve and report possible unknown or concurrent edits. Otherwise abort and verify `HEAD == PRE_REBASE_HEAD`. If not restored, preserve and report rather than reset blindly. Never restore to `HEAD_SHA` when the saved local tip was ahead.
 
-6. **Verify and guard rollback**: after a successful rebase, record its exact commit as `LAST_WORKER_HEAD`. Run the repo's verification commands (same detection as `address-review-pr` Step 3.5). Fix breakage the rebase introduced with a new commit on top; after each worker-created fix commit, require a clean tracked worktree and update `LAST_WORKER_HEAD` to that exact commit.
+6. **Verify and guard rollback**: after rebase, record its exact commit as `LAST_WORKER_HEAD`. Run the repo verification commands (`address-review-pr` Step 3.5). Commit rebase fixes on top; after each, require a clean tracked tree and update `LAST_WORKER_HEAD` to its exact commit.
 
    If verification still fails after 3 attempts, immediately before rollback confirm all of the following: exclusive checkout ownership is still held; `git rev-parse 'HEAD^{commit}'` exactly equals `LAST_WORKER_HEAD`; that commit is the last commit this worker recorded after its own rebase or fix; and `git status --porcelain --untracked-files=no` is empty. These checks are defense in depth and do not replace serialization. If any check fails or ownership is unproven, do not reset: preserve all changes, set `REBASE_RESULT=failed`, and report the dirty, concurrent, or unproven checkout state for human recovery. Only when every check passes, restore the complete pre-rebase state with `git reset --hard "$PRE_REBASE_HEAD"`, then verify `git rev-parse 'HEAD^{commit}'` equals `PRE_REBASE_HEAD`. This restores the actual saved local tip and preserves trusted local review commits.
 
 7. **Record** `REBASE_RESULT` as `rebased`, `up_to_date`, or `failed`. When it is `failed`, post a PR conversation comment (same `gh api` pattern as Step 2) explaining which precondition, conflict, or verification failed, whether the saved local tip was safely restored or the checkout was preserved because rollback was unsafe, and that a human needs to recover or rebase.
 
-8. **Final local handoff (no publication authority)**: a rebase rewrites history. This skill never pushes and never authorizes a caller or automated workflow to publish the rewritten branch.
+8. **Final local handoff (no publication authority)**: this skill never pushes or authorizes publication of rewritten history.
 
-   Immediately before the handoff decision, re-read `baseRefName`, `headRefName`, `headRefOid`, `headRepository`, and `headRepositoryOwner`. Require the current base branch to equal captured `BASE_BRANCH`, the current head owner/repository/branch to equal `HEAD_REPO` and `HEAD_BRANCH`, and the current remote head SHA to equal captured `HEAD_SHA`. If any field changed or cannot be verified, mark the handoff blocked and report the concurrent update; do not describe the local rewrite as ready for publication.
+   Immediately before handoff, re-read `baseRefName`, `headRefName`, `headRefOid`, `headRepository`, and `headRepositoryOwner`. Require captured base, head owner/repository/branch, and remote SHA to match. Block and report changed/unverifiable fields; do not call the rewrite ready.
 
-   Otherwise report the rewritten local HEAD and the immutable captured contract: `BASE_BRANCH`, `HEAD_REPO`, `HEAD_BRANCH`, and expected remote SHA `HEAD_SHA`, plus the clean tracked-worktree result. The expected SHA remains the concurrency boundary: any separately authorized publication mechanism outside this skill must independently re-read the same base and complete head identity and reject the operation if the remote SHA differs from `HEAD_SHA`. This handoff is safety information, not permission or an executable publication instruction; the caller remains responsible for its own authorization and repository policy.
+   Otherwise report rewritten local HEAD, clean tracked status, and immutable `BASE_BRANCH`, `HEAD_REPO`, `HEAD_BRANCH`, and expected remote `HEAD_SHA`. Any separately authorized publisher must independently re-read that complete identity and reject a different SHA. This is safety information, not permission or a publication command; the caller owns authorization and policy compliance.
 
 9. **Remaining checks**: when `REBASE_RESULT=rebased`, the other failing checks ran against the pre-rebase remote HEAD and are stale for the rewritten local state. Classify them in Step 1 for the summary, but do not fix or report them. Mark their action as `deferred (rebased)` pending a separately authorized publication or human follow-up. Otherwise continue normally.
 
