@@ -90,10 +90,89 @@ Jira returns content in different formats depending on API version and call para
 #### 1g. OCPSTRAT feature routing
 
 If the issue's project is `OCPSTRAT` and the issue type is `Feature`:
-1. Read [references/ocpstrat-feature.md](references/ocpstrat-feature.md) and follow its instructions.
-2. For all subsequent steps, the OCPSTRAT reference provides overrides. Continue with the steps below for any areas not covered by the reference.
 
-For **non-OCPSTRAT issues**, do not read the reference — continue with the generic flow.
+**Step 1: Check if Metal Platform-related**
+
+Determine if the feature is Metal Platform-related using this multi-factor matching approach:
+
+**Primary Check - Jira Labels:**
+First, check if the issue has **at least one** label that **exactly matches** one of these (case-insensitive, exact match only):
+- `metal`
+- `baremetal`
+- `bare-metal`
+- `metal3`
+- `ironic`
+- `bmc`
+
+**Matching rules:**
+- Exact match only - label must be identical to one in the list above (case-insensitive)
+- `metallb` does NOT match `metal` ❌
+- `kanban-metal` does NOT match `metal` ❌
+- `METAL` matches `metal` ✅ (case-insensitive)
+
+If **NO label match**, use **standard OCPSTRAT template** (labels are required as the primary gate).
+
+If **label matches**, proceed to confirmation checks:
+
+**Confirmation Check 1 - Jira Components:**
+Check if the issue has **at least one** of these components (exact match, case-insensitive):
+- `Metal`, `Metal3`, `Bare Metal`, `BareMetalHost`, `Ironic`, `Install`
+- `baremetal-operator`, `cluster-baremetal-operator`
+
+**If label + component both match**: Use **Metal template** (strong match)
+
+**If label matches but component has NO match**, proceed to:
+
+**Confirmation Check 2 - Free-text Keywords:**
+Check the issue **description** and **summary** for **2 or more** distinct keywords (case-insensitive):
+- `baremetal`, `bare metal`, `bare-metal`
+- `Metal3`, `metal3`
+- `Ironic`
+- `BMC`, `Redfish`, `IPMI`
+- `BareMetalHost`
+- `baremetal-operator`, `cluster-baremetal-operator`
+- `hardware inspection`, `hardware provisioning`
+
+**If label + 2+ free-text keywords**: Use **Metal template** (confirmed via keywords)
+**If label + <2 free-text keywords**: Use **standard OCPSTRAT template** (insufficient confirmation)
+
+**Matching Logic Summary:**
+- Label match required (primary gate)
+- Then require: Component match OR 2+ keyword matches (confirmation)
+- Formula: `Label AND (Component OR 2+ Keywords)` → Metal template
+
+**Ambiguous Match Handling:**
+- If multiple conflicting labels at same level (e.g., both `metal` AND `networking`), default to **standard OCPSTRAT template**
+- Document the ambiguity reason in the generated test plan's Background section
+
+**Examples:**
+
+*Matching (use Metal template):*
+- Label: `metal`, Component: `Install` → Metal template (label + component)
+- Label: `baremetal`, Component: `Metal` → Metal template (label + component)
+- Label: `metal3`, no component, description contains "Ironic deploy interface for BareMetalHost" → Metal template (label + 2 keywords: "Ironic", "BareMetalHost")
+- Label: `ironic`, Component: `baremetal-operator` → Metal template (label + component)
+
+*Non-matching (use standard OCPSTRAT template):*
+- No label with Metal keywords, Component: `Metal` → Standard template (no label match, fails primary gate)
+- Label: `metallb`, Component: `Networking` → Standard template (label does not exactly match - `metallb` ≠ `metal`)
+- Label: `networking`, Component: `Networking` → Standard template (no Metal label match)
+- Label: `metal`, Component: `Storage` (no Metal component), description contains only "bare metal" (1 keyword) → Standard template (label match but insufficient confirmation: no component match and only 1 keyword)
+- Label: `metal`, Component: `Install`, no keywords in description → Metal template (label + component, keywords not needed when component matches)
+- No labels, description contains "Ironic" and "BareMetalHost" → Standard template (fails primary gate: no label)
+
+*Ambiguous (default to standard OCPSTRAT, document reasoning):*
+- Labels: `metal` AND `networking` (both present) → Standard template (conflicting labels at same level)
+- Label: `metal`, Component: `Networking` AND `Storage`, description has "bare metal" and "virtual" → Standard template (label matches but conflicting components; note: if keywords ≥2, could use Metal template - check context)
+
+**Step 2: Apply appropriate template**
+
+- **If Metal Platform-related** (label + component OR label + 2+ keywords): Read [references/metal-ocpstrat-feature.md](references/metal-ocpstrat-feature.md) and follow its instructions. This provides a concise IEEE 829 template optimized for Metal Platform features.
+- **If NOT Metal Platform-related**: Read [references/ocpstrat-feature.md](references/ocpstrat-feature.md) and follow its instructions for the standard OCPSTRAT feature template.
+
+For all subsequent steps, the selected OCPSTRAT reference provides overrides. Continue with the steps below for any areas not covered by the reference.
+
+For **non-OCPSTRAT issues**, do not read any OCPSTRAT reference — continue with the generic flow.
 
 #### 1h. Unfilled-template detection
 
