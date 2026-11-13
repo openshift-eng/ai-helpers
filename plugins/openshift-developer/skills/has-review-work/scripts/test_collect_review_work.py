@@ -309,6 +309,7 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(authorize("member"))
         self.assertTrue(authorize("member"))
         self.assertTrue(authorize("coderabbitai[bot]"))
+        self.assertTrue(authorize("redhat-chai-bot"))
         self.assertFalse(authorize("unapproved[bot]"))
         owners.assert_called_once_with("org", "repo")
         member.assert_called_once_with("org", "member")
