@@ -1,0 +1,7 @@
+# Local repository registry (copy from repos.yaml.example).
+/repos.yaml
+
+# Skill-local Grype binary installed on demand.
+/bin/
+
+__pycache__/
