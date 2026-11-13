@@ -214,6 +214,248 @@
           "https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/test_details?..."
         ]
       }
+    },
+    {
+      "id": "c-prior-example",
+      "lineage": {
+        "first_seen_run": "2105...",
+        "supersedes": [],
+        "cycles_seen": 2
+      },
+      "fingerprint": {
+        "test_family": "[sig-storage] CSI volume snapshot restore",
+        "signature": "timed out waiting for the condition",
+        "labels": [],
+        "lane_family": "nightly-4.21-e2e-vsphere-ovn"
+      },
+      "members": {
+        "regression_ids": [
+          90001
+        ],
+        "new_since_baseline": [],
+        "views": [
+          "4.21-main"
+        ],
+        "components": [
+          "Storage / Kubernetes External Components"
+        ],
+        "unlinked": []
+      },
+      "shape": {
+        "regressions": 1,
+        "distinct_jobs": 1,
+        "platforms": [
+          "vsphere"
+        ],
+        "upgrade_lane": false,
+        "install_wrapper": false,
+        "mass_failure_marker": false,
+        "first_failure": "2026-09-27T03:12:00Z",
+        "last_failure": "2026-10-12T02:58:00Z",
+        "days_open": 16,
+        "growth_since_baseline": 0,
+        "lane_families": 1
+      },
+      "blast_radius": {
+        "level": "LOW",
+        "score": 0.12,
+        "reasons": [
+          "1 regression",
+          "1 distinct job",
+          "persisting 16d"
+        ]
+      },
+      "oracle": {
+        "status": "ok",
+        "runs_probed": 1,
+        "labels": {
+          "2110...": []
+        },
+        "label_bugs": {},
+        "error": null
+      },
+      "prior": {
+        "run_id": "2105...",
+        "observed_at": "2026-10-06T05:03:40Z",
+        "source_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/.../2105...",
+        "write_mode": "report",
+        "observation_complete": true,
+        "relationship": "same-id",
+        "sources": [
+          {
+            "run_id": "2105...",
+            "observed_at": "2026-10-06T05:03:40Z",
+            "cluster_id": "c-prior-example",
+            "history_only": false,
+            "unfinished": false,
+            "member_ids": [
+              90001
+            ],
+            "matched_member_ids": [
+              90001
+            ],
+            "fingerprint": {
+              "test_family": "[sig-storage] CSI volume snapshot restore",
+              "signature": "timed out waiting for the condition",
+              "labels": [],
+              "lane_family": "nightly-4.21-e2e-vsphere-ovn"
+            },
+            "shape": {
+              "regressions": 1,
+              "distinct_jobs": 1,
+              "platforms": [
+                "vsphere"
+              ],
+              "upgrade_lane": false,
+              "install_wrapper": false,
+              "mass_failure_marker": false,
+              "first_failure": "2026-09-27T03:12:00Z",
+              "last_failure": "2026-10-05T03:01:00Z",
+              "days_open": 9,
+              "growth_since_baseline": null,
+              "lane_families": 1
+            },
+            "blast_radius": {
+              "level": "LOW",
+              "score": 0.1,
+              "reasons": [
+                "1 regression",
+                "1 distinct job",
+                "persisting 9d"
+              ]
+            },
+            "oracle": {
+              "status": "ok",
+              "runs_probed": 1,
+              "labels": {
+                "2104...": []
+              },
+              "label_bugs": {}
+            },
+            "state": "UNEXPLAINED",
+            "analysis": {
+              "depth": "deep-dive",
+              "confidence": "high",
+              "owning_component": "Storage / Kubernetes External Components",
+              "triage_type": "test",
+              "unverified_hypotheses": [
+                "not proven: snapshot-controller restart inside the restore window"
+              ],
+              "root_cause": "Restore of a CSI snapshot never reaches ReadyToUse within the 10 min poll; the vSphere CNS task completes late. No product or test bug matches the exact assertion.",
+              "root_cause_truncated": false,
+              "evidence_refs": [
+                {
+                  "prowjob_run_id": "2104...",
+                  "supports_regression_ids": [
+                    90001
+                  ],
+                  "artifact": "gs://test-platform-results/logs/.../2104.../artifacts/e2e-vsphere-ovn/junit/junit_e2e.xml"
+                }
+              ],
+              "basis": {
+                "run_id": "2105...",
+                "cluster_id": "c-prior-example",
+                "observed_at": "2026-10-06T05:03:40Z",
+                "depth": "deep-dive"
+              }
+            },
+            "bug_search": {
+              "candidates": [
+                {
+                  "key": "OCPBUGS-100001",
+                  "status": "Closed",
+                  "release": "4.20.z",
+                  "cites_own_runs": false,
+                  "exact_assertion": false,
+                  "bar_met": false,
+                  "verdict": "reject",
+                  "caveat": "different assertion: snapshot create, not restore"
+                }
+              ],
+              "newer_release_fix": null
+            },
+            "proposed_action": {
+              "type": "none"
+            },
+            "actions": [],
+            "escalation": {
+              "required": false,
+              "reason": "not required",
+              "re_notify": false,
+              "re_notify_reasons": []
+            },
+            "unlinked": [],
+            "watch_list": [],
+            "unanalysed": []
+          }
+        ],
+        "member_delta": {
+          "added": [],
+          "removed": []
+        }
+      },
+      "disposition": {
+        "state": "UNEXPLAINED",
+        "analysis": {
+          "depth": "carried-forward",
+          "confidence": "high",
+          "owning_component": "Storage / Kubernetes External Components",
+          "sippy_components": [
+            "Storage / Kubernetes External Components"
+          ],
+          "triage_type": "test",
+          "root_cause": "Carried from 2105... (deep-dive): CSI snapshot restore never reaches ReadyToUse within the poll window; this week's own run shows the identical assertion and the incremental bug search since 2026-10-06 found no candidate.",
+          "evidence": [
+            {
+              "claim": "identical assertion in this week's failed run",
+              "prowjob_run_id": "2110...",
+              "artifact": "gs://test-platform-results/logs/.../2110.../artifacts/e2e-vsphere-ovn/junit/junit_e2e.xml",
+              "quote": "timed out waiting for the condition",
+              "supports_regression_ids": [
+                90001
+              ]
+            }
+          ],
+          "unverified_hypotheses": [
+            "not proven: snapshot-controller restart inside the restore window"
+          ],
+          "reverification": {
+            "source_run_id": "2105...",
+            "source_cluster_ids": [
+              "c-prior-example"
+            ],
+            "basis": {
+              "run_id": "2105...",
+              "cluster_id": "c-prior-example",
+              "observed_at": "2026-10-06T05:03:40Z",
+              "depth": "deep-dive"
+            },
+            "outcome": "carried",
+            "reason": "same own-test assertion on 2110...; no new or updated qualifying bug since 2026-10-06; LOW both weeks, no added members",
+            "checked_at": "2026-10-13T05:41:00Z",
+            "own_run_ids": [
+              "2110..."
+            ],
+            "lookup_locators": [
+              "https://issues.redhat.com/rest/api/2/search?jql=project%3DOCPBUGS%20AND%20updated%3E%3D2026-10-06%20AND%20text~%22snapshot%20restore%22"
+            ]
+          }
+        },
+        "bug_search": {
+          "candidates": [],
+          "newer_release_fix": null
+        },
+        "proposed_action": {
+          "type": "none"
+        }
+      },
+      "actions": [],
+      "escalation": {
+        "required": false,
+        "reason": "not required",
+        "re_notify": false,
+        "re_notify_reasons": []
+      }
     }
   ],
   "watch_list": [
