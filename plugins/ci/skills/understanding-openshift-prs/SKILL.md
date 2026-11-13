@@ -89,8 +89,8 @@ Each enrolled repo uses one of three trigger modes, configured in `openshift/rel
 | Mode | Config file | Second stage starts when |
 |------|-------------|--------------------------|
 | LGTM | `lgtm-config.yaml` (most enrolled `openshift` repos) | The `lgtm` label is added |
-| Automatic | `config.yaml` with `trigger: auto` | All first-stage jobs pass |
-| Manual | `config.yaml` without `auto` | Someone comments `/pipeline required` or `/test <job>` |
+| Automatic | `config.yaml` with `trigger: auto`, or no `mode.trigger` (the default) | All first-stage jobs pass |
+| Manual | `config.yaml` with explicit `trigger: manual` | Someone comments `/pipeline required` or `/test <job>` |
 
 Consequences to explain to users:
 
@@ -98,6 +98,7 @@ Consequences to explain to users:
 - **A push or rebase removes `lgtm`**, so in LGTM mode the second stage waits again for the new head. The bot's auto-rebase is a common cause of "everything went back to pending".
 - `/pipeline required` starts the full second-stage set now, without waiting for `lgtm` or first-stage success. It re-fires jobs that are already running.
 - `/pipeline remaining` starts only the second-stage jobs that have no run at the current head. Prefer it when some jobs already ran.
+- While Chai owns test selection (see below), the controller rejects `/pipeline required` and `/pipeline remaining`; they start nothing.
 - `/test ?` lists available jobs; `/pipeline help` lists pipeline commands.
 - A `ci/pipeline-gate` check stays pending until the second stage is dispatched. It goes green on dispatch, not when the tests pass.
 
@@ -107,9 +108,10 @@ In a few enrolled repos the pipeline controller hands second-stage selection to 
 
 - Chai reads the diff and posts a comment titled "Chai test selection for `<sha>` → `<branch>`", listing the jobs it chose, its reasoning, and a `/test` line that dispatches them.
 - **Only the jobs Chai selected run.** A missing e2e result is often by design, not a stuck job. Read Chai's reasoning before assuming something is broken.
-- Chai is triggered once per head SHA. Repeating `/pipeline required` on the same head does not re-trigger it; a new push does.
+- Chai is triggered once per head SHA. A new push re-triggers it; `/pipeline required` and `/pipeline remaining` are rejected while Chai owns selection.
 - If Chai does not respond within its timeout, the controller falls back to normal selection for that revision.
 - `/pipeline skip-agentic-mode` opts a PR out of Chai (persists across pushes); `/pipeline agentic-mode` opts back in.
+- If Chai responded but dispatch stalled, propose `/pipeline skip-agentic-mode` for user approval, then repeat `/pipeline remaining` (or `/pipeline required`) after the opt-out. Running tests are not cancelled.
 
 When verifying a fix in a Chai repo, check whether the jobs that would show the fix were selected. If not, propose a `/test <job>` comment for user approval rather than concluding the evidence does not exist.
 
