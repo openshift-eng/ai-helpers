@@ -10,16 +10,37 @@ History is one flat generation: when the latest attempt left a cluster
 unfinished, the useful snapshots it had itself inherited are retained as
 ``history_only`` context, never nested and never accumulated.
 
+Policies form compatibility families: ``post-ga`` and ``ga`` are one family, ``devel``
+is another, and memory never crosses a family. Under ``devel`` a cluster is one
+signature/window group whose ``members.coverage`` names the own runs it explains; ancestry
+is then shared (regression, run) pairs only -- never a cluster id, a lineage entry or a
+shared regression id -- and each source additionally carries its coverage, signature, the
+metadata of a new-bug proposal (the draft's hash and length, never its text) and symptom
+proposals, with ``prior.run_delta`` giving the pairs added and removed.
+
 Stdlib only; no network, no I/O, no write decisions. Historical JSON is copied
 opaquely (bounded root-cause prose aside); the agent and the manifest validator
 decide what a current carry may rely on.
 """
 import copy
+import hashlib
+import os
 import re
+import sys
 from datetime import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import coverage as cov  # noqa: E402
 
 SCHEMA_VERSION = '1.0'
 POLICY = 'post-ga'
+FAMILIES = {'post-ga': 'ga', 'ga': 'ga', 'devel': 'devel'}
+DEVEL = 'devel'
+MEMORY_VERSION = 1
+SUMMARY_LIMIT = 500
+PROPOSAL_KEYS = ('status', 'summary', 'component', 'triage_type', 'release_blocker', 'regression_ids')
+DEVEL_SOURCE_KEYS = ('coverage', 'signature', 'new_bug_proposal', 'symptom_proposals')
 ROOT_CAUSE_LIMIT = 2000
 RELATIONSHIPS = ('same-id', 'supersedes', 'split', 'merge', 'overlap')
 UNFINISHED_STATE = 'UNANALYSED'
@@ -34,11 +55,41 @@ SOURCE_KEYS = ('run_id', 'observed_at', 'cluster_id', 'history_only', 'unfinishe
 _ISO = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$')
 
 
-def compatible(baseline):
-    """The same meaning as prepass.diff_baseline: schema 1.0, post-ga policy, a cluster list."""
-    return (isinstance(baseline, dict) and baseline.get('schema_version') == SCHEMA_VERSION
-            and isinstance(baseline.get('policy'), dict) and baseline['policy'].get('name') == POLICY
-            and isinstance(baseline.get('clusters'), list))
+def family(name):
+    """'ga', 'devel' or None for an unknown policy name."""
+    return FAMILIES.get(name) if isinstance(name, str) else None
+
+
+def normalize_scope(scope):
+    """(sorted views, sorted components) for a {views, components} scope of strings, else None."""
+    if not isinstance(scope, dict):
+        return None
+    out = []
+    for k in ('views', 'components'):
+        v = scope.get(k)
+        if not isinstance(v, list) or any(not isinstance(x, str) or not x for x in v):
+            return None
+        out.append(tuple(sorted(set(v))))
+    return tuple(out) if out[0] else None
+
+
+def compatible(baseline, policy=POLICY, scope=None):
+    """Whether `baseline` may serve as memory for a run under `policy`: schema 1.0, a cluster list and a
+    policy of the same family. A devel baseline additionally needs memory_version 1 and a well-formed
+    scope; when `scope` is given it must equal the baseline's (order and duplicates ignored)."""
+    fam = family(policy)
+    if not (fam and isinstance(baseline, dict) and baseline.get('schema_version') == SCHEMA_VERSION
+            and isinstance(baseline.get('policy'), dict) and family(baseline['policy'].get('name')) == fam
+            and isinstance(baseline.get('clusters'), list)):
+        return False
+    if fam != DEVEL:
+        return True
+    pol = baseline['policy']
+    version = pol.get('memory_version')
+    if isinstance(version, bool) or version != MEMORY_VERSION:
+        return False
+    own = normalize_scope(pol.get('scope'))
+    return own is not None and (scope is None or normalize_scope(scope) == own)
 
 
 def is_id(x):
@@ -209,7 +260,49 @@ def _project_source(source, baseline, matched_member_ids):
     }
 
 
-def _retained_sources(source, current_ids):
+def _project_proposal(value):
+    """Metadata of a new-bug proposal: the draft stays in the baseline manifest, identified by hash and length."""
+    p = _dict(value)
+    if not p:
+        return None
+    out = {k: copy.deepcopy(p.get(k)) for k in PROPOSAL_KEYS}
+    if isinstance(out['summary'], str):
+        out['summary'] = out['summary'][:SUMMARY_LIMIT]
+    draft = p.get('draft')
+    readable = isinstance(draft, str) and draft != ''
+    try:
+        encoded = draft.encode('utf-8') if readable else None
+    except UnicodeError:
+        encoded, readable = None, False
+    out['draft_sha256'] = hashlib.sha256(encoded).hexdigest() if readable else None
+    out['draft_chars'] = len(draft) if readable else None
+    return out
+
+
+def _devel_fields(source):
+    """The devel additions to a projected immediate source."""
+    disp = _dict(source.get('disposition')) or {}
+    mem = _dict(source.get('members')) or {}
+    symptoms = disp.get('symptom_proposals')
+    return {'coverage': cov.normalized(mem.get('coverage')),
+            'signature': copy.deepcopy(_dict(source.get('signature'))),
+            'new_bug_proposal': _project_proposal(disp.get('new_bug_proposal')),
+            'symptom_proposals': copy.deepcopy(symptoms) if isinstance(symptoms, list) else None}
+
+
+def _retained_devel_fields(snap):
+    """The devel additions of a retained snapshot, re-projected: already metadata, never a draft."""
+    proposal = _dict(snap.get('new_bug_proposal'))
+    if proposal:
+        proposal = {k: copy.deepcopy(v) for k, v in proposal.items() if k != 'draft'}
+    symptoms = snap.get('symptom_proposals')
+    return {'coverage': cov.normalized(snap.get('coverage')),
+            'signature': copy.deepcopy(_dict(snap.get('signature'))),
+            'new_bug_proposal': proposal or None,
+            'symptom_proposals': copy.deepcopy(symptoms) if isinstance(symptoms, list) else None}
+
+
+def _retained_sources(source, current_ids, devel=False):
     """Flat history-only context behind an unfinished immediate source (Decision 7).
 
     `source` is an already projected immediate source whose baseline cluster carried its own
@@ -239,6 +332,8 @@ def _retained_sources(source, current_ids):
         seen.add(key)
         kept = _normalize_snapshot(snap, analysis, cid, current)
         kept['run_id'], kept['observed_at'] = key[0], key[1]
+        if devel:
+            kept.update(_retained_devel_fields(snap))
         out.append(kept)
     return out
 
@@ -277,16 +372,27 @@ def _normalize_snapshot(snap, analysis, cid, current):
     return kept
 
 
-def attach_priors(clusters, baseline):
-    """Set ``prior`` on every current cluster (None without usable memory); never mutates the baseline."""
-    if not compatible(baseline):
+def _pairs(cluster):
+    mem = cluster.get('members') if isinstance(cluster, dict) else None
+    return cov.pairs(mem.get('coverage')) if isinstance(mem, dict) else set()
+
+
+def attach_priors(clusters, baseline, policy=POLICY, scope=None):
+    """Set ``prior`` on every current cluster (None without usable memory); never mutates the baseline.
+
+    `policy` is the current run's policy; a baseline of another family (or, for devel, another memory
+    version or -- when `scope` is given -- another scope) attaches nothing. Under devel the ancestry key
+    is the (regression, run) pair from ``members.coverage``; zero-run placeholders match nothing."""
+    if not compatible(baseline, policy, scope):
         for c in clusters:
             c['prior'] = None
         return
+    devel = family(policy) == DEVEL
+    keys = _pairs if devel else member_ids
     base = {b['id']: b for b in baseline['clusters'] if isinstance(b, dict) and isinstance(b.get('id'), str)}
     by_member = {}
     for bid, b in base.items():
-        for rid in member_ids(b):
+        for rid in keys(b):
             by_member.setdefault(rid, set()).add(bid)
     identity = _identity(baseline)
     complete = _complete_views(baseline)
@@ -298,12 +404,13 @@ def attach_priors(clusters, baseline):
 
     def immediate_ids(c):
         found = set()
-        if c['id'] in base:
-            found.add(c['id'])
-        for sid in supersedes_of(c):
-            if sid in base:
-                found.add(sid)
-        for rid in member_ids(c):
+        if not devel:
+            if c['id'] in base:
+                found.add(c['id'])
+            for sid in supersedes_of(c):
+                if sid in base:
+                    found.add(sid)
+        for rid in keys(c):
             found |= by_member.get(rid, set())
         return sorted(found)
 
@@ -312,9 +419,9 @@ def attach_priors(clusters, baseline):
     # match (a same-id replacement population) is not one of its children
     successors = {}
     for c, ids in plans:
-        shared = set(member_ids(c))
+        shared = set(keys(c))
         for sid in ids:
-            if shared & set(member_ids(base[sid])):
+            if shared & set(keys(base[sid])):
                 successors[sid] = successors.get(sid, 0) + 1
 
     for c, source_ids in plans:
@@ -324,11 +431,11 @@ def attach_priors(clusters, baseline):
         current_ids = member_ids(c)
         if len(source_ids) > 1:
             relationship = 'merge'
-        elif successors.get(source_ids[0], 0) > 1 and set(current_ids) & set(member_ids(base[source_ids[0]])):
+        elif successors.get(source_ids[0], 0) > 1 and set(keys(c)) & set(keys(base[source_ids[0]])):
             relationship = 'split'
         elif source_ids[0] == c['id']:
             relationship = 'same-id'
-        elif source_ids[0] in supersedes_of(c):
+        elif not devel and source_ids[0] in supersedes_of(c):
             relationship = 'supersedes'
         else:
             relationship = 'overlap'
@@ -339,10 +446,12 @@ def attach_priors(clusters, baseline):
             union |= set(ids)
             projected = _project_source(b, baseline, [i for i in ids if i in set(current_ids)])
             projected['_embedded_prior'] = b.get('prior')
+            if devel:
+                projected.update(_devel_fields(b))
             sources.append(projected)
         retained = []
         for s in sources:
-            retained += _retained_sources(s, current_ids)
+            retained += _retained_sources(s, current_ids, devel)
             del s['_embedded_prior']
         seen = set()
         for s in list(retained):
@@ -360,6 +469,9 @@ def attach_priors(clusters, baseline):
             'member_delta': {'added': sort_ids(i for i in current_ids if i not in union),
                              'removed': sort_ids(i for i in union if i not in set(current_ids))},
         }
+        if devel:
+            now, was = _pairs(c), set().union(*(_pairs(base[sid]) for sid in source_ids))
+            c['prior']['run_delta'] = {'added': cov.from_pairs(now - was), 'removed': cov.from_pairs(was - now)}
 
 
 def unfinished_backlog(cluster):

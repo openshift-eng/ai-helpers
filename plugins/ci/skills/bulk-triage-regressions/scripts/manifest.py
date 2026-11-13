@@ -3,16 +3,34 @@
 
   manifest.py validate PATH
   manifest.py merge --prepass P --dispositions D --actions A --out M
+
+A document whose policy.name is "devel" is a development-memory manifest (still schema 1.0): its clusters
+are signature/window groups with members.coverage, and the additional rules in _rule_devel apply (inventory
+partition, evidence scoped to the cluster's own (regression, run) pairs, memory mode, NEW-BUG-NEEDED).
 """
 import argparse
 import copy
+import hashlib
 import json
+import os
 import sys
 from datetime import datetime
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import coverage as cov  # noqa: E402
+
 SCHEMA_VERSION = "1.0"
+DEVEL = "devel"
+MEMORY_VERSION = 1
+MEMORY_MODES = ("record", "reuse")
+NEW_BUG_STATE = "NEW-BUG-NEEDED"
+DEVEL_TOP_LLM = ("unanalysed",)
+DEVEL_PROTECTED_TOP = ("schema_version", "policy", "source_run", "observation", "baseline_run", "inventory", "proposal_drafts")
+DEVEL_PROTECTED_DISPOSITION = ("signature", "coverage", "members")
 LEVELS = ("HIGH", "ELEVATED", "LOW")
 STATES = ("KNOWN-CAUSE", "CANDIDATE", "UNEXPLAINED", "UNANALYSED")
+DEVEL_STATES = STATES + (NEW_BUG_STATE,)
 ACTION_TYPES = ("extend_triage", "create_triage", "catch_all", "none")
 ACTION_STATUS = ("planned", "done", "failed", "skipped-report-mode")
 JQL_AUDIT = ("pass", "fail", "unknown")
@@ -54,13 +72,17 @@ def _rule_level(w, c):
     return _enum(w, "blast_radius.level", br.get("level"), LEVELS)
 
 
-def _rule_disposition_state(w, c):
+def _rule_disposition_state(w, c, states=STATES):
     d = c.get("disposition")
     if "disposition" not in c:
         return []
     if not isinstance(d, dict):
         return ["%s: disposition must be an object" % w]
-    return _enum(w, "disposition.state", d.get("state"), STATES)
+    return _enum(w, "disposition.state", d.get("state"), states)
+
+
+def _rule_devel_disposition_state(w, c):
+    return _rule_disposition_state(w, c, DEVEL_STATES)
 
 
 def _evidence_items(c):
@@ -451,6 +473,17 @@ def _rule_carry_fact(p, source):
         if not isinstance(cands, list) or any(not _keyed(x, False) for x in cands):
             return ["%s: UNEXPLAINED carry needs a known source bug_search.candidates list that is empty or holds only"
                     " keyed bar_met-false records" % p]
+    elif state == NEW_BUG_STATE:
+        errs = []
+        if not isinstance(cands, list) or any(not _keyed(x, False) for x in cands):
+            errs.append("%s: NEW-BUG-NEEDED carry needs a known source bug_search.candidates list that is empty or"
+                        " holds only keyed bar_met-false records" % p)
+        proposal = source.get("new_bug_proposal")
+        if not isinstance(proposal, dict) or not isinstance(proposal.get("draft_sha256"), str) \
+                or not proposal.get("draft_sha256"):
+            errs.append("%s: NEW-BUG-NEEDED carry needs source new_bug_proposal metadata with a draft_sha256"
+                        " (a readable draft in the baseline)" % p)
+        return errs
     else:
         return ["%s: source state %r cannot be carried" % (p, state)]
     return []
@@ -639,12 +672,283 @@ CLUSTER_RULES = (_rule_missing, _rule_objects, _rule_level, _rule_disposition_st
                  _rule_action_subset_and_unlinked, _rule_actions, _rule_escalation, _rule_prior, _rule_reverification)
 
 
-def _cluster(c, idx):
+def _label(c, idx):
+    return "cluster %s" % (c["id"] if isinstance(c.get("id"), str) else "#%d" % idx)
+
+
+def _cluster(c, idx, devel=False):
     if not isinstance(c, dict):
         return ["cluster %d: expected object, got %s" % (idx, _t(c))]
-    w = "cluster %s" % (c["id"] if isinstance(c.get("id"), str) else "#%d" % idx)
+    w = _label(c, idx)
     errs = [] if isinstance(c.get("id"), str) and c["id"] else ["%s: id must be a non-empty string, got %s" % (w, _t(c.get("id")))]
-    return errs + [e for rule in CLUSTER_RULES for e in rule(w, c)]
+    rules = [_rule_devel_disposition_state if devel and r is _rule_disposition_state else r for r in CLUSTER_RULES]
+    return errs + [e for rule in rules for e in rule(w, c)]
+
+
+def _is_devel(doc):
+    pol = doc.get("policy") if isinstance(doc, dict) else None
+    return isinstance(pol, dict) and pol.get("name") == DEVEL
+
+
+def _str_list_ok(value, non_empty=False):
+    return (isinstance(value, list) and all(isinstance(x, str) and x for x in value)
+            and (bool(value) or not non_empty))
+
+
+def _rule_devel_policy(doc):
+    pol = doc.get("policy") if isinstance(doc.get("policy"), dict) else {}
+    errs = []
+    version = pol.get("memory_version")
+    if isinstance(version, bool) or version != MEMORY_VERSION:
+        errs.append("policy.memory_version: must be %d, got %r" % (MEMORY_VERSION, version))
+    errs += _enum("policy", "policy.memory_mode", pol.get("memory_mode"), MEMORY_MODES)
+    scope = pol.get("scope")
+    if not (isinstance(scope, dict) and _str_list_ok(scope.get("views"), non_empty=True)
+            and _str_list_ok(scope.get("components"))):
+        errs.append("policy.scope: must be {views: non-empty list of strings, components: list of strings}")
+    return errs
+
+
+def _devel_inventory(doc):
+    """(errors, {regression id: set of own run ids as text}, {regression id: required})."""
+    inventory = doc.get("inventory")
+    if not isinstance(inventory, list):
+        return ["inventory: expected list, got %s" % _t(inventory)], {}, {}
+    errs, runs, required = [], {}, {}
+    for i, r in enumerate(inventory):
+        p = "inventory[%d]" % i
+        if not isinstance(r, dict):
+            errs.append("%s: expected object, got %s" % (p, _t(r)))
+            continue
+        rid = r.get("id")
+        if not isinstance(rid, int) or isinstance(rid, bool):
+            errs.append("%s: id must be an integer regression id" % p)
+            continue
+        if rid in runs:
+            errs.append("%s: regression %s listed twice" % (p, rid))
+            continue
+        if not isinstance(r.get("required"), bool):
+            errs.append("%s: required must be a boolean" % p)
+        own = set()
+        if not isinstance(r.get("job_runs"), list):
+            errs.append("%s: job_runs must be a list" % p)
+        else:
+            for j, jr in enumerate(r["job_runs"]):
+                if not isinstance(jr, dict) or not _is_id(jr.get("prowjob_run_id")):
+                    errs.append("%s job_runs[%d]: missing prowjob_run_id" % (p, j))
+                else:
+                    own.add(str(jr["prowjob_run_id"]))
+        runs[rid] = own
+        required[rid] = r.get("required") is True
+    return errs, runs, required
+
+
+def _checked_pairs(c, own):
+    """(regression, run) pairs that current evidence on the checked `own` runs supports."""
+    return {(rid, run) for run, supported in _typed_evidence(c) if run in own for rid in supported}
+
+
+def _rule_devel_prior(w, c, pairs):
+    """The devel additions to the prior envelope: source coverage/signature/proposal metadata and an exact
+    run_delta; an immediate source must share a (regression, run) pair with the cluster."""
+    pr = c.get("prior")
+    if not isinstance(pr, dict):
+        return []
+    p = "%s prior" % w
+    errs, union, usable = [], set(), True
+    for i, s in enumerate(pr.get("sources") if isinstance(pr.get("sources"), list) else []):
+        if not isinstance(s, dict):
+            continue
+        q = "%s sources[%d]" % (p, i)
+        immediate = s.get("history_only") is False
+        if s.get("coverage") is not None or immediate:
+            probs = cov.problems(s.get("coverage"))
+            errs += ["%s: %s" % (q, e) for e in probs]
+            if immediate:
+                usable = usable and not probs
+                source_pairs = cov.pairs(s.get("coverage"))
+                union |= source_pairs
+                if not probs and not (source_pairs & pairs):
+                    errs.append("%s: immediate source shares no (regression, run) pair with this cluster" % q)
+        if s.get("signature") is not None and not isinstance(s.get("signature"), dict):
+            errs.append("%s: signature must be an object or null" % q)
+        if s.get("symptom_proposals") is not None and not isinstance(s.get("symptom_proposals"), list):
+            errs.append("%s: symptom_proposals must be a list or null" % q)
+        proposal = s.get("new_bug_proposal")
+        if proposal is not None and not isinstance(proposal, dict):
+            errs.append("%s: new_bug_proposal must be an object or null" % q)
+        elif isinstance(proposal, dict):
+            if "draft" in proposal:
+                errs.append("%s: new_bug_proposal must not carry the draft, only draft_sha256 and draft_chars" % q)
+            if proposal.get("draft_sha256") is not None and not isinstance(proposal.get("draft_sha256"), str):
+                errs.append("%s: new_bug_proposal.draft_sha256 must be a string or null" % q)
+            chars = proposal.get("draft_chars")
+            if chars is not None and (not isinstance(chars, int) or isinstance(chars, bool)):
+                errs.append("%s: new_bug_proposal.draft_chars must be an integer or null" % q)
+    delta = pr.get("run_delta")
+    if not isinstance(delta, dict):
+        return errs + ["%s: run_delta must be an object with added and removed coverage" % p]
+    for name, expected in (("added", pairs - union), ("removed", union - pairs)):
+        probs = cov.problems(delta.get(name))
+        if probs:
+            errs += ["%s: run_delta.%s: %s" % (p, name, e) for e in probs]
+        elif usable and (cov.pairs(delta[name]) != expected or cov.zero_ids(delta[name])):
+            errs.append("%s: run_delta.%s must be exactly the (regression, run) pairs %s the immediate sources"
+                        % (p, name, "of this cluster absent from" if name == "added"
+                           else "absent from this cluster but in"))
+    return errs
+
+
+def _rule_devel_carry(w, c, pairs):
+    """Beyond _rule_carry: the same non-empty signature as the sole immediate source and, when coverage
+    grew, current evidence for at least one added (regression, run) pair."""
+    an, rev = _reverification(c)
+    if an is None or not (an.get("depth") == CARRIED_DEPTH or (isinstance(rev, dict) and rev.get("outcome") == "carried")):
+        return []
+    pr = c.get("prior")
+    sources = pr.get("sources") if isinstance(pr, dict) and isinstance(pr.get("sources"), list) else []
+    immediate = [s for s in sources if isinstance(s, dict) and s.get("history_only") is False]
+    if len(immediate) != 1:
+        return []          # reported by _rule_carry
+    p = "%s reverification" % w
+    errs = []
+    if pr.get("relationship") != "same-id" or immediate[0].get("cluster_id") != c.get("id"):
+        errs.append("%s: devel carry requires same-id with the source cluster id unchanged" % p)
+    sig, old = c.get("signature"), immediate[0].get("signature")
+    same = isinstance(sig, dict) and isinstance(old, dict) and all(
+        isinstance(sig.get(k), str) and sig.get(k) and sig.get(k) == old.get(k) for k in ("stage", "discriminator"))
+    if not same:
+        errs.append("%s: carry requires the source signature (non-empty stage and discriminator) unchanged" % p)
+    added = pairs - cov.pairs(immediate[0].get("coverage"))
+    own = rev.get("own_run_ids") if isinstance(rev, dict) and isinstance(rev.get("own_run_ids"), list) else []
+    own = {r for r in own if isinstance(r, str)}
+    if added and not (added & _checked_pairs(c, own)):
+        errs.append("%s: coverage grew; carry requires current own-run evidence for at least one added"
+                    " (regression, run) pair, not only for retained runs" % p)
+    return errs
+
+
+def _rule_devel_cluster(w, c, runs, mode, observed=None):
+    mem = c.get("members") if isinstance(c.get("members"), dict) else {}
+    coverage = mem.get("coverage")
+    errs = ["%s: members.%s" % (w, e) for e in cov.problems(coverage)]
+    pairs = cov.pairs(coverage)
+    listed = cov.regression_ids(coverage)
+    if not errs and listed != _ids(mem.get("regression_ids")):
+        errs.append("%s: members.coverage regressions %s must equal members.regression_ids"
+                    % (w, sorted(listed)))
+    for rid in sorted(listed):
+        if rid not in runs:
+            errs.append("%s: coverage regression %s is not in the inventory" % (w, rid))
+            continue
+        foreign = sorted(run for r, run in pairs if r == rid and run not in runs[rid])
+        if foreign:
+            errs.append("%s: coverage runs %s are not listed own runs of regression %s" % (w, foreign, rid))
+        if rid in cov.zero_ids(coverage) and runs[rid]:
+            errs.append("%s: regression %s has listed runs; an empty placeholder is not allowed" % (w, rid))
+    sig = c.get("signature")
+    if not isinstance(sig, dict) or any(not isinstance(sig.get(k), str) for k in ("stage", "discriminator")):
+        errs.append("%s: signature must be an object with string stage and discriminator" % w)
+    d = c.get("disposition") if isinstance(c.get("disposition"), dict) else {}
+    state = d.get("state")
+    proposal = d.get("new_bug_proposal")
+    if isinstance(proposal, dict) and isinstance(proposal.get("draft"), str) and _utf8(proposal["draft"]) is None:
+        errs.append("%s: new_bug_proposal.draft must be valid UTF-8 text" % w)
+    if "disposition" in c and not pairs and state != "UNANALYSED":
+        errs.append("%s: a cluster without any listed run must be UNANALYSED, got %r" % (w, state))
+    for i, ev in enumerate(_raw_evidence(c)):
+        if not isinstance(ev, dict) or not _is_id(ev.get("prowjob_run_id")):
+            continue
+        run = str(ev["prowjob_run_id"])
+        outside = sorted((rid for rid in _ids(ev.get("supports_regression_ids")) if (rid, run) not in pairs), key=str)
+        if outside:
+            errs.append("%s evidence[%d]: run %s for regressions %s is not in this cluster's coverage"
+                        % (w, i, run, outside))
+    if state == NEW_BUG_STATE:
+        proposal = d.get("new_bug_proposal")
+        if not isinstance(proposal, dict):
+            errs.append("%s: NEW-BUG-NEEDED requires disposition.new_bug_proposal" % w)
+        elif not isinstance(proposal.get("draft"), str) or not proposal.get("draft"):
+            errs.append("%s: new_bug_proposal.draft must be the full non-empty draft text" % w)
+        pa = d.get("proposed_action") if isinstance(d.get("proposed_action"), dict) else {}
+        acts = c.get("actions") if isinstance(c.get("actions"), list) else []
+        if pa.get("type") in WRITE_TYPES or any(isinstance(a, dict) and a.get("type") in WRITE_TYPES for a in acts):
+            errs.append("%s: NEW-BUG-NEEDED permits no write (proposed or recorded) until an existing issue is linked" % w)
+    an, rev = _reverification(c)
+    unavailable = an.get("evidence_unavailable") if an else None
+    if unavailable is not None:
+        if not isinstance(unavailable, dict):
+            errs.append("%s: evidence_unavailable must be an object" % w)
+        else:
+            if pairs or state != "UNANALYSED" or an.get("depth") != "none":
+                errs.append("%s: evidence_unavailable is only for UNANALYSED zero-run placeholders, depth none" % w)
+            if not isinstance(unavailable.get("reason"), str) or not unavailable.get("reason"):
+                errs.append("%s: evidence_unavailable needs an exact missing-evidence reason" % w)
+            checks, locators = _str_list(w, "lookup_locators", unavailable.get("lookup_locators"))
+            errs += checks
+            if not locators:
+                errs.append("%s: evidence_unavailable needs current lookup_locators" % w)
+            checked, start = _instant(unavailable.get("checked_at")), _instant(observed)
+            if checked is None or start is None or checked < start:
+                errs.append("%s: evidence_unavailable needs checked_at at or after observation.time" % w)
+            errs += _rule_incomplete(w, w, c, an)
+    carried = an is not None and (an.get("depth") == CARRIED_DEPTH
+                                  or (isinstance(rev, dict) and rev.get("outcome") == "carried"))
+    if carried and mode != "reuse":
+        errs.append("%s: memory_mode %s does not permit a carried-forward analysis" % (w, mode))
+    return errs + _rule_devel_prior(w, c, pairs) + _rule_devel_carry(w, c, pairs)
+
+
+def _utf8(text):
+    try:
+        return text.encode('utf-8')
+    except UnicodeError:
+        return None
+
+
+def _rule_devel(doc):
+    """Development-memory rules: policy fields, the authoritative inventory, per-cluster coverage and
+    evidence scope, and the partition of (regression, run) pairs across clusters."""
+    errs = _rule_devel_policy(doc)
+    drafts = doc.get("proposal_drafts", {})
+    if not isinstance(drafts, dict):
+        errs.append("proposal_drafts must be an object keyed by the draft's SHA256")
+    else:
+        for digest, text in drafts.items():
+            data = _utf8(text) if isinstance(text, str) else None
+            if data is None or hashlib.sha256(data).hexdigest() != digest:
+                errs.append("proposal_drafts: content does not match its SHA256 key")
+    inv_errs, runs, required = _devel_inventory(doc)
+    errs += inv_errs
+    pol = doc.get("policy") if isinstance(doc.get("policy"), dict) else {}
+    mode = pol.get("memory_mode")
+    owners, placeholders = {}, {}
+    for i, c in enumerate(doc.get("clusters") if isinstance(doc.get("clusters"), list) else []):
+        if not isinstance(c, dict):
+            continue
+        w = _label(c, i)
+        observation = doc.get("observation") if isinstance(doc.get("observation"), dict) else {}
+        errs += _rule_devel_cluster(w, c, runs, mode, observation.get("time"))
+        coverage = c["members"].get("coverage") if isinstance(c.get("members"), dict) else None
+        for pair in cov.pairs(coverage):
+            owners.setdefault(pair, []).append(w)
+        for rid in cov.zero_ids(coverage):
+            placeholders.setdefault(rid, []).append(w)
+    for (rid, run), ws in sorted(owners.items()):
+        if len(ws) > 1:
+            errs.append("regression %s run %s is in more than one cluster: %s" % (rid, run, ", ".join(ws)))
+    for rid, ws in sorted(placeholders.items()):
+        if len(ws) > 1:
+            errs.append("regression %s placeholder is in more than one cluster: %s" % (rid, ", ".join(ws)))
+    for rid in sorted(r for r, need in required.items() if need):
+        if runs[rid]:
+            missing = sorted(run for run in runs[rid] if (rid, run) not in owners)
+            if missing:
+                errs.append("regression %s: required own runs not represented in any cluster: %s" % (rid, missing))
+        elif rid not in placeholders:
+            errs.append("regression %s: required and not represented (no listed run: it needs an empty"
+                        " coverage placeholder)" % rid)
+    return errs
 
 
 def _rule_probe(doc):
@@ -728,7 +1032,9 @@ def validate(doc):
     """Return a list of error strings; empty means valid. Never raises."""
     if not isinstance(doc, dict):
         return ["manifest: expected object, got %s" % _t(doc)]
-    errs = ["missing top-level key: %s" % k for k in TOP_PREPASS + TOP_LLM if k not in doc]
+    devel = _is_devel(doc)
+    top = TOP_PREPASS + ("inventory",) + DEVEL_TOP_LLM if devel else TOP_PREPASS + TOP_LLM
+    errs = ["missing top-level key: %s" % k for k in top if k not in doc]
     if "schema_version" in doc and doc["schema_version"] != SCHEMA_VERSION:
         errs.append("schema_version: %r != %r" % (doc["schema_version"], SCHEMA_VERSION))
     errs += _rule_top_level_shapes(doc)
@@ -738,12 +1044,14 @@ def validate(doc):
         cl = []
     seen = {}
     for i, c in enumerate(cl):
-        errs += _cluster(c, i)
+        errs += _cluster(c, i, devel)
         cid = c.get("id") if isinstance(c, dict) else None
         if isinstance(cid, (str, int)):
             if cid in seen:
                 errs.append("cluster %s: duplicate cluster id (also at index %d)" % (cid, seen[cid]))
             seen.setdefault(cid, i)
+    if devel:
+        errs += _rule_devel(doc)
     return errs + _rule_catch_all(doc) + _rule_audit(doc) + _rule_prior_context(doc)
 
 
@@ -768,8 +1076,25 @@ def _rule_top_level_shapes(doc):
     return errs
 
 
-def merge(prepass, dispositions, actions):
-    """Combine prepass.json with LLM-phase dispositions (id -> dict) and actions (id -> list)."""
+def apply_extra(doc, extra):
+    """Shallow-merge the agent's top-level `extra` object into `doc` (in place; returns it). `clusters` can
+    never be replaced; in a devel document neither can the deterministic policy, inventory, observation,
+    baseline_run, source_run or schema_version."""
+    if not isinstance(extra, dict):
+        raise ValueError("--extra must contain a JSON object")
+    if "clusters" in extra:
+        raise ValueError("--extra may not replace clusters (deterministic pre-pass data incl. prior)")
+    if _is_devel(doc):
+        blocked = sorted(k for k in DEVEL_PROTECTED_TOP if k in extra)
+        if blocked:
+            raise ValueError("--extra may not replace deterministic devel fields: %s" % blocked)
+    doc.update(extra)
+    return doc
+
+
+def merge(prepass, dispositions, actions, extra=None):
+    """Combine prepass.json with LLM-phase dispositions (id -> dict) and actions (id -> list); `extra`, when
+    given, is applied with apply_extra."""
     ids = [c["id"] for c in prepass["clusters"]]
     dupes = sorted({i for i in ids if ids.count(i) > 1})
     if dupes:
@@ -788,6 +1113,10 @@ def merge(prepass, dispositions, actions):
         disp = copy.deepcopy(dispositions[cid])
         if "prior" in disp:
             raise ValueError("dispositions for cluster %s may not set prior: it is pre-pass memory" % cid)
+        if _is_devel(prepass):
+            owned = sorted(k for k in DEVEL_PROTECTED_DISPOSITION if k in disp)
+            if owned:
+                raise ValueError("dispositions for cluster %s may not set %s: deterministic group data" % (cid, owned))
         esc = disp.pop("escalation", None)
         unl = disp.pop("members_unlinked", None)
         if unl is not None:
@@ -802,6 +1131,8 @@ def merge(prepass, dispositions, actions):
                    "reason": ("blast_radius HIGH" if level == "HIGH" else
                               "UNEXPLAINED at ELEVATED blast radius" if unexplained else "not required")}
         c["escalation"] = esc
+    if extra is not None:
+        apply_extra(out, extra)
     return out
 
 
@@ -894,27 +1225,28 @@ def main(argv=None):
                            decision=(parts + ["", ""])[:3],
                            source_run={"job": args.job, "run_id": args.run_id, "url": args.url, "started": args.started},
                            previous_run=args.previous_run, existing_only=args.existing_only.lower() == "true")
-            with open(args.out, "w") as f:
-                json.dump(doc, f, indent=2)
-                f.write("\n")
         else:
             doc = merge(_load(args.prepass), _load(args.dispositions), _load(args.actions))
             if args.extra:
-                extra = _load(args.extra)
-                if not isinstance(extra, dict):
-                    raise ValueError("--extra must contain a JSON object")
-                if "clusters" in extra:
-                    raise ValueError("--extra may not replace clusters (deterministic pre-pass data incl. prior)")
-                doc.update(extra)
-            with open(args.out, "w") as f:
-                json.dump(doc, f, indent=2)
-                f.write("\n")
+                apply_extra(doc, _load(args.extra))
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
         print("error: %s" % e, file=sys.stderr)
         return 1
     errs = validate(doc)
     for e in errs:
         print(e, file=sys.stderr)
+    # Development checkpoints must survive a bad incremental merge. Preserve the
+    # established GA contract, which also publishes invalid output for diagnosis.
+    if args.cmd != "validate" and (not errs or not _is_devel(doc)):
+        try:
+            temporary = args.out + ".tmp"
+            with open(temporary, "w", encoding="utf-8") as f:
+                json.dump(doc, f, indent=2)
+                f.write("\n")
+            os.replace(temporary, args.out)
+        except (OSError, ValueError) as e:
+            print("error: %s" % e, file=sys.stderr)
+            return 1
     return 1 if errs else 0
 
 

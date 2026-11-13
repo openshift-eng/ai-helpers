@@ -278,8 +278,7 @@ def diff_baseline(clusters, baseline, run_id='local'):
     Optional metadata (policy, source_run, a source's lineage) is read type-safely: a malformed
     policy makes the baseline incompatible, malformed source_run/lineage mean unknown identity /
     default lineage. Malformed cluster ids or member lists remain errors, not an empty baseline."""
-    ok = (isinstance(baseline, dict) and baseline.get('schema_version') == SCHEMA_VERSION
-          and isinstance(baseline.get('policy'), dict) and baseline['policy'].get('name') == POLICY)
+    ok = prior.compatible(baseline, POLICY)
     block = {'run_id': None, 'manifest_url': None, 'schema_version': None, 'compatible': None}
     if isinstance(baseline, dict):
         source_run = baseline.get('source_run') if isinstance(baseline.get('source_run'), dict) else {}
@@ -406,8 +405,7 @@ def weekly(regs, now, baseline, oracle=None, run_id='local', view_status=None):
 
 def _baseline_known(baseline):
     """HIGH clusters of a compatible weekly document, keyed by id, for growth detection."""
-    ok = (isinstance(baseline, dict) and baseline.get('schema_version') == SCHEMA_VERSION
-          and (baseline.get('policy') or {}).get('name') == POLICY and isinstance(baseline.get('clusters'), list))
+    ok = prior.compatible(baseline, POLICY)
     if not ok:
         return {}
     return {c['id']: c for c in baseline['clusters']

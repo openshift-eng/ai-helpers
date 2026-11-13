@@ -8,7 +8,7 @@ description: Use this skill for Component Readiness triage duty - holistically a
 ## Input
 
 ```
-bulk-triage-regressions <view> [--components comp1 comp2 ...] [--auto-triage] [--existing-only]
+bulk-triage-regressions <view> [--components comp1 comp2 ...] [--auto-triage] [--existing-only] [--memory record|reuse] [--baseline PATH]
 bulk-triage-regressions --views <v1> <v2> ... --policy post-ga [--write-mode report|auto]
 ```
 
@@ -34,7 +34,9 @@ Use this skill when doing triage duty for a view, or whenever a user asks to "lo
 
 JIRA writes (filing bugs, `set-release-blocker`, `add-jira-triage-link`) additionally require JIRA credentials in the environment: either `JIRA_USERNAME` and `JIRA_API_TOKEN` (API token from https://id.atlassian.com/manage-profile/security/api-tokens), or a service-account OAuth credential in `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET` and `JIRA_CLOUD_ID`, which takes precedence when set and never falls back to the API token. Verify either kind with `python3 plugins/ci/scripts/jira_auth.py check` (exit 0 and the account vs an error). With a service-account credential, Basic auth against `https://redhat.atlassian.net` does not work: send every direct JIRA REST call (searches, comments, issue creation when the Jira MCP tools are unavailable) through `python3 plugins/ci/scripts/jira_auth.py request <METHOD> '/rest/api/3/...' [--data-file body.json]`, which obtains the access token itself and prints only the response. If a required write credential is missing or invalid, pause before Phase 4 and ask the user to fix it — the analysis and report so far remain valid and must still be presented.
 
-### Phase 0: Run the pre-pass (post-ga only)
+### Phase 0: Prepare inventory and analysis memory
+
+**Development memory:** when the runner supplies `prepass.json` with `policy.name: devel`, or the caller requests `--memory record|reuse`, read [devel-memory.md](references/devel-memory.md) first. It defines the development prepare/refine/checkpoint pipeline and the precise inherited-depth exception for `reuse`. Use that current inventory instead of repeating Phase 1 collection; still perform the stale-triage sweep and symptom-catalog checks. `record` stores memory but requires fresh analysis. Keep separate failure windows even when they share a regression ID. Memory does not change write authorization or enable the post-GA watch policy. Without these inputs, the ordinary Phases 1–5 workflow remains unchanged.
 
 With `--policy post-ga`, first run `scripts/prepass.py` with the given views, unless the runner already produced `prepass.json`. Treat its clusters as the complete batch inventory: do not re-derive clusters or call list/details/related APIs to re-collect inventory. Follow file order (HIGH first; unfinished prior work first within urgency), read each cluster's prior before investigating, and apply references/post-ga-policy.md §3a and §8 for inheritance, depth and budget ordering. Targeted detail/artifact/catalog reads for verification are allowed. A symptom_probe.status other than ok means unknown, never "no symptoms matched". Follow that policy for everything else in this mode and skip Phase 1's collection steps.
 
@@ -83,6 +85,8 @@ Treat buckets as hypotheses — Phase 3 must confirm or split them. Do not merge
 ### Phase 3: Deep-dive each bucket (confirm root cause and real owner)
 
 **Post-GA depth inheritance.** Under `--policy post-ga`, a successful carry under post-ga-policy.md §3a satisfies the mandatory depth requirement through the recorded original high-confidence analysis plus this run's own-run re-verification. It uses depth `carried-forward`, never a claimed fresh deep-dive; current HIGH, changed mechanisms, ambiguous ancestry, and unfinished/low-confidence history require fresh analysis. The sampling and evidence ladder below apply to fresh/re-investigated work. The explicit post-GA watch and UNANALYSED outcomes remain valid; they are not completed analyses.
+
+**Development depth inheritance:** with development memory in `reuse` mode, [devel-memory.md](references/devel-memory.md) defines the equivalent exception for a verified signature/window group. That exception supersedes the fresh-deep-dive requirement only for an eligible carry. Every new, changed, unfinished, medium/low-confidence, or HIGH-urgency group still follows the full evidence ladder below. `record` grants no depth inheritance.
 
 For each bucket, pick 2–5 representative failed job runs (spread across jobs/variants; include the newest) and analyze. 2–5 runs are sufficient **only when they yield a consistent result** (same error signature / failure stage across all of them). If the sample is mixed or unclear — different errors, different stages, or an inconclusive owner — **extend the sample to 10–20 runs** before concluding; a small ambiguous sample must never be the basis for splitting/merging a bucket or attributing an owner.
 
@@ -211,6 +215,8 @@ This mode records matches to existing bugs but never files new JIRA issues. Anal
 
 ### Phase 5: Duty report
 
+When development memory is enabled, also merge and validate `triage-manifest.json` and include the analysis-memory summary specified in [devel-memory.md](references/devel-memory.md). A valid incomplete checkpoint preserves work; it is not a completed duty run.
+
 Present a final report:
 
 1. **Inventory**: N untriaged regressions found → M buckets.
@@ -316,7 +322,9 @@ Principles distilled from real mis-dispositions; full narratives in [case-notes.
 - `--existing-only`: Record matches to existing triages/JIRA issues but never file new JIRA issues; new-bug buckets become report proposals (see "Existing-only mode" in Phase 4).
 - `--audit-closed`: Read-only closed-set audit mode (see "Closed-set audit mode") — justifies why every closed untriaged regression closed. Mutually exclusive with normal duty triage and with `--auto-triage`; performs no writes.
 - `--views <v1> <v2> ...`: alternative to `<view>`; several views in one run.
-- `--policy pre-ga|post-ga`: default `pre-ga` — the daily pre-GA rules of this document (formerly called `duty`). `post-ga` is the weekly post-GA (`-main`) policy, defined in [post-ga-policy.md](references/post-ga-policy.md).
+- `--policy pre-ga|devel|post-ga|ga`: default `pre-ga` — `pre-ga`/`devel` use the daily development rules of this document (formerly called `duty`). `post-ga`/`ga` use the released-version policy defined in [post-ga-policy.md](references/post-ga-policy.md). These are separate memory families.
+- `--memory record|reuse`: opt into [development memory](references/devel-memory.md); `record` writes manifests with fresh analysis, `reuse` permits verified inheritance. A runner-provided development pre-pass sets this mode authoritatively. Neither changes write permissions.
+- `--baseline PATH`: latest preceding development attempt's manifest, or `none` for a cold start; used with `--memory`. Never substitute an older successful run when the preceding attempt is unavailable.
 - `--write-mode report|auto`: default `auto` for `pre-ga`, `report` for `post-ga`. `report` performs no Sippy or Jira writes.
 
 ## See Also
