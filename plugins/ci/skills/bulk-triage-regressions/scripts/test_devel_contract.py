@@ -129,6 +129,28 @@ class CoverageHelpersTest(unittest.TestCase):
 
 
 class CompatibilityTest(unittest.TestCase):
+    def test_development_analysis_must_be_an_object_even_when_unanalysed(self):
+        for bad in (None, [], 'unfinished', True, 0):
+            current = doc([unanalysed('g-a', cov(r1=['a1']))], [inv(1, ['a1'])])
+            current['clusters'][0]['disposition']['analysis'] = bad
+            self.assertTrue(m.validate(current), bad)
+
+    def test_completed_development_groups_need_current_analysis(self):
+        for state in ('KNOWN-CAUSE', 'CANDIDATE', 'UNEXPLAINED', 'NEW-BUG-NEEDED'):
+            for field, value in (('depth', 'none'), ('depth', 'triage-only'), ('confidence', 'medium'),
+                                 ('evidence', []), ('evidence', None)):
+                with self.subTest(state=state, field=field, value=value):
+                    c = cluster('g-a', cov(r1=['a1']), state=state,
+                                proposal=proposal() if state == 'NEW-BUG-NEEDED' else None)
+                    c['disposition']['analysis'][field] = value
+                    self.assertTrue(m.validate(doc([c], [inv(1, ['a1'])])))
+
+    def test_fresh_development_analysis_and_unfinished_work_remain_valid(self):
+        for depth in ('deep-dive', 'oracle'):
+            c = cluster('g-a', cov(r1=['a1']), depth=depth)
+            self.assertEqual(m.validate(doc([c], [inv(1, ['a1'])])), [])
+        self.assertEqual(m.validate(doc([unanalysed('g-a', cov(r1=['a1']))], [inv(1, ['a1'])])), [])
+
     def test_devel_carry_cannot_claim_supersedes_or_another_id(self):
         baseline = baseline_one()
         current = today([cluster('g-a', cov(r1=['a1', 'a2']))], [inv(1, ['a1', 'a2'])], baseline)

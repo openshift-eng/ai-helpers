@@ -875,6 +875,16 @@ def _rule_devel_cluster(w, c, runs, mode, observed=None):
         if pa.get("type") in WRITE_TYPES or any(isinstance(a, dict) and a.get("type") in WRITE_TYPES for a in acts):
             errs.append("%s: NEW-BUG-NEEDED permits no write (proposed or recorded) until an existing issue is linked" % w)
     an, rev = _reverification(c)
+    if an is None:
+        errs.append("%s: disposition.analysis must be an object" % w)
+    elif state != "UNANALYSED":
+        if an.get("depth") not in ("deep-dive", "oracle", CARRIED_DEPTH):
+            errs.append("%s: completed development analysis needs deep-dive, oracle or eligible carried-forward depth" % w)
+        if an.get("confidence") != "high":
+            errs.append("%s: completed development analysis requires high confidence" % w)
+        observed_pairs = {(rid, run) for run, ids in _typed_evidence(c) for rid in ids}
+        if not observed_pairs.intersection(pairs):
+            errs.append("%s: completed development analysis requires current own-run evidence within its coverage" % w)
     unavailable = an.get("evidence_unavailable") if an else None
     if unavailable is not None:
         if not isinstance(unavailable, dict):
@@ -906,10 +916,77 @@ def _utf8(text):
         return None
 
 
+def _sweep_targets(inventory):
+    """Current regression/triage pairs; never trust an agent-editable sweep_candidates list."""
+    targets = {}
+    for r in inventory if isinstance(inventory, list) else []:
+        if not isinstance(r, dict) or not isinstance(r.get("id"), int) or isinstance(r["id"], bool):
+            continue
+        triages = r.get("triages")
+        for tid in triages if isinstance(triages, list) else []:
+            if _is_id(tid):
+                targets[(r["id"], str(tid))] = {"regression_id": r["id"], "triage_id": tid}
+    return targets
+
+
+def _rule_devel_sweep(doc):
+    """An absent/incomplete sweep is valid progress; claimed checked results must be current and attributable."""
+    results = doc.get("stale_triage_sweep", [])
+    if not isinstance(results, list):
+        return ["stale_triage_sweep must be a list"]
+    targets = _sweep_targets(doc.get("inventory"))
+    obs = doc.get("observation") if isinstance(doc.get("observation"), dict) else {}
+    start = _instant(obs.get("time"))
+    errs, seen = [], set()
+    for i, result in enumerate(results):
+        w = "stale_triage_sweep[%d]" % i
+        if not isinstance(result, dict):
+            errs.append("%s: expected object" % w)
+            continue
+        rid, tid = result.get("regression_id"), result.get("triage_id")
+        key = (rid, str(tid)) if isinstance(rid, int) and not isinstance(rid, bool) and _is_id(tid) else None
+        if key not in targets:
+            errs.append("%s: regression/triage must be a current inventory sweep target" % w)
+        if key in seen:
+            errs.append("%s: duplicate regression/triage sweep result" % w)
+        seen.add(key)
+        verdict = result.get("verdict")
+        if verdict == "incomplete":
+            if not isinstance(result.get("reason"), str) or not result["reason"].strip():
+                errs.append("%s: incomplete sweep needs a reason" % w)
+            continue
+        if verdict not in ("covered", "alarm"):
+            errs.append("%s: verdict must be covered, alarm or incomplete" % w)
+        for field in ("jira", "jira_status"):
+            if not isinstance(result.get(field), str) or not result[field].strip():
+                errs.append("%s: checked sweep needs %s" % (w, field))
+        if "last_failure" not in result:
+            errs.append("%s: checked sweep needs last_failure (null when unknown)" % w)
+        else:
+            errs += _iso_or_null(w, "last_failure", result["last_failure"])
+        checked = _instant(result.get("checked_at"))
+        if checked is None or start is None or checked < start:
+            errs.append("%s: checked_at must be at or after observation.time" % w)
+        problems, locators = _str_list(w, "lookup_locators", result.get("lookup_locators"))
+        errs += problems
+        if not locators:
+            errs.append("%s: checked sweep needs current lookup_locators" % w)
+    return errs
+
+
+def pending_sweep(doc, inventory):
+    """Unchecked snapshot targets in an already validated manifest (including explicit incomplete results)."""
+    targets = _sweep_targets(inventory)
+    for result in doc.get("stale_triage_sweep", []):
+        if result.get("verdict") in ("covered", "alarm"):
+            targets.pop((result["regression_id"], str(result["triage_id"])), None)
+    return [targets[k] for k in sorted(targets)]
+
+
 def _rule_devel(doc):
     """Development-memory rules: policy fields, the authoritative inventory, per-cluster coverage and
     evidence scope, and the partition of (regression, run) pairs across clusters."""
-    errs = _rule_devel_policy(doc)
+    errs = _rule_devel_policy(doc) + _rule_devel_sweep(doc)
     drafts = doc.get("proposal_drafts", {})
     if not isinstance(drafts, dict):
         errs.append("proposal_drafts must be an object keyed by the draft's SHA256")

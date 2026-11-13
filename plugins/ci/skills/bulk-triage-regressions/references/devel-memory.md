@@ -101,6 +101,10 @@ NEW-BUG-NEEDED permits no write actions. When an existing/newly filed bug is ver
 
 Write `dispositions.json` keyed by current cluster ID, with each disposition containing `analysis`, `bug_search`, `proposed_action` and optional proposal fields. `actions.json` contains only this attempt's actions (empty lists when none). Supply every cluster, including unfinished work. `extra.json` contains `unanalysed` (one entry with cluster ID/reason per unfinished group) and `stale_triage_sweep` (current regression/triage/bug/status, last failure, verdict, checked time and lookup evidence; `[]` if none). Do not copy prior sweep verdicts as current observations. Preserve deterministic fields, priors and draft archive.
 
+Completed development groups require high-confidence `deep-dive`/`oracle` analysis with current own-run evidence, or an eligible `carried-forward` analysis. Merely changing an unfinished group's state cannot complete it. `analysis` must always be an object, including for UNANALYSED work.
+
+Record one sweep result per current **regression/triage pair**, including every triage when a regression has several. A checked result has `regression_id`, `triage_id`, nonempty `jira` and `jira_status`, `last_failure` (ISO time or null), `verdict: covered|alarm`, `checked_at` at or after this observation, and nonempty `lookup_locators`. Unfinished work instead uses `verdict: incomplete` with an exact `reason`. Missing or incomplete results keep publication `partial`, even on an entirely triaged board with no investigation groups; the runner lists the missing pairs in `memory-publication.json` as `sweep_pending`. Malformed, stale or foreign results are rejected before publication. An alarm records a completed sweep check, not a completed investigation of that alarm's cause.
+
 ```bash
 python3 scripts/manifest.py merge --prepass prepass.json --dispositions dispositions.json \
   --actions actions.json --extra extra.json --out triage-manifest.json

@@ -211,7 +211,7 @@ judges:
       return (True, f"{len(decisions)} well-formed decisions")
 
   - name: choices_and_priority
-    description: next_step, depth and state per cluster match the annotations; investigation_order starts as expected
+    description: next_step, depth and state match; investigation_order respects priority and includes required work
     check: |
       import json
       files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
@@ -249,12 +249,17 @@ judges:
               problems.append(f"{cid}: state {got.get('state')!r} not in {exp['allowed_states']}")
       prefix = list(expected.get("investigation_order_prefix") or [])
       order = data.get("investigation_order")
-      if not isinstance(order, list):
-          problems.append("investigation_order missing")
+      if not isinstance(order, list) or any(not isinstance(cid, str) for cid in order):
+          problems.append("investigation_order must be a list of cluster id strings")
       elif order[:len(prefix)] != prefix:
           problems.append(f"investigation_order {order} does not start with {prefix}")
       elif expected.get("investigation_order_exact") and order != prefix:
           problems.append(f"investigation_order {order} must equal {prefix}")
+      else:
+          missing = sorted(cid for cid, decision in by_id.items()
+                           if decision.get("next_step") in ("reinvestigate", "analyse-first") and cid not in order)
+          if missing:
+              problems.append(f"investigation_order omits required work: {missing}")
       if problems:
           return (False, "; ".join(problems))
       return (True, "choices and priority as expected")

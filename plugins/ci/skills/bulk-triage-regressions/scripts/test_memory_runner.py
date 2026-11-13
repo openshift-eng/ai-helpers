@@ -13,6 +13,7 @@ import sys
 import tempfile
 import time
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -343,7 +344,90 @@ class PublishTest(unittest.TestCase):
         return mr.publish(initial=str(self.keep / 'inventory-prepass.json'),
                           checkpoint=str(self.keep / 'checkpoint-manifest.json'),
                           final=str(self.work / 'triage-manifest.json'), workdir=str(self.work),
-                          artifact_dir=str(self.art))
+                           artifact_dir=str(self.art))
+
+    def reset_checkpoint(self, records):
+        import devel
+        prepared = devel.prepare(records, '5.1-main', datetime.now(timezone.utc), run_id='200')
+        checkpoint = devel.checkpoint(prepared)
+        for path, data in ((self.keep / 'inventory-prepass.json', prepared), (self.work / 'prepass.json', prepared),
+                           (self.keep / 'checkpoint-manifest.json', checkpoint),
+                           (self.work / 'triage-manifest.json', checkpoint)):
+            path.write_text(json.dumps(data))
+        return prepared
+
+    def sweep_result(self, prepared, rid=1, tid=7):
+        return {'regression_id': rid, 'triage_id': tid, 'jira': 'OCPBUGS-1', 'jira_status': 'Closed',
+                'last_failure': prepared['inventory'][0]['last_failure'], 'verdict': 'alarm',
+                'checked_at': prepared['observation']['time'],
+                'lookup_locators': ['https://example.invalid/triages/7', 'https://example.invalid/OCPBUGS-1']}
+
+    def test_non_object_analysis_is_rejected_before_artifact_promotion(self):
+        for bad in (None, [], 'unfinished', False, 0):
+            self.reset_checkpoint([reg(1, ['a1'])])
+            self.edit(lambda d: d['clusters'][0]['disposition'].update(analysis=bad))
+            status = self.publish()
+            self.assertEqual(status['status'], 'invalid-final', bad)
+            self.assertEqual(self.promoted(), json.loads((self.keep / 'checkpoint-manifest.json').read_text()))
+            self.assertTrue((self.art / 'memory-publication.json').exists())
+            self.assertTrue((self.art / 'triage-manifest.invalid.json').exists())
+
+    def test_changing_only_state_cannot_complete_a_checkpoint(self):
+        self.reset_checkpoint([reg(1, ['a1'])])
+        def fake_completion(d):
+            d['clusters'][0]['disposition']['state'] = 'UNEXPLAINED'
+            d['unanalysed'] = []
+        self.edit(fake_completion)
+        self.assertEqual(self.publish()['status'], 'invalid-final')
+
+    def test_missing_sweep_on_an_already_triaged_board_is_partial(self):
+        self.reset_checkpoint([reg(1, ['a1'], [7])])
+        self.edit(lambda d: d.update(stale_triage_sweep=[], sweep_candidates=[]))
+        status = self.publish()
+        self.assertEqual(status['status'], 'partial')
+        self.assertEqual(status['sweep_pending'], [{'regression_id': 1, 'triage_id': 7}])
+        cp = subprocess.run([sys.executable, str(HERE / 'memory_runner.py'), 'publish',
+            '--initial', str(self.keep / 'inventory-prepass.json'), '--checkpoint', str(self.keep / 'checkpoint-manifest.json'),
+            '--final', str(self.work / 'triage-manifest.json'), '--workdir', str(self.work), '--artifact-dir', str(self.art)],
+            capture_output=True, text=True)
+        self.assertEqual((cp.returncode, cp.stdout.strip()), (1, 'partial'), cp.stderr)
+
+    def test_every_current_triage_needs_a_sweep_result(self):
+        p = self.reset_checkpoint([reg(1, ['a1'], [7, 8])])
+        self.edit(lambda d: d.update(stale_triage_sweep=[self.sweep_result(p)]))
+        self.assertEqual(self.publish()['status'], 'partial')
+        self.edit(lambda d: d['stale_triage_sweep'].append(self.sweep_result(p, tid=8)))
+        self.assertEqual(self.publish()['status'], 'final')
+
+    def test_explicit_unfinished_sweep_preserves_progress_as_partial(self):
+        self.reset_checkpoint([reg(1, ['a1'], [7])])
+        self.edit(lambda d: d.update(stale_triage_sweep=[{'regression_id': 1, 'triage_id': 7,
+                                                        'verdict': 'incomplete', 'reason': 'Jira lookup unavailable'}]))
+        self.assertEqual(self.publish()['status'], 'partial')
+        self.assertEqual(self.promoted()['stale_triage_sweep'][0]['reason'], 'Jira lookup unavailable')
+
+    def test_stale_or_malformed_sweep_cannot_establish_completion(self):
+        for field, bad in (('checked_at', '2020-01-01T00:00:00Z'), ('lookup_locators', []),
+                           ('jira_status', None), ('triage_id', 99), ('verdict', 'invented')):
+            p = self.reset_checkpoint([reg(1, ['a1'], [7])])
+            result = self.sweep_result(p)
+            result[field] = bad
+            self.edit(lambda d: d.update(stale_triage_sweep=[result]))
+            self.assertEqual(self.publish()['status'], 'invalid-final', (field, bad))
+
+    def test_unfinished_sweep_also_prevents_final_with_gaps(self):
+        p = self.reset_checkpoint([reg(1, []), reg(2, ['b1'], [7])])
+        def exhausted(d):
+            d['clusters'][0]['disposition']['analysis']['evidence_unavailable'] = {
+                'reason': 'no own runs after details lookup', 'checked_at': p['observation']['time'],
+                'lookup_locators': ['https://example.invalid/regressions/1']}
+        self.edit(exhausted)
+        self.assertEqual(self.publish()['status'], 'partial')
+
+    def test_empty_board_with_no_sweep_candidates_can_finish(self):
+        self.reset_checkpoint([])
+        self.edit(lambda d: d.update(stale_triage_sweep=[]))
+        self.assertEqual(self.publish()['status'], 'final')
 
     def edit(self, fn):
         doc = json.loads((self.work / 'triage-manifest.json').read_text())
@@ -393,7 +477,9 @@ class PublishTest(unittest.TestCase):
                 an = c['disposition']['analysis']
                 if any(e['run_ids'] for e in c['members']['coverage']):
                     c['disposition']['state'] = 'UNEXPLAINED'
-                    an.update(depth='deep-dive', confidence='high', root_cause='verified fixture')
+                    an.update(depth='deep-dive', confidence='high', root_cause='verified fixture',
+                              evidence=[{'prowjob_run_id': e['run_ids'][0], 'supports_regression_ids': [e['regression_id']],
+                                         'artifact': 'fixture', 'quote': 'fixture failure'} for e in c['members']['coverage']])
                 else:
                     an['evidence_unavailable'] = {'reason': 'current details still have no own runs',
                         'checked_at': doc['observation']['time'], 'lookup_locators': ['https://example.invalid/regressions/2']}

@@ -219,8 +219,8 @@ def publish(initial, checkpoint, final, workdir, artifact_dir, validate=None, ba
     checkpoint (no agent manifest beyond the runner's
     checkpoint; the checkpoint was promoted) | invalid-final (the agent's manifest was rejected; the
     checkpoint was promoted and the rejected file kept as a diagnostic) | none (nothing trustworthy)."""
+    import manifest
     if validate is None:
-        import manifest
         validate = manifest.validate
     out = os.path.join(artifact_dir, MANIFEST_NAME)
     invalid = os.path.join(artifact_dir, 'triage-manifest.invalid.json')
@@ -234,7 +234,7 @@ def publish(initial, checkpoint, final, workdir, artifact_dir, validate=None, ba
         shutil.copyfile(initial, os.path.join(artifact_dir, 'inventory-prepass.json'))
 
     status = {'status': 'none', 'promoted': None, 'errors': [], 'final': None, 'checkpoint': None,
-              'clusters': None, 'unanalysed': None}
+              'clusters': None, 'unanalysed': None, 'sweep_pending': None}
     base, base_err = _read(initial)
     final_doc, final_err = _read(final)
     check_doc, check_err = _read(checkpoint)
@@ -263,7 +263,6 @@ def publish(initial, checkpoint, final, workdir, artifact_dir, validate=None, ba
         # the agent's manifest equals a checkpoint we can no longer read back: still only a checkpoint
         status['status'], status['promoted'], chosen = 'checkpoint', 'checkpoint', final_doc
     if chosen is not None:
-        _write_json(out, chosen)
         clusters = chosen.get('clusters') or []
         status['clusters'] = len(clusters)
         status['unanalysed'] = sum(1 for c in clusters
@@ -274,6 +273,10 @@ def publish(initial, checkpoint, final, workdir, artifact_dir, validate=None, ba
             listed = {e.get('cluster_id') for e in chosen.get('unanalysed', []) if isinstance(e, dict)}
             status['status'] = ('final-with-gaps' if pending and len(exhausted) == len(pending) and listed <= exhausted
                                 else 'partial')
+        status['sweep_pending'] = manifest.pending_sweep(chosen, base['inventory'])
+        if status['status'] in ('final', 'final-with-gaps') and status['sweep_pending']:
+            status['status'] = 'partial'
+        _write_json(out, chosen)
     _write_json(os.path.join(artifact_dir, 'memory-publication.json'), status)
     return status
 
