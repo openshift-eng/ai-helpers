@@ -1,0 +1,403 @@
+#!/usr/bin/env python3
+"""Line up per-run signals across a before and an after cohort.
+
+Reads the parser output for each run (`parse_disruption.py --format json`,
+saved by disruption-analyze-run as <runs-dir>/<build_id>/parsed.json) and
+builds a candidate x cohort matrix. Each row is one signal, with how many runs
+in each cohort show it and its median size there:
+
+- disruption on the selected backends: disruptions, episodes, waves, and the
+  count in the upgrade and conformance phases
+- run-wide stress (run_context): every context source over the whole run,
+  so a clean before run still shows the etcd, OVS, CPU, or cloud stress it had
+- stress during disruption (concurrent_events): the same sources, only near
+  disruption windows
+- static-pod revision rollouts per operator, and how many of them had
+  disruption episodes inside
+
+Each row gets a suggested label (new, more in after, pre-existing similar,
+less in after, before only, sporadic). The label only compares counts; the
+skill decides what the evidence shows.
+
+When runs have gather/releaseinfo.json (download_timelines.py --gather), it
+also lists the component repositories whose commit differs between the
+cohorts. releaseinfo describes the payload each cluster ran last: the target
+of an upgrade, not the payload it started from.
+
+Usage:
+    python3 compare_cohorts.py --state-file .work/disruption-analysis/<id>/investigation.json \
+        --runs-dir .work/disruption-analysis/<id>/runs
+    python3 compare_cohorts.py --before a.json,b.json --after c.json,d.json [--format json]
+
+Exit status: 0 on success, 1 on bad input or when a cohort has no parsed run.
+"""
+import argparse
+import json
+import os
+import statistics
+import sys
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+# disruption_common is in the disruption plugin's scripts/ directory: two levels
+# up when the whole plugin is installed (Claude Code), and inside each skill's
+# scripts/ when Chai installs the skill, because it copies the plugin's scripts/
+# tree into every skill.
+# Search from the skill directory as reached, then from its resolved target,
+# since a symlinked skill directory can sit outside the plugin checkout. abspath
+# keeps ".." textual, the way sys.path entries resolve it.
+_LIB_PARENTS = list(dict.fromkeys(
+    os.path.abspath(os.path.join(base, *rel))
+    for base in (_HERE, os.path.realpath(_HERE))
+    for rel in (("scripts",), ("..", "..", "scripts"))))
+for _parent in _LIB_PARENTS:
+    if os.path.isfile(os.path.join(_parent, "disruption_common", "__init__.py")):
+        sys.path.insert(0, _parent)
+        break
+else:
+    sys.exit("Error: disruption_common library not found. Install the whole disruption plugin; "
+             "the library is its scripts/disruption_common. Looked in: %s" % ", ".join(_LIB_PARENTS))
+
+from disruption_common import state  # noqa: E402
+from disruption_common.releaseinfo import component_commits  # noqa: E402
+
+PARSED_NAME = "parsed.json"
+RELEASEINFO_PATH = os.path.join("gather", "releaseinfo.json")
+RATE_SHIFT = 0.3
+SIZE_RATIO = 1.5
+
+
+class CompareError(RuntimeError):
+    """The cohorts cannot be compared; the message says why."""
+
+
+def _size(source, value):
+    """The magnitude of one context source in one run."""
+    if source == "OVSVswitchdLog":
+        return value.get("max_poll_interval_ms") or 0
+    if source == "CPUMonitor":
+        return len({n.get("node") for n in value.get("nodes") or []})
+    return value.get("count") or 0
+
+
+_UNITS = {"OVSVswitchdLog": "max poll ms", "CPUMonitor": "nodes >95% CPU"}
+
+
+def _source_signals(source, value):
+    """(name, unit, size) for each signal of one context source in one run.
+
+    CloudMetrics gives two signals per metric, its maximum and its warning
+    count: its metrics have different units (IOPS percentage, queue depth), so
+    one maximum across them would hide a metric that appears only in one cohort,
+    and a maximum alone would hide a metric that fires far more often.
+    """
+    if source == "CloudMetrics":
+        signals = []
+        for metric, info in sorted((value.get("metrics") or {}).items()):
+            signals.append(("CloudMetrics %s" % metric, "max value", info.get("max_value") or 0))
+            signals.append(("CloudMetrics %s" % metric, "warnings", info.get("count") or 0))
+        return signals
+    return [(source, _UNITS.get(source, "events"), _size(source, value))]
+
+
+def run_features(parsed):
+    """{feature: (kind, size)} for one run's parser output. Absent features are not listed."""
+    features = {}
+    summary = parsed.get("summary") or {}
+    for key, label in (("disruption_count", "disruptions"), ("episode_count", "episodes"),
+                       ("wave_count", "waves")):
+        if summary.get(key):
+            features[label] = ("disruption", summary[key])
+    for phase, count in (summary.get("phase_breakdown") or {}).items():
+        if count:
+            features["disruptions in %s phase" % phase] = ("disruption", count)
+    for source, value in (parsed.get("run_context") or {}).items():
+        for name, unit, size in _source_signals(source, value):
+            if size:
+                features["%s (%s)" % (name, unit)] = ("run-wide", size)
+    for source, value in (parsed.get("concurrent_events") or {}).items():
+        for name, unit, size in _source_signals(source, value):
+            if size:
+                features["%s during disruption (%s)" % (name, unit)] = ("during", size)
+    rollouts = {}
+    inside = {}
+    for rollout in parsed.get("revision_rollouts") or []:
+        operator = rollout.get("operator", "?")
+        rollouts[operator] = rollouts.get(operator, 0) + 1
+        if rollout.get("episode_indices"):
+            inside[operator] = inside.get(operator, 0) + 1
+    for operator, count in rollouts.items():
+        features["%s revision rollouts" % operator] = ("rollout", count)
+    for operator, count in inside.items():
+        features["%s rollouts with disruption inside" % operator] = ("rollout", count)
+    return features
+
+
+def _side(values, n):
+    """How many of n runs show a signal, and its median and max over all n (absent counts as 0)."""
+    sizes = values + [0] * (n - len(values))
+    return {"runs": len(values), "of": n, "median": statistics.median(sizes) if sizes else 0,
+            "max": max(values) if values else 0}
+
+
+def suggest(before, after):
+    """Suggested label from presence rates and median sizes. The skill judges the evidence."""
+    rate_b = before["runs"] / before["of"] if before["of"] else 0
+    rate_a = after["runs"] / after["of"] if after["of"] else 0
+    if before["runs"] == 0:
+        return "new" if rate_a >= 0.5 else "sporadic in after"
+    if after["runs"] == 0:
+        return "before only"
+    if rate_a - rate_b >= RATE_SHIFT or after["median"] >= SIZE_RATIO * before["median"] > 0 \
+            or (before["median"] == 0 and after["median"] > 0):
+        return "more in after"
+    if rate_b - rate_a >= RATE_SHIFT or before["median"] >= SIZE_RATIO * after["median"] > 0 \
+            or (after["median"] == 0 and before["median"] > 0):
+        return "less in after"
+    return "pre-existing, similar"
+
+
+_KIND_ORDER = {"disruption": 0, "rollout": 1, "during": 2, "run-wide": 3}
+_LABEL_ORDER = {"new": 0, "more in after": 1, "sporadic in after": 2, "pre-existing, similar": 3,
+                "less in after": 4, "before only": 5}
+
+
+def build_matrix(cohort_runs):
+    """cohort_runs: {"before": {build_id: parsed}, "after": {...}}. Returns (rows, per_run)."""
+    per_run = {side: {bid: run_features(parsed) for bid, parsed in runs.items()}
+               for side, runs in cohort_runs.items()}
+    names = {}
+    for side in per_run.values():
+        for features in side.values():
+            for name, (kind, _size_value) in features.items():
+                names[name] = kind
+    rows = []
+    for name, kind in names.items():
+        sides = {}
+        for side in ("before", "after"):
+            values = [f[name][1] for f in per_run[side].values() if name in f]
+            sides[side] = _side(values, len(per_run[side]))
+            sides[side]["build_ids"] = sorted(bid for bid, f in per_run[side].items() if name in f)
+        rows.append({"signal": name, "kind": kind, "before": sides["before"], "after": sides["after"],
+                     "suggested": suggest(sides["before"], sides["after"])})
+    rows.sort(key=lambda r: (_KIND_ORDER.get(r["kind"], 9), _LABEL_ORDER.get(r["suggested"], 9), r["signal"]))
+    return rows, per_run
+
+
+def run_facts(cohort_runs):
+    """Per run: payload pair, liveness status, and episode summary, for the report."""
+    facts = {}
+    for side, runs in cohort_runs.items():
+        for bid, parsed in runs.items():
+            summary = parsed.get("summary") or {}
+            pay = parsed.get("payloads") or {}
+            facts[bid] = {"cohort": side, "initial_payload": pay.get("initial"), "target_payload": pay.get("target"),
+                          "network_liveness": summary.get("network_liveness_status"),
+                          "episodes": summary.get("episode_summary")}
+    return facts
+
+
+def _load(path):
+    """One parse_disruption.py JSON output. Raises CompareError when it is unreadable or another file."""
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError) as e:
+        raise CompareError("cannot read parser output %s: %s" % (path, e))
+    if not isinstance(data, dict) or "summary" not in data:
+        raise CompareError("%s is not parse_disruption.py --format json output" % path)
+    return data
+
+
+def _build_id(path):
+    """The build ID from runs/<build_id>/parsed.json or <build_id>.json, else the path itself."""
+    parent = os.path.basename(os.path.dirname(os.path.abspath(path)))
+    if parent.isdigit():
+        return parent
+    stem = os.path.splitext(os.path.basename(path))[0]
+    return stem if stem.isdigit() else path
+
+
+def load_cohorts(args):
+    """({"before": {build_id: parsed}, "after": {...}}, notes about skipped runs, {build_id: run dir})."""
+    notes = []
+    cohort_runs = {"before": {}, "after": {}}
+    run_dirs = {}
+    if args.before or args.after:
+        if not (args.before and args.after):
+            raise CompareError("pass both --before and --after")
+        seen = {}
+        for side in ("before", "after"):
+            for path in getattr(args, side).split(","):
+                path = path.strip()
+                if not path:
+                    continue
+                bid = _build_id(path)
+                if bid in seen:
+                    raise CompareError("%s and %s are the same run (%s); pass each run once"
+                                       % (seen[bid], path, bid))
+                seen[bid] = path
+                cohort_runs[side][bid] = _load(path)
+                run_dirs[bid] = os.path.dirname(os.path.abspath(path))
+    else:
+        if not args.state_file or not args.runs_dir:
+            raise CompareError("pass --state-file and --runs-dir, or --before and --after parser outputs")
+        cohorts = state.load_state(args.state_file).get("cohorts") or {}
+        if not cohorts.get("before") or not cohorts.get("after"):
+            raise CompareError("the state file has no cohorts; run disruption-find-runs first")
+        for side in ("before", "after"):
+            for run in cohorts[side]:
+                bid = str(run.get("prow_id"))
+                path = os.path.join(args.runs_dir, bid, PARSED_NAME)
+                if not os.path.exists(path):
+                    notes.append("Run %s (%s) has no %s; analyze it with disruption-analyze-run first."
+                                 % (bid, side, path))
+                    continue
+                try:
+                    cohort_runs[side][bid] = _load(path)
+                    run_dirs[bid] = os.path.join(args.runs_dir, bid)
+                except CompareError as e:
+                    notes.append("Run %s (%s) was skipped: %s. Re-run disruption-analyze-run for it." % (bid, side, e))
+    for side, runs in cohort_runs.items():
+        if not runs:
+            raise CompareError("the %s cohort has no parsed run" % side)
+    return cohort_runs, notes, run_dirs
+
+
+def component_versions(cohort_runs, run_dirs):
+    """Component repos whose commit differs between the cohorts, from each run's releaseinfo.json.
+
+    Returns (rows, notes). Each row has the repo, its release tags, and for each cohort
+    {commit: runs}. label is "changed" when no after run shares a commit with any before
+    run, else "mixed"; both cover only the runs with usable releaseinfo. A releaseinfo
+    with no component commits counts as missing. rows is None when a cohort has no
+    usable releaseinfo at all.
+    """
+    commits = {"before": {}, "after": {}}
+    missing = []
+    for side, runs in cohort_runs.items():
+        for bid in runs:
+            path = os.path.join(run_dirs.get(bid, ""), RELEASEINFO_PATH)
+            try:
+                with open(path) as f:
+                    info = json.load(f)
+            except (OSError, ValueError):
+                missing.append(bid)
+                continue
+            components = component_commits(info) if isinstance(info, dict) else {}
+            if components:
+                commits[side][bid] = components
+            else:
+                missing.append(bid)
+    notes = []
+    if not commits["before"] or not commits["after"]:
+        notes.append("Component versions were not compared: %s cohort has no %s with component commits. "
+                     "Download the runs with download_timelines.py --gather to add them." % (
+                         "neither" if not (commits["before"] or commits["after"])
+                         else ("the before" if not commits["before"] else "the after"), RELEASEINFO_PATH))
+        return None, notes
+    if missing:
+        notes.append("Component versions leave out %s (no %s with component commits); the changed and "
+                     "mixed labels cover only the other runs." % (", ".join(sorted(missing)), RELEASEINFO_PATH))
+    by_repo = {}
+    for side, runs in commits.items():
+        for components in runs.values():
+            seen = set()
+            for tag, info in components.items():
+                repo = info["repo"] or tag
+                entry = by_repo.setdefault(repo, {"repo": repo, "tags": set(), "before": {}, "after": {}})
+                entry["tags"].add(tag)
+                if (repo, info["commit"]) not in seen:
+                    seen.add((repo, info["commit"]))
+                    entry[side][info["commit"]] = entry[side].get(info["commit"], 0) + 1
+    rows = []
+    for entry in by_repo.values():
+        if set(entry["before"]) == set(entry["after"]):
+            continue
+        shared = set(entry["before"]) & set(entry["after"])
+        rows.append(dict(entry, tags=sorted(entry["tags"]), label="mixed" if shared else "changed"))
+    rows.sort(key=lambda r: (r["label"] != "changed", r["repo"]))
+    return rows, notes
+
+
+def _fmt(value):
+    """A number in short form, or the value as a string."""
+    return ("%g" % value) if isinstance(value, (int, float)) else str(value)
+
+
+def _fmt_commits(counts):
+    """Short commits with their run counts, as text."""
+    return ", ".join("%s(%d)" % (commit[:8], n) for commit, n in sorted(counts.items())) or "—"
+
+
+def print_text(result, out=None):
+    """The signal matrix and notes as plain text."""
+    out = out or sys.stdout
+    n_before, n_after = len(result["runs"]["before"]), len(result["runs"]["after"])
+    out.write("Signals across cohorts (before: %d run(s), after: %d run(s))\n\n" % (n_before, n_after))
+    header = "%-62s %-11s %-16s %-16s %s\n" % ("signal", "kind", "before runs/med", "after runs/med", "suggested")
+    out.write(header)
+    out.write("-" * (len(header) - 1) + "\n")
+    for row in result["matrix"]:
+        b, a = row["before"], row["after"]
+        out.write("%-62s %-11s %-16s %-16s %s\n" % (
+            row["signal"][:62], row["kind"], "%d/%d  %s" % (b["runs"], b["of"], _fmt(b["median"])),
+            "%d/%d  %s" % (a["runs"], a["of"], _fmt(a["median"])), row["suggested"]))
+    out.write("\nRuns:\n")
+    for bid, fact in sorted(result["facts"].items(), key=lambda kv: (kv[1]["cohort"] != "before", kv[0])):
+        out.write("  %-6s %s  liveness=%s  %s -> %s  %s\n" % (
+            fact["cohort"], bid, fact["network_liveness"], fact["initial_payload"] or "?",
+            fact["target_payload"] or "?", fact["episodes"] or ""))
+    components = result.get("components")
+    if components:
+        changed = [c for c in components if c["label"] == "changed"]
+        out.write("\nComponent repos whose commit differs (target payloads, runs with releaseinfo only; "
+                  "%d changed: no commit shared between the cohorts; %d mixed):\n"
+                  % (len(changed), len(components) - len(changed)))
+        for comp in components:
+            out.write("  %-8s %-55s before %s -> after %s\n" % (
+                comp["label"], comp["repo"][:55], _fmt_commits(comp["before"]), _fmt_commits(comp["after"])))
+    for note in result["notes"]:
+        out.write("Note: %s\n" % note)
+
+
+def main(argv=None):
+    """Compare the cohorts, print the matrix, and record it in the state file when given one."""
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--state-file", help="investigation.json with cohorts from disruption-find-runs")
+    parser.add_argument("--runs-dir", help="directory holding <build_id>/parsed.json per run")
+    parser.add_argument("--before", help="comma-separated parser JSON files (instead of the state's cohorts)")
+    parser.add_argument("--after", help="comma-separated parser JSON files")
+    parser.add_argument("--format", choices=["text", "json"], default="text")
+    args = parser.parse_args(argv)
+    try:
+        cohort_runs, notes, run_dirs = load_cohorts(args)
+    except (CompareError, state.StateError) as e:
+        print("Error: %s" % e, file=sys.stderr)
+        return 1
+    rows, _per_run = build_matrix(cohort_runs)
+    components, component_notes = component_versions(cohort_runs, run_dirs)
+    notes.extend(component_notes)
+    result = {"matrix": rows, "runs": {side: sorted(runs) for side, runs in cohort_runs.items()},
+              "facts": run_facts(cohort_runs), "components": components, "notes": notes}
+    unreliable = sorted(bid for bid, f in result["facts"].items() if f["network_liveness"] in ("degraded", "unreliable"))
+    if unreliable:
+        notes.append("Network liveness is degraded or unreliable in %s: do not rest a conclusion on their "
+                     "disruption counts alone." % ", ".join(unreliable))
+    if args.state_file and not (args.before or args.after):
+        try:
+            current = state.load_state(args.state_file)
+            current["comparison"] = dict(current.get("comparison") or {}, matrix=rows, runs=result["runs"],
+                                         facts=result["facts"], components=components, notes=notes)
+            state.write_json_atomic(args.state_file, current, indent=2)
+        except (state.StateError, OSError) as e:
+            print("Error: comparison not recorded: %s" % e, file=sys.stderr)
+            return 1
+    if args.format == "json":
+        print(json.dumps(result, indent=2))
+    else:
+        print_text(result)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

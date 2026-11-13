@@ -105,7 +105,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.110",
+      "version": "0.0.111",
       "category": "ci",
       "keywords": [
         "prow",
@@ -128,6 +128,20 @@
         "sippy",
         "prow",
         "test-failures"
+      ]
+    },
+    {
+      "name": "disruption",
+      "source": "./plugins/disruption",
+      "description": "Investigate OpenShift CI disruption regressions: when disruption changed, and why runs were disrupted",
+      "version": "0.0.1",
+      "category": "ci",
+      "keywords": [
+        "disruption",
+        "openshift-ci",
+        "prow",
+        "sippy",
+        "regression"
       ]
     },
     {
