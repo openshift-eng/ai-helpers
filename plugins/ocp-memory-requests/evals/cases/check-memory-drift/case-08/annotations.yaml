@@ -1,0 +1,6 @@
+# case-08: reconcile - same key, materially different -> update
+expected_create_count: 0
+expected_updates:
+- {deployment: etcd-operator}
+notes: Open bug has the same key but a materially different value (50 vs ~176.7);
+  the skill updates it (and may comment) rather than filing a duplicate.

@@ -1,0 +1,6 @@
+# case-03: lower direction
+expected_create_count: 1
+expected_creates:
+- {deployment: image-registry}
+notes: Over-provisioned operator; one bug is filed (phrased as lowering the request).
+  Direction/recommendation math is covered by the scripts' unit tests.

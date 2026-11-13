@@ -1,0 +1,5 @@
+# case-12: dry run
+expected_create_count: 0
+expected_no_write:
+- marketplace-operator
+notes: '--dry-run: a candidate exists and is reported, but no Jira write occurs.'

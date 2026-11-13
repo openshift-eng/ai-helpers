@@ -1,0 +1,1 @@
+[{"Namespace":"openshift-console-operator","Deployment":"console-operator","job_runs":1,"p90_start_mb":100.0,"p50_start_mb":80.0,"request_mb":110.0,"request_mb_min":110.0,"request_mb_max":110.0}]
