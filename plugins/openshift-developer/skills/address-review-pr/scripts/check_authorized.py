@@ -3,7 +3,7 @@
 Check if a GitHub user is authorized to trigger review agent responses.
 
 Authorized authors are:
-1. Approved bots (coderabbitai)
+1. Approved bots (coderabbitai and redhat-chai-bot)
 2. Users listed in OWNERS or OWNERS_ALIASES
 3. Members of the repository's GitHub organization (fallback)
 
@@ -35,6 +35,7 @@ GH_TIMEOUT = 30
 APPROVED_BOTS = [
     "coderabbitai",
     "coderabbitai[bot]",
+    "redhat-chai-bot",
 ]
 
 IGNORED_ACCOUNTS = [
