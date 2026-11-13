@@ -1,0 +1,54 @@
+# Evals run by the manifest eval runner on PRs whose changes match `triggers`.
+# Contract: https://github.com/openshift/release/blob/main/hack/claude-agent-eval/README.md
+evals:
+- config: plugins/code-review/evals/eval-classify-review-comment.yaml
+  eval_cases_dir: plugins/code-review/evals/cases/classify-review-comment
+  run: pr
+  parallelism: 5
+  max_turns: 100
+  triggers:
+  - plugins/code-review/evals
+  - plugins/code-review/skills/classify-review-comment
+
+- config: plugins/jira/evals/eval-ready-to-solve.yaml
+  eval_cases_dir: plugins/jira/evals/cases/ready-to-solve
+  run: pr
+  parallelism: 4
+  max_turns: 100
+  triggers:
+  - plugins/jira/evals
+  - plugins/jira/skills/ready-to-solve
+
+- config: plugins/ci/evals/eval-detect-permafail.yaml
+  eval_cases_dir: plugins/ci/evals/cases/detect-permafail
+  run: pr
+  parallelism: 5
+  max_turns: 100
+  triggers:
+  - plugins/ci/evals/eval-detect-permafail.yaml
+  - plugins/ci/evals/cases/detect-permafail
+  - plugins/ci/skills/detect-permafail
+  - plugins/ci/commands/detect-permafail.md
+
+- config: plugins/openshift-developer/evals/eval-address-reviews.yaml
+  eval_cases_dir: plugins/openshift-developer/evals/cases/address-reviews
+  run: pr
+  parallelism: 5
+  max_turns: 100
+  triggers:
+  - plugins/openshift-developer/evals/eval-address-reviews.yaml
+  - plugins/openshift-developer/evals/cases/address-reviews
+  - plugins/openshift-developer/skills/address-review-pr
+  - plugins/openshift-developer/skills/has-review-work/scripts
+
+- config: plugins/openshift-developer/evals/eval-address-ci-failures.yaml
+  eval_cases_dir: plugins/openshift-developer/evals/cases/address-ci-failures
+  run: pr
+  parallelism: 4
+  max_turns: 100
+  triggers:
+  - plugins/openshift-developer/evals/eval-address-ci-failures.yaml
+  - plugins/openshift-developer/evals/cases/address-ci-failures
+  - plugins/openshift-developer/skills/address-ci-failures
+  - plugins/openshift-developer/skills/has-review-work/scripts
+  - plugins/ci/skills/prow-job-analysis/references/flaky-test-identification.md

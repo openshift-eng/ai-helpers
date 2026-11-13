@@ -65,6 +65,32 @@ You can test plugins locally before submitting:
 /plugin install <plugin>@<your-marketplace-name>
 ```
 
+## Evals
+
+Skill evals use [agent-eval-harness](https://github.com/fullsend-ai/agent-eval-harness). They run in CI through the
+manifest eval runner, which reads [`evals.yaml`](evals.yaml) at the repo root. One CI job covers every eval, so adding
+an eval never needs an openshift/release change.
+
+To add an eval:
+
+1. Create `plugins/<plugin>/evals/eval-<name>.yaml` and cases under `plugins/<plugin>/evals/cases/<name>/`.
+   - Set `models.skill`: CI runs exactly the model in the eval YAML, with no CI-side override.
+   - Make `dataset.path` relative to the eval YAML (e.g. `cases/<name>`), because the harness resolves it from the
+     config's directory.
+2. Add an entry to `evals.yaml`:
+   - `config` and `eval_cases_dir` (the same directory as `dataset.path`);
+   - `run: pr`;
+   - `parallelism` and `max_turns`;
+   - an optional `setup_script`;
+   - `triggers`: path prefixes whose changes should run this eval. List the eval YAML, its cases, its skill, and any
+     skills or scripts the skill reads from elsewhere.
+3. On a PR, the `eval-runner` job runs only the evals whose triggers match the diff. A PR that only changes cases runs
+   just those cases.
+
+To change an eval's model, budget, judges or thresholds, change its eval YAML in a PR, and the PR's own eval run
+exercises the change. The manifest contract is documented in
+[openshift/release `hack/claude-agent-eval/README.md`](https://github.com/openshift/release/blob/main/hack/claude-agent-eval/README.md).
+
 ## Documentation Site
 
 The marketplace website uses MkDocs Material and is published to GitHub Pages

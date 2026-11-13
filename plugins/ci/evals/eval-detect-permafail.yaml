@@ -50,6 +50,7 @@ runner:
     }
 
 models:
+  skill: claude-opus-4-6
   judge: claude-opus-4-6
 
 permissions:

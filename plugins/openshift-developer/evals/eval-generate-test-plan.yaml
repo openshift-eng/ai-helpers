@@ -111,7 +111,7 @@ mlflow:
   experiment: generate-test-plan-eval
 
 dataset:
-  path: plugins/openshift-developer/evals/cases/generate-test-plan
+  path: cases/generate-test-plan
   schema: |
     Each case directory contains:
     - input.yaml:

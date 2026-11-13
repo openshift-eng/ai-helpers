@@ -81,6 +81,7 @@ runner:
       timeline-proven and the fix is proportionate to the measured window.
 
 models:
+  skill: claude-opus-4-6
   # Pinned deliberately — do NOT "helpfully" upgrade to a floating alias.
   # The score thresholds below (mechanism_accuracy 3.5, evidence_discipline
   # 3.0, the relaxed 0.8 on expected_jira_found) are calibrated against this
