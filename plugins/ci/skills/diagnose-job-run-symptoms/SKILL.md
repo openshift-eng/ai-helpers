@@ -52,6 +52,10 @@ Note: deep mode reports label IDs only — the matched file/text detail is only 
 Deep mode submits an asynchronous batch, polls its same-origin status link
 through `pending`, `processing`, and `running`, and reports results after the
 batch reaches `complete`. A `failed` or `cancelled` batch is an error.
+After Sippy accepts the batch, the client immediately flushes its `batch_id`
+and validated status URL so the server-side work can be recovered if polling
+later fails. JSON mode writes this notice to stderr, keeping stdout as one
+parseable JSON document.
 
 ### Step 3: Nothing matched?
 
@@ -98,8 +102,11 @@ The script also cross-references `GET /api/jobs/labels` and `GET /api/jobs/sympt
 - **No labels found**: Not an error — the script prints guidance (try `--deep` first, then create a new symptom via `manage-symptoms`).
 - **401/403 or HTML login page in deep mode**: Token missing/expired (the SSO proxy may return a login page instead of 401) — refresh via the `oc-auth` skill.
 - **HTML gateway error page or non-JSON body in deep mode**: Transient gateway error (likely 504) — retry later.
-- **Unknown or malformed batch status**: Rejected as an API error instead of polling indefinitely.
-- **Failed or cancelled deep batch**: Reported as an error (exit 1).
+- **Unknown or malformed batch status**: Rejected as an API error. After an
+  accepted submission, the error output retains the batch ID and validated
+  status URL.
+- **Failed or cancelled deep batch**: Reported with aggregate and per-item
+  diagnostics (exit 1), not as a successful "no labels" result.
 - **Sippy API unreachable**: exit 1 with a clear message.
 
 **Exit Codes**:
