@@ -1,0 +1,149 @@
+issue_key: OCPBUGS-132796
+expected_disposition: SOLVE
+acceptable_dispositions: [SOLVE]
+acceptable_resolutions: []
+expected_final_status: New
+required_labels: [refined-by-agent]
+preserved_labels: []
+removed_labels: []
+max_comment_chars: 1500
+difficulty: complex
+category: bug-refinement
+reference_description: reference-description.md
+ground_truth: |
+  First run: the issue has no refine:v1 marker and no refined-by-agent label.
+  The reported failure is real and worth fixing. Expected disposition: SOLVE
+  with a bounded control-plane-operator (CPO) fix in openshift/hypershift main,
+  backported through release-4.22.
+
+  Mechanism. The CPO awsprivatelink controller sends every subnet in
+  AWSEndpointService.spec.subnetIDs to CreateVpcEndpoint/ModifyVpcEndpoint. The
+  hypershift-operator fills that list in listSubnetIDs
+  (hypershift-operator/controllers/platform/aws/controller.go) from NodePool
+  subnets plus the karpenter-subnets ConfigMap, which the karpenter-operator
+  writes from every OpenshiftEC2NodeClass status.subnets
+  (reconcileKarpenterSubnetsConfigMap). The CPO only keeps one subnet per AZ
+  (deduplicateSubnetsByAZ); a Local Zone has its own zone name
+  (us-east-1-bue-1a), so its subnet survives and is sent to AWS. AWS documents
+  that VPC endpoints cannot be created inside Local Zone subnets and rejects
+  the whole request with 400 InvalidParameter, so the reconcile never
+  converges. A HyperShift NodePool whose subnet is in a Local Zone reaches the
+  same field. Commit 88643f6e74a (feat(autnode): use arbitrary subnets from
+  karpenter ec2nodeclass, committed 2026-03-24) added the Karpenter subnet
+  propagation; it is on release-4.22 and later branches.
+
+  Versions. The production stack trace has reconcileAWSEndpointService at
+  awsprivatelink_controller.go:747 as the top frame, called from Reconcile at
+  :501. Those lines match release-4.22 exactly from f1455fa789b (2026-06-11)
+  on. On release-4.23, 5.0, 5.1, 5.2 and main the "failed to modify vpc
+  endpoint" log lives in modifyEndpointIfNeeded, so those builds would produce
+  a different stack. The incident therefore ran a 4.22.z CPO: 4.22 is
+  Confirmed. The Jira Affects Version 5.1 is a claim; 4.23, 5.0, 5.1 and 5.2
+  are Inferred from identical code. The karpenter-operator runs from the HO
+  image (the standalone mode is TechPreview and opt-in), so older HCP versions
+  with AutoNode under a current HO are plausibly exposed but Unknown. Earliest
+  affected and first fixed builds stay unknown. Treating 5.1 as the confirmed
+  incident version, or leaving 4.22 out of the affected versions and the
+  backport plan, is a material error.
+
+  Impact. AWSEndpointAvailable=False on the AWSEndpointService and the
+  HostedCluster. A standard-AZ subnet added in the same request is rejected
+  with it. The Route53 and ExternalName steps after the endpoint are skipped
+  while it fails. If the endpoint must be recreated (for example, after an
+  InvalidVpcEndpointId.NotFound status reset), CreateVpcEndpoint fails and no
+  endpoint exists. The failing reconcile does not delete, recreate, or shrink
+  the existing endpoint: that path makes no DeleteVpcEndpoints or
+  CreateVpcEndpoint call and keeps the endpoint ID. This matches the reporter
+  reaching the ignition server through the endpoint after boot, and the
+  OCPBUGS-82443 precedent of nodes joining while the endpoint reconciler
+  errored. Endpoint "flapping" is not supported by the code, and this bug does
+  not explain the Local Zone ignition failure in the comments. Keep that
+  symptom separate (a fresh-node validation step or a follow-up bug) and do
+  not claim the fix resolves node bootstrap.
+
+  Fix. In control-plane-operator/controllers/awsprivatelink, extend the
+  existing DescribeSubnets-backed subnet selection (subnetAZCache,
+  deduplicateSubnetsByAZ, ensureVPCEndpoint) so that, before the one-per-AZ
+  pick and for both the create and modify paths, it drops subnets whose zone
+  is not a standard Availability Zone of hcp.Spec.Platform.AWS.Region (AWS's
+  documented format: the region plus one letter). Filter in memory, because
+  the hypershift-operator owns spec.subnetIDs. Log the excluded subnets, never
+  send an empty desired set, and keep today's behavior when DescribeSubnets
+  fails so clusters without that permission do not regress. No API, IAM, or
+  NodePool config-hash change. ec2:DescribeSubnets is in the AWS-managed
+  ROSAControlPlaneOperatorPolicy v7; ec2:DescribeAvailabilityZones and
+  ec2:DescribeVpcEndpointServices are not. A fix that depends on either of
+  those, with a fail-open fallback, would leave ROSA unfixed until AWS updates
+  the policy: that is a material flaw, not an equivalent alternative.
+
+  Acceptable variations: falling back to the endpoint's existing regional
+  subnets when every candidate is excluded; resolving zones even for a single
+  subnet; a karpenter-operator source filter as a complement (not alone,
+  because it misses NodePool subnets). Making a DescribeSubnets failure a hard
+  error is a regression risk a reviewer should flag. Linking ROSAENG-74689 (the
+  same AWS error for standard AZs the management VPC does not cover) is useful
+  but optional; that issue is not in the fixture.
+
+  Writes. Replace the description first (actual and expected behavior,
+  evidence, corrected root cause, acceptance criteria, implementation plan,
+  validation; keep the original report and log), then post one short comment
+  with the refine:v1 outcome=SOLVE marker, then add refined-by-agent. No
+  transition, and no priority, severity, assignee, or version edits;
+  proposing Affects Version/s in the description is fine. The saved
+  description must pass the REQUIRED jira:ready-to-solve section checks
+  (Context, Acceptance Criteria, Technical Details); one corrective
+  description update after the readiness check is allowed.
+
+  Wrong dispositions: CLOSE (a real, worthwhile defect), NEEDS_INFO (the
+  decisive facts are in the log, the source, and AWS documentation), and
+  NEED_HUMAN_ANALYSIS (a bounded CPO fix exists without new permissions).
+
+  Evidence:
+  - https://docs.aws.amazon.com/local-zones/latest/ug/how-local-zones-work.html
+  - https://docs.aws.amazon.com/aws-managed-policy/latest/reference/ROSAControlPlaneOperatorPolicy.html
+  - https://github.com/openshift/hypershift/blob/db8d2278410f6ce7b5ec85971b80aea598d27222/control-plane-operator/controllers/awsprivatelink/awsprivatelink_controller.go#L747
+  - https://github.com/openshift/hypershift/blob/a0aaf80a611bed96903d93ec9e7859f231f28488/control-plane-operator/controllers/awsprivatelink/awsprivatelink_controller.go
+  - https://github.com/openshift/hypershift/commit/88643f6e74a74902775eeaffc2fef445853d822d
+solve_description_rubric: |
+  Score 1: No description was saved, or it stops at "filter Local Zones"
+           without the mechanism, fixes only the hypershift-operator or
+           karpenter-operator, or claims endpoint flapping causes the ignition
+           failure.
+  Score 2: The CPO is the right place, but the plan keeps a material error:
+           it depends on DescribeAvailabilityZones or
+           DescribeVpcEndpointServices with a fail-open fallback, makes a
+           DescribeSubnets failure a hard error without addressing clusters
+           that lack the permission, or treats 5.1 as the confirmed incident
+           version and drops 4.22.
+  Score 3: A CPO zone filter on the existing subnet data with acceptance
+           criteria, but it misses two or more of: both the create and modify
+           paths, no empty desired set, the preserved lookup fallback, the
+           4.22 backport, and keeping the ignition symptom separate.
+  Score 4: Everything in 3, with testable acceptance criteria and validation
+           that exercises a Local Zone subnet alongside standard-AZ subnets,
+           including endpoint recreation.
+  Score 5: Everything in 4, plus version evidence from the stack-trace frame
+           mapping, the IAM-policy reasoning (DescribeSubnets is granted, the
+           alternatives are not), and no overclaiming about the ignition
+           failure.
+notes: |
+  The fixture freezes OCPBUGS-132796 before the 2026-10-22T12:43Z refinements;
+  real Jira is blocked because the live issue shows the answer. People and
+  cluster identifiers are anonymized. ROSAENG issues referenced in the analysis
+  are left out because they may not be publicly readable.
+
+  The reference description is the verified refinement restructured so it
+  passes the jira:ready-to-solve section checks. Public source can change;
+  revisit this case if the CPO starts filtering zones or the ROSA managed
+  policy gains DescribeAvailabilityZones or DescribeVpcEndpointServices.
+
+  After the refinement, hypershift PR #10080 (branch fix/OCPBUGS-132796 in the
+  redhat-chai-bot fork, opened 2026-10-22T13:53Z) proposed the fix. The
+  fixture's blocked_research patterns and blocked_research_sha256 token
+  digests make the guard block that PR, the fork, the branch, and PR listing
+  or search without naming them in the workspace; subjects can still read
+  source and older PRs. The guard also blocks GitHub searches for the issue
+  key and any reference to the ai-helpers repository, which publishes this
+  case's expected answer.
+  Revisit this case if PR #10080 merges, because main would then carry the
+  fix.
