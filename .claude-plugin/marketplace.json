@@ -112,14 +112,15 @@
         "ci",
         "openshift-ci",
         "test-failures",
-        "job-analysis"
+        "job-analysis",
+        "mcp"
       ]
     },
     {
       "name": "ci-extras",
       "source": "./plugins/ci-extras",
-      "description": "MCP server and extended tooling for OpenShift CI data access",
-      "version": "0.3.0",
+      "description": "Extended tooling for OpenShift CI data access, using the openshift-ci-mcp server bundled with the ci plugin",
+      "version": "0.4.0",
       "category": "ci",
       "keywords": [
         "openshift-ci",

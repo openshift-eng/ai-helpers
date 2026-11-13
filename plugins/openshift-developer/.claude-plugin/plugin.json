@@ -12,7 +12,7 @@
     },
     {
       "name": "ci",
-      "version": ">=0.0.52"
+      "version": ">=0.0.110"
     },
     {
       "name": "golang",

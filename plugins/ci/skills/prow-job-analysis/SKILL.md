@@ -15,6 +15,9 @@ The user will provide:
 1. **Prow job URL** (required) — Prow UI or gcsweb URL
    - `https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/<job>/<build_id>`
    - `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public/...`
+   - `https://qe-private-deck-ci.apps.ci.l2s4.p1.openshiftapps.com/view/gs/qe-private-deck/...`
+     (private QE deck; readable through the openshift-ci MCP server or with
+     `OPENSHIFT_CI_TOKEN`, see below)
 
 2. **Test name** (optional) — specific failed test to focus on
 
@@ -30,6 +33,50 @@ The user will provide:
   plain HTTPS: [prow_job_artifact_search.py](prow_job_artifact_search.py)
   (stdlib-only `list`/`search`/`fetch`; `fetch --tail` reads a log's end) or `curl` against
   `https://storage.googleapis.com/test-platform-results-public/...`.
+- **openshift-ci MCP server** (preferred when available): bundled with this plugin and
+  started by `go run`, so it needs Go on `PATH` (1.25.9 or newer, or an older Go that may
+  download it, see the ci README); it must be v0.6.0 or newer for the Prow tools used below. Private QE deck runs also need `OPENSHIFT_CI_TOKEN` set to the output
+  of `oc whoami -t` after logging in to the app.ci cluster, in the shell Claude Code was
+  started from (the server inherits its environment). If the tools are not available,
+  use the gcloud/HTTPS commands in each step; for a private QE deck run, which those
+  commands cannot read, report that its analysis needs the openshift-ci MCP server and
+  stop.
+
+### Reading Artifacts Through the openshift-ci MCP Server
+
+When the `get_prow_job_run`, `get_prow_artifacts`, and `get_prow_artifact_content` tools
+are available, use them before the gcloud/HTTPS commands in the steps below. Pass the job
+URL as `run_url`. They work the same for public runs and for the private QE deck, which
+the public bucket URLs cannot reach. The server knows only those two decks: if a tool
+rejects the URL as not on a known deck (for example a `prow-artifact-archive` URL), use
+the gcloud/HTTPS commands instead.
+
+| Need | MCP tool call | Replaces |
+|------|---------------|----------|
+| Result, timing, refs, per-step pass/fail with failure excerpts, test directories | `get_prow_job_run` | Most of Step 2, and the failed ci-operator step in Step 3; still read the Step 3 summary files, and `prowjob.json` for the fields it does not return |
+| `prowjob.json` or any other text artifact | `get_prow_artifact_content` with `path` (for example `prowjob.json`), plus `head_lines`/`tail_lines`/`grep`; for a whole file, see below | `curl`, `gcloud storage cp` of single files |
+| ci-operator verdict at the end of `build-log.txt` | `get_prow_artifact_content` with `tail_lines: 100` | Step 3 command 1 |
+| A step's build log | `get_prow_artifact_content` with `step` (the `step` field of `get_prow_job_run`), plus `test` (one of its `test_dirs`) when the run has more than one | Downloading `artifacts/{target}/{step}/build-log.txt` |
+| A directory listing | `get_prow_artifacts` with `path` (for example `artifacts/{target}/gather-extra/artifacts/junit/`) | `gcloud storage ls` of one directory |
+
+For the verdict, read the end of the log with `tail_lines: 100` and look for
+`Reporting job state`, `could not run steps`, and `step ... failed`: ci-operator writes
+them last. Use `grep` (a Go regular expression, so `|` separates alternatives) only to find
+earlier lines, and check `truncated`: grep stops after `max_matches` (default 50) matches.
+
+For a whole file, such as a JSON summary or a JUnit XML file, pass `head_lines: 100000` and
+`max_bytes: 1048576` (the tool returns only the last 200 lines by default), and use the
+result only when `mode` is `head`, `truncated` is false, the text has no `[line clipped]`
+(lines over 4 KiB are clipped without setting `truncated`), and the content parses (a JSON
+file as JSON, a JUnit file as XML). Otherwise
+download the file: with gcloud or HTTPS for a public run, or with the token as in Step 6
+for a private run.
+
+Limits: `get_prow_artifacts` lists one directory per call, so recursive globs such as
+`artifacts/**/junit*.xml` need one call per test and step directory (or the gcloud
+command), and text is capped at 1 MiB per call. Bulk downloads (node journals in Step 6,
+must-gather, Prometheus data) still use gcloud or HTTPS; for a private run, download
+single files from the private gcsweb host with the token, as in Step 6.
 
 ## Investigation Workflow
 
@@ -40,11 +87,14 @@ The user will provide:
 2. Extract the object path after the bucket name, then `build_id` — pattern
    `(\d{10,})` in the path.
 3. Construct GCS base: `gs://{bucket}/{bucket-path}/` using the URL bucket
-   as-is, including `prow-artifact-archive`. A private bucket will 403.
+   as-is, including `prow-artifact-archive`. A private bucket will 403: read
+   `qe-private-deck` runs through the openshift-ci MCP server instead.
 
 ### Step 2: Fetch prowjob.json
 
-Use the `fetch-prowjob-json` skill to get job metadata. Extract:
+Call `get_prow_job_run` first when the openshift-ci MCP server is available: it returns
+the job state, result, refs, and per-step results. Use the `fetch-prowjob-json` skill to
+get the remaining job metadata. Extract:
 - **Job name** from `.spec.job`
 - **Target** from `--target=` in ci-operator args
 - **Job state** from `.status.state`
@@ -152,7 +202,34 @@ using artifacts you already have.
 5. **Unexplained failure**: routing below did not yield a root cause, and you are about to
    conclude "flake" or "unknown".
 
-**Full check** — download the node journals (often 10-30 MB), then complete BOTH steps:
+**Full check** — download the node journals (often 10-30 MB), then complete BOTH steps.
+For a `qe-private-deck` run the gcloud command below fails (it hides the 403) and the
+MCP text tools cannot return the compressed journals. List the node directories with
+`get_prow_artifacts` (`path: artifacts/{target}/gather-extra/artifacts/nodes/`), then
+download each node's `journal` from the private gcsweb host with the token. Pass the
+header on stdin so the token stays out of the process list, send it only to that HTTPS
+host, and never print it:
+
+```bash
+J=.work/prow-job-analysis/{build_id}/nodes/{node}/journal
+mkdir -p "$(dirname "$J")"
+# Keep the file only when curl completed the transfer, the response was HTTP 200
+# (curl --fail ignores 3xx), and it is not gcsweb's HTML page, which gcsweb returns
+# with HTTP 200 for a missing object.
+if code=$(printf 'Authorization: Bearer %s\n' "$OPENSHIFT_CI_TOKEN" | curl -sS --fail -H @- -o "$J.part" -w '%{http_code}' \
+     "https://gcsweb-qe-private-deck-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/qe-private-deck/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes/{node}/journal") \
+   && [ "$code" = 200 ] && ! head -c 4096 "$J.part" | grep -aq '<title>GCS browser:'; then
+  mv "$J.part" "$J"
+else
+  rm -f "$J.part" "$J"; echo "no journal for {node}"
+fi
+```
+
+The host may serve a journal already decompressed; `zgrep` reads both forms. Keep a list
+of the nodes without a journal. If the token is not set or no node has a journal, state
+in the report that the OS-layer check could not run; if only some nodes have one, run
+the check on those and report it as incomplete, naming the missing nodes. In both cases
+do not treat the OS layer as cleared.
 
 ```bash
 gcloud storage cp -r \
