@@ -21,7 +21,8 @@ import blast_radius  # noqa: E402
 import clustering  # noqa: E402
 
 SCHEMA_VERSION = '1.0'
-POLICY = 'post-ga'
+POLICY = 'ga'
+POLICY_ALIASES = ('ga', 'post-ga')   # baselines written before the rename say 'post-ga'
 LEVEL_ORDER = {'HIGH': 0, 'ELEVATED': 1, 'LOW': 2}
 REPO_ROOT = Path(__file__).resolve().parents[5]
 LIST_REGRESSIONS = REPO_ROOT / 'plugins/teams/skills/list-regressions/list_regressions.py'
@@ -268,7 +269,7 @@ def oracle(cluster, runner=None, token=None, labels_fetch=None):
 def diff_baseline(clusters, baseline, run_id='local'):
     """Mutate clusters with lineage / new_since_baseline / growth; returns the baseline_run block."""
     ok = (isinstance(baseline, dict) and baseline.get('schema_version') == SCHEMA_VERSION
-          and (baseline.get('policy') or {}).get('name') == POLICY)
+          and (baseline.get('policy') or {}).get('name') in POLICY_ALIASES)
     block = {'run_id': None, 'manifest_url': None, 'schema_version': None, 'compatible': None}
     if isinstance(baseline, dict):
         block.update(run_id=(baseline.get('source_run') or {}).get('run_id'),
@@ -389,7 +390,7 @@ def weekly(regs, now, baseline, oracle=None, run_id='local', view_status=None):
 def _baseline_known(baseline):
     """HIGH clusters of a compatible weekly document, keyed by id, for growth detection."""
     ok = (isinstance(baseline, dict) and baseline.get('schema_version') == SCHEMA_VERSION
-          and (baseline.get('policy') or {}).get('name') == POLICY and isinstance(baseline.get('clusters'), list))
+          and (baseline.get('policy') or {}).get('name') in POLICY_ALIASES and isinstance(baseline.get('clusters'), list))
     if not ok:
         return {}
     return {c['id']: c for c in baseline['clusters']
@@ -484,7 +485,7 @@ def tripwire(regs, now, window_hours, previous_status, view_status=None, run_id=
         del c['_members']
     status = view_status if view_status is not None else _statuses_from_records(window, now)
     return {
-        'schema_version': SCHEMA_VERSION, 'mode': 'tripwire', 'policy': {'name': 'post-ga'},
+        'schema_version': SCHEMA_VERSION, 'mode': 'tripwire', 'policy': {'name': POLICY},
         'source_run': {'run_id': run_id},
         'observation': {'time': iso(now), 'views': status, 'window_hours': window_hours},
         'baseline_run': {'run_id': ((baseline or {}).get('source_run') or {}).get('run_id') if isinstance(baseline, dict) else None,

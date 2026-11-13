@@ -84,7 +84,7 @@ class TripwireTest(unittest.TestCase):
         regs = [r for r in self.replay if '4.22-main' in r['duty_views']]
         doc = p.tripwire(regs, ts('2026-09-24T12:00:00Z'), 24, None, run_id='2200')
         self.assertEqual(doc['source_run'], {'run_id': '2200'})
-        self.assertEqual(doc['policy'], {'name': 'post-ga'})
+        self.assertEqual(doc['policy'], {'name': 'ga'})
 
     def test_tripwire_0924_high_0830_elevated(self):
         doc = self.trip('2026-09-24T12:00:00Z', '4.22-main')
@@ -201,6 +201,19 @@ class BaselineTest(unittest.TestCase):
         self.assertEqual(c['lineage']['cycles_seen'], 3)
         self.assertEqual(c['members']['new_since_baseline'], [2])
         self.assertEqual(c['shape']['growth_since_baseline'], 1)
+
+    def test_policy_name_ga_and_legacy_post_ga_are_compatible(self):
+        regs = [reg(1, 'a', [run('1')])]
+        for name in ('ga', 'post-ga'):
+            baseline = {'schema_version': '1.0', 'policy': {'name': name}, 'source_run': {'run_id': 'r0'}, 'clusters': []}
+            doc = p.weekly(regs, self.NOW, baseline)
+            self.assertTrue(doc['baseline_run']['compatible'], name)
+            self.assertEqual(doc['policy'], {'name': 'ga'})
+
+    def test_unknown_policy_name_is_incompatible(self):
+        baseline = {'schema_version': '1.0', 'policy': {'name': 'devel'}, 'source_run': {'run_id': 'r0'}, 'clusters': []}
+        doc = p.weekly([reg(1, 'a', [run('1')])], self.NOW, baseline)
+        self.assertIs(doc['baseline_run']['compatible'], False)
 
 
 class TriagedTest(unittest.TestCase):
