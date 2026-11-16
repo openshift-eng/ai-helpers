@@ -67,7 +67,7 @@ class ResolveProwStateTest(unittest.TestCase):
             captured["url"] = url
             return {"status": {"state": "success"}}
 
-        rc = ps.ReleaseController()
+        rc = ps.ReleaseController("https://controller.example")
         with patch.object(ps, "try_fetch_json", side_effect=fake_fetch):
             state = rc.resolve_prow_state(
                 f"https://prow.ci.openshift.org/view/gs/{PRIVATE}/{JOB_PATH}"
@@ -86,7 +86,7 @@ class ResolveProwStateTest(unittest.TestCase):
             captured["url"] = url
             return {"status": {"state": "failure"}}
 
-        rc = ps.ReleaseController()
+        rc = ps.ReleaseController("https://controller.example")
         with patch.object(ps, "try_fetch_json", side_effect=fake_fetch):
             state = rc.resolve_prow_state(
                 f"https://prow.ci.openshift.org/view/gs/{ARCHIVE}/{JOB_PATH}"

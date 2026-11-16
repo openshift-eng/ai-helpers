@@ -1,12 +1,12 @@
 ---
 name: payload-analysis
 description: Analyze a payload snapshot to identify root causes of blocking job failures, score candidate PRs, and produce an HTML report with revert recommendations
-argument-hint: "<payload-tag> [--snapshot-dir DIR] [--as-of TIMESTAMP]"
+argument-hint: "<payload-tag> [--profile ocp|hypershift] [--snapshot-dir DIR] [--as-of TIMESTAMP]"
 ---
 
 # Payload Analysis
 
-This skill analyzes a payload using a local snapshot (produced by `payload-snapshot`) to identify root causes of blocking job failures and produce a comprehensive HTML report. The snapshot pre-gathers all release controller, GitHub, and CI data so this skill can focus purely on analysis — no live API orchestration required.
+This skill analyzes a local snapshot from `payload-snapshot` to identify blocking-job failure causes, score candidate changes, and produce HTML and structured reports. Start with snapshot evidence; fetch additional artifacts or repository history when needed.
 
 It supports **Rejected** payloads (full analysis of all failed blocking jobs), **Ready** payloads (early analysis of blocking jobs that have already failed), and **Accepted** payloads (which may have been force-accepted despite blocking failures).
 
@@ -39,6 +39,11 @@ Use this skill when you need to:
    /ci:payload-analysis 4.22.0-0.nightly-arm64-2026-02-25-152806
    ```
 
+4. **Analyze a HyperShift operator payload**:
+   ```
+   /ci:payload-analysis <hypershift-payload-tag> --profile hypershift
+   ```
+
 ## Prerequisites
 
 1. **Python 3** (3.10 or later) — for running the snapshot script if needed
@@ -69,16 +74,11 @@ OUTPUT_DIR="$(pwd)"
 
 All three output files — the payload results YAML (Step 6.7), the HTML report (Step 7), and the autodl JSON (Step 8) — MUST be written under `$OUTPUT_DIR`, never into a snapshot subdirectory or a path a later `cd` may have changed. The Step 10 self-check verifies them at `$OUTPUT_DIR`.
 
-The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Parse from it:
-- `tag`: The specific payload tag to analyze
-- `version`: Extract from the tag (e.g., `4.22` from `4.22.0-0.nightly-...`)
-- `stream`: Extract from the tag (e.g., `nightly` from `4.22.0-0.nightly-...`)
-- `architecture`: Inferred from the tag. The tag format is `<version>-0.<stream>[-<arch>]-<timestamp>`. If no architecture is present between the stream and timestamp, it is `amd64`. Otherwise, the architecture is the segment between the stream and timestamp. Examples:
-  - `4.22.0-0.nightly-2026-02-25-152806` → `amd64`
-  - `4.22.0-0.nightly-arm64-2026-02-25-152806` → `arm64`
-  - `4.22.0-0.nightly-ppc64le-2026-02-25-152806` → `ppc64le`
+The first argument is the **full payload tag**. Read payload identity from the
+matching snapshot; tag parsing belongs to the snapshot script.
 
 **Optional flags:**
+- `--profile ocp|hypershift`: Snapshot profile (default `ocp`); used when creating a snapshot.
 - `--snapshot-dir DIR`: Use an existing snapshot directory (Step 2).
 - `--as-of TIMESTAMP`: An RFC 3339 UTC cutoff (e.g. `2026-07-23T07:44:48Z`). When present, this is a **point-in-time analysis**: reason only from evidence that existed at or before this instant, as if you were analyzing the payload the moment it completed.
 
@@ -96,7 +96,7 @@ The analysis requires a local snapshot produced by the `payload-snapshot` skill.
 
 1. **Explicit `--snapshot-dir DIR`**: If provided, look for `DIR/summary.json`. If not found, exit with an error.
 2. **Current directory**: Check if `./summary.json` exists and its `payload_tag` field matches the requested tag.
-3. **Standard relative path**: Check if `payload/<version>/<stream>/summary.json` exists and matches the tag.
+3. **Standard snapshot directories**: Check `payload/*/*/summary.json` for a matching `payload_tag`.
 
 If no matching snapshot is found, create one:
 
@@ -106,15 +106,17 @@ if [ ! -f "$SNAPSHOT_SCRIPT" ]; then
   SNAPSHOT_SCRIPT=$(find ~/.claude/plugins -type f -path "*/ci/skills/payload-snapshot/scripts/payload_snapshot.py" 2>/dev/null | sort | head -1)
 fi
 if [ -z "$SNAPSHOT_SCRIPT" ] || [ ! -f "$SNAPSHOT_SCRIPT" ]; then echo "ERROR: payload_snapshot.py not found" >&2; exit 2; fi
-python3 "$SNAPSHOT_SCRIPT" <payload_tag>
+python3 "$SNAPSHOT_SCRIPT" --profile <profile> <payload_tag>
 ```
 
-After locating `summary.json`, set `SNAPSHOT_DIR` to the directory containing it. All relative paths in `summary.json` (e.g., `job_json`, `junit_results`, `build_log`, PR paths) resolve from this directory.
+After locating `summary.json`, verify that `payload_tag` matches the requested tag (including with `--snapshot-dir`), then set `SNAPSHOT_DIR` to the directory containing it. All relative paths in `summary.json` (e.g., `job_json`, `junit_results`, `build_log`, PR paths) resolve from this directory.
 
-The snapshot script automatically prefers release-controller data and falls
-back to Sippy for payloads that have been garbage collected. Do not truncate
-the analysis chain merely because an originating tag is absent from the live
-release controller; use the Sippy-backed `payloads[]` entry and its PR data.
+The OCP snapshot profile prefers release-controller data and falls back to
+Sippy for garbage-collected payloads. Do not truncate the OCP analysis chain
+merely because an originating tag is absent from the live release controller;
+use the Sippy-backed `payloads[]` entry and its PR data. The HyperShift profile
+uses only the selected controller stream; its history can end at the retention
+boundary.
 Check each entry's `source` and `changelog_source` fields when provenance or
 field completeness matters.
 
@@ -125,8 +127,18 @@ Read `summary.json` to extract all data needed for analysis. The snapshot has al
 #### 3.1: Payload Metadata
 
 From `summary.json` top-level fields:
-- `payload_tag`, `phase`, `release_url`, `source`, `architecture`, `stream`, `version`
+- `payload_tag`, `phase`, `release_url`, `release_controller_url`, `source`, `architecture`, `stream`, `stream_name`, `version`
 - `chain_length`, `baseline_tag`, `hours_since_baseline`
+
+Copy identity from `summary.json`: `version` is the payload component version;
+`stream_name` is the exact controller stream, while `stream` is its short label.
+Autodl keeps its documented OKD stream normalization.
+
+Snapshot `release_controller_url` is the controller origin. Construct payload
+links as `<origin>/releasestream/<stream_name>/release/<tag>`, URL-encoding path
+segments. The YAML/JSON field with the same name contains this **payload page
+URL**, not the origin. For older snapshots, recover missing identity from a
+stored controller link or the snapshot profile's defaults.
 
 **Record `phase` verbatim** from the `summary.json` metadata (`Accepted`, `Rejected`, or `Ready`). Never infer the phase from the job results or from whether failures exist — a payload can be `Accepted` *with* blocking failures (force-accepted) or `Ready` while jobs are still running. The stored phase drives the force-accept decision (Step 6.4) and the executive summary (Step 7.1), so an inferred phase silently corrupts both.
 
@@ -138,8 +150,9 @@ failed for some other reason, from missing data.
 
 When data is missing, collect it yourself from the job's `gcs_url` artifacts
 rather than analyzing around the gap. Do the same for any payload in the chain
-whose per-test data is missing. Report a gap as a limitation only when the
-artifacts themselves are unreachable.
+whose per-test data is missing. Report a gap as a limitation when the artifacts
+are unreachable or explicitly redacted. Summarize unresolved `collection_errors`
+(entries without `recovered: true`) in the HTML report.
 
 An aggregated job with no per-test results at all is **unclassified**, not part
 of a regression streak — aggregation also fails when too few child runs
@@ -204,7 +217,7 @@ For deeper context, read `build_log.json` (at the `build_log` path) for any fail
 
 For each failed job, check whether changes to the CI step-registry in the `openshift/release` repo correlate with the failure. These changes (modified step scripts, updated URLs, changed environment variables) will never appear in the snapshot's component PR list because they are not payload component changes — but they can break jobs just as effectively.
 
-Extract the date from the `originating_payload` tag (format: `<version>-0.<stream>-YYYY-MM-DD-HHMMSS` or `<version>-0.<stream>-<arch>-YYYY-MM-DD-HHMMSS` for non-amd64). The date is always the last `YYYY-MM-DD` segment before the `HHMMSS` suffix (e.g., `2026-06-16` from `5.0.0-0.nightly-2026-06-16-185706` or `5.0.0-0.nightly-arm64-2026-06-16-185706`). Compute a time window: `since` = originating date minus 1 day at `T00:00:00Z`; `until_timestamp` = originating date plus 1 day at `T23:59:59Z`. **Under `--as-of` (Step 1), set `until_timestamp` to the earlier of that value and the cutoff** so the query never returns commits newer than the payload completion. `until_timestamp` is always a complete RFC 3339 value passed to the query as-is — never append a time suffix to it.
+Extract the originating date from the tag's trailing `-YYYY-MM-DD-HHMMSS`. Compute a time window: `since` = originating date minus 1 day at `T00:00:00Z`; `until_timestamp` = originating date plus 1 day at `T23:59:59Z`. **Under `--as-of` (Step 1), set `until_timestamp` to the earlier of that value and the cutoff** so the query never returns commits newer than the payload completion. `until_timestamp` is always a complete RFC 3339 value passed to the query as-is — never append a time suffix to it.
 
 **First, get all step-registry commits in the time window:**
 
@@ -247,6 +260,10 @@ If this finds nothing, also check steps that run earlier in the workflow and set
 This step catches failures caused by CI tooling changes (mirror URL migrations, proxy configuration updates, script refactors) that are invisible to the snapshot's PR tracking.
 
 #### 3.7: RHCOS RPM Changes
+
+HyperShift operator snapshots omit RHCOS RPM extraction. Skip RPM candidate
+scoring when no RPM evidence is available; absence does not establish that the
+guest OS was unchanged.
 
 For each failed job's `streak.originating_payload`, find the matching entry in `summary.json` → `payloads[]` and check for `rhcos_changes[]`. This array (when present) contains per-RHCOS-variant RPM diffs showing which packages changed in the underlying RHCOS image for that payload. As with candidate PRs (3.3), treat this as a **preliminary** lookup only — re-derive the originating payload **per failure mode** from `test_failures.blocking[].first_failed_in` (Step 5) before scoring, since the job-level streak can predate the actual regression:
 
@@ -562,7 +579,7 @@ Before presenting, confirm that **all Step 4 investigation subagents and the Ste
    - JSON data file: `$OUTPUT_DIR/payload-analysis-<sanitized_tag>-autodl.json`
    - Payload results YAML: `$OUTPUT_DIR/payload-results-<sanitized_tag>.yaml`
 2. **The HTML contains every required section** from the Step 7 template: header + executive summary (including the payload-chain context), the revert verdict (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs summary table, a collapsible details block for **every** failed job, the RHCOS Changes section when any payload has RHCOS changes, the informing-tests section when such tests exist, and the Adversarial Review section. No unfilled `{placeholder}` and no `BEGIN`/`END` marker comments remain.
-3. **Cross-output consistency**: phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
+3. **Cross-output consistency**: payload identity (tag, component version, exact `stream_name`, architecture, and controller link), phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
 4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.
 5. **HTML filename** ends with `-summary.html`. If a `payload-analysis-*.html` file exists without that suffix, rename it — do not leave the short name as the report.
 6. **SHIP Status**: every `failure_type: infra` job has a `ship_status` observation if `get_outages_during` / `list_components` are in the tool list. Omit the key only when those tools are absent. Mapped slugs must follow `references/ship-status-component-map.md` (broken system, not `spec.cluster` as a default). Every infra observation includes the exact `cluster_profile` on the job and on `ship_status`.

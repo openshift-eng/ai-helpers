@@ -15,7 +15,7 @@ Use this skill when revert candidates have already been identified with high con
 
 - `results_yaml_path`: Path to the payload results YAML file (e.g., `./payload-results-{tag}.yaml`)
 - `payload_tag`: The full payload tag being analyzed
-- `version`, `stream`, `architecture`: Parsed from the payload tag
+- `version`, `stream`, `architecture`: From the payload results YAML metadata
 - `release_controller_url`: URL to the payload on the release controller
 - `revert_candidates`: List of PRs to revert, each with:
   - `pr_url`, `pr_number`, `component`, `confidence_score`, `rationale`

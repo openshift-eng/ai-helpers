@@ -28,7 +28,7 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional, Protocol
 
 
 # ---------------------------------------------------------------------------
@@ -81,32 +81,35 @@ class PayloadTag:
     timestamp: str
 
     @classmethod
-    def parse(cls, tag: str) -> "PayloadTag":
+    def parse(cls, tag: str, stream_name: str = "",
+              architecture: str = "") -> "PayloadTag":
         """Parse a payload tag string into its components."""
+        if stream_name and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", stream_name):
+            raise ValueError("Stream must be a single controller stream name")
         m = re.match(r"^(.+)-(\d{4}-\d{2}-\d{2}-\d{6})$", tag)
         if not m:
             raise ValueError(f"Cannot parse payload tag: {tag}")
 
-        stream_name = m.group(1)
+        tag_prefix = m.group(1)
         timestamp = m.group(2)
 
         sm = re.match(
             r"^(\d+\.\d+)\.0-0\.([\w-]+?)(?:-(arm64|ppc64le|s390x|multi))?$",
-            stream_name,
+            tag_prefix,
         )
         if not sm:
-            raise ValueError(f"Cannot parse stream name: {stream_name}")
+            raise ValueError(f"Cannot parse stream name: {tag_prefix}")
 
         version = sm.group(1)
         stream = sm.group(2)
-        architecture = sm.group(3) or "amd64"
+        architecture = architecture or sm.group(3) or "amd64"
 
         return cls(
             raw=tag,
             version=version,
             stream=stream,
             architecture=architecture,
-            stream_name=stream_name,
+            stream_name=stream_name or tag_prefix,
             timestamp=timestamp,
         )
 
@@ -197,13 +200,15 @@ def try_fetch_json(url: str, timeout: int = 10) -> Optional[dict]:
 class ReleaseController:
     """Client for the OpenShift release controller API."""
 
-    def __init__(self, architecture: str = "amd64", stream: str = ""):
-        self.architecture = architecture
-        if stream.startswith("okd"):
-            self.domain = f"{architecture}.origin.releases.ci.openshift.org"
-        else:
-            self.domain = f"{architecture}.ocp.releases.ci.openshift.org"
-        self._base = f"https://{self.domain}/api/v1"
+    def __init__(self, base_url: str):
+        self.url = base_url.rstrip("/")
+        parsed = urllib.parse.urlsplit(self.url)
+        if (parsed.scheme not in ("http", "https") or not parsed.netloc
+                or parsed.path or parsed.query or parsed.fragment
+                or parsed.username or parsed.password):
+            raise ValueError("Controller URL must be an HTTP(S) origin without credentials")
+        self.domain = parsed.netloc
+        self._base = f"{self.url}/api/v1"
 
     def fetch_tags(self, stream_name: str) -> list[dict]:
         """Fetch all tags for a release stream, newest first."""
@@ -233,7 +238,7 @@ class ReleaseController:
     def release_url(self, stream_name: str, tag: str) -> str:
         """Build the human-readable release controller page URL."""
         return (
-            f"https://{self.domain}"
+            f"{self.url}"
             f"/releasestream/{urllib.parse.quote(stream_name)}"
             f"/release/{urllib.parse.quote(tag)}"
         )
@@ -621,6 +626,268 @@ class HybridPayloadChain:
 
 
 # ---------------------------------------------------------------------------
+# Input resolution and payload sources
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class SnapshotRequest:
+    identity: PayloadTag
+    controller_url: str
+    use_sippy: bool = False
+
+
+def _ocp_controller_url(architecture: str, stream: str = "") -> str:
+    product = "origin" if stream.startswith("okd") else "ocp"
+    return f"https://{architecture}.{product}.releases.ci.openshift.org"
+
+
+def _discover_ocp_streams(version: str) -> list[dict]:
+    _log("Fetching streams list...")
+    streams = []
+    for arch in KNOWN_ARCHITECTURES:
+        for stream_type in STREAM_TYPES:
+            if stream_type == "ci" and arch != "amd64":
+                continue
+            stream_name = _build_stream_name(version, stream_type, arch)
+            rc = ReleaseController(_ocp_controller_url(arch))
+            url = f"{rc._base}/releasestream/{urllib.parse.quote(stream_name)}/tags"
+            data = try_fetch_json(url)
+            if data and data.get("tags"):
+                latest = data["tags"][0] if data["tags"] else {}
+                streams.append({
+                    "architecture": arch,
+                    "stream": stream_type,
+                    "stream_name": stream_name,
+                    "tag_count": len(data["tags"]),
+                    "latest_tag": latest.get("name", ""),
+                    "latest_phase": latest.get("phase", ""),
+                })
+    return streams
+
+
+class PayloadSource(Protocol):
+    """Normalized payload data; implementations own routing and provenance."""
+
+    def streams(self) -> list[dict]: ...
+    def history(self, tag: str, limit: int) -> list[str]: ...
+    def payload(self, tag: str) -> dict: ...
+    def changelog(self, tag: str, previous: str) -> dict: ...
+    def pullspecs(self, tags: list[str]) -> dict[str, str]: ...
+
+
+class ControllerSource:
+    def __init__(self, rc: ReleaseController, identity: PayloadTag):
+        self.rc = rc
+        self.identity = identity
+
+    def streams(self) -> list[dict]:
+        tags = self.rc.fetch_tags(self.identity.stream_name)
+        return [{
+            "architecture": self.identity.architecture,
+            "stream": self.identity.stream,
+            "stream_name": self.identity.stream_name,
+            "release_controller_url": self.rc.url,
+            "tag_count": len(tags),
+            "latest_tag": tags[0]["name"] if tags else "",
+            "latest_phase": tags[0].get("phase", "") if tags else "",
+        }]
+
+    def history(self, tag: str, limit: int) -> list[str]:
+        return PayloadChain(self.rc, self.identity.stream_name, limit).build(tag)
+
+    def payload(self, tag: str) -> dict:
+        details = self.rc.fetch_release(self.identity.stream_name, tag)
+        return {**details, "_source": "release-controller",
+                "_release_url": self.rc.release_url(self.identity.stream_name, tag),
+                "_release_controller_url": self.rc.url}
+
+    def changelog(self, tag: str, previous: str) -> dict:
+        data = self.rc.fetch_changelog(self.identity.stream_name, tag, previous)
+        return {**data, "_source": "release-controller"}
+
+    def pullspecs(self, tags: list[str]) -> dict[str, str]:
+        selected = set(tags)
+        return {t["name"]: t["pullSpec"]
+                for t in self.rc.fetch_tags(self.identity.stream_name)
+                if t.get("name") in selected and t.get("pullSpec")}
+
+
+class SippySource:
+    def __init__(self, client: SippyClient, controller_url: str):
+        self.client = client
+        self.controller_url = controller_url
+
+    def streams(self) -> list[dict]:
+        return []
+
+    def history(self, tag: str, limit: int) -> list[str]:
+        return SippyPayloadChain(self.client, limit).build(tag)
+
+    def payload(self, tag: str) -> dict:
+        data = self.client.build_synthetic_payload(tag, PayloadTag.parse(tag))
+        return {**data, "_release_controller_url": self.controller_url}
+
+    def changelog(self, tag: str, previous: str) -> dict:
+        return self.client.build_synthetic_changelog(tag, from_tag=previous)
+
+    def pullspecs(self, tags: list[str]) -> dict[str, str]:
+        return {}
+
+
+class OcpPayloadSource:
+    """Preserve OCP ancestry and per-tag/per-diff Sippy fallback."""
+
+    def __init__(self, controller: ControllerSource, sippy: SippySource):
+        self.controller = controller
+        self.sippy = sippy
+        self.sources: dict[str, str] = {}
+
+    def streams(self) -> list[dict]:
+        return _discover_ocp_streams(self.controller.identity.version)
+
+    def history(self, tag: str, limit: int) -> list[str]:
+        chain = HybridPayloadChain(self.controller.rc, self.sippy.client,
+                                   self.controller.identity.stream_name, limit)
+        tags = chain.build(tag)
+        self.sources = chain.sources
+        return tags
+
+    def _source(self, tag: str) -> PayloadSource:
+        return self.sippy if self.sources[tag] == "sippy" else self.controller
+
+    def payload(self, tag: str) -> dict:
+        return self._source(tag).payload(tag)
+
+    def changelog(self, tag: str, previous: str) -> dict:
+        # A controller cannot diff across a garbage-collected predecessor.
+        if self._source(tag) is self.controller and self._source(previous) is self.controller:
+            return self.controller.changelog(tag, previous)
+        return self.sippy.changelog(tag, previous)
+
+    def pullspecs(self, tags: list[str]) -> dict[str, str]:
+        return self.controller.pullspecs(tags)
+
+
+class SnapshotProfile(ABC):
+    """Resolve product defaults and assemble dependencies outside the core."""
+
+    @abstractmethod
+    def resolve(self, payload_tag: str, controller_url: str = "",
+                stream: str = "", architecture: str = "",
+                use_sippy: bool = False) -> SnapshotRequest:
+        """Parse a tag using this profile and apply optional overrides."""
+
+    @abstractmethod
+    def build_source(self, request: SnapshotRequest) -> PayloadSource:
+        """Select history and fallback policy."""
+
+    @abstractmethod
+    def job_version(self, identity: PayloadTag, job_name: str) -> str:
+        """Resolve the tested OCP version for OS classification."""
+
+    def collectors(self, request: SnapshotRequest, source: PayloadSource,
+                   workers: int, collect_rpmdb: bool,
+                   collect_rpm_changelogs: bool) -> list["SnapshotStage"]:
+        return []
+
+    def build_snapshotter(self, request: SnapshotRequest, *,
+                          output_dir: str = "payload", max_chain: int = 20,
+                          workers: int = 8, collect_junit: bool = True,
+                          collect_rpmdb: bool = True,
+                          collect_rpm_changelogs: bool = True) -> "Snapshotter":
+        source = self.build_source(request)
+        return Snapshotter(
+            tag=request.identity, source=source, output_dir=output_dir,
+            max_chain=max_chain, workers=workers, collect_junit=collect_junit,
+            collectors=self.collectors(request, source, workers,
+                                       collect_rpmdb, collect_rpm_changelogs),
+            job_version=lambda name: self.job_version(request.identity, name),
+            cache_identity={"release_controller_url": request.controller_url},
+        )
+
+    @staticmethod
+    def _request(identity: PayloadTag, controller_url: str,
+                 use_sippy: bool) -> SnapshotRequest:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", identity.stream_name):
+            raise ValueError("Stream must be a single controller stream name")
+        if identity.architecture not in KNOWN_ARCHITECTURES:
+            raise ValueError(f"Unknown architecture: {identity.architecture}")
+        return SnapshotRequest(identity, ReleaseController(controller_url).url,
+                               use_sippy)
+
+
+class OcpProfile(SnapshotProfile):
+    def resolve(self, payload_tag: str, controller_url: str = "",
+                stream: str = "", architecture: str = "",
+                use_sippy: bool = False) -> SnapshotRequest:
+        identity = PayloadTag.parse(payload_tag, stream, architecture)
+        url = controller_url or _ocp_controller_url(identity.architecture,
+                                                    identity.stream)
+        return self._request(identity, url, use_sippy)
+
+    def build_source(self, request: SnapshotRequest) -> PayloadSource:
+        tag = request.identity
+        sippy = SippySource(SippyClient(tag.version, tag.architecture, tag.stream),
+                            request.controller_url)
+        if request.use_sippy:
+            return sippy
+        controller = ControllerSource(ReleaseController(request.controller_url), tag)
+        return OcpPayloadSource(controller, sippy)
+
+    def job_version(self, identity: PayloadTag, job_name: str) -> str:
+        return identity.version
+
+    def collectors(self, request: SnapshotRequest, source: PayloadSource,
+                   workers: int, collect_rpmdb: bool,
+                   collect_rpm_changelogs: bool) -> list["SnapshotStage"]:
+        if request.use_sippy or not collect_rpmdb:
+            return []
+        if not _check_podman():
+            _log("Warning: podman is not available ('podman info' failed).")
+            _log("RHCOS RPMDB data will not be extracted.\n")
+            return []
+        if collect_rpm_changelogs and not _check_rpm():
+            _log("Warning: the rpm CLI is not available.")
+            _log("RPM changelog diffs will not be generated.\n")
+            collect_rpm_changelogs = False
+        return [RpmCollection(source, workers, collect_rpm_changelogs)]
+
+
+class HyperShiftProfile(SnapshotProfile):
+    def resolve(self, payload_tag: str, controller_url: str = "",
+                stream: str = "", architecture: str = "",
+                use_sippy: bool = False) -> SnapshotRequest:
+        if use_sippy:
+            raise ValueError("Sippy history is not available for the hypershift profile")
+        match = re.fullmatch(
+            r"(\d+\.\d+\.\d+)-\d+-g[0-9a-f]+\.nightly-(\d{4}-\d{2}-\d{2}-\d{6})",
+            payload_tag,
+        )
+        if not match:
+            raise ValueError(f"Invalid HyperShift payload tag: {payload_tag}")
+        stream = stream or "hypershift"
+        identity = PayloadTag(payload_tag, match.group(1), stream,
+                              architecture or "multi", stream, match.group(2))
+        return self._request(identity,
+                             controller_url or "https://hcp.releases.ci.openshift.org",
+                             use_sippy)
+
+    def build_source(self, request: SnapshotRequest) -> PayloadSource:
+        return ControllerSource(ReleaseController(request.controller_url),
+                                request.identity)
+
+    def job_version(self, identity: PayloadTag, job_name: str) -> str:
+        match = re.search(r"(?:^|-)release-(\d+\.\d+)(?:-|$)", job_name)
+        return match.group(1) if match else ""
+
+
+PROFILES: dict[str, SnapshotProfile] = {
+    "ocp": OcpProfile(),
+    "hypershift": HyperShiftProfile(),
+}
+
+
+# ---------------------------------------------------------------------------
 # Collector base class
 # ---------------------------------------------------------------------------
 
@@ -661,73 +928,15 @@ class Collector(ABC):
 # Concrete collectors
 # ---------------------------------------------------------------------------
 
-class StreamsCollector(Collector):
-    """Probes all stream/architecture combinations for a version."""
+class SourceCollector(Collector):
+    """Apply common file caching to any normalized source operation."""
 
-    def __init__(self, output_path: str, version: str):
+    def __init__(self, output_path: str, fetch: Callable[[], Any]):
         super().__init__(output_path)
-        self.version = version
+        self.fetch = fetch
 
-    def _fetch(self) -> list[dict]:
-        _log("Fetching streams list...")
-        streams = []
-        for arch in KNOWN_ARCHITECTURES:
-            for stream_type in STREAM_TYPES:
-                if stream_type == "ci" and arch != "amd64":
-                    continue
-                stream_name = _build_stream_name(self.version, stream_type, arch)
-                rc = ReleaseController(arch)
-                url = f"{rc._base}/releasestream/{urllib.parse.quote(stream_name)}/tags"
-                data = try_fetch_json(url)
-                if data and data.get("tags"):
-                    latest = data["tags"][0] if data["tags"] else {}
-                    streams.append({
-                        "architecture": arch,
-                        "stream": stream_type,
-                        "stream_name": stream_name,
-                        "tag_count": len(data["tags"]),
-                        "latest_tag": latest.get("name", ""),
-                        "latest_phase": latest.get("phase", ""),
-                    })
-        return streams
-
-
-class PayloadDetailCollector(Collector):
-    """Fetches release controller details for a single payload tag."""
-
-    def __init__(self, output_path: str, rc: ReleaseController,
-                 stream_name: str, tag: str):
-        super().__init__(output_path)
-        self.rc = rc
-        self.stream_name = stream_name
-        self.tag = tag
-
-    def _fetch(self) -> dict:
-        _log(f"  Fetching payload details: {self.tag}")
-        details = self.rc.fetch_release(self.stream_name, self.tag)
-        details["_release_url"] = self.rc.release_url(self.stream_name, self.tag)
-        details["_source"] = "release-controller"
-        return details
-
-
-class ChangelogCollector(Collector):
-    """Fetches the changelog (PR diff) between two consecutive payload tags."""
-
-    def __init__(self, output_path: str, rc: ReleaseController,
-                 stream_name: str, tag: str, from_tag: str):
-        super().__init__(output_path)
-        self.rc = rc
-        self.stream_name = stream_name
-        self.tag = tag
-        self.from_tag = from_tag
-
-    def _fetch(self) -> dict:
-        _log(f"  Fetching changelog: {self.tag} from {self.from_tag}")
-        changelog = self.rc.fetch_changelog(
-            self.stream_name, self.tag, self.from_tag
-        )
-        changelog["_source"] = "release-controller"
-        return changelog
+    def _fetch(self) -> Any:
+        return self.fetch()
 
 
 class PullRequestCollector(Collector):
@@ -1853,6 +2062,9 @@ class SummaryGenerator:
             "payload_tag": self.target_tag,
             "phase": phase,
             "release_url": release_url,
+            "release_controller_url": (payload_data.get("_release_controller_url", "")
+                                       if payload_data else ""),
+            "stream_name": self.tag.stream_name,
             "source": source,
             "architecture": self.tag.architecture,
             "stream": self.tag.stream,
@@ -1931,7 +2143,7 @@ class SummaryGenerator:
         lines = [
             f"# Payload Snapshot: {tag}",
             "",
-            f"OpenShift {version} {stream} ({arch}) — **{phase}**",
+            f"Payload {version} {stream} ({arch}) — **{phase}**",
             "",
             "## Quick Start",
             "",
@@ -1988,7 +2200,7 @@ class SummaryGenerator:
             f"{version}/{stream}/",
             "  summary.json              # START HERE — full triage data",
             "  CLAUDE.md                  # This file",
-            "  streams.json              # All streams for this OCP version",
+            "  streams.json              # Streams available to this snapshot",
             f"  {tag}/                    # Target payload",
             "    payload.json            # Release controller API response",
             "    changelog.json          # PRs changed vs previous payload",
@@ -2349,30 +2561,155 @@ class SummaryGenerator:
 
 
 # ---------------------------------------------------------------------------
-# Snapshotter — top-level orchestrator
+# Optional snapshot enrichment
 # ---------------------------------------------------------------------------
+
+class SnapshotStage(Protocol):
+    def collect(self, base_dir: str, chain: list[str]) -> dict[str, Any]: ...
+
+
+class RpmCollection:
+    """Optional RHCOS enrichment, enabled by the caller for release images."""
+
+    def __init__(self, source: PayloadSource, workers: int = 8,
+                 collect_rpm_changelogs: bool = True):
+        self.source = source
+        self.workers = workers
+        self.collect_rpm_changelogs = collect_rpm_changelogs
+
+    def collect(self, base_dir: str, chain: list[str]) -> dict[str, Any]:
+        rpmdb_data = self._collect_rpmdb(base_dir, chain)
+        changelogs = self._collect_rpm_changelogs(base_dir, chain, rpmdb_data)
+        self._link_rpm_changelogs(base_dir, chain, changelogs)
+        return {"rpmdb_data": rpmdb_data, "rpm_changelogs": changelogs}
+
+    def _collect_rpmdb(
+        self, base_dir: str, chain: list[str]
+    ) -> dict[str, list[dict]]:
+        """Extract RPMDB from RHCOS images for each payload in the chain."""
+        try:
+            pullspec_map = self.source.pullspecs(chain)
+        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+            _log(f"\nSkipping RPMDB: could not fetch pullSpecs: {e}")
+            return {}
+        if not pullspec_map:
+            _log("\nSkipping RPMDB: no pullSpecs found")
+            return {}
+
+        items = []
+        for tag_name in chain:
+            pullspec = pullspec_map.get(tag_name)
+            if not pullspec:
+                continue
+            rpmdb_dir = os.path.join(base_dir, tag_name, "rpmdb")
+            items.append(
+                (tag_name, RpmdbCollector(rpmdb_dir, pullspec, tag_name))
+            )
+
+        if not items:
+            return {}
+
+        workers = min(self.workers, 4)
+        _log(f"\nExtracting RPMDB from RHCOS images "
+             f"({len(items)} payloads, {workers} workers)...")
+        rpmdb_data: dict[str, list[dict]] = {}
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(c.collect): (tag_name, c)
+                for tag_name, c in items
+            }
+            done = 0
+            for future in as_completed(futures):
+                done += 1
+                tag_name, _ = futures[future]
+                try:
+                    summaries = future.result()
+                    if summaries:
+                        rpmdb_data[tag_name] = summaries
+                    _log(f"  [{done}/{len(items)}] {tag_name}")
+                except Exception as e:
+                    _log(f"  [{done}/{len(items)}] {tag_name}: error: {e}")
+
+        return rpmdb_data
+
+    def _collect_rpm_changelogs(
+        self, base_dir: str, chain: list[str],
+        rpmdb_data: dict[str, list[dict]],
+    ) -> list[dict]:
+        """Diff the target's RPM changelogs against every older payload."""
+        if not self.collect_rpm_changelogs or len(chain) < 2:
+            return []
+        target_rpms = rpmdb_data.get(chain[0])
+        if not target_rpms:
+            return []
+
+        _log(f"\nDiffing RPM changelogs of {chain[0]} against "
+             f"{len(chain) - 1} older payload(s)...")
+        differ = RpmChangelogDiffer(
+            base_dir, chain[0], chain[1:],
+            [entry["tag"] for entry in target_rpms],
+            workers=min(self.workers, 4),
+        )
+        return differ.collect()
+
+    def _link_rpm_changelogs(
+        self, base_dir: str, chain: list[str], rpm_changelogs: list[dict],
+    ) -> None:
+        """Point the target payload's raw JSONs at the matching reports.
+
+        Both files carry the release controller's own RPM diff of the
+        target against its predecessor (nodeImageStreams[].rpmDiff) —
+        package names and versions, no changelog text.  A reader who
+        lands there has no way to know the changelogs sit in a sibling
+        directory, so say so in the file itself, the way _source and
+        _release_url are already injected.
+        """
+        if len(chain) < 2:
+            return
+        target_tag, predecessor = chain[0], chain[1]
+        links = [
+            {
+                "variant": entry["variant"],
+                "compared_tag": predecessor,
+                # Relative to the payload directory these files live in.
+                "changelogs": os.path.relpath(
+                    entry["changelogs"], target_tag
+                ),
+            }
+            for entry in rpm_changelogs
+            if entry["compared_tag"] == predecessor
+        ]
+        if not links:
+            return
+        for name in ("payload.json", "changelog.json"):
+            path = os.path.join(base_dir, target_tag, name)
+            data = _read_json(path)
+            if data is None:
+                continue
+            data["_rpm_changelogs"] = links
+            _write_json(path, data)
+
 
 class Snapshotter:
     """Orchestrates the full payload snapshot."""
 
-    def __init__(self, tag: PayloadTag, output_dir: str = "payload",
-                 max_chain: int = 20, workers: int = 8,
-                 collect_junit: bool = True, use_sippy: bool = False,
-                 collect_rpmdb: bool = True,
-                 collect_rpm_changelogs: bool = True):
+    def __init__(self, tag: PayloadTag, source: PayloadSource,
+                 output_dir: str = "payload", max_chain: int = 20,
+                 workers: int = 8, collect_junit: bool = True,
+                 collectors: Iterable[SnapshotStage] = (),
+                 job_version: Callable[[str], str] = lambda name: "", *,
+                 cache_identity: dict[str, str]):
         self.tag = tag
+        self.source = source
         self.output_dir = output_dir
         self.max_chain = max_chain
         self.workers = workers
         self.collect_junit = collect_junit
-        self.use_sippy = use_sippy
-        self.collect_rpmdb = collect_rpmdb
-        self.collect_rpm_changelogs = collect_rpm_changelogs
-        self.rc = ReleaseController(tag.architecture, stream=tag.stream)
-        self.sippy = SippyClient(
-            tag.version, architecture=tag.architecture, stream=tag.stream
-        )
-        self._payload_sources: dict[str, str] = {}
+        self.collectors = tuple(collectors)
+        self.job_version = job_version
+        self.cache_identity = {**cache_identity, "stream_name": tag.stream_name,
+                               "architecture": tag.architecture}
 
     def run(self) -> None:
         """Execute the full snapshot."""
@@ -2380,6 +2717,7 @@ class Snapshotter:
             self.output_dir, self.tag.version, self.tag.stream
         )
         os.makedirs(base_dir, exist_ok=True)
+        self._validate_cache_identity(base_dir)
 
         # A previous run over this directory may have left JUnit output it
         # recorded as incomplete.  Drop it so it is re-collected rather than
@@ -2393,7 +2731,7 @@ class Snapshotter:
 
         self._collect_streams(base_dir)
 
-        chain = self._build_chain()
+        chain = self.source.history(self.tag.raw, self.max_chain)
         _log(f"Payload chain: {len(chain)} payloads")
         for t in chain:
             _log(f"  {t}")
@@ -2411,49 +2749,36 @@ class Snapshotter:
 
         streaks = self._track_job_streaks(base_dir, chain)
 
-        rpmdb_data = self._collect_rpmdb(base_dir, chain)
-
-        rpm_changelogs = self._collect_rpm_changelogs(
-            base_dir, chain, rpmdb_data
-        )
-
-        self._link_rpm_changelogs(base_dir, chain, rpm_changelogs)
-
-        self._generate_summary(base_dir, chain, streaks,
-                               rpmdb_data=rpmdb_data,
-                               rpm_changelogs=rpm_changelogs)
+        supplements: dict[str, Any] = {}
+        for collector in self.collectors:
+            supplements.update(collector.collect(base_dir, chain))
+        self._generate_summary(base_dir, chain, streaks, **supplements)
 
         _log(f"\nSnapshot complete: {base_dir}/")
 
+    def _validate_cache_identity(self, base_dir: str) -> None:
+        """Check provenance before reading or invalidating cached artifacts."""
+        path = os.path.join(base_dir, ".snapshot-identity.json")
+        if os.path.exists(path):
+            cached = _read_json(path)
+        elif os.listdir(base_dir):
+            # Completed older snapshots can establish compatibility without
+            # a manifest. Partial snapshots without provenance cannot.
+            summary = _read_json(os.path.join(base_dir, "summary.json")) or {}
+            cached = {key: summary.get(key) for key in self.cache_identity}
+        else:
+            cached = self.cache_identity
+        if cached != self.cache_identity:
+            raise ValueError(
+                f"Snapshot cache identity is incompatible or unverifiable at {base_dir}; "
+                "use a different --output-dir"
+            )
+        if not os.path.exists(path):
+            _write_json(path, self.cache_identity)
+
     def _collect_streams(self, base_dir: str) -> None:
-        """Collect the streams list for this version."""
-        path = os.path.join(base_dir, "streams.json")
-        if self.use_sippy:
-            if os.path.exists(path):
-                return
-            _log("Skipping streams collection in Sippy mode (RC-only feature)")
-            _write_json(path, [])
-            return
-        StreamsCollector(path, self.tag.version).collect()
-
-    def _build_chain(self) -> list[str]:
-        """Build the backward payload chain."""
-        if self.use_sippy:
-            chain_builder = SippyPayloadChain(self.sippy, self.max_chain)
-            chain = chain_builder.build(self.tag.raw)
-            self._payload_sources = {tag: "sippy" for tag in chain}
-            return chain
-        chain_builder = HybridPayloadChain(
-            self.rc, self.sippy, self.tag.stream_name, self.max_chain
-        )
-        chain = chain_builder.build(self.tag.raw)
-        self._payload_sources = chain_builder.sources
-        return chain
-
-    def _payload_source(self, tag_name: str) -> str:
-        if self.use_sippy:
-            return "sippy"
-        return self._payload_sources.get(tag_name, "release-controller")
+        SourceCollector(os.path.join(base_dir, "streams.json"),
+                        self.source.streams).collect()
 
     def _collect_payloads(
         self, base_dir: str, chain: list[str]
@@ -2467,51 +2792,16 @@ class Snapshotter:
             _log(f"\nProcessing payload: {tag_name}")
 
             payload_path = os.path.join(tag_dir, "payload.json")
-            payload_source = self._payload_source(tag_name)
-            if payload_source == "sippy":
-                if not os.path.exists(payload_path):
-                    _log(f"  Fetching payload details from Sippy: {tag_name}")
-                    tag_obj = PayloadTag.parse(tag_name)
-                    data = self.sippy.build_synthetic_payload(tag_name, tag_obj)
-                    os.makedirs(os.path.dirname(payload_path), exist_ok=True)
-                    _write_json(payload_path, data)
-                else:
-                    _log(f"  skip (exists): {payload_path}")
-            else:
-                PayloadDetailCollector(
-                    payload_path,
-                    self.rc, self.tag.stream_name, tag_name,
-                ).collect()
+            SourceCollector(payload_path,
+                            lambda: self.source.payload(tag_name)).collect()
 
             if i >= len(chain) - 1:
                 continue
 
             prev_tag = chain[i + 1]
             changelog_path = os.path.join(tag_dir, "changelog.json")
-            # The release controller cannot diff across a tag it has already
-            # garbage collected. Use Sippy's incremental diff (with its
-            # per-payload PR fallback) whenever either side is unavailable.
-            changelog_source = (
-                "release-controller"
-                if payload_source == "release-controller"
-                and self._payload_source(prev_tag) == "release-controller"
-                else "sippy"
-            )
-            if changelog_source == "sippy":
-                if not os.path.exists(changelog_path):
-                    _log(f"  Fetching changelog from Sippy: {tag_name}")
-                    data = self.sippy.build_synthetic_changelog(
-                        tag_name, from_tag=prev_tag
-                    )
-                    os.makedirs(os.path.dirname(changelog_path), exist_ok=True)
-                    _write_json(changelog_path, data)
-                else:
-                    _log(f"  skip (exists): {changelog_path}")
-            else:
-                ChangelogCollector(
-                    changelog_path, self.rc,
-                    self.tag.stream_name, tag_name, prev_tag,
-                ).collect()
+            SourceCollector(changelog_path,
+                            lambda: self.source.changelog(tag_name, prev_tag)).collect()
 
             changelog = _read_json(changelog_path)
             if not changelog:
@@ -2565,7 +2855,7 @@ class Snapshotter:
             if not payload_data:
                 continue
 
-            jobs = _extract_jobs(payload_data, self.tag.version)
+            jobs = _extract_jobs(payload_data, job_version=self.job_version)
             for job in jobs:
                 job_path = os.path.join(
                     tag_dir, "jobs", job.lifecycle, job.name, "job.json"
@@ -2748,129 +3038,6 @@ class Snapshotter:
         _log(f"  {len(streaks)} failed jobs: {new_count} new, "
              f"{len(streaks) - new_count} persistent")
         return streaks
-
-    def _get_pullspec_map(self, chain: list[str]) -> dict[str, str]:
-        """Map tag names to release image pullSpecs via the tags API."""
-        chain_set = set(chain)
-        tags = self.rc.fetch_tags(self.tag.stream_name)
-        return {
-            t["name"]: t["pullSpec"]
-            for t in tags
-            if t.get("name") in chain_set and t.get("pullSpec")
-        }
-
-    def _collect_rpmdb(
-        self, base_dir: str, chain: list[str]
-    ) -> dict[str, list[dict]]:
-        """Extract RPMDB from RHCOS images for each payload in the chain."""
-        if not self.collect_rpmdb:
-            return {}
-        if self.use_sippy:
-            _log("\nSkipping RPMDB: not available in Sippy mode")
-            return {}
-
-        try:
-            pullspec_map = self._get_pullspec_map(chain)
-        except (urllib.error.HTTPError, urllib.error.URLError) as e:
-            _log(f"\nSkipping RPMDB: could not fetch pullSpecs: {e}")
-            return {}
-        if not pullspec_map:
-            _log("\nSkipping RPMDB: no pullSpecs found")
-            return {}
-
-        items = []
-        for tag_name in chain:
-            pullspec = pullspec_map.get(tag_name)
-            if not pullspec:
-                continue
-            rpmdb_dir = os.path.join(base_dir, tag_name, "rpmdb")
-            items.append(
-                (tag_name, RpmdbCollector(rpmdb_dir, pullspec, tag_name))
-            )
-
-        if not items:
-            return {}
-
-        workers = min(self.workers, 4)
-        _log(f"\nExtracting RPMDB from RHCOS images "
-             f"({len(items)} payloads, {workers} workers)...")
-        rpmdb_data: dict[str, list[dict]] = {}
-
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {
-                pool.submit(c.collect): (tag_name, c)
-                for tag_name, c in items
-            }
-            done = 0
-            for future in as_completed(futures):
-                done += 1
-                tag_name, _ = futures[future]
-                try:
-                    summaries = future.result()
-                    if summaries:
-                        rpmdb_data[tag_name] = summaries
-                    _log(f"  [{done}/{len(items)}] {tag_name}")
-                except Exception as e:
-                    _log(f"  [{done}/{len(items)}] {tag_name}: error: {e}")
-
-        return rpmdb_data
-
-    def _collect_rpm_changelogs(
-        self, base_dir: str, chain: list[str],
-        rpmdb_data: dict[str, list[dict]],
-    ) -> list[dict]:
-        """Diff the target's RPM changelogs against every older payload."""
-        if not self.collect_rpm_changelogs or len(chain) < 2:
-            return []
-        target_rpms = rpmdb_data.get(chain[0])
-        if not target_rpms:
-            return []
-
-        _log(f"\nDiffing RPM changelogs of {chain[0]} against "
-             f"{len(chain) - 1} older payload(s)...")
-        differ = RpmChangelogDiffer(
-            base_dir, chain[0], chain[1:],
-            [entry["tag"] for entry in target_rpms],
-            workers=min(self.workers, 4),
-        )
-        return differ.collect()
-
-    def _link_rpm_changelogs(
-        self, base_dir: str, chain: list[str], rpm_changelogs: list[dict],
-    ) -> None:
-        """Point the target payload's raw JSONs at the matching reports.
-
-        Both files carry the release controller's own RPM diff of the
-        target against its predecessor (nodeImageStreams[].rpmDiff) —
-        package names and versions, no changelog text.  A reader who
-        lands there has no way to know the changelogs sit in a sibling
-        directory, so say so in the file itself, the way _source and
-        _release_url are already injected.
-        """
-        if len(chain) < 2:
-            return
-        target_tag, predecessor = chain[0], chain[1]
-        links = [
-            {
-                "variant": entry["variant"],
-                "compared_tag": predecessor,
-                # Relative to the payload directory these files live in.
-                "changelogs": os.path.relpath(
-                    entry["changelogs"], target_tag
-                ),
-            }
-            for entry in rpm_changelogs
-            if entry["compared_tag"] == predecessor
-        ]
-        if not links:
-            return
-        for name in ("payload.json", "changelog.json"):
-            path = os.path.join(base_dir, target_tag, name)
-            data = _read_json(path)
-            if data is None:
-                continue
-            data["_rpm_changelogs"] = links
-            _write_json(path, data)
 
     def _generate_summary(
         self, base_dir: str, chain: list[str],
@@ -3639,7 +3806,8 @@ def _prow_url_to_gcs_bucket_path(prow_url: str) -> Optional[str]:
     return prow_url[len(PROW_VIEW_PREFIX):]
 
 
-def _extract_jobs(payload_data: dict, version: str = "") -> list[JobInfo]:
+def _extract_jobs(payload_data: dict, version: str = "",
+                  job_version: Optional[Callable[[str], str]] = None) -> list[JobInfo]:
     """Extract job metadata from a payload.json response."""
     jobs = []
     for lifecycle, key in [("blocking", "blockingJobs"),
@@ -3649,7 +3817,8 @@ def _extract_jobs(payload_data: dict, version: str = "") -> list[JobInfo]:
             url = info.get("url", "")
             gcs_path = _prow_url_to_gcs_bucket_path(url) or ""
             gcs_url = f"{GCSWEB_BASE}/{gcs_path}/" if gcs_path else ""
-            rhcos = _determine_rhcos_version(name, version) if version else ""
+            ocp_version = job_version(name) if job_version else version
+            rhcos = _determine_rhcos_version(name, ocp_version) if ocp_version else ""
             jobs.append(JobInfo(
                 name=name,
                 state=info.get("state", ""),
@@ -3924,6 +4093,22 @@ def main() -> None:
         help="Base output directory (default: payload)",
     )
     parser.add_argument(
+        "--profile", choices=PROFILES, default="ocp",
+        help="Snapshot profile (default: ocp)",
+    )
+    parser.add_argument(
+        "--release-controller-url", default="",
+        help="Override the profile's release controller origin",
+    )
+    parser.add_argument(
+        "--stream", default="",
+        help="Override the profile's release-controller stream name",
+    )
+    parser.add_argument(
+        "--architecture", choices=KNOWN_ARCHITECTURES, default="",
+        help="Override the profile's payload image architecture",
+    )
+    parser.add_argument(
         "--max-chain", type=int, default=20,
         help="Maximum backward chain depth (default: 20)",
     )
@@ -3953,18 +4138,21 @@ def main() -> None:
     parser.add_argument(
         "--sippy", action="store_true",
         help=(
-            "Force Sippy for all payload metadata (default: prefer release "
-            "controller and automatically fall back for historical tags)"
+            "Force Sippy for all payload metadata (ocp profile only; "
+            "default: controller with historical fallback)"
         ),
     )
 
     args = parser.parse_args()
 
+    profile = PROFILES[args.profile]
     try:
-        tag = PayloadTag.parse(args.payload_tag)
+        request = profile.resolve(args.payload_tag, args.release_controller_url,
+                                  args.stream, args.architecture, args.sippy)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(2)
+    tag = request.identity
 
     _log(f"Payload:  {tag.raw}")
     _log(f"Version:  {tag.version}")
@@ -3996,31 +4184,18 @@ def main() -> None:
         _log("are public, so they will be read anonymously. Run")
         _log("'gcloud auth login' if you need private buckets too.\n")
 
-    collect_rpmdb = not args.no_rpmdb
-    if collect_rpmdb and not _check_podman():
-        _log("Warning: podman is not available ('podman info' failed).")
-        _log("RHCOS RPMDB data will not be extracted.\n")
-        collect_rpmdb = False
-
-    collect_rpm_changelogs = not args.no_rpm_changelogs
-    if collect_rpm_changelogs and not _check_rpm():
-        _log("Warning: the rpm CLI is not available.")
-        _log("RPM changelog diffs will not be generated.\n")
-        collect_rpm_changelogs = False
-
     if args.sippy:
         _log("Forcing Sippy APIs for all release payload data.\n")
 
     try:
-        snapshotter = Snapshotter(
-            tag=tag,
+        snapshotter = profile.build_snapshotter(
+            request,
             output_dir=args.output_dir,
             max_chain=args.max_chain,
             workers=args.workers,
             collect_junit=collect_junit,
-            use_sippy=args.sippy,
-            collect_rpmdb=collect_rpmdb,
-            collect_rpm_changelogs=collect_rpm_changelogs,
+            collect_rpmdb=not args.no_rpmdb,
+            collect_rpm_changelogs=not args.no_rpm_changelogs,
         )
         snapshotter.run()
 

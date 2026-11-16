@@ -10,8 +10,8 @@ REQUIRED_ROW_FIELDS = [
     "job_name", "prow_url", "failure_type", "root_cause_summary",
 ]
 
-VALID_STREAMS = {"ci", "nightly"}
-VERSION_RE = re.compile(r"^\d+\.\d+$")
+STREAM_RE = re.compile(r"^(?!\d+\.\d+\.\d+-\d+\.)[A-Za-z0-9][A-Za-z0-9_.-]*$")
+VERSION_RE = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
 
 
 def validate(path):
@@ -54,11 +54,11 @@ def validate(path):
             if non_string:
                 errors.append(f"rows[{i}] has non-string values: {', '.join(non_string)}")
             stream = row.get("stream")
-            if isinstance(stream, str) and stream not in VALID_STREAMS:
-                errors.append(f"rows[{i}] invalid stream '{stream}' (must be 'ci' or 'nightly')")
+            if isinstance(stream, str) and not STREAM_RE.fullmatch(stream):
+                errors.append(f"rows[{i}] invalid stream '{stream}' (must be a stream label, e.g. 'nightly' or 'hypershift')")
             version = row.get("version")
             if isinstance(version, str) and not VERSION_RE.fullmatch(version):
-                errors.append(f"rows[{i}] invalid version '{version}' (must be 'X.Y')")
+                errors.append(f"rows[{i}] invalid version '{version}' (must be 'X.Y' or 'X.Y.Z')")
 
     if errors:
         print(f"FAIL: {len(errors)} error(s)")

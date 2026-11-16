@@ -30,6 +30,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
         "payload_tag": "string",
         "version": "string",
         "stream": "string",
+        "stream_name": "string",
         "architecture": "string",
         "phase": "string",
         "release_controller_url": "string",
@@ -61,6 +62,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
             "payload_tag": "4.22.0-0.nightly-2026-02-25-152806",
             "version": "4.22",
             "stream": "nightly",
+            "stream_name": "4.22.0-0.nightly",
             "architecture": "amd64",
             "phase": "Rejected",
             "release_controller_url": "https://amd64.ocp.releases.ci.openshift.org/...",
@@ -90,6 +92,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
             "payload_tag": "4.22.0-0.nightly-2026-02-25-152806",
             "version": "4.22",
             "stream": "nightly",
+            "stream_name": "4.22.0-0.nightly",
             "architecture": "amd64",
             "phase": "Rejected",
             "release_controller_url": "https://amd64.ocp.releases.ci.openshift.org/...",
@@ -149,8 +152,9 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 | Field | Type | Description |
 |-------|------|-------------|
 | `payload_tag` | string | Full payload tag |
-| `version` | string | OCP version (e.g., `"4.22"`) |
-| `stream` | string | Canonical stream type: `"nightly"` or `"ci"`. For OKD payloads (e.g. `okd-scos-nightly`, `okd-scos`), map to the base type: `okd-scos-nightly` → `"nightly"`, `okd-scos` → `"ci"`. |
+| `version` | string | Snapshot component version: OCP `"4.22"` or HyperShift `"0.1.87"` |
+| `stream` | string | Stream label: `"nightly"`, `"ci"`, or the snapshot label for other profiles (e.g. `"hypershift"`). For OKD payloads (e.g. `okd-scos-nightly`, `okd-scos`), map to the base type: `okd-scos-nightly` → `"nightly"`, `okd-scos` → `"ci"`. |
+| `stream_name` | string | Exact snapshot controller stream |
 | `architecture` | string | `"amd64"`, `"arm64"`, `"multi"`, etc. |
 | `phase` | string | Payload phase: `"Rejected"`, `"Accepted"`, `"Ready"` |
 | `release_controller_url` | string | URL to the payload on the release controller |

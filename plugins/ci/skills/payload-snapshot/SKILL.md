@@ -1,11 +1,11 @@
 ---
 name: payload-snapshot
-description: Snapshot OpenShift payload data (release controller, PR diffs, comments, CI jobs, JUnit results, regression tracking) to a local directory for offline analysis
+description: Use when collecting an OCP, OKD, or HyperShift payload snapshot for local failure analysis, including job artifacts, PRs, and regression history
 ---
 
 # Payload Snapshot
 
-This skill downloads all data needed to analyze an OpenShift payload into a local directory tree. The resulting snapshot can be navigated entirely via file reads — no live API calls required during analysis.
+This skill downloads controller metadata, PR evidence, and CI job results into a local directory for payload analysis.
 
 ## When to Use This Skill
 
@@ -33,24 +33,29 @@ Use this skill when you need to:
    - Without `gcloud` entirely, JUnit data is skipped and the snapshot is
      reported as incomplete (see [Data completeness](#data-completeness))
 
-4. **Container runtime (`podman`)** — for RHCOS RPMDB extraction
+4. **Container runtime (`podman`)** — for OCP RHCOS RPMDB extraction
    - Install: available in most Linux distributions; `brew install podman` on macOS
    - Requires access to the release image registry (e.g., `registry.ci.openshift.org`)
    - Without `podman`, RPMDB data is skipped; all other data is still collected
 
-5. **`rpm` CLI** — for the RPM changelog diffs between payloads
+5. **`rpm` CLI** — for OCP RPM changelog diffs between payloads
    - Queries the already-extracted RPMDBs locally; no network, no root
    - Without `rpm`, changelog diffs are skipped; the RPMDBs themselves are still extracted
 
 6. **Network access** to:
-   - `*.ocp.releases.ci.openshift.org` (release controller)
-   - `sippy.dptools.openshift.org` (historical payload fallback)
+   - The selected release controller: `*.ocp.releases.ci.openshift.org`,
+     `*.origin.releases.ci.openshift.org`, or `hcp.releases.ci.openshift.org`
+   - `sippy.dptools.openshift.org` (OCP historical payload fallback)
    - `api.github.com` (via `gh` CLI)
    - `storage.googleapis.com` (via `gcloud` CLI)
 
 ## Implementation Steps
 
 ### Step 1: Run the Snapshot Script
+
+The profile defaults to `ocp` (including OKD). Select `--profile hypershift` for
+HyperShift operator payloads. `--release-controller-url`, `--stream`, and
+`--architecture` optionally override the selected profile's defaults.
 
 ```bash
 script_path="plugins/ci/skills/payload-snapshot/scripts/payload_snapshot.py"
@@ -77,14 +82,14 @@ python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --no-rpm-changelogs
 python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --sippy
 ```
 
-The script will:
+The OCP workflow is:
 1. Parse the payload tag to determine version, stream, and architecture
 2. Probe all available streams for the version (nightly, ci, across architectures)
 3. Chain backwards through Sippy's time-ordered release tag list until finding one where all blocking jobs passed, restoring tags garbage collected from the release controller
 4. For each payload in the chain, prefer release controller data and changelogs; fall back per historical tag or cross-tag diff to Sippy payload, PR, and job data
 5. Split jobs into blocking/informing directories with metadata and GCS browser links
-6. For each failed blocking job, download and parse JUnit XML test results
-7. For each failed blocking job, download build-log.txt from GCS and extract error/warning lines + log tail
+6. Download and parse JUnit for failed blocking jobs across the chain and failed informing jobs in the target payload
+7. Download build-log.txt for those jobs and extract error/warning lines + log tail
 8. Track test failure regressions — when did each failure first appear?
 9. Track per-job failure streaks — consecutive failures, originating payload, failure pattern
 10. For each unique PR across all changelogs, fetch the git diff, comments, and CI jobs via `gh`
@@ -92,7 +97,23 @@ The script will:
 12. Diff the target payload's RPM changelogs against every older payload in the chain, using the extracted RPMDBs
 13. Generate summary.json with comprehensive triage data, plus AGENTS.md/CLAUDE.md for agent orientation
 
+#### HyperShift workflow
+
+Defaults: `https://hcp.releases.ci.openshift.org`, stream `hypershift`,
+architecture `multi`.
+
+```bash
+python3 "$script_path" --profile hypershift "<hypershift-payload-tag>"
+```
+
+Collect the same payload, PR, and job evidence using the selected controller
+stream's history, without OCP stream discovery or Sippy fallback. The history
+ends at an all-green baseline, the chain limit, or the oldest available tag.
+RHCOS RPM extraction does not apply to the operator payload.
+
 ### Step 2: Navigate the Snapshot
+
+Cached artifacts are reused only when controller, exact stream, and architecture match. If an existing snapshot's identity conflicts or cannot be verified, use a different `--output-dir`.
 
 The output directory is structured for easy navigation:
 
@@ -103,7 +124,7 @@ payload/
       summary.json                         # START HERE — full triage data
       CLAUDE.md                            # Imports AGENTS.md for Claude Code
       AGENTS.md                            # Dynamic snapshot orientation doc
-      streams.json                         # All streams for this version
+      streams.json                         # Available streams for this snapshot
       <tag>/                               # Each payload in the chain
         payload.json                       # Release controller API response
         changelog.json                     # PRs that changed vs. previous payload
@@ -187,6 +208,11 @@ Positional:
   payload_tag          Payload tag (e.g., 4.22.0-0.nightly-2026-02-25-152806)
 
 Options:
+  --profile NAME       ocp (default, includes OKD) or hypershift
+  --release-controller-url URL
+                       Override the profile's release controller origin
+  --stream NAME        Override the controller stream name
+  --architecture ARCH  Override the payload image architecture
   --output-dir DIR     Base output directory (default: payload)
   --max-chain N        Maximum backward chain depth (default: 20)
   --workers N          Parallel workers for API calls (default: 8)
@@ -194,8 +220,8 @@ Options:
   --no-rpmdb           Skip RHCOS RPMDB extraction
   --no-rpm-changelogs  Skip the RPM changelog diffs between the target payload
                        and the older payloads in the chain
-  --sippy              Force Sippy for all payload metadata instead of using
-                       the automatic release-controller-first fallback
+  --sippy              OCP only: force Sippy instead of the automatic
+                       release-controller-first fallback
   --fail-on-incomplete Exit 1 if any requested data could not be collected
 ```
 
@@ -203,12 +229,13 @@ Options:
 
 ### `streams.json`
 
-Lists all available streams for the payload's version.
+Lists discovered OCP streams, or the selected stream for HyperShift. Empty
+when using `--sippy`.
 
 ### `summary.json`
 
 Comprehensive stream-level triage data — start here. Contains:
-- Payload metadata: `payload_tag`, `phase`, `release_url`, `source`, `architecture`, `stream`, `version`
+- Payload metadata: `payload_tag`, `phase`, `release_url`, `release_controller_url` (controller origin), `source`, `architecture`, `stream` (short label), `stream_name` (exact controller stream), `version` (payload component version)
 - Chain data: `chain_length`, `baseline_tag`, `hours_since_baseline`
 - `blocking_jobs.failed_jobs[]` — detailed objects with `name`, `state`, `prow_url`, `gcs_url`, and relative path `job_json`. May include: `rhcos_version`, `streak` (with `streak_length`, `originating_payload`, `is_new_failure`, `failure_pattern`), `build_log_errors`, `test_failure_count`, and relative paths `junit_results`, `build_log`
 - `informing_jobs.failed_jobs[]` — job name strings

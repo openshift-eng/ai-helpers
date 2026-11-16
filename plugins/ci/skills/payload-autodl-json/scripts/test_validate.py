@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for payload-autodl JSON validator."""
 
+import json
 import os
 import sys
 import tempfile
@@ -27,6 +28,7 @@ if __name__ == "__main__":
 
     cases = [
         ("valid", f"{TESTDATA}/valid.json", 0),
+        ("HyperShift identity without OCP coercion", f"{TESTDATA}/valid_hypershift.json", 0),
         ("invalid no table_name", f"{TESTDATA}/invalid_no_table_name.json", 1),
         ("invalid non-string values", f"{TESTDATA}/invalid_non_string_values.json", 1),
         ("invalid empty rows", f"{TESTDATA}/invalid_empty_rows.json", 1),
@@ -42,11 +44,22 @@ if __name__ == "__main__":
         tmp_path = f.name
         cases.append(("invalid JSON syntax", tmp_path, 1))
 
-    for name, path, expected in cases:
-        if test(name, path, expected):
-            passed += 1
-        else:
-            failed += 1
+    with tempfile.TemporaryDirectory() as directory:
+        with open(f"{TESTDATA}/valid_hypershift.json") as fixture:
+            data = json.load(fixture)
+        for index, stream in enumerate(("hypershift.v2", "2-HyperShift")):
+            data["rows"][0]["stream"] = stream
+            data["rows"][0]["stream_name"] = stream
+            path = os.path.join(directory, f"stream-{index}.json")
+            with open(path, "w") as output:
+                json.dump(data, output)
+            cases.append((f"controller stream label {stream}", path, 0))
+
+        for name, path, expected in cases:
+            if test(name, path, expected):
+                passed += 1
+            else:
+                failed += 1
 
     os.unlink(tmp_path)
 

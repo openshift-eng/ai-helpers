@@ -35,13 +35,15 @@ This command is one of three composable stages in the payload triage pipeline:
 
 ## Implementation
 
-1. **Parse the payload tag** from the argument. Extract `version`, `stream`, and `architecture` from the tag (see `payload-analysis` Step 1 for parsing rules).
+1. **Read the full payload tag** from the argument; use it to locate the results YAML.
 
 2. **Read the payload results YAML** using the `payload-results-yaml` skill: Look for `payload-results-{tag}.yaml` in the current working directory. If not found, print an error and exit:
    ```
    Error: Payload results YAML not found for {payload_tag}.
    Run `/ci:payload-analysis {payload_tag}` first to generate it.
    ```
+
+   Verify `metadata.payload_tag` matches the requested tag. Take `version`, `stream`, `architecture`, and `release_controller_url` from `metadata`.
 
 3. **Detect Phase 2 resume**: If the results YAML contains any action entry with `type: "experiment"` and `status: "pending"`, jump to Phase 2 (step 5). Phase 2 processes only pending experiments — candidates with other statuses are left unchanged.
 

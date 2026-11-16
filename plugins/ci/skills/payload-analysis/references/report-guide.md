@@ -6,15 +6,17 @@ The report is produced by filling `assets/report-template.html` — never by wri
 
 - Replace every `{placeholder}` with a computed value. Any placeholder left in the final file is a defect (Step 10 check).
 - Blocks bounded by `<!-- BEGIN: name -->` / `<!-- END: name -->` comments are conditional or repeatable; the comment states the rule. Duplicate repeatable blocks once per item, drop conditional blocks whose condition is false, and remove all marker comments (and the leading contract comment) from the final file.
-- Keep the section order exactly as the template has it: header + metadata → executive summary → verdicts → blocking jobs summary → failed job details → RHCOS changes → informing tests → adversarial review → footer.
+- Keep the section order exactly as the template has it: header + metadata → executive summary → collection errors (when unresolved) → verdicts → blocking jobs summary → failed job details → RHCOS changes → informing tests → adversarial review → footer.
 - All `<a>` links use `target="_blank"` (already present in the template).
 - The file must remain fully self-contained: embedded CSS only, no external resources.
 
 ## Header, metadata, and executive summary
 
+- Use the snapshot identity and controller payload link from Step 3.1; `payload_version` is `summary.json.version`.
+- Include the `collection-errors` block for `collection_errors` entries without `recovered: true`; fill `collection_errors_summary` with affected jobs and unavailable evidence.
 - `{phase}` is rendered **verbatim** from Step 3.1 — never inferred.
-- `consecutive_rejection_count` — the number of consecutive non-`Accepted` payloads in the chain up to and including this one (the chain runs from the last accepted baseline forward — see `chain_length` and the `payloads[]` phases).
-- `baseline_tag` / `hours_since_baseline` — the last accepted payload and how long ago it was cut.
+- `consecutive_rejection_count` — count leading `Rejected` phases in the newest-first chain. If every observed payload is rejected, report a lower bound; older history is unknown.
+- `baseline_tag` is the oldest payload in the collected chain; verify its phase before calling it accepted. `hours_since_baseline` measures target-to-baseline time, not age at report generation.
 - Per-job persistence: one `persistence-item` per failed job from its `streak.streak_length`.
 
 ## Scores
@@ -23,9 +25,9 @@ Every score uses the tier classes: `score-high` (>= 85), `score-medium` (50-84),
 
 ## Verdict blocks
 
-Placed immediately after the executive summary, before the blocking-jobs summary:
+Placed after the executive summary and any collection-error notice, before the blocking-jobs summary:
 
-- `revert-verdict` — include when revert candidates exist (score >= 85). One `revert-row` per candidate. Keep the `/ci:payload-revert {payload_tag}` copy block.
+- `revert-verdict` — include when revert candidates exist (score >= 85). One `revert-row` per candidate. Keep the `/ci:payload-revert {payload_tag}` copy block; include `ocp-revert-policy` only for OCP/OKD.
 - `no-revert-verdict` — include when there are no revert candidates. Exactly one of these two blocks appears.
 - `force-accept-verdict` — include only when Step 6.4 recommends force-accept.
 
@@ -33,7 +35,7 @@ Placed immediately after the executive summary, before the blocking-jobs summary
 
 One `job-row` per blocking job, passed and failed:
 
-- **RHCOS badge**: from the snapshot's `rhcos_version` — `badge-rhcos9` (also for `rhcos9-default`), `badge-rhcos10` (also for `rhcos10-default`), `badge-rhcos-mixed` for `rhcos9_10`. When the job's failure is variant-isolated (Step 4 pattern recognition), add the `variant-isolated` class to the badge.
+- **RHCOS badge** (table and failed-job summaries): from the snapshot's `rhcos_version` — `badge-rhcos9` for `rhcos9`/`rhcos9-default`, `badge-rhcos10` for `rhcos10`/`rhcos10-default`, `badge-rhcos-mixed` for `rhcos9_10`. Omit when unknown. Append `(inferred)` to `-default` badge text: these are tested-OCP defaults, not the management cluster OS. When the job's failure is variant-isolated (Step 4 pattern recognition), add the `variant-isolated` class to the badge.
 - **Status**: `status-passed` ("Passed") / `status-failed` ("Failed").
 - **Streak**: consecutive failing payloads; "N/A" for passed jobs.
 - **History**: the `failure_pattern` from the snapshot rendered inside `class="pattern"` as one `<span>` per payload, newest first — `<span class="f">F</span>` / `<span class="s">S</span>`.
@@ -43,7 +45,7 @@ One `job-row` per blocking job, passed and failed:
 
 One `failed-job` collapsible block per failed blocking job:
 
-- Summary line: job name, `badge-new` ("New Failure") or `badge-persistent` ("Failing for N payloads"), and the RHCOS badge.
+- Summary line: job name, `badge-new` ("New Failure") or `badge-persistent` ("Failing for N payloads"), and the RHCOS badge using the rules above.
 - Prow line: Prow and GCS Artifacts links; for aggregated jobs, append the underlying job name.
 - `variant-callout` — include only when the failure is variant-isolated; fill in which variant is affected.
 - `analysis_from_subagent` — the subagent's failure analysis (Step 4), adjudicated where Step 5b applied. Preserve its structure (failure type, root cause, key errors with `<code>`, retry comparison).
