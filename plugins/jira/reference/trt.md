@@ -94,7 +94,7 @@ A time-limited investigation whose output is a decision or knowledge, not shippe
 | Context | Yes | Context, Background, Current state | Why it matters now; the current state; options already known. |
 | Exit criteria / deliverable | Yes | Success criteria, Definition of done, Deliverable, Findings documentation, Follow-up actions | What the spike produces (recommendation, design doc, prototype, follow-up cards) and how the team knows it is finished. |
 | Approach | No | Investigation approach, Options, Ideas | Candidate approaches or experiments. Keep them as options, not commitments. |
-| Timebox | No | Timebox | Recommended. Do not flag its absence as a readiness gap. |
+| Timebox | No | Timebox | Recommended. Do not flag its absence as a readiness gap. When creating a TRT Spike, offer to add one, but accept a Spike without it; this overrides the generic Spike guidance (`create-spike.md`). |
 
 ### Task and Ticket
 
@@ -469,7 +469,7 @@ words, within the Story guidance. It has:
 - A user-story sentence.
 - Six acceptance-criteria bullets, each starting "Verify that". Two restate
   the same outcome in different words, and one is an implementation step
-  ("use the existing button component").
+  that also encodes a constraint ("use the existing button component").
 - An "Additional Context" section of about 150 words. Its first paragraph
   restates the user-story sentence and two of the criteria. Then comes a
   "determine the approach during design" sentence, the one real boundary
@@ -480,6 +480,8 @@ A quick review could pass this card: it is complete and within the length
 guidance. The stricter review must justify each check, and doing so shows
 that it fails C1, C2 and C6, so it gets a proposal. The six
 bullets become four (C2): the duplicate pair merges, and the implementation
-step goes. The restating paragraph and the design sentence go too (C1, C6).
-The boundary and link stay. The result is about 190 words with the same
-outcomes, boundary and link.
+step leaves the criteria while its constraint ("use the existing button
+component") becomes one Additional Context bullet. The restating paragraph
+and the design sentence go too (C1, C6). The boundary and link stay. The
+result is about 190 words with the same outcomes, constraint, boundary and
+link.

@@ -43,4 +43,4 @@ After identifying the matching conventions:
 1. **Read** the linked reference file(s)
 2. **Apply** project-specific custom fields, version handling, and component requirements
 3. **Layer** team-specific conventions if keywords match (component selection, labels, templates)
-4. **Defer** to the `create` skill for issue-type guidance (story template, bug template, etc.)
+4. **Defer** to the `create` skill for issue-type guidance (story template, bug template, etc.), except where a loaded project or team reference defines its own template or requirement for that issue type: the reference wins on any conflict. For example, TRT treats a Spike's time box as recommended, not required ([TRT conventions](../../reference/trt.md)), so a TRT Spike may be created or groomed without one.
