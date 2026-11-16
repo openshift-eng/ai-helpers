@@ -53,3 +53,76 @@ python3 "${EXTRACT_METRICS}" "${CLAUDE_OUTPUT_LOG}" \
 For `--continue` workflows, run extraction once after the final
 invocation. Each `result` message contains per-invocation totals; the
 script sums across all result messages.
+
+## Markdown Report to HTML
+
+`markdown_to_html.py` renders a Markdown report as a standalone HTML page
+(inline CSS, no scripts) so the Prow Spyglass `html` lens can show it on the
+job page. It uses only the Python standard library.
+
+Usage: `markdown_to_html.py [--title TITLE] INPUT.md OUTPUT.html`
+
+```bash
+MARKDOWN_TO_HTML="/opt/ai-helpers/plugins/prow-agent/scripts/markdown_to_html.py"
+
+python3 "${MARKDOWN_TO_HTML}" report.md "${ARTIFACT_DIR}/report-summary.html"
+python3 "${MARKDOWN_TO_HTML}" --title "Triage report" report.md "${ARTIFACT_DIR}/report-summary.html"
+```
+
+- The title defaults to the input file name.
+- Exit status is 0 on success, 1 when the input cannot be read or the output
+  cannot be written, and 2 for usage errors. On failure no output file is
+  created or replaced; writes go through a temporary file in the output
+  directory. A replaced output file keeps its permissions; a new one gets the
+  default mode from the umask.
+- The html lens only picks up artifacts whose path matches one of its
+  configured patterns (in openshift/release
+  `core-services/prow/02_config/_config.yaml`, for example `.*-summary.*\.html`),
+  so choose the output name accordingly.
+
+### Supported Markdown
+
+This is a deliberately small renderer for agent-written reports, not a full
+Markdown engine:
+
+- ATX headings (`#` to `######`), paragraphs, horizontal rules (`---`, `***`, `___`)
+- `**bold**`, `*emphasis*` and `` `code` `` spans
+- fenced code blocks (` ``` ` or longer); the closing fence is at least as long
+  as the opening one and alone on its line
+- pipe tables with a header separator row; `\|` is a literal pipe in a cell
+- flat `-`/`*`/`+` and `1.`/`1)` lists (continuation lines are joined; a list
+  ends at a blank line or a heading, fence, rule, quote or table), single-level
+  `>` quotes
+- `[text](https://...)` links and bare `http://`/`https://` URLs; trailing
+  punctuation and an unbalanced closing parenthesis stay outside a bare link
+
+Anything else is shown as escaped text. Nested lists, images, HTML passthrough,
+setext headings and table column alignment are not supported.
+
+### Safety
+
+- All input text is HTML-escaped; raw HTML in the report is shown as text.
+  The html lens embeds the page in an iframe `srcdoc` attribute without
+  escaping `&`, so the browser decodes `&lt;` back to `<` before it parses the
+  page. Every escaped `<` in text is therefore followed by an empty comment
+  (`&lt;<!---->`), which is invisible when the file is opened directly and
+  cannot start a tag after that extra decoding. Link targets keep the plain
+  escape and never contain other markup, so they stay within their attribute.
+- Only `http://` and `https://` targets become links; other schemes such as
+  `javascript:` or `data:` stay plain text. A `"` in a URL is percent-encoded.
+- C0 control characters other than tab, LF and CR, and DEL, are removed from
+  the input.
+- The page title is stripped of `<`, `>`, `&` and quotes. The html lens decodes
+  the `<title>` text and inserts it into the job page without escaping it, so an
+  escaped title alone would not be safe there.
+- The page sets explicit light and dark colours (`prefers-color-scheme`), because
+  the lens shows it in a transparent iframe over the job page's theme.
+
+### Availability in CI images
+
+The script ships in the `claude-ai-helpers` image at the path above once the
+change is merged and the image is promoted by the ai-helpers `images`
+postsubmit. Images built before that, or a step that replaces `/opt/ai-helpers`
+with another ai-helpers checkout, may not contain it, so callers should check
+that the file exists and treat rendering as best effort, keeping the Markdown
+report as the primary artifact.
