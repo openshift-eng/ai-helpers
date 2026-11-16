@@ -1,6 +1,6 @@
 ---
 name: jira-conventions
-description: Project and team-specific Jira conventions for CNTRLPLANE, OCPBUGS, GCP, HyperShift, and hosted control plane issues
+description: Project and team-specific Jira conventions for CNTRLPLANE, OCPBUGS, GCP, TRT, HyperShift, and hosted control plane issues. Use when creating, refining or grooming an issue in one of these projects or teams.
 ---
 
 # Jira Conventions Router
@@ -18,6 +18,7 @@ Match on project key, component, or summary keywords. Load the corresponding ref
 | **CNTRLPLANE** | Red Hat OpenShift Control Planes — features, epics, stories, tasks | [CNTRLPLANE conventions](../../reference/cntrlplane.md) |
 | **OCPBUGS** | OpenShift Bugs — bug reports only | [OCPBUGS conventions](../../reference/ocpbugs.md) |
 | **GCP** | GCP Hosted Control Planes (Hypershift on GKE) — stories, epics, tasks, bugs, features | [GCP HCP conventions](../../reference/gcp-hcp.md) |
+| **TRT** | Technical Release Team — story, bug, spike, task and ticket templates, readiness criteria, concision rubric | [TRT conventions](../../reference/trt.md) |
 
 ### By Team / Keywords
 
