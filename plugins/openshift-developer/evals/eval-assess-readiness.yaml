@@ -150,16 +150,17 @@ judges:
           if not input_files:
               return (False, "No input data found in inputs or files")
           input_data = yaml.safe_load(list(input_files.values())[0])
-      # Find features that should have missing plans
+      # Find features that should have missing plans — match R1 ordered title rule
+      # (*test*plan*: "test" before "plan"), plus /plans/ or /test-plan URLs.
+      import re
+      test_plan_title = re.compile(r"(?i)test.*plan")
       expected_missing = set()
       for f in input_data.get("features", []):
           has_plan = False
           for link in f.get("remote_links", []):
-              title = (link.get("title") or "").lower()
+              title = link.get("title") or ""
               url = (link.get("url") or "").lower()
-              if "test" in title and "plan" in title:
-                  has_plan = True
-              elif "/plans/" in url or "/test-plan" in url:
+              if test_plan_title.search(title) or "/plans/" in url or "/test-plan" in url:
                   has_plan = True
           if not has_plan:
               expected_missing.add(f["key"])
@@ -206,15 +207,17 @@ judges:
               return (False, "No input data found in inputs or files")
           input_data = yaml.safe_load(list(input_files.values())[0])
       # Find Critical/Blocker features with gaps in R1/R4/R6
+      import re
+      test_plan_title = re.compile(r"(?i)test.*plan")
       expected_critical = set()
       for f in input_data.get("features", []):
           if f.get("priority") not in ("Critical", "Blocker"):
               continue
           has_plan = False
           for link in f.get("remote_links", []):
-              title = (link.get("title") or "").lower()
+              title = link.get("title") or ""
               url = (link.get("url") or "").lower()
-              if ("test" in title and "plan" in title) or "/plans/" in url or "/test-plan" in url:
+              if test_plan_title.search(title) or "/plans/" in url or "/test-plan" in url:
                   has_plan = True
           has_qa = bool(f.get("qa_contact"))
           has_items = len(f.get("subtasks", [])) > 0 or any(
@@ -295,6 +298,35 @@ judges:
       for bucket in ("ready", "partial", "at_risk", "critical"):
           if counted[bucket] != summary.get(bucket, 0):
               return (False, f"Summary {bucket}={summary.get(bucket, 0)} but feature verdicts count {counted[bucket]}")
+      # Validate component membership against fixture (not just nonempty teams)
+      import yaml
+      input_data = outputs.get("inputs", {})
+      if not input_data:
+          input_files = {k: v for k, v in all_f.items() if k.endswith("input.yaml")}
+          if input_files:
+              input_data = yaml.safe_load(list(input_files.values())[0])
+      if input_data:
+          expected_by_team = {}
+          for f in input_data.get("features", []):
+              comps = f.get("components") or []
+              if not comps:
+                  expected_by_team.setdefault("Unassigned", set()).add(f["key"])
+              else:
+                  for c in comps:
+                      expected_by_team.setdefault(c, set()).add(f["key"])
+          # Case-insensitive team name compare
+          report_by_team_ci = {str(k).lower(): set() for k in teams}
+          for team_name, team_data in teams.items():
+              for f in team_data.get("features", []):
+                  if f.get("key"):
+                      report_by_team_ci[str(team_name).lower()].add(f["key"])
+          for exp_team, exp_keys in expected_by_team.items():
+              actual = report_by_team_ci.get(str(exp_team).lower(), set())
+              if actual != exp_keys:
+                  return (False, f"Team '{exp_team}' feature keys {actual} != fixture {exp_keys}")
+          for team_name in teams:
+              if str(team_name).lower() not in {str(t).lower() for t in expected_by_team}:
+                  return (False, f"Unexpected team group in report: {team_name}")
       return (True, f"Summary stats consistent: total={total}, teams={len(teams)}, ready={ready}, partial={partial}, at_risk={at_risk}, critical={critical}")
 
   # ── LLM judge ──

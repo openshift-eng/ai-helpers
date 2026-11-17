@@ -137,6 +137,7 @@ def evaluate_r1(
     remote_links: list[dict[str, Any]] | None,
     remote_links_status: str = "ok",
     comments_available: bool = True,
+    description_available: bool = True,
 ) -> dict[str, Any]:
     links = remote_links or []
     for link in links:
@@ -148,7 +149,12 @@ def evaluate_r1(
                 "plan_status": "linked",
                 "plan_url": link.get("url"),
             }
-    if remote_links_status == "unavailable" or not comments_available:
+    # Unreadable sources that could still hold a plan URL → Unknown, not Missing
+    if (
+        remote_links_status == "unavailable"
+        or not comments_available
+        or not description_available
+    ):
         return {
             "status": "unknown",
             "plan_status": "unknown",
@@ -161,22 +167,64 @@ def evaluate_r1(
     }
 
 
+def _section_bodies(text: str) -> dict[str, str]:
+    """Split description into expected-section bodies by heading occurrence order."""
+    matches: list[tuple[int, str, int]] = []
+    for section in EXPECTED_SECTIONS:
+        for m in re.finditer(rf"(?i){re.escape(section)}", text):
+            matches.append((m.start(), section, m.end()))
+            break
+    matches.sort(key=lambda x: x[0])
+    bodies: dict[str, str] = {s: "" for s in EXPECTED_SECTIONS}
+    for i, (_start, section, end) in enumerate(matches):
+        next_start = matches[i + 1][0] if i + 1 < len(matches) else len(text)
+        raw = text[end:next_start]
+        # Drop trailing wiki/markdown heading crumbs that belong to the next section
+        raw = re.sub(r"(?is)(?:^|\n)\s*h[1-6]\.\s*.*$", "", raw)
+        raw = re.sub(r"(?is)(?:^|\n)\s*#{1,6}\s*.*$", "", raw)
+        bodies[section] = raw
+    return bodies
+
+
+def _body_is_placeholder(body: str) -> bool:
+    stripped = (body or "").strip()
+    if not stripped:
+        return True
+    low = stripped.lower()
+    lines = []
+    for ln in low.splitlines():
+        cleaned = ln.strip().strip("*_ \t")
+        if cleaned:
+            lines.append(cleaned)
+    if not lines:
+        return True
+    meaningful = []
+    for ln in lines:
+        if re.fullmatch(r"[|*=\-_\s]+", ln):
+            continue
+        if re.fullmatch(r"h[1-6]\..*", ln):
+            continue
+        meaningful.append(ln)
+    if not meaningful:
+        return True
+    return all(
+        any(m == ln or m in ln for m in PLACEHOLDER_MARKERS)
+        or re.fullmatch(r"[|*=\-_\s]+", ln)
+        for ln in meaningful
+    )
+
+
 def evaluate_r2(description: str | None) -> dict[str, Any]:
     text = description or ""
     absent: list[str] = []
     placeholder: list[str] = []
+    bodies = _section_bodies(text)
     for section in EXPECTED_SECTIONS:
-        # loose heading match
         if not re.search(rf"(?i){re.escape(section)}", text):
             absent.append(section)
             continue
-        # crude body check: if section text only has placeholders nearby, flag
-        # Prefer full section parsers in richer runners; this catches empty templates.
-        low = text.lower()
-        if any(m in low for m in PLACEHOLDER_MARKERS) and section.lower() in low:
-            # only count as placeholder when the section exists but markers dominate
-            # leave sophisticated body scans to the agent; mark none by default here
-            pass
+        if _body_is_placeholder(bodies.get(section, "")):
+            placeholder.append(section)
     if len(absent) == len(EXPECTED_SECTIONS):
         return {
             "status": "unknown",
@@ -216,11 +264,29 @@ def saturation_flags(
     features: list[dict[str, Any]],
     min_features: int = 10,
 ) -> list[str]:
-    """Flag checks where one verdict is 100% across a large set."""
-    if len(features) < min_features:
+    """Flag checks where one verdict is 100% across assessed features.
+
+    Deduplicates multi-component duplicates by feature key. Skips features with
+    verdict/status ``not_assessed`` (budget exhaustion) so they do not inflate
+    the denominator or suppress a real calibration flag.
+    """
+    deduped: dict[str, dict[str, Any]] = {}
+    for feat in features:
+        key = feat.get("key") or id(feat)
+        # Prefer first occurrence; team duplicates share the same checks
+        if key not in deduped:
+            deduped[str(key)] = feat
+    assessed = [
+        f
+        for f in deduped.values()
+        if str(f.get("verdict") or "").lower() != "not_assessed"
+        and str((f.get("status") or "")).lower() != "not_assessed"
+        and (f.get("checks") or {})
+    ]
+    if len(assessed) < min_features:
         return []
     by_check: dict[str, dict[str, int]] = {}
-    for feat in features:
+    for feat in assessed:
         checks = feat.get("checks") or {}
         for name, payload in checks.items():
             status = (payload or {}).get("status") or (payload or {}).get("qa_contact_status")
@@ -229,7 +295,6 @@ def saturation_flags(
             by_check.setdefault(name, {})
             by_check[name][str(status)] = by_check[name].get(str(status), 0) + 1
     flags: list[str] = []
-    n = len(features)
     deps = {
         "R1": "remote_links / description-comment URL merge",
         "R6": "qa_contact_field in issue payload",
@@ -238,14 +303,18 @@ def saturation_flags(
         "R12": "doc remote links / OSDOCS",
     }
     for check, counts in by_check.items():
+        # Denominator = features that have this check evaluated
+        check_n = sum(counts.values())
+        if check_n < min_features:
+            continue
         if len(counts) != 1:
             continue
         verdict, count = next(iter(counts.items()))
-        if count != n:
+        if count != check_n:
             continue
         dep = deps.get(check, f"field/call used by {check}")
         flags.append(
-            f"⚠️ CALIBRATION: {check} returned {verdict} for 100% of {n} features. "
+            f"⚠️ CALIBRATION: {check} returned {verdict} for 100% of {check_n} features. "
             f"This is consistent with either a genuine org-wide gap or a data-acquisition "
             f"failure. Verify before acting: {dep}."
         )
@@ -272,8 +341,20 @@ def _cmd_evaluate(args: argparse.Namespace) -> int:
             feature.get("remote_links") or fields.get("remote_links"),
             feature.get("remote_links_status", "ok"),
             verification["comments_available"],
+            description_available="description" in fields,
         )
-        r2 = evaluate_r2(fields.get("description"))
+        r2 = (
+            evaluate_r2(fields.get("description"))
+            if "description" in fields
+            else {
+                "status": "unknown",
+                "template_status": "unknown",
+                "sections_absent": [],
+                "sections_placeholder": [],
+                "unfilled_sections": [],
+                "unfilled_count": 0,
+            }
+        )
         out.append(
             {
                 "key": feature.get("key") or path.stem,
@@ -314,10 +395,26 @@ def _cmd_selftest(_: argparse.Namespace) -> int:
     assert v["qa_contact_field_fetched"] is False
     r6 = evaluate_r6(sample, "customfield_12319243")
     assert r6["qa_contact_status"] == "unfetched"
-    flags = saturation_flags(
-        [{"checks": {"R6": {"status": "empty"}}} for _ in range(12)]
-    )
-    assert any("R6" in f for f in flags)
+    # R1 ordered title: "Plan for test" alone is not a plan link
+    r1_bad = evaluate_r1([{"title": "Plan for test", "url": "https://example.com/x"}])
+    assert r1_bad["plan_status"] == "missing"
+    r1_ok = evaluate_r1([{"title": "Test Plan — PSA", "url": "https://example.com/x"}])
+    assert r1_ok["plan_status"] == "linked"
+    r1_nodesc = evaluate_r1([], "ok", True, description_available=False)
+    assert r1_nodesc["plan_status"] == "unknown"
+    # R2: all headings with TBD bodies → unfilled, not filled
+    tbd_desc = "\n".join(f"h3. *{s}*\nTBD\n" for s in EXPECTED_SECTIONS)
+    r2 = evaluate_r2(tbd_desc)
+    assert r2["template_status"] == "unfilled"
+    assert r2["unfilled_count"] == 7
+    # Saturation: dedupe multi-component + ignore not_assessed
+    feats = []
+    for i in range(10):
+        feats.append({"key": f"K{i}", "checks": {"R6": {"status": "empty"}}})
+        feats.append({"key": f"K{i}", "checks": {"R6": {"status": "empty"}}})  # dupe team
+    feats.append({"key": "Z", "verdict": "not_assessed", "checks": {}})
+    flags = saturation_flags(feats)
+    assert any("R6" in f and "10 features" in f for f in flags)
     print("selftest ok")
     return 0
 

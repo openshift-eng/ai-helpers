@@ -78,7 +78,7 @@ Only after `cloudId` is available, make a smoke-test issue/search call if needed
 
 **Both modes** use the same per-issue field list and the same separate remote-links fetch below.
 
-**Single-feature mode**: Fetch the one issue by key using the field list in **Step 4.3**, then fetch remote links for that issue using **Step 4.4**. Populate `features[]` with that single entry. Run **Step 4.3b** on it, then skip to Step 5.
+**Single-feature mode**: Fetch the one issue by key using the field list in **Step 4.3**, then fetch remote links for that issue using **Step 4.4**. Populate `features[]` with that single entry. Run **Step 4.3b** on it. **Persist** the payload under `.work/assess-feature-readiness/features/<KEY>.json` (same as Step 4.5) **before** skipping to Step 5 so `evaluate_checks.py` can read it.
 
 **Release-wide mode**:
 
@@ -90,13 +90,14 @@ Only after `cloudId` is available, make a smoke-test issue/search call if needed
    If `--team <component>` was provided, prefer fetching the release set then filtering **case-insensitively** on `components` (Jira JQL `component =` can be case-sensitive). You may still append `AND component = "<component>"` when the instance matches case, but always verify matches case-insensitively after fetch.
 2. Use `maxResults = 50` and paginate until exhausted. Follow the selected search tool's pagination contract: Rovo / `searchJiraIssuesUsingJql` uses `nextPageToken` / `isLast`; use `startAt` only for tools that support offset pagination. Apply the same rule to Epic-child and Feature-parent searches in R4. Track MCP calls against the global budget in Step 5.
 3. For each feature, request fields: `summary`, `description`, `priority`, `status`, `subtasks`, `issuelinks`, `comment`, `labels`, `components`, and the configured QA Contact field ID from [references/readiness-criteria.md](references/readiness-criteria.md) Configuration (`qa_contact_field`, default `customfield_12319243`). Substitute that configured value — do not hardcode a different ID. **Do not** request `remotelinks` as an issue field — remote links are not part of the main issue response (`/rest/api/3/issue/{key}`); they live at `/rest/api/3/issue/{key}/remotelink`. Include `comment` so the remote-link fallback can find URLs that exist only in comments.
-3b. **Verify field acquisition before running any check.** For the first fetched feature (and again if the MCP namespace changes mid-run), assert that every requested field name appears as a **key** in the response payload (absent key ≠ null value).
-   - Build `fields_missing[]` from any that do not.
-   - If `qa_contact_field` is missing → set `qa_contact_status: "unfetched"` on **all** features and emit: `⚠️ QA Contact field <id> was not returned by this Jira instance. R6 reported as Unknown for all features. Verify qa_contact_field in readiness-criteria.md Configuration.`
-   - If `comment` is missing → set `comments_available: false`; R1/R11/R12 must not emit ❌ from a missing-URL conclusion — only ⚠️ Unknown — until comments are fetched separately and succeed.
-   - Record `fields_missing[]`, `qa_contact_field_fetched`, and `comments_available` at the top level of the JSON sidecar and in the report header.
-   - If ≥2 required fields are missing, **STOP** and report rather than scanning 200+ features against a broken fetch.
-   - Prefer the helper: `python3 "${CLAUDE_SKILL_DIR}/scripts/evaluate_checks.py" verify-fields --feature <path> --qa-field <id>`.
+3b. **Verify field acquisition before running any check.** Run the key check on **every** fetched feature (not only the first). Absent key ≠ null value.
+   - Per feature, build `fields_missing[]` for that payload; union into a run-level `fields_missing[]`.
+   - If `qa_contact_field` is missing on a feature → that feature's R6 is `unfetched` / ⚠️ Unknown. If it is missing on the first feature (or systematically across the run), emit: `⚠️ QA Contact field <id> was not returned by this Jira instance...` and treat subsequent features the same until a payload includes the key.
+   - If `comment` is missing on a feature → that feature's `comments_available: false`; R1/R11/R12 must not emit ❌ from a missing-URL conclusion — only ⚠️ Unknown — until comments are fetched separately and succeed.
+   - If `description` is missing on a feature → do not merge description-sourced URLs; R1/R2/R3/R9/R12 description-dependent paths return ⚠️ Unknown when no substitute evidence exists (never ❌ Missing / Unfilled solely from a missing description key).
+   - Record `fields_missing[]`, `qa_contact_field_fetched`, and `comments_available` at the top level of the JSON sidecar and in the report header (and per-feature when they differ).
+   - If ≥2 required fields are missing on the first feature, **STOP** and report rather than scanning 200+ features against a broken fetch.
+   - Prefer the helper: `python3 "${CLAUDE_SKILL_DIR}/scripts/evaluate_checks.py" verify-fields --feature <path> --qa-field <configured-qa_contact_field>`.
 4. **Fetch remote links separately** for each feature (required for R1, R9, R10, R11, R12):
    - Confirm the parameter/tool name for the discovered MCP namespace (examples seen elsewhere: `properties=remoteLinks`, `include="remote_links"`, or a dedicated remote-links call). Name the tool in logs only after it is confirmed to return data.
    - Attempt the remote-links call. Set `remote_links_status` on the feature:
@@ -118,11 +119,15 @@ For each feature in `features[]`, run the checks specified by the invocation mod
 **Deterministic matchers**: for R1/R6/R8 field-presence and quality-item classification, use the committed helper rather than reinventing regexes:
 
 ```sh
+# Substitute the configured qa_contact_field from readiness-criteria.md (do not hardcode).
+QA_FIELD="<qa_contact_field from Configuration, default customfield_12319243>"
 python3 "${CLAUDE_SKILL_DIR}/scripts/evaluate_checks.py" selftest
-python3 "${CLAUDE_SKILL_DIR}/scripts/evaluate_checks.py" evaluate --features-dir .work/assess-feature-readiness/features --qa-field customfield_12319243
+python3 "${CLAUDE_SKILL_DIR}/scripts/evaluate_checks.py" evaluate \
+  --features-dir .work/assess-feature-readiness/features \
+  --qa-field "$QA_FIELD"
 ```
 
-Do **not** reimplement R8 with bare `kw in summary` substring checks — that falsely matches `"latest"` → `test`.
+Do **not** reimplement R8 with bare `kw in summary` substring checks — that falsely matches `"latest"` → `test`. Always pass the **same** configured `qa_contact_field` used in Step 4.3.
 
 **Check summary** (see reference file for full details):
 
