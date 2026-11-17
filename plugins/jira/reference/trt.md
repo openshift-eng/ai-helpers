@@ -1,8 +1,8 @@
 # TRT Conventions
 
 Team conventions for issues in the TRT project (Technical Release Team). Use
-them when creating TRT cards and when pre-grooming them before the team's
-grooming session.
+them when creating TRT cards and when pre-refining them before the team's
+refinement session.
 
 ## Project Information
 
@@ -15,12 +15,12 @@ grooming session.
 
 ## Workflow
 
-New cards are pre-groomed while they are in **New**. The team grooms them in
+New cards are pre-refined while they are in **New**. The team refines them in
 its weekly session, after which they move to **Refinement**. Anything in
-Refinement or later has been groomed by people: do not reshape it.
+Refinement or later has been refined by people: do not reshape it.
 
-A card pre-groomed by automation carries the `ai-pre-groomed` label. Never
-pre-groom a card that already has it.
+A card pre-refined by automation carries the `ai-pre-refined` label. Never
+pre-refine a card that already has it.
 
 ## Principles
 
@@ -109,7 +109,7 @@ A finite piece of work that is not a user-facing capability: maintenance, migrat
 
 ## Readiness
 
-A card is **ready for grooming** when:
+A card is **ready for refinement** when:
 
 1. Every required section for its type is present with real content, not a
    placeholder.
@@ -138,7 +138,7 @@ card covering the same work. Search open TRT cards and cards closed in the
 last 90 days.
 
 - **Duplicate:** the same work or defect with the same outcome; finishing one
-  would finish the other. When pre-grooming, a likely duplicate is reported
+  would finish the other. During pre-refinement, a likely duplicate is reported
   instead of rewritten. Cite the existing card's key, status and resolution,
   and say in one or two lines why it is the same work.
 - **Related, not duplicate:** an overlapping topic, shared components, one
@@ -198,10 +198,10 @@ More than five criteria almost always means the list can be condensed. In order:
 
 ### Length guidance (not a limit)
 
-Median description length of TRT cards the team has groomed, from a sample of
+Median description length of TRT cards the team has refined, from a sample of
 55 cards in Refinement, In Progress or Review (2026-11):
 
-| Type | Groomed median | Guidance |
+| Type | Refined median | Guidance |
 |---|---|---|
 | Story | about 250 words | 120–350 |
 | Bug | about 420 words | 150–450 (evidence makes bugs longer) |
@@ -233,7 +233,7 @@ A card gets the stricter review when **either** of these holds:
 These cards were drafted by an assistant, and they are reliably the least
 concise TRT cards. In a November 2026 sample, labelled New cards had a median
 of about 1,160 words, against about 200 for other New cards. Even after team
-grooming they stayed about 40% longer. Bot-created cards without the label
+refinement they stayed about 40% longer. Bot-created cards without the label
 (older cards, or cards filed through other Chai personas) had a median of about
 350 words. Review them with these changes:
 
@@ -300,7 +300,7 @@ that fails the rubric is condensed or removed; content that is essential stays.
 These examples are synthetic. They are paraphrased from patterns seen in TRT
 cards, not copied from them.
 
-### E1. Already well groomed: no change
+### E1. Already well refined: no change
 
 ```markdown
 As a Sippy developer, I want integration tests to run in the devcontainer,
@@ -386,7 +386,7 @@ After: about 350 words.
   - Links to the related issue and PR.
 
 Gap comment: "The criteria cover intake, routing, reminders and failure
-handling. Should this be split into separate stories before grooming?"
+handling. Should this be split into separate stories before refinement?"
 
 Why: the criteria keep every outcome, while the sub-bullets that described
 how were cut (C2, C5). Repeated context (C1) and the dated search findings
