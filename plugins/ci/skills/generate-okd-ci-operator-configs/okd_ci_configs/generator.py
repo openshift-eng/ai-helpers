@@ -9,6 +9,14 @@ import yaml
 
 from .ci_operator import CiOperatorConfigs
 from .dockerfiles import download_dockerfile, parse_dockerfile_froms
+from . import fixups
+from .fixups import (
+    REPORT,
+    SKIP_PAYLOAD_TAGS,
+    ReleaseRepo,
+    adjust_parents,
+    default_base_stream,
+)
 from .helpers import (
     ImageCoordinate,
     convert_to_imagestream_coordinate,
@@ -19,6 +27,7 @@ from .helpers import (
 from .metadata import (
     _build_relationships,
     get_needed_for_okd_payload,
+    get_okd_payload_tag_name,
     load_all_image_metadata,
     resolve_okd_from_entry,
     resolve_okd_from_stream,
@@ -31,6 +40,8 @@ def generate_configs(
     output_dir: Path,
     github_token: Optional[str],
     dry_run: bool,
+    base_stream: Optional[int] = None,
+    release_repo_path: Optional[Path] = None,
 ):
     # ------------------------------------------------------------------
     # 1. Read group.yml
@@ -46,6 +57,21 @@ def generate_configs(
 
     print(f'OKD version: {okd_version} (group: {major}.{minor})')
     print(f'Public upstream mappings: {len(public_upstreams)}')
+
+    if base_stream is None:
+        base_stream = default_base_stream(okd_version)
+    print(f'Base image stream: CentOS Stream {base_stream}')
+
+    release_repo: Optional[ReleaseRepo] = None
+    if release_repo_path:
+        release_repo = ReleaseRepo(release_repo_path)
+        fixups.MIRROR_SOURCE = release_repo
+        print(f'Cross-checking against OCP configs in {release_repo.config_dir}')
+    else:
+        REPORT.warn(
+            'No --release-repo given: branch names, capabilities and '
+            'builder versions were not checked against the OCP configs'
+        )
 
     # ------------------------------------------------------------------
     # 2. Read streams.yml (substitute variables)
@@ -99,6 +125,11 @@ def generate_configs(
         )
         if not needed:
             skipped.append((distgit_key, 'not needed for OKD payload'))
+            continue
+
+        payload_tag = get_okd_payload_tag_name(meta)
+        if payload_tag in SKIP_PAYLOAD_TAGS:
+            skipped.append((distgit_key, SKIP_PAYLOAD_TAGS[payload_tag]))
             continue
 
         # -- Skip: no GitHub source URL --
@@ -156,6 +187,12 @@ def generate_configs(
             skipped.append((distgit_key, 'empty desired_parents'))
             continue
 
+        # Explicit okd_alignment.from lists are ART's decision; leave them alone.
+        if okd_from is None:
+            desired_parents = adjust_parents(
+                distgit_key, payload_tag, desired_parents, okd_version, base_stream,
+            )
+
         # -- Resolve build root --
         desired_ci_build_root_coordinate: Optional[ImageCoordinate] = None
         ci_build_root = alignment.get('ci_build_root') if alignment else None
@@ -183,6 +220,8 @@ def generate_configs(
             public_branch = source_branch
 
         _, org, repo_name = split_git_url(public_url)
+        if release_repo:
+            public_branch = release_repo.resolve_branch(org, repo_name, public_branch or 'main')
         ci_operator_config = ci_operator_configs.get_config(org, repo_name, public_branch or 'main')
 
         # -- Determine Dockerfile path --
@@ -295,12 +334,14 @@ def generate_configs(
             print(f'  {name}: {reason}')
 
     print()
-    written = ci_operator_configs.write_configs(output_dir, dry_run)
+    written = ci_operator_configs.write_configs(output_dir, dry_run, release_repo)
     print(f'\nGenerated {len(written)} ci-operator config files')
     if written:
         print('Output files:')
         for path in written:
             print(f'  {path}')
+
+    REPORT.print()
 
     print(
         '\nNote: After generating, run "make ci-operator-configs" '

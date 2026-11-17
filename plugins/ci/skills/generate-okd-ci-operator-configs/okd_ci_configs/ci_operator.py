@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 import yaml
 
+from .fixups import CAPABILITIES_BY_REPO, REPORT, ReleaseRepo, normalize_rpm_repo
 from .helpers import ImageCoordinate, deep_get
 from .metadata import ImageMetaInfo, get_okd_payload_tag_name
 
@@ -73,6 +74,10 @@ class CiOperatorImageConfig:
                         f'Incomplete repo injection data for {meta.distgit_key}: '
                         f'{repo_id} / {baseurl}'
                     )
+                okd_version = self.promotion_imagestream.split('-', 1)[1]
+                repo_id, baseurl = normalize_rpm_repo(
+                    meta.distgit_key, repo_id, baseurl, okd_version,
+                )
                 repo_def_lines.extend([
                     f'[{repo_id}]',
                     f'id = {repo_id}',
@@ -182,7 +187,12 @@ class CiOperatorConfig:
             / f'{self.org}-{self.repo}-{self.branch}__okd-scos.yaml'
         )
 
-    def write_config(self, output_dir: Path, dry_run: bool = False) -> Optional[Path]:
+    def write_config(
+        self,
+        output_dir: Path,
+        dry_run: bool = False,
+        release_repo: Optional[ReleaseRepo] = None,
+    ) -> Optional[Path]:
         output_path = self.get_config_path(output_dir)
 
         if not self.complete:
@@ -220,8 +230,20 @@ class CiOperatorConfig:
         for coord in base_image_defs:
             base_images[ci_names[coord]] = coord.as_dict()
 
+        repo_caps = CAPABILITIES_BY_REPO.get((self.org, self.repo))
+        if repo_caps:
+            for image_obj in images:
+                if not image_obj.get('capabilities'):
+                    image_obj['capabilities'] = list(repo_caps)
+            REPORT.fix(
+                f'{self.org}/{self.repo}: capabilities {repo_caps} on every image '
+                f'(openshift/release#84305)'
+            )
+
+        # determinize-ci-operator rejects a flat images list; current
+        # openshift/release configs use images.items.
         config: dict = {
-            'images': images,
+            'images': {'items': images},
             'promotion': self.promotion,
             'resources': {
                 '*': {
@@ -240,6 +262,9 @@ class CiOperatorConfig:
             config['build_root'] = {'image_stream_tag': self.build_root}
         if self.releases:
             config['releases'] = self.releases
+
+        if release_repo:
+            release_repo.reconcile(self.org, self.repo, self.branch, config)
 
         if dry_run:
             print(f'\n--- DRY RUN: {output_path} ---')
@@ -272,10 +297,15 @@ class CiOperatorConfigs:
             )
         return self.configs[key]
 
-    def write_configs(self, output_dir: Path, dry_run: bool = False) -> List[Path]:
+    def write_configs(
+        self,
+        output_dir: Path,
+        dry_run: bool = False,
+        release_repo: Optional[ReleaseRepo] = None,
+    ) -> List[Path]:
         written: List[Path] = []
         for _, config in self.configs.items():
-            path = config.write_config(output_dir, dry_run)
+            path = config.write_config(output_dir, dry_run, release_repo)
             if path:
                 written.append(path)
         return written
