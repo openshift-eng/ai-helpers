@@ -304,6 +304,22 @@
       ]
     },
     {
+      "name": "container-image",
+      "source": "./plugins/container-image",
+      "description": "Container image analysis tools: multi-source CVE scanning and triage",
+      "version": "0.0.1",
+      "category": "security",
+      "keywords": [
+        "cve",
+        "container",
+        "image",
+        "vulnerabilities",
+        "grype",
+        "trivy",
+        "scanning"
+      ]
+    },
+    {
       "name": "node-tuning",
       "source": "./plugins/node-tuning",
       "description": "Generate and analyze OpenShift node tuning profiles",
