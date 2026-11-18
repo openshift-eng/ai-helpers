@@ -692,4 +692,4 @@ When re-running on an already-generated plan:
 - When the Jira issue has unfilled template placeholders, refuse to generate and report the gaps.
 
 ## See Also
-- `openshift-developer:generate-bug-reproducer` — reproduction and fix-verification steps for a single bug, rather than broad coverage; reuses Steps 1-2 of this skill to gather sources
+- `openshift-developer:generate-bug-reproducer` — reproduction and fix-verification steps for a single bug, rather than broad coverage; reuses Steps 1 and 3 of this skill to gather sources

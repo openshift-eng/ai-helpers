@@ -35,14 +35,10 @@ With `--apply`, the generated steps are executed against a live OpenShift cluste
    - a valid GitHub PR URL (`https://github.com/*/pull/*`): append to the PR list
    - anything else: reject with a usage error — never forward an unrecognized flag to `gh pr view`/`gh pr diff` as if it were a PR URL
 3. If the issue type is not a bug, warn the user and continue with best effort.
-4. If apply mode is set and a report already exists at `.work/generate-bug-reproducer/{ISSUE_KEY}/reproducer-report.md`, read its embedded provenance metadata (see Step 4) and compare it against this invocation:
-   - If the issue key and PR list both match, ask the user whether to reuse or regenerate
-   - If anything differs, or the metadata is missing or unparseable, state the mismatch and default to regenerating unless the user confirms they want the stale report
-   - If the user chooses to reuse, skip Steps 2-5 and go directly to Step 6
 
 ### Step 2: Gather sources
 
-Follow **Step 1 (Parse input and gather sources)** and **Step 2 (Analyze changes)** of [`openshift-developer:generate-test-plan`](../generate-test-plan/SKILL.md) to fetch the Jira issue, discover linked PRs, and analyze the diffs. Apply the same PR filtering it describes (documentation-only, CI/tooling-only, `skip-testing` / `docs-only` labels) and note skipped PRs.
+Follow **Step 1 (Parse input and resolve sources)** and **Step 3 (Analyze changes)** of [`openshift-developer:generate-test-plan`](../generate-test-plan/SKILL.md) to fetch the Jira issue, discover linked PRs, and analyze the diffs. Apply the same PR filtering it describes (documentation-only, CI/tooling-only, `skip-testing` / `docs-only` labels) and note skipped PRs.
 
 Beyond what that skill extracts, capture for reproducer purposes:
 
@@ -52,6 +48,16 @@ Beyond what that skill extracts, capture for reproducer purposes:
 - The specific code path the diff changes, and what input reaches it
 
 If no PRs are found, warn that root-cause inference will rely on Jira text alone and cap the confidence at low.
+
+#### 2.1: Reuse an existing report (apply mode only)
+
+The resolved, filtered PR set from this step is the canonical PR list: it includes auto-discovered PRs and excludes the PRs the filtering rules removed. Do not compare against the raw arguments, which may be empty (auto-discovery) or contain PRs that filtering removed.
+
+If apply mode is set and `.work/generate-bug-reproducer/{ISSUE_KEY}/reproducer-report.md` exists, read its embedded provenance metadata (see Step 4) and compare it against the issue key and the canonical PR list. Compare as sets, ignoring order, duplicates, trailing slashes, and case.
+
+- Issue key and PR set both match: ask the user whether to reuse or regenerate.
+- Anything differs, or the metadata is missing or unparseable: state the mismatch and default to regenerating, unless the user confirms they want the stale report.
+- If the user chooses to reuse, skip Steps 3-5 and go directly to Step 6.
 
 ### Step 3: Establish root cause and reconcile sources
 
@@ -105,7 +111,7 @@ Show the report path, the Jira issue and PRs analyzed, the number of reproductio
 
 #### 6.1: Verify the report
 
-A report must already exist, either generated above or reused via Step 1.4. If the file is missing, abort the apply phase. If its provenance metadata is missing, unparseable, or does not match the current issue key and PR list, treat it as unverified: warn, and require explicit confirmation to apply it or regenerate instead.
+A report must already exist, either generated above or reused via Step 2.1. If the file is missing, abort the apply phase. Provenance was verified in Step 2.1 against the canonical PR list; do not ask the reuse question again here.
 
 #### 6.2: Prerequisite checks
 
