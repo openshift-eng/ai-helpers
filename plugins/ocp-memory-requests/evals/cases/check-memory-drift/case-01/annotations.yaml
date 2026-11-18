@@ -1,6 +1,7 @@
 # case-01: default release resolution
 expected_release: '5.1'
 expected_window_days: 30
+expected_excluded_runs: 3
 expected_create_count: 1
 expected_creates:
 - {deployment: marketplace-operator}

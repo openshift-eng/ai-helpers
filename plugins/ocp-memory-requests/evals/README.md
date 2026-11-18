@@ -10,34 +10,49 @@ provides:
 
 - `input.yaml` — `command_args`, `devel_release`, `manifests_present`,
   `preexisting_bugs`.
-- `usage.json` — the mocked output of
+- `usage.json` — the mocked result of
   [`queries/singleton-usage.sql`](../skills/check-memory-drift/queries/singleton-usage.sql),
-  used in place of running `bq`.
+  served by the `bq` stub (never read directly).
+- `defective-upgrade-runs.json` — the mocked result of
+  [`queries/defective-upgrade-runs.sql`](../skills/check-memory-drift/queries/defective-upgrade-runs.sql),
+  served by the `bq` stub.
 
-The eval's `runner.system_prompt` only sets up the **mock** dependencies
-(`usage.json` stands in for `bq`; `devel_release` for the release lookup;
+The eval's `runner.system_prompt` only sets up the **mock** dependencies (a
+`bq-mock.py` command for BigQuery; `devel_release` for the release lookup;
 `manifests_present` for the manifest check; `preexisting_bugs` for the store; a
 `jira-mock.py` command for Jira writes). It deliberately does **not** describe the
 pipeline, name the scripts, or give the output schema — the agent must read the
 skill's [SKILL.md](../skills/check-memory-drift/SKILL.md) to know what to do, so
 deleting or breaking SKILL.md breaks this eval.
 
-Jira writes go through the staged [`jira-mock.py`](stubs/jira-mock.py) stub, which
-appends one line per `create`/`update`/`comment` to **`jira-calls.jsonl`**. The
-judges in [`eval-check-memory-drift.yaml`](eval-check-memory-drift.yaml) score that
-call log (the writes the skill actually made) plus a small `result.json` report,
-against the case `annotations.yaml`; every judge is a no-op (pass) when its
-annotation field is absent, so one judge set serves all cases.
+Both mocks are call-recording stubs: every invocation appends one JSON line to a
+call log in the workspace —
 
-The harness stages `input.yaml`, `usage.json`, and `jira-mock.py` into each case
+- [`bq-mock.py`](stubs/bq-mock.py) → **`bq-calls.jsonl`** — `{action:
+  dry_run|query, query, parameters: {release, window_days}}`. It identifies the
+  query from the SQL on stdin and serves the matching fixture on stdout, so the
+  skill's real query step (named parameters, dry-run first per `foundations`)
+  runs end to end.
+- [`jira-mock.py`](stubs/jira-mock.py) → **`jira-calls.jsonl`** — one line per
+  `create`/`update`/`comment`.
+
+The judges in [`eval-check-memory-drift.yaml`](eval-check-memory-drift.yaml)
+score those call logs (the queries and writes the skill actually made) plus a
+small `result.json` report, against the case `annotations.yaml`; every judge is
+a no-op (pass) when its annotation field is absent, so one judge set serves all
+cases.
+
+The harness stages `input.yaml`, both fixtures, and both stubs into each case
 workspace (`dataset.workspace.files`); `annotations.yaml` (the answer key) is held
 back as evaluation material and is never visible to the agent.
 
 **These cases test decisions, not arithmetic.** The +10% recommendation, drift,
 threshold, direction, and Mi rounding are deterministic and covered by the script
 unit tests (below), so they are not re-tested here. The eval checks what needs
-judgment: release resolution, the manifest "still ships" check, reconciliation
-with existing bugs, and dry-run behavior.
+judgment: release resolution and the parameters actually passed to the queries
+(from `bq-calls.jsonl`), dry-run-before-query cost discipline, the manifest
+"still ships" check, reconciliation with existing bugs, the defective-run count
+in the report, and dry-run behavior.
 
 Defaults pinned to the skill: `window_days=30`, `threshold_pct=30`, `min_runs=100`.
 
@@ -73,10 +88,11 @@ tests (run with `python3 -m pytest` from the `scripts/` directory):
 
 ## Scope notes
 
-- Jira actions are scored from a **real call log** (`jira-calls.jsonl`) written by
-  the `jira-mock.py` stub when the skill invokes it — not from a self-report. A run
-  that writes a correct-looking `result.json` without actually filing passes
-  nothing, because the create/update judges read the log.
+- bq and Jira actions are scored from **real call logs** (`bq-calls.jsonl`,
+  `jira-calls.jsonl`) written by the `bq-mock.py` / `jira-mock.py` stubs when
+  the skill invokes them — not from a self-report. A run that writes a
+  correct-looking `result.json` without actually querying or filing passes
+  nothing, because the judges read the logs.
 - The manifest "still ships" check is a model judgment with no prescribed
   mechanism, so it is exercised via a `manifests_present` fixture rather than a
   stubbed lookup.
