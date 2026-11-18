@@ -1050,6 +1050,11 @@ def print_transition_details(transition, out):
     print("  download_timelines.py --runs \"%s\"" % handoff["download_runs"], file=out)
 
 
+def utc_now():
+    """The current time; tests replace it to pin the window."""
+    return datetime.now(timezone.utc)
+
+
 def main(argv=None):
     """Resolve the series, fetch its runs and disruption, and report the trend."""
     parser = argparse.ArgumentParser(description="Disruption time series, transitions, and onset for one series")
@@ -1098,7 +1103,7 @@ def main(argv=None):
         print("Error: %s" % e, file=sys.stderr)
         return 1
 
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     days = args.days if args.days is not None else max(DEFAULT_DAYS, series["lookback_days"] or 0)
     if days <= 0:
         print("Error: --days must be positive.", file=sys.stderr)
