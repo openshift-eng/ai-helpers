@@ -1,6 +1,9 @@
 import importlib.util
+import sys
 from decimal import Decimal
 from pathlib import Path
+
+import pytest
 
 
 def _load(name, filename):
@@ -85,3 +88,7 @@ def test_string_inputs_coerced_and_empty():
     [c] = sc.select_candidates([_row("d", "openshift-d", "100", "45.4", "5")], 30, 100)
     assert c["direction"] == "raise"
     assert sc.select_candidates([], 30, 100) == []
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main([__file__, "-v"]))

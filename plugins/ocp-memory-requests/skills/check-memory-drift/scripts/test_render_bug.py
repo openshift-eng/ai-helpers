@@ -1,5 +1,8 @@
 import importlib.util
+import sys
 from pathlib import Path
+
+import pytest
 
 
 def _load(name, filename):
@@ -60,3 +63,7 @@ def test_set_direction():
 def test_var_note():
     bug = rb.render_bug(_cand(var=True, request_mb_min=50.0, request_mb_max=100.0), "5.1", 30)
     assert "differs across variants" in bug["description"]
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main([__file__, "-v"]))
