@@ -25,7 +25,7 @@ pre-refine a card that already has it.
 ## Principles
 
 1. **Flag, never invent.** If required content is missing, name the exact gap.
-   Do not supply a beneficiary, acceptance criterion, root cause, owner, scope
+   Do not supply a benefit, acceptance criterion, root cause, owner, scope
    boundary or decision the card does not contain. Restructuring content that
    already exists (for example, turning requirements written as prose into
    acceptance-criteria bullets) is not inventing.
@@ -164,7 +164,7 @@ last 90 days.
 
 Apply each check to every sentence and bullet. The core test:
 
-> **Would removing or shortening this change what gets built, how it is
+> **By removing or shortening this, would I change what gets built, how it is
 > verified, or whether someone can start?**
 > If not, cut or condense it. If it is evidence, keep it in its smallest
 > sufficient form.
@@ -173,7 +173,7 @@ Apply each check to every sentence and bullet. The core test:
 |---|---|---|---|
 | C1 | **One statement per fact** | Each requirement, constraint or decision stated once, in its proper section. | The same point repeated in the summary, the statement, the context and the acceptance criteria. Restating the summary as the first sentence. |
 | C2 | **Few, testable acceptance criteria** | 1–5 bullets, each an observable outcome, normally under about 40 words. This applies to every list of completion conditions: acceptance criteria, done-when items, and a Spike's exit criteria. | More than five bullets: condense first (see below). Also: bullets that bundle unrelated outcomes, sub-bullet trees that re-describe a linked design doc, and implementation steps posing as criteria. |
-| C3 | **Background that matters** | History or context that explains a constraint or decision, in one or two sentences plus a link. | Narrative of how the problem was discovered, meeting recaps, and general explanations of systems the team already knows. |
+| C3 | **Background that matters** | History or context that explains a constraint or decision, in one or two sentences plus a link. | Narrative of how the problem was discovered, meeting recaps, and general explanations of TRT's everyday systems (Sippy, Component Readiness, Prow, OpenShift CI, BigQuery). Explain or link anything less familiar (readiness item 2). |
 | C4 | **Minimal sufficient evidence** | One representative example (run ID, test name, error line, link) per distinct symptom; a log excerpt of five lines or fewer. | Full log dumps, multiple examples of the same symptom, long raw URLs (convert to a labelled link with the same target). |
 | C5 | **Decisions, not plans** | Implementation decisions and constraints already made ("must stay in sync with the BigQuery provider"). For a Task, scope bullets that define what done means. | Step-by-step implementation plans, dated "repository search findings", option comparisons and onboarding walkthroughs on a Story or Bug. Condense them to at most three bullets of decisions or constraints, or point to where the plan lives. Do not delete a decision. |
 | C6 | **No process or meta text** | Out-of-scope statements and explicit "this card does not authorize X" boundaries. | "This story requests …", "Determine during design" duplicated in several places, instructions to the implementer about how to read the card, and AI hedging repeated in several sections. |
@@ -300,26 +300,24 @@ that fails the rubric is condensed or removed; content that is essential stays.
 These examples are synthetic. They are paraphrased from patterns seen in TRT
 cards, not copied from them.
 
-### E1. Already well refined: no change
+### E1. Too thin: no rewrite, gaps only
+
+Before (Story, summary: "Prefer named parameters in SQL queries"):
 
 ```markdown
-As a Sippy developer, I want integration tests to run in the devcontainer,
-so that I can validate changes against real integration behavior.
-
-## Acceptance Criteria
-
-* Integration tests run in the devcontainer with one documented command.
-* The run records results that another developer can reproduce.
-* The setup keeps existing security controls; any extra setup is documented.
-
-## Additional Context
-
-Earlier failures came from a missing container socket; this is unverified.
-[Example failing run](https://prow.example/run/123)
+Replace positional parameters with named parameters in SQL queries. This is
+particularly beneficial for longer queries and queries built from fragments.
 ```
 
-Outcome: **no change needed.** It has a statement, three testable criteria,
-and short context with its evidence marked unverified.
+Outcome: **needs info, no description change.** Gap comment:
+
+- "Which code is in scope: all PostgreSQL queries in Sippy, or only long and
+  multi-fragment ones?"
+- "What shows this is done: for example, no positional parameters remain in
+  the listed packages, and existing query tests pass?"
+- "Is this a Story, or a Task (internal refactor with no user-visible change)?"
+
+Why: rewriting would mean inventing scope and criteria. The card is already concise.
 
 ### E2. Requirements written as prose: restructure, flag the missing beneficiary
 
@@ -363,105 +361,7 @@ engineers or TRT on-call)? Adding the role lets the story state its benefit."
 Why: every requirement is preserved as an outcome and the thresholds are
 kept exactly. The role is not stated on the card, so it is asked, not invented.
 
-### E3. Wordy generated story: condense
-
-Assistant-drafted (labelled `ai-generated-jira`). Before: about 1,500 words.
-A user-story sentence; six numbered acceptance-criteria groups with three to six sub-bullets each; an "Additional
-Context" section that repeats four of the criteria; a dated "Repository search
-findings" section listing a dozen files; a "Preferred implementation option"
-section comparing three approaches; and a second "Additional acceptance
-criteria" list for reuse by other teams.
-
-After: about 350 words.
-
-- **Statement:** the user-story sentence, unchanged.
-- **Acceptance criteria:** five bullets. Each of the six groups collapses to
-  its observable outcome. Handoffs and reminders combine into one bullet that
-  keeps both outcomes. The reuse criteria fold into the configuration bullet
-  ("… and another team can enable it through configuration only").
-- **Additional context:**
-  - The chosen implementation option and the one constraint that drove it,
-    as two bullets.
-  - Out of scope, unchanged.
-  - Links to the related issue and PR.
-
-Gap comment: "The criteria cover intake, routing, reminders and failure
-handling. Should this be split into separate stories before refinement?"
-
-Why: the criteria keep every outcome, while the sub-bullets that described
-how were cut (C2, C5). Repeated context (C1) and the dated search findings
-(C5) are removed. The option comparison becomes the decision it led to. The
-split is proposed, not performed.
-
-### E4. Too thin: no rewrite, gaps only
-
-Before (Story, summary: "Prefer named parameters in SQL queries"):
-
-```markdown
-Replace positional parameters with named parameters in SQL queries. This is
-particularly beneficial for longer queries and queries built from fragments.
-```
-
-Outcome: **needs info, no description change.** Gap comment:
-
-- "Which code is in scope: all PostgreSQL queries in Sippy, or only long and
-  multi-fragment ones?"
-- "What shows this is done: for example, no positional parameters remain in
-  the listed packages, and existing query tests pass?"
-- "Is this a Story, or a Task (internal refactor with no user-visible change)?"
-
-Why: rewriting would mean inventing scope and criteria. The card is already concise.
-
-### E5. Bug told as a narrative with a log dump: restructure
-
-Before: three paragraphs in the first person ("I think I've seen this multiple
-times …"); a 20-line pasted label listing; a 600-character raw URL; and a
-closing guess that it is probably caching.
-
-After:
-
-```markdown
-Rescanning job runs for labels from a test details page completes, but the
-page does not show the updated labels.
-
-## Steps to Reproduce
-
-1. Open a test details page and use the job run scanner.
-2. Select all failed runs and rescan for labels.
-
-## Expected vs Actual
-
-* Expected: the new labels appear on the page.
-* Actual: the page shows the old labels. The labels are present in BigQuery
-  and in the Sippy PostgreSQL job runs list ([filtered list](<same target>)).
-
-## Impact
-
-Prevents breaking a regression down by a newly defined symptom on the fly.
-
-## Evidence
-
-* Example run: `<run ID>` gained labels `GCPInstanceNotFound` and
-  `MachineInstanceVanishedAfterCreate` in BigQuery.
-* Suspected cause, unconfirmed: page caching.
-```
-
-Why: the same facts, IDs and labels are kept, with the log reduced to the two
-labels that matter (C4). The raw URL becomes a labelled link to the same
-target, and the guess stays marked as unconfirmed.
-
-### E6. Spike without exit criteria: keep, flag
-
-Before: two paragraphs. Release metadata is maintained by hand today; one idea
-is to keep it in the repository and sync it automatically; other ideas are
-welcome.
-
-Outcome: **needs info, no description change.** The question and context are
-present and concise. Gap comment: "What should this spike produce, for example a
-recommendation with follow-up cards or a design doc, and what decision will
-it enable?"
-
-### E7. Borderline generated story: the stricter bar applies
+### E3. Borderline generated story: the stricter bar applies
 
 Assistant-drafted (created by `ship-help-jira`, no label). Before: about 330
 words, within the Story guidance. It has:
