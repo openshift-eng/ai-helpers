@@ -77,7 +77,10 @@ dataset:
       - 'must_keep': strings the proposed summary and description together
         must contain, ignoring case except in URLs, and not as the tail of a
         longer word or number; a list entry accepts any of its alternatives
-        (proposal cases)
+        (proposal cases). For exact tokens: keys, URLs, names, error strings.
+      - 'must_keep_facts': statements a proposal must keep in meaning, in any
+        wording, judged by facts_preserved; each entry's optional 'numbers'
+        must also appear in the proposal, as digits or words (proposal cases)
       - 'must_not_add': strings that would mean invented content (optional)
       - 'max_words': upper bound for the proposed description (optional)
       - 'gap_comment_required' and 'gap_comment_mentions_any' (optional)
@@ -315,6 +318,16 @@ judges:
           options = entry if isinstance(entry, list) else [entry]
           if not any(found(s) for s in options):
               errors.append(f"dropped {entry!r}")
+      # A fact's numbers must survive (its meaning is judged by facts_preserved).
+      words = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven",
+               8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve"}
+      for fact in ann.get("must_keep_facts", []):
+          for n in fact.get("numbers", []):
+              pattern = r"(?<![\d.])" + re.escape(str(n)) + r"(?!\d|\.\d)"
+              if n in words:
+                  pattern += r"|\b" + words[n] + r"\b"
+              if not re.search(pattern, text, re.IGNORECASE):
+                  errors.append(f"dropped the number {n} from {fact['fact']!r}")
       errors += [f"added {s!r}" for s in ann.get("must_not_add", []) if s.lower() in text.lower()]
       # Same matcher as check_card.py's AI_NOTICE_RE.
       if re.search(r"AI-generated\.\s*Review for accuracy\.?", data.get("proposed_description") or "",
@@ -407,6 +420,42 @@ judges:
           return (False, "; ".join(errors))
       return (True, f"{outcome}: text fields consistent")
 
+  - name: facts_preserved
+    description: A proposal keeps each annotated fact in meaning, in any wording
+    if: "annotations.get('must_keep_facts')"
+    feedback_type: bool
+    prompt: |
+      You are checking one card from a TRT pre-refinement run. The skill may
+      propose a shorter summary and description for a Jira card. Check whether
+      that proposal still states each fact below with the same meaning.
+
+      The skill's output (result.json):
+
+      {{ outputs }}
+
+      The facts the proposal must keep:
+      {% for f in annotations.get('must_keep_facts') %}
+      - {{ f.fact }}
+      {%- endfor %}
+
+      If the outcome in result.json is not "proposal", pass: there is no
+      proposed text to check.
+
+      Otherwise read proposed_summary and proposed_description together. For
+      each fact, quote the proposal sentence that states it, or say it is
+      absent. A fact is kept when:
+      - every value (number, unit, threshold, name) is the same, and it is
+        attached to the same behavior or rule. A value moved to a different
+        rule, such as a flagging threshold that now describes retries, is not
+        kept;
+      - a boundary or condition keeps its scope: "out of scope" stays out of
+        scope, "about" stays approximate, a requirement isn't weakened to an
+        option;
+      - wording, order and grouping may differ, and a fact may be merged into
+        a longer bullet.
+
+      Pass only if every fact is kept.
+
   - name: refinement_quality
     description: LLM judge of rubric application, preservation and restraint
     score_range: [1, 5]
@@ -463,6 +512,8 @@ thresholds:
   links_correct:
     min_pass_rate: 1.0
   proposal_preserves_facts:
+    min_pass_rate: 1.0
+  facts_preserved:
     min_pass_rate: 1.0
   proposal_shape:
     min_pass_rate: 0.9

@@ -9,12 +9,14 @@ expected_links: [TRT-8950]
 must_keep:
   - "As a component team engineer"
   - "Copied"
-  - ["two seconds", "2 seconds"]
-  - "existing button component"
-  - "keyboard"
-  - "out of scope"
   - "TRT-8950"
   - "Requested by a component team engineer via Chai Bot in #forum-trt"
+must_keep_facts:
+  - fact: A confirmation tooltip reading "Copied" appears for about 2 seconds after copying.
+    numbers: [2]
+  - fact: The copy button uses the existing button component from the shared UI library.
+  - fact: The copy button is reachable with the keyboard and has an accessible label.
+  - fact: Changes to the underlying triage workflow are out of scope.
 max_words: 200
 ground_truth: |
   A borderline assistant-drafted Story: created by ship-help-jira, without the

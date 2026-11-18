@@ -7,11 +7,7 @@ expected_related: [TRT-9050]
 expected_links: [TRT-9050]
 must_keep:
   - "As a TRT on-call engineer"
-  - "24 hours"
-  - "72 hours"
   - "#trt-alert"
-  - ["3 failed deliver", "three failed deliver", "after 3 failures", "after three failures"]
-  - "PagerDuty"
   - "TRT-9050"
   - "https://github.com/openshift/sippy/pull/4321"
   - "Requested by a TRT engineer via Chai Bot in #forum-trt"
@@ -20,6 +16,12 @@ must_not_add:
   - "Option C"
   - "scripts/oncall/schedule.py"
   - "config/slack-channels.yaml"
+must_keep_facts:
+  - fact: A request is flagged on the triage dashboard after 3 failed notification deliveries.
+    numbers: [3]
+  - fact: A request without a response gets a reminder after 24 hours and is escalated after 72 hours.
+    numbers: [24, 72]
+  - fact: PagerDuty (paging) is out of scope.
 max_words: 350
 ground_truth: |
   A wordy assistant-drafted Story (labelled ai-generated-jira and created by
