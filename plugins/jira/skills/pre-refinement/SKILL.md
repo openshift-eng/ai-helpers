@@ -78,7 +78,7 @@ whichever column the session provides:
 | Stage a proposal (propose mode) | `check_proposal`, `make_proposal`, then `send_response` | not available; use confirm mode |
 | Replace summary or description, or set labels | `priv_jira_update_issue` (pass the description inline, never by buffer ID, so approvers see it) | `editJiraIssue` |
 | Post the gap comment | `comment_on_jira_issue` | `addCommentToJiraIssue` |
-| Link a related card (`Relates`) | `priv_jira_link_issues`, where the session offers it. Never `link_jira_issues` or another link tool that writes without an approval | `createIssueLink` (type `Relates`) |
+| Link a related card (`Related`) | `priv_jira_link_issues`, where the session offers it. Never `link_jira_issues` or another link tool that writes without an approval | `createIssueLink` (type `Related`) |
 | Close as duplicate (link, close, comment, label in one step) | `priv_jira_close_duplicate` with `add_label` and `expected_status: New` | In this order: `addCommentToJiraIssue` (the closure comment, naming the target), `createIssueLink` (type `Duplicate`), `editJiraIssue` for the label, then `getTransitionsForJiraIssue` and `transitionJiraIssue` with resolution `Duplicate` (see "Partial duplicate closure") |
 | Load another skill | `find_skills`, `get_skill` | the Skill tool |
 
@@ -182,7 +182,7 @@ card's key, status and resolution (for example "Done 2026-10-02"), and say in
 one or two lines why it is the same work.
 
 **Links to related cards.** For a card reviewed normally (`proposal`,
-`no_change` or `gaps_only`), propose a `Relates` link to each related card
+`no_change` or `gaps_only`), propose a `Related` link to each related card
 that has no issue link to it yet, in either direction and of any type. A key
 mentioned only in the card's text is not a link. Give each link a one-line
 rationale naming the relationship ("follow-up to the alert TRT-9100 added").
@@ -347,7 +347,7 @@ Return a report for people, and, when the caller asks for structured output
   "rubric": {"C1": "fail: Additional Context restates two criteria", "C2": "pass"},
   "duplicate_of": {"key": "TRT-100", "status": "Closed", "resolution": "Done", "evidence": "..."},
   "related": ["TRT-90"],
-  "proposed_links": [{"key": "TRT-90", "link_type": "Relates", "rationale": "..."}],
+  "proposed_links": [{"key": "TRT-90", "link_type": "Related", "rationale": "..."}],
   "proposed_summary": "...",
   "proposed_description": "...",
   "gap_comment": "...",

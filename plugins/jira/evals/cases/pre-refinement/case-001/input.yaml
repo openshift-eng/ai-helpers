@@ -7,7 +7,7 @@ card:
   labels: [sippy]
   creator: trt-engineer-a
   links:
-    - type: Relates
+    - type: Related
       key: TRT-8790
   description: |
     As a Sippy developer, I want integration tests to run in the devcontainer,

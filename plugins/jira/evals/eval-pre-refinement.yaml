@@ -233,7 +233,7 @@ judges:
       return (True, f"duplicate_of={got}")
 
   - name: links_correct
-    description: Links are proposed to exactly the related cards not yet linked, as Relates links
+    description: Links are proposed to exactly the related cards not yet linked, as Related links
     check: |
       import json
       ann = outputs.get("annotations", {})
@@ -260,8 +260,8 @@ judges:
           errors.append("a card is linked twice")
       related = data.get("related") or []
       for l in links:
-          if l.get("link_type") != "Relates":
-              errors.append(f"{l.get('key')}: link type {l.get('link_type')!r}, expected 'Relates'")
+          if l.get("link_type") != "Related":
+              errors.append(f"{l.get('key')}: link type {l.get('link_type')!r}, expected 'Related'")
           if not (l.get("rationale") or "").strip():
               errors.append(f"{l.get('key')}: no rationale")
           if l.get("key") not in related:

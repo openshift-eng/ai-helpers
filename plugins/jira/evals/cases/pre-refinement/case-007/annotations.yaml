@@ -17,7 +17,7 @@ ground_truth: |
   fixed threshold, and this card makes the threshold configurable per stream.
   Finishing TRT-9100 did not finish this card. It must be listed as related,
   and the card reviewed normally. The card names TRT-9100 only in its text,
-  with no issue link, so a Relates link to it is proposed.
+  with no issue link, so a Related link to it is proposed.
 
   The card itself is concise and complete (a user-story sentence, three
   testable criteria, one line of context with a link), so "no change" is

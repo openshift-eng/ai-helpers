@@ -110,6 +110,17 @@ class ValidOutputTest(unittest.TestCase):
                 self.assertTrue(self.valid(outcome=outcome, related=[])[0])
 
 
+class LinksTest(unittest.TestCase):
+    def test_links_use_jiras_related_type_name(self):
+        # Jira's link type is named "Related" ("relates to"); there is no "Relates".
+        def links(link_type):
+            return judge("links_correct", record(outcome="no_change", related=["TRT-2"], proposed_links=[
+                {"key": "TRT-2", "link_type": link_type, "rationale": "follow-up to TRT-2's alert"}]),
+                {"expected_links": ["TRT-2"]})
+        self.assertTrue(links("Related")[0], links("Related"))
+        self.assertFalse(links("Relates")[0])
+
+
 class FactCasesTest(unittest.TestCase):
     def test_number_check_on_fact_cases(self):
         # Only the facts' numbers: must_keep and the other checks don't apply.
