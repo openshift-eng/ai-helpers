@@ -173,5 +173,5 @@ rm -rf -- "$HOME/.cache/prow-prometheus/${BUILD_ID}"
 ## Related skills
 
 - `ci:prow-job-analysis` — overall failure debugging and the artifact layout (`references/artifacts.md`).
-- `ci:analyze-disruption` — disruption intervals, audit logs and CPU metrics across runs.
+- `disruption:investigate-disruption` — disruption intervals, audit logs and CPU metrics across runs, and regression investigations.
 - `bigquery-ci-data:autodl` — per-run summaries (CPU timeline, audit latency) to pick runs and windows.

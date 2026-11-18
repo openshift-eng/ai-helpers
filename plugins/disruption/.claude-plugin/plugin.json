@@ -1,0 +1,8 @@
+{
+  "name": "disruption",
+  "description": "Investigate OpenShift CI disruption regressions: when disruption changed, and why runs were disrupted",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

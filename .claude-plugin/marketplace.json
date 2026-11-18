@@ -131,6 +131,20 @@
       ]
     },
     {
+      "name": "disruption",
+      "source": "./plugins/disruption",
+      "description": "Investigate OpenShift CI disruption regressions: when disruption changed, and why runs were disrupted",
+      "version": "0.0.1",
+      "category": "ci",
+      "keywords": [
+        "disruption",
+        "openshift-ci",
+        "prow",
+        "sippy",
+        "regression"
+      ]
+    },
+    {
       "name": "teams",
       "source": "./plugins/teams",
       "description": "Team structure knowledge and health analysis commands for OpenShift teams",

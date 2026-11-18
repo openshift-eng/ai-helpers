@@ -7,6 +7,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Bigquery](#bigquery-plugin)
 - [Ci](#ci-plugin)
 - [Ci Extras](#ci-extras-plugin)
+- [Disruption](#disruption-plugin)
 - [Code Review](#code-review-plugin)
 - [Compliance](#compliance-plugin)
 - [Etcd](#etcd-plugin)
@@ -70,7 +71,6 @@ Tools for working with OpenShift CI and analyzing Prow job results
 
 **Commands:**
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
-- **`/ci:analyze-disruption` `<prowjob-url-1> [prowjob-url-2 ...] [--backends backend1,backend2,...]`** - Analyze and compare disruption across one or more Prow CI job runs
 - **`/ci:analyze-payload` `<payload-tag> [--lookback N]`** - Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures
 - **`/ci:analyze-pr-reverts` `[limit]`** - Analyze recent PR reverts to identify patterns and recommend preventive measures
 - **`/ci:analyze-prow-job-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
@@ -101,6 +101,21 @@ MCP server and extended tooling for OpenShift CI data access. Bundles the [opens
 - **`/ci-extras:check-release-health` `<release version>`** - Summarize the CI health of an OpenShift release using live data from the openshift-ci-mcp server (example command)
 
 See [plugins/ci-extras/README.md](plugins/ci-extras/README.md) for detailed documentation.
+
+### Disruption Plugin
+
+Investigate OpenShift CI disruption regressions: when disruption changed, and why runs were disrupted
+
+**Skills:**
+- **`/disruption:investigate-disruption`** - Investigate disruption end to end: choose a workflow, run the disruption skills with checkpoints, and report a verdict
+- **`/disruption:disruption-trend`** - Find when disruption on a series started or changed, with transitions, onset, and suggested before/after runs
+- **`/disruption:disruption-find-runs`** - Choose runs to analyze: sample disrupted runs, propose before/after cohorts, or check user cohorts
+- **`/disruption:disruption-analyze-run`** - Explain why runs were disrupted from intervals, rollouts, and etcd, OVS, CPU, and cloud signals
+- **`/disruption:disruption-compare-cohorts`** - Classify candidate causes as new, pre-existing with more impact, or pre-existing and unchanged
+- **`/disruption:disruption-change-suspects`** - List the PRs between two payloads and rank the ones that fit the mechanism
+- **`/disruption:disruption-known-issues`** - Search Jira and separate demonstrated mechanism matches from related cards
+
+See [plugins/disruption/README.md](plugins/disruption/README.md) for detailed documentation.
 
 ### Code Review Plugin
 

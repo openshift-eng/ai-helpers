@@ -180,14 +180,6 @@
       "severity": "warning"
     },
     {
-      "fingerprint": "2e1131801c75173e",
-      "rule_id": "content-description-routing",
-      "file_path": "plugins/ci/skills/analyze-disruption/SKILL.md",
-      "line": 3,
-      "message": "Description does not say when to use this skill; include trigger phrasing such as 'Use when ...'",
-      "severity": "warning"
-    },
-    {
       "fingerprint": "2629077637f45cfa",
       "rule_id": "content-description-routing",
       "file_path": "plugins/ci/skills/diagnose-job-run-symptoms/SKILL.md",
