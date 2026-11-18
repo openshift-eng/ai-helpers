@@ -21,13 +21,20 @@ Input:
       "summary": "...",
       "description": "...",
       "labels": ["..."],
-      "creator": "ship-help-jira",        # string, or {"name"/"emailAddress"/...}
+      "creator": "ship-help-jira",        # string, or {"accountId"/"name"/"emailAddress"/...}
       "proposed": {"summary": "...", "description": "..."}   # optional
     }
 
 Usage:
     jq -n --arg d "$DESC" '{...}' | python3 check_card.py [--label ai-pre-refined]
         [--supported-types Story,Bug,Spike,Task,Ticket] [--project TRT]
+        [--assistant-account ID ...] [--stored]
+
+With --stored, "proposed.description" is the exact text to be stored (or read
+back): the draft followed by the one AI-generated notice the writing tool adds
+as the last line (chai-bot's writer puts a "---" rule before it), so the
+attribution is the last line before the notice. Without it, the description is
+a draft: no notice, and the attribution is the last line.
 
 Exit codes:
     0 - Checks completed (see JSON output)
@@ -44,6 +51,9 @@ DEFAULT_LABEL = "ai-pre-refined"
 ASSISTANT_LABEL = "ai-generated-jira"
 ASSISTANT_ACCOUNT = "ship-help-jira"
 AI_NOTICE_RE = re.compile(r"AI-generated\.\s*Review for accuracy\.?", re.IGNORECASE)
+# The notice as its own line, in any emphasis ("*...*", "_..._").
+AI_NOTICE_LINE_RE = re.compile(r"^[*_\s]*AI-generated\.\s*Review for accuracy\.?[*_\s]*$", re.IGNORECASE)
+RULE_LINE_RE = re.compile(r"^(?:-{3,}|\*{3,}|_{3,})$")
 ATTRIBUTION_RE = re.compile(r"^.*\bRequested by\b.*\bvia Chai Bot\b.*$", re.MULTILINE | re.IGNORECASE)
 
 PROJECTS = {
@@ -115,17 +125,21 @@ WIKI_LINK_RE = re.compile(r"\[[^\]|\n]*\|(https?://[^\]\s]+)\]")
 URL_RE = re.compile(r"https?://[^\s<>()\[\]|]+")
 ISSUE_KEY_RE = re.compile(r"\b[A-Z][A-Z0-9]+-\d+\b")
 CODE_SPAN_RE = re.compile(r"`([^`\n]+)`")
-# A number may carry a hyphenated unit ("24-hour"), but not continue into a
-# range, date or identifier ("3-5", "2026-10-02").
-NUMBER_RE = re.compile(r"(?<![\w.-])\d+(?:\.\d+)*%?(?!\w|-\d)")
+# Values the preservation check tracks, each read whole: an ISO date
+# ("2026-10-02"), a version ("v1.2.3", "4.18"), or a number with an optional
+# sign ("-5") and percent. A number may carry a hyphenated unit ("24-hour"),
+# but a range ("3-5") or identifier is not read as numbers.
+NUMBER_RE = re.compile(
+    r"(?<![\w.\-+\u2212])(?:\d{4}-\d{2}-\d{2}|v\d+(?:\.\d+)+|[-+\u2212]?\d+(?:\.\d+)*%?)(?!\w|-\d)")
 TOP_ITEM_RE = re.compile(r"^(?:[*\-+]|\d+[.)]|#)\s+")
 NESTED_ITEM_RE = re.compile(r"^(?:\s{2,}(?:[*\-+]|\d+[.)])|\*\*+|##+)\s+")
 
 
 def creator_ids(creator) -> List[str]:
-    """Normalized identifiers of the card's creator: account name, key, email local part."""
-    values = ([creator.get(k) for k in ("name", "key", "emailAddress")] if isinstance(creator, dict)
-              else [creator])
+    """Normalized identifiers of the card's creator: Cloud account ID, account
+    name, key, email local part."""
+    values = ([creator.get(k) for k in ("accountId", "name", "key", "emailAddress")]
+              if isinstance(creator, dict) else [creator])
     return [str(v).strip().lower().split("@")[0] for v in values if isinstance(v, str) and v.strip()]
 
 
@@ -136,8 +150,9 @@ def mask_fences(text: str) -> str:
 
 
 def normalize(name: str) -> str:
-    """Lower-case a heading and drop emphasis and a trailing "(...)" note."""
-    name = re.sub(r"\s*\([^)]*\)\s*$", "", name.strip().strip("*").strip())
+    """Lower-case a heading and drop emphasis, a trailing colon and a trailing "(...)" note."""
+    name = name.strip().strip("*").strip().rstrip(":").strip()
+    name = re.sub(r"\s*\([^)]*\)\s*$", "", name)
     return re.sub(r"\s+", " ", name).lower()
 
 
@@ -234,11 +249,12 @@ def length_position(words: int, guidance: Tuple[int, int]) -> str:
     return "over_twice"
 
 
-def stricter_review(labels: List[str], creator) -> dict:
+def stricter_review(labels: List[str], creator, accounts: Optional[List[str]] = None) -> dict:
     reasons = []
     if ASSISTANT_LABEL in labels:
         reasons.append("label")
-    if ASSISTANT_ACCOUNT in creator_ids(creator):
+    wanted = {a.strip().lower() for a in (accounts or [ASSISTANT_ACCOUNT]) if a.strip()}
+    if wanted & set(creator_ids(creator)):
         reasons.append("creator")
     return {"applied": bool(reasons), "reasons": reasons}
 
@@ -309,7 +325,7 @@ def describe(card: dict, conf: dict, issue_type: str, strict: bool) -> dict:
     return result
 
 
-def preservation(original: dict, proposed: dict, conf: dict) -> dict:
+def preservation(original: dict, proposed: dict, conf: dict, stored: bool = False) -> dict:
     before = original.get("description") or ""
     after = proposed.get("description")
     after = before if after is None else after
@@ -323,6 +339,19 @@ def preservation(original: dict, proposed: dict, conf: dict) -> dict:
 
     attribution = ATTRIBUTION_RE.search(before)
     lines = [ln.strip() for ln in after.splitlines() if ln.strip()]
+    notices = [i for i, ln in enumerate(lines) if AI_NOTICE_RE.search(ln)]
+    body = lines
+    if stored:
+        # The writing tool's one notice is the last line, after an optional
+        # rule; the draft above it must still end with the attribution.
+        notice_ok = (len(notices) == 1 and notices[0] == len(lines) - 1
+                     and bool(AI_NOTICE_LINE_RE.match(lines[-1])))
+        if notice_ok:
+            body = lines[:-1]
+            while body and RULE_LINE_RE.match(body[-1]):
+                body = body[:-1]
+    else:
+        notice_ok = not notices
     after_items = [lst["items"] for lst in completion_lists(after, conf)]
     before_words, after_words = word_count(before), word_count(after)
     result = {
@@ -331,8 +360,10 @@ def preservation(original: dict, proposed: dict, conf: dict) -> dict:
         "missing_identifiers": missing(lambda t: sorted(set(CODE_SPAN_RE.findall(t)))),
         "missing_numbers": missing(numbers),
         # The attribution must stay verbatim as the description's last line.
-        "attribution_kept": (bool(lines) and lines[-1] == attribution.group(0).strip()) if attribution else None,
-        "ai_notice_removed": not AI_NOTICE_RE.search(after),
+        "attribution_kept": (bool(body) and body[-1] == attribution.group(0).strip()) if attribution else None,
+        "stored": stored,
+        # Draft: no notice. Stored: exactly one, the last line, after the attribution.
+        "ai_notice_ok": notice_ok,
         "completion_items": after_items,
         "completion_over_limit": any(n > conf["max_completion_items"] for n in after_items),
         "summary_words_in_range": conf["summary_words"][0] <= word_count(new_summary) <= conf["summary_words"][1],
@@ -349,7 +380,7 @@ def preservation(original: dict, proposed: dict, conf: dict) -> dict:
         not result["missing_links"]
         and not result["missing_issue_keys"]
         and result["attribution_kept"] is not False
-        and result["ai_notice_removed"]
+        and result["ai_notice_ok"]
     )
     return result
 
@@ -378,19 +409,20 @@ def validate(card: dict) -> None:
 
 
 def check(card: dict, label: str = DEFAULT_LABEL, supported: Optional[List[str]] = None,
-          project: Optional[str] = None) -> dict:
+          project: Optional[str] = None, accounts: Optional[List[str]] = None,
+          stored: bool = False) -> dict:
+    validate(card)
     project = project or (card.get("key") or "").split("-")[0] or "TRT"
     conf = PROJECTS.get(project.upper())
     if conf is None:
         raise ValueError(f"no pre-refinement conventions for project {project}")
-    validate(card)
     # Only types with a template in the conventions can be reviewed; match an
     # override without regard to case and use the configured name.
     templates = {t.lower(): t for t in conf["guidance"]}
     supported = [templates[t.lower()] for t in (supported or conf["supported_types"]) if t.lower() in templates]
     issue_type = templates.get((card.get("issue_type") or "").lower(), card.get("issue_type") or "")
     eligible, reason, is_supported = eligibility(card, conf, label, supported)
-    strict = stricter_review(card.get("labels") or [], card.get("creator"))
+    strict = stricter_review(card.get("labels") or [], card.get("creator"), accounts)
     result: Dict = {
         "key": card.get("key"),
         "issue_type": issue_type,
@@ -402,7 +434,7 @@ def check(card: dict, label: str = DEFAULT_LABEL, supported: Optional[List[str]]
     if is_supported:
         result.update(describe(card, conf, issue_type, strict["applied"]))
         if card.get("proposed") is not None:
-            result["preservation"] = preservation(card, card["proposed"], conf)
+            result["preservation"] = preservation(card, card["proposed"], conf, stored)
             proposed = dict(card, summary=card["proposed"].get("summary") or card.get("summary"))
             if card["proposed"].get("description") is not None:
                 proposed["description"] = card["proposed"]["description"]
@@ -416,13 +448,19 @@ def main() -> None:
     parser.add_argument("--label", default=DEFAULT_LABEL, help="Label that marks a pre-refined card")
     parser.add_argument("--supported-types", help="Comma-separated issue types to review")
     parser.add_argument("--project", help="Project key; defaults to the card key's prefix")
+    parser.add_argument("--assistant-account", action="append",
+                        help="Creator ID of the assistant's Jira account (repeatable; a Cloud accountId, "
+                             f"name or email). Default: {ASSISTANT_ACCOUNT}")
+    parser.add_argument("--stored", action="store_true",
+                        help="The proposed description is the exact stored text, with its one AI notice")
     args = parser.parse_args()
     try:
         card = json.loads(sys.stdin.read())
         if not isinstance(card, dict):
             raise ValueError("input must be a JSON object")
         supported = [t.strip() for t in args.supported_types.split(",") if t.strip()] if args.supported_types else None
-        print(json.dumps(check(card, args.label, supported, args.project), indent=2))
+        print(json.dumps(check(card, args.label, supported, args.project,
+                               args.assistant_account, args.stored), indent=2))
     except (ValueError, json.JSONDecodeError) as e:
         print(json.dumps({"error": str(e)}))
         sys.exit(1)

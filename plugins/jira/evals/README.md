@@ -33,3 +33,9 @@ and plans the rubric allows it to remove (C4, C5).
 | case-007 | Follow-up card: related, not a duplicate; propose a link to it |
 | case-008 | Borderline generated Story (creator only): stricter bar forces a proposal |
 | case-009 | Already pre-refined: skipped |
+
+`judge-cases/facts_preserved.yaml` holds regression cases for the
+`facts_preserved` LLM judge: reworded facts that must pass, and a moved or
+changed threshold or weakened boundary that must fail. Their number check runs
+with the skill's tests; the LLM judge runs on request (see
+`skills/pre-refinement/tests/test_eval_judges.py`).

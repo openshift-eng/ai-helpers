@@ -101,6 +101,12 @@ class EligibilityTest(unittest.TestCase):
                 check_card.check(card(**bad))
 
 
+    def test_non_string_key_is_a_value_error(self):
+        for key in (123, ["TRT-1"], {"key": "TRT-1"}):
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "'key' must be a string"):
+                check_card.check(card(key=key))
+
+
 class StricterReviewTest(unittest.TestCase):
     def test_label_triggers(self):
         result = check_card.check(card(labels=["ai-generated-jira"]))
@@ -118,6 +124,15 @@ class StricterReviewTest(unittest.TestCase):
                 self.assertFalse(check_card.check(card(creator=other))["stricter_review"]["applied"])
         email = {"emailAddress": "Ship-Help-Jira@example.com"}
         self.assertTrue(check_card.check(card(creator=email))["stricter_review"]["applied"])
+
+    def test_cloud_creator_account_id(self):
+        cloud = {"accountId": "ship-help-jira", "displayName": "Chai Bot"}
+        self.assertEqual(check_card.check(card(creator=cloud))["stricter_review"]["reasons"], ["creator"])
+        # A real Cloud accountId is opaque; the caller passes the assistant's.
+        opaque = {"accountId": "712020:5f1c-chai", "displayName": "Chai Bot"}
+        self.assertFalse(check_card.check(card(creator=opaque))["stricter_review"]["applied"])
+        result = check_card.check(card(creator=opaque), accounts=["712020:5f1c-chai"])
+        self.assertEqual(result["stricter_review"]["reasons"], ["creator"])
 
     def test_both_signals(self):
         result = check_card.check(card(labels=["ai-generated-jira"], creator="ship-help-jira"))
@@ -158,6 +173,16 @@ class DescriptionFactsTest(unittest.TestCase):
         desc = "Statement.\n\nh2. Acceptance Criteria\n# First\n## detail\n## detail\n# Second\n"
         lst = check_card.check(card(description=desc))["completion_lists"][0]
         self.assertEqual((lst["items"], lst["nested_items"]), (2, 2))
+
+    def test_completion_headings_with_trailing_colon(self):
+        items = "\n".join(f"* outcome {i}" for i in range(20))
+        for heading in ("## Acceptance Criteria:", "h2. Acceptance Criteria:"):
+            with self.subTest(heading=heading):
+                result = check_card.check(card(description=f"As a user, I want x.\n\n{heading}\n{items}\n"))
+                self.assertEqual([(lst["heading"], lst["items"]) for lst in result["completion_lists"]],
+                                 [("acceptance criteria", 20)])
+                self.assertTrue(any(f.startswith("C2:") for f in result["rubric_flags"]))
+                self.assertTrue(result["sections"]["Acceptance Criteria"]["heading_found"])
 
     def test_second_criteria_list_is_flagged(self):
         desc = ("S.\n\n## Acceptance Criteria\n\n* a\n\n"
@@ -257,7 +282,21 @@ class PreservationTest(unittest.TestCase):
     def test_hyphenated_threshold_is_a_number(self):
         result = check_card.check(card(description="Use a 24-hour default for TRT-12 since 2026-10-02.\n",
                                        proposed={"description": "Use a 48-hour default.\n"}))
-        self.assertEqual(result["preservation"]["missing_numbers"], ["24"])
+        # The issue key is not a number; the date is one value, not three.
+        self.assertEqual(result["preservation"]["missing_numbers"], ["2026-10-02", "24"])
+
+    def test_dates_signed_numbers_and_versions_are_values(self):
+        cases = [
+            ("Seen since 2026-10-02.", "Seen recently.", ["2026-10-02"]),
+            ("Offset is -5 minutes.", "Offset is 5 minutes.", ["-5"]),
+            ("Fixed in v1.2.3 of the tool.", "Fixed in the tool.", ["v1.2.3"]),
+        ]
+        for before, after, dropped in cases:
+            with self.subTest(before=before):
+                result = check_card.check(card(description=before, proposed={"description": after}))
+                self.assertEqual(result["preservation"]["missing_numbers"], dropped)
+        self.assertEqual(check_card.numbers("from 3-5 runs since 2026-10-02 on v1.2.3, -5% and 24-hour"),
+                         ["-5%", "2026-10-02", "24", "v1.2.3"])
 
     def test_link_destination_with_parentheses_is_compared_whole(self):
         before = "[run](https://example.test/a(v1)/old)\n"
@@ -293,8 +332,47 @@ class PreservationTest(unittest.TestCase):
 
     def test_ai_notice_must_be_dropped(self):
         result = self.compare(self.ORIGINAL)
-        self.assertFalse(result["ai_notice_removed"])
+        self.assertFalse(result["ai_notice_ok"])
         self.assertFalse(result["passed"])
+
+    DRAFT = ("Rescan does not refresh labels (TRT-77, [run](https://prow.example/run/9)): "
+             "`GCPInstanceNotFound` after 7 days.\n\nRequested by Some One via Chai Bot in #trt\n")
+
+    def stored(self, text):
+        return check_card.check(card(issue_type="Bug", description=self.ORIGINAL,
+                                     proposed={"description": text}), stored=True)["preservation"]
+
+    def test_final_stored_text_ends_with_one_tool_added_notice(self):
+        # Exactly what each write path stores for a passing draft: the
+        # Atlassian MCP path appends the notice line; chai-bot's writer adds a
+        # rule and the italic notice after the attribution.
+        for footer in ("\n_AI-generated. Review for accuracy._\n", "\n---\n*AI-generated. Review for accuracy.*\n"):
+            final = self.DRAFT + footer
+            with self.subTest(footer=footer):
+                result = self.stored(final)
+                self.assertTrue(result["passed"], result)
+                self.assertTrue(result["attribution_kept"])
+                self.assertTrue(result["ai_notice_ok"])
+                # The same text is not a valid draft: drafts carry no notice.
+                self.assertFalse(self.compare(final)["passed"])
+
+    def test_final_stored_text_rejects_a_misplaced_or_repeated_notice(self):
+        notice = "_AI-generated. Review for accuracy._"
+        before_attribution = self.DRAFT.replace("Requested by", f"{notice}\n\nRequested by")
+        twice = self.DRAFT + f"\n{notice}\n\n{notice}\n"
+        cases = (("before the attribution", before_attribution), ("twice", twice),
+                 ("missing", self.DRAFT), ("inside a line", self.DRAFT + f"\nSee {notice}\n"))
+        for name, text in cases:
+            with self.subTest(name):
+                self.assertFalse(self.stored(text)["passed"])
+
+    def test_final_stored_text_without_attribution_ends_with_the_notice(self):
+        original = "Rescan does not refresh labels after 7 days (TRT-77).\n"
+        result = check_card.check(card(issue_type="Bug", description=original,
+                                       proposed={"description": original + "\n---\n*AI-generated. Review for accuracy.*\n"}),
+                                  stored=True)["preservation"]
+        self.assertIsNone(result["attribution_kept"])
+        self.assertTrue(result["passed"], result)
 
     def test_criteria_over_limit_and_word_reduction(self):
         items = "\n".join(f"* outcome {i}" for i in range(6))
@@ -332,6 +410,24 @@ class CliTest(unittest.TestCase):
         proc = self.run_cli(json.dumps(card(status={"name": "New"})))
         self.assertEqual(proc.returncode, 1)
         self.assertIn("status", json.loads(proc.stdout)["error"])
+
+    def test_cli_malformed_key(self):
+        for key in (123, ["TRT-1"]):
+            with self.subTest(key=key):
+                proc = self.run_cli(json.dumps(card(key=key)))
+                self.assertEqual(proc.returncode, 1, proc.stderr)
+                self.assertEqual(proc.stderr, "")
+                self.assertIn("'key' must be a string", json.loads(proc.stdout)["error"])
+
+    def test_cli_stored_text_and_assistant_account(self):
+        original = "Labels stay stale after 7 days.\n\nRequested by Some One via Chai Bot in #trt\n"
+        final = original + "\n_AI-generated. Review for accuracy._\n"
+        payload = json.dumps(card(description=original, creator={"accountId": "712020:chai"},
+                                  proposed={"description": final}))
+        out = json.loads(self.run_cli(payload, "--stored", "--assistant-account", "712020:chai").stdout)
+        self.assertTrue(out["preservation"]["passed"], out["preservation"])
+        self.assertEqual(out["stricter_review"]["reasons"], ["creator"])
+        self.assertFalse(json.loads(self.run_cli(payload).stdout)["preservation"]["passed"])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,89 @@
+# Regression cases for the facts_preserved judge in eval-pre-refinement.yaml.
+# Each proposal is checked against the must_keep_facts of the named case.
+# 'expected' is the judge's verdict; 'numbers_kept' is the deterministic
+# number check in proposal_preserves_facts. Run by
+# plugins/jira/skills/pre-refinement/tests/test_eval_judges.py: the number
+# check always, the LLM judge only when asked (see that file).
+cases:
+  - name: case-002 facts reworded
+    case: case-002
+    expected: true
+    numbers_kept: true
+    proposed_description: |
+      As a TRT on-call engineer, I want regression triage requests routed to me with reminders.
+
+      ## Acceptance Criteria
+
+      * New requests notify the current on-call engineer in Slack; failed notifications are retried, and after 3 failures the request is flagged on the triage dashboard.
+      * Unanswered requests trigger a reminder after 24 hours and escalation to #trt-alert after 72 hours.
+
+      ## Additional Context
+
+      Paging through PagerDuty is out of scope.
+
+  - name: case-002 flag threshold moved to retries
+    # The threshold "3" survives, so only the LLM judge can catch this.
+    case: case-002
+    expected: false
+    numbers_kept: true
+    proposed_description: |
+      As a TRT on-call engineer, I want regression triage requests routed to me with reminders.
+
+      ## Acceptance Criteria
+
+      * New requests notify the current on-call engineer in Slack. After three failures, retry the notifications. Flag the request after four failed deliveries.
+      * Unanswered requests trigger a reminder after 24 hours and escalation to #trt-alert after 72 hours.
+
+      ## Additional Context
+
+      Paging through PagerDuty is out of scope.
+
+  - name: case-002 flag threshold changed
+    case: case-002
+    expected: false
+    numbers_kept: false
+    proposed_description: |
+      As a TRT on-call engineer, I want regression triage requests routed to me with reminders.
+
+      ## Acceptance Criteria
+
+      * New requests notify the current on-call engineer in Slack; failed notifications are retried, and after 4 failures the request is flagged on the triage dashboard.
+      * Unanswered requests trigger a reminder after 24 hours and escalation to #trt-alert after 72 hours.
+
+      ## Additional Context
+
+      Paging through PagerDuty is out of scope.
+
+  - name: case-008 facts kept
+    case: case-008
+    expected: true
+    numbers_kept: true
+    proposed_description: |
+      As a component team engineer, I want to copy a regression's test name from the triage dialog.
+
+      ## Acceptance Criteria
+
+      * A copy button next to the test name puts the full test name on the clipboard.
+      * A "Copied" confirmation tooltip appears for about two seconds after copying.
+      * The button is reachable with the keyboard and has an accessible label.
+
+      ## Additional Context
+
+      Use the existing button component from the shared UI library. Changes to the underlying triage workflow are out of scope.
+
+  - name: case-008 scope boundary weakened
+    case: case-008
+    expected: false
+    numbers_kept: true
+    proposed_description: |
+      As a component team engineer, I want to copy a regression's test name from the triage dialog.
+
+      ## Acceptance Criteria
+
+      * A copy button next to the test name puts the full test name on the clipboard.
+      * A "Copied" confirmation tooltip appears for about two seconds after copying.
+      * The button is reachable with the keyboard and has an accessible label.
+
+      ## Additional Context
+
+      Use the existing button component from the shared UI library. Changes to the underlying triage workflow may be included if time allows.

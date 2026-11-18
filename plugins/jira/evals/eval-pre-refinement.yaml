@@ -75,7 +75,7 @@ dataset:
       - 'expected_related': keys that must appear in 'related' (optional)
       - 'expected_links': the keys 'proposed_links' must name, exactly
       - 'must_keep': strings the proposed summary and description together
-        must contain, ignoring case except in URLs, and not as the tail of a
+        must contain, ignoring case except in URLs, and not as part of a
         longer word or number; a list entry accepts any of its alternatives
         (proposal cases). For exact tokens: keys, URLs, names, error strings.
       - 'must_keep_facts': statements a proposal must keep in meaning, in any
@@ -309,10 +309,11 @@ judges:
       import re
       text = (data.get("proposed_summary") or "") + "\n" + (data.get("proposed_description") or "")
       def found(s):
-          # URLs must match exactly; prose ignores case. "3 failed" must not
-          # match inside "13 failed".
+          # URLs must match exactly; prose ignores case. A value must not be
+          # part of a longer word or number: "3 failed" not inside "13 failed",
+          # "keyboard" not inside "keyboarding".
           flags = 0 if s.startswith("http") else re.IGNORECASE
-          return re.search(r"(?<!\w)" + re.escape(s), text, flags) is not None
+          return re.search(r"(?<!\w)" + re.escape(s) + r"(?!\w)", text, flags) is not None
       errors = []
       for entry in ann.get("must_keep", []):
           options = entry if isinstance(entry, list) else [entry]

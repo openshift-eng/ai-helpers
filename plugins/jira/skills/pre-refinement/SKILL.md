@@ -102,6 +102,11 @@ jq -n --arg key "$KEY" --arg type "$TYPE" --arg status "$STATUS" \
   | python3 scripts/check_card.py --label ai-pre-refined
 ```
 
+`creator` may also be the object the read returns (`accountId`, `name`,
+`emailAddress`). The assistant account is matched by `ship-help-jira` by
+default; where the creator is an Atlassian Cloud `accountId`, pass the
+assistant's account ID with `--assistant-account`.
+
 It reports:
 
 - `eligible` and `skip_reason`: already labelled, past the eligible status (or
@@ -122,9 +127,12 @@ It reports:
 With `"proposed": {"summary": ..., "description": ...}` added to the input it
 also reports `preservation`: link targets and issue keys the proposal dropped
 (each fails the check), code identifiers and numbers it dropped (advisory),
-whether the attribution line survived as the last line, whether the AI-generated notice was
-removed, the proposal's completion-list sizes and own `proposal_rubric_flags`,
-and the word reduction.
+whether the attribution line survived as the last line (`attribution_kept`),
+whether the AI-generated notice is right (`ai_notice_ok`: none in a draft),
+the proposal's completion-list sizes and own `proposal_rubric_flags`, and the
+word reduction. With `--stored`, `proposed.description` is the exact stored
+text instead: the draft plus the one notice the writing tool adds as the last
+line, after the attribution (chai-bot's writer puts a `---` rule between).
 
 A proposal is shown or staged only when `preservation.passed` is true and
 every `missing_identifiers` and `missing_numbers` entry is accounted for: it
@@ -213,12 +221,14 @@ For a `proposal`:
 - Apply every preservation rule. Restructuring existing content is fine;
   supplying a benefit, criterion, cause, scope or decision the card lacks is
   not. Keep "unverified" and "unconfirmed" markers next to their claims. Keep
-  the attribution line verbatim at the end, and leave out any existing
-  "AI-generated. Review for accuracy." notice from the draft: chai-bot's
-  writing tool adds exactly one. `editJiraIssue` stores text unchanged, so on
-  the Atlassian MCP path append `_AI-generated. Review for accuracy._` as the
-  description's last line when writing, after the preservation check; both
-  paths then store exactly one notice.
+  the attribution line verbatim as the draft's last line, and leave out any
+  existing "AI-generated. Review for accuracy." notice from the draft.
+  Each write path adds exactly one notice as the stored text's last line,
+  after the attribution: chai-bot's writing tool adds it, and on the Atlassian
+  MCP path (`editJiraIssue` stores text unchanged) append
+  `_AI-generated. Review for accuracy._` as the last line. Before that write,
+  run the checker with `--stored` on the exact text you will send, and write
+  only if it passes.
 - Never move content into a comment to shorten the description.
 - Write the description in Markdown (see `reference/markdown-for-jira.md`).
 - Run the preservation check (above) and fix the draft until it passes.
@@ -261,9 +271,12 @@ removes the label.
 
 ### 6. Apply decisions
 
-Before writing anything to a card, re-read it. If it already has the label, is
-no longer New, or its summary or description changed since the proposal,
-apply nothing, and say the proposal is stale.
+Before writing anything to a card, re-read it and run the checker on the
+fresh card. If the checker no longer reports it `eligible` (it has the label,
+is no longer New, or its type is no longer supported), its issue type differs
+from the one the proposal was drafted for (a Story now an Epic), or its
+summary or description changed since the proposal, apply nothing, and say the
+proposal is stale.
 
 Before a duplicate closure, also re-read the target. If the target is now
 resolved as a duplicate itself, or this run has closed or is about to close
@@ -282,6 +295,8 @@ decide. A target closed as Done or Won't Do still counts, as in step 2.
 
 Write in this order: description and summary, then the comment, then the
 label, then read the card back and confirm each change before reporting it.
+For the description, run the checker with `--stored` on the description read
+back; it must pass.
 Write approved links after the card's own writes. Before each link, re-read
 both cards: if either can't be read or they are already linked, create
 nothing and say so. The card's stale check above doesn't apply to a link: a
