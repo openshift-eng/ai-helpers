@@ -1,0 +1,34 @@
+issue_key: TRT-9007
+card:
+  key: TRT-9007
+  issue_type: Story
+  status: New
+  summary: Configure the stalled payload alert threshold per stream
+  labels: []
+  creator: trt-engineer-d
+  description: |
+    As a TRT on-call engineer, I want the stalled payload alert's threshold set
+    per stream, so that slower streams such as the multi-arch nightlies stop
+    raising false alerts.
+
+    ## Acceptance Criteria
+
+    * Each nightly stream can override the 24-hour default threshold in the
+      alert configuration.
+    * Streams without an override keep the 24-hour default.
+    * The alert message states the threshold that applied.
+
+    ## Additional Context
+
+    Follow-up to TRT-9100, which added the alert with one fixed threshold.
+search_results:
+  - key: TRT-9100
+    issue_type: Task
+    status: Closed
+    resolution: Done
+    resolved: "2026-10-02"
+    summary: Alert on payload streams with no accepted payload in 24 hours
+    description: |
+      Post an alert to #trt-alert when a nightly payload stream has gone 24
+      hours without an accepted payload, naming the stream and linking to the
+      release controller page for it.

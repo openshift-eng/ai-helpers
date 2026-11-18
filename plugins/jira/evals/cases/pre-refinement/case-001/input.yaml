@@ -1,0 +1,32 @@
+issue_key: TRT-9001
+card:
+  key: TRT-9001
+  issue_type: Story
+  status: New
+  summary: Run Sippy integration tests in the devcontainer
+  labels: [sippy]
+  creator: trt-engineer-a
+  description: |
+    As a Sippy developer, I want integration tests to run in the devcontainer,
+    so that I can validate changes against real integration behavior.
+
+    ## Acceptance Criteria
+
+    * Integration tests run in the devcontainer with one documented command.
+    * The run records results that another developer can reproduce.
+    * The setup keeps existing security controls; any extra setup is documented.
+
+    ## Additional Context
+
+    Earlier failures came from a missing container socket; this is unverified.
+    [Example failing run](https://prow.example.com/view/run/1912345678)
+search_results:
+  - key: TRT-8790
+    issue_type: Story
+    status: Closed
+    resolution: Done
+    resolved: "2026-09-30"
+    summary: Add a devcontainer for Sippy development
+    description: |
+      Provide a devcontainer so new contributors can build and run Sippy's
+      unit tests without a local Go toolchain. Integration tests are out of scope.

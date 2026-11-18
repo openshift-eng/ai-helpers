@@ -1,0 +1,60 @@
+issue_key: TRT-9003
+card:
+  key: TRT-9003
+  issue_type: Bug
+  status: New
+  summary: Labels not updating
+  labels: [sippy]
+  creator: trt-engineer-b
+  description: |
+    I think I've seen this multiple times now but only just got around to
+    filing it. I was looking at a test details page for one of the GCP install
+    regressions and used the job run scanner to rescan all the failed runs for
+    labels, because we had just defined a new symptom and I wanted to break the
+    regression down by it on the fly. The scan said it completed fine.
+
+    But the page still showed the old labels. I checked BigQuery and the new
+    labels are definitely there for run 1987654321098765432, and they also show
+    up in the Sippy postgres job runs list. Here's what BigQuery had for that
+    run:
+
+    ```
+    run_id=1987654321098765432 label=InfraFailure
+    run_id=1987654321098765432 label=ClusterInstallTimeout
+    run_id=1987654321098765432 label=GCPInstanceNotFound
+    run_id=1987654321098765432 label=MachineInstanceVanishedAfterCreate
+    run_id=1987654321098765432 label=BootstrapLogsCollected
+    run_id=1987654321098765432 label=MustGatherCollected
+    run_id=1987654321098765432 label=IngressDegraded
+    run_id=1987654321098765432 label=ClusterOperatorsDegraded
+    run_id=1987654321098765432 label=APIServerUnavailable
+    run_id=1987654321098765432 label=KubeletNotReady
+    run_id=1987654321098765432 label=ImagePullBackOff
+    run_id=1987654321098765432 label=EtcdLeaderChanges
+    run_id=1987654321098765432 label=NodeNotReady
+    run_id=1987654321098765432 label=MonitorTestFailed
+    run_id=1987654321098765432 label=DisruptionDetected
+    run_id=1987654321098765432 label=AlertsFiring
+    run_id=1987654321098765432 label=OVNKubeRestarts
+    run_id=1987654321098765432 label=PodSandboxErrors
+    run_id=1987654321098765432 label=RegistryDegraded
+    run_id=1987654321098765432 label=CloudCredentialMissing
+    ```
+
+    GCPInstanceNotFound and MachineInstanceVanishedAfterCreate are the new ones
+    from the symptom. The job runs list with the filter is here:
+    https://sippy.example.com/sippy-ng/jobs/5.1/runs?filters=%7B%22items%22%3A%5B%7B%22columnField%22%3A%22name%22%2C%22operatorValue%22%3A%22contains%22%2C%22value%22%3A%22e2e-gcp-ovn%22%7D%2C%7B%22columnField%22%3A%22overall_result%22%2C%22operatorValue%22%3A%22equals%22%2C%22value%22%3A%22F%22%7D%2C%7B%22columnField%22%3A%22labels%22%2C%22operatorValue%22%3A%22contains%22%2C%22value%22%3A%22GCPInstanceNotFound%22%7D%5D%2C%22linkOperator%22%3A%22and%22%7D&sortField=timestamp&sort=desc
+
+    This means we can't break a regression down by a newly defined symptom on
+    the fly, which was the whole point. My guess is it's probably some kind of
+    caching on the page but I haven't confirmed that.
+search_results:
+  - key: TRT-8811
+    issue_type: Bug
+    status: Closed
+    resolution: Done
+    resolved: "2026-08-14"
+    summary: Job run scanner times out on large regressions
+    description: |
+      Rescanning more than 500 job runs from a test details page times out
+      after 60 seconds and no labels are written.

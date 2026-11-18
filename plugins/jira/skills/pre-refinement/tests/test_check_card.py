@@ -1,0 +1,268 @@
+import importlib.util
+import json
+import subprocess
+import sys
+import unittest
+from pathlib import Path
+
+SCRIPT = Path(__file__).parents[1] / "scripts" / "check_card.py"
+SPEC = importlib.util.spec_from_file_location("check_card", SCRIPT)
+check_card = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(check_card)
+
+WELL_REFINED = """As a Sippy developer, I want integration tests to run in the devcontainer,
+so that I can validate changes against real integration behavior.
+
+## Acceptance Criteria
+
+* Integration tests run in the devcontainer with one documented command.
+* The run records results that another developer can reproduce.
+* The setup keeps existing security controls; any extra setup is documented.
+
+## Additional Context
+
+Earlier failures came from a missing container socket; this is unverified.
+[Example failing run](https://prow.example/run/123)
+"""
+
+
+def card(**overrides):
+    base = {
+        "key": "TRT-1001",
+        "issue_type": "Story",
+        "status": "New",
+        "summary": "Run integration tests in the devcontainer",
+        "description": WELL_REFINED,
+        "labels": [],
+        "creator": "someone",
+    }
+    base.update(overrides)
+    return base
+
+
+class EligibilityTest(unittest.TestCase):
+    def test_new_supported_card_is_eligible(self):
+        result = check_card.check(card())
+        self.assertTrue(result["eligible"])
+        self.assertIsNone(result["skip_reason"])
+
+    def test_labelled_card_is_skipped(self):
+        result = check_card.check(card(labels=["ai-pre-refined", "sippy"]))
+        self.assertFalse(result["eligible"])
+        self.assertEqual(result["skip_reason"], "already labelled ai-pre-refined")
+
+    def test_custom_label(self):
+        result = check_card.check(card(labels=["groomed"]), label="groomed")
+        self.assertFalse(result["eligible"])
+
+    def test_card_past_new_is_skipped(self):
+        result = check_card.check(card(status="Refinement"))
+        self.assertFalse(result["eligible"])
+        self.assertIn("Refinement", result["skip_reason"])
+
+    def test_epic_is_unsupported(self):
+        result = check_card.check(card(issue_type="Epic"))
+        self.assertFalse(result["eligible"])
+        self.assertFalse(result["supported_type"])
+        self.assertEqual(result["skip_reason"], "unsupported type: Epic")
+        self.assertNotIn("description", result)
+
+    def test_supported_types_override(self):
+        result = check_card.check(card(issue_type="Bug"), supported=["Story"])
+        self.assertFalse(result["supported_type"])
+
+    def test_type_match_is_case_insensitive(self):
+        self.assertTrue(check_card.check(card(issue_type="story"))["eligible"])
+
+    def test_unknown_project_is_refused(self):
+        with self.assertRaises(ValueError):
+            check_card.check(card(key="OCPBUGS-1"))
+
+
+class StricterReviewTest(unittest.TestCase):
+    def test_label_triggers(self):
+        result = check_card.check(card(labels=["ai-generated-jira"]))
+        self.assertEqual(result["stricter_review"], {"applied": True, "reasons": ["label"]})
+
+    def test_creator_triggers_string_and_object(self):
+        self.assertEqual(check_card.check(card(creator="ship-help-jira"))["stricter_review"]["reasons"],
+                         ["creator"])
+        obj = {"displayName": "Chai Bot", "name": "ship-help-jira"}
+        self.assertEqual(check_card.check(card(creator=obj))["stricter_review"]["reasons"], ["creator"])
+
+    def test_both_signals(self):
+        result = check_card.check(card(labels=["ai-generated-jira"], creator="ship-help-jira"))
+        self.assertEqual(result["stricter_review"]["reasons"], ["label", "creator"])
+
+    def test_ai_notice_alone_does_not_trigger(self):
+        desc = WELL_REFINED + "\n_AI-generated. Review for accuracy._\n"
+        result = check_card.check(card(description=desc))
+        self.assertFalse(result["stricter_review"]["applied"])
+        self.assertTrue(result["ai_notice_present"])
+
+    def test_reporter_is_ignored(self):
+        result = check_card.check(card(reporter="ship-help-jira"))
+        self.assertFalse(result["stricter_review"]["applied"])
+
+    def test_target_is_lower_half_only_when_strict(self):
+        self.assertNotIn("target", check_card.check(card())["description"])
+        strict = check_card.check(card(labels=["ai-generated-jira"]))
+        self.assertEqual(strict["description"]["target"], [120, 235])
+
+
+class DescriptionFactsTest(unittest.TestCase):
+    def test_well_refined_card_has_no_flags(self):
+        result = check_card.check(card())
+        self.assertEqual(result["rubric_flags"], [])
+        self.assertEqual(result["completion_lists"][0]["items"], 3)
+        self.assertEqual(result["description"]["position"], "below")
+        self.assertTrue(result["sections"]["Acceptance Criteria"]["heading_found"])
+        self.assertTrue(result["summary"]["in_range"])
+
+    def test_more_than_five_criteria_flags_c2(self):
+        items = "\n".join(f"* Verify that outcome {i} happens." for i in range(6))
+        result = check_card.check(card(description=f"Statement.\n\n## Acceptance Criteria\n\n{items}\n"))
+        self.assertTrue(result["completion_lists"][0]["over_limit"])
+        self.assertTrue(any(f.startswith("C2:") for f in result["rubric_flags"]))
+
+    def test_nested_sub_bullets_and_jira_wiki_headings(self):
+        desc = "Statement.\n\nh2. Acceptance Criteria\n# First\n## detail\n## detail\n# Second\n"
+        lst = check_card.check(card(description=desc))["completion_lists"][0]
+        self.assertEqual((lst["items"], lst["nested_items"]), (2, 2))
+
+    def test_second_criteria_list_is_flagged(self):
+        desc = ("S.\n\n## Acceptance Criteria\n\n* a\n\n"
+                "## Additional acceptance criteria (for reuse by other teams)\n\n* b\n")
+        flags = check_card.check(card(description=desc))["rubric_flags"]
+        self.assertIn("C1/C2: more than one list of completion conditions", flags)
+
+    def test_long_log_and_raw_url_flag_c4(self):
+        log = "\n".join(f"label-{i}" for i in range(20))
+        url = "https://sippy.example/api/jobs?" + "filter=" + "x" * 120
+        desc = f"Problem.\n\n```\n{log}\n```\n\nSee {url}\n\n[short](https://example.com/{'y' * 120})"
+        result = check_card.check(card(issue_type="Bug", description=desc))
+        self.assertEqual(result["long_log_excerpts"], [20])
+        self.assertEqual(result["long_raw_urls"], [url])
+        self.assertEqual(sum(f.startswith("C4:") for f in result["rubric_flags"]), 2)
+
+    def test_short_excerpt_is_fine(self):
+        desc = "Problem.\n\n{noformat}\nline 1\nline 2\n{noformat}\n"
+        self.assertEqual(check_card.check(card(issue_type="Bug", description=desc))["long_log_excerpts"], [])
+
+    def test_over_twice_guidance(self):
+        desc = "word " * 800
+        result = check_card.check(card(description=desc))
+        self.assertEqual(result["description"]["position"], "over_twice")
+        self.assertTrue(any(f.startswith("Length:") for f in result["rubric_flags"]))
+
+    def test_boilerplate_is_not_counted(self):
+        plain = check_card.check(card())["description"]["words"]
+        desc = WELL_REFINED + "\nRequested by Some One via Chai Bot in #trt\n\n_AI-generated. Review for accuracy._\n"
+        result = check_card.check(card(description=desc))
+        self.assertEqual(result["description"]["words"], plain)
+        self.assertEqual(result["attribution_line"], "Requested by Some One via Chai Bot in #trt")
+
+    def test_summary_range(self):
+        self.assertFalse(check_card.check(card(summary="Fix it"))["summary"]["in_range"])
+
+    def test_ticket_uses_task_sections(self):
+        result = check_card.check(card(issue_type="Ticket", description="Goal: x\n\nDone when:\n* y\n"))
+        self.assertIn("Done when", result["sections"])
+        self.assertEqual(result["description"]["guidance"], [100, 350])
+
+
+class PreservationTest(unittest.TestCase):
+    ORIGINAL = (
+        "Rescanning labels does not refresh the page. See TRT-77 and "
+        "[the run](https://prow.example/run/9). Labels `GCPInstanceNotFound` appear after 7 days.\n\n"
+        "Requested by Some One via Chai Bot in #trt\n\n_AI-generated. Review for accuracy._\n"
+    )
+
+    def compare(self, proposed_description, summary="Test details rescan does not refresh labels"):
+        return check_card.check(card(issue_type="Bug", description=self.ORIGINAL,
+                                     proposed={"summary": summary, "description": proposed_description}))[
+            "preservation"]
+
+    def test_faithful_proposal_passes(self):
+        kept = ("Rescan does not refresh labels (TRT-77, [run](https://prow.example/run/9)): "
+                "`GCPInstanceNotFound` after 7 days.\n\nRequested by Some One via Chai Bot in #trt\n")
+        result = self.compare(kept)
+        self.assertTrue(result["passed"], result)
+        self.assertEqual(result["missing_numbers"], [])
+        self.assertTrue(result["summary_words_in_range"])
+
+    def test_dropped_link_key_identifier_and_attribution_fail(self):
+        result = self.compare("Rescan does not refresh labels.\n")
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["proposal_rubric_flags"], [])
+        self.assertEqual(result["missing_links"], ["https://prow.example/run/9"])
+        self.assertEqual(result["missing_issue_keys"], ["TRT-77"])
+        self.assertEqual(result["missing_identifiers"], ["GCPInstanceNotFound"])
+        self.assertEqual(result["missing_numbers"], ["7"])
+        self.assertFalse(result["attribution_kept"])
+
+    def test_dropped_identifiers_and_numbers_are_advisory(self):
+        result = self.compare("Rescan does not refresh labels (TRT-77, [run](https://prow.example/run/9)).\n"
+                              "Requested by Some One via Chai Bot in #trt\n")
+        self.assertEqual(result["missing_identifiers"], ["GCPInstanceNotFound"])
+        self.assertEqual(result["missing_numbers"], ["7"])
+        self.assertTrue(result["passed"])
+
+    def test_list_ordinals_are_not_numbers(self):
+        result = check_card.check(card(description="S.\n\n## Acceptance Criteria\n1. a in 30 days\n2. b\n",
+                                       proposed={"description": "S.\n\n## Acceptance Criteria\n* a in 30 days\n* b\n"}))
+        self.assertEqual(result["preservation"]["missing_numbers"], [])
+
+    def test_proposal_flags_describe_the_proposal(self):
+        items = "\n".join(f"* outcome {i}" for i in range(6))
+        result = check_card.check(card(proposed={"description": f"S.\n\n## Acceptance Criteria\n{items}\n"}))
+        self.assertEqual(result["rubric_flags"], [])
+        self.assertTrue(any(f.startswith("C2:") for f in result["preservation"]["proposal_rubric_flags"]))
+
+    def test_link_text_may_change(self):
+        result = self.compare("TRT-77 [example failing run](https://prow.example/run/9) "
+                              "`GCPInstanceNotFound` 7\nRequested by Some One via Chai Bot in #trt\n")
+        self.assertEqual(result["missing_links"], [])
+
+    def test_ai_notice_must_be_dropped(self):
+        result = self.compare(self.ORIGINAL)
+        self.assertFalse(result["ai_notice_removed"])
+        self.assertFalse(result["passed"])
+
+    def test_criteria_over_limit_and_word_reduction(self):
+        items = "\n".join(f"* outcome {i}" for i in range(6))
+        result = check_card.check(card(proposed={"description": f"S.\n\n## Acceptance Criteria\n{items}\n"}))[
+            "preservation"]
+        self.assertTrue(result["completion_over_limit"])
+        self.assertGreater(result["words"]["reduction_pct"], 0)
+
+    def test_summary_only_proposal_keeps_description(self):
+        result = check_card.check(card(proposed={"summary": "Run Sippy integration tests in the devcontainer"}))[
+            "preservation"]
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["words"]["reduction_pct"], 0)
+
+    def test_no_attribution_means_nothing_to_keep(self):
+        result = check_card.check(card(proposed={"description": WELL_REFINED}))["preservation"]
+        self.assertIsNone(result["attribution_kept"])
+
+
+class CliTest(unittest.TestCase):
+    def run_cli(self, payload, *args):
+        return subprocess.run([sys.executable, str(SCRIPT), *args], input=payload,
+                              capture_output=True, text=True)
+
+    def test_cli_round_trip(self):
+        proc = self.run_cli(json.dumps(card()), "--supported-types", "Story, Bug")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(json.loads(proc.stdout)["eligible"])
+
+    def test_cli_bad_input(self):
+        proc = self.run_cli("not json")
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("error", json.loads(proc.stdout))
+        self.assertEqual(self.run_cli("[]").returncode, 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

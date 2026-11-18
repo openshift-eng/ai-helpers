@@ -1,0 +1,20 @@
+expected_outcome: no_change
+acceptable_outcomes: [no_change, proposal]
+expected_readiness: ready
+expected_stricter_review: false
+expected_stricter_reasons: []
+expected_duplicate_of: null
+expected_related: [TRT-9100]
+must_keep:
+  - "TRT-9100"
+  - "24-hour"
+ground_truth: |
+  A follow-up to TRT-9100, not a duplicate: TRT-9100 added the alert with a
+  fixed threshold, and this card makes the threshold configurable per stream.
+  Finishing TRT-9100 did not finish this card. It must be listed as related,
+  and the card reviewed normally.
+
+  The card itself is concise and complete (a user-story sentence, three
+  testable criteria, one line of context with a link), so "no change" is
+  expected. A minimal proposal is tolerated, but marking it a duplicate is a
+  failure.

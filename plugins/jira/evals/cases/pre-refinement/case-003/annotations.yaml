@@ -1,0 +1,30 @@
+expected_outcome: proposal
+expected_readiness: ready
+expected_stricter_review: false
+expected_stricter_reasons: []
+expected_duplicate_of: null
+must_keep:
+  - "1987654321098765432"
+  - "GCPInstanceNotFound"
+  - "MachineInstanceVanishedAfterCreate"
+  - "BigQuery"
+  - "https://sippy.example.com/sippy-ng/jobs/5.1/runs?filters=%7B%22items%22%3A%5B%7B%22columnField%22%3A%22name%22%2C%22operatorValue%22%3A%22contains%22%2C%22value%22%3A%22e2e-gcp-ovn%22%7D%2C%7B%22columnField%22%3A%22overall_result%22%2C%22operatorValue%22%3A%22equals%22%2C%22value%22%3A%22F%22%7D%2C%7B%22columnField%22%3A%22labels%22%2C%22operatorValue%22%3A%22contains%22%2C%22value%22%3A%22GCPInstanceNotFound%22%7D%5D%2C%22linkOperator%22%3A%22and%22%7D&sortField=timestamp&sort=desc"
+max_words: 300
+ground_truth: |
+  A Bug written as a first-person narrative, with a 20-line label listing
+  and a long raw URL. All required Bug content is present in prose: the
+  problem (rescanning from a test details page completes but the page shows
+  old labels), reproduction steps, expected versus actual, impact (can't
+  break a regression down by a new symptom on the fly), and evidence.
+
+  A good proposal restructures it into Problem, Steps to Reproduce, Expected
+  vs Actual, Impact and Evidence; reduces the label listing to the two new
+  labels that matter, with the run ID (C4); turns the raw URL into a labelled
+  link with exactly the same target; keeps BigQuery and the Sippy PostgreSQL
+  job runs list as where the labels do appear; and keeps the caching guess
+  marked as unconfirmed. The summary names the symptom and where it occurs,
+  for example "Test details rescan does not refresh labels". Stating the
+  cause as fact, dropping the run ID or either new label, or changing the
+  link target is a failure. TRT-8811 is a different defect (a timeout), so it
+  is neither a duplicate nor necessary to mention.
+notes: Worked example E5 (narrative bug with a log dump), dropped from trt.md in review.

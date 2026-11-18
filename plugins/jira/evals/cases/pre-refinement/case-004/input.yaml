@@ -1,0 +1,16 @@
+issue_key: TRT-9004
+card:
+  key: TRT-9004
+  issue_type: Spike
+  status: New
+  summary: Investigate automating release metadata
+  labels: []
+  creator: trt-engineer-c
+  description: |
+    Release metadata (branch dates, GA dates and the list of active releases)
+    is maintained by hand in a spreadsheet today, and Sippy and the release
+    tooling each copy it separately, so they drift.
+
+    One idea is to keep the metadata in a YAML file in the release repository
+    and sync it to the tools automatically. Other ideas are welcome.
+search_results: []

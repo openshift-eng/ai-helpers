@@ -1,0 +1,35 @@
+expected_outcome: proposal
+expected_readiness: ready
+expected_stricter_review: true
+expected_stricter_reasons: [creator]
+expected_duplicate_of: null
+expected_related: [TRT-8950]
+must_keep:
+  - "As a component team engineer"
+  - "Copied"
+  - "two seconds"
+  - "existing button component"
+  - "keyboard"
+  - "out of scope"
+  - "TRT-8950"
+  - "Requested by a component team engineer via Chai Bot in #forum-trt"
+max_words: 200
+ground_truth: |
+  A borderline assistant-drafted Story: created by ship-help-jira, without the
+  ai-generated-jira label, so the stricter review applies for the creator
+  only. About 225 words, inside the Story guidance, and complete, so a quick
+  review could pass it. The stricter review must justify each check, and
+  shows it fails C1 (Additional Context restates the statement and criteria),
+  C2 (six "Verify that" bullets, two restating the same outcome, one an
+  implementation step) and C6 ("Determine the approach during design").
+
+  A good proposal merges the two clipboard bullets, moves "use the existing
+  button component from the shared UI library" out of the criteria into one
+  Additional Context constraint, drops the "Verify that" filler, the
+  restating paragraph and the design sentence, and keeps the "Copied"
+  tooltip for about two seconds, keyboard access and accessible label, the
+  out-of-scope boundary, the TRT-8950 link and the attribution line. About
+  four criteria and 150-200 words. "Whether other dialogs need the same
+  button" is an open question, and may become a gap question rather than be
+  dropped silently or turned into scope.
+notes: Worked example E7 (borderline generated story); trt.md keeps it as E3, so this case checks the rule end to end.

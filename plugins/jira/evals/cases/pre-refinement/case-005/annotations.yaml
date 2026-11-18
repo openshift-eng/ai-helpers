@@ -1,0 +1,8 @@
+expected_outcome: unsupported
+expected_stricter_review: false
+expected_stricter_reasons: []
+expected_duplicate_of: null
+ground_truth: |
+  An Epic. TRT's pre-refinement supports Story, Bug, Spike, Task and Ticket
+  only, so it is reported as unsupported with no proposal, gap comment or
+  label, even though the description itself invites shortening.

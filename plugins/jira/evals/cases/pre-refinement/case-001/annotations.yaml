@@ -1,0 +1,14 @@
+expected_outcome: no_change
+expected_readiness: ready
+expected_stricter_review: false
+expected_stricter_reasons: []
+expected_duplicate_of: null
+ground_truth: |
+  A well-refined Story: a user-story sentence, three testable acceptance
+  criteria, and short context whose evidence is marked unverified. It is under
+  the Story length guidance and passes C1-C7, so the only possible edits are
+  stylistic: "no change", ready, no gap comment.
+
+  TRT-8790 is related (it created the devcontainer and put integration tests
+  out of scope), not a duplicate: finishing it did not finish this card.
+notes: Worked example E1, dropped from trt.md in review.

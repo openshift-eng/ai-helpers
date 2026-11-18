@@ -1,0 +1,47 @@
+expected_outcome: proposal
+expected_stricter_review: true
+expected_stricter_reasons: [label, creator]
+expected_duplicate_of: null
+expected_related: [TRT-9050]
+must_keep:
+  - "As a TRT on-call engineer"
+  - "24 hours"
+  - "72 hours"
+  - "#trt-alert"
+  - "3 failed deliver"
+  - "PagerDuty"
+  - "TRT-9050"
+  - "https://github.com/openshift/sippy/pull/4321"
+  - "Requested by a TRT engineer via Chai Bot in #forum-trt"
+must_not_add:
+  - "Option B"
+  - "Option C"
+  - "scripts/oncall/schedule.py"
+  - "config/slack-channels.yaml"
+max_words: 350
+ground_truth: |
+  A wordy assistant-drafted Story (labelled ai-generated-jira and created by
+  ship-help-jira, so the stricter review applies for both reasons). About
+  550 words against a Story guidance of 120-350 (stricter target 120-235).
+
+  It fails C1 (Additional Context restates the criteria), C2 (six criteria
+  groups with nested "Verify that" sub-bullets, plus a second criteria list),
+  C5 (dated repository search findings and an option comparison), and C6
+  ("This story requests", "Determine the storage approach during design"
+  twice).
+
+  A good proposal keeps the user-story sentence; condenses the criteria to at
+  most five observable outcomes that keep every threshold (24 hours, 72 hours,
+  3 failed deliveries), the #trt-alert fallback, handoffs, configurable
+  thresholds and channel, and reuse by another team through configuration
+  only; replaces the search findings and option comparison with the decision
+  (requests stored in Sippy's database with a periodic job) and its reason
+  (reminders must know whether a request has a response), and drops the
+  dated file list with it (its paths are not facts the card relies on); keeps both
+  boundaries (no changes to the on-call schedule; PagerDuty paging out of
+  scope) once; keeps TRT-9050 and the PR link; keeps the attribution line;
+  and drops the AI-generated notice. A gap comment proposing a split
+  (intake/routing versus reminders/failure handling) is acceptable but not
+  required. Dropping or weakening a threshold, or inventing new scope, is a
+  failure.
+notes: Worked example E3 (wordy generated story), dropped from trt.md in review.
