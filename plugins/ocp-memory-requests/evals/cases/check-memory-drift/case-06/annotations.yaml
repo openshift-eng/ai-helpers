@@ -1,4 +1,7 @@
 # case-06: variable requests across variants
+expected_release: '5.1'
+expected_window_days: 30
+expected_excluded_runs: 5
 expected_create_count: 1
 expected_creates:
 - {deployment: kube-apiserver-operator}

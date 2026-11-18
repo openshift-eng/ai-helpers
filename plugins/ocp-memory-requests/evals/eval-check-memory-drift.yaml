@@ -1,12 +1,14 @@
 name: check-memory-drift-eval
 description: >
   Evaluate the ocp-memory-requests:check-memory-drift SKILL end to end against a
-  mocked environment: does the skill, as written, resolve the release, skip
-  deployments that no longer ship, reconcile against an existing OCPBUGS store by
-  exact memory-drift-key, honor dry-run, and file the right bugs? The drift math
+  mocked environment: does the skill, as written, resolve the release, run its
+  BigQuery queries with the right parameters (dry-run first), skip deployments
+  that no longer ship, reconcile against an existing OCPBUGS store by exact
+  memory-drift-key, honor dry-run, and file the right bugs? The drift math
   itself (candidate selection, rounding, direction, var) is owned by the scripts'
-  unit tests, not here. Jira writes are scored from a real call log the skill
-  produces (jira-calls.jsonl), not a self-report. No live BigQuery or Jira.
+  unit tests, not here. bq and Jira writes are scored from real call logs the
+  skill produces (bq-calls.jsonl, jira-calls.jsonl), not a self-report. No live
+  BigQuery or Jira.
 skill: ocp-memory-requests:check-memory-drift
 
 execution:
@@ -27,14 +29,15 @@ runner:
   system_prompt: |
     You are running the ocp-memory-requests:check-memory-drift skill in a MOCKED
     environment. Invoke the skill and follow its SKILL.md. Do NOT make real
-    network, bq/BigQuery, or Jira/MCP calls.
+    network, BigQuery, or Jira/MCP calls.
 
     Apply only these substitutions for the mocked dependencies — everything else
     (what to compute, in what order, how to decide) comes from the skill:
       - Current development release: use `devel_release` from input.yaml wherever
         the skill resolves the release at runtime.
-      - BigQuery: do not run `bq`. The usage query's output is already in
-        `usage.json` in the working directory; use it as that query's result.
+      - BigQuery: the environment's bq CLI is the command `python3 bq-mock.py`
+        (same subcommands and flags as `bq query`, SQL on stdin, result on
+        stdout). Use it wherever the skill runs bq.
       - Release manifests: the deployments that ship in the release are listed in
         `manifests_present` in input.yaml.
       - Jira store: the open OCPBUGS are in `preexisting_bugs` in input.yaml
@@ -46,9 +49,13 @@ runner:
     input.yaml also carries `command_args` (the invocation arguments for this run).
 
     When finished, write `result.json` in the working directory: an object with
-    `release`, `window_days`, and `skipped` (a list of {deployment, reason}).
-    Your Jira writes are captured by jira-mock.py — do not restate them in
-    result.json.
+    `release`, `window_days`, `excluded_defective_runs`, and `skipped` (a list
+    of {deployment, reason}). Your bq and Jira writes are captured by bq-mock.py
+    and jira-mock.py — do not restate them in result.json.
+
+models:
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
 
 permissions:
   allow:
@@ -66,22 +73,31 @@ mlflow:
 
 dataset:
   path: cases/check-memory-drift
-  # Stage the per-case fixture (usage.json) and the shared Jira stub into each
-  # workspace. input.yaml is staged automatically; annotations.yaml is held back
-  # by the harness as evaluation material (never visible to the agent).
+  # Stage the per-case fixtures (usage.json, defective-upgrade-runs.json) and
+  # the shared bq/Jira stubs into each workspace. input.yaml is staged
+  # automatically; annotations.yaml is held back by the harness as evaluation
+  # material (never visible to the agent).
   workspace:
     files:
       - usage.json
+      - defective-upgrade-runs.json
+      - dest: bq-mock.py
+        source: plugins/ocp-memory-requests/evals/stubs/bq-mock.py
       - dest: jira-mock.py
         source: plugins/ocp-memory-requests/evals/stubs/jira-mock.py
   schema: |
     Each case directory contains:
     - input.yaml: command_args, devel_release, manifests_present, preexisting_bugs.
-    - usage.json: mocked bq output — array of {Namespace, Deployment, job_runs,
-      p90_start_mb, p50_start_mb, request_mb, request_mb_min, request_mb_max}.
+    - usage.json: mocked result of queries/singleton-usage.sql — array of
+      {Namespace, Deployment, job_runs, p90_start_mb, p50_start_mb, request_mb,
+      request_mb_min, request_mb_max}. Served by bq-mock.py, never read directly.
+    - defective-upgrade-runs.json: mocked result of
+      queries/defective-upgrade-runs.sql — [{"defective_upgrade_runs": N}].
+      Served by bq-mock.py, never read directly.
     - annotations.yaml: expected outcomes (held back from the workspace). Every
       field is OPTIONAL (a judge is a no-op when its field is absent):
-      - expected_release, expected_window_days      (from result.json)
+      - expected_release, expected_window_days    (bq call parameters + result.json)
+      - expected_excluded_runs                    (result.json excluded_defective_runs)
       - expected_create_count: exact number of `create` calls in jira-calls.jsonl
       - expected_creates: [{deployment}]            (each must be a create)
       - expected_updates: [{deployment}]            (each must be an update)
@@ -94,7 +110,15 @@ dataset:
 outputs:
   - path: "result.json"
     schema: |
-      JSON object: release, window_days, skipped[] ({deployment, reason}).
+      JSON object: release, window_days, excluded_defective_runs, skipped[]
+      ({deployment, reason}).
+  - path: "bq-calls.jsonl"
+    schema: |
+      One JSON object per line, written by bq-mock.py for each bq call:
+      {action: dry_run|query, query: singleton-usage|defective-upgrade-runs,
+      parameters: {release, window_days}} (dry_run adds "bytes", query adds
+      "rows"). The authoritative record of the queries the skill ran, with
+      which parameters, and in what order.
   - path: "jira-calls.jsonl"
     schema: |
       One JSON object per line, written by jira-mock.py for each Jira write:
@@ -110,7 +134,7 @@ traces:
 
 judges:
   - name: valid_output
-    description: result.json parses; jira-calls.jsonl (if present) is valid JSONL
+    description: result.json parses; bq-calls.jsonl exists and is valid JSONL; jira-calls.jsonl (if present) is valid JSONL
     check: |
       import json
       allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
@@ -121,6 +145,15 @@ judges:
           json.loads(list(rf.values())[0])
       except Exception as e:
           return (False, f"result.json invalid JSON: {e}")
+      bqf = {k: v for k, v in allf.items() if k.endswith("bq-calls.jsonl")}
+      if not bqf:
+          return (False, "No bq-calls.jsonl found - the skill must run its queries through bq-mock.py")
+      for i, line in enumerate(list(bqf.values())[0].splitlines()):
+          if line.strip():
+              try:
+                  json.loads(line)
+              except Exception as e:
+                  return (False, f"bq-calls.jsonl line {i+1} invalid: {e}")
       logf = {k: v for k, v in allf.items() if k.endswith("jira-calls.jsonl")}
       if logf:
           for i, line in enumerate(list(logf.values())[0].splitlines()):
@@ -132,22 +165,54 @@ judges:
       return (True, "valid outputs")
 
   - name: parameters_scoped
-    description: Run analyzed the expected release and window (from result.json)
+    description: bq calls passed the expected release/window; result.json agrees
     check: |
       import json
       ann = outputs.get("annotations", {})
       if "expected_release" not in ann and "expected_window_days" not in ann:
           return (True, "n/a")
       allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      bqf = {k: v for k, v in allf.items() if k.endswith("bq-calls.jsonl")}
+      if not bqf:
+          return (False, "No bq-calls.jsonl found")
+      calls = [json.loads(l) for l in list(bqf.values())[0].splitlines() if l.strip()]
+      queries = [c for c in calls if c.get("action") == "query"]
+      if not queries:
+          return (False, "No bq query calls recorded - the usage query must run")
+      for c in queries:
+          p = c.get("parameters", {})
+          if "expected_release" in ann and str(p.get("release")) != str(ann["expected_release"]):
+              return (False, f"bq release {p.get('release')} != {ann['expected_release']}")
+          if "expected_window_days" in ann and str(p.get("window_days")) != str(ann["expected_window_days"]):
+              return (False, f"bq window_days {p.get('window_days')} != {ann['expected_window_days']}")
       rf = {k: v for k, v in allf.items() if k.endswith("result.json")}
-      if not rf:
-          return (False, "No result.json found")
-      data = json.loads(list(rf.values())[0])
-      if "expected_release" in ann and str(data.get("release")) != str(ann["expected_release"]):
-          return (False, f"release {data.get('release')} != {ann['expected_release']}")
-      if "expected_window_days" in ann and int(data.get("window_days", -1)) != int(ann["expected_window_days"]):
-          return (False, f"window {data.get('window_days')} != {ann['expected_window_days']}")
-      return (True, "scoped ok")
+      if rf:
+          data = json.loads(list(rf.values())[0])
+          if "expected_release" in ann and str(data.get("release")) != str(ann["expected_release"]):
+              return (False, f"result.json release {data.get('release')} != {ann['expected_release']}")
+          if "expected_window_days" in ann and int(data.get("window_days", -1)) != int(ann["expected_window_days"]):
+              return (False, f"result.json window_days {data.get('window_days')} != {ann['expected_window_days']}")
+      return (True, f"{len(queries)} query call(s) scoped ok")
+
+  - name: dry_run_first
+    description: Each query was dry-run (cost-estimated) before it was executed
+    check: |
+      import json
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      bqf = {k: v for k, v in allf.items() if k.endswith("bq-calls.jsonl")}
+      if not bqf:
+          return (False, "No bq-calls.jsonl found")
+      calls = [json.loads(l) for l in list(bqf.values())[0].splitlines() if l.strip()]
+      seq = [(c.get("action"), c.get("query")) for c in calls]
+      ran = {q for a, q in seq if a == "query"}
+      if not ran:
+          return (False, "No bq query calls recorded")
+      for q in sorted(ran):
+          first_query = min(i for i, (a, qq) in enumerate(seq) if a == "query" and qq == q)
+          drys = [i for i, (a, qq) in enumerate(seq) if a == "dry_run" and qq == q]
+          if not drys or min(drys) > first_query:
+              return (False, f"{q}: no dry_run before its first query call")
+      return (True, f"dry-run precedes each of {sorted(ran)}")
 
   - name: jira_actions_correct
     description: The real Jira writes (jira-calls.jsonl) match create/update/no-write expectations
@@ -215,3 +280,67 @@ judges:
           if rc and rc not in skipped[dep]:
               return (False, f"{dep} reason {skipped[dep]!r} missing {rc!r}")
       return (True, f"skipped={sorted(skipped)}")
+
+  - name: excluded_runs_correct
+    description: result.json reports the defective-upgrade-run count from the second query
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_excluded_runs" not in ann:
+          return (True, "n/a")
+      allf = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      rf = {k: v for k, v in allf.items() if k.endswith("result.json")}
+      if not rf:
+          return (False, "No result.json found")
+      data = json.loads(list(rf.values())[0])
+      got = data.get("excluded_defective_runs")
+      if got is None or int(got) != int(ann["expected_excluded_runs"]):
+          return (False, f"excluded_defective_runs {got} != {ann['expected_excluded_runs']}")
+      return (True, f"excluded_defective_runs={got}")
+
+  - name: assessment_quality
+    description: LLM judge assessing report quality and pipeline discipline
+    prompt: |
+      You are evaluating a check-memory-drift run. The skill audited
+      control-plane operator memory requests against a mocked BigQuery (its
+      queries and parameters are in bq-calls.jsonl) and a mocked Jira (its
+      writes are in jira-calls.jsonl), and produced a final report.
+
+      The skill's output:
+
+      {{ outputs }}
+
+      Expected behavior from annotations:
+
+      {{ annotations }}
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Wrong release or window; Jira actions contradict expectations;
+               required queries never ran.
+      Score 2: Correct parameters, but the report omits required sections
+               (counts, per-deployment table, skip reasons, defective-run count)
+               or misstates them.
+      Score 3: Report complete and accurate, but reconciliation is loose
+               (fuzzy key matching) or skips are unexplained.
+      Score 4: Everything matches annotations; report carries parameters, counts,
+               the per-deployment table, skip reasons, and the defective-run
+               count; bq calls were dry-run first.
+      Score 5: All of that, and the report is concise, names the owning
+               repo/manifest for each filed bug, and states the query cost.
+
+thresholds:
+  valid_output:
+    min_pass_rate: 1.0
+  parameters_scoped:
+    min_pass_rate: 1.0
+  dry_run_first:
+    min_pass_rate: 1.0
+  jira_actions_correct:
+    min_pass_rate: 1.0
+  skips_correct:
+    min_pass_rate: 1.0
+  excluded_runs_correct:
+    min_pass_rate: 1.0
+  assessment_quality:
+    min_mean: 3.5

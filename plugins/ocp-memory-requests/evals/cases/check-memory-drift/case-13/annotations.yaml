@@ -1,4 +1,7 @@
 # case-13: no drift
+expected_release: '5.1'
+expected_window_days: 30
+expected_excluded_runs: 0
 expected_create_count: 0
 expected_no_write:
 - console-operator

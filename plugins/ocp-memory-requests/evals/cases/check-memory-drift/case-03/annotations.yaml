@@ -1,4 +1,7 @@
 # case-03: lower direction
+expected_release: '5.1'
+expected_window_days: 30
+expected_excluded_runs: 1
 expected_create_count: 1
 expected_creates:
 - {deployment: image-registry}
