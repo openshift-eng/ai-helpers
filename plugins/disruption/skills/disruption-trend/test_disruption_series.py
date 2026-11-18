@@ -17,6 +17,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LIB = os.path.join(HERE, "..", "..", "scripts", "disruption_common")
 NOW = datetime(2026, 11, 10, 12, tzinfo=timezone.utc)
 START = NOW - timedelta(days=30)
+
+
+@pytest.fixture(autouse=True)
+def pinned_clock(monkeypatch):
+    """Fake runs are placed relative to NOW, so main() must end its window there too."""
+    monkeypatch.setattr(ds, "utc_now", lambda: NOW)
 SERIES = {"release": "5.0", "selectors": ["kube-api-new-connections"], "variants": {"Platform": "aws"},
           "master_nodes_updated": None, "percentile": "P95", "compare_release": "4.22",
           "dashboard": "(manual query)"}
@@ -368,7 +374,7 @@ def test_main_caps_window_at_max_days(capsys):
                         "--format", "json", "--cache-dir", ""])
     assert code == 0
     window_start = collect.call_args[0][2]
-    assert abs((datetime.now(timezone.utc) - window_start) - timedelta(days=ds.MAX_DAYS)) < timedelta(minutes=5)
+    assert NOW - window_start == timedelta(days=ds.MAX_DAYS)
     captured = capsys.readouterr()
     assert "using the maximum of 90 days" in captured.err
     assert "maximum is 90 days" in json.loads(captured.out)["trend"]["caveats"][0]
