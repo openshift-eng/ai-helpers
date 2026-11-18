@@ -79,7 +79,7 @@ whichever column the session provides:
 | Replace summary or description, or set labels | `priv_jira_update_issue` (pass the description inline, never by buffer ID, so approvers see it) | `editJiraIssue` |
 | Post the gap comment | `comment_on_jira_issue` | `addCommentToJiraIssue` |
 | Link a related card (`Relates`) | `priv_jira_link_issues`, where the session offers it. Never `link_jira_issues` or another link tool that writes without an approval | `createIssueLink` (type `Relates`) |
-| Close as duplicate (link, close, comment, label in one step) | `priv_jira_close_duplicate` with `add_label` and `expected_status: New` | In this order: `createIssueLink` (type `Duplicate`), `addCommentToJiraIssue`, `editJiraIssue` for the label, then `getTransitionsForJiraIssue` and `transitionJiraIssue` with resolution `Duplicate` (see "Partial duplicate closure") |
+| Close as duplicate (link, close, comment, label in one step) | `priv_jira_close_duplicate` with `add_label` and `expected_status: New` | In this order: `addCommentToJiraIssue` (the closure comment, naming the target), `createIssueLink` (type `Duplicate`), `editJiraIssue` for the label, then `getTransitionsForJiraIssue` and `transitionJiraIssue` with resolution `Duplicate` (see "Partial duplicate closure") |
 | Load another skill | `find_skills`, `get_skill` | the Skill tool |
 
 Writing `labels` replaces the whole list. Re-read the card's labels right
@@ -307,14 +307,26 @@ write blindly. If an effect can't be confirmed, report `blocked` for that card,
 list which effects were confirmed and which are missing, and stop writing to
 it.
 
+**Partial gap review.** If the gap comment was posted but the label was not,
+the card stays New and unlabelled and the next run reviews it again. Before
+posting a gap comment, check the card's comments for this workflow's earlier
+one: posted by the assistant account, ending with the AI notice, and asking
+for the same missing information. If it is there, don't post it again; ask
+the person to approve only the label. Otherwise write in the usual order.
+
 **Partial duplicate closure.** On the Atlassian MCP path the closure is
-several writes, ordered so the transition, which takes the card out of New,
-comes last. If a write fails part way, the report lists the confirmed effects
-(link, comment, label, transition). To finish, run confirm mode with the
-card's key: re-read the card, and if it shows this workflow's duplicate link
-or comment, ask the user to approve only the missing writes. This completion
-is the one case that may write to a card that is labelled or no longer New.
-Never repeat a link, comment or transition already on the card.
+several writes. The closure comment comes first, because it is the record of
+the approved closure: it is on the card itself, posted by the assistant
+account, ends with the AI notice, and names the target as a duplicate. The
+transition, which takes the card out of New, comes last. If a write fails part
+way, the report lists the confirmed effects (comment, link, label,
+transition). To finish, run confirm mode with the card's key: re-read the
+card, and only if it carries that closure comment, ask the user to approve the
+missing writes to the target it names. A `Duplicate` link alone is not a
+record: anyone can add one. Without the comment, report the card `blocked`,
+list the confirmed effects, and stop. This completion is the one case that may
+write to a card that is labelled or no longer New. Never repeat a link,
+comment or transition already on the card.
 
 Never change priority, story points, assignee, status (except a duplicate
 closure), components, fix versions or delivery commitments. Never write to a
@@ -348,6 +360,9 @@ Return a report for people, and, when the caller asks for structured output
 Use `null` for fields that don't apply: no proposed text for `no_change`,
 `gaps_only` or `duplicate`; no `duplicate_of` unless the outcome is
 `duplicate`. `proposed_summary` is `null` when the summary stays.
+`related` is an empty list when no related card was found, and `null` only for
+`skipped`. A `proposal` needs `preservation_passed: true`, or `null` when
+`check_card.py` failed and the preservation check was done by hand.
 `proposed_links` is an empty list when nothing needs linking, and always empty
 for `duplicate`, `unsupported` and `skipped`.
 `rubric` is required for every assessed card under the stricter review, and

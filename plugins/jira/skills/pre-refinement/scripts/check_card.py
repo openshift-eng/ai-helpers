@@ -119,18 +119,20 @@ HEADING_RE = re.compile(
     re.MULTILINE,
 )
 FENCE_RE = re.compile(r"```[^\n]*\n(.*?)```|\{(?:code|noformat)[^}]*\}(.*?)\{(?:code|noformat)\}", re.DOTALL)
-# A Markdown link destination may contain one level of balanced parentheses.
-MD_LINK_RE = re.compile(r"\[[^\]\n]*\]\((https?://(?:[^()\s]|\([^()\s]*\))+)\)")
+# The start of a Markdown link; md_links() reads the destination, which may
+# contain balanced parentheses at any depth.
+MD_LINK_START_RE = re.compile(r"\[[^\]\n]*\]\((?=https?://)")
 WIKI_LINK_RE = re.compile(r"\[[^\]|\n]*\|(https?://[^\]\s]+)\]")
 URL_RE = re.compile(r"https?://[^\s<>()\[\]|]+")
 ISSUE_KEY_RE = re.compile(r"\b[A-Z][A-Z0-9]+-\d+\b")
 CODE_SPAN_RE = re.compile(r"`([^`\n]+)`")
 # Values the preservation check tracks, each read whole: an ISO date
-# ("2026-10-02"), a version ("v1.2.3", "4.18"), or a number with an optional
-# sign ("-5") and percent. A number may carry a hyphenated unit ("24-hour"),
-# but a range ("3-5") or identifier is not read as numbers.
+# ("2026-10-02"), a range ("3-5", "1.5\u20132"), a version ("v1.2.3", "4.18"),
+# or a number with an optional sign ("-5") and percent. A number may carry a
+# hyphenated unit ("24-hour"); identifiers are not read as numbers.
 NUMBER_RE = re.compile(
-    r"(?<![\w.\-+\u2212])(?:\d{4}-\d{2}-\d{2}|v\d+(?:\.\d+)+|[-+\u2212]?\d+(?:\.\d+)*%?)(?!\w|-\d)")
+    r"(?<![\w.\-+\u2212])(?:\d{4}-\d{2}-\d{2}|\d+(?:\.\d+)?[-\u2013]\d+(?:\.\d+)?%?"
+    r"|v\d+(?:\.\d+)+|[-+\u2212]?\d+(?:\.\d+)*%?)(?![\w\-\u2013]\d|\w)")
 TOP_ITEM_RE = re.compile(r"^(?:[*\-+]|\d+[.)]|#)\s+")
 NESTED_ITEM_RE = re.compile(r"^(?:\s{2,}(?:[*\-+]|\d+[.)])|\*\*+|##+)\s+")
 
@@ -193,13 +195,42 @@ def word_count(text: str) -> int:
     return len(re.findall(r"[A-Za-z0-9][\w'’./:-]*", text))
 
 
+def md_links(text: str) -> List[Tuple[int, int, str]]:
+    """(start, end, destination) of each explicit Markdown link."""
+    found, pos = [], 0
+    while True:
+        m = MD_LINK_START_RE.search(text, pos)
+        if not m:
+            return found
+        depth, i = 0, m.end()
+        while i < len(text) and not text[i].isspace():
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                if depth == 0:
+                    break
+                depth -= 1
+            i += 1
+        if i < len(text) and text[i] == ")":
+            found.append((m.start(), i + 1, text[m.end():i]))
+            pos = i + 1
+        else:
+            pos = m.end()
+
+
+def mask_md_links(text: str) -> str:
+    for start, end, _ in reversed(md_links(text)):
+        text = text[:start] + text[end:]
+    return text
+
+
 def links(text: str) -> List[str]:
-    found = MD_LINK_RE.findall(text) + WIKI_LINK_RE.findall(text) + URL_RE.findall(text)
+    found = [u for _, _, u in md_links(text)] + WIKI_LINK_RE.findall(text) + URL_RE.findall(text)
     return sorted({u.rstrip(".,;:") for u in found})
 
 
 def raw_urls(text: str) -> List[str]:
-    masked = WIKI_LINK_RE.sub("", MD_LINK_RE.sub("", text))
+    masked = WIKI_LINK_RE.sub("", mask_md_links(text))
     masked = re.sub(r"<(https?://[^>]+)>", "", masked)
     return [u.rstrip(".,;:") for u in URL_RE.findall(masked)]
 
@@ -337,11 +368,16 @@ def preservation(original: dict, proposed: dict, conf: dict, stored: bool = Fals
         kept = set(extract(combined_after))
         return [x for x in extract(combined_before) if x not in kept]
 
-    attribution = ATTRIBUTION_RE.search(before)
+    # With no description draft the stored description stays as it is, notice
+    # and all, so only its links, keys and numbers are compared.
+    drafted = proposed.get("description") is not None
+    attribution = ATTRIBUTION_RE.search(before) if drafted else None
     lines = [ln.strip() for ln in after.splitlines() if ln.strip()]
     notices = [i for i, ln in enumerate(lines) if AI_NOTICE_RE.search(ln)]
     body = lines
-    if stored:
+    if not drafted:
+        notice_ok = True
+    elif stored:
         # The writing tool's one notice is the last line, after an optional
         # rule; the draft above it must still end with the attribution.
         notice_ok = (len(notices) == 1 and notices[0] == len(lines) - 1

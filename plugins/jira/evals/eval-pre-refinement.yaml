@@ -122,8 +122,8 @@ judges:
           return (False, f"Missing fields: {', '.join(missing)}")
       allowed = {"proposal", "no_change", "gaps_only", "duplicate",
                  "unsupported", "skipped", "blocked"}
-      if data["outcome"] not in allowed:
-          return (False, f"Invalid outcome: {data['outcome']}")
+      if not isinstance(data["outcome"], str) or data["outcome"] not in allowed:
+          return (False, f"Invalid outcome: {data['outcome']!r}")
       if ann.get("expected_key") and data["key"] != ann["expected_key"]:
           return (False, f"key={data['key']}, expected={ann['expected_key']}")
       def str_or_null(v):
@@ -146,7 +146,10 @@ judges:
       if not (dup is None or (isinstance(dup, dict) and isinstance(dup.get("key"), str))):
           errors.append("duplicate_of is not null or an object with a key")
       related = data["related"]
-      if not (related is None or (isinstance(related, list) and all(isinstance(k, str) for k in related))):
+      if related is None:
+          if data["outcome"] != "skipped":
+              errors.append("related is null for a card that was not skipped; use []")
+      elif not (isinstance(related, list) and all(isinstance(k, str) for k in related)):
           errors.append("related is not a list of keys or null")
       links = data["proposed_links"]
       if not (isinstance(links, list) and all(
@@ -157,6 +160,10 @@ judges:
           errors.append("change_notes is not a list or null")
       if not (data["preservation_passed"] is None or isinstance(data["preservation_passed"], bool)):
           errors.append("preservation_passed is not a boolean or null")
+      # A proposal that failed preservation must not be shown. null is the
+      # by-hand review when check_card.py itself fails.
+      if data["outcome"] == "proposal" and data["preservation_passed"] is False:
+          errors.append("proposal reports a failed preservation check")
       if errors:
           return (False, "; ".join(errors))
       return (True, "Valid card record")
@@ -308,12 +315,29 @@ judges:
           return (True, "Not a proposal -- skipped")
       import re
       text = (data.get("proposed_summary") or "") + "\n" + (data.get("proposed_description") or "")
+      def urls(t):
+          # Complete link targets, as in check_card.py: Markdown destinations
+          # (balanced parentheses at any depth), wiki links, <url>, raw URLs.
+          out, pos = set(), 0
+          for m in re.finditer(r"\[[^\]\n]*\]\((?=https?://)", t):
+              depth, i = 0, m.end()
+              while i < len(t) and not t[i].isspace() and not (t[i] == ")" and depth == 0):
+                  depth += {"(": 1, ")": -1}.get(t[i], 0)
+                  i += 1
+              if i < len(t) and t[i] == ")":
+                  out.add(t[m.end():i])
+          out.update(re.findall(r"\[[^\]|\n]*\|(https?://[^\]\s]+)\]", t))
+          out.update(re.findall(r"<(https?://[^>\s]+)>", t))
+          out.update(u.rstrip(".,;:") for u in re.findall(r"https?://[^\s<>()\[\]|]+", t))
+          return out
+      targets = urls(text)
       def found(s):
-          # URLs must match exactly; prose ignores case. A value must not be
-          # part of a longer word or number: "3 failed" not inside "13 failed",
-          # "keyboard" not inside "keyboarding".
-          flags = 0 if s.startswith("http") else re.IGNORECASE
-          return re.search(r"(?<!\w)" + re.escape(s) + r"(?!\w)", text, flags) is not None
+          # A URL must be a complete link target, exactly; prose ignores case.
+          # A value must not be part of a longer word or number: "3 failed"
+          # not inside "13 failed", "keyboard" not inside "keyboarding".
+          if s.startswith("http"):
+              return s in targets
+          return re.search(r"(?<!\w)" + re.escape(s) + r"(?!\w)", text, re.IGNORECASE) is not None
       errors = []
       for entry in ann.get("must_keep", []):
           options = entry if isinstance(entry, list) else [entry]
@@ -370,6 +394,8 @@ judges:
       body = fence.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), desc)
       heading = re.compile(r"^\s*(?:#{1,6}\s+|h[1-6]\.\s+|\*\*)(.+?)(?:\*\*:?)?\s*$", re.MULTILINE)
       marks = list(heading.finditer(body))
+      # The gap comment must at least mention a split; refinement_quality
+      # judges whether it recommends one ("A split is not needed" does not).
       split = re.search(r"\bsplit", data.get("gap_comment") or "", re.IGNORECASE)
       for i, m in enumerate(marks):
           name = re.sub(r"\s*\([^)]*\)\s*$", "", m.group(1).strip("* :")).lower()
@@ -486,7 +512,9 @@ judges:
                criterion, link, boundary or "unconfirmed" marker.
       Score 2: Right outcome, but the proposal weakens a criterion, misses an
                obvious rubric failure, the gap comment is vague ("add more
-               detail"), or a proposed link's rationale only says the cards
+               detail"), the proposal keeps more than five acceptance
+               criteria without a gap comment that recommends splitting the
+               card (mentioning a split only to reject it does not count), or a proposed link's rationale only says the cards
                are related without saying how (follow-up, prerequisite, same
                component, same symptom with a different cause).
       Score 3: Right outcome and faithful, but noticeably wordier than needed

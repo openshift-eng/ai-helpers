@@ -60,10 +60,54 @@ class MustKeepTest(unittest.TestCase):
         self.assertFalse(self.kept(f"[Sippy PR]({url}0)", url))
         self.assertFalse(self.kept("[Sippy PR](https://github.com/OpenShift/sippy/pull/4321)", url))
 
+    def test_url_must_be_a_complete_link_target(self):
+        url = "https://sippy.example/jobs?release=4.18"
+        self.assertTrue(self.kept(f"[jobs]({url}).", url))
+        self.assertTrue(self.kept(f"See [the job list]({url}) and <{url}>.", url))
+        self.assertFalse(self.kept(f"[jobs]({url}&page=2)", url))
+        self.assertFalse(self.kept(f"See {url}&page=2 for more.", url))
+        nested = "https://example.test/a(b(c)d)/old"
+        self.assertTrue(self.kept(f"[run]({nested})", nested))
+        self.assertFalse(self.kept(f"[run]({nested}er)", nested))
+
     def test_list_entry_accepts_any_alternative(self):
         result = judge("proposal_preserves_facts", proposal("Shown for 2 seconds."),
                        {"must_keep": [["two seconds", "2 seconds"]]})
         self.assertTrue(result[0], result)
+
+
+def record(**fields):
+    base = {"key": "TRT-1", "issue_type": "Story", "outcome": "no_change", "readiness": "ready",
+            "stricter_review": {"applied": False, "reasons": []}, "rubric": None, "duplicate_of": None,
+            "related": [], "proposed_links": [], "proposed_summary": None, "proposed_description": None,
+            "gap_comment": None, "change_notes": None, "preservation_passed": None, "skip_reason": None}
+    return {**base, **fields}
+
+
+class ValidOutputTest(unittest.TestCase):
+    def valid(self, **fields):
+        return judge("valid_output_json", record(**fields), {})
+
+    def test_baseline_record_is_valid(self):
+        self.assertTrue(self.valid()[0], self.valid())
+
+    def test_non_string_outcome_is_invalid_not_an_error(self):
+        for outcome in ([], {}, 3, None):
+            with self.subTest(outcome=outcome):
+                self.assertFalse(self.valid(outcome=outcome)[0])
+
+    def test_proposal_cannot_report_failed_preservation(self):
+        self.assertFalse(self.valid(outcome="proposal", preservation_passed=False)[0])
+        self.assertTrue(self.valid(outcome="proposal", preservation_passed=True)[0])
+        # null: reviewed by hand because check_card.py failed.
+        self.assertTrue(self.valid(outcome="proposal", preservation_passed=None)[0])
+
+    def test_related_is_null_only_for_skipped_cards(self):
+        self.assertTrue(self.valid(outcome="skipped", related=None)[0])
+        for outcome in ("no_change", "proposal", "gaps_only", "duplicate", "unsupported", "blocked"):
+            with self.subTest(outcome=outcome):
+                self.assertFalse(self.valid(outcome=outcome, related=None)[0])
+                self.assertTrue(self.valid(outcome=outcome, related=[])[0])
 
 
 class FactCasesTest(unittest.TestCase):

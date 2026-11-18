@@ -296,7 +296,17 @@ class PreservationTest(unittest.TestCase):
                 result = check_card.check(card(description=before, proposed={"description": after}))
                 self.assertEqual(result["preservation"]["missing_numbers"], dropped)
         self.assertEqual(check_card.numbers("from 3-5 runs since 2026-10-02 on v1.2.3, -5% and 24-hour"),
-                         ["-5%", "2026-10-02", "24", "v1.2.3"])
+                         ["-5%", "2026-10-02", "24", "3-5", "v1.2.3"])
+
+    def test_changed_range_is_reported(self):
+        for before, after, dropped in [("Retry within 3-5 days.", "Retry within 3-7 days.", ["3-5"]),
+                                       ("Keep 1.5\u20132 GB free.", "Keep 1.5\u20133 GB free.", ["1.5\u20132"]),
+                                       ("Allow 10-20% drift.", "Allow 10-25% drift.", ["10-20%"])]:
+            with self.subTest(before=before):
+                result = check_card.check(card(description=before, proposed={"description": after}))
+                self.assertEqual(result["preservation"]["missing_numbers"], dropped)
+        # Issue keys and list ordinals are still not numbers.
+        self.assertEqual(check_card.numbers("TRT-3046 and OCPBUGS-12\n1. first\n2. second"), [])
 
     def test_link_destination_with_parentheses_is_compared_whole(self):
         before = "[run](https://example.test/a(v1)/old)\n"
@@ -306,6 +316,16 @@ class PreservationTest(unittest.TestCase):
         caption = check_card.check(card(description=before,
                                         proposed={"description": "[the run](https://example.test/a(v1)/old)\n"}))
         self.assertEqual(caption["preservation"]["missing_links"], [])
+
+    def test_link_destination_with_nested_parentheses_is_compared_whole(self):
+        before = "[run](https://example.test/a(b(c)d)/old)\n"
+        changed = check_card.check(card(description=before,
+                                        proposed={"description": "[run](https://example.test/a(b(c)d)/new)\n"}))
+        self.assertEqual(changed["preservation"]["missing_links"], ["https://example.test/a(b(c)d)/old"])
+        caption = check_card.check(card(description=before,
+                                        proposed={"description": "[the run](https://example.test/a(b(c)d)/old)\n"}))
+        self.assertEqual(caption["preservation"]["missing_links"], [])
+        self.assertEqual(check_card.raw_urls(before), [])
 
     def test_attribution_must_be_the_last_line(self):
         moved = ("Requested by Some One via Chai Bot in #trt\n\nRescan does not refresh labels "
@@ -334,6 +354,16 @@ class PreservationTest(unittest.TestCase):
         result = self.compare(self.ORIGINAL)
         self.assertFalse(result["ai_notice_ok"])
         self.assertFalse(result["passed"])
+
+    def test_summary_only_proposal_leaves_the_stored_notice_alone(self):
+        for stored in (False, True):
+            with self.subTest(stored=stored):
+                result = check_card.check(card(issue_type="Bug", description=self.ORIGINAL,
+                                               proposed={"summary": "Rescan leaves stale labels on GCP runs"}),
+                                          stored=stored)["preservation"]
+                self.assertTrue(result["ai_notice_ok"])
+                self.assertIsNone(result["attribution_kept"])
+                self.assertTrue(result["passed"], result)
 
     DRAFT = ("Rescan does not refresh labels (TRT-77, [run](https://prow.example/run/9)): "
              "`GCPInstanceNotFound` after 7 days.\n\nRequested by Some One via Chai Bot in #trt\n")
