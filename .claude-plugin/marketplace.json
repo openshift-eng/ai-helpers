@@ -134,7 +134,7 @@
       "name": "disruption",
       "source": "./plugins/disruption",
       "description": "Investigate OpenShift CI disruption regressions: when disruption changed, and why runs were disrupted",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "category": "ci",
       "keywords": [
         "disruption",
