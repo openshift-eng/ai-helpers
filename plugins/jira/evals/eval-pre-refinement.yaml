@@ -3,8 +3,8 @@ description: >
   Evaluate the pre-refinement skill on single TRT cards in dry-run mode:
   eligibility, duplicate detection, the stricter review for assistant-drafted
   cards, the choice between no change, a proposal and a gap comment, and
-  whether a proposal is concise while preserving every fact, criterion,
-  link and boundary. Uses static fixtures, with no live Jira dependency.
+  whether a proposal is concise while preserving every criterion, link,
+  boundary and fact the card relies on. Uses static fixtures, with no live Jira dependency.
 skill: jira:pre-refinement
 
 execution:
@@ -67,13 +67,16 @@ dataset:
       - 'search_results': candidate cards both duplicate searches return
         (key, issue_type, status, resolution, resolved, summary, description)
     - annotations.yaml:
+      - 'expected_key': the key result.json must report
       - 'expected_outcome' and optional 'acceptable_outcomes'
       - 'expected_readiness': ready, needs_info or null (optional)
       - 'expected_stricter_review' and 'expected_stricter_reasons'
       - 'expected_duplicate_of': key or null
       - 'expected_related': keys that must appear in 'related' (optional)
       - 'must_keep': strings the proposed summary and description together
-        must contain, ignoring case (proposal cases)
+        must contain, ignoring case except in URLs, and not as the tail of a
+        longer word or number; a list entry accepts any of its alternatives
+        (proposal cases)
       - 'must_not_add': strings that would mean invented content (optional)
       - 'max_words': upper bound for the proposed description (optional)
       - 'gap_comment_required' and 'gap_comment_mentions_any' (optional)
@@ -105,8 +108,11 @@ judges:
           return (False, f"Invalid JSON: {e}")
       if not isinstance(data, dict):
           return (False, "result.json is not an object")
-      required = ["key", "outcome", "stricter_review", "duplicate_of",
-                  "proposed_summary", "proposed_description", "gap_comment"]
+      ann = outputs.get("annotations", {})
+      required = ["key", "issue_type", "outcome", "readiness", "stricter_review",
+                  "rubric", "duplicate_of", "related", "proposed_summary",
+                  "proposed_description", "gap_comment", "change_notes",
+                  "preservation_passed", "skip_reason"]
       missing = [f for f in required if f not in data]
       if missing:
           return (False, f"Missing fields: {', '.join(missing)}")
@@ -114,6 +120,35 @@ judges:
                  "unsupported", "skipped", "blocked"}
       if data["outcome"] not in allowed:
           return (False, f"Invalid outcome: {data['outcome']}")
+      if ann.get("expected_key") and data["key"] != ann["expected_key"]:
+          return (False, f"key={data['key']}, expected={ann['expected_key']}")
+      def str_or_null(v):
+          return v is None or isinstance(v, str)
+      errors = []
+      if not isinstance(data["key"], str):
+          errors.append("key is not a string")
+      for f in ("issue_type", "proposed_summary", "proposed_description", "gap_comment", "skip_reason"):
+          if not str_or_null(data[f]):
+              errors.append(f"{f} is not a string or null")
+      if data["readiness"] not in ("ready", "needs_info", None):
+          errors.append(f"invalid readiness {data['readiness']!r}")
+      sr = data["stricter_review"]
+      if not (isinstance(sr, dict) and isinstance(sr.get("applied"), bool)
+              and isinstance(sr.get("reasons"), list)):
+          errors.append("stricter_review needs a boolean 'applied' and a list of 'reasons'")
+      if not (data["rubric"] is None or isinstance(data["rubric"], dict)):
+          errors.append("rubric is not an object or null")
+      dup = data["duplicate_of"]
+      if not (dup is None or (isinstance(dup, dict) and isinstance(dup.get("key"), str))):
+          errors.append("duplicate_of is not null or an object with a key")
+      if not (isinstance(data["related"], list) and all(isinstance(k, str) for k in data["related"])):
+          errors.append("related is not a list of keys")
+      if not (data["change_notes"] is None or isinstance(data["change_notes"], list)):
+          errors.append("change_notes is not a list or null")
+      if not (data["preservation_passed"] is None or isinstance(data["preservation_passed"], bool)):
+          errors.append("preservation_passed is not a boolean or null")
+      if errors:
+          return (False, "; ".join(errors))
       return (True, "Valid card record")
 
   - name: outcome_correct
@@ -196,7 +231,7 @@ judges:
       except Exception as e:
           return (False, f"Cannot parse JSON: {e}")
       sr = data.get("stricter_review") or {}
-      if bool(sr.get("applied")) != ann["expected_stricter_review"]:
+      if sr.get("applied") is not ann["expected_stricter_review"]:
           return (False, f"applied={sr.get('applied')}, expected={ann['expected_stricter_review']}")
       want = sorted(ann.get("expected_stricter_reasons", []))
       if sorted(sr.get("reasons") or []) != want:
@@ -223,10 +258,22 @@ judges:
           return (False, f"Cannot parse JSON: {e}")
       if data.get("outcome") != "proposal":
           return (True, "Not a proposal -- skipped")
+      import re
       text = (data.get("proposed_summary") or "") + "\n" + (data.get("proposed_description") or "")
-      errors = [f"dropped {s!r}" for s in ann.get("must_keep", []) if s.lower() not in text.lower()]
+      def found(s):
+          # URLs must match exactly; prose ignores case. "3 failed" must not
+          # match inside "13 failed".
+          flags = 0 if s.startswith("http") else re.IGNORECASE
+          return re.search(r"(?<!\w)" + re.escape(s), text, flags) is not None
+      errors = []
+      for entry in ann.get("must_keep", []):
+          options = entry if isinstance(entry, list) else [entry]
+          if not any(found(s) for s in options):
+              errors.append(f"dropped {entry!r}")
       errors += [f"added {s!r}" for s in ann.get("must_not_add", []) if s.lower() in text.lower()]
-      if "AI-generated. Review for accuracy" in (data.get("proposed_description") or ""):
+      # Same matcher as check_card.py's AI_NOTICE_RE.
+      if re.search(r"AI-generated\.\s*Review for accuracy\.?", data.get("proposed_description") or "",
+                   re.IGNORECASE):
           errors.append("kept the AI-generated notice")
       if errors:
           return (False, "; ".join(errors[:5]))
@@ -252,19 +299,31 @@ judges:
       words = len(re.findall(r"[A-Za-z0-9][\w'./:-]*", re.sub(r"https?://\S+", "URL", desc)))
       if ann.get("max_words") and words > ann["max_words"]:
           errors.append(f"{words} words, limit {ann['max_words']}")
-      heading = re.compile(r"^\s*(?:#{1,6}|h[1-6]\.)\s*(.+?)\s*$", re.MULTILINE)
-      marks = list(heading.finditer(desc))
-      for i, m in enumerate(marks):
-          name = m.group(1).lower()
-          if any(k in name for k in ("acceptance criteria", "done when", "exit criteria", "success criteria")):
-              end = marks[i + 1].start() if i + 1 < len(marks) else len(desc)
-              items = [l for l in desc[m.end():end].splitlines() if re.match(r"^(?:[*\-+]|\d+[.)])\s+", l)]
-              if len(items) > 5 and not data.get("gap_comment"):
-                  errors.append(f"{len(items)} criteria and no split proposed")
-      for block in re.findall(r"```[^\n]*\n(.*?)```", desc, re.DOTALL):
+      fence = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
+      for block in fence.findall(desc):
           if len([l for l in block.splitlines() if l.strip()]) > 5:
               errors.append("log or code excerpt over five lines")
-      if any(len(u) > 100 for u in re.findall(r"(?<![(|<])https?://[^\s)\]|>]+", desc)):
+      # Completion headings as in check_card.py; fenced lines are evidence.
+      completion = ("acceptance criteria", "done when", "success criteria",
+                    "validation and acceptance criteria", "definition of done",
+                    "exit criteria", "additional acceptance criteria", "deliverable",
+                    "findings documentation", "follow-up actions")
+      body = fence.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), desc)
+      heading = re.compile(r"^\s*(?:#{1,6}\s+|h[1-6]\.\s+|\*\*)(.+?)(?:\*\*:?)?\s*$", re.MULTILINE)
+      marks = list(heading.finditer(body))
+      split = re.search(r"\bsplit", data.get("gap_comment") or "", re.IGNORECASE)
+      for i, m in enumerate(marks):
+          name = re.sub(r"\s*\([^)]*\)\s*$", "", m.group(1).strip("* :")).lower()
+          if name in completion:
+              end = marks[i + 1].start() if i + 1 < len(marks) else len(body)
+              items = [l for l in body[m.end():end].splitlines() if re.match(r"^(?:[*\-+]|\d+[.)])\s+", l)]
+              if len(items) > 5 and not split:
+                  errors.append(f"{len(items)} criteria and no split proposed in the gap comment")
+      # Raw URLs as in check_card.py: labelled links and <url> don't count.
+      masked = re.sub(r"\[[^\]\n]*\]\((?:[^()\s]|\([^()\s]*\))+\)", "", desc)
+      masked = re.sub(r"\[[^\]|\n]*\|[^\]\s]+\]", "", masked)
+      masked = re.sub(r"<https?://[^>]+>", "", masked)
+      if any(len(u.rstrip(".,;:")) > 100 for u in re.findall(r"https?://[^\s<>()\[\]|]+", masked)):
           errors.append("long raw URL left in place")
       summary = data.get("proposed_summary")
       if summary and not 5 <= len(summary.split()) <= 12:
@@ -316,7 +375,11 @@ judges:
 
       {{ outputs }}
 
-      The input card and the expected judgment:
+      The input card:
+
+      {{ inputs }}
+
+      The expected judgment:
 
       {{ annotations }}
 

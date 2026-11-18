@@ -78,6 +78,28 @@ class EligibilityTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             check_card.check(card(key="OCPBUGS-1"))
 
+    def test_missing_status_is_not_eligible(self):
+        result = check_card.check(card(status=None))
+        self.assertFalse(result["eligible"])
+        self.assertIn("status unknown", result["skip_reason"])
+
+    def test_override_uses_configured_type_name(self):
+        result = check_card.check(card(), supported=["story"])
+        self.assertTrue(result["eligible"])
+        self.assertEqual(result["issue_type"], "Story")
+        self.assertEqual(result["description"]["guidance"], [120, 350])
+
+    def test_override_type_without_template_is_unsupported(self):
+        result = check_card.check(card(issue_type="Epic"), supported=["Story", "Epic"])
+        self.assertFalse(result["eligible"])
+        self.assertFalse(result["supported_type"])
+
+    def test_malformed_field_is_refused(self):
+        for bad in ({"status": {"name": "New"}}, {"labels": "x"}, {"proposed": "x"},
+                    {"proposed": {"description": 3}}):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                check_card.check(card(**bad))
+
 
 class StricterReviewTest(unittest.TestCase):
     def test_label_triggers(self):
@@ -89,6 +111,13 @@ class StricterReviewTest(unittest.TestCase):
                          ["creator"])
         obj = {"displayName": "Chai Bot", "name": "ship-help-jira"}
         self.assertEqual(check_card.check(card(creator=obj))["stricter_review"]["reasons"], ["creator"])
+
+    def test_creator_matches_the_account_exactly(self):
+        for other in ("ship-help-jira-sandbox", {"name": "not-ship-help-jira"}, {"displayName": "ship-help-jira"}):
+            with self.subTest(creator=other):
+                self.assertFalse(check_card.check(card(creator=other))["stricter_review"]["applied"])
+        email = {"emailAddress": "Ship-Help-Jira@example.com"}
+        self.assertTrue(check_card.check(card(creator=email))["stricter_review"]["applied"])
 
     def test_both_signals(self):
         result = check_card.check(card(labels=["ai-generated-jira"], creator="ship-help-jira"))
@@ -170,6 +199,23 @@ class DescriptionFactsTest(unittest.TestCase):
         self.assertIn("Done when", result["sections"])
         self.assertEqual(result["description"]["guidance"], [100, 350])
 
+    def test_task_scope_is_conditional(self):
+        result = check_card.check(card(issue_type="Task", description="Goal: x\n\nDone when:\n* y\n"))
+        self.assertEqual(result["sections"]["Scope"],
+                         {"required": False, "heading_found": False, "required_when": "multi-step work"})
+        self.assertTrue(result["sections"]["Done when"]["required"])
+
+    def test_spike_deliverable_counts_as_completion_list(self):
+        items = "\n".join(f"* outcome {i}" for i in range(6))
+        result = check_card.check(card(issue_type="Spike", description=f"Q?\n\n## Deliverable\n{items}\n"))
+        self.assertTrue(any(f.startswith("C2:") for f in result["rubric_flags"]))
+
+    def test_fenced_lines_are_not_criteria_or_headings(self):
+        items = "\n".join(f"* outcome {i}" for i in range(5))
+        desc = f"S.\n\n## Acceptance Criteria\n{items}\n\n```\n* log line\n# not a heading\n```\n"
+        result = check_card.check(card(description=desc))
+        self.assertEqual([lst["items"] for lst in result["completion_lists"]], [5])
+
 
 class PreservationTest(unittest.TestCase):
     ORIGINAL = (
@@ -207,6 +253,27 @@ class PreservationTest(unittest.TestCase):
         self.assertEqual(result["missing_identifiers"], ["GCPInstanceNotFound"])
         self.assertEqual(result["missing_numbers"], ["7"])
         self.assertTrue(result["passed"])
+
+    def test_hyphenated_threshold_is_a_number(self):
+        result = check_card.check(card(description="Use a 24-hour default for TRT-12 since 2026-10-02.\n",
+                                       proposed={"description": "Use a 48-hour default.\n"}))
+        self.assertEqual(result["preservation"]["missing_numbers"], ["24"])
+
+    def test_link_destination_with_parentheses_is_compared_whole(self):
+        before = "[run](https://example.test/a(v1)/old)\n"
+        changed = check_card.check(card(description=before,
+                                        proposed={"description": "[run](https://example.test/a(v1)/new)\n"}))
+        self.assertEqual(changed["preservation"]["missing_links"], ["https://example.test/a(v1)/old"])
+        caption = check_card.check(card(description=before,
+                                        proposed={"description": "[the run](https://example.test/a(v1)/old)\n"}))
+        self.assertEqual(caption["preservation"]["missing_links"], [])
+
+    def test_attribution_must_be_the_last_line(self):
+        moved = ("Requested by Some One via Chai Bot in #trt\n\nRescan does not refresh labels "
+                 "(TRT-77, [run](https://prow.example/run/9)).\n")
+        result = self.compare(moved)
+        self.assertFalse(result["attribution_kept"])
+        self.assertFalse(result["passed"])
 
     def test_list_ordinals_are_not_numbers(self):
         result = check_card.check(card(description="S.\n\n## Acceptance Criteria\n1. a in 30 days\n2. b\n",
@@ -262,6 +329,9 @@ class CliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
         self.assertIn("error", json.loads(proc.stdout))
         self.assertEqual(self.run_cli("[]").returncode, 1)
+        proc = self.run_cli(json.dumps(card(status={"name": "New"})))
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("status", json.loads(proc.stdout)["error"])
 
 
 if __name__ == "__main__":

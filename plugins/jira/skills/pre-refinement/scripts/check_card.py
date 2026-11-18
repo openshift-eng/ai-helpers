@@ -21,7 +21,7 @@ Input:
       "summary": "...",
       "description": "...",
       "labels": ["..."],
-      "creator": "ship-help-jira",        # string, or {"name"/"displayName"/...}
+      "creator": "ship-help-jira",        # string, or {"name"/"emailAddress"/...}
       "proposed": {"summary": "...", "description": "..."}   # optional
     }
 
@@ -59,9 +59,10 @@ PROJECTS = {
             "Ticket": (100, 350),
             "Spike": (80, 250),
         },
-        # Recommended headings that count for each required section. A card can
-        # also satisfy a section with prose and no heading, so a missing heading
-        # is a hint for the reviewer, not a verdict.
+        # Recommended headings that count for each section, and whether the
+        # section is required (True, False, or the condition that requires it).
+        # A card can also satisfy a section with prose and no heading, so a
+        # missing heading is a hint for the reviewer, not a verdict.
         "sections": {
             "Story": {
                 "Statement": (True, ["User story", "Problem", "Summary", "Goal"]),
@@ -86,7 +87,7 @@ PROJECTS = {
             },
             "Task": {
                 "Goal": (True, ["Goal", "Purpose", "Problem", "Summary", "Why", "Ask", "Origin"]),
-                "Scope": (False, ["Scope", "Action required", "Implementation plan",
+                "Scope": ("multi-step work", ["Scope", "Action required", "Implementation plan",
                                   "Current behavior and scope", "Suggested remediation"]),
                 "Done when": (True, ["Acceptance criteria", "Done when"]),
             },
@@ -94,7 +95,8 @@ PROJECTS = {
         # Headings whose lists are completion conditions (rubric check C2).
         "completion_headings": ["Acceptance criteria", "Done when", "Success criteria",
                                 "Validation and acceptance criteria", "Definition of done",
-                                "Exit criteria", "Additional acceptance criteria"],
+                                "Exit criteria", "Additional acceptance criteria", "Deliverable",
+                                "Findings documentation", "Follow-up actions"],
         "max_completion_items": 5,
         "max_log_lines": 5,
         "max_raw_url_chars": 100,
@@ -107,20 +109,30 @@ HEADING_RE = re.compile(
     re.MULTILINE,
 )
 FENCE_RE = re.compile(r"```[^\n]*\n(.*?)```|\{(?:code|noformat)[^}]*\}(.*?)\{(?:code|noformat)\}", re.DOTALL)
-MD_LINK_RE = re.compile(r"\[[^\]\n]*\]\((https?://[^)\s]+)\)")
+# A Markdown link destination may contain one level of balanced parentheses.
+MD_LINK_RE = re.compile(r"\[[^\]\n]*\]\((https?://(?:[^()\s]|\([^()\s]*\))+)\)")
 WIKI_LINK_RE = re.compile(r"\[[^\]|\n]*\|(https?://[^\]\s]+)\]")
 URL_RE = re.compile(r"https?://[^\s<>()\[\]|]+")
 ISSUE_KEY_RE = re.compile(r"\b[A-Z][A-Z0-9]+-\d+\b")
 CODE_SPAN_RE = re.compile(r"`([^`\n]+)`")
-NUMBER_RE = re.compile(r"(?<![\w.-])\d+(?:\.\d+)*%?(?![\w-])")
+# A number may carry a hyphenated unit ("24-hour"), but not continue into a
+# range, date or identifier ("3-5", "2026-10-02").
+NUMBER_RE = re.compile(r"(?<![\w.-])\d+(?:\.\d+)*%?(?!\w|-\d)")
 TOP_ITEM_RE = re.compile(r"^(?:[*\-+]|\d+[.)]|#)\s+")
 NESTED_ITEM_RE = re.compile(r"^(?:\s{2,}(?:[*\-+]|\d+[.)])|\*\*+|##+)\s+")
 
 
-def creator_text(creator) -> str:
-    if isinstance(creator, dict):
-        return " ".join(str(creator.get(k) or "") for k in ("name", "displayName", "emailAddress", "accountId"))
-    return str(creator or "")
+def creator_ids(creator) -> List[str]:
+    """Normalized identifiers of the card's creator: account name, key, email local part."""
+    values = ([creator.get(k) for k in ("name", "key", "emailAddress")] if isinstance(creator, dict)
+              else [creator])
+    return [str(v).strip().lower().split("@")[0] for v in values if isinstance(v, str) and v.strip()]
+
+
+def mask_fences(text: str) -> str:
+    """Blank fenced code and log blocks, keeping offsets, so their lines are
+    never read as headings or list items."""
+    return FENCE_RE.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
 
 
 def normalize(name: str) -> str:
@@ -133,6 +145,7 @@ def headings(text: str) -> List[Tuple[str, int, int]]:
     """Return (normalized heading, start, end-of-line) for each heading line."""
     # In Jira wiki markup ("h2. Heading"), lines starting with "#" are ordered
     # list items, not Markdown headings.
+    text = mask_fences(text)
     wiki = re.search(r"^\s*h[1-6]\.\s", text, re.MULTILINE) is not None
     found = []
     for m in HEADING_RE.finditer(text):
@@ -145,6 +158,7 @@ def headings(text: str) -> List[Tuple[str, int, int]]:
 
 def section_bodies(text: str, names: List[str]) -> List[Tuple[str, str]]:
     wanted = {normalize(n) for n in names}
+    text = mask_fences(text)
     marks = headings(text)
     bodies = []
     for i, (name, _, end) in enumerate(marks):
@@ -224,7 +238,7 @@ def stricter_review(labels: List[str], creator) -> dict:
     reasons = []
     if ASSISTANT_LABEL in labels:
         reasons.append("label")
-    if ASSISTANT_ACCOUNT in creator_text(creator).lower():
+    if ASSISTANT_ACCOUNT in creator_ids(creator):
         reasons.append("creator")
     return {"applied": bool(reasons), "reasons": reasons}
 
@@ -235,7 +249,9 @@ def eligibility(card: dict, conf: dict, label: str, supported: List[str]) -> Tup
     if label in (card.get("labels") or []):
         return False, f"already labelled {label}", is_supported
     status = card.get("status")
-    if status and status.lower() != conf["eligible_status"].lower():
+    if not status:
+        return False, f"status unknown; cannot confirm it is {conf['eligible_status']}", is_supported
+    if status.lower() != conf["eligible_status"].lower():
         return False, f"status is {status}, not {conf['eligible_status']}", is_supported
     if not is_supported:
         return False, f"unsupported type: {issue_type or 'unknown'}", is_supported
@@ -270,7 +286,10 @@ def describe(card: dict, conf: dict, issue_type: str, strict: bool) -> dict:
     present = {name for name, _, _ in headings(description)}
     for section, (required, synonyms) in conf["sections"].get(issue_type, {}).items():
         names = {normalize(section)} | {normalize(s) for s in synonyms}
-        result["sections"][section] = {"required": required, "heading_found": bool(names & present)}
+        entry = {"required": required is True, "heading_found": bool(names & present)}
+        if isinstance(required, str):
+            entry["required_when"] = required
+        result["sections"][section] = entry
 
     flags = []
     for lst in result["completion_lists"]:
@@ -303,6 +322,7 @@ def preservation(original: dict, proposed: dict, conf: dict) -> dict:
         return [x for x in extract(combined_before) if x not in kept]
 
     attribution = ATTRIBUTION_RE.search(before)
+    lines = [ln.strip() for ln in after.splitlines() if ln.strip()]
     after_items = [lst["items"] for lst in completion_lists(after, conf)]
     before_words, after_words = word_count(before), word_count(after)
     result = {
@@ -310,7 +330,8 @@ def preservation(original: dict, proposed: dict, conf: dict) -> dict:
         "missing_issue_keys": missing(lambda t: sorted(set(ISSUE_KEY_RE.findall(t)))),
         "missing_identifiers": missing(lambda t: sorted(set(CODE_SPAN_RE.findall(t)))),
         "missing_numbers": missing(numbers),
-        "attribution_kept": (attribution.group(0).strip() in after) if attribution else None,
+        # The attribution must stay verbatim as the description's last line.
+        "attribution_kept": (bool(lines) and lines[-1] == attribution.group(0).strip()) if attribution else None,
         "ai_notice_removed": not AI_NOTICE_RE.search(after),
         "completion_items": after_items,
         "completion_over_limit": any(n > conf["max_completion_items"] for n in after_items),
@@ -333,15 +354,41 @@ def preservation(original: dict, proposed: dict, conf: dict) -> dict:
     return result
 
 
+STRING_FIELDS = ("key", "issue_type", "status", "summary", "description")
+
+
+def validate(card: dict) -> None:
+    """Reject field values of the wrong type with a ValueError (a JSON error record)."""
+    for field in STRING_FIELDS:
+        if card.get(field) is not None and not isinstance(card[field], str):
+            raise ValueError(f"'{field}' must be a string or null")
+    labels = card.get("labels")
+    if labels is not None and not (isinstance(labels, list) and all(isinstance(x, str) for x in labels)):
+        raise ValueError("'labels' must be a list of strings or null")
+    creator = card.get("creator")
+    if creator is not None and not isinstance(creator, (str, dict)):
+        raise ValueError("'creator' must be a string, an object or null")
+    proposed = card.get("proposed")
+    if proposed is not None:
+        if not isinstance(proposed, dict):
+            raise ValueError("'proposed' must be an object or null")
+        for field in ("summary", "description"):
+            if proposed.get(field) is not None and not isinstance(proposed[field], str):
+                raise ValueError(f"'proposed.{field}' must be a string or null")
+
+
 def check(card: dict, label: str = DEFAULT_LABEL, supported: Optional[List[str]] = None,
           project: Optional[str] = None) -> dict:
     project = project or (card.get("key") or "").split("-")[0] or "TRT"
     conf = PROJECTS.get(project.upper())
     if conf is None:
         raise ValueError(f"no pre-refinement conventions for project {project}")
-    supported = supported or conf["supported_types"]
-    issue_type = next((t for t in supported if t.lower() == (card.get("issue_type") or "").lower()),
-                      card.get("issue_type") or "")
+    validate(card)
+    # Only types with a template in the conventions can be reviewed; match an
+    # override without regard to case and use the configured name.
+    templates = {t.lower(): t for t in conf["guidance"]}
+    supported = [templates[t.lower()] for t in (supported or conf["supported_types"]) if t.lower() in templates]
+    issue_type = templates.get((card.get("issue_type") or "").lower(), card.get("issue_type") or "")
     eligible, reason, is_supported = eligibility(card, conf, label, supported)
     strict = stricter_review(card.get("labels") or [], card.get("creator"))
     result: Dict = {
@@ -354,7 +401,7 @@ def check(card: dict, label: str = DEFAULT_LABEL, supported: Optional[List[str]]
     }
     if is_supported:
         result.update(describe(card, conf, issue_type, strict["applied"]))
-        if isinstance(card.get("proposed"), dict):
+        if card.get("proposed") is not None:
             result["preservation"] = preservation(card, card["proposed"], conf)
             proposed = dict(card, summary=card["proposed"].get("summary") or card.get("summary"))
             if card["proposed"].get("description") is not None:

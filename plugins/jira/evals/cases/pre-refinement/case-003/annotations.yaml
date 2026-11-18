@@ -1,8 +1,10 @@
+expected_key: TRT-9003
 expected_outcome: proposal
 expected_readiness: ready
 expected_stricter_review: false
 expected_stricter_reasons: []
 expected_duplicate_of: null
+expected_related: [TRT-8811]
 must_keep:
   - "1987654321098765432"
   - "GCPInstanceNotFound"
@@ -25,6 +27,7 @@ ground_truth: |
   marked as unconfirmed. The summary names the symptom and where it occurs,
   for example "Test details rescan does not refresh labels". Stating the
   cause as fact, dropping the run ID or either new label, or changing the
-  link target is a failure. TRT-8811 is a different defect (a timeout), so it
-  is neither a duplicate nor necessary to mention.
+  link target is a failure. TRT-8811 concerns the same job-run scanner but is
+  a different defect (a timeout that writes no labels), so it is related, not
+  a duplicate.
 notes: Worked example E5 (narrative bug with a log dump), dropped from trt.md in review.

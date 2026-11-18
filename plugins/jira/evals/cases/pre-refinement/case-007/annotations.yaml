@@ -1,3 +1,4 @@
+expected_key: TRT-9007
 expected_outcome: no_change
 acceptable_outcomes: [no_change, proposal]
 expected_readiness: ready

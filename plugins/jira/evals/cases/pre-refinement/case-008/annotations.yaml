@@ -1,3 +1,4 @@
+expected_key: TRT-9008
 expected_outcome: proposal
 expected_readiness: ready
 expected_stricter_review: true
@@ -7,7 +8,7 @@ expected_related: [TRT-8950]
 must_keep:
   - "As a component team engineer"
   - "Copied"
-  - "two seconds"
+  - ["two seconds", "2 seconds"]
   - "existing button component"
   - "keyboard"
   - "out of scope"

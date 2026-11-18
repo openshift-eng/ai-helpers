@@ -18,7 +18,8 @@ mode, augments the issue).
 
 Whether `jira:pre-refinement` (dry-run) picks the right outcome for a TRT card,
 applies the stricter review to assistant-drafted cards, and proposes concise
-cards that keep every fact, criterion, link and boundary.
+cards that keep every criterion, link, boundary and fact the card relies on,
+while removing evidence and plans the rubric allows it to remove (C4, C5).
 
 | Case | Description |
 |------|-------------|

@@ -1,8 +1,10 @@
+expected_key: TRT-9001
 expected_outcome: no_change
 expected_readiness: ready
 expected_stricter_review: false
 expected_stricter_reasons: []
 expected_duplicate_of: null
+expected_related: [TRT-8790]
 ground_truth: |
   A well-refined Story: a user-story sentence, three testable acceptance
   criteria, and short context whose evidence is marked unverified. It is under

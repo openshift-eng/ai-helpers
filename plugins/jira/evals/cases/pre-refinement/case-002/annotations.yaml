@@ -1,3 +1,4 @@
+expected_key: TRT-9002
 expected_outcome: proposal
 expected_stricter_review: true
 expected_stricter_reasons: [label, creator]
@@ -34,10 +35,11 @@ ground_truth: |
   most five observable outcomes that keep every threshold (24 hours, 72 hours,
   3 failed deliveries), the #trt-alert fallback, handoffs, configurable
   thresholds and channel, and reuse by another team through configuration
-  only; replaces the search findings and option comparison with the decision
-  (requests stored in Sippy's database with a periodic job) and its reason
-  (reminders must know whether a request has a response), and drops the
-  dated file list with it (its paths are not facts the card relies on); keeps both
+  only; replaces the search findings and option comparison with the
+  preferred option (requests stored in Sippy's database with a periodic job)
+  and its reason (reminders must know whether a request has a response),
+  still marked as preferred, with the storage approach left to design (said
+  once, not as a decision), and drops the dated file list with it (its paths are not facts the card relies on); keeps both
   boundaries (no changes to the on-call schedule; PagerDuty paging out of
   scope) once; keeps TRT-9050 and the PR link; keeps the attribution line;
   and drops the AI-generated notice. A gap comment proposing a split

@@ -118,7 +118,7 @@ card so it is reviewed once. Uses the project's conventions file (TRT today: [re
 
 **Usage:**
 ```bash
-# Review this week's new TRT cards, confirming each change
+# Review new TRT cards from the last 30 days, confirming each change
 /jira:pre-refinement
 
 # Assess specific cards without writing anything

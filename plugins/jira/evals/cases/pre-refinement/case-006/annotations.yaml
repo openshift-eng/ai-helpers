@@ -1,7 +1,9 @@
+expected_key: TRT-9006
 expected_outcome: duplicate
 expected_stricter_review: false
 expected_stricter_reasons: []
 expected_duplicate_of: TRT-9100
+expected_related: [TRT-9120]
 ground_truth: |
   The card re-files TRT-9100: the same alert (no accepted payload on a nightly
   stream for 24 hours), the same channel, and the same contents. Finishing one

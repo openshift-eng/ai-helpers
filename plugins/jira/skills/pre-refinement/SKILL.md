@@ -37,23 +37,28 @@ location. If it can't be found, stop: never review cards from memory.
 
 - `ISSUE_KEY ...`: review only these cards. They still go through the
   eligibility checks.
-- `--jql`: select cards with this query instead. Default, for TRT:
+- `--jql`: select cards with this query instead. Default, for TRT, with
+  `<label>` replaced by the `--label` value:
   ```text
   project = TRT AND status = New AND created >= -30d
-  AND (labels is EMPTY OR labels not in (ai-pre-refined)) ORDER BY created ASC
+  AND (labels is EMPTY OR labels not in (<label>)) ORDER BY created ASC
   ```
   Keep the `labels is EMPTY OR labels not in (...)` form: `labels != x` drops
   cards with no labels at all.
 - `--label`: the label that marks a pre-refined card. Default `ai-pre-refined`.
+  Use the same value in the query, the checker (`--label`) and every label
+  write.
 - `--supported-types`: issue types to review. Default: the conventions file's
-  list (TRT: Story, Bug, Spike, Task, Ticket). Other types are reported as
+  list (TRT: Story, Bug, Spike, Task, Ticket). Other types, including any
+  listed type the conventions file has no template for, are reported as
   `unsupported`.
 - `--mode` (default `confirm`):
   - **propose**: stage one proposal per card through the caller's approval
     framework, and write only what a person approves. For scheduled runs.
   - **confirm**: interactive. Show each card's proposal and write it only
     after the user confirms that card.
-  - **dry-run**: assess and report, with no Jira writes and no proposals.
+  - **dry-run**: assess and report, including each card's full draft, without
+    staging proposals or writing to Jira.
 
 No mode grants permissions. Every write goes through the session's normal
 authorization; if one is denied or needs an approval the run cannot get,
@@ -73,7 +78,7 @@ whichever column the session provides:
 | Stage a proposal (propose mode) | `check_proposal`, `make_proposal`, then `send_response` | not available; use confirm mode |
 | Replace summary or description, or set labels | `priv_jira_update_issue` (pass the description inline, never by buffer ID, so approvers see it) | `editJiraIssue` |
 | Post the gap comment | `comment_on_jira_issue` | `addCommentToJiraIssue` |
-| Close as duplicate (link, close, comment, label in one step) | `priv_jira_close_duplicate` with `add_label` and `expected_status: New` | `createIssueLink` (type `Duplicate`), `getTransitionsForJiraIssue`, `transitionJiraIssue` with resolution `Duplicate`, `addCommentToJiraIssue`, then `editJiraIssue` for the label |
+| Close as duplicate (link, close, comment, label in one step) | `priv_jira_close_duplicate` with `add_label` and `expected_status: New` | In this order: `createIssueLink` (type `Duplicate`), `addCommentToJiraIssue`, `editJiraIssue` for the label, then `getTransitionsForJiraIssue` and `transitionJiraIssue` with resolution `Duplicate` (see "Partial duplicate closure") |
 | Load another skill | `find_skills`, `get_skill` | the Skill tool |
 
 Writing `labels` replaces the whole list. Re-read the card's labels right
@@ -98,14 +103,16 @@ jq -n --arg key "$KEY" --arg type "$TYPE" --arg status "$STATUS" \
 
 It reports:
 
-- `eligible` and `skip_reason`: already labelled, past the eligible status, or
-  an unsupported type.
+- `eligible` and `skip_reason`: already labelled, past the eligible status (or
+  no status, so New can't be confirmed), or an unsupported type.
 - `stricter_review`: whether the assistant-drafted review applies, and why
   (`label`, `creator`). It uses the creator, never the reporter.
 - `description.words`, `guidance`, `position` (below, within, above,
   over_twice), and `target` (the lower half) under the stricter review.
 - `sections`: whether a recommended heading was found for each template
-  section. A missing heading is a hint: a card can satisfy a section in prose.
+  section, and whether the section is required (`required_when` names a
+  condition, such as Scope for multi-step Task work). A missing heading is a
+  hint: a card can satisfy a section in prose.
 - `rubric_flags`: completion lists over five items (C2), nested sub-items,
   more than one criteria list, long log excerpts and long raw URLs (C4), and
   length over twice the guidance.
@@ -114,7 +121,7 @@ It reports:
 With `"proposed": {"summary": ..., "description": ...}` added to the input it
 also reports `preservation`: link targets and issue keys the proposal dropped
 (each fails the check), code identifiers and numbers it dropped (advisory),
-whether the attribution line survived, whether the AI-generated notice was
+whether the attribution line survived as the last line, whether the AI-generated notice was
 removed, the proposal's completion-list sizes and own `proposal_rubric_flags`,
 and the word reduction.
 
@@ -123,8 +130,10 @@ every `missing_identifiers` and `missing_numbers` entry is accounted for: it
 went with content a rubric check removed (a log excerpt reduced under C4,
 search findings or an option comparison cut under C5), and the change notes
 say so. A criterion, a constraint, a value the refined card still relies on
-(a threshold, limit, version or date), an error string, or a test or job name
-is never accounted for this way; restore it.
+(a threshold, limit, version or date), or the one representative example C4
+keeps for each distinct symptom (its run ID, error string, test or job name)
+is never accounted for this way; restore it. The same details in a redundant
+example of a symptom the card already documents may go with that example.
 Otherwise fix the proposal. If the check can't run, review by hand against the
 preservation rules and say so in the report.
 
@@ -194,8 +203,11 @@ For a `proposal`:
   supplying a benefit, criterion, cause, scope or decision the card lacks is
   not. Keep "unverified" and "unconfirmed" markers next to their claims. Keep
   the attribution line verbatim at the end, and leave out any existing
-  "AI-generated. Review for accuracy." notice (chai-bot's writing tool adds
-  exactly one).
+  "AI-generated. Review for accuracy." notice from the draft: chai-bot's
+  writing tool adds exactly one. `editJiraIssue` stores text unchanged, so on
+  the Atlassian MCP path append `_AI-generated. Review for accuracy._` as the
+  description's last line when writing, after the preservation check; both
+  paths then store exactly one notice.
 - Never move content into a comment to shorten the description.
 - Write the description in Markdown (see `reference/markdown-for-jira.md`).
 - Run the preservation check (above) and fix the draft until it passes.
@@ -214,7 +226,8 @@ Report every card, including skipped and unsupported ones: counts by outcome,
 then one line per card with its link, outcome, readiness, and whether the
 stricter review applied and why. Say plainly when no card needed a change.
 
-- **dry-run**: the report, plus each card's full proposal, is the result.
+- **dry-run**: the report, plus each card's full draft, is the result. Nothing
+  is staged or written.
 - **confirm**: show each card's proposal in full (summary, description, gap
   comment, change notes) and ask for a decision on that card. Apply only what
   the user accepts.
@@ -223,15 +236,26 @@ stricter review applied and why. Say plainly when no card needed a change.
   duplicate. Show the full proposed text in each proposal, not a reference
   to it.
 
+In confirm and propose modes, say with each card that rejecting the proposal
+still adds the label: the label records that a person reviewed the card, so
+it isn't proposed again every week. A person who wants the card reviewed again
+removes the label.
+
 ### 6. Apply decisions
 
-Before writing anything to a card, re-read it. If it already has the label, or
-its summary or description changed since the proposal, apply nothing, and say
-the proposal is stale.
+Before writing anything to a card, re-read it. If it already has the label, is
+no longer New, or its summary or description changed since the proposal,
+apply nothing, and say the proposal is stale.
+
+Before a duplicate closure, also re-read the target. If the target is now
+resolved as a duplicate itself, or this run has closed or is about to close
+the target as a duplicate (two cards proposed as duplicates of each other),
+close neither: report the card `blocked` and leave it open for a person to
+decide. A target closed as Done or Won't Do still counts, as in step 2.
 
 | Card outcome | On approval | On rejection | No decision |
 |---|---|---|---|
-| `proposal` | Write summary and description, post the gap comment, add the label, read back | Add the label | Nothing; reviewed again next run |
+| `proposal` | Write summary and description, post the gap comment, add the label, read back | Add the label (the decision is the review) | Nothing; reviewed again next run |
 | `gaps_only` | Post the gap comment, add the label, read back | Add the label | Nothing |
 | `no_change` | Add the label | Add the label | Nothing |
 | `duplicate` | Close as duplicate with the label (one step on chai-bot), read back | Not a duplicate: review the card normally (steps 3–5) and present that proposal. Add no label yet | Nothing |
@@ -240,8 +264,18 @@ the proposal is stale.
 Write in this order: description and summary, then the comment, then the
 label, then read the card back and confirm each change before reporting it.
 After an uncertain write, read back before doing anything else; never retry a
-write blindly. If an effect can't be confirmed, report `blocked` for that card
-and stop writing to it.
+write blindly. If an effect can't be confirmed, report `blocked` for that card,
+list which effects were confirmed and which are missing, and stop writing to
+it.
+
+**Partial duplicate closure.** On the Atlassian MCP path the closure is
+several writes, ordered so the transition, which takes the card out of New,
+comes last. If a write fails part way, the report lists the confirmed effects
+(link, comment, label, transition). To finish, run confirm mode with the
+card's key: re-read the card, and if it shows this workflow's duplicate link
+or comment, ask the user to approve only the missing writes. This completion
+is the one case that may write to a card that is labelled or no longer New.
+Never repeat a link, comment or transition already on the card.
 
 Never change priority, story points, assignee, status (except a duplicate
 closure), components, fix versions or delivery commitments. Never write to a
@@ -292,7 +326,7 @@ optional otherwise.
 ## Examples
 
 ```bash
-# Review this week's new TRT cards, confirming each change
+# Review new TRT cards from the last 30 days, confirming each change
 /jira:pre-refinement
 
 # Assess two cards without writing anything
