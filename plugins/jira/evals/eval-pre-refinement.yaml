@@ -228,7 +228,7 @@ judges:
       import json
       ann = outputs.get("annotations", {})
       if "expected_links" not in ann:
-          return (True, "No expected_links -- skipped")
+          return (False, "Case has no expected_links annotation")
       files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
       found = [v for k, v in files.items() if k.endswith("result.json")]
       if not found:
@@ -238,8 +238,10 @@ judges:
       except Exception as e:
           return (False, f"Cannot parse JSON: {e}")
       links = data.get("proposed_links") or []
-      if not isinstance(links, list) or not all(isinstance(l, dict) for l in links):
-          return (False, "proposed_links is not a list of objects")
+      if not isinstance(links, list) or not all(
+              isinstance(l, dict) and all(isinstance(l.get(f), str) for f in ("key", "link_type", "rationale"))
+              for l in links):
+          return (False, "proposed_links is not a list of {key, link_type, rationale} strings")
       errors = []
       keys = [l.get("key") for l in links]
       if sorted(set(keys)) != sorted(ann["expected_links"]):
@@ -433,12 +435,16 @@ judges:
                criterion, cause, scope or decision the card lacks) or drops a
                criterion, link, boundary or "unconfirmed" marker.
       Score 2: Right outcome, but the proposal weakens a criterion, misses an
-               obvious rubric failure, or the gap comment is vague ("add more
-               detail").
+               obvious rubric failure, the gap comment is vague ("add more
+               detail"), or a proposed link's rationale only says the cards
+               are related without saying how (follow-up, prerequisite, same
+               component, same symptom with a different cause).
       Score 3: Right outcome and faithful, but noticeably wordier than needed
                or with gap questions that are hard to answer.
       Score 4: Right outcome; concise and faithful; gap questions are concrete
-               and addressed to the reporter; change notes say what was kept.
+               and addressed to the reporter; change notes say what was kept;
+               each proposed link's rationale names the relationship, in any
+               wording.
       Score 5: As 4, and every rubric verdict cites the specific text it
                judged. A no-change or gaps-only outcome explains, check by
                check, why a rewrite would not help.

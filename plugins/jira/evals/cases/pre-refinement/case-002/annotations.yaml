@@ -10,7 +10,7 @@ must_keep:
   - "24 hours"
   - "72 hours"
   - "#trt-alert"
-  - ["3 failed deliver", "3 failures", "three failed"]
+  - ["3 failed deliver", "three failed deliver", "after 3 failures", "after three failures"]
   - "PagerDuty"
   - "TRT-9050"
   - "https://github.com/openshift/sippy/pull/4321"

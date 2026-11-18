@@ -284,7 +284,9 @@ Write in this order: description and summary, then the comment, then the
 label, then read the card back and confirm each change before reporting it.
 Write approved links after the card's own writes. Before each link, re-read
 both cards: if either can't be read or they are already linked, create
-nothing and say so.
+nothing and say so. The card's stale check above doesn't apply to a link: a
+label, edit or status change, by this run or anyone else, doesn't change
+whether the two cards are related.
 After an uncertain write, read back before doing anything else; never retry a
 write blindly. If an effect can't be confirmed, report `blocked` for that card,
 list which effects were confirmed and which are missing, and stop writing to
