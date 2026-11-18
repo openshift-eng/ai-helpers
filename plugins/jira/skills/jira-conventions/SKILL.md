@@ -1,6 +1,6 @@
 ---
 name: jira-conventions
-description: Project and team-specific Jira conventions for CNTRLPLANE, OCPBUGS, GCP, HyperShift, and hosted control plane issues
+description: Project and team-specific Jira conventions for CNTRLPLANE, OCPBUGS, GCP, TRT, HyperShift, and hosted control plane issues. Use when creating or refining an issue in one of these projects or teams.
 ---
 
 # Jira Conventions Router
@@ -18,6 +18,7 @@ Match on project key, component, or summary keywords. Load the corresponding ref
 | **CNTRLPLANE** | Red Hat OpenShift Control Planes — features, epics, stories, tasks | [CNTRLPLANE conventions](../../reference/cntrlplane.md) |
 | **OCPBUGS** | OpenShift Bugs — bug reports only | [OCPBUGS conventions](../../reference/ocpbugs.md) |
 | **GCP** | GCP Hosted Control Planes (Hypershift on GKE) — stories, epics, tasks, bugs, features | [GCP HCP conventions](../../reference/gcp-hcp.md) |
+| **TRT** | Technical Release Team — story, bug, spike, task and ticket templates, readiness criteria, concision rubric | [TRT conventions](../../reference/trt.md) |
 
 ### By Team / Keywords
 
@@ -42,4 +43,5 @@ After identifying the matching conventions:
 1. **Read** the linked reference file(s)
 2. **Apply** project-specific custom fields, version handling, and component requirements
 3. **Layer** team-specific conventions if keywords match (component selection, labels, templates)
-4. **Defer** to the `create` skill for issue-type guidance (story template, bug template, etc.)
+4. **Defer** to the `create` skill for issue-type guidance (story template, bug template, etc.), except where a loaded project or team reference defines its own template or requirement for that issue type: the reference wins on any conflict.
+   * For example, a reference that makes a Spike's time box recommended (not required) means a Spike may be created or refined without one.
