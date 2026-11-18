@@ -3,7 +3,7 @@ card:
   key: TRT-9004
   issue_type: Spike
   status: New
-  summary: Investigate automating release metadata
+  summary: Investigate keeping release metadata in sync automatically
   labels: []
   creator: trt-engineer-c
   description: |

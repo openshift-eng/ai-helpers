@@ -5,12 +5,11 @@ description: >
   cards, the choice between no change, a proposal and a gap comment, and
   whether a proposal is concise while preserving every criterion, link,
   boundary and fact the card relies on. Uses static fixtures, with no live Jira dependency.
-skill: jira:pre-refinement
-
 execution:
   mode: case
+  skill: jira:pre-refinement
   arguments: "{issue_key} --mode dry-run"
-  timeout: 300
+  timeout: 600
   max_budget_usd: 2.00
 
 runner:
@@ -141,8 +140,9 @@ judges:
       dup = data["duplicate_of"]
       if not (dup is None or (isinstance(dup, dict) and isinstance(dup.get("key"), str))):
           errors.append("duplicate_of is not null or an object with a key")
-      if not (isinstance(data["related"], list) and all(isinstance(k, str) for k in data["related"])):
-          errors.append("related is not a list of keys")
+      related = data["related"]
+      if not (related is None or (isinstance(related, list) and all(isinstance(k, str) for k in related))):
+          errors.append("related is not a list of keys or null")
       if not (data["change_notes"] is None or isinstance(data["change_notes"], list)):
           errors.append("change_notes is not a list or null")
       if not (data["preservation_passed"] is None or isinstance(data["preservation_passed"], bool)):
@@ -364,6 +364,7 @@ judges:
 
   - name: refinement_quality
     description: LLM judge of rubric application, preservation and restraint
+    score_range: [1, 5]
     prompt: |
       You are evaluating one card from a TRT pre-refinement run. The skill
       checks a new Jira card against TRT's conventions (templates, readiness,

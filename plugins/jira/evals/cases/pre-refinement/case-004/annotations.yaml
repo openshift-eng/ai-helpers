@@ -9,7 +9,8 @@ gap_comment_mentions_any: [produce, deliverable, recommendation, design doc, exi
 ground_truth: |
   A Spike with its question (how to stop release metadata drifting) and
   context (hand-maintained spreadsheet, copied separately by Sippy and the
-  release tooling) present and concise, but no exit criteria or deliverable.
+  release tooling) present and concise, and a summary within the rules, but
+  no exit criteria or deliverable.
   A missing timebox is not a gap for TRT.
 
   Correct: gaps only, needs info, no description change. The gap comment asks
