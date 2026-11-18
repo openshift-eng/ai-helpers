@@ -17,18 +17,19 @@ mode, augments the issue).
 ## pre-refinement (`cases/pre-refinement`)
 
 Whether `jira:pre-refinement` (dry-run) picks the right outcome for a TRT card,
-applies the stricter review to assistant-drafted cards, and proposes concise
-cards that keep every criterion, link, boundary and fact the card relies on,
-while removing evidence and plans the rubric allows it to remove (C4, C5).
+applies the stricter review to assistant-drafted cards, proposes links only to
+related cards not yet linked, and proposes concise cards that keep every
+criterion, link, boundary and fact the card relies on, while removing evidence
+and plans the rubric allows it to remove (C4, C5).
 
 | Case | Description |
 |------|-------------|
-| case-001 | Well-refined Story: no change |
+| case-001 | Well-refined Story, related card already linked: no change, no link |
 | case-002 | Wordy generated Story (label and creator): condense to five criteria |
 | case-003 | Narrative Bug with a log dump and a raw URL: restructure, keep evidence |
 | case-004 | Spike without exit criteria: gap comment only |
 | case-005 | Epic: unsupported type |
 | case-006 | Re-filed card: duplicate of a closed card, not of a related one |
-| case-007 | Follow-up card: related, not a duplicate |
+| case-007 | Follow-up card: related, not a duplicate; propose a link to it |
 | case-008 | Borderline generated Story (creator only): stricter bar forces a proposal |
 | case-009 | Already pre-refined: skipped |

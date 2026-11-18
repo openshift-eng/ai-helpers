@@ -8,7 +8,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 📊 **Status Rollups** - Generate comprehensive status rollup comments for any Jira issue given a date range
 - 📝 **Weekly Status Updates** - Automate weekly status summary updates with intelligent activity analysis and color-coded health indicators
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
-- ✂️ **Pre-refinement** - Propose concise, template-conforming cards, gap questions, or duplicate closures for new cards, for a person to approve
+- ✂️ **Pre-refinement** - Propose concise, template-conforming cards, gap questions, links to related cards, or duplicate closures for new cards, for a person to approve
 - 🏷️ **Activity Type Classification** - AI-powered classification of JIRA tickets into Sankey activity types, with single-issue and batch modes
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
 - ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows
@@ -113,7 +113,7 @@ See [commands/grooming.md](commands/grooming.md) for full documentation.
 
 Review new cards before a team's refinement session: check for duplicates, check each card against its
 issue type's template and readiness criteria, and propose a concise summary and description, a gap
-comment, or a duplicate closure. Nothing is written without a person's decision, and a label marks each
+comment, links to related cards, or a duplicate closure. Nothing is written without a person's decision, and a label marks each
 card so it is reviewed once. Uses the project's conventions file (TRT today: [reference/trt.md](reference/trt.md)).
 
 **Usage:**

@@ -5,6 +5,7 @@ expected_stricter_review: false
 expected_stricter_reasons: []
 expected_duplicate_of: null
 expected_related: [TRT-8811]
+expected_links: [TRT-8811]
 must_keep:
   - "1987654321098765432"
   - "GCPInstanceNotFound"

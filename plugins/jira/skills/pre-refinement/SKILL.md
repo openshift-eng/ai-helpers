@@ -1,6 +1,6 @@
 ---
 name: pre-refinement
-description: Pre-refine new Jira cards before a team's refinement session. Checks each card for duplicates, against its issue type's template and readiness criteria, and against the team's concision rubric, then proposes a concise summary and description, a gap comment, or a duplicate closure for a human to approve. Use when pre-refining new cards for a team whose conventions file has a pre-refinement rubric (TRT today); not for implementation, bug triage, or cards the team has already refined.
+description: Pre-refine new Jira cards before a team's refinement session. Checks each card for duplicates, against its issue type's template and readiness criteria, and against the team's concision rubric, then proposes a concise summary and description, a gap comment, links to related cards, or a duplicate closure for a human to approve. Use when pre-refining new cards for a team whose conventions file has a pre-refinement rubric (TRT today); not for implementation, bug triage, or cards the team has already refined.
 argument-hint: "[ISSUE_KEY ...] [--jql <query>] [--label ai-pre-refined] [--supported-types Story,Bug,Spike,Task,Ticket] [--mode propose|confirm|dry-run]"
 ---
 
@@ -78,6 +78,7 @@ whichever column the session provides:
 | Stage a proposal (propose mode) | `check_proposal`, `make_proposal`, then `send_response` | not available; use confirm mode |
 | Replace summary or description, or set labels | `priv_jira_update_issue` (pass the description inline, never by buffer ID, so approvers see it) | `editJiraIssue` |
 | Post the gap comment | `comment_on_jira_issue` | `addCommentToJiraIssue` |
+| Link a related card (`Relates`) | `priv_jira_link_issues`, where the session offers it. Never `link_jira_issues` or another link tool that writes without an approval | `createIssueLink` (type `Relates`) |
 | Close as duplicate (link, close, comment, label in one step) | `priv_jira_close_duplicate` with `add_label` and `expected_status: New` | In this order: `createIssueLink` (type `Duplicate`), `addCommentToJiraIssue`, `editJiraIssue` for the label, then `getTransitionsForJiraIssue` and `transitionJiraIssue` with resolution `Duplicate` (see "Partial duplicate closure") |
 | Load another skill | `find_skills`, `get_skill` | the Skill tool |
 
@@ -167,9 +168,19 @@ list it in the report and review the card normally. A candidate closed as Done
 or Won't Do still counts; report its resolution. When unsure, treat the card
 as related: a wrong duplicate closure is worse than a missed one.
 
-A duplicate gets only the duplicate finding: no rewrite, no gap comment. Cite
-the existing card's key, status and resolution (for example "Done 2026-10-02"),
-and say in one or two lines why it is the same work.
+A duplicate gets only the duplicate finding: no rewrite, no gap comment, no
+proposed links (still list its related cards in `related`). Cite the existing
+card's key, status and resolution (for example "Done 2026-10-02"), and say in
+one or two lines why it is the same work.
+
+**Links to related cards.** For a card reviewed normally (`proposal`,
+`no_change` or `gaps_only`), propose a `Relates` link to each related card
+that has no issue link to it yet, in either direction and of any type. A key
+mentioned only in the card's text is not a link. Give each link a one-line
+rationale naming the relationship ("follow-up to the alert TRT-9100 added").
+Link only cards you read in full and judged related, never the card itself,
+and never with a `Duplicate` or `Blocks` link: those carry a decision the team
+makes.
 
 ### 3. Assess
 
@@ -226,15 +237,22 @@ Report every card, including skipped and unsupported ones: counts by outcome,
 then one line per card with its link, outcome, readiness, and whether the
 stricter review applied and why. Say plainly when no card needed a change.
 
-- **dry-run**: the report, plus each card's full draft, is the result. Nothing
-  is staged or written.
+- **dry-run**: the report, plus each card's full draft and proposed links, is
+  the result. Nothing is staged or written.
 - **confirm**: show each card's proposal in full (summary, description, gap
-  comment, change notes) and ask for a decision on that card. Apply only what
-  the user accepts.
+  comment, change notes) and ask for a decision on that card, then ask about
+  each proposed link separately. Apply only what the user accepts.
 - **propose**: stage one proposal per card, including a label-only proposal for
   each `no_change` card, and a `priv_jira_close_duplicate` proposal for each
   duplicate. Show the full proposed text in each proposal, not a reference
-  to it.
+  to it. Stage each link as its own `priv_jira_link_issues` proposal with
+  both keys, the link type and the rationale. If the session doesn't offer
+  `priv_jira_link_issues`, stage no link: list the proposed links in the
+  report for a person to add by hand.
+
+A link is a separate decision from the card's proposal: approving or
+rejecting one never changes the other, and a link decision doesn't affect the
+label.
 
 In confirm and propose modes, say with each card that rejecting the proposal
 still adds the label: the label records that a person reviewed the card, so
@@ -260,9 +278,13 @@ decide. A target closed as Done or Won't Do still counts, as in step 2.
 | `no_change` | Add the label | Add the label | Nothing |
 | `duplicate` | Close as duplicate with the label (one step on chai-bot), read back | Not a duplicate: review the card normally (steps 3–5) and present that proposal. Add no label yet | Nothing |
 | `unsupported`, `skipped` | — | — | — |
+| Proposed link | Create the link, read it back | Nothing | Nothing; not proposed again once the card is labelled |
 
 Write in this order: description and summary, then the comment, then the
 label, then read the card back and confirm each change before reporting it.
+Write approved links after the card's own writes. Before each link, re-read
+both cards: if either can't be read or they are already linked, create
+nothing and say so.
 After an uncertain write, read back before doing anything else; never retry a
 write blindly. If an effect can't be confirmed, report `blocked` for that card,
 list which effects were confirmed and which are missing, and stop writing to
@@ -296,6 +318,7 @@ Return a report for people, and, when the caller asks for structured output
   "rubric": {"C1": "fail: Additional Context restates two criteria", "C2": "pass"},
   "duplicate_of": {"key": "TRT-100", "status": "Closed", "resolution": "Done", "evidence": "..."},
   "related": ["TRT-90"],
+  "proposed_links": [{"key": "TRT-90", "link_type": "Relates", "rationale": "..."}],
   "proposed_summary": "...",
   "proposed_description": "...",
   "gap_comment": "...",
@@ -308,6 +331,8 @@ Return a report for people, and, when the caller asks for structured output
 Use `null` for fields that don't apply: no proposed text for `no_change`,
 `gaps_only` or `duplicate`; no `duplicate_of` unless the outcome is
 `duplicate`. `proposed_summary` is `null` when the summary stays.
+`proposed_links` is an empty list when nothing needs linking, and always empty
+for `duplicate`, `unsupported` and `skipped`.
 `rubric` is required for every assessed card under the stricter review, and
 optional otherwise.
 

@@ -6,6 +6,9 @@ card:
   summary: Run Sippy integration tests in the devcontainer
   labels: [sippy]
   creator: trt-engineer-a
+  links:
+    - type: Relates
+      key: TRT-8790
   description: |
     As a Sippy developer, I want integration tests to run in the devcontainer,
     so that I can validate changes against real integration behavior.

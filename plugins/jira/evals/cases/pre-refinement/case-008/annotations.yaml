@@ -5,6 +5,7 @@ expected_stricter_review: true
 expected_stricter_reasons: [creator]
 expected_duplicate_of: null
 expected_related: [TRT-8950]
+expected_links: [TRT-8950]
 must_keep:
   - "As a component team engineer"
   - "Copied"

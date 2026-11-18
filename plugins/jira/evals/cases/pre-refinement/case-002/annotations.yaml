@@ -4,6 +4,7 @@ expected_stricter_review: true
 expected_stricter_reasons: [label, creator]
 expected_duplicate_of: null
 expected_related: [TRT-9050]
+expected_links: [TRT-9050]
 must_keep:
   - "As a TRT on-call engineer"
   - "24 hours"

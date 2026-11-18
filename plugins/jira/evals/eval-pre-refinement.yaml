@@ -31,8 +31,9 @@ runner:
 
     Write result.json containing exactly one card record in the skill's
     "Result" format (key, issue_type, outcome, readiness, stricter_review,
-    rubric, duplicate_of, related, proposed_summary, proposed_description,
-    gap_comment, change_notes, preservation_passed, skip_reason).
+    rubric, duplicate_of, related, proposed_links, proposed_summary,
+    proposed_description, gap_comment, change_notes, preservation_passed,
+    skip_reason).
 
     Do not wrap JSON in markdown code fences in the file.
     Do NOT attempt to connect to Jira or use any MCP tools.
@@ -72,6 +73,7 @@ dataset:
       - 'expected_stricter_review' and 'expected_stricter_reasons'
       - 'expected_duplicate_of': key or null
       - 'expected_related': keys that must appear in 'related' (optional)
+      - 'expected_links': the keys 'proposed_links' must name, exactly
       - 'must_keep': strings the proposed summary and description together
         must contain, ignoring case except in URLs, and not as the tail of a
         longer word or number; a list entry accepts any of its alternatives
@@ -109,7 +111,7 @@ judges:
           return (False, "result.json is not an object")
       ann = outputs.get("annotations", {})
       required = ["key", "issue_type", "outcome", "readiness", "stricter_review",
-                  "rubric", "duplicate_of", "related", "proposed_summary",
+                  "rubric", "duplicate_of", "related", "proposed_links", "proposed_summary",
                   "proposed_description", "gap_comment", "change_notes",
                   "preservation_passed", "skip_reason"]
       missing = [f for f in required if f not in data]
@@ -143,6 +145,11 @@ judges:
       related = data["related"]
       if not (related is None or (isinstance(related, list) and all(isinstance(k, str) for k in related))):
           errors.append("related is not a list of keys or null")
+      links = data["proposed_links"]
+      if not (isinstance(links, list) and all(
+              isinstance(l, dict) and all(isinstance(l.get(f), str) for f in ("key", "link_type", "rationale"))
+              for l in links)):
+          errors.append("proposed_links is not a list of {key, link_type, rationale}")
       if not (data["change_notes"] is None or isinstance(data["change_notes"], list)):
           errors.append("change_notes is not a list or null")
       if not (data["preservation_passed"] is None or isinstance(data["preservation_passed"], bool)):
@@ -214,6 +221,42 @@ judges:
       if missing:
           return (False, f"related is missing {missing}")
       return (True, f"duplicate_of={got}")
+
+  - name: links_correct
+    description: Links are proposed to exactly the related cards not yet linked, as Relates links
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_links" not in ann:
+          return (True, "No expected_links -- skipped")
+      files = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      found = [v for k, v in files.items() if k.endswith("result.json")]
+      if not found:
+          return (False, "No result.json found")
+      try:
+          data = json.loads(found[0])
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      links = data.get("proposed_links") or []
+      if not isinstance(links, list) or not all(isinstance(l, dict) for l in links):
+          return (False, "proposed_links is not a list of objects")
+      errors = []
+      keys = [l.get("key") for l in links]
+      if sorted(set(keys)) != sorted(ann["expected_links"]):
+          errors.append(f"links to {keys}, expected {ann['expected_links']}")
+      if len(keys) != len(set(keys)):
+          errors.append("a card is linked twice")
+      related = data.get("related") or []
+      for l in links:
+          if l.get("link_type") != "Relates":
+              errors.append(f"{l.get('key')}: link type {l.get('link_type')!r}, expected 'Relates'")
+          if not (l.get("rationale") or "").strip():
+              errors.append(f"{l.get('key')}: no rationale")
+          if l.get("key") not in related:
+              errors.append(f"{l.get('key')} is linked but not listed as related")
+      if errors:
+          return (False, "; ".join(errors[:5]))
+      return (True, f"links={keys}")
 
   - name: stricter_review_correct
     description: The stricter review applies exactly when it should, for the right reasons
@@ -410,6 +453,8 @@ thresholds:
   duplicate_correct:
     min_pass_rate: 1.0
   stricter_review_correct:
+    min_pass_rate: 1.0
+  links_correct:
     min_pass_rate: 1.0
   proposal_preserves_facts:
     min_pass_rate: 1.0
