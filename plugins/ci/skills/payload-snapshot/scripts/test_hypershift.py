@@ -80,16 +80,21 @@ def test_cli_writes_snapshot_using_profile_defaults_and_overrides(
     base = next(tmp_path.glob("*/*/summary.json")).parent
     summary = json.loads((base / "summary.json").read_text())
     assert {key: summary[key] for key in (
-        "payload_tag", "version", "stream_name", "architecture", "release_controller_url",
+        "payload_tag", "version", "stream_name", "architecture", "controller_origin",
     )} == dict(payload_tag=tag, version=version, stream_name=stream,
-              architecture=arch, release_controller_url=controller)
+              architecture=arch, controller_origin=controller)
     assert summary["phase"] == "Rejected"
     assert summary["chain_length"] == 2
     assert summary["baseline_tag"] == older
     assert summary["blocking_jobs"]["failed"] == 1
     assert summary["blocking_jobs"]["failed_jobs"][0]["name"] == "release-5.1-e2e"
     payload = json.loads((base / tag / "payload.json").read_text())
-    assert payload["_release_url"] == f"{controller}/releasestream/{stream}/release/{tag}"
+    controller_url = f"{controller}/releasestream/{stream}/release/{tag}"
+    assert payload["_release_url"] == summary["release_url"] == controller_url
+    assert summary["release_controller_url"] == controller_url
+    assert summary["payloads"][1]["release_controller_url"] == (
+        f"{controller}/releasestream/{stream}/release/{older}"
+    )
     assert json.loads((base / tag / "changelog.json").read_text())["_source"] == "release-controller"
     # HCP jobs exercise multiple OCP versions; the component version must not
     # be used to classify their operating system.
@@ -120,6 +125,33 @@ def test_cli_rejects_incompatible_profile_before_collection(monkeypatch, argumen
     with pytest.raises(SystemExit) as error:
         ps.main()
     assert error.value.code == 2
+
+
+def test_sippy_snapshot_preserves_source_page_and_selected_controller_links(monkeypatch, tmp_path):
+    profile = ps.PROFILES["ocp"]
+    request = profile.resolve(OCP_TAG, controller_url="https://mirror.example/",
+                              stream="5.1.0-0.nightly-mirror", use_sippy=True)
+    def fetch(url, **kwargs):
+        parsed = urlsplit(url)
+        assert parsed.netloc == "sippy.dptools.openshift.org"
+        if parsed.path == "/api/releases/tags":
+            return [{"release_tag": OCP_TAG, "phase": "Accepted"}]
+        assert parsed.path == "/api/releases/job_runs"
+        return [{"job_name": "e2e", "kind": "Blocking", "state": "Succeeded", "url": ""}]
+
+    monkeypatch.setattr(ps, "fetch_json", fetch)
+
+    profile.build_snapshotter(request, output_dir=str(tmp_path), collect_junit=False).run()
+
+    summary = json.loads(next(tmp_path.glob("*/*/summary.json")).read_text())
+    controller_url = f"https://mirror.example/releasestream/5.1.0-0.nightly-mirror/release/{OCP_TAG}"
+    source_url = f"https://sippy.dptools.openshift.org/sippy-ng/release/5.1/tags/{OCP_TAG}"
+    assert summary["source"] == "sippy"
+    assert summary["controller_origin"] == "https://mirror.example"
+    assert summary["release_controller_url"] == controller_url
+    assert summary["release_url"] == source_url
+    assert summary["payloads"][0]["release_controller_url"] == controller_url
+    assert summary["payloads"][0]["release_url"] == source_url
 
 
 def test_core_persists_injected_enrichment_and_reuses_cached_payloads(monkeypatch, tmp_path):
@@ -171,7 +203,7 @@ def test_snapshots_from_different_controllers_and_streams_coexist_and_reuse_evid
         source.history.return_value = [request.identity.raw]
         source.payload.return_value = {
             "phase": "Accepted" if request == first else "Rejected",
-            "_release_controller_url": request.controller_url,
+            "_controller_origin": request.controller_url,
             "results": {"blockingJobs": {"e2e": {
                 "state": "Succeeded" if request == first else "Failed", "url": "",
             }}},
@@ -191,7 +223,7 @@ def test_snapshots_from_different_controllers_and_streams_coexist_and_reuse_evid
         base = summaries[phase].parent
         summary = json.loads(summaries[phase].read_text())
         assert summary["payload_tag"] == request.identity.raw
-        assert summary["release_controller_url"] == request.controller_url
+        assert summary["controller_origin"] == request.controller_url
         assert summary["stream_name"] == request.identity.stream_name
         assert summary["architecture"] == request.identity.architecture
         job = summary["payloads"][0]["jobs"]["blocking"][0]

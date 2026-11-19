@@ -341,7 +341,7 @@ def test_ocp_source_keeps_retained_diffs_on_controller():
     sippy = Mock()
     sippy.fetch_tags.return_value = []
     source = ps.OcpPayloadSource(ps.ControllerSource(rc, tag),
-                                 ps.SippySource(sippy, rc.url))
+                                 ps.SippySource(sippy, rc, tag))
     assert source.history(TARGET, 5) == [TARGET, BASELINE]
 
     assert source.changelog(TARGET, BASELINE)["_source"] == "release-controller"
@@ -359,6 +359,6 @@ def test_ocp_source_retains_controller_history_when_sippy_is_unavailable():
     sippy = Mock()
     sippy.fetch_tags.side_effect = urllib.error.URLError("unavailable")
     source = ps.OcpPayloadSource(ps.ControllerSource(rc, tag),
-                                 ps.SippySource(sippy, rc.url))
+                                 ps.SippySource(sippy, rc, tag))
 
     assert source.history(TARGET, 5) == [TARGET, BASELINE]

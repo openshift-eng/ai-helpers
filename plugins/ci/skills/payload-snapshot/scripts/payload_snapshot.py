@@ -686,7 +686,7 @@ class ControllerSource:
             "architecture": self.identity.architecture,
             "stream": self.identity.stream,
             "stream_name": self.identity.stream_name,
-            "release_controller_url": self.rc.url,
+            "controller_origin": self.rc.url,
             "tag_count": len(tags),
             "latest_tag": tags[0]["name"] if tags else "",
             "latest_phase": tags[0].get("phase", "") if tags else "",
@@ -697,9 +697,11 @@ class ControllerSource:
 
     def payload(self, tag: str) -> dict:
         details = self.rc.fetch_release(self.identity.stream_name, tag)
+        controller_url = self.rc.release_url(self.identity.stream_name, tag)
         return {**details, "_source": "release-controller",
-                "_release_url": self.rc.release_url(self.identity.stream_name, tag),
-                "_release_controller_url": self.rc.url}
+                "_release_url": controller_url,
+                "_release_controller_url": controller_url,
+                "_controller_origin": self.rc.url}
 
     def changelog(self, tag: str, previous: str) -> dict:
         data = self.rc.fetch_changelog(self.identity.stream_name, tag, previous)
@@ -713,9 +715,11 @@ class ControllerSource:
 
 
 class SippySource:
-    def __init__(self, client: SippyClient, controller_url: str):
+    def __init__(self, client: SippyClient, rc: ReleaseController,
+                 identity: PayloadTag):
         self.client = client
-        self.controller_url = controller_url
+        self.rc = rc
+        self.identity = identity
 
     def streams(self) -> list[dict]:
         return []
@@ -725,7 +729,8 @@ class SippySource:
 
     def payload(self, tag: str) -> dict:
         data = self.client.build_synthetic_payload(tag, PayloadTag.parse(tag))
-        return {**data, "_release_controller_url": self.controller_url}
+        return {**data, "_controller_origin": self.rc.url,
+                "_release_controller_url": self.rc.release_url(self.identity.stream_name, tag)}
 
     def changelog(self, tag: str, previous: str) -> dict:
         return self.client.build_synthetic_changelog(tag, from_tag=previous)
@@ -830,11 +835,12 @@ class OcpProfile(SnapshotProfile):
 
     def build_source(self, request: SnapshotRequest) -> PayloadSource:
         tag = request.identity
+        rc = ReleaseController(request.controller_url)
         sippy = SippySource(SippyClient(tag.version, tag.architecture, tag.stream),
-                            request.controller_url)
+                            rc, tag)
         if request.use_sippy:
             return sippy
-        controller = ControllerSource(ReleaseController(request.controller_url), tag)
+        controller = ControllerSource(rc, tag)
         return OcpPayloadSource(controller, sippy)
 
     def job_version(self, identity: PayloadTag, job_name: str) -> str:
@@ -2065,6 +2071,8 @@ class SummaryGenerator:
             "payload_tag": self.target_tag,
             "phase": phase,
             "release_url": release_url,
+            "controller_origin": (payload_data.get("_controller_origin", "")
+                                  if payload_data else ""),
             "release_controller_url": (payload_data.get("_release_controller_url", "")
                                        if payload_data else ""),
             "stream_name": self.tag.stream_name,
@@ -2257,8 +2265,9 @@ class SummaryGenerator:
             "## summary.json Schema",
             "",
             "Top-level fields:",
-            "- `payload_tag`, `phase`, `release_url`, `source`,",
-            "  `architecture`, `stream`, `version`",
+            "- `payload_tag`, `phase`, `release_url` (source page),",
+            "  `controller_origin`, `release_controller_url` (controller payload page),",
+            "  `source`, `architecture`, `stream`, `stream_name`, `version`",
             "- `chain_length`, `baseline_tag`, `hours_since_baseline`",
             "- `blocking_jobs.failed_jobs[]` — each entry has: `name`,",
             "  `state`, `prow_url`, `gcs_url`, `streak` (with",
@@ -2270,7 +2279,8 @@ class SummaryGenerator:
             "  `first_failed_in`, `payloads_failing`, `failure_message`,",
             "  `failure_text`",
             "- `payloads[]` — per-payload entries with `tag`, `phase`,",
-            "  `source`, `changelog_source`, relative paths, `prs[]` with",
+            "  `release_controller_url`, `release_url`, `source`,",
+            "  `changelog_source`, relative paths, `prs[]` with",
             "  component/diff/comments paths,",
             "  `rhcos_changes[]` with RPM diffs per RHCOS variant",
             "  (versions only — no changelog text),",
@@ -2457,6 +2467,8 @@ class SummaryGenerator:
             if pd:
                 entry["phase"] = pd.get("phase", "")
                 entry["source"] = pd.get("_source", "release-controller")
+                entry["release_url"] = pd.get("_release_url", "")
+                entry["release_controller_url"] = pd.get("_release_controller_url", "")
 
             changelog_path = os.path.join(
                 self.base_dir, tag_name, "changelog.json"

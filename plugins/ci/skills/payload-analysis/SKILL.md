@@ -127,7 +127,7 @@ Read `summary.json` to extract all data needed for analysis. The snapshot has al
 #### 3.1: Payload Metadata
 
 From `summary.json` top-level fields:
-- `payload_tag`, `phase`, `release_url`, `release_controller_url`, `source`, `architecture`, `stream`, `stream_name`, `version`
+- `payload_tag`, `phase`, `controller_origin`, `release_controller_url`, `release_url`, `source`, `architecture`, `stream`, `stream_name`, `version`
 - `chain_length`, `baseline_tag`, `hours_since_baseline`
 
 Copy identity from `summary.json`: `version` is the payload component version;
@@ -135,11 +135,16 @@ Copy identity from `summary.json`: `version` is the payload component version;
 Autodl normalizes `stream` to its documented export groups (`ci`, `nightly`,
 `hypershift`), preserving the exact controller name in `stream_name`.
 
-Snapshot `release_controller_url` is the controller origin. Construct payload
-links as `<origin>/releasestream/<stream_name>/release/<tag>`, URL-encoding path
-segments. The YAML/JSON field with the same name contains this **payload page
-URL**, not the origin. For older snapshots, recover missing identity from a
-stored controller link or the snapshot profile's defaults.
+Copy `release_controller_url`, the full controller payload page URL, into the
+HTML header and YAML/JSON outputs. Use `payloads[].release_controller_url` for
+history and baseline links. `controller_origin` is the controller origin;
+`release_url` is the source page and can point to Sippy.
+
+Older snapshots may store an origin in `release_controller_url` and lack
+per-payload links. Reuse stored controller payload links when available;
+otherwise recover the origin and exact stream from stored links or the
+snapshot profile's defaults and build
+`<origin>/releasestream/<URL-encoded-stream>/release/<URL-encoded-tag>`.
 
 **Record `phase` verbatim** from the `summary.json` metadata (`Accepted`, `Rejected`, or `Ready`). Never infer the phase from the job results or from whether failures exist — a payload can be `Accepted` *with* blocking failures (force-accepted) or `Ready` while jobs are still running. The stored phase drives the force-accept decision (Step 6.4) and the executive summary (Step 7.1), so an inferred phase silently corrupts both.
 
