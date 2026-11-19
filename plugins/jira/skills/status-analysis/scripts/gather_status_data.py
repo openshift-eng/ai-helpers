@@ -660,6 +660,7 @@ class GitHubClient:
                         createdAt
                         updatedAt
                         mergedAt
+                        mergedBy {{ login ... on User {{ name }} }}
                         additions
                         deletions
                         changedFiles
@@ -1010,6 +1011,8 @@ class StatusDataGatherer:
             ],
         }
 
+        merged_by = pr_data.get("mergedBy") or {}
+
         return {
             "url": pr_data.get("url"),
             "number": pr_data.get("number"),
@@ -1017,6 +1020,8 @@ class StatusDataGatherer:
             "state": pr_data.get("state"),
             "is_draft": pr_data.get("isDraft", False),
             "review_decision": pr_data.get("reviewDecision"),
+            "merged_by": merged_by.get("login"),
+            "merged_by_name": merged_by.get("name") or merged_by.get("login", "Unknown"),
             "dates": {
                 "created_at": pr_data.get("createdAt"),
                 "updated_at": pr_data.get("updatedAt"),
@@ -1038,6 +1043,7 @@ class StatusDataGatherer:
         changelog_in_range: List[Dict],
         comments_in_range: List[Dict],
         issue_prs: List[Dict],
+        date_range: Optional[DateRange] = None,
     ) -> List[Dict]:
         """Assemble dated in-window events from Jira and GitHub sources.
 
@@ -1085,6 +1091,22 @@ class StatusDataGatherer:
             if not (owner and repo and number):
                 continue
             pr_label = f"{owner}/{repo}#{number}"
+            # A merge whose only in-window activity is the merge itself
+            # must still count as activity; without this event such PRs
+            # yield no events and the week is dropped entirely.
+            merged_at = (pr.get("dates") or {}).get("merged_at")
+            if (
+                merged_at
+                and date_range is not None
+                and date_range.contains(self._parse_datetime(merged_at))
+            ):
+                events.append({
+                    "type": "github_merge",
+                    "occurred_at": _normalize_timestamp(merged_at),
+                    "author": pr.get("merged_by_name"),
+                    "pr": pr_label,
+                    "pr_url": pr.get("url"),
+                })
             for review in pr.get("reviews_in_range", []):
                 events.append({
                     "type": "github_review",
@@ -1451,7 +1473,8 @@ class StatusDataGatherer:
                         total_prs += 1
 
             events_in_window = self._build_events_in_range(
-                changelog_in_range, comments_in_range, issue_prs
+                changelog_in_range, comments_in_range, issue_prs,
+                self.config.date_range
             )
 
             # Build issue data
