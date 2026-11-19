@@ -110,6 +110,17 @@ class ValidOutputTest(unittest.TestCase):
                 self.assertTrue(self.valid(outcome=outcome, related=[])[0])
 
 
+class ProposalShapeTest(unittest.TestCase):
+    def test_criteria_under_sub_headings_still_need_a_split(self):
+        groups = "\n\n".join(f"### {g}\n\n* outcome {g}a\n* outcome {g}b" for g in (1, 2, 3))
+        result = {**proposal(f"S.\n\n## Acceptance Criteria\n\n{groups}\n"), "gap_comment": "Who owns this?"}
+        ok, detail = judge("proposal_shape", result, {})
+        self.assertFalse(ok)
+        self.assertIn("6 criteria and no split", detail)
+        result["gap_comment"] = "Should this be split?"
+        self.assertTrue(judge("proposal_shape", result, {})[0])
+
+
 class LinksTest(unittest.TestCase):
     def test_links_use_jiras_related_type_name(self):
         # Jira's link type is named "Related" ("relates to"); there is no "Relates".

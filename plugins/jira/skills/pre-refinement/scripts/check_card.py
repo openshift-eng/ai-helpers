@@ -158,8 +158,12 @@ def normalize(name: str) -> str:
     return re.sub(r"\s+", " ", name).lower()
 
 
-def headings(text: str) -> List[Tuple[str, int, int]]:
-    """Return (normalized heading, start, end-of-line) for each heading line."""
+# Bold and "Label:" headings carry no level; they sit below any real heading.
+UNLEVELLED_HEADING = 7
+
+
+def headings(text: str) -> List[Tuple[str, int, int, int]]:
+    """Return (normalized heading, start, end-of-line, level) for each heading line."""
     # In Jira wiki markup ("h2. Heading"), lines starting with "#" are ordered
     # list items, not Markdown headings.
     text = mask_fences(text)
@@ -169,19 +173,41 @@ def headings(text: str) -> List[Tuple[str, int, int]]:
         if wiki and m.group("md"):
             continue
         name = next(g for g in (m.group("wiki"), m.group("md"), m.group("bold"), m.group("colon")) if g)
-        found.append((normalize(name), m.start(), m.end()))
+        line = m.group(0).lstrip()
+        if m.group("wiki"):
+            level = int(line[1])
+        elif m.group("md"):
+            level = len(line) - len(line.lstrip("#"))
+        else:
+            level = UNLEVELLED_HEADING
+        found.append((normalize(name), m.start(), m.end(), level))
     return found
 
 
-def section_bodies(text: str, names: List[str]) -> List[Tuple[str, str]]:
+def section_bodies(text: str, names: List[str]) -> List[Tuple[str, str, int]]:
+    """(heading, body, sub-headings) for each section named in *names*.
+
+    A section runs to the next heading at its own level or above, so content
+    under its sub-headings ("### 1. Intake" below "## Acceptance Criteria")
+    belongs to it. A wanted heading inside another wanted section is part of
+    that section, not a list of its own.
+    """
     wanted = {normalize(n) for n in names}
     text = mask_fences(text)
     marks = headings(text)
     bodies = []
-    for i, (name, _, end) in enumerate(marks):
-        if name in wanted:
-            stop = marks[i + 1][1] if i + 1 < len(marks) else len(text)
-            bodies.append((name, text[end:stop]))
+    i = 0
+    while i < len(marks):
+        name, _, end, level = marks[i]
+        if name not in wanted:
+            i += 1
+            continue
+        j = i + 1
+        while j < len(marks) and marks[j][3] > level:
+            j += 1
+        stop = marks[j][1] if j < len(marks) else len(text)
+        bodies.append((name, text[end:stop], j - i - 1))
+        i = j
     return bodies
 
 
@@ -243,9 +269,13 @@ def numbers(text: str) -> List[str]:
 
 def completion_lists(text: str, conf: dict) -> List[dict]:
     lists = []
-    for name, body in section_bodies(text, conf["completion_headings"]):
+    # Outside Jira wiki markup, "## x" lines are sub-headings, not list items.
+    wiki = re.search(r"^\s*h[1-6]\.\s", text, re.MULTILINE) is not None
+    for name, body, subheadings in section_bodies(text, conf["completion_headings"]):
         top = nested = 0
         for line in body.splitlines():
+            if not wiki and re.match(r"^\s*#{1,6}\s", line):
+                continue
             if NESTED_ITEM_RE.match(line):
                 nested += 1
             elif TOP_ITEM_RE.match(line):
@@ -254,6 +284,7 @@ def completion_lists(text: str, conf: dict) -> List[dict]:
             "heading": name,
             "items": top,
             "nested_items": nested,
+            "subheadings": subheadings,
             "over_limit": top > conf["max_completion_items"],
         })
     return lists
@@ -330,7 +361,7 @@ def describe(card: dict, conf: dict, issue_type: str, strict: bool) -> dict:
         if strict:
             low, high = guidance
             result["description"]["target"] = [low, (low + high) // 2]
-    present = {name for name, _, _ in headings(description)}
+    present = {name for name, *_ in headings(description)}
     for section, (required, synonyms) in conf["sections"].get(issue_type, {}).items():
         names = {normalize(section)} | {normalize(s) for s in synonyms}
         entry = {"required": required is True, "heading_found": bool(names & present)}
@@ -342,6 +373,9 @@ def describe(card: dict, conf: dict, issue_type: str, strict: bool) -> dict:
     for lst in result["completion_lists"]:
         if lst["over_limit"]:
             flags.append(f"Criteria: '{lst['heading']}' has {lst['items']} items (limit {conf['max_completion_items']})")
+        if lst["subheadings"]:
+            flags.append(f"Criteria: '{lst['heading']}' is split under {lst['subheadings']} sub-headings; "
+                         "list the conditions directly")
         if lst["nested_items"]:
             flags.append(f"Criteria: '{lst['heading']}' has {lst['nested_items']} nested sub-items")
     if len(result["completion_lists"]) > 1:

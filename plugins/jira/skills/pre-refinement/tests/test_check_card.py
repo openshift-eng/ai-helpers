@@ -169,6 +169,30 @@ class DescriptionFactsTest(unittest.TestCase):
         self.assertTrue(result["completion_lists"][0]["over_limit"])
         self.assertTrue(any(f.startswith("Criteria:") for f in result["rubric_flags"]))
 
+    def test_criteria_split_under_sub_headings_are_counted_and_flagged(self):
+        """An assistant-drafted card's criteria under "### 1. ..." sub-headings (TRT-3091)."""
+        groups = "\n\n".join(
+            f"### {g}. Group {g}\n\n" + "\n".join(f"* outcome {g}.{i}" for i in range(4)) for g in (1, 2, 3)
+        )
+        desc = (f"As a user, I want x.\n\n## Acceptance Criteria\n\n{groups}\n\n"
+                "## Additional Context\n\n* not a criterion\n")
+        result = check_card.check(card(description=desc))
+        self.assertEqual(
+            [(lst["heading"], lst["items"], lst["nested_items"], lst["subheadings"])
+             for lst in result["completion_lists"]],
+            [("acceptance criteria", 12, 0, 3)],
+        )
+        flags = result["rubric_flags"]
+        self.assertIn("Criteria: 'acceptance criteria' has 12 items (limit 5)", flags)
+        self.assertTrue(any("split under 3 sub-headings" in f for f in flags))
+
+    def test_a_same_level_heading_ends_the_criteria(self):
+        desc = ("S.\n\n## Acceptance Criteria\n\n* a\n* b\n\n## Reuse\n\n### Additional acceptance criteria\n\n"
+                "* c\n")
+        lists = check_card.check(card(description=desc))["completion_lists"]
+        self.assertEqual([(lst["heading"], lst["items"], lst["subheadings"]) for lst in lists],
+                         [("acceptance criteria", 2, 0), ("additional acceptance criteria", 1, 0)])
+
     def test_nested_sub_bullets_and_jira_wiki_headings(self):
         desc = "Statement.\n\nh2. Acceptance Criteria\n# First\n## detail\n## detail\n# Second\n"
         lst = check_card.check(card(description=desc))["completion_lists"][0]

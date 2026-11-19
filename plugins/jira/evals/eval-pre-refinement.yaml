@@ -392,15 +392,21 @@ judges:
                     "exit criteria", "additional acceptance criteria", "deliverable",
                     "findings documentation", "follow-up actions")
       body = fence.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), desc)
-      heading = re.compile(r"^\s*(?:#{1,6}\s+|h[1-6]\.\s+|\*\*)(.+?)(?:\*\*:?)?\s*$", re.MULTILINE)
+      heading = re.compile(r"^\s*(#{1,6}\s+|h[1-6]\.\s+|\*\*)(.+?)(?:\*\*:?)?\s*$", re.MULTILINE)
+      def level(m):
+          # As in check_card.py: a section runs through deeper sub-headings;
+          # bold headings sit below any real one.
+          p = m.group(1).strip()
+          return int(p[1]) if p.startswith("h") else len(p) if p.startswith("#") else 7
       marks = list(heading.finditer(body))
       # The gap comment must at least mention a split; refinement_quality
       # judges whether it recommends one ("A split is not needed" does not).
       split = re.search(r"\bsplit", data.get("gap_comment") or "", re.IGNORECASE)
       for i, m in enumerate(marks):
-          name = re.sub(r"\s*\([^)]*\)\s*$", "", m.group(1).strip("* :")).lower()
+          name = re.sub(r"\s*\([^)]*\)\s*$", "", m.group(2).strip("* :")).lower()
           if name in completion:
-              end = marks[i + 1].start() if i + 1 < len(marks) else len(body)
+              nxt = next((x for x in marks[i + 1:] if level(x) <= level(m)), None)
+              end = nxt.start() if nxt else len(body)
               items = [l for l in body[m.end():end].splitlines() if re.match(r"^(?:[*\-+]|\d+[.)])\s+", l)]
               if len(items) > 5 and not split:
                   errors.append(f"{len(items)} criteria and no split proposed in the gap comment")
