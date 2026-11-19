@@ -116,9 +116,16 @@ class DateRange:
     end: date
 
     def contains(self, dt: datetime) -> bool:
-        """Check if a datetime falls within this range."""
+        """Check if a datetime falls within this range (compared in UTC).
+
+        Offset-bearing timestamps are converted to UTC first so window
+        membership does not depend on each source's timezone; naive
+        datetimes are treated as UTC (matching parse_iso_datetime).
+        """
         if dt is None:
             return False
+        if isinstance(dt, datetime) and dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc)
         d = dt.date() if isinstance(dt, datetime) else dt
         return self.start <= d <= self.end
 
@@ -185,6 +192,22 @@ def parse_iso_datetime(date_str: Optional[str]) -> Optional[datetime]:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+# Sentinel that sorts unparseable/missing event timestamps last.
+_EVENT_SORT_LAST = datetime.max.replace(tzinfo=timezone.utc)
+
+
+def _normalize_timestamp(value: Optional[str]) -> Optional[str]:
+    """Normalize a timestamp string to UTC ISO-8601 with a Z suffix.
+
+    Returns the original value unchanged when it cannot be parsed, so
+    malformed data stays visible to consumers instead of vanishing.
+    """
+    parsed = parse_iso_datetime(value)
+    if parsed is None:
+        return value
+    return parsed.isoformat().replace("+00:00", "Z")
 
 
 def _is_status_summary_item(item: Dict[str, Any]) -> bool:
@@ -867,13 +890,8 @@ class StatusDataGatherer:
         return set(self.PR_PATTERN.findall(text))
 
     def _parse_datetime(self, date_str: Optional[str]) -> Optional[datetime]:
-        """Parse ISO datetime string."""
-        if not date_str:
-            return None
-        try:
-            return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-        except (ValueError, TypeError):
-            return None
+        """Parse ISO datetime string, normalized to UTC."""
+        return parse_iso_datetime(date_str)
 
     def _filter_changelog_to_range(
         self, changelog: List[Dict], date_range: DateRange
@@ -1024,15 +1042,16 @@ class StatusDataGatherer:
     ) -> List[Dict]:
         """Assemble dated in-window events from Jira and GitHub sources.
 
-        Each event carries its own `occurred_at` timestamp so downstream
-        consumers can treat it as evidence of when the activity happened.
+        Each event carries its own `occurred_at` timestamp, normalized to
+        UTC ISO-8601, so downstream consumers can treat it as evidence of
+        when the activity happened; events are sorted chronologically.
         """
         events: List[Dict] = []
 
         for entry in changelog_in_range:
             events.append({
                 "type": "jira_transition",
-                "occurred_at": entry.get("date"),
+                "occurred_at": _normalize_timestamp(entry.get("date")),
                 "author": entry.get("author"),
                 "changes": entry.get("items", []),
             })
@@ -1042,7 +1061,7 @@ class StatusDataGatherer:
                 continue
             events.append({
                 "type": "jira_comment",
-                "occurred_at": comment.get("date"),
+                "occurred_at": _normalize_timestamp(comment.get("date")),
                 "author": comment.get("author_name"),
                 "text": comment.get("body"),
             })
@@ -1055,7 +1074,7 @@ class StatusDataGatherer:
             for review in pr.get("reviews_in_range", []):
                 events.append({
                     "type": "github_review",
-                    "occurred_at": review.get("submitted_at"),
+                    "occurred_at": _normalize_timestamp(review.get("submitted_at")),
                     "author": review.get("author_name"),
                     "pr": pr_label,
                     "pr_url": pr.get("url"),
@@ -1065,7 +1084,7 @@ class StatusDataGatherer:
             for commit in pr.get("commits_in_range", []):
                 events.append({
                     "type": "github_commit",
-                    "occurred_at": commit.get("date"),
+                    "occurred_at": _normalize_timestamp(commit.get("date")),
                     "author": commit.get("author_name"),
                     "pr": pr_label,
                     "pr_url": pr.get("url"),
@@ -1073,7 +1092,12 @@ class StatusDataGatherer:
                     "message": commit.get("message"),
                 })
 
-        events.sort(key=lambda e: e.get("occurred_at") or "")
+        # Sort by parsed instants: raw strings from different sources mix
+        # formats (fractional seconds, +0000 vs Z) that do not sort
+        # lexicographically. Unparseable timestamps sort last.
+        events.sort(
+            key=lambda e: parse_iso_datetime(e.get("occurred_at")) or _EVENT_SORT_LAST
+        )
         return events
 
     async def gather(self) -> Dict[str, Any]:
