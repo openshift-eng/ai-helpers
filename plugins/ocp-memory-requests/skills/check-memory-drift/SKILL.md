@@ -70,9 +70,9 @@ numbers by hand. Paths are relative to this skill's directory.
 5. **Reconcile with existing bugs** *(model)* — search Jira **coarsely** (label +
    release + not closed/verified), then treat a bug as an open match **only when its
    `memory-drift-key:` line equals `<release>/<namespace>/<deployment>` exactly**; do
-   not fuzzy-match names. Then, only when `dry_run` is false: no match → file (step 6);
-   open match with a materially different recommendation → update the bug + comment;
-   otherwise leave it.
+   not fuzzy-match names. If a matched bug **not** in a closed/verified status is found
+   → update the bug + comment. Only when `dry_run` is false and there is no match →
+   file (step 6).
 
 6. **Render and file** *(script + model)* —
    ```sh
