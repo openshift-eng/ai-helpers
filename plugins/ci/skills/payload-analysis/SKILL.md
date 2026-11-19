@@ -486,7 +486,14 @@ Otherwise, recommend force-accepting when **all** of the following are true:
 
 1. All failures are **temporary** infrastructure issues (`failure_type: "infra"`) — see the definition below
 2. No more than 2 blocking jobs failed
-3. `hours_since_baseline` from `summary.json` is >= 18 (or null)
+3. The newest observed Accepted payload was cut at least 18 hours before the target.
+
+Evaluate criterion 3 using this skill's [acceptance-timing helper](scripts/acceptance_timing.py)
+with `$SNAPSHOT_DIR/summary.json`; only `met` qualifies. If timing is unknown,
+report the limitation and collect more history when needed.
+
+Cite that Accepted payload and its cut-time interval in the verdict, respecting
+the Step 1 `--as-of` boundary.
 
 **What counts as a "temporary infrastructure issue".** The decisive test: *will the failure self-resolve on the next run WITHOUT human action?*
 

@@ -93,7 +93,7 @@ code { font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; fo
   <p><strong>Phase: {phase}</strong></p>
   <p>{total_blocking} blocking jobs: {succeeded} passed, {failed} failed</p>
   <p>{new_failures} new failure(s), {persistent_failures} persistent failure(s)</p>
-  <p>Chain: {chain_length} payloads, {hours_since_baseline}h since baseline</p>
+  <p>Chain: {chain_length} payloads, {hours_since_baseline}h between target and chain baseline</p>
   <p>Consecutive rejections in this stream: <strong>{consecutive_rejection_count}</strong></p>
   <p>Chain baseline: <a target="_blank" href="{baseline_url}">{baseline_tag}</a> ({hours_since_baseline}h before target)</p>
   <p>Per-job persistence:</p>
@@ -149,9 +149,10 @@ code { font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; fo
 <!-- BEGIN: force-accept-verdict — include only when Step 6.4 recommends force-accept -->
 <div class="verdict verdict-infra">
   <strong>Force-Accept Recommended</strong>
-  <p>All blocking job failures are temporary infrastructure issues and no payload has been
-     accepted in this stream for more than 18 hours.</p>
-  <p>Baseline: <a target="_blank" href="{baseline_url}">{baseline_tag}</a> ({hours_since_baseline}h before target)</p>
+  <p>All blocking job failures are temporary infrastructure issues.</p>
+  <p>Newest Accepted payload in the collected history:
+     <a target="_blank" href="{last_accepted_url}">{last_accepted_tag}</a>
+     (cut {hours_since_last_accepted}h before target).</p>
 </div>
 <!-- END: force-accept-verdict -->
 

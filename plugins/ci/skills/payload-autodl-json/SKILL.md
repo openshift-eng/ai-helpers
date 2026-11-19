@@ -162,7 +162,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 | `rejection_streak` | int64 | Number of consecutive rejected payloads leading up to the target |
 | `total_blocking_jobs` | int64 | Total number of blocking jobs in the payload |
 | `failed_blocking_jobs` | int64 | Number of failed blocking jobs |
-| `force_accept_recommended` | int64 | `1` if all failures are temporary infrastructure, no more than 2 blocking jobs failed, and no payload accepted in 18+ hours; `0` otherwise |
+| `force_accept_recommended` | int64 | `1` when `payload-analysis` Step 6.4 recommends force-accept; `0` otherwise, including insufficient acceptance-history evidence |
 
 ### Job-level fields
 

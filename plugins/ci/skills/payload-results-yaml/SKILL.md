@@ -123,7 +123,7 @@ Written once by `payload-analysis`. Never modified by downstream skills.
 | `architecture` | string | `"amd64"`, `"arm64"`, `"multi"`, etc. |
 | `release_controller_url` | string | URL to the payload on the release controller |
 | `analyzed_at` | string | ISO 8601 timestamp of when the analysis was performed |
-| `force_accept_recommended` | bool | `true` when all failures are temporary infrastructure issues, no more than 2 blocking jobs failed, and no payload has been accepted in the stream for 18+ hours. Determined by `payload-analysis` Step 6.4. |
+| `force_accept_recommended` | bool | Recommendation from `payload-analysis` Step 6.4; `false` when acceptance-history timing cannot be established |
 
 ### `failing_jobs[]`
 

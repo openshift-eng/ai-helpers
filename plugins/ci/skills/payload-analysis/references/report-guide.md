@@ -17,6 +17,7 @@ The report is produced by filling `assets/report-template.html` — never by wri
 - `{phase}` is rendered **verbatim** from Step 3.1 — never inferred.
 - `consecutive_rejection_count` — count leading `Rejected` phases in the newest-first chain. If every observed payload is rejected, report a lower bound; older history is unknown.
 - `baseline_tag` is the oldest payload in the collected chain; verify its phase before calling it accepted. `hours_since_baseline` measures target-to-baseline time, not age at report generation.
+- State acceptance-history uncertainty in the executive summary when the Step 6.4 timing criterion is unknown; a collected history span does not establish an acceptance gap.
 - Per-job persistence: one `persistence-item` per failed job from its `streak.streak_length`.
 
 ## Scores
@@ -29,7 +30,7 @@ Placed after the executive summary and any collection-error notice, before the b
 
 - `revert-verdict` — include when revert candidates exist (score >= 85). One `revert-row` per candidate. Keep the `/ci:payload-revert {payload_tag}` copy block; include `ocp-revert-policy` only for OCP/OKD.
 - `no-revert-verdict` — include when there are no revert candidates. Exactly one of these two blocks appears.
-- `force-accept-verdict` — include only when Step 6.4 recommends force-accept.
+- `force-accept-verdict` — include only when Step 6.4 recommends force-accept. Fill `last_accepted_tag` and `hours_since_last_accepted` from the timing helper's `accepted_payload_tag` and `hours_before_target`; `last_accepted_url` is that payload's controller link. These describe the Accepted payload used in the timing check, independently of the chain baseline.
 
 ## Blocking jobs summary
 
