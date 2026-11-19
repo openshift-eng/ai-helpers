@@ -224,6 +224,27 @@ def _scan_last_status_summary_update(changelog: List[Dict[str, Any]]) -> Optiona
     return None
 
 
+def _is_github_bot(
+    login: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+) -> bool:
+    """Heuristically detect GitHub bot identities.
+
+    Matches the `[bot]` suffix GitHub App bots carry, hyphenated bot
+    logins (openshift-merge-bot), robot/automation display names, and
+    noreply emails. Token-based so a human login or name merely
+    containing 'bot' as a substring (e.g. 'abotkin') is not flagged.
+    """
+    if email and "noreply" in email.lower():
+        return True
+    tokens = set()
+    for value in (login, name):
+        if value:
+            tokens.update(t for t in re.split(r"[^a-z0-9]+", value.lower()) if t)
+    return bool(tokens & {"bot", "robot", "automation", "jenkins"})
+
+
 # =============================================================================
 # Jira Client
 # =============================================================================
@@ -902,9 +923,13 @@ class StatusDataGatherer:
         for entry in changelog:
             created = self._parse_datetime(entry.get("created"))
             if created and date_range.contains(created):
+                author = entry.get("author", {})
                 filtered.append({
                     "date": entry.get("created"),
-                    "author": entry.get("author", {}).get("emailAddress"),
+                    "author": author.get("emailAddress"),
+                    "author_name": (
+                        author.get("displayName") or author.get("emailAddress") or "Unknown"
+                    ),
                     "items": [
                         {
                             "field": item.get("field"),
@@ -939,6 +964,7 @@ class StatusDataGatherer:
             filtered.append({
                 "author": author.get("emailAddress") or author.get("displayName", "Unknown"),
                 "author_name": author.get("displayName", "Unknown"),
+                "author_email": author.get("emailAddress"),
                 "date": comment.get("created"),
                 "body": _adf_to_text(comment.get("body", "")),
                 "is_bot": is_bot,
@@ -959,6 +985,9 @@ class StatusDataGatherer:
                 reviews_in_range.append({
                     "author": author_obj.get("login", "Unknown"),
                     "author_name": author_obj.get("name") or author_obj.get("login", "Unknown"),
+                    "is_bot": _is_github_bot(
+                        login=author_obj.get("login"), name=author_obj.get("name")
+                    ),
                     "state": review.get("state"),
                     "body": (review.get("body") or "")[:500],
                     "submitted_at": review.get("submittedAt"),
@@ -977,6 +1006,9 @@ class StatusDataGatherer:
                     "date": commit.get("committedDate"),
                     "author": commit_author.get("email", "Unknown"),
                     "author_name": commit_author.get("name") or commit_author.get("email", "Unknown"),
+                    "is_bot": _is_github_bot(
+                        name=commit_author.get("name"), email=commit_author.get("email")
+                    ),
                 })
 
         # Filter review comments
@@ -1070,7 +1102,8 @@ class StatusDataGatherer:
             events.append({
                 "type": "jira_transition",
                 "occurred_at": _normalize_timestamp(entry.get("date")),
-                "author": entry.get("author"),
+                "author": entry.get("author_name") or entry.get("author") or "Unknown",
+                "author_email": entry.get("author"),
                 "changes": items,
             })
 
@@ -1081,6 +1114,7 @@ class StatusDataGatherer:
                 "type": "jira_comment",
                 "occurred_at": _normalize_timestamp(comment.get("date")),
                 "author": comment.get("author_name"),
+                "author_email": comment.get("author_email"),
                 "text": comment.get("body"),
             })
 
@@ -1093,7 +1127,9 @@ class StatusDataGatherer:
             pr_label = f"{owner}/{repo}#{number}"
             # A merge whose only in-window activity is the merge itself
             # must still count as activity; without this event such PRs
-            # yield no events and the week is dropped entirely.
+            # yield no events and the week is dropped entirely. Kept even
+            # when a merge bot performed it — the merge is the evidence,
+            # the actor is incidental.
             merged_at = (pr.get("dates") or {}).get("merged_at")
             if (
                 merged_at
@@ -1104,24 +1140,31 @@ class StatusDataGatherer:
                     "type": "github_merge",
                     "occurred_at": _normalize_timestamp(merged_at),
                     "author": pr.get("merged_by_name"),
+                    "author_login": pr.get("merged_by"),
                     "pr": pr_label,
                     "pr_url": pr.get("url"),
                 })
             for review in pr.get("reviews_in_range", []):
+                if review.get("is_bot"):
+                    continue
                 events.append({
                     "type": "github_review",
                     "occurred_at": _normalize_timestamp(review.get("submitted_at")),
                     "author": review.get("author_name"),
+                    "author_login": review.get("author"),
                     "pr": pr_label,
                     "pr_url": pr.get("url"),
                     "state": review.get("state"),
                     "body": review.get("body"),
                 })
             for commit in pr.get("commits_in_range", []):
+                if commit.get("is_bot"):
+                    continue
                 events.append({
                     "type": "github_commit",
                     "occurred_at": _normalize_timestamp(commit.get("date")),
                     "author": commit.get("author_name"),
+                    "author_email": commit.get("author"),
                     "pr": pr_label,
                     "pr_url": pr.get("url"),
                     "sha": commit.get("sha"),
