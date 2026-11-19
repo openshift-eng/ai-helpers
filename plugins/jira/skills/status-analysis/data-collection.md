@@ -275,7 +275,7 @@ For each issue in `manifest.issues`, read its detailed data:
 | `changelog_in_range` | Field changes in date range |
 | `comments_in_range` | Human comments in date range |
 | `comments_in_range[].is_bot` | Filter out bot comments |
-| `events_in_window` | Chronologically sorted in-range events from all sources (Jira transitions/comments and GitHub commits/reviews), each carrying its own UTC ISO-8601 `occurred_at` (normalized to `Z` suffix); the authoritative record of when activity happened |
+| `events_in_window` | Chronologically sorted in-range events from all sources (Jira status transitions, Jira comments, and GitHub commits/reviews), each carrying its own UTC ISO-8601 `occurred_at` (normalized to `Z` suffix); the authoritative record of when activity happened. Changelog churn that is not a status change (link/label/rank/assignee edits) does not produce events |
 | `prs` | GitHub PRs linked to this issue |
 | `prs[].owner` / `prs[].repo` / `prs[].number` | PR identity as extracted from the Jira link (may differ in spelling from `prs[].url`) |
 | `prs[].state` | OPEN, CLOSED, MERGED |

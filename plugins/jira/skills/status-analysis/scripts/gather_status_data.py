@@ -1048,11 +1048,24 @@ class StatusDataGatherer:
         events: List[Dict] = []
 
         for entry in changelog_in_range:
+            # Comment additions get their own jira_comment events (with
+            # full text and bot filtering), so drop them here; changelog
+            # comment items would only duplicate those events.
+            items = [
+                item for item in entry.get("items", [])
+                if (item.get("field") or "").lower() != "comment"
+            ]
+            # Only status changes are transitions. Changelog entries also
+            # record link/label/rank/assignee churn, which is not
+            # evidence of meaningful activity and would drown the
+            # timeline (and inflate downstream significance checks).
+            if not any((item.get("field") or "").lower() == "status" for item in items):
+                continue
             events.append({
                 "type": "jira_transition",
                 "occurred_at": _normalize_timestamp(entry.get("date")),
                 "author": entry.get("author"),
-                "changes": entry.get("items", []),
+                "changes": items,
             })
 
         for comment in comments_in_range:
