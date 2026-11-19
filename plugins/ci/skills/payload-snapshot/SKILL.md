@@ -113,14 +113,14 @@ RHCOS RPM extraction does not apply to the operator payload.
 
 ### Step 2: Navigate the Snapshot
 
-Cached artifacts are reused only when controller, exact stream, and architecture match. If an existing snapshot's identity conflicts or cannot be verified, use a different `--output-dir`.
+Snapshots are grouped by controller origin (URL-encoded as one path segment) and exact stream name. Different controllers and architecture streams can share an output directory. Existing files within a stream directory are reused; choose a new `--output-dir` to collect fresh evidence.
 
 The output directory is structured for easy navigation:
 
 ```text
 payload/
-  <version>/
-    <stream>/
+  <controller-key>/
+    <stream-name>/
       summary.json                         # START HERE — full triage data
       CLAUDE.md                            # Imports AGENTS.md for Claude Code
       AGENTS.md                            # Dynamic snapshot orientation doc
@@ -159,44 +159,46 @@ payload/
 
 ### Step 3: Use the Data
 
+Set `SNAPSHOT_DIR` to the absolute path of the directory containing the desired `summary.json`.
+
 **Find failed blocking jobs (with streaks):**
 ```bash
-jq '.blocking_jobs.failed_jobs[] | {name, state, streak: .streak.streak_length, pattern: .streak.failure_pattern}' payload/<version>/<stream>/summary.json
+jq '.blocking_jobs.failed_jobs[] | {name, state, streak: .streak.streak_length, pattern: .streak.failure_pattern}' "$SNAPSHOT_DIR/summary.json"
 ```
 
 **Check test failures and when they started:**
 ```bash
-jq '.[] | {test: .test_name, first_failed: .first_failed_in, payloads: .payloads_failing, jobs: .jobs}' payload/<version>/<stream>/<tag>/regressions.json
+jq '.[] | {test: .test_name, first_failed: .first_failed_in, payloads: .payloads_failing, jobs: .jobs}' "$SNAPSHOT_DIR/<tag>/regressions.json"
 ```
 
 **List PRs in a payload:**
 ```bash
-jq '.changeLogJson.updatedImages[].commits[] | {component: .name, pr: .pullURL, subject: .subject}' payload/<version>/<stream>/<tag>/changelog.json
+jq '.changeLogJson.updatedImages[].commits[] | {component: .name, pr: .pullURL, subject: .subject}' "$SNAPSHOT_DIR/<tag>/changelog.json"
 ```
 
 **Read a specific PR's diff:**
 ```bash
-cat payload/<version>/<stream>/<tag>/<component>/prs/<number>/code.diff
+cat "$SNAPSHOT_DIR/<tag>/<component>/prs/<number>/code.diff"
 ```
 
 **Check JUnit failures for a specific job:**
 ```bash
-jq '.[].name' payload/<version>/<stream>/<tag>/jobs/blocking/<job-name>/junit/results.json
+jq '.[].name' "$SNAPSHOT_DIR/<tag>/jobs/blocking/<job-name>/junit/results.json"
 ```
 
 **Query RHCOS RPM packages (using the extracted rpmdb.sqlite):**
 ```bash
-rpm -qa --dbpath $(pwd)/payload/<version>/<stream>/<tag>/rpmdb/rhel-coreos
+rpm -qa --dbpath "$SNAPSHOT_DIR/<tag>/rpmdb/rhel-coreos"
 ```
 
 **See what changed in the RHCOS RPMs since the baseline** (inline in summary.json — no file read needed):
 ```bash
-jq '.rpm_changelogs[] | select(.diff) | {variant, compared_tag, diff}' payload/<version>/<stream>/summary.json
+jq '.rpm_changelogs[] | select(.diff) | {variant, compared_tag, diff}' "$SNAPSHOT_DIR/summary.json"
 ```
 
 **Find which payload in the chain introduced a package bump:**
 ```bash
-cat payload/<version>/<stream>/<target-tag>/rpm-changelogs/<variant>/<older-tag>.md
+cat "$SNAPSHOT_DIR/<target-tag>/rpm-changelogs/<variant>/<older-tag>.md"
 ```
 
 ## CLI Reference

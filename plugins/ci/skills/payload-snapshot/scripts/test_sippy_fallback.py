@@ -306,9 +306,8 @@ def test_payload_collection_falls_back_per_tag_and_diff(tmp_path, monkeypatch):
     assert chain == [TARGET, CULLED, BASELINE]
     # History already queried the missing payload; check collection separately.
     sippy.payload_calls.clear()
-    snapshotter = ps.Snapshotter(request.identity, source, output_dir=str(tmp_path),
-                                collect_junit=False,
-                                cache_identity={"release_controller_url": request.controller_url})
+    snapshotter = ps.Snapshotter(request.identity, source, snapshot_dir=str(tmp_path),
+                                collect_junit=False)
 
     base_dir = tmp_path / "5.0" / "nightly"
     collectors = snapshotter._collect_payloads(

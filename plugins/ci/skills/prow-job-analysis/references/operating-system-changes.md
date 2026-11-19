@@ -103,8 +103,9 @@ changed in the OS.
   `rpmdb/<variant>/rpmdb.sqlite`:
 
   ```bash
+  # SNAPSHOT_DIR is the absolute directory containing summary.json
   # every RPM in a variant, at exact NEVRA
-  rpm -qa --dbpath "$(pwd)/payload/<version>/<stream>/<tag>/rpmdb/rhel-coreos-10"
+  rpm -qa --dbpath "$SNAPSHOT_DIR/<tag>/rpmdb/rhel-coreos-10"
   ```
 
 - Map the failing job to its variant (`rhcos_version` in the snapshot's job entry), then read

@@ -77,7 +77,7 @@ def test_cli_writes_snapshot_using_profile_defaults_and_overrides(
     ])
     ps.main()
 
-    base = tmp_path / version / ("nightly" if tag == OCP_TAG else stream)
+    base = next(tmp_path.glob("*/*/summary.json")).parent
     summary = json.loads((base / "summary.json").read_text())
     assert {key: summary[key] for key in (
         "payload_tag", "version", "stream_name", "architecture", "release_controller_url",
@@ -122,8 +122,7 @@ def test_cli_rejects_incompatible_profile_before_collection(monkeypatch, argumen
     assert error.value.code == 2
 
 
-@pytest.mark.parametrize("legacy", [False, True])
-def test_core_persists_injected_enrichment_and_reuses_cached_payloads(monkeypatch, tmp_path, legacy):
+def test_core_persists_injected_enrichment_and_reuses_cached_payloads(monkeypatch, tmp_path):
     def unexpected(*args, **kwargs):
         raise AssertionError("core attempted to fetch cached payload details")
 
@@ -138,52 +137,69 @@ def test_core_persists_injected_enrichment_and_reuses_cached_payloads(monkeypatc
     source.changelog.side_effect = lambda tag, previous: {"compared": [tag, previous]}
     stage = Mock(spec=ps.SnapshotStage)
     stage.collect.return_value = {"rpmdb_data": {"opaque-target": [{"tag": "rhcos"}]}}
-    snapshot = ps.Snapshotter(identity, source, output_dir=str(tmp_path),
-                              collect_junit=False, collectors=[stage],
-                              cache_identity={"source": "fixture"})
+    base = tmp_path / "stream"
+    snapshot = ps.Snapshotter(identity, source, snapshot_dir=str(base),
+                              collect_junit=False, collectors=[stage])
     snapshot.run()
-    base = tmp_path / "component/custom"
     summary = json.loads((base / "summary.json").read_text())
     assert summary["rhcos_rpms"][0]["rpmdb"] == "opaque-target/rpmdb/rhcos/rpmdb.sqlite"
     assert json.loads((base / "opaque-target/changelog.json").read_text())["compared"] == [
         "opaque-target", "opaque-baseline",
     ]
     source.payload.side_effect = unexpected
-    if legacy:
-        (base / ".snapshot-identity.json").unlink()
     snapshot.run()
     assert json.loads((base / "summary.json").read_text()) == summary
 
 
 @pytest.mark.parametrize("override", [
-    {"controller_url": "https://mirror.example"},
+    {"controller_url": "http://amd64.ocp.releases.ci.openshift.org:8080"},
     {"stream": "another-stream"},
-    {"architecture": "arm64"},
+    {"payload_tag": "5.1.0-0.nightly-arm64-2026-11-06-105750",
+     "controller_url": "https://amd64.ocp.releases.ci.openshift.org"},
 ])
-@pytest.mark.parametrize("legacy", [False, True])
-def test_snapshot_rejects_incompatible_cache_without_modifying_it(
-    monkeypatch, tmp_path, override, legacy,
+def test_snapshots_from_different_controllers_and_streams_coexist_and_reuse_evidence(
+    monkeypatch, tmp_path, override,
 ):
     profile = ps.PROFILES["ocp"]
-    request = profile.resolve(OCP_TAG)
-    source = Mock(spec=ps.PayloadSource)
-    source.streams.return_value = []
-    source.history.return_value = [OCP_TAG]
-    source.payload.return_value = {
-        "phase": "Accepted", "_release_controller_url": request.controller_url,
-        "results": {"blockingJobs": {"e2e": {"state": "Succeeded", "url": ""}}},
-    }
-    monkeypatch.setattr(profile, "build_source", lambda request: source)
+    first = profile.resolve(OCP_TAG)
+    second = profile.resolve(**{"payload_tag": OCP_TAG, **override})
+    sources = []
+
+    def build_source(request):
+        source = Mock(spec=ps.PayloadSource)
+        source.streams.return_value = []
+        source.history.return_value = [request.identity.raw]
+        source.payload.return_value = {
+            "phase": "Accepted" if request == first else "Rejected",
+            "_release_controller_url": request.controller_url,
+            "results": {"blockingJobs": {"e2e": {
+                "state": "Succeeded" if request == first else "Failed", "url": "",
+            }}},
+        }
+        sources.append(source)
+        return source
+
+    monkeypatch.setattr(profile, "build_source", build_source)
     options = dict(output_dir=str(tmp_path), collect_junit=False, collect_rpmdb=False)
-    profile.build_snapshotter(request, **options).run()
-    base = tmp_path / "5.1/nightly"
-    if legacy:
-        (base / ".snapshot-identity.json").unlink()
-    before = {p.relative_to(base): p.read_bytes() for p in base.rglob("*") if p.is_file()}
-    source.reset_mock()
+    profile.build_snapshotter(first, **options).run()
+    profile.build_snapshotter(second, **options).run()
+    summaries = {json.loads(path.read_text())["phase"]: path
+                 for path in tmp_path.glob("*/*/summary.json")}
+    assert set(summaries) == {"Accepted", "Rejected"}
+    for request, phase, state in ((first, "Accepted", "Succeeded"),
+                                  (second, "Rejected", "Failed")):
+        base = summaries[phase].parent
+        summary = json.loads(summaries[phase].read_text())
+        assert summary["payload_tag"] == request.identity.raw
+        assert summary["release_controller_url"] == request.controller_url
+        assert summary["stream_name"] == request.identity.stream_name
+        assert summary["architecture"] == request.identity.architecture
+        job = summary["payloads"][0]["jobs"]["blocking"][0]
+        assert json.loads((base / job["job_json"]).read_text())["state"] == state
 
-    with pytest.raises(ValueError, match="different --output-dir"):
-        profile.build_snapshotter(profile.resolve(OCP_TAG, **override), **options).run()
+    before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+    sources[0].payload.side_effect = AssertionError("cached payload was fetched again")
+    monkeypatch.setattr(profile, "build_source", lambda request: sources[0])
+    profile.build_snapshotter(first, **options).run()
 
-    assert {p.relative_to(base): p.read_bytes() for p in base.rglob("*") if p.is_file()} == before
-    source.history.assert_not_called()
+    assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before

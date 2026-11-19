@@ -31,7 +31,7 @@ Use this skill when you need to:
 
 2. **Analyze using an existing snapshot directory**:
    ```
-   /ci:payload-analysis 4.22.0-0.nightly-2026-02-25-152806 --snapshot-dir payload/4.22/nightly
+   /ci:payload-analysis 4.22.0-0.nightly-2026-02-25-152806 --snapshot-dir ./existing-snapshot
    ```
 
 3. **Analyze an arm64 payload** (architecture inferred from tag):
@@ -96,7 +96,7 @@ The analysis requires a local snapshot produced by the `payload-snapshot` skill.
 
 1. **Explicit `--snapshot-dir DIR`**: If provided, look for `DIR/summary.json`. If not found, exit with an error.
 2. **Current directory**: Check if `./summary.json` exists and its `payload_tag` field matches the requested tag.
-3. **Standard snapshot directories**: Check `payload/*/*/summary.json` for a matching `payload_tag`.
+3. **Standard snapshot directories**: Check `payload/<controller-key>/<stream-name>/summary.json` (glob `payload/*/*/summary.json`) for a matching `payload_tag`. The controller key is the URL-encoded controller origin; the stream name is exact. If multiple snapshots match, require `--snapshot-dir` to select one.
 
 If no matching snapshot is found, create one:
 

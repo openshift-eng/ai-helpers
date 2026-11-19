@@ -796,13 +796,16 @@ class SnapshotProfile(ABC):
                           collect_rpmdb: bool = True,
                           collect_rpm_changelogs: bool = True) -> "Snapshotter":
         source = self.build_source(request)
+        snapshot_dir = os.path.join(
+            output_dir, urllib.parse.quote(request.controller_url, safe=""),
+            request.identity.stream_name,
+        )
         return Snapshotter(
-            tag=request.identity, source=source, output_dir=output_dir,
+            tag=request.identity, source=source, snapshot_dir=snapshot_dir,
             max_chain=max_chain, workers=workers, collect_junit=collect_junit,
             collectors=self.collectors(request, source, workers,
                                        collect_rpmdb, collect_rpm_changelogs),
             job_version=lambda name: self.job_version(request.identity, name),
-            cache_identity={"release_controller_url": request.controller_url},
         )
 
     @staticmethod
@@ -2197,7 +2200,7 @@ class SummaryGenerator:
             "## File Layout",
             "",
             "```",
-            f"{version}/{stream}/",
+            "./",
             "  summary.json              # START HERE — full triage data",
             "  CLAUDE.md                  # This file",
             "  streams.json              # Streams available to this snapshot",
@@ -2695,29 +2698,23 @@ class Snapshotter:
     """Orchestrates the full payload snapshot."""
 
     def __init__(self, tag: PayloadTag, source: PayloadSource,
-                 output_dir: str = "payload", max_chain: int = 20,
+                 snapshot_dir: str, max_chain: int = 20,
                  workers: int = 8, collect_junit: bool = True,
                  collectors: Iterable[SnapshotStage] = (),
-                 job_version: Callable[[str], str] = lambda name: "", *,
-                 cache_identity: dict[str, str]):
+                 job_version: Callable[[str], str] = lambda name: ""):
         self.tag = tag
         self.source = source
-        self.output_dir = output_dir
+        self.snapshot_dir = snapshot_dir
         self.max_chain = max_chain
         self.workers = workers
         self.collect_junit = collect_junit
         self.collectors = tuple(collectors)
         self.job_version = job_version
-        self.cache_identity = {**cache_identity, "stream_name": tag.stream_name,
-                               "architecture": tag.architecture}
 
     def run(self) -> None:
         """Execute the full snapshot."""
-        base_dir = os.path.join(
-            self.output_dir, self.tag.version, self.tag.stream
-        )
+        base_dir = self.snapshot_dir
         os.makedirs(base_dir, exist_ok=True)
-        self._validate_cache_identity(base_dir)
 
         # A previous run over this directory may have left JUnit output it
         # recorded as incomplete.  Drop it so it is re-collected rather than
@@ -2755,26 +2752,6 @@ class Snapshotter:
         self._generate_summary(base_dir, chain, streaks, **supplements)
 
         _log(f"\nSnapshot complete: {base_dir}/")
-
-    def _validate_cache_identity(self, base_dir: str) -> None:
-        """Check provenance before reading or invalidating cached artifacts."""
-        path = os.path.join(base_dir, ".snapshot-identity.json")
-        if os.path.exists(path):
-            cached = _read_json(path)
-        elif os.listdir(base_dir):
-            # Completed older snapshots can establish compatibility without
-            # a manifest. Partial snapshots without provenance cannot.
-            summary = _read_json(os.path.join(base_dir, "summary.json")) or {}
-            cached = {key: summary.get(key) for key in self.cache_identity}
-        else:
-            cached = self.cache_identity
-        if cached != self.cache_identity:
-            raise ValueError(
-                f"Snapshot cache identity is incompatible or unverifiable at {base_dir}; "
-                "use a different --output-dir"
-            )
-        if not os.path.exists(path):
-            _write_json(path, self.cache_identity)
 
     def _collect_streams(self, base_dir: str) -> None:
         SourceCollector(os.path.join(base_dir, "streams.json"),
