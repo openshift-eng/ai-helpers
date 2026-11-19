@@ -102,7 +102,7 @@ PROJECTS = {
                 "Done when": (True, ["Acceptance criteria", "Done when"]),
             },
         },
-        # Headings whose lists are completion conditions (rubric check C2).
+        # Headings whose lists are completion conditions (acceptance criteria and the like).
         "completion_headings": ["Acceptance criteria", "Done when", "Success criteria",
                                 "Validation and acceptance criteria", "Definition of done",
                                 "Exit criteria", "Additional acceptance criteria", "Deliverable",
@@ -341,17 +341,17 @@ def describe(card: dict, conf: dict, issue_type: str, strict: bool) -> dict:
     flags = []
     for lst in result["completion_lists"]:
         if lst["over_limit"]:
-            flags.append(f"C2: '{lst['heading']}' has {lst['items']} items (limit {conf['max_completion_items']})")
+            flags.append(f"Criteria: '{lst['heading']}' has {lst['items']} items (limit {conf['max_completion_items']})")
         if lst["nested_items"]:
-            flags.append(f"C2/C7: '{lst['heading']}' has {lst['nested_items']} nested sub-items")
+            flags.append(f"Criteria: '{lst['heading']}' has {lst['nested_items']} nested sub-items")
     if len(result["completion_lists"]) > 1:
-        flags.append("C1/C2: more than one list of completion conditions")
+        flags.append("Criteria: more than one list of completion conditions")
     for size in result["long_log_excerpts"]:
-        flags.append(f"C4: log or code excerpt of {size} lines (limit {conf['max_log_lines']})")
+        flags.append(f"Evidence: log or code excerpt of {size} lines (limit {conf['max_log_lines']})")
     for url in result["long_raw_urls"]:
-        flags.append(f"C4: raw URL of {len(url)} characters; use a labelled link to the same target")
+        flags.append(f"Evidence: raw URL of {len(url)} characters; use a labelled link to the same target")
     if guidance and result["description"]["position"] == "over_twice":
-        flags.append("Length: more than twice the guidance; check C1, C3, C5 or a split")
+        flags.append("Length: more than twice the guidance; look for repetition, background, plans or a split")
     result["rubric_flags"] = flags
     return result
 
@@ -409,9 +409,9 @@ def preservation(original: dict, proposed: dict, conf: dict, stored: bool = Fals
             "reduction_pct": round(100 * (before_words - after_words) / before_words) if before_words else 0,
         },
     }
-    # Dropped identifiers and numbers are advisory: content removed under C4 or
-    # C5 (a reduced log excerpt, dated search findings) takes its details with
-    # it. The skill requires each one to be accounted for in the change notes.
+    # Dropped identifiers and numbers are advisory: content the rubric lets a
+    # proposal remove (a reduced log excerpt, dated search findings) takes its
+    # details with it. The skill requires each one to be accounted for in the change notes.
     result["passed"] = (
         not result["missing_links"]
         and not result["missing_issue_keys"]

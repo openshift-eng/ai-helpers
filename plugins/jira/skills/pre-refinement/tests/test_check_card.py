@@ -163,11 +163,11 @@ class DescriptionFactsTest(unittest.TestCase):
         self.assertTrue(result["sections"]["Acceptance Criteria"]["heading_found"])
         self.assertTrue(result["summary"]["in_range"])
 
-    def test_more_than_five_criteria_flags_c2(self):
+    def test_more_than_five_criteria_is_flagged(self):
         items = "\n".join(f"* Verify that outcome {i} happens." for i in range(6))
         result = check_card.check(card(description=f"Statement.\n\n## Acceptance Criteria\n\n{items}\n"))
         self.assertTrue(result["completion_lists"][0]["over_limit"])
-        self.assertTrue(any(f.startswith("C2:") for f in result["rubric_flags"]))
+        self.assertTrue(any(f.startswith("Criteria:") for f in result["rubric_flags"]))
 
     def test_nested_sub_bullets_and_jira_wiki_headings(self):
         desc = "Statement.\n\nh2. Acceptance Criteria\n# First\n## detail\n## detail\n# Second\n"
@@ -181,23 +181,23 @@ class DescriptionFactsTest(unittest.TestCase):
                 result = check_card.check(card(description=f"As a user, I want x.\n\n{heading}\n{items}\n"))
                 self.assertEqual([(lst["heading"], lst["items"]) for lst in result["completion_lists"]],
                                  [("acceptance criteria", 20)])
-                self.assertTrue(any(f.startswith("C2:") for f in result["rubric_flags"]))
+                self.assertTrue(any(f.startswith("Criteria:") for f in result["rubric_flags"]))
                 self.assertTrue(result["sections"]["Acceptance Criteria"]["heading_found"])
 
     def test_second_criteria_list_is_flagged(self):
         desc = ("S.\n\n## Acceptance Criteria\n\n* a\n\n"
                 "## Additional acceptance criteria (for reuse by other teams)\n\n* b\n")
         flags = check_card.check(card(description=desc))["rubric_flags"]
-        self.assertIn("C1/C2: more than one list of completion conditions", flags)
+        self.assertIn("Criteria: more than one list of completion conditions", flags)
 
-    def test_long_log_and_raw_url_flag_c4(self):
+    def test_long_log_and_raw_url_are_flagged(self):
         log = "\n".join(f"label-{i}" for i in range(20))
         url = "https://sippy.example/api/jobs?" + "filter=" + "x" * 120
         desc = f"Problem.\n\n```\n{log}\n```\n\nSee {url}\n\n[short](https://example.com/{'y' * 120})"
         result = check_card.check(card(issue_type="Bug", description=desc))
         self.assertEqual(result["long_log_excerpts"], [20])
         self.assertEqual(result["long_raw_urls"], [url])
-        self.assertEqual(sum(f.startswith("C4:") for f in result["rubric_flags"]), 2)
+        self.assertEqual(sum(f.startswith("Evidence:") for f in result["rubric_flags"]), 2)
 
     def test_short_excerpt_is_fine(self):
         desc = "Problem.\n\n{noformat}\nline 1\nline 2\n{noformat}\n"
@@ -233,7 +233,7 @@ class DescriptionFactsTest(unittest.TestCase):
     def test_spike_deliverable_counts_as_completion_list(self):
         items = "\n".join(f"* outcome {i}" for i in range(6))
         result = check_card.check(card(issue_type="Spike", description=f"Q?\n\n## Deliverable\n{items}\n"))
-        self.assertTrue(any(f.startswith("C2:") for f in result["rubric_flags"]))
+        self.assertTrue(any(f.startswith("Criteria:") for f in result["rubric_flags"]))
 
     def test_fenced_lines_are_not_criteria_or_headings(self):
         items = "\n".join(f"* outcome {i}" for i in range(5))
@@ -343,7 +343,7 @@ class PreservationTest(unittest.TestCase):
         items = "\n".join(f"* outcome {i}" for i in range(6))
         result = check_card.check(card(proposed={"description": f"S.\n\n## Acceptance Criteria\n{items}\n"}))
         self.assertEqual(result["rubric_flags"], [])
-        self.assertTrue(any(f.startswith("C2:") for f in result["preservation"]["proposal_rubric_flags"]))
+        self.assertTrue(any(f.startswith("Criteria:") for f in result["preservation"]["proposal_rubric_flags"]))
 
     def test_link_text_may_change(self):
         result = self.compare("TRT-77 [example failing run](https://prow.example/run/9) "
