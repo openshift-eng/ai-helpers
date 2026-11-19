@@ -132,7 +132,8 @@ From `summary.json` top-level fields:
 
 Copy identity from `summary.json`: `version` is the payload component version;
 `stream_name` is the exact controller stream, while `stream` is its short label.
-Autodl keeps its documented OKD stream normalization.
+Autodl normalizes `stream` to its documented export groups (`ci`, `nightly`,
+`hypershift`), preserving the exact controller name in `stream_name`.
 
 Snapshot `release_controller_url` is the controller origin. Construct payload
 links as `<origin>/releasestream/<stream_name>/release/<tag>`, URL-encoding path

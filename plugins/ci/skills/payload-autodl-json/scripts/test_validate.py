@@ -45,15 +45,28 @@ if __name__ == "__main__":
         cases.append(("invalid JSON syntax", tmp_path, 1))
 
     with tempfile.TemporaryDirectory() as directory:
-        with open(f"{TESTDATA}/valid_hypershift.json") as fixture:
-            data = json.load(fixture)
-        for index, stream in enumerate(("hypershift.v2", "2-HyperShift")):
-            data["rows"][0]["stream"] = stream
-            data["rows"][0]["stream_name"] = stream
+        variants = [
+            ("ci release minor", "ci", "4.22", "4.22.0-0.ci", 0),
+            ("nightly rejects OCP patch version", "nightly", "4.22.0", "4.22.0-0.nightly", 1),
+            ("ci rejects OCP patch version", "ci", "4.22.0", "4.22.0-0.ci", 1),
+            ("HyperShift requires component patch version", "hypershift", "0.1", "hypershift", 1),
+            ("stream typo", "nighlty", "4.22", "4.22.0-0.nightly", 1),
+            ("unnormalized OKD stream", "okd-scos-nightly", "4.22", "4.22.0-0.okd-scos-nightly", 1),
+            ("normalized OKD stream", "nightly", "4.22", "4.22.0-0.okd-scos-nightly", 0),
+            ("custom controller stream is not an export group", "hypershift.v2", "0.1.87", "hypershift.v2", 1),
+            ("custom stream retains HyperShift export group", "hypershift", "0.1.87", "hypershift.v2", 0),
+        ]
+        for index, (name, stream, version, stream_name, expected) in enumerate(variants):
+            fixture_name = "valid_hypershift.json" if version.startswith("0.") else "valid.json"
+            with open(os.path.join(TESTDATA, fixture_name)) as fixture:
+                data = json.load(fixture)
+            data["rows"][0].update(stream=stream, version=version, stream_name=stream_name)
+            if fixture_name == "valid.json":
+                data["rows"][0]["payload_tag"] = f"{stream_name}-2026-02-25-152806"
             path = os.path.join(directory, f"stream-{index}.json")
             with open(path, "w") as output:
                 json.dump(data, output)
-            cases.append((f"controller stream label {stream}", path, 0))
+            cases.append((name, path, expected))
 
         for name, path, expected in cases:
             if test(name, path, expected):

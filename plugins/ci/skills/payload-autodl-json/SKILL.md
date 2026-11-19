@@ -152,9 +152,9 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 | Field | Type | Description |
 |-------|------|-------------|
 | `payload_tag` | string | Full payload tag |
-| `version` | string | Snapshot component version: OCP `"4.22"` or HyperShift `"0.1.87"` |
-| `stream` | string | Stream label: `"nightly"`, `"ci"`, or the snapshot label for other profiles (e.g. `"hypershift"`). For OKD payloads (e.g. `okd-scos-nightly`, `okd-scos`), map to the base type: `okd-scos-nightly` → `"nightly"`, `okd-scos` → `"ci"`. |
-| `stream_name` | string | Exact snapshot controller stream |
+| `version` | string | Snapshot version: `X.Y` for `nightly`/`ci` (OCP/OKD release minor, e.g. `"4.22"`); `X.Y.Z` for `hypershift` (operator component version, e.g. `"0.1.87"`) |
+| `stream` | string | Export group: exactly `"nightly"`, `"ci"`, or `"hypershift"`. Normalize OKD labels: `okd-scos-nightly` → `"nightly"`, `okd-scos` → `"ci"`. HyperShift operator payloads use `"hypershift"` even for custom controller streams. |
+| `stream_name` | string | Exact snapshot controller stream, including custom names such as `"hypershift.v2"`; preserve this independently of the normalized export group |
 | `architecture` | string | `"amd64"`, `"arm64"`, `"multi"`, etc. |
 | `phase` | string | Payload phase: `"Rejected"`, `"Accepted"`, `"Ready"` |
 | `release_controller_url` | string | URL to the payload on the release controller |

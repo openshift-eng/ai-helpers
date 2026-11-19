@@ -10,8 +10,24 @@ REQUIRED_ROW_FIELDS = [
     "job_name", "prow_url", "failure_type", "root_cause_summary",
 ]
 
-STREAM_RE = re.compile(r"^(?!\d+\.\d+\.\d+-\d+\.)[A-Za-z0-9][A-Za-z0-9_.-]*$")
-VERSION_RE = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
+CONTROLLER_RULES = {
+    "ocp": {
+        "streams": {
+            "ci": (r"\d+\.\d+", "X.Y"),
+            "nightly": (r"\d+\.\d+", "X.Y"),
+        },
+    },
+    "hypershift": {
+        "streams": {
+            "hypershift": (r"\d+\.\d+\.\d+", "X.Y.Z"),
+        },
+    },
+}
+STREAM_RULES = {
+    stream: rule
+    for controller in CONTROLLER_RULES.values()
+    for stream, rule in controller["streams"].items()
+}
 
 
 def validate(path):
@@ -54,11 +70,14 @@ def validate(path):
             if non_string:
                 errors.append(f"rows[{i}] has non-string values: {', '.join(non_string)}")
             stream = row.get("stream")
-            if isinstance(stream, str) and not STREAM_RE.fullmatch(stream):
-                errors.append(f"rows[{i}] invalid stream '{stream}' (must be a stream label, e.g. 'nightly' or 'hypershift')")
+            rule = STREAM_RULES.get(stream) if isinstance(stream, str) else None
+            if isinstance(stream, str) and rule is None:
+                errors.append(f"rows[{i}] invalid stream '{stream}' (must be one of: {', '.join(STREAM_RULES)})")
             version = row.get("version")
-            if isinstance(version, str) and not VERSION_RE.fullmatch(version):
-                errors.append(f"rows[{i}] invalid version '{version}' (must be 'X.Y' or 'X.Y.Z')")
+            if rule is not None and isinstance(version, str):
+                version_pattern, version_format = rule
+                if not re.fullmatch(version_pattern, version):
+                    errors.append(f"rows[{i}] invalid version '{version}' (must be '{version_format}' for stream '{stream}')")
 
     if errors:
         print(f"FAIL: {len(errors)} error(s)")
