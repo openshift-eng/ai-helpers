@@ -1038,7 +1038,6 @@ class StatusDataGatherer:
         changelog_in_range: List[Dict],
         comments_in_range: List[Dict],
         issue_prs: List[Dict],
-        pr_refs_map: Dict[str, PRRef],
     ) -> List[Dict]:
         """Assemble dated in-window events from Jira and GitHub sources.
 
@@ -1067,10 +1066,12 @@ class StatusDataGatherer:
             })
 
         for pr in issue_prs:
-            ref = pr_refs_map.get(pr.get("url"))
-            if not ref:
+            owner = pr.get("owner")
+            repo = pr.get("repo")
+            number = pr.get("number")
+            if not (owner and repo and number):
                 continue
-            pr_label = f"{ref.owner}/{ref.repo}#{ref.number}"
+            pr_label = f"{owner}/{repo}#{number}"
             for review in pr.get("reviews_in_range", []):
                 events.append({
                     "type": "github_review",
@@ -1421,6 +1422,15 @@ class StatusDataGatherer:
                         filtered_pr = self._filter_pr_to_range(
                             pr_data_map[url], self.config.date_range
                         )
+                        # Carry the ref's identity (owner/repo/number) on
+                        # the PR itself: the Jira-scraped URL that keys the
+                        # maps can differ from GitHub's canonical
+                        # pr_data["url"] (http vs https, /pulls/), so URL
+                        # matching would silently drop the PR's events.
+                        filtered_pr["owner"] = ref.owner
+                        filtered_pr["repo"] = ref.repo
+                        if not filtered_pr.get("number"):
+                            filtered_pr["number"] = ref.number
                         filtered_pr["found_in_descendants"] = [
                             k for k in ref.found_in_issues if k != issue_key
                         ]
@@ -1428,7 +1438,7 @@ class StatusDataGatherer:
                         total_prs += 1
 
             events_in_window = self._build_events_in_range(
-                changelog_in_range, comments_in_range, issue_prs, pr_refs_map
+                changelog_in_range, comments_in_range, issue_prs
             )
 
             # Build issue data

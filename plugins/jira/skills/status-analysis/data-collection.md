@@ -277,6 +277,7 @@ For each issue in `manifest.issues`, read its detailed data:
 | `comments_in_range[].is_bot` | Filter out bot comments |
 | `events_in_window` | Chronologically sorted in-range events from all sources (Jira transitions/comments and GitHub commits/reviews), each carrying its own UTC ISO-8601 `occurred_at` (normalized to `Z` suffix); the authoritative record of when activity happened |
 | `prs` | GitHub PRs linked to this issue |
+| `prs[].owner` / `prs[].repo` / `prs[].number` | PR identity as extracted from the Jira link (may differ in spelling from `prs[].url`) |
 | `prs[].state` | OPEN, CLOSED, MERGED |
 | `prs[].activity_summary` | Quick check for in-range activity |
 | `prs[].commits_in_range` | Commits within date range |
