@@ -361,11 +361,27 @@ def _rule_release_audit(doc):
     raw = rel.get("items")
     items = [i for i in raw if isinstance(i, dict)] if isinstance(raw, list) else []
     status = rel.get("status")
+    p = "audit.sippy_catalog_diff.release_targets"
     if status not in ("verified", "skipped"):       # an explicit unknown fails even without items
         bad = ["triage %s -> %s %s" % (i.get("triage_id"), i.get("jira"), i.get("decisions")) for i in items
                if not i.get("allowed")]
-        return ["audit.sippy_catalog_diff.release_targets: %s: %s" % (status, "; ".join(bad) or rel.get("error"))]
-    return []
+        return ["%s: %s: %s" % (p, status, "; ".join(bad) or rel.get("error"))]
+    # A clean summary must agree with its items (as audit.verify_release_targets produces them): "skipped"
+    # lists nothing; "verified" lists at least one write, and every item's per-release decisions authorize
+    # its bug under the same rule as the pre-write check (release_target.authorizes).
+    if not isinstance(raw, list) or len(items) != len(raw):
+        return ["%s: %s: items must be a list of objects" % (p, status)]
+    if status == "skipped":
+        return ["%s: skipped but lists %d write(s)" % (p, len(items))] if items else []
+    if not items:
+        return ["%s: verified but lists no writes" % p]
+    bad = []
+    for i in items:
+        dec = i.get("decisions")
+        if (i.get("allowed") is not True or not isinstance(dec, dict) or not dec
+                or not all(release_target.authorizes(d, i.get("jira")) for d in dec.values())):
+            bad.append("triage %s -> %s %s" % (i.get("triage_id"), i.get("jira"), dec))
+    return ["%s: verified but not authorized: %s" % (p, "; ".join(bad))] if bad else []
 
 
 def _rule_backport_evidence(doc):

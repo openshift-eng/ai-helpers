@@ -552,7 +552,9 @@ class ReleaseEvidenceTest(unittest.TestCase):
                          mode_requested='auto', mode_effective='auto', decision=('configured', '', ''),
                          source_run={'run_id': 'r'}, previous_run=None, existing_only=True)
         self.assertTrue(self.errs(out, 'release_targets: mismatch: triage 7 -> SYNTH-100'))
-        for ok in ({'status': 'verified', 'items': [dict(items[0], allowed=True)]}, {'status': 'skipped', 'items': []}):
+        self_item = {'triage_id': '7', 'jira': 'SYNTH-200', 'allowed': True,
+                     'decisions': {'4.30': {'decision': 'self', 'target': 'SYNTH-200'}}}
+        for ok in ({'status': 'verified', 'items': [self_item]}, {'status': 'skipped', 'items': []}):
             out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': ok}
             self.assertEqual(self.errs(out, 'release_targets'), [], ok)
         out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'unknown', 'items': items}}
@@ -563,6 +565,62 @@ class ReleaseEvidenceTest(unittest.TestCase):
         self.assertTrue(self.errs(out, 'release_targets: mismatch'))
         out['audit']['sippy_catalog_diff'] = {'status': 'match'}          # diffs written before the check existed
         self.assertEqual(self.errs(out, 'release_targets'), [])
+
+    def finalized(self, release_targets):
+        d, _ = with_done_write('SYNTH-200')
+        return m.finalize(d, jira_creations={'status': 'ok', 'count': 0}, permissions=None,
+                          sippy_diff={'status': 'match', 'release_targets': release_targets},
+                          mode_requested='auto', mode_effective='auto', decision=('configured', '', ''),
+                          source_run={'run_id': 'r'}, previous_run=None, existing_only=True)
+
+    def test_verified_release_audit_requires_authorizing_decisions(self):    # review: verified summary
+        good = {'triage_id': '7', 'jira': 'SYNTH-200', 'allowed': True,
+                'decisions': {'4.30': {'decision': 'self', 'target': 'SYNTH-200'}}}
+        contradictions = {
+            'clone to another issue': dict(good, decisions={'4.30': {'decision': 'clone', 'target': 'SYNTH-100'}}),
+            'no-matching-clone': dict(good, decisions={'4.30': {'decision': 'no-matching-clone', 'target': None}}),
+            'unknown': dict(good, decisions={'4.30': {'decision': 'unknown', 'target': None}}),
+            'self for another issue': dict(good, decisions={'4.30': {'decision': 'self', 'target': 'SYNTH-100'}}),
+            'item not allowed': dict(good, allowed=False),
+            'no decisions': dict(good, decisions={}),
+            'decisions not an object': dict(good, decisions=['self']),
+            'decision not an object': dict(good, decisions={'4.30': 'self'}),
+            'no bug key': dict(good, jira=None),
+        }
+        for label, item in contradictions.items():
+            for doc in (self.finalized({'status': 'verified', 'items': [item]}),):
+                self.assertTrue(self.errs(doc, 'release_targets: verified'), label)       # finalize consumer
+                self.assertTrue([e for e in m.validate(doc) if 'release_targets' in e], label)   # validate
+        for label, rt in (('verified without items', {'status': 'verified', 'items': []}),
+                          ('verified with malformed items', {'status': 'verified', 'items': 5}),
+                          ('verified with a non-object item', {'status': 'verified', 'items': [good, 'x']}),
+                          ('skipped but lists writes', {'status': 'skipped', 'items': [good]})):
+            self.assertTrue(self.errs(self.finalized(rt), 'release_targets'), label)
+        self.assertEqual(self.errs(self.finalized({'status': 'verified', 'items': [good]}), 'release_targets'), [])
+
+    def test_real_audit_output_finalizes(self):                             # producer-shaped controls
+        import audit
+        jira = fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED, fx.issue('SYNTH-110', '4.31.0', status='Closed'))
+        check = lambda url, regs: release_target.check_regressions(url, regs, fetch=jira,
+                                                                   fetch_regression=lambda rid: {'release': '4.30'})
+
+        def produced(url):
+            before = {'time': '2026-10-13T05:00:00Z', 'triages': {}}
+            after = {'time': '2026-10-13T06:00:00Z', 'triages': {'7': {'regression_ids': [101], 'url': url}}}
+            diff = audit.diff_triages(before, after, [{'type': 'create_triage', 'triage_id': 7, 'regression_ids': [101],
+                                                       'jira': url.rsplit('/', 1)[-1], 'status': 'done'}])
+            diff['release_targets'] = audit.verify_release_targets(diff, after, check=check)
+            return diff['release_targets']
+        ok = produced('https://example.atlassian.net/browse/SYNTH-200')
+        self.assertEqual(ok['status'], 'verified')
+        self.assertEqual(self.errs(self.finalized(ok), 'release_targets'), [])
+        for url in ('https://example.atlassian.net/browse/SYNTH-100', 'https://example.atlassian.net/browse/SYNTH-110'):
+            bad = produced(url)
+            self.assertEqual(bad['status'], 'mismatch', url)
+            self.assertTrue(self.errs(self.finalized(bad), 'release_targets: mismatch'), url)
+        empty = audit.verify_release_targets({'status': 'match', 'created': [], 'extended': []},
+                                             {'time': 't', 'triages': {}}, check=check)
+        self.assertEqual(self.errs(self.finalized(empty), 'release_targets'), [])
 
     # --- review follow-ups (synthetic) ---
     def test_invalid_observation_time_fails_closed(self):                 # finding 4

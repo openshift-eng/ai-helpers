@@ -233,6 +233,13 @@ def check_write(candidate, releases, fetch, max_nodes=MAX_FAMILY):
 PURPOSES = ("write", "no-clone")
 
 
+def authorizes(decision, issue):
+    """True when one per-release decision authorizes writing to ``issue``: ``self`` targeting that issue.
+    Shared by validate_record (pre-write evidence) and the manifest's post-write audit rule."""
+    return (isinstance(decision, dict) and issue_key(issue) is not None
+            and decision.get("decision") in ALLOWED_DECISIONS and decision.get("target") == issue_key(issue))
+
+
 def validate_record(rec, issue=None, releases=None, not_before=None, purpose="write"):
     """Errors for a stored check record (manifest evidence); empty means it supports ``purpose``:
 
@@ -258,7 +265,7 @@ def validate_record(rec, issue=None, releases=None, not_before=None, purpose="wr
     for r, d in per.items():
         d = d if isinstance(d, dict) else {}
         if purpose == "write":
-            ok = d.get("decision") in ALLOWED_DECISIONS and d.get("target") == rec.get("issue")
+            ok = authorizes(d, rec.get("issue"))
         else:
             ok = d.get("decision") == "no-matching-clone" and d.get("target") is None
         if not ok or d.get("complete") is not True:

@@ -274,6 +274,20 @@ class TestRegressionsAndRecords(unittest.TestCase):
         self.assertEqual(rt.validate_record(None), ["release_check missing"])
 
 
+class TestAuthorizes(unittest.TestCase):
+
+    def test_only_self_for_the_same_issue_authorizes(self):
+        self.assertTrue(rt.authorizes({"decision": "self", "target": "SYNTH-1"}, "SYNTH-1"))
+        self.assertTrue(rt.authorizes({"decision": "self", "target": "SYNTH-1"}, "https://example.atlassian.net/browse/SYNTH-1"))
+        for d, issue in (({"decision": "clone", "target": "SYNTH-2"}, "SYNTH-1"),
+                         ({"decision": "self", "target": "SYNTH-2"}, "SYNTH-1"),
+                         ({"decision": "no-matching-clone", "target": None}, "SYNTH-1"),
+                         ({"decision": "unknown", "target": None}, "SYNTH-1"),
+                         ({"decision": "self", "target": None}, None),
+                         ("self", "SYNTH-1"), (None, "SYNTH-1")):
+            self.assertFalse(rt.authorizes(d, issue), (d, issue))
+
+
 class TestCli(unittest.TestCase):
 
     def run_main(self, argv, allowed):
