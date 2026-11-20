@@ -250,7 +250,46 @@
         "fix_version": "5.1.0"
       },
       "this_release": "4.22",
-      "clone_exists": false
+      "clone_exists": false,
+      "release_check": {
+        "schema": "1",
+        "issue": "OCPBUGS-113706",
+        "checked_at": "2026-10-13T05:21:07Z",
+        "allowed": true,
+        "releases": {
+          "4.22": {
+            "release": "4.22",
+            "decision": "no-matching-clone",
+            "target": "OCPBUGS-113706",
+            "complete": true,
+            "reasons": []
+          }
+        },
+        "family": [
+          {
+            "key": "OCPBUGS-113706",
+            "status": "Verified",
+            "resolution": null,
+            "target_versions_raw": [
+              "5.1.0"
+            ],
+            "target_releases": [
+              "5.1"
+            ],
+            "affects_versions": [
+              "5.1"
+            ],
+            "fix_versions": [
+              "5.1.0"
+            ]
+          }
+        ],
+        "ignored_links": [],
+        "reasons": [],
+        "regression_releases": {
+          "49531": "4.22"
+        }
+      }
     }
   ],
   "unanalysed": [

@@ -449,5 +449,91 @@ class ManifestTest(unittest.TestCase):
             self.assertEqual(v.returncode, 0)
 
 
+sys.path.insert(0, os.path.join(HERE, '..', '..', '..', 'scripts'))
+import release_target  # noqa: E402
+import test_release_target as fx  # noqa: E402  (synthetic Jira fixtures)
+
+
+def with_done_write(key, release='4.30', checked_at='2026-10-13T05:30:00Z', check_key=None):
+    """example() whose first cluster declares a done create_triage to `key` with a release check on check_key."""
+    d = example()
+    c = d['clusters'][0]
+    c['fingerprint']['release'] = release
+    act = c['actions'][0]
+    act.update(type='create_triage', status='done', jira=key)
+    rec = release_target.check_write(check_key or key, {release}, fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED))
+    rec['checked_at'] = checked_at
+    act['release_check'] = rec
+    return d, act
+
+
+class ReleaseEvidenceTest(unittest.TestCase):
+    """Validator rules for release-specific Jira targets and negative clone claims (synthetic keys)."""
+
+    def errs(self, d, needle):
+        return [e for e in m.validate(d) if needle in e]
+
+    def test_matching_target_write_validates(self):
+        d, _ = with_done_write('SYNTH-200')
+        self.assertEqual(m.validate(d), [])
+
+    def test_wrong_target_write_is_rejected(self):
+        d, _ = with_done_write('SYNTH-100')        # closed newer-release parent while a 4.30 clone exists
+        self.assertTrue(self.errs(d, "releases[4.30] does not support the write: 'clone'"))
+        self.assertTrue(self.errs(d, 'allowed is not true'))
+
+    def test_missing_or_forged_or_mismatched_evidence_is_rejected(self):
+        d, act = with_done_write('SYNTH-200')
+        del act['release_check']
+        self.assertTrue(self.errs(d, 'release_check missing'))
+        d, act = with_done_write('SYNTH-100')
+        act['release_check']['allowed'] = True     # a flipped flag does not hide the per-release decision
+        self.assertTrue(self.errs(d, 'does not support the write'))
+        d, _ = with_done_write('SYNTH-100', check_key='SYNTH-200')
+        self.assertTrue(self.errs(d, "release_check.issue 'SYNTH-200' != 'SYNTH-100'"))
+        d, _ = with_done_write('SYNTH-200', release='4.31')
+        self.assertTrue(self.errs(d, 'does not support the write'))
+
+    def test_done_write_must_name_its_bug(self):
+        d, act = with_done_write('SYNTH-200')
+        del act['jira']
+        self.assertTrue(self.errs(d, 'done write needs `jira`'))
+
+    def test_stale_evidence_is_rejected(self):
+        d, _ = with_done_write('SYNTH-200', checked_at='2026-10-01T00:00:00Z')
+        self.assertTrue(self.errs(d, 'predates this run'))
+
+    def test_skipped_release_check_needs_the_refusal_record(self):
+        d, act = with_done_write('SYNTH-100')
+        act['status'] = 'skipped-release-check'
+        self.assertEqual(m.validate(d), [])
+        del act['release_check']
+        self.assertTrue(self.errs(d, 'skipped-release-check needs'))
+
+    def test_unverifiable_cluster_release_is_rejected(self):
+        d, _ = with_done_write('SYNTH-200')
+        d['clusters'][0]['fingerprint']['release'] = None
+        self.assertTrue(self.errs(d, 'is not a release'))
+
+    def test_negative_clone_claim_needs_fresh_complete_evidence(self):
+        d = example()
+        b = d['backport_candidates'][0]
+        del b['release_check']
+        self.assertTrue(self.errs(d, 'backport_candidates[0]: release_check missing'))
+        d = example()
+        d['backport_candidates'][0]['release_check']['checked_at'] = '2026-10-01T00:00:00Z'   # stale baseline claim
+        self.assertTrue(self.errs(d, 'predates this run'))
+        d = example()
+        d['backport_candidates'][0]['release_check']['releases']['4.22']['complete'] = False
+        self.assertTrue(self.errs(d, 'does not support the write'))
+        d = example()
+        d['backport_candidates'][0]['clone_exists'] = 'unknown'
+        self.assertTrue(self.errs(d, 'clone_exists must be true or false'))
+        d = example()
+        d['backport_candidates'][0]['clone_exists'] = True
+        del d['backport_candidates'][0]['release_check']
+        self.assertEqual(m.validate(d), [])
+
+
 if __name__ == '__main__':
     unittest.main()

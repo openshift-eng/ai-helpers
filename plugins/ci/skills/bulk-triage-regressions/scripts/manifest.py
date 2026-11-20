@@ -7,13 +7,18 @@
 import argparse
 import copy
 import json
+import os
 import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "scripts"))
+import release_target  # noqa: E402
 
 SCHEMA_VERSION = "1.0"
 LEVELS = ("HIGH", "ELEVATED", "LOW")
 STATES = ("KNOWN-CAUSE", "CANDIDATE", "UNEXPLAINED", "UNANALYSED")
 ACTION_TYPES = ("extend_triage", "create_triage", "catch_all", "none")
-ACTION_STATUS = ("planned", "done", "failed", "skipped-report-mode")
+ACTION_STATUS = ("planned", "done", "failed", "skipped-report-mode", "skipped-release-check")
+WRITE_TYPES = ("create_triage", "extend_triage")      # Jira-targeted writes that need release evidence
 JQL_AUDIT = ("pass", "fail", "unknown")
 SIPPY_DIFF = ("match", "mismatch", "unknown")
 PROBE_STATUS = ("ok", "unauthorized", "failed", "skipped")
@@ -296,7 +301,58 @@ def validate(doc):
             if cid in seen:
                 errs.append("cluster %s: duplicate cluster id (also at index %d)" % (cid, seen[cid]))
             seen.setdefault(cid, i)
-    return errs + _rule_catch_all(doc) + _rule_audit(doc)
+    return errs + _rule_catch_all(doc) + _rule_audit(doc) + _rule_release_checks(doc) + _rule_backport_evidence(doc)
+
+
+def _not_before(doc):
+    obs = doc.get("observation")
+    return obs.get("time") if isinstance(obs, dict) and isinstance(obs.get("time"), str) else None
+
+
+def _rule_release_checks(doc):
+    """Every done Jira-targeted write carries a fresh release_check (release_target.py) that supports writing
+    to its bug for the cluster's release; refusals are recorded as skipped-release-check with their record.
+    Manifests written before this rule existed fail here when they declare done writes: re-resolve, do not
+    copy old evidence forward."""
+    errs, nb = [], _not_before(doc)
+    for c in doc.get("clusters") if isinstance(doc.get("clusters"), list) else []:
+        if not isinstance(c, dict) or not isinstance(c.get("actions"), list):
+            continue
+        fp = c.get("fingerprint") if isinstance(c.get("fingerprint"), dict) else {}
+        rel = release_target.normalize_release(fp.get("release"))
+        for j, a in enumerate(c["actions"]):
+            if not isinstance(a, dict) or a.get("type") not in WRITE_TYPES:
+                continue
+            p = "cluster %s actions[%d]" % (c.get("id"), j)
+            if a.get("status") == "done":
+                if not release_target.issue_key(a.get("jira")):
+                    errs.append("%s: done write needs `jira` (the triage's bug key) to verify its target" % p)
+                if rel is None:
+                    errs.append("%s: cluster fingerprint.release %r is not a release; cannot verify the write"
+                                % (p, fp.get("release")))
+                errs += ["%s: %s" % (p, e) for e in release_target.validate_record(
+                    a.get("release_check"), issue=a.get("jira"), releases=[rel] if rel else [], not_before=nb)]
+            elif a.get("status") == "skipped-release-check" and not isinstance(a.get("release_check"), dict):
+                errs.append("%s: skipped-release-check needs the refusing release_check record" % p)
+    return errs
+
+
+def _rule_backport_evidence(doc):
+    """`clone_exists: false` is a negative claim: it needs a fresh, complete no-matching-clone record."""
+    errs, nb = [], _not_before(doc)
+    for i, b in enumerate(doc.get("backport_candidates") if isinstance(doc.get("backport_candidates"), list) else []):
+        p = "backport_candidates[%d]" % i
+        if not isinstance(b, dict):
+            errs.append("%s: expected object, got %s" % (p, _t(b)))
+            continue
+        if not isinstance(b.get("clone_exists"), bool):
+            errs.append("%s: clone_exists must be true or false" % p)
+        elif b["clone_exists"] is False:
+            key = (b.get("fixed_in") or {}).get("key") if isinstance(b.get("fixed_in"), dict) else None
+            errs += ["%s: %s" % (p, e) for e in release_target.validate_record(
+                b.get("release_check"), issue=key, releases=[b.get("this_release")], not_before=nb,
+                require=("no-matching-clone",))]
+    return errs
 
 
 TOP_SHAPES = {"policy": dict, "source_run": dict, "observation": dict, "baseline_run": dict, "clusters": list,
