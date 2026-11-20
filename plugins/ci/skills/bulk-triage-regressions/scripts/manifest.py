@@ -306,8 +306,13 @@ def validate(doc):
 
 
 def _not_before(doc):
+    """(run start, error). Release evidence must be fresh for this run, so a missing or unparseable
+    observation.time is an error wherever freshness is required (done writes, no-clone claims)."""
     obs = doc.get("observation")
-    return obs.get("time") if isinstance(obs, dict) and isinstance(obs.get("time"), str) else None
+    t = obs.get("time") if isinstance(obs, dict) else None
+    if isinstance(t, str) and release_target.parse_timestamp(t) is not None:
+        return t, None
+    return None, "observation.time %r is not a valid timestamp; release evidence freshness cannot be checked" % (t,)
 
 
 def _rule_release_checks(doc):
@@ -316,7 +321,7 @@ def _rule_release_checks(doc):
     authorization); refusals are recorded as skipped-release-check with their record.
     Manifests written before this rule existed fail here when they declare done writes: re-resolve, do not
     copy old evidence forward."""
-    errs, nb = [], _not_before(doc)
+    errs, (nb, nb_err) = [], _not_before(doc)
     for c in doc.get("clusters") if isinstance(doc.get("clusters"), list) else []:
         if not isinstance(c, dict) or not isinstance(c.get("actions"), list):
             continue
@@ -327,6 +332,8 @@ def _rule_release_checks(doc):
                 continue
             p = "cluster %s actions[%d]" % (c.get("id"), j)
             if a.get("status") == "done":
+                if nb_err:
+                    errs.append("%s: %s" % (p, nb_err))
                 if not release_target.issue_key(a.get("jira")):
                     errs.append("%s: done write needs `jira` (the triage's bug key) to verify its target" % p)
                 if rel is None:
@@ -354,7 +361,7 @@ def _rule_release_audit(doc):
     raw = rel.get("items")
     items = [i for i in raw if isinstance(i, dict)] if isinstance(raw, list) else []
     status = rel.get("status")
-    if status == "mismatch" or (status not in ("verified", "skipped") and items):
+    if status not in ("verified", "skipped"):       # an explicit unknown fails even without items
         bad = ["triage %s -> %s %s" % (i.get("triage_id"), i.get("jira"), i.get("decisions")) for i in items
                if not i.get("allowed")]
         return ["audit.sippy_catalog_diff.release_targets: %s: %s" % (status, "; ".join(bad) or rel.get("error"))]
@@ -363,7 +370,7 @@ def _rule_release_audit(doc):
 
 def _rule_backport_evidence(doc):
     """`clone_exists: false` is a negative claim: it needs a fresh, complete no-matching-clone record."""
-    errs, nb = [], _not_before(doc)
+    errs, (nb, nb_err) = [], _not_before(doc)
     for i, b in enumerate(doc.get("backport_candidates") if isinstance(doc.get("backport_candidates"), list) else []):
         p = "backport_candidates[%d]" % i
         if not isinstance(b, dict):
@@ -372,7 +379,12 @@ def _rule_backport_evidence(doc):
         if not isinstance(b.get("clone_exists"), bool):
             errs.append("%s: clone_exists must be true or false" % p)
         elif b["clone_exists"] is False:
-            key = (b.get("fixed_in") or {}).get("key") if isinstance(b.get("fixed_in"), dict) else None
+            key = b["fixed_in"].get("key") if isinstance(b.get("fixed_in"), dict) else None
+            if nb_err:
+                errs.append("%s: %s" % (p, nb_err))
+            if not release_target.issue_key(key):
+                errs.append("%s: fixed_in.key %r must identify the fixed bug the no-clone evidence is about" % (p, key))
+                continue
             errs += ["%s: %s" % (p, e) for e in release_target.validate_record(
                 b.get("release_check"), issue=key, releases=[b.get("this_release")], not_before=nb,
                 purpose="no-clone")]

@@ -552,18 +552,50 @@ class ReleaseEvidenceTest(unittest.TestCase):
                          mode_requested='auto', mode_effective='auto', decision=('configured', '', ''),
                          source_run={'run_id': 'r'}, previous_run=None, existing_only=True)
         self.assertTrue(self.errs(out, 'release_targets: mismatch: triage 7 -> SYNTH-100'))
-        for ok in ({'status': 'verified', 'items': [dict(items[0], allowed=True)]}, {'status': 'skipped', 'items': []},
-                   {'status': 'unknown', 'items': []}):
+        for ok in ({'status': 'verified', 'items': [dict(items[0], allowed=True)]}, {'status': 'skipped', 'items': []}):
             out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': ok}
             self.assertEqual(self.errs(out, 'release_targets'), [], ok)
         out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'unknown', 'items': items}}
         self.assertTrue(self.errs(out, 'release_targets: unknown'))
         out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'unknown', 'items': 5}}
-        self.assertEqual(self.errs(out, 'release_targets'), [])           # malformed items never raise
+        self.assertTrue(self.errs(out, 'release_targets: unknown'))       # malformed items never raise
         out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'mismatch', 'items': 5}}
         self.assertTrue(self.errs(out, 'release_targets: mismatch'))
         out['audit']['sippy_catalog_diff'] = {'status': 'match'}          # diffs written before the check existed
         self.assertEqual(self.errs(out, 'release_targets'), [])
+
+    # --- review follow-ups (synthetic) ---
+    def test_invalid_observation_time_fails_closed(self):                 # finding 4
+        for bad in (None, 'not-a-time'):
+            d, _ = with_done_write('SYNTH-200')
+            d['observation']['time'] = bad
+            self.assertTrue(self.errs(d, 'observation.time'), bad)
+            d = example()                                                    # clone_exists:false claim
+            d['observation']['time'] = bad
+            self.assertTrue(self.errs(d, 'observation.time'), bad)
+            d = example()                                                    # nothing that needs freshness
+            d['backport_candidates'] = []
+            d['observation']['time'] = bad
+            self.assertEqual(self.errs(d, 'freshness'), [], bad)
+
+    def test_explicit_unknown_release_audit_without_items_is_rejected(self):   # finding 5
+        d, _ = with_done_write('SYNTH-200')
+        out = m.finalize(d, jira_creations={'status': 'ok', 'count': 0}, permissions=None,
+                         sippy_diff={'status': 'match', 'release_targets': {'status': 'unknown', 'items': []}},
+                         mode_requested='auto', mode_effective='auto', decision=('configured', '', ''),
+                         source_run={'run_id': 'r'}, previous_run=None, existing_only=True)
+        self.assertTrue(self.errs(out, 'release_targets: unknown'))
+        out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'skipped', 'items': []}}
+        self.assertEqual(self.errs(out, 'release_targets'), [])
+
+    def test_no_clone_claim_needs_an_identified_fixed_bug(self):           # finding 6
+        d = example()
+        del d['backport_candidates'][0]['fixed_in']['key']
+        self.assertTrue(self.errs(d, 'fixed_in.key'))
+        d = example()
+        d['backport_candidates'][0]['fixed_in'] = 'OCPBUGS-113706'
+        self.assertTrue(self.errs(d, 'fixed_in.key'))
+        self.assertEqual(m.validate(example()), [])
 
     def test_negative_clone_claim_needs_fresh_complete_evidence(self):
         d = example()
