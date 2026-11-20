@@ -361,6 +361,8 @@ class FakeJiraPages:
     def __init__(self, entries: list, grow_after_first_request: int = 0):
         self.entries = list(entries)
         self.grow_after_first_request = grow_after_first_request
+        # startAt -> remaining number of requests to fail (None response)
+        self.fail_offsets: dict = {}
         self.requests = 0
 
     async def __call__(self, url: str, **kwargs):
@@ -371,6 +373,9 @@ class FakeJiraPages:
         query = parse_qs(urlparse(url).query)
         max_results = min(int(query["maxResults"][0]), 100)  # API clamps to 100
         start = int(query.get("startAt", ["0"])[0])
+        if self.fail_offsets.get(start, 0) > 0:
+            self.fail_offsets[start] -= 1
+            return None
         values = self.entries[start : start + max_results]
         return {
             "startAt": start,
@@ -384,6 +389,7 @@ class FakeJiraPages:
 class ChangelogPaginationTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         g.JIRA_CHANGELOG_DELAY_SECONDS = 0  # keep tests fast
+        g.JIRA_PAGE_RETRY_DELAY_SECONDS = 0
 
     def make_client(self, entries, grow=0):
         client = g.JiraClient(
@@ -438,6 +444,26 @@ class ChangelogPaginationTests(unittest.IsolatedAsyncioTestCase):
         created = [e["created"] for e in result]
         self.assertEqual(created, sorted(created))
         self.assertEqual(len(created), len(set(created)))
+
+    async def test_transient_page_failure_is_retried(self) -> None:
+        # 167 entries: probe (startAt=0), tail (startAt=67), remainder
+        # (startAt=0 again). Fail the tail page once — the retry must
+        # recover and the changelog must still be complete.
+        entries = synthetic_changelog(167)
+        client, fake = self.make_client(entries)
+        fake.fail_offsets[67] = 1
+        result = await client.get_issue_changelog("KEY-1")
+        self.assertEqual(len(result), 167)
+        self.assertEqual(fake.requests, 4)  # 3 pagination requests + 1 retry
+
+    async def test_persistent_page_failure_raises(self) -> None:
+        # A failed page mid-walk must not yield a partial changelog
+        # that passes as complete.
+        entries = synthetic_changelog(167)
+        client, fake = self.make_client(entries)
+        fake.fail_offsets[67] = g.JIRA_PAGE_RETRY_ATTEMPTS + 5
+        with self.assertRaises(RuntimeError):
+            await client.get_issue_changelog("KEY-1")
 
     async def test_find_last_change_matching_returns_newest(self) -> None:
         entries = [

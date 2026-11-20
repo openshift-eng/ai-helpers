@@ -98,6 +98,8 @@ JIRA_REQUEST_DELAY_SECONDS = 0.3  # 300ms between requests (increased from 200ms
 JIRA_MAX_CONCURRENT_REQUESTS = 2  # Max 2 parallel requests (reduced from 3)
 JIRA_BATCH_SIZE = 40  # Max tickets per JQL query
 JIRA_CHANGELOG_DELAY_SECONDS = 0.5  # Extra delay for changelog API (more rate-limited)
+JIRA_PAGE_RETRY_ATTEMPTS = 3  # Attempts for a single paginated-list page
+JIRA_PAGE_RETRY_DELAY_SECONDS = 5  # Base delay between page retries (scaled by attempt)
 
 # GitHub rate limiting
 GITHUB_MAX_CONCURRENT_REQUESTS = 5  # Reduced from 10
@@ -411,6 +413,36 @@ class JiraClient:
 
         return None
 
+    async def _fetch_json_with_retry(
+        self, url: str, context: str
+    ) -> Dict[str, Any]:
+        """Fetch one page of a paginated list, retrying transient failures.
+
+        A failed page mid-pagination would otherwise truncate the list
+        while the gather still reports it as complete, silently
+        dropping in-window data. `_fetch_json` already absorbs rate
+        limits; this adds a bounded retry for other transient failures
+        and fails loud when the page is genuinely unavailable, so an
+        incomplete result can never pass as complete.
+        """
+        for attempt in range(1, JIRA_PAGE_RETRY_ATTEMPTS + 1):
+            page = await self._fetch_json(url)
+            if page is not None:
+                return page
+            if attempt < JIRA_PAGE_RETRY_ATTEMPTS:
+                delay = JIRA_PAGE_RETRY_DELAY_SECONDS * attempt
+                logger.warning(
+                    f"{context}: page fetch failed "
+                    f"(attempt {attempt}/{JIRA_PAGE_RETRY_ATTEMPTS}), "
+                    f"retrying in {delay}s"
+                )
+                await asyncio.sleep(delay)
+        raise RuntimeError(
+            f"{context}: pagination failed at {url} after "
+            f"{JIRA_PAGE_RETRY_ATTEMPTS} attempts; an incomplete list "
+            f"would be reported as complete"
+        )
+
     async def search_issues(
         self,
         jql: str,
@@ -530,7 +562,10 @@ class JiraClient:
         # Extra delay for changelog API which is more rate-limited
         await asyncio.sleep(JIRA_CHANGELOG_DELAY_SECONDS)
         base_url = f"{self.base_url}/rest/api/3/issue/{issue_key}/changelog"
-        first = await self._fetch_json(f"{base_url}?maxResults={max_results}&startAt=0")
+        first = await self._fetch_json_with_retry(
+            f"{base_url}?maxResults={max_results}&startAt=0",
+            f"Changelog for {issue_key}",
+        )
         if not first:
             return []
         total = first.get("total") or 0
@@ -546,10 +581,15 @@ class JiraClient:
         while remaining_start > 0:
             fetch_start = max(0, remaining_start - max_results)
             fetch_len = remaining_start - fetch_start
-            page = await self._fetch_json(
-                f"{base_url}?maxResults={fetch_len}&startAt={fetch_start}"
+            page = await self._fetch_json_with_retry(
+                f"{base_url}?maxResults={fetch_len}&startAt={fetch_start}",
+                f"Changelog for {issue_key}",
             )
-            values = (page or {}).get("values") or []
+            # A valid page is never empty here: startAt < total always
+            # yields values. Empty means the changelog shrank since
+            # `total` was read, and everything that still exists has
+            # already been fetched.
+            values = page.get("values") or []
             if not values:
                 break
             if expect_last and not page.get("isLast"):
