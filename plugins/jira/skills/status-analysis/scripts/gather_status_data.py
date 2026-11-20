@@ -523,6 +523,35 @@ class JiraClient:
         logger.info(f"Fetched {len(results)} issues total")
         return results
 
+    async def get_issue_comments(self, issue_key: str) -> List[Dict[str, Any]]:
+        """Fetch every comment of an issue, oldest-first.
+
+        The search endpoint embeds only the first page of comments
+        (~20) in each issue; this pages through
+        /rest/api/3/issue/{key}/comment until the list is complete.
+        Page fetches use the same bounded-retry, fail-loud policy as
+        changelog pagination: a truncated comment list must never pass
+        as complete.
+        """
+        comments: List[Dict[str, Any]] = []
+        start_at = 0
+        while True:
+            page = await self._fetch_json_with_retry(
+                f"{self.base_url}/rest/api/3/issue/{issue_key}/comment"
+                f"?startAt={start_at}&maxResults=100",
+                f"Comments for {issue_key}",
+            )
+            values = page.get("comments") or []
+            comments.extend(values)
+            total = page.get("total")
+            if (
+                page.get("isLast")
+                or not values
+                or (total is not None and len(comments) >= total)
+            ):
+                return comments
+            start_at += len(values)
+
     async def get_issue_changelog(
         self,
         issue_key: str,
@@ -999,6 +1028,30 @@ class StatusDataGatherer:
             text = _adf_to_text(text)
         return set(self.PR_PATTERN.findall(text))
 
+    async def _expand_truncated_comments(self, root_issues: List[Dict]) -> None:
+        """Replace capped embedded comment arrays with the full lists.
+
+        Jira's search endpoint embeds only the first page of comments
+        (~20) per issue. In-window comments past that cap would
+        silently produce no jira_comment events (and escape PR-URL
+        extraction), so when the embedded page reports a larger
+        total, fetch the complete list from the comment endpoint.
+        """
+        for issue in root_issues:
+            comment_field = (issue.get("fields") or {}).get("comment") or {}
+            embedded = comment_field.get("comments") or []
+            total = comment_field.get("total")
+            if total is None or total <= len(embedded):
+                continue
+            issue_key = issue["key"]
+            logger.debug(
+                f"  {issue_key}: {len(embedded)}/{total} embedded comments, "
+                f"fetching full list"
+            )
+            full = await self.jira.get_issue_comments(issue_key)
+            if len(full) >= len(embedded):
+                comment_field["comments"] = full
+
     def _parse_datetime(self, date_str: Optional[str]) -> Optional[datetime]:
         """Parse ISO datetime string, normalized to UTC."""
         return parse_iso_datetime(date_str)
@@ -1303,6 +1356,10 @@ class StatusDataGatherer:
         if not root_issues:
             logger.warning("No root issues found. Check JQL query and permissions.")
             return self._build_manifest([], {}, {}, {}, start_time)
+
+        # The search results embed only the first ~20 comments per issue;
+        # expand truncated ones before anything reads them.
+        await self._expand_truncated_comments(root_issues)
 
         # Step 2: Get descendants for all root issues (iterative BFS to handle multi-level hierarchy)
         logger.info("Step 2/8: Fetching descendants")

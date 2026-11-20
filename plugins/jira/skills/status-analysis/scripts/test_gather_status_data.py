@@ -349,6 +349,31 @@ class BuildEventsTests(unittest.TestCase):
         self.assertEqual(events[1]["author_email"], "d@x.com")
 
 
+class FakeJiraComments:
+    """Replaces JiraClient._fetch_json with the comment endpoint's
+    pagination semantics: startAt/maxResults slices of a prebuilt list
+    with total/isLast metadata.
+    """
+
+    def __init__(self, comments: list):
+        self.comments = list(comments)
+        self.requests = 0
+
+    async def __call__(self, url: str, **kwargs):
+        self.requests += 1
+        query = parse_qs(urlparse(url).query)
+        max_results = min(int(query["maxResults"][0]), 100)
+        start = int(query.get("startAt", ["0"])[0])
+        values = self.comments[start : start + max_results]
+        return {
+            "startAt": start,
+            "maxResults": max_results,
+            "total": len(self.comments),
+            "isLast": start + max_results >= len(self.comments) or not values,
+            "comments": values,
+        }
+
+
 class FakeJiraPages:
     """Replaces JiraClient._fetch_json with Jira changelog semantics.
 
@@ -500,6 +525,65 @@ class ChangelogPaginationTests(unittest.IsolatedAsyncioTestCase):
             await client.find_last_change_matching("KEY-1", lambda item: False)
         )
         self.assertEqual(fake.requests, 4)
+
+
+class CommentPaginationTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        g.JIRA_PAGE_RETRY_DELAY_SECONDS = 0
+
+    def make_client(self, comments):
+        client = g.JiraClient("https://test.atlassian.net", "token", "user")
+        fake = FakeJiraComments(comments)
+        client._fetch_json = fake
+        return client, fake
+
+    async def test_all_comments_fetched_across_pages(self) -> None:
+        comments = [{"id": str(i)} for i in range(250)]
+        client, fake = self.make_client(comments)
+        result = await client.get_issue_comments("KEY-1")
+        self.assertEqual(result, comments)
+        self.assertEqual(fake.requests, 3)  # 100 + 100 + 50
+
+    async def test_single_page_costs_one_request(self) -> None:
+        comments = [{"id": "1"}, {"id": "2"}]
+        client, fake = self.make_client(comments)
+        result = await client.get_issue_comments("KEY-1")
+        self.assertEqual(result, comments)
+        self.assertEqual(fake.requests, 1)
+
+
+class ExpandTruncatedCommentsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_truncated_embedded_comments_are_replaced(self) -> None:
+        gatherer = make_gatherer()
+        full = [{"id": str(i)} for i in range(45)]
+        fetched = []
+
+        async def fake_get(issue_key):
+            fetched.append(issue_key)
+            return full
+
+        gatherer.jira.get_issue_comments = fake_get
+        truncated = {  # embedded page reports a larger total
+            "key": "KEY-1",
+            "fields": {"comment": {"comments": full[:20], "total": 45}},
+        }
+        complete = {  # total matches the embedded list
+            "key": "KEY-2",
+            "fields": {"comment": {"comments": full, "total": 45}},
+        }
+        unreported = {  # no total metadata: leave the embedded list alone
+            "key": "KEY-3",
+            "fields": {"comment": {"comments": full[:5]}},
+        }
+
+        await gatherer._expand_truncated_comments(
+            [truncated, complete, unreported]
+        )
+
+        self.assertEqual(truncated["fields"]["comment"]["comments"], full)
+        self.assertEqual(complete["fields"]["comment"]["comments"], full)
+        self.assertEqual(unreported["fields"]["comment"]["comments"], full[:5])
+        self.assertEqual(fetched, ["KEY-1"])
 
 
 if __name__ == "__main__":
