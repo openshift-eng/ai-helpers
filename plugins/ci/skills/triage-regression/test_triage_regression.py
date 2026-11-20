@@ -47,6 +47,7 @@ import io  # noqa: E402
 from unittest import mock  # noqa: E402
 
 SIPPY_RELEASES = {101: "4.30", 102: "4.30", 201: "4.31"}
+BOTH_RELEASES = fx.issue("SYNTH-160", ["4.30.z", "4.31.0"])      # targeted at both releases
 CLOSED_NEWER_PARENT = fx.issue("SYNTH-110", "4.31.0", status="Closed")      # no clone for 4.30
 UNTARGETED = fx.issue("SYNTH-120", None)
 AMBIGUOUS = [fx.issue("SYNTH-130", "4.31.0", links=[fx.link("Cloners", "in", "SYNTH-131"), fx.link("Cloners", "in", "SYNTH-132")]),
@@ -67,7 +68,8 @@ class TestReleaseGateConsumerPath(unittest.TestCase):
 
     def setUp(self):
         self.sent = []
-        jira = fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED, CLOSED_NEWER_PARENT, UNTARGETED, INCOMPLETE, *AMBIGUOUS)
+        jira = fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED, CLOSED_NEWER_PARENT, UNTARGETED, INCOMPLETE, BOTH_RELEASES,
+                        *AMBIGUOUS)
 
         def fake_get_json(url, headers=None):
             rid = int(url.rstrip("/").rsplit("/", 1)[-1])
@@ -158,6 +160,27 @@ class TestReleaseGateConsumerPath(unittest.TestCase):
             res = self.manager([201], None, triage_id=5).update()
         self.assertTrue(res["success"], res.get("error"))
         self.assertEqual([m for m, _, _ in self.sent], ["GET", "PUT"])
+
+    def test_url_change_rechecks_existing_regressions(self):             # finding 7
+        existing = {"id": 5, "url": "https://example.atlassian.net/browse/SYNTH-200", "type": "product",
+                    "description": "", "regressions": [{"id": 101}]}           # 4.30 regression on the 4.30 clone
+        with self.urlopen(existing):
+            res = self.manager([201], "SYNTH-100", triage_id=5).update()       # repoint to the 4.31 parent
+        self.assertFalse(res["success"])
+        self.assertEqual([m for m, _, _ in self.sent], ["GET"])               # no PUT
+        self.assertEqual(sorted(res["release_check"]["regression_releases"]), ["101", "201"])
+        self.sent.clear()
+        with self.urlopen(existing):
+            res = self.manager([201], "SYNTH-160", triage_id=5).update()       # replacement valid for both
+        self.assertTrue(res["success"], res.get("error"))
+        self.assertEqual([m for m, _, _ in self.sent], ["GET", "PUT"])
+        self.assertEqual(sorted(res["release_check"]["regression_releases"]), ["101", "201"])
+
+    def test_issue_key_ignores_query_and_fragment(self):
+        for url in ("https://example.atlassian.net/browse/SYNTH-7", "https://example.atlassian.net/browse/SYNTH-7/",
+                    "https://example.atlassian.net/browse/SYNTH-7?focusedId=1", "SYNTH-7#c1"):
+            self.assertEqual(tr._issue_key(url), "SYNTH-7", url)
+        self.assertIsNone(tr._issue_key("https://example.com/none"))
 
     def test_gate_errors_fail_closed(self):
         mgr = tr.TriageManager([101], "token", "https://example.atlassian.net/browse/SYNTH-200", "product",

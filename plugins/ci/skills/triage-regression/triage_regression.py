@@ -4,11 +4,18 @@ Links one or more regressions to a JIRA bug with a triage type and description.
 """
 
 import os
+import re
 import sys
 import json
 import urllib.request
 import urllib.error
 from typing import List, Dict, Any, Optional
+
+
+def _issue_key(url: Optional[str]) -> Optional[str]:
+    """Jira key at the end of a browse URL (or a bare key); None when there is none."""
+    tail = (url or "").strip().split("#", 1)[0].split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+    return tail if re.fullmatch(r"[A-Z][A-Z0-9_]*-\d+", tail) else None
 
 
 def default_release_gate(url: Optional[str], regression_ids: List[int]) -> Dict[str, Any]:
@@ -221,8 +228,12 @@ class TriageManager:
             if reg_id is not None:
                 existing_ids.add(reg_id)
 
-        # Only the regressions this call adds are release-checked against the triage's bug.
-        refused = self._check_release(new_ids, "update")
+        # The PUT sends the full membership with self.url. When the bug stays the same, only the added
+        # regressions are new links; when it changes, every merged regression moves to the new bug.
+        existing_key = _issue_key(existing.get('url'))
+        same_bug = existing_key is not None and existing_key == _issue_key(self.url)
+        to_check = new_ids if same_bug else sorted(existing_ids | set(new_ids))
+        refused = self._check_release(to_check, "update")
         if refused:
             return refused
 
