@@ -15,8 +15,8 @@ Rules (deliberately narrow):
 * The clone family is the connected component of ``Cloners`` links ("clones" / "is cloned by", both
   directions) within the candidate's Jira project. ``Blocks``, ``Depend`` and other link types are not clone
   relations; they are recorded as ignored evidence and never followed or selected.
-* Traversal keeps a visited set (cycles terminate) and a node budget; exceeding the budget is an incomplete
-  search.
+* Traversal keeps a visited set (cycles terminate) and a lookup budget in which failed lookups count too;
+  exceeding it is an incomplete search, and so is a ``Cloners`` link without a readable issue key.
 * Decision per release R:
     - ``self``: the candidate is targeted at R;
     - ``clone``: exactly one other family member is targeted at R (the write must go there instead);
@@ -24,8 +24,9 @@ Rules (deliberately narrow):
     - ``no-matching-clone``: the search was complete, every member (the candidate included) has a readable
       Target Version and none is R. This is evidence that a release-specific bug is missing, not permission
       to route the regression to a bug for another release: it is report-only;
-    - ``unknown``: any read error, missing field, unparseable target value, a family member (the candidate
-      included) without a Target Version, or exhausted budget.
+    - ``unknown``: any read error, missing field, unparseable target value, clone link without a key, a family
+      member (the candidate included) without a Target Version, or exhausted budget. These are checked before
+      any match, so an incomplete family never authorizes even a matching candidate.
   A write is allowed only for ``self`` (the candidate itself is targeted at R). ``clone`` names the issue to
   write to instead; every other decision is report-only.
 
@@ -143,12 +144,13 @@ def clone_family(candidate, fetch, max_nodes=MAX_FAMILY):
     """Walk Cloners links from ``candidate``. Returns (members{key: facts}, ignored_links[], problems[])."""
     project = _project(candidate)
     members, ignored, problems = {}, [], []
-    queue, seen = [candidate], {candidate}
+    queue, seen, attempts = [candidate], {candidate}, 0
     while queue:
-        key = queue.pop(0)
-        if len(members) >= max_nodes:
-            problems.append("clone family exceeds %d issues; search incomplete" % max_nodes)
+        if attempts >= max_nodes:            # every lookup counts, failed ones included
+            problems.append("clone family needs more than %d lookups; search incomplete" % max_nodes)
             break
+        key = queue.pop(0)
+        attempts += 1
         try:
             facts = issue_facts(fetch(key))
         except Exception as e:      # any read failure makes the search incomplete
@@ -162,8 +164,10 @@ def clone_family(candidate, fetch, max_nodes=MAX_FAMILY):
         problems.extend("%s: %s" % (key, p) for p in facts.get("problems", []))
         for link in facts.get("links", []):
             other = link.get("key")
-            if link.get("type") != CLONE_LINK_TYPE or not issue_key(other):
+            if link.get("type") != CLONE_LINK_TYPE:
                 ignored.append(dict(link, from_key=key, reason="not a clone link"))
+            elif not issue_key(other):
+                problems.append("%s: clone link without a readable issue key" % key)
             elif _project(other) != project:
                 ignored.append(dict(link, from_key=key, reason="clone in another project"))
             elif other not in seen:
@@ -181,16 +185,16 @@ def decide(candidate, release, members, problems):
     if problems or candidate not in members:
         rec["reasons"] = list(problems) or ["candidate could not be read"]
         return rec
-    matches = sorted(k for k, m in members.items() if release in m["target_releases"])
     untargeted = sorted(k for k, m in members.items() if not m["target_versions_raw"])
+    if untargeted:                       # checked first: a gap anywhere makes every decision unprovable
+        rec["reasons"] = ["no Target Version on %s; cannot tell whether it is the %s bug" % (", ".join(untargeted), release)]
+        return rec
+    matches = sorted(k for k, m in members.items() if release in m["target_releases"])
     rec["complete"] = True
     if len(matches) > 1:
         rec.update(decision="ambiguous", reasons=["several family members target %s: %s" % (release, ", ".join(matches))])
     elif matches:
         rec.update(decision="self" if matches[0] == candidate else "clone", target=matches[0])
-    elif untargeted:
-        rec.update(complete=False, reasons=["no Target Version on %s; cannot tell whether it is the %s bug"
-                                            % (", ".join(untargeted), release)])
     else:
         rec.update(decision="no-matching-clone", reasons=[
             "no issue in the clone family targets %s; a release-specific bug is needed (report-only)" % release])
@@ -264,6 +268,8 @@ def validate_record(rec, issue=None, releases=None, not_before=None, purpose="wr
         if normalize_release(r) not in per:
             errs.append("release_check has no decision for release %s" % r)
     checked = rec.get("checked_at")
+    if not_before is not None and _ts(not_before) is None:
+        errs.append("run start %r is not a valid timestamp; evidence freshness cannot be checked" % (not_before,))
     if not isinstance(checked, str) or not checked:
         errs.append("release_check.checked_at missing")
     elif not_before and _ts(checked) is not None and _ts(not_before) is not None and _ts(checked) < _ts(not_before):
@@ -271,6 +277,11 @@ def validate_record(rec, issue=None, releases=None, not_before=None, purpose="wr
     elif not_before and _ts(checked) is None:
         errs.append("release_check.checked_at %r unparseable" % checked)
     return errs
+
+
+def parse_timestamp(text):
+    """ISO-8601 timestamp -> aware datetime, or None when unparseable."""
+    return _ts(text)
 
 
 def _ts(text):

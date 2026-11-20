@@ -176,10 +176,10 @@ class TestResolve(unittest.TestCase):
             rec = self.check("SYNTH-40", ["4.30"], raw)
             self.assertFalse(rec["allowed"])
             self.assertEqual(rec["releases"]["4.30"]["decision"], "unknown")
-        # an untargeted candidate never makes a targeted clone ambiguous: the clone is still named
+        # a missing Target Version anywhere in the family fails closed, even when a clone matches
         p = issue("SYNTH-41", None, links=[link("Cloners", "in", "SYNTH-42")])
         rec = self.check("SYNTH-41", ["4.30"], p, issue("SYNTH-42", "4.30.z", links=[link("Cloners", "out", "SYNTH-41")]))
-        self.assertEqual(rec["releases"]["4.30"]["target"], "SYNTH-42")
+        self.assertEqual((rec["releases"]["4.30"]["decision"], rec["releases"]["4.30"]["target"]), ("unknown", None))
 
     def test_budget_exhaustion_is_unknown(self):
         p = issue("SYNTH-50", "4.31.0", links=[link("Cloners", "in", "SYNTH-51")])
@@ -191,6 +191,44 @@ class TestResolve(unittest.TestCase):
         rec = self.check("SYNTH-60", ["4.30"], p)
         self.assertEqual(rec["releases"]["4.30"]["decision"], "no-matching-clone")
         self.assertEqual(rec["ignored_links"][0]["reason"], "clone in another project")
+
+    # --- review follow-ups (synthetic) ---
+    def test_failed_reads_consume_the_budget(self):          # finding 1
+        p = issue("SYNTH-500", "4.31.0", links=[link("Cloners", "in", "SYNTH-5%02d" % i) for i in range(1, 11)])
+        fetch = store(p)                                     # all ten clones unreadable
+        rec = rt.check_write("SYNTH-500", {"4.30"}, fetch, max_nodes=3)
+        self.assertLessEqual(len(fetch.calls), 3)
+        self.assertEqual((rec["allowed"], rec["releases"]["4.30"]["decision"]), (False, "unknown"))
+
+    def test_complete_family_within_budget_still_decides(self):
+        p = issue("SYNTH-510", "4.31.0", links=[link("Cloners", "in", "SYNTH-511"), link("Cloners", "in", "SYNTH-512")])
+        fetch = store(p, issue("SYNTH-511", "4.30.z", links=[link("Cloners", "out", "SYNTH-510")]),
+                      issue("SYNTH-512", "4.29.z", links=[link("Cloners", "out", "SYNTH-510")]))
+        rec = rt.check_write("SYNTH-511", {"4.30"}, fetch, max_nodes=3)
+        self.assertEqual((rec["allowed"], rec["releases"]["4.30"]["decision"]), (True, "self"))
+        self.assertEqual(len(fetch.calls), 3)
+
+    def test_clone_link_without_a_key_is_incomplete(self):  # finding 2
+        for side in ("outwardIssue", "inwardIssue"):
+            raw = issue("SYNTH-520", "4.30.z")
+            raw["fields"]["issuelinks"] = [{"type": {"name": "Cloners", "inward": "is cloned by", "outward": "clones"},
+                                            side: {}}]
+            rec = self.check("SYNTH-520", ["4.30"], raw)
+            self.assertEqual((rec["allowed"], rec["releases"]["4.30"]["decision"]), (False, "unknown"), side)
+
+    def test_non_clone_link_without_a_key_is_still_ignored(self):
+        raw = issue("SYNTH-521", "4.30.z")
+        raw["fields"]["issuelinks"] = [{"type": {"name": "Blocks", "inward": "is blocked by", "outward": "blocks"},
+                                        "outwardIssue": {}}]
+        rec = self.check("SYNTH-521", ["4.30"], raw)
+        self.assertEqual((rec["allowed"], rec["releases"]["4.30"]["decision"]), (True, "self"))
+
+    def test_untargeted_member_blocks_even_a_matching_candidate(self):   # finding 3
+        p = issue("SYNTH-530", "4.30.z", links=[link("Cloners", "in", "SYNTH-531")])
+        rec = self.check("SYNTH-530", ["4.30"], p, issue("SYNTH-531", None))
+        self.assertEqual((rec["allowed"], rec["releases"]["4.30"]["decision"]), (False, "unknown"))
+        rec = self.check("SYNTH-530", ["4.30"], p, issue("SYNTH-531", "4.31.0"))      # complete family: allowed
+        self.assertEqual((rec["allowed"], rec["releases"]["4.30"]["decision"]), (True, "self"))
 
     def test_unknown_release_and_mixed_releases(self):
         rec = self.check("SYNTH-100", [None, "4.31"], PARENT, CLONE)
