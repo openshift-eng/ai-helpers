@@ -349,6 +349,47 @@ class BuildEventsTests(unittest.TestCase):
         self.assertEqual(events[1]["author_email"], "d@x.com")
 
 
+class PrRefCoalescingTests(unittest.TestCase):
+    def test_url_variants_coalesce_into_one_ref(self) -> None:
+        # http/https and /pulls spellings of the same PR are one entry;
+        # previously each spelling produced its own issue_prs entry and
+        # the PR's events were emitted twice per issue.
+        pr_refs_map = {}
+        variants = [
+            "https://github.com/org/repo/pull/123",
+            "http://github.com/org/repo/pulls/123",
+            "https://github.com/org/repo/pull/123",
+        ]
+        results = [
+            g._note_pr_ref(pr_refs_map, url, issue_key)
+            for url, issue_key in zip(variants, ["KEY-1", "KEY-2", "KEY-2"])
+        ]
+        self.assertEqual(results, [True, False, False])
+        self.assertEqual(len(pr_refs_map), 1)
+        ref = pr_refs_map[("org", "repo", 123)]
+        self.assertEqual(ref.found_in_issues, {"KEY-1", "KEY-2"})
+
+    def test_non_pr_urls_are_ignored(self) -> None:
+        pr_refs_map = {}
+        self.assertIsNone(
+            g._note_pr_ref(pr_refs_map, "https://github.com/org/repo/issues/5", "KEY-1")
+        )
+        self.assertEqual(pr_refs_map, {})
+
+    def test_distinct_prs_stay_separate(self) -> None:
+        pr_refs_map = {}
+        self.assertTrue(
+            g._note_pr_ref(pr_refs_map, "https://github.com/org/repo/pull/123", "K")
+        )
+        self.assertTrue(
+            g._note_pr_ref(pr_refs_map, "https://github.com/org/repo/pull/124", "K")
+        )
+        self.assertTrue(
+            g._note_pr_ref(pr_refs_map, "https://github.com/org/other/pull/123", "K")
+        )
+        self.assertEqual(len(pr_refs_map), 3)
+
+
 class FakeJiraComments:
     """Replaces JiraClient._fetch_json with the comment endpoint's
     pagination semantics: startAt/maxResults slices of a prebuilt list

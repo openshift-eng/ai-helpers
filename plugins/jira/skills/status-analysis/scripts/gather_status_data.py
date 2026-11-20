@@ -35,7 +35,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Set, Callable, AsyncIterator
+from typing import Optional, List, Dict, Any, Set, Callable, AsyncIterator, Tuple
 from urllib.parse import urlparse
 
 from adf import adf_to_text as _adf_to_text
@@ -177,6 +177,34 @@ class PRRef:
                 url=url
             )
         return None
+
+    @property
+    def identity(self) -> Tuple[str, str, int]:
+        """Canonical identity of the referenced PR."""
+        return (self.owner, self.repo, self.number)
+
+
+def _note_pr_ref(
+    pr_refs_map: Dict[Tuple[str, str, int], PRRef],
+    url: str,
+    issue_key: str,
+) -> Optional[bool]:
+    """Record a PR URL against the issue it was found in.
+
+    Refs are keyed by (owner, repo, number) so URL spelling variants
+    of the same PR (http vs https, /pull vs /pulls) coalesce into one
+    entry instead of emitting that PR's events twice per issue.
+    Returns True when a new ref was created, False when the URL merged
+    into an existing ref, and None when the URL is not a GitHub PR.
+    """
+    ref = PRRef.from_url(url)
+    if not ref:
+        return None
+    created = ref.identity not in pr_refs_map
+    if created:
+        pr_refs_map[ref.identity] = ref
+    pr_refs_map[ref.identity].found_in_issues.add(issue_key)
+    return created
 
 
 def parse_iso_datetime(date_str: Optional[str]) -> Optional[datetime]:
@@ -1436,7 +1464,9 @@ class StatusDataGatherer:
 
         # Step 6: Extract PR URLs from all issues, comments, and remote links
         logger.info("Step 6/8: Extracting PR URLs from issues, comments, and remote links")
-        pr_refs_map: Dict[str, PRRef] = {}
+        # Keyed by PR identity, so URL spelling variants of the same PR
+        # coalesce instead of duplicating its events per issue.
+        pr_refs_map: Dict[Tuple[str, str, int], PRRef] = {}
 
         for issue in root_issues:
             issue_key = issue["key"]
@@ -1445,26 +1475,16 @@ class StatusDataGatherer:
             # From description
             desc_urls = self._extract_pr_urls(fields.get("description", ""))
             for url in desc_urls:
-                if url not in pr_refs_map:
-                    ref = PRRef.from_url(url)
-                    if ref:
-                        pr_refs_map[url] = ref
-                        logger.debug(f"    Found PR in {issue_key} description: {url}")
-                if url in pr_refs_map:
-                    pr_refs_map[url].found_in_issues.add(issue_key)
+                if _note_pr_ref(pr_refs_map, url, issue_key):
+                    logger.debug(f"    Found PR in {issue_key} description: {url}")
 
             # From comments
             comments = fields.get("comment", {}).get("comments", [])
             for comment in comments:
                 comment_urls = self._extract_pr_urls(comment.get("body", ""))
                 for url in comment_urls:
-                    if url not in pr_refs_map:
-                        ref = PRRef.from_url(url)
-                        if ref:
-                            pr_refs_map[url] = ref
-                            logger.debug(f"    Found PR in {issue_key} comment: {url}")
-                    if url in pr_refs_map:
-                        pr_refs_map[url].found_in_issues.add(issue_key)
+                    if _note_pr_ref(pr_refs_map, url, issue_key):
+                        logger.debug(f"    Found PR in {issue_key} comment: {url}")
 
         # From descendants
         desc_pr_count = 0
@@ -1476,23 +1496,13 @@ class StatusDataGatherer:
                 child_fields = child.get("fields", {})
 
                 for url in self._extract_pr_urls(child_fields.get("description", "")):
-                    if url not in pr_refs_map:
-                        ref = PRRef.from_url(url)
-                        if ref:
-                            pr_refs_map[url] = ref
-                            desc_pr_count += 1
-                    if url in pr_refs_map:
-                        pr_refs_map[url].found_in_issues.add(parent_key)
+                    if _note_pr_ref(pr_refs_map, url, parent_key):
+                        desc_pr_count += 1
 
                 for comment in child_fields.get("comment", {}).get("comments", []):
                     for url in self._extract_pr_urls(comment.get("body", "")):
-                        if url not in pr_refs_map:
-                            ref = PRRef.from_url(url)
-                            if ref:
-                                pr_refs_map[url] = ref
-                                desc_pr_count += 1
-                        if url in pr_refs_map:
-                            pr_refs_map[url].found_in_issues.add(parent_key)
+                        if _note_pr_ref(pr_refs_map, url, parent_key):
+                            desc_pr_count += 1
 
         # From remote links (only PRs that reference a descendant issue key)
         remote_link_pr_count = 0
@@ -1507,16 +1517,11 @@ class StatusDataGatherer:
                     # Check if the PR title references a descendant issue
                     references_descendant = any(desc_key in title for desc_key in desc_keys)
                     if references_descendant:
-                        if url not in pr_refs_map:
-                            ref = PRRef.from_url(url)
-                            if ref:
-                                pr_refs_map[url] = ref
-                                remote_link_pr_count += 1
-                                logger.debug(f"    Found PR in {issue_key} remote link: {url}")
-                        if url in pr_refs_map:
-                            pr_refs_map[url].found_in_issues.add(issue_key)
+                        if _note_pr_ref(pr_refs_map, url, issue_key):
+                            remote_link_pr_count += 1
+                            logger.debug(f"    Found PR in {issue_key} remote link: {url}")
 
-        logger.info(f"  Found {len(pr_refs_map)} unique PR URLs ({desc_pr_count} from descendants, {remote_link_pr_count} from remote links)")
+        logger.info(f"  Found {len(pr_refs_map)} unique PRs ({desc_pr_count} from descendants, {remote_link_pr_count} from remote links)")
 
         # Step 7: Fetch PR data from GitHub
         logger.info("Step 7/8: Fetching PR data from GitHub")
@@ -1556,7 +1561,7 @@ class StatusDataGatherer:
         descendant_data: Dict[str, Dict],
         changelogs: Dict[str, List[Dict]],
         start_time: datetime,
-        pr_refs_map: Optional[Dict[str, PRRef]] = None,
+        pr_refs_map: Optional[Dict[Tuple[str, str, int], PRRef]] = None,
         pr_data_map: Optional[Dict[str, Dict]] = None,
         last_status_updates: Optional[Dict[str, Optional[str]]] = None,
     ) -> Dict[str, Any]:
@@ -1638,11 +1643,11 @@ class StatusDataGatherer:
 
             # Get PRs for this issue
             issue_prs = []
-            for url, ref in pr_refs_map.items():
+            for ref in pr_refs_map.values():
                 if issue_key in ref.found_in_issues:
-                    if url in pr_data_map:
+                    if ref.url in pr_data_map:
                         filtered_pr = self._filter_pr_to_range(
-                            pr_data_map[url], self.config.date_range
+                            pr_data_map[ref.url], self.config.date_range
                         )
                         # Carry the ref's identity (owner/repo/number) on
                         # the PR itself: the Jira-scraped URL that keys the
