@@ -460,7 +460,7 @@ def test_target_raw_jsons_point_at_the_predecessor_report(tmp_path):
         ps._write_json(os.path.join(base_dir, TARGET, name),
                        {"nodeImageStreams": [], "_source": "rc"})
 
-    _snapshotter()._link_rpm_changelogs(
+    _rpm_collection()._link_rpm_changelogs(
         base_dir, [TARGET, MIDDLE, BASELINE],
         [_changelog_entry(VARIANT, MIDDLE), _changelog_entry(VARIANT, BASELINE)],
     )
@@ -481,7 +481,7 @@ def test_raw_jsons_are_left_alone_without_a_matching_report(tmp_path):
     base_dir = str(tmp_path)
     path = os.path.join(base_dir, TARGET, "payload.json")
     ps._write_json(path, {"_source": "rc"})
-    snap = _snapshotter()
+    snap = _rpm_collection()
 
     snap._link_rpm_changelogs(base_dir, [TARGET], [])          # no chain
     snap._link_rpm_changelogs(base_dir, [TARGET, MIDDLE], [])  # no reports
@@ -512,13 +512,11 @@ def test_payload_entries_point_at_their_report(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Snapshotter wiring
+# RPM collection stage wiring
 # ---------------------------------------------------------------------------
 
-def _snapshotter(**kwargs):
-    return ps.Snapshotter(
-        ps.PayloadTag.parse("5.0.0-0.nightly-2026-08-03-000000"), **kwargs
-    )
+def _rpm_collection(**kwargs):
+    return ps.RpmCollection(source=None, **kwargs)
 
 
 RPMDB_DATA = {TARGET: [{"tag": VARIANT, "name": "n", "pullspec": "p"}]}
@@ -535,7 +533,7 @@ def test_collect_is_skipped_without_anything_to_diff(kwargs, chain, rpmdb_data,
         raise AssertionError("must not shell out to rpm")
 
     monkeypatch.setattr(ps.subprocess, "run", fail)
-    snap = _snapshotter(**kwargs)
+    snap = _rpm_collection(**kwargs)
     assert snap._collect_rpm_changelogs("base", chain, rpmdb_data) == []
 
 
@@ -547,7 +545,7 @@ def test_collect_diffs_the_target_against_the_rest_of_the_chain(tmp_path,
         _dbpath(base_dir, tag): {"kernel": (version, ENTRY_NEW)}
         for tag, version in [(TARGET, "3"), (MIDDLE, "2"), (BASELINE, "1")]
     }))
-    entries = _snapshotter()._collect_rpm_changelogs(
+    entries = _rpm_collection()._collect_rpm_changelogs(
         base_dir, [TARGET, MIDDLE, BASELINE], RPMDB_DATA
     )
     assert [e["compared_tag"] for e in entries] == [MIDDLE, BASELINE]

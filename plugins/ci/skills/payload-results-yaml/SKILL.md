@@ -30,8 +30,10 @@ Where `{tag}` is the full payload tag with colons and slashes replaced by hyphen
 ```yaml
 metadata:
   payload_tag: "4.22.0-0.nightly-2026-02-25-152806"
+  phase: "Rejected"
   version: "4.22"
   stream: "nightly"
+  stream_name: "4.22.0-0.nightly"
   architecture: "amd64"
   release_controller_url: "https://amd64.ocp.releases.ci.openshift.org/..."
   analyzed_at: "2026-02-26T10:30:00Z"
@@ -114,12 +116,14 @@ Written once by `payload-analysis`. Never modified by downstream skills.
 | Field | Type | Description |
 |-------|------|-------------|
 | `payload_tag` | string | Full payload tag being analyzed |
-| `version` | string | OCP version (e.g., `"4.22"`) |
-| `stream` | string | `"nightly"` or `"ci"` |
+| `phase` | string | Snapshot phase verbatim (`Accepted`, `Rejected`, `Ready`) |
+| `version` | string | Snapshot component version, e.g. `"4.22"` or HyperShift `"0.1.87"` |
+| `stream` | string | Snapshot stream label, e.g. `"nightly"`, `"ci"`, `"hypershift"` |
+| `stream_name` | string | Exact snapshot controller stream (e.g. `"4.22.0-0.nightly"` or `"hypershift"`) |
 | `architecture` | string | `"amd64"`, `"arm64"`, `"multi"`, etc. |
 | `release_controller_url` | string | URL to the payload on the release controller |
 | `analyzed_at` | string | ISO 8601 timestamp of when the analysis was performed |
-| `force_accept_recommended` | bool | `true` when all failures are temporary infrastructure issues, no more than 2 blocking jobs failed, and no payload has been accepted in the stream for 18+ hours. Determined by `payload-analysis` Step 6.4. |
+| `force_accept_recommended` | bool | Recommendation from `payload-analysis` Step 6.4; `false` when acceptance-history timing cannot be established |
 
 ### `failing_jobs[]`
 

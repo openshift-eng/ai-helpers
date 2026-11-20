@@ -1,0 +1,30 @@
+{
+    "table_name": "payload_triage",
+    "schema": {
+        "payload_tag": "string",
+        "job_name": "string",
+        "failure_type": "string",
+        "root_cause_summary": "string",
+        "version": "string",
+        "stream": "string",
+        "stream_name": "string",
+        "architecture": "string",
+        "phase": "string",
+        "release_controller_url": "string"
+    },
+    "rows": [
+        {
+            "payload_tag": "0.1.87-0036-gd2d9578c4.nightly-2026-11-06-105750",
+            "version": "0.1.87",
+            "stream": "hypershift",
+            "architecture": "multi",
+            "phase": "Rejected",
+            "job_name": "release-5.1-e2e-aks",
+            "prow_url": "https://prow.ci.openshift.org/view/gs/...",
+            "failure_type": "infra",
+            "root_cause_summary": "Azure role-assignment limit reached",
+            "stream_name": "hypershift",
+            "release_controller_url": "https://hcp.releases.ci.openshift.org/releasestream/hypershift/release/0.1.87-0036-gd2d9578c4.nightly-2026-11-06-105750"
+        }
+    ]
+}

@@ -33,13 +33,15 @@ When the number of failing jobs across all candidates exceeds these limits, prio
 
 ## Implementation
 
-1. **Parse the payload tag** from the argument. Extract `version`, `stream`, and `architecture` from the tag (see `payload-analysis` Step 1 for parsing rules).
+1. **Read the full payload tag** from the argument; use it to locate the results YAML.
 
 2. **Read the payload results YAML** using the `payload-results-yaml` skill: Look for `payload-results-{tag}.yaml` in the current working directory. If not found, print an error and exit:
    ```
    Error: Payload results YAML not found for {payload_tag}.
    Run `/ci:payload-analysis {payload_tag}` first to generate it.
    ```
+
+   Verify `metadata.payload_tag` matches the requested tag. Take `version`, `stream`, `architecture`, and `release_controller_url` from `metadata`.
 
 3. **Filter candidates**: Select `type: "pr"` candidates with `confidence_score >= 85`. Exclude any that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). `type: "rhcos_rpm"` candidates are never reverted — they cannot be pulled out of a payload like a PR; the `payload-results-yaml` skill's Read Candidates operation excludes them for this reason.
 
