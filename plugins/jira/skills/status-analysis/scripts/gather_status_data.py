@@ -224,6 +224,18 @@ def _scan_last_status_summary_update(changelog: List[Dict[str, Any]]) -> Optiona
     return None
 
 
+def _name_tokens(*values: Optional[str]) -> Set[str]:
+    """Split identifiers into lowercase alphanumeric tokens."""
+    tokens: Set[str] = set()
+    for value in values:
+        if value:
+            tokens.update(t for t in re.split(r"[^a-z0-9]+", value.lower()) if t)
+    return tokens
+
+
+_BOT_TOKENS = {"bot", "robot", "automation", "jenkins"}
+
+
 def _is_github_bot(
     login: Optional[str] = None,
     name: Optional[str] = None,
@@ -231,18 +243,40 @@ def _is_github_bot(
 ) -> bool:
     """Heuristically detect GitHub bot identities.
 
-    Matches the `[bot]` suffix GitHub App bots carry, hyphenated bot
-    logins (openshift-merge-bot), robot/automation display names, and
-    noreply emails. Token-based so a human login or name merely
-    containing 'bot' as a substring (e.g. 'abotkin') is not flagged.
+    Matches the `[bot]` suffix GitHub App bots carry (in login or
+    email), hyphenated bot logins (openshift-merge-bot), and
+    robot/automation/jenkins display names. Token-based so a human
+    login, name, or email merely containing 'bot' as a substring
+    (e.g. 'abotkin') is not flagged. Personal privacy addresses
+    (12345+alice@users.noreply.github.com) belong to human accounts
+    and are not bot markers either — only explicit bot tokens are.
     """
-    if email and "noreply" in email.lower():
-        return True
-    tokens = set()
-    for value in (login, name):
-        if value:
-            tokens.update(t for t in re.split(r"[^a-z0-9]+", value.lower()) if t)
-    return bool(tokens & {"bot", "robot", "automation", "jenkins"})
+    return bool(_name_tokens(login, name, email) & _BOT_TOKENS)
+
+
+# Jira-side automation identities: the product's own integrations
+# (GitHub, Jira Automation) and CI hooks in addition to the generic
+# bot markers.
+_JIRA_BOT_TOKENS = _BOT_TOKENS | {"jira", "github"}
+
+
+def _is_jira_bot(
+    name: Optional[str] = None, email: Optional[str] = None
+) -> bool:
+    """Heuristically detect automation-authored Jira comments.
+
+    Integration and CI identities carry a whole automation word (bot,
+    robot, automation, jenkins, jira, github) in their display name or
+    email. Token-based, so a human display name containing such a word
+    as a substring (e.g. 'Mary Abbott') is not flagged. GitHub
+    personal privacy addresses (alice@users.noreply.github.com) belong
+    to human accounts and are exempt from the 'github' token.
+    """
+    if email and email.lower().endswith("@users.noreply.github.com"):
+        # A personal GitHub privacy address: a human's account, not the
+        # GitHub integration identity.
+        email = None
+    return bool(_name_tokens(name, email) & _JIRA_BOT_TOKENS)
 
 
 # =============================================================================
@@ -946,7 +980,6 @@ class StatusDataGatherer:
     ) -> List[Dict]:
         """Filter comments to date range and mark bots."""
         filtered = []
-        bot_patterns = ["automation", "bot", "github", "jenkins", "jira"]
 
         for comment in comments:
             created = self._parse_datetime(comment.get("created"))
@@ -954,12 +987,12 @@ class StatusDataGatherer:
                 continue
 
             author = comment.get("author", {})
-            author_name = (author.get("displayName", "") or "").lower()
-            author_email = (author.get("emailAddress", "") or "").lower()
-
-            is_bot = any(p in author_name or p in author_email for p in bot_patterns)
-            if "noreply" in author_email:
-                is_bot = True
+            # Token-based automation check: substring matching would
+            # drop human commenters like "Mary Abbott" ('bot' in
+            # 'abbott') — see _is_jira_bot.
+            is_bot = _is_jira_bot(
+                name=author.get("displayName"), email=author.get("emailAddress")
+            )
 
             filtered.append({
                 "author": author.get("emailAddress") or author.get("displayName", "Unknown"),

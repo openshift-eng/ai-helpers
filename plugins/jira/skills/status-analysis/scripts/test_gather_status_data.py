@@ -106,7 +106,11 @@ class GithubBotDetectionTests(unittest.TestCase):
             with self.subTest(login=login):
                 self.assertTrue(g._is_github_bot(login=login))
         self.assertTrue(g._is_github_bot(name="OpenShift Merge Robot"))
-        self.assertTrue(g._is_github_bot(email="user@users.noreply.github.com"))
+        # App bot emails carry the [bot] suffix as a token.
+        self.assertTrue(
+            g._is_github_bot(email="41898282+github-actions[bot]@users.noreply.github.com")
+        )
+        self.assertTrue(g._is_github_bot(email="merge-bot@redhat.com"))
 
     def test_humans_pass(self) -> None:
         # Substring safety: 'bot' inside a name or login must not flag.
@@ -116,6 +120,32 @@ class GithubBotDetectionTests(unittest.TestCase):
         self.assertFalse(g._is_github_bot(name="Alice Botti"))
         self.assertFalse(g._is_github_bot(email="user@redhat.com"))
         self.assertFalse(g._is_github_bot())
+        # Personal privacy addresses belong to human accounts.
+        for email in (
+            "12345+alice@users.noreply.github.com",
+            "alice@users.noreply.github.com",
+        ):
+            with self.subTest(email=email):
+                self.assertFalse(g._is_github_bot(email=email))
+
+
+class JiraBotDetectionTests(unittest.TestCase):
+    def test_detects_automation_identities(self) -> None:
+        for name in ("Automation for Jira", "GitHub", "Jenkins CI", "CI Bot"):
+            with self.subTest(name=name):
+                self.assertTrue(g._is_jira_bot(name=name))
+        self.assertTrue(g._is_jira_bot(email="bot@redhat.com"))
+        self.assertTrue(g._is_jira_bot(email="github@connect.atlassian.com"))
+
+    def test_humans_pass(self) -> None:
+        # Substring safety: 'Mary Abbott' contains 'bot' but no whole
+        # automation token; personal GitHub privacy addresses are
+        # exempt from the 'github' token.
+        self.assertFalse(g._is_jira_bot(name="Mary Abbott"))
+        self.assertFalse(g._is_jira_bot(name="Mary Abbott", email="mabbott@redhat.com"))
+        self.assertFalse(g._is_jira_bot(email="12345+alice@users.noreply.github.com"))
+        self.assertFalse(g._is_jira_bot())
+
 
 
 class StatusSummaryScanTests(unittest.TestCase):
@@ -183,6 +213,28 @@ class BuildEventsTests(unittest.TestCase):
         self.assertEqual([e["type"] for e in events], ["jira_comment"])
         self.assertEqual(events[0]["author"], "Human")
         self.assertEqual(events[0]["author_email"], "h@x.com")
+
+    def test_filter_comments_marks_bots_token_based(self) -> None:
+        # Raw Jira comment shape. Substring matching would mark
+        # 'Mary Abbott' as a bot ('bot' inside 'abbott').
+        raw = [
+            {"created": "2026-02-01T09:00:00.000+0000",
+             "author": {"displayName": "Mary Abbott", "emailAddress": "mabbott@redhat.com"},
+             "body": "human comment"},
+            {"created": "2026-02-02T09:00:00.000+0000",
+             "author": {"displayName": "Automation for Jira",
+                        "emailAddress": "noreply@atlassian.com"},
+             "body": "auto comment"},
+            {"created": "2026-01-01T09:00:00.000+0000",  # out of range
+             "author": {"displayName": "Mary Abbott", "emailAddress": "mabbott@redhat.com"},
+             "body": "old"},
+        ]
+        filtered = self.gatherer._filter_comments_to_range(raw, self.date_range)
+        self.assertEqual(
+            [(c["author_name"], c["is_bot"]) for c in filtered],
+            [("Mary Abbott", False), ("Automation for Jira", True)],
+        )
+        self.assertEqual(filtered[0]["body"], "human comment")
 
     def test_privacy_hidden_jira_author_falls_back(self) -> None:
         changelog = [
