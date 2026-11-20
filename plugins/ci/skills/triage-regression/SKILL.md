@@ -103,6 +103,7 @@ python3 "$script_path" 33639,33640,33641,33642 \
 - `--triage-id <id>`: Existing triage ID to update (omit to create new)
 - `--description <text>`: Description for the triage
 - `--format json|summary`: Output format (default: json)
+- `--require-release-target`: Refuse to write (nothing is sent) unless the bug is the release-specific target for the release of every regression being added: the issue in its `Cloners` clone family whose explicit Target Version matches (see `plugins/ci/scripts/release_target.py`). Needs Jira credentials. The JSON output carries the decision as `release_check`; a refusal names the matching clone, or why the check could not decide. Off by default; bulk-triage runs must pass it.
 
 ### Step 3: Parse the Output
 

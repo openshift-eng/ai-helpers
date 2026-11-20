@@ -3,11 +3,21 @@ Create or update a Component Readiness triage record via the Sippy API.
 Links one or more regressions to a JIRA bug with a triage type and description.
 """
 
+import os
 import sys
 import json
 import urllib.request
 import urllib.error
 from typing import List, Dict, Any, Optional
+
+
+def default_release_gate(url: Optional[str], regression_ids: List[int]) -> Dict[str, Any]:
+    """Pre-write release check (see plugins/ci/scripts/release_target.py). Needs Jira credentials."""
+    scripts = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import release_target
+    return release_target.check_regressions(url, regression_ids)
 
 
 def normalize_resolved(resolved: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -36,7 +46,8 @@ class TriageManager:
     def __init__(self, regression_ids: List[int], token: str,
                  url: Optional[str] = None, triage_type: Optional[str] = None,
                  description: Optional[str] = None,
-                 triage_id: Optional[int] = None):
+                 triage_id: Optional[int] = None,
+                 release_gate=None):
         """
         Initialize triage manager.
 
@@ -47,6 +58,8 @@ class TriageManager:
             triage_type: Triage type (required for create, optional for update - uses existing value)
             description: Optional description for the triage
             triage_id: Optional existing triage ID to update (omit to create new)
+            release_gate: Optional callable (url, regression_ids) -> release check record. When set, a
+                write is sent only if the record says "allowed"; otherwise nothing is written.
         """
         self.regression_ids = regression_ids
         self.token = token
@@ -54,6 +67,8 @@ class TriageManager:
         self.triage_type = triage_type
         self.description = description
         self.triage_id = triage_id
+        self.release_gate = release_gate
+        self.release_check = None
         # These are populated from the existing triage during update()
         self._resolved = None
         self._resolution_reason = None
@@ -110,6 +125,30 @@ class TriageManager:
             print(f"Network error fetching triage {self.triage_id}: {e.reason}", file=sys.stderr)
             return None
 
+    def _check_release(self, regression_ids: List[int], operation: str) -> Optional[Dict[str, Any]]:
+        """Run the release gate (if any) for the regressions being added; a refusal result or None."""
+        if self.release_gate is None:
+            return None
+        try:
+            self.release_check = self.release_gate(self.url, list(regression_ids))
+        except Exception as e:      # the gate must fail closed
+            self.release_check = {"allowed": False, "reasons": [f"release check error: {e}"]}
+        if isinstance(self.release_check, dict) and self.release_check.get("allowed") is True:
+            return None
+        reasons = (self.release_check or {}).get("reasons") or ["no decision"]
+        return {
+            'success': False,
+            'error': "Release target check refused the write (nothing was sent): " + "; ".join(reasons),
+            'operation': operation,
+            'regression_ids': list(regression_ids),
+            'release_check': self.release_check,
+        }
+
+    def _with_check(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        if self.release_check is not None:
+            result['release_check'] = self.release_check
+        return result
+
     def create(self) -> Dict[str, Any]:
         """
         Create a new triage record.
@@ -117,6 +156,9 @@ class TriageManager:
         Returns:
             dict: Response with success status and created triage or error
         """
+        refused = self._check_release(self.regression_ids, "create")
+        if refused:
+            return refused
         payload = self._build_payload()
         data = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(
@@ -125,7 +167,7 @@ class TriageManager:
             headers=self._auth_headers(),
             method="POST",
         )
-        return self._send(req, "create")
+        return self._with_check(self._send(req, "create"))
 
     def update(self) -> Dict[str, Any]:
         """
@@ -147,6 +189,7 @@ class TriageManager:
                 'regression_ids': self.regression_ids,
             }
 
+        new_ids = list(self.regression_ids)
         # Fetch existing triage to get current regressions and fill in defaults
         existing = self._fetch_existing_triage()
         if existing is None:
@@ -178,6 +221,11 @@ class TriageManager:
             if reg_id is not None:
                 existing_ids.add(reg_id)
 
+        # Only the regressions this call adds are release-checked against the triage's bug.
+        refused = self._check_release(new_ids, "update")
+        if refused:
+            return refused
+
         merged_ids = existing_ids | set(self.regression_ids)
         self.regression_ids = sorted(merged_ids)
 
@@ -190,7 +238,7 @@ class TriageManager:
             headers=self._auth_headers(),
             method="PUT",
         )
-        return self._send(req, "update")
+        return self._with_check(self._send(req, "update"))
 
     def _send(self, req: urllib.request.Request, operation: str) -> Dict[str, Any]:
         """Send a request and return structured response."""
@@ -300,6 +348,9 @@ def main():
         print("  --triage-id <id>       Existing triage ID to update (omit to create new)", file=sys.stderr)
         print("  --description <text>   Description for the triage", file=sys.stderr)
         print("  --format json|summary  Output format (default: json)", file=sys.stderr)
+        print("  --require-release-target  Refuse to write unless the bug is the release-specific target for", file=sys.stderr)
+        print("                         every regression's release (Jira credentials required; see", file=sys.stderr)
+        print("                         plugins/ci/scripts/release_target.py)", file=sys.stderr)
         print("", file=sys.stderr)
         print("Examples:", file=sys.stderr)
         print("  # Create a new triage for one regression", file=sys.stderr)
@@ -329,6 +380,7 @@ def main():
     description = None
     triage_id = None
     output_format = 'json'
+    require_release_target = False
 
     i = 2
     while i < len(sys.argv):
@@ -352,6 +404,9 @@ def main():
         elif arg == '--description' and i + 1 < len(sys.argv):
             description = sys.argv[i + 1]
             i += 2
+        elif arg == '--require-release-target':
+            require_release_target = True
+            i += 1
         elif arg == '--format' and i + 1 < len(sys.argv):
             output_format = sys.argv[i + 1]
             if output_format not in ('json', 'summary'):
@@ -380,7 +435,8 @@ def main():
 
     # Create or update
     try:
-        manager = TriageManager(regression_ids, token, url, triage_type, description, triage_id)
+        manager = TriageManager(regression_ids, token, url, triage_type, description, triage_id,
+                                release_gate=default_release_gate if require_release_target else None)
 
         if triage_id is not None:
             results = manager.update()

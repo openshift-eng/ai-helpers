@@ -38,6 +38,7 @@ python3 "$script_path" OCPBUGS-12345 \
 
 **Options**:
 - `--format json|text`: Output format (default: text)
+- `--require-release-target`: Before writing, check that the triage points at this issue and that this issue is the release-specific target for every linked regression's release (`plugins/ci/scripts/release_target.py`); otherwise nothing is written and the JSON output explains why in `release_check`. Off by default; bulk-triage runs must pass it.
 
 ### Step 2: Parse the Output
 
