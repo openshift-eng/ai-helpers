@@ -206,7 +206,7 @@ For each issue in `manifest.issues`, read its detailed data:
     },
     {
       "type": "github_merge",
-      "occurred_at": "2026-02-02T16:00:00Z",
+      "occurred_at": "2026-02-01T15:30:00Z",
       "author": "Committer Name",
       "author_login": "committer-login",
       "pr": "org/repo#123",
