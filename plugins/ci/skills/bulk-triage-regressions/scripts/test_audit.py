@@ -1061,11 +1061,13 @@ import test_release_target as fx  # noqa: E402  (synthetic Jira fixtures)
 
 PARENT_URL = "https://example.atlassian.net/browse/SYNTH-100"
 CLONE_URL = "https://example.atlassian.net/browse/SYNTH-200"
+NO_CLONE_PARENT_URL = "https://example.atlassian.net/browse/SYNTH-110"   # targeted at 4.31, no 4.30 clone
 
 
 def synthetic_check(url, regs):
     """Real release_target decision over synthetic Jira data; every regression is on 4.30."""
-    return audit.release_target.check_regressions(url, regs, fetch=fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED),
+    jira = fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED, fx.issue("SYNTH-110", "4.31.0", status="Closed"))
+    return audit.release_target.check_regressions(url, regs, fetch=jira,
                                                   fetch_regression=lambda rid: {"release": "4.30"})
 
 
@@ -1090,6 +1092,15 @@ class ReleaseTargetAuditTests(AuditFetchTests):
         self.assertEqual(diff["release_targets"]["status"], "mismatch")
         self.assertEqual(diff["release_targets"]["items"][0]["decisions"]["4.30"],
                          {"decision": "clone", "target": "SYNTH-200"})
+        reasons = [r for _, r in audit._own_violations("R", {"status": "ok", "count": 0}, diff)]
+        self.assertTrue(any(r.startswith("Release target check mismatch") for r in reasons), reasons)
+
+    def test_write_to_no_clone_parent_is_a_violation(self):
+        diff = self.run_case(NO_CLONE_PARENT_URL, "SYNTH-110")
+        self.assertEqual(diff["status"], "match")                       # key audit unchanged
+        self.assertEqual(diff["release_targets"]["status"], "mismatch")
+        self.assertEqual(diff["release_targets"]["items"][0]["decisions"]["4.30"],
+                         {"decision": "no-matching-clone", "target": None})
         reasons = [r for _, r in audit._own_violations("R", {"status": "ok", "count": 0}, diff)]
         self.assertTrue(any(r.startswith("Release target check mismatch") for r in reasons), reasons)
 

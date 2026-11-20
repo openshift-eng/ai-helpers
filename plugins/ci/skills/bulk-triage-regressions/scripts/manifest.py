@@ -311,8 +311,9 @@ def _not_before(doc):
 
 
 def _rule_release_checks(doc):
-    """Every done Jira-targeted write carries a fresh release_check (release_target.py) that supports writing
-    to its bug for the cluster's release; refusals are recorded as skipped-release-check with their record.
+    """Every done Jira-targeted write carries a fresh release_check (release_target.py) that authorizes writing
+    to its bug for the cluster's release (decision ``self``; a complete ``no-matching-clone`` is evidence, not
+    authorization); refusals are recorded as skipped-release-check with their record.
     Manifests written before this rule existed fail here when they declare done writes: re-resolve, do not
     copy old evidence forward."""
     errs, nb = [], _not_before(doc)
@@ -374,7 +375,7 @@ def _rule_backport_evidence(doc):
             key = (b.get("fixed_in") or {}).get("key") if isinstance(b.get("fixed_in"), dict) else None
             errs += ["%s: %s" % (p, e) for e in release_target.validate_record(
                 b.get("release_check"), issue=key, releases=[b.get("this_release")], not_before=nb,
-                require=("no-matching-clone",))]
+                purpose="no-clone")]
     return errs
 
 

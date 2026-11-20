@@ -255,14 +255,16 @@
         "schema": "1",
         "issue": "OCPBUGS-113706",
         "checked_at": "2026-10-13T05:21:07Z",
-        "allowed": true,
+        "allowed": false,
         "releases": {
           "4.22": {
             "release": "4.22",
             "decision": "no-matching-clone",
-            "target": "OCPBUGS-113706",
+            "target": null,
             "complete": true,
-            "reasons": []
+            "reasons": [
+              "no issue in the clone family targets 4.22; a release-specific bug is needed (report-only)"
+            ]
           }
         },
         "family": [
@@ -285,7 +287,9 @@
           }
         ],
         "ignored_links": [],
-        "reasons": [],
+        "reasons": [
+          "release 4.22: no-matching-clone; no issue in the clone family targets 4.22; a release-specific bug is needed (report-only)"
+        ],
         "regression_releases": {
           "49531": "4.22"
         }

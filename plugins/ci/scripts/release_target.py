@@ -21,12 +21,13 @@ Rules (deliberately narrow):
     - ``self``: the candidate is targeted at R;
     - ``clone``: exactly one other family member is targeted at R (the write must go there instead);
     - ``ambiguous``: more than one family member is targeted at R;
-    - ``no-matching-clone``: the search was complete, every other member has a readable Target Version and
-      none is R; only then may the candidate itself be written (and only then may a "no clone targets R"
-      statement be made);
-    - ``unknown``: any read error, missing field, unparseable target value, untargeted other member, or
-      exhausted budget.
-  A write to the candidate is allowed only for ``self`` and ``no-matching-clone``.
+    - ``no-matching-clone``: the search was complete, every member (the candidate included) has a readable
+      Target Version and none is R. This is evidence that a release-specific bug is missing, not permission
+      to route the regression to a bug for another release: it is report-only;
+    - ``unknown``: any read error, missing field, unparseable target value, a family member (the candidate
+      included) without a Target Version, or exhausted budget.
+  A write is allowed only for ``self`` (the candidate itself is targeted at R). ``clone`` names the issue to
+  write to instead; every other decision is report-only.
 
 Enforcement scope: before a write this check runs only where a caller uses the bundled scripts with it
 (``triage_regression.py`` / ``add_jira_triage_link.py`` with ``--require-release-target``, and
@@ -55,7 +56,7 @@ TARGET_VERSION_FIELD = "customfield_10855"      # Jira "Target Version" (see plu
 JIRA_FIELDS = ("summary", "status", "resolution", "issuelinks", "versions", "fixVersions", TARGET_VERSION_FIELD)
 CLONE_LINK_TYPE = "Cloners"
 MAX_FAMILY = 40
-ALLOWED_DECISIONS = ("self", "no-matching-clone")
+ALLOWED_DECISIONS = ("self",)                   # the only decision that authorizes a write
 DECISIONS = ("self", "clone", "ambiguous", "no-matching-clone", "unknown")
 SIPPY_REGRESSIONS_URL = "https://sippy.dptools.openshift.org/api/component_readiness/regressions"
 TIMEOUT = 30
@@ -181,16 +182,18 @@ def decide(candidate, release, members, problems):
         rec["reasons"] = list(problems) or ["candidate could not be read"]
         return rec
     matches = sorted(k for k, m in members.items() if release in m["target_releases"])
-    untargeted = sorted(k for k, m in members.items() if k != candidate and not m["target_versions_raw"])
+    untargeted = sorted(k for k, m in members.items() if not m["target_versions_raw"])
     rec["complete"] = True
     if len(matches) > 1:
         rec.update(decision="ambiguous", reasons=["several family members target %s: %s" % (release, ", ".join(matches))])
     elif matches:
         rec.update(decision="self" if matches[0] == candidate else "clone", target=matches[0])
     elif untargeted:
-        rec.update(complete=False, reasons=["untargeted family member(s) %s may be the %s clone" % (", ".join(untargeted), release)])
+        rec.update(complete=False, reasons=["no Target Version on %s; cannot tell whether it is the %s bug"
+                                            % (", ".join(untargeted), release)])
     else:
-        rec.update(decision="no-matching-clone", target=candidate)
+        rec.update(decision="no-matching-clone", reasons=[
+            "no issue in the clone family targets %s; a release-specific bug is needed (report-only)" % release])
     return rec
 
 
@@ -223,14 +226,25 @@ def check_write(candidate, releases, fetch, max_nodes=MAX_FAMILY):
     return out
 
 
-def validate_record(rec, issue=None, releases=None, not_before=None, require=ALLOWED_DECISIONS):
-    """Errors for a stored check record (manifest evidence). Empty list means it supports the write."""
+PURPOSES = ("write", "no-clone")
+
+
+def validate_record(rec, issue=None, releases=None, not_before=None, purpose="write"):
+    """Errors for a stored check record (manifest evidence); empty means it supports ``purpose``:
+
+    * ``write``: authorization to link the regressions to ``issue``: ``allowed`` is true and every release
+      decision is ``self`` targeting ``issue``;
+    * ``no-clone``: evidence (never authorization) that ``issue``'s clone family has no issue targeted at the
+      releases: every decision is a complete ``no-matching-clone``.
+    """
+    if purpose not in PURPOSES:
+        return ["unknown release_check purpose %r" % (purpose,)]
     if not isinstance(rec, dict):
         return ["release_check missing"]
     errs = []
     if rec.get("schema") != SCHEMA_VERSION:
         errs.append("release_check.schema %r != %r" % (rec.get("schema"), SCHEMA_VERSION))
-    if rec.get("allowed") is not True:
+    if purpose == "write" and rec.get("allowed") is not True:
         errs.append("release_check.allowed is not true")
     if issue is not None and rec.get("issue") != issue_key(issue):
         errs.append("release_check.issue %r != %r" % (rec.get("issue"), issue_key(issue)))
@@ -238,10 +252,14 @@ def validate_record(rec, issue=None, releases=None, not_before=None, require=ALL
     if not isinstance(per, dict) or not per:
         return errs + ["release_check.releases missing"]
     for r, d in per.items():
-        if not isinstance(d, dict) or d.get("decision") not in require or d.get("target") != rec.get("issue") \
-                or d.get("complete") is not True:
-            errs.append("release_check.releases[%s] does not support the write: %r" % (
-                r, d.get("decision") if isinstance(d, dict) else d))
+        d = d if isinstance(d, dict) else {}
+        if purpose == "write":
+            ok = d.get("decision") in ALLOWED_DECISIONS and d.get("target") == rec.get("issue")
+        else:
+            ok = d.get("decision") == "no-matching-clone" and d.get("target") is None
+        if not ok or d.get("complete") is not True:
+            errs.append("release_check.releases[%s] does not support the %s: %r" % (
+                r, "write" if purpose == "write" else "no-clone claim", d.get("decision")))
     for r in releases or []:
         if normalize_release(r) not in per:
             errs.append("release_check has no decision for release %s" % r)

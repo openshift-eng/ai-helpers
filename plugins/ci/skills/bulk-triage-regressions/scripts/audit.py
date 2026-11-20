@@ -461,8 +461,9 @@ def verify_release_targets(diff, after, check=None):
     The catalogue diff proves the observed Jira key equals the declared one; this proves the key is the
     release-specific bug for the regressions written to it. Created triages are checked for all their
     regressions, extended ones for the added regressions only; changes attributed to other users
-    (``external``) are skipped. Status: ``verified`` | ``skipped`` (nothing written) | ``mismatch`` (a
-    different clone-family member is the release target) | ``unknown`` (could not be decided)."""
+    (``external``) are skipped. Status: ``verified`` | ``skipped`` (nothing written) | ``mismatch`` (the
+    written bug is not targeted at the release: another family member is, or none is) | ``unknown`` (could
+    not be decided)."""
     if not isinstance(diff, dict) or diff.get("status") not in ("match", "mismatch"):
         return {"status": "unknown", "items": [], "error": "catalogue diff unavailable"}
     triages = (after or {}).get("triages") if isinstance(after, dict) else None
@@ -491,7 +492,7 @@ def verify_release_targets(diff, after, check=None):
         status = "skipped"
     elif all(i["allowed"] for i in items):
         status = "verified"
-    elif any(d["decision"] == "clone" for i in items for d in i["decisions"].values()):
+    elif any(d["decision"] in ("clone", "no-matching-clone") for i in items for d in i["decisions"].values()):
         status = "mismatch"
     else:
         status = "unknown"

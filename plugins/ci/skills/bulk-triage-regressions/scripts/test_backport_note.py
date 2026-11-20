@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Tests for backport_note: the "no clone" note is only rendered from a complete no-matching-clone check."""
+"""Tests for backport_note: backport-candidate evidence only from a complete no-matching-clone check; never writes."""
 import os
 import sys
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -12,6 +13,7 @@ import backport_note as bn  # noqa: E402
 import test_release_target as fx  # noqa: E402  (synthetic Jira fixtures)
 
 RELEASES = {101: "4.30", 201: "4.31"}
+CLOSED_NEWER_PARENT = fx.issue("SYNTH-110", "4.31.0", status="Closed")
 
 
 def checker(*issues):
@@ -20,58 +22,35 @@ def checker(*issues):
                                                                 fetch_regression=lambda rid: {"release": RELEASES[rid]})
 
 
-class FakeJira:
-    def __init__(self, comments=(), total=None):
-        self.calls, self.comments = [], list(comments)
-        self.total = len(self.comments) if total is None else total
-
-    def __call__(self, method, path, data=None):
-        self.calls.append((method, path))
-        if method == "GET":
-            return {"total": self.total, "comments": self.comments}
-        return {"id": "42", "created": "2026-01-01T00:00:00.000+0000"}
-
-
 class TestBackportNote(unittest.TestCase):
 
-    def run_note(self, issue, ids, *issues, jira=None, post=True):
-        jira = jira or FakeJira()
-        res = bn.backport_note(issue, ids, "4.31", "org/repo#1", "https://example.com/pr/1", post=post,
-                               check=checker(*issues), request=jira)
-        return res, jira
+    def run_note(self, issue, ids, *issues):
+        with mock.patch("urllib.request.urlopen", side_effect=AssertionError("network write attempted")):
+            return bn.backport_note(issue, ids, "4.31", "org/repo#1", "c-1", check=checker(*issues))
 
     def test_refused_when_a_matching_clone_exists(self):
-        res, jira = self.run_note("SYNTH-100", [101], fx.PARENT, fx.CLONE)
-        self.assertEqual(res["status"], "refused")
-        self.assertEqual(jira.calls, [])
+        self.assertEqual(self.run_note("SYNTH-100", [101], fx.PARENT, fx.CLONE)["status"], "refused")
 
     def test_refused_when_lookup_incomplete(self):
-        res, jira = self.run_note("SYNTH-100", [101], fx.PARENT)          # clone unreadable
-        self.assertEqual(res["status"], "refused")
-        self.assertEqual(jira.calls, [])
+        self.assertEqual(self.run_note("SYNTH-100", [101], fx.PARENT)["status"], "refused")   # clone unreadable
 
     def test_refused_for_the_release_target_itself(self):
-        res, jira = self.run_note("SYNTH-200", [101], fx.PARENT, fx.CLONE)   # decision "self", not a backport gap
-        self.assertEqual(res["status"], "refused")
+        self.assertEqual(self.run_note("SYNTH-200", [101], fx.PARENT, fx.CLONE)["status"], "refused")
 
-    def test_posts_with_evidence_after_complete_search(self):
-        parent = fx.issue("SYNTH-110", "4.31.0", status="Closed")
-        res, jira = self.run_note("SYNTH-110", [101], parent)
-        self.assertEqual(res["status"], "posted")
-        self.assertEqual([m for m, _ in jira.calls], ["GET", "POST"])
-        self.assertIn("no issue in this bug's clone family (1 checked", res["text"])
-        self.assertIn("Target Version 4.30", res["text"])
+    def test_refused_without_target_version(self):
+        self.assertEqual(self.run_note("SYNTH-120", [101], fx.issue("SYNTH-120", None))["status"], "refused")
 
-    def test_dry_run_and_dedupe(self):
-        parent = fx.issue("SYNTH-110", "4.31.0", status="Closed")
-        res, jira = self.run_note("SYNTH-110", [101], parent, post=False)
-        self.assertEqual((res["status"], jira.calls), ("dry-run", []))
-        body, _ = bn.render(["4.30"], "4.31", "org/repo#1", None, {"family": [], "checked_at": "t"})
-        res, jira = self.run_note("SYNTH-110", [101], parent, jira=FakeJira([{"body": body}]))
-        self.assertEqual(res["status"], "skipped")
-        res, jira = self.run_note("SYNTH-110", [101], parent, jira=FakeJira([], total=500))
-        self.assertEqual(res["status"], "refused")
-        self.assertEqual([m for m, _ in jira.calls], ["GET"])
+    def test_complete_no_clone_yields_evidence_not_a_write(self):
+        res = self.run_note("SYNTH-110", [101], CLOSED_NEWER_PARENT)
+        self.assertEqual(res["status"], "candidate")
+        entry = res["backport_candidates"][0]
+        self.assertEqual((entry["this_release"], entry["clone_exists"], entry["fixed_in"]["key"]),
+                         ("4.30", False, "SYNTH-110"))
+        self.assertFalse(entry["release_check"]["allowed"])          # evidence, never authorization
+        self.assertEqual(bn.release_target.validate_record(entry["release_check"], issue="SYNTH-110",
+                                                           releases=["4.30"], purpose="no-clone"), [])
+        self.assertIn("stay untriaged", res["draft"])
+        self.assertFalse(hasattr(bn, "_request"))                     # no Jira write path exists
 
 
 if __name__ == "__main__":

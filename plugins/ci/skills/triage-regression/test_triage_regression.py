@@ -47,6 +47,8 @@ import io  # noqa: E402
 from unittest import mock  # noqa: E402
 
 SIPPY_RELEASES = {101: "4.30", 102: "4.30", 201: "4.31"}
+CLOSED_NEWER_PARENT = fx.issue("SYNTH-110", "4.31.0", status="Closed")      # no clone for 4.30
+UNTARGETED = fx.issue("SYNTH-120", None)
 
 
 class _Resp(io.BytesIO):
@@ -62,7 +64,7 @@ class TestReleaseGateConsumerPath(unittest.TestCase):
 
     def setUp(self):
         self.sent = []
-        jira = fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED)
+        jira = fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED, CLOSED_NEWER_PARENT, UNTARGETED)
 
         def fake_get_json(url, headers=None):
             rid = int(url.rstrip("/").rsplit("/", 1)[-1])
@@ -96,6 +98,21 @@ class TestReleaseGateConsumerPath(unittest.TestCase):
         self.assertEqual(self.sent, [])
         self.assertEqual(res["release_check"]["releases"]["4.30"]["target"], "SYNTH-200")
         self.assertIn("nothing was sent", res["error"])
+
+    def test_closed_newer_release_parent_without_clone_is_refused_with_zero_http(self):
+        with self.urlopen():
+            res = self.manager([101, 102], "SYNTH-110").create()
+        self.assertFalse(res["success"])
+        self.assertEqual(self.sent, [])                       # no Sippy call at all
+        d = res["release_check"]["releases"]["4.30"]
+        self.assertEqual((d["decision"], d["target"], d["complete"]), ("no-matching-clone", None, True))
+
+    def test_candidate_without_target_version_is_refused_with_zero_http(self):
+        with self.urlopen():
+            res = self.manager([101], "SYNTH-120").create()
+        self.assertFalse(res["success"])
+        self.assertEqual(self.sent, [])
+        self.assertEqual(res["release_check"]["releases"]["4.30"]["decision"], "unknown")
 
     def test_matching_release_target_is_written_with_evidence(self):
         with self.urlopen():

@@ -124,12 +124,15 @@ class TestResolve(unittest.TestCase):
         rec = self.check("SYNTH-401", ["4.30"], lone, dep)
         self.assertEqual(rec["releases"]["4.30"]["decision"], "no-matching-clone")
 
-    def test_closed_newer_parent_without_clone_is_complete_no_match(self):
+    def test_closed_newer_parent_without_clone_is_denied_with_no_clone_evidence(self):
+        # A complete search proves no clone targets 4.30; that is evidence, never permission to link the
+        # 4.30 regressions to the 4.31 parent.
         parent = issue("SYNTH-110", "4.31.0", status="Closed")
         rec = self.check("SYNTH-110", ["4.30"], parent)
-        self.assertTrue(rec["allowed"])
-        self.assertEqual(rec["releases"]["4.30"], {"release": "4.30", "decision": "no-matching-clone",
-                                                    "target": "SYNTH-110", "complete": True, "reasons": []})
+        self.assertFalse(rec["allowed"])
+        d = rec["releases"]["4.30"]
+        self.assertEqual((d["decision"], d["target"], d["complete"]), ("no-matching-clone", None, True))
+        self.assertIn("report-only", d["reasons"][0])
 
     def test_multi_hop_and_cycle(self):
         a = issue("SYNTH-1", "4.33.0", links=[link("Cloners", "in", "SYNTH-2")])
@@ -168,9 +171,15 @@ class TestResolve(unittest.TestCase):
             self.assertEqual(rec["releases"]["4.30"]["decision"], "unknown", clone)
             self.assertFalse(rec["allowed"])
 
-    def test_untargeted_singleton_candidate_is_allowed(self):
-        rec = self.check("SYNTH-40", ["4.30"], issue("SYNTH-40", None))
-        self.assertTrue(rec["allowed"])
+    def test_candidate_without_target_version_is_unknown(self):
+        for raw in (issue("SYNTH-40", None), issue("SYNTH-40", target_field=False)):
+            rec = self.check("SYNTH-40", ["4.30"], raw)
+            self.assertFalse(rec["allowed"])
+            self.assertEqual(rec["releases"]["4.30"]["decision"], "unknown")
+        # an untargeted candidate never makes a targeted clone ambiguous: the clone is still named
+        p = issue("SYNTH-41", None, links=[link("Cloners", "in", "SYNTH-42")])
+        rec = self.check("SYNTH-41", ["4.30"], p, issue("SYNTH-42", "4.30.z", links=[link("Cloners", "out", "SYNTH-41")]))
+        self.assertEqual(rec["releases"]["4.30"]["target"], "SYNTH-42")
 
     def test_budget_exhaustion_is_unknown(self):
         p = issue("SYNTH-50", "4.31.0", links=[link("Cloners", "in", "SYNTH-51")])
@@ -218,8 +227,12 @@ class TestRegressionsAndRecords(unittest.TestCase):
         forged = dict(bad, allowed=True)
         self.assertTrue(rt.validate_record(forged, issue="SYNTH-100"))    # per-release decision still says clone
         nomatch = rt.check_write("SYNTH-110", {"4.30"}, store(issue("SYNTH-110", "4.31.0")))
-        self.assertEqual(rt.validate_record(nomatch, require=("no-matching-clone",)), [])
-        self.assertTrue(rt.validate_record(good, require=("no-matching-clone",)))
+        self.assertEqual(rt.validate_record(nomatch, issue="SYNTH-110", releases=["4.30"], purpose="no-clone"), [])
+        self.assertTrue(rt.validate_record(nomatch, issue="SYNTH-110"))            # evidence is not authorization
+        self.assertTrue(rt.validate_record(dict(nomatch, allowed=True), issue="SYNTH-110"))
+        self.assertTrue(rt.validate_record(good, purpose="no-clone"))             # a write record is not no-clone proof
+        self.assertTrue(rt.validate_record(bad, purpose="no-clone"))              # "clone" exists
+        self.assertTrue(rt.validate_record(nomatch, purpose="bogus"))
         self.assertEqual(rt.validate_record(None), ["release_check missing"])
 
 

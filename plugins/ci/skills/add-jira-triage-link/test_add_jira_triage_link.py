@@ -20,7 +20,7 @@ def triage(key, ids):
 
 
 def checker():
-    jira = fx.store(fx.PARENT, fx.CLONE)
+    jira = fx.store(fx.PARENT, fx.CLONE, fx.issue("SYNTH-110", "4.31.0", status="Closed"))
     return lambda key, ids: al.release_target.check_regressions(key, ids, fetch=jira,
                                                                 fetch_regression=lambda rid: {"release": RELEASES[rid]})
 
@@ -36,6 +36,12 @@ class TestReleaseGate(unittest.TestCase):
         write.assert_not_called()
         self.assertFalse(res["success"])
         self.assertEqual(res["release_check"]["releases"]["4.30"]["target"], "SYNTH-200")
+
+    def test_no_matching_clone_parent_is_refused(self):
+        with mock.patch.object(al, "_add_triage_link") as write:
+            res = al.add_triage_link("SYNTH-110", 9, auth=None, release_gate=self.gate(triage("SYNTH-110", [101])))
+        write.assert_not_called()
+        self.assertEqual(res["release_check"]["releases"]["4.30"]["decision"], "no-matching-clone")
 
     def test_triage_pointing_elsewhere_is_refused(self):
         rec = al.check_triage_release("SYNTH-200", 9, fetch_triage=lambda _: triage("SYNTH-100", [101]), check=checker())

@@ -461,7 +461,8 @@ def with_done_write(key, release='4.30', checked_at='2026-10-13T05:30:00Z', chec
     c['fingerprint']['release'] = release
     act = c['actions'][0]
     act.update(type='create_triage', status='done', jira=key)
-    rec = release_target.check_write(check_key or key, {release}, fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED))
+    rec = release_target.check_write(check_key or key, {release}, fx.store(
+        fx.PARENT, fx.CLONE, fx.BLOCKED, fx.issue('SYNTH-110', '4.31.0', status='Closed')))
     rec['checked_at'] = checked_at
     act['release_check'] = rec
     return d, act
@@ -481,6 +482,23 @@ class ReleaseEvidenceTest(unittest.TestCase):
         d, _ = with_done_write('SYNTH-100')        # closed newer-release parent while a 4.30 clone exists
         self.assertTrue(self.errs(d, "releases[4.30] does not support the write: 'clone'"))
         self.assertTrue(self.errs(d, 'allowed is not true'))
+
+    def test_complete_no_clone_does_not_authorize_a_done_write(self):
+        d, act = with_done_write('SYNTH-110')      # closed newer-release parent, no clone for 4.30
+        self.assertEqual(act['release_check']['releases']['4.30']['decision'], 'no-matching-clone')
+        self.assertTrue(self.errs(d, "does not support the write: 'no-matching-clone'"))
+        act['release_check']['allowed'] = True     # forged flag still fails on the decision
+        self.assertTrue(self.errs(d, "does not support the write: 'no-matching-clone'"))
+        item = {'triage_id': '7', 'jira': 'SYNTH-110', 'allowed': False,
+                'decisions': {'4.30': {'decision': 'no-matching-clone', 'target': None}}}
+        out = m.finalize(d, jira_creations={'status': 'ok', 'count': 0}, permissions=None,
+                         sippy_diff={'status': 'match', 'release_targets': {'status': 'mismatch', 'items': [item]}},
+                         mode_requested='auto', mode_effective='auto', decision=('configured', '', ''),
+                         source_run={'run_id': 'r'}, previous_run=None, existing_only=True)
+        self.assertTrue(self.errs(out, "does not support the write: 'no-matching-clone'"))      # runner finalize
+        self.assertTrue(self.errs(out, 'release_targets: mismatch: triage 7 -> SYNTH-110'))
+        act['status'] = 'skipped-release-check'    # the correct, report-only record of the same decision
+        self.assertEqual(m.validate(d), [])
 
     def test_missing_or_forged_or_mismatched_evidence_is_rejected(self):
         d, act = with_done_write('SYNTH-200')
@@ -557,10 +575,15 @@ class ReleaseEvidenceTest(unittest.TestCase):
         self.assertTrue(self.errs(d, 'predates this run'))
         d = example()
         d['backport_candidates'][0]['release_check']['releases']['4.22']['complete'] = False
-        self.assertTrue(self.errs(d, 'does not support the write'))
+        self.assertTrue(self.errs(d, 'does not support the no-clone claim'))
         d = example()
         d['backport_candidates'][0]['clone_exists'] = 'unknown'
         self.assertTrue(self.errs(d, 'clone_exists must be true or false'))
+        d, act = with_done_write('SYNTH-200')      # an authorizing write record is not proof that no clone exists
+        b = d['backport_candidates'][0]
+        b.update(fixed_in={'key': 'SYNTH-200', 'fix_version': '4.31'}, this_release='4.30',
+                 release_check=act['release_check'])
+        self.assertTrue(self.errs(d, 'does not support the no-clone claim'))
         d = example()
         d['backport_candidates'][0]['clone_exists'] = True
         del d['backport_candidates'][0]['release_check']
