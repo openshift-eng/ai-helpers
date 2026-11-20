@@ -48,6 +48,13 @@ from unittest import mock  # noqa: E402
 
 SIPPY_RELEASES = {101: "4.30", 102: "4.30", 201: "4.31"}
 BOTH_RELEASES = fx.issue("SYNTH-160", ["4.30.z", "4.31.0"])      # targeted at both releases
+MATCH_WITH_UNTARGETED = [fx.issue("SYNTH-170", "4.30.z", links=[fx.link("Cloners", "in", "SYNTH-171")]),
+                         fx.issue("SYNTH-171", None, links=[fx.link("Cloners", "out", "SYNTH-170")])]
+KEYLESS_CLONE_LINK = fx.issue("SYNTH-180", "4.30.z")
+KEYLESS_CLONE_LINK["fields"]["issuelinks"] = [{"type": {"name": "Cloners", "inward": "is cloned by", "outward": "clones"},
+                                               "outwardIssue": {}}]
+# more unreadable clone links than the lookup budget allows (release_target.MAX_FAMILY)
+UNREADABLE_FAN_OUT = fx.issue("SYNTH-190", "4.30.z", links=[fx.link("Cloners", "in", "SYNTH-19%02d" % i) for i in range(1, 46)])
 CLOSED_NEWER_PARENT = fx.issue("SYNTH-110", "4.31.0", status="Closed")      # no clone for 4.30
 UNTARGETED = fx.issue("SYNTH-120", None)
 AMBIGUOUS = [fx.issue("SYNTH-130", "4.31.0", links=[fx.link("Cloners", "in", "SYNTH-131"), fx.link("Cloners", "in", "SYNTH-132")]),
@@ -69,7 +76,8 @@ class TestReleaseGateConsumerPath(unittest.TestCase):
     def setUp(self):
         self.sent = []
         jira = fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED, CLOSED_NEWER_PARENT, UNTARGETED, INCOMPLETE, BOTH_RELEASES,
-                        *AMBIGUOUS)
+                        KEYLESS_CLONE_LINK, UNREADABLE_FAN_OUT, *AMBIGUOUS, *MATCH_WITH_UNTARGETED)
+        self.jira = jira
 
         def fake_get_json(url, headers=None):
             rid = int(url.rstrip("/").rsplit("/", 1)[-1])
@@ -126,6 +134,18 @@ class TestReleaseGateConsumerPath(unittest.TestCase):
             self.assertFalse(res["success"], key)
             self.assertEqual(self.sent, [], key)
             self.assertEqual(res["release_check"]["releases"]["4.30"]["decision"], decision)
+
+    def test_incomplete_family_refuses_matching_candidate_with_zero_http(self):
+        # untargeted family member, keyless Cloners link, and a fan-out of unreadable clones that must stop
+        # at the lookup budget: each candidate's own Target Version matches, yet nothing is sent.
+        for key in ("SYNTH-170", "SYNTH-180", "SYNTH-190"):
+            del self.jira.calls[:]
+            with self.urlopen():
+                res = self.manager([101], key).create()
+            self.assertFalse(res["success"], key)
+            self.assertEqual(self.sent, [], key)
+            self.assertEqual(res["release_check"]["releases"]["4.30"]["decision"], "unknown", key)
+            self.assertLessEqual(len(self.jira.calls), release_target.MAX_FAMILY, key)   # 46 lookups before the fix
 
     def test_suggested_clone_is_written_only_after_revalidation_as_candidate(self):
         with self.urlopen():
