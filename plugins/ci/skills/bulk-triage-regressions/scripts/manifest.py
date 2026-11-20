@@ -301,7 +301,8 @@ def validate(doc):
             if cid in seen:
                 errs.append("cluster %s: duplicate cluster id (also at index %d)" % (cid, seen[cid]))
             seen.setdefault(cid, i)
-    return errs + _rule_catch_all(doc) + _rule_audit(doc) + _rule_release_checks(doc) + _rule_backport_evidence(doc)
+    return (errs + _rule_catch_all(doc) + _rule_audit(doc) + _rule_release_checks(doc) + _rule_backport_evidence(doc)
+            + _rule_release_audit(doc))
 
 
 def _not_before(doc):
@@ -335,6 +336,28 @@ def _rule_release_checks(doc):
             elif a.get("status") == "skipped-release-check" and not isinstance(a.get("release_check"), dict):
                 errs.append("%s: skipped-release-check needs the refusing release_check record" % p)
     return errs
+
+
+def _rule_release_audit(doc):
+    """Runner-injected post-write result (audit.sippy_catalog_diff.release_targets, from `audit.py diff`):
+    a write whose bug is not the release-specific target, or a write that could not be verified, fails
+    validation, so `manifest.py finalize` reports it. Absent (agent-side validate, older diffs) or a run
+    without writes is not an error; an unknown catalogue diff is already reported by guards.sippy_diff."""
+    audit = doc.get("audit") if isinstance(doc.get("audit"), dict) else {}
+    diff = audit.get("sippy_catalog_diff")
+    rel = diff.get("release_targets") if isinstance(diff, dict) else None
+    if rel is None:
+        return []
+    if not isinstance(rel, dict):
+        return ["audit.sippy_catalog_diff.release_targets: expected object, got %s" % _t(rel)]
+    raw = rel.get("items")
+    items = [i for i in raw if isinstance(i, dict)] if isinstance(raw, list) else []
+    status = rel.get("status")
+    if status == "mismatch" or (status not in ("verified", "skipped") and items):
+        bad = ["triage %s -> %s %s" % (i.get("triage_id"), i.get("jira"), i.get("decisions")) for i in items
+               if not i.get("allowed")]
+        return ["audit.sippy_catalog_diff.release_targets: %s: %s" % (status, "; ".join(bad) or rel.get("error"))]
+    return []
 
 
 def _rule_backport_evidence(doc):

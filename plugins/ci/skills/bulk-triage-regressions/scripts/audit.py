@@ -526,7 +526,7 @@ def _own_violations(run_id, jira, diff):
         rst = rel.get("status") if isinstance(rel, dict) else None
         if rst not in ("verified", "skipped"):
             bad = [{"triage_id": i.get("triage_id"), "jira": i.get("jira"), "decisions": i.get("decisions")}
-                   for i in ((rel.get("items") or []) if isinstance(rel, dict) else [])
+                   for i in (rel.get("items") if isinstance(rel, dict) and isinstance(rel.get("items"), list) else [])
                    if isinstance(i, dict) and not i.get("allowed")]
             out.append("Release target check %s: %s" % (rst or "malformed", json.dumps(bad) if bad else
                                                          (rel.get("error") if isinstance(rel, dict) else "") or "no clean result"))

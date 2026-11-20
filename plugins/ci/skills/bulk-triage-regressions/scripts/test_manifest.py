@@ -515,6 +515,38 @@ class ReleaseEvidenceTest(unittest.TestCase):
         d['clusters'][0]['fingerprint']['release'] = None
         self.assertTrue(self.errs(d, 'is not a release'))
 
+    def test_legacy_manifest_without_evidence_is_rejected(self):
+        # shape written before release checks existed: a done write with only the triage re-read precheck
+        d = example()
+        c = d['clusters'][0]
+        c['fingerprint']['release'] = '4.30'
+        c['actions'][0].update(type='create_triage', status='done', jira='SYNTH-100',
+                               precheck={'triage_reread': True, 'already_present': []})
+        c['actions'][0].pop('release_check', None)
+        self.assertTrue(self.errs(d, 'release_check missing'))
+
+    def test_runner_release_audit_fails_finalized_manifest(self):
+        d, _ = with_done_write('SYNTH-200')
+        items = [{'triage_id': '7', 'jira': 'SYNTH-100', 'allowed': False,
+                  'decisions': {'4.30': {'decision': 'clone', 'target': 'SYNTH-200'}}}]
+        diff = {'status': 'match', 'release_targets': {'status': 'mismatch', 'items': items}}
+        out = m.finalize(d, jira_creations={'status': 'ok', 'count': 0}, sippy_diff=diff, permissions=None,
+                         mode_requested='auto', mode_effective='auto', decision=('configured', '', ''),
+                         source_run={'run_id': 'r'}, previous_run=None, existing_only=True)
+        self.assertTrue(self.errs(out, 'release_targets: mismatch: triage 7 -> SYNTH-100'))
+        for ok in ({'status': 'verified', 'items': [dict(items[0], allowed=True)]}, {'status': 'skipped', 'items': []},
+                   {'status': 'unknown', 'items': []}):
+            out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': ok}
+            self.assertEqual(self.errs(out, 'release_targets'), [], ok)
+        out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'unknown', 'items': items}}
+        self.assertTrue(self.errs(out, 'release_targets: unknown'))
+        out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'unknown', 'items': 5}}
+        self.assertEqual(self.errs(out, 'release_targets'), [])           # malformed items never raise
+        out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'mismatch', 'items': 5}}
+        self.assertTrue(self.errs(out, 'release_targets: mismatch'))
+        out['audit']['sippy_catalog_diff'] = {'status': 'match'}          # diffs written before the check existed
+        self.assertEqual(self.errs(out, 'release_targets'), [])
+
     def test_negative_clone_claim_needs_fresh_complete_evidence(self):
         d = example()
         b = d['backport_candidates'][0]

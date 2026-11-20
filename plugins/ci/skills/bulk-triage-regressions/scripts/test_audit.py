@@ -1123,6 +1123,24 @@ class ReleaseTargetAuditTests(AuditFetchTests):
         self.assertEqual(audit.verify_release_targets({"status": "match", "created": [], "extended": []},
                                                       snap({}))["status"], "skipped")
 
+    def test_release_violation_forces_next_run_into_report_mode(self):
+        diff = self.run_case(PARENT_URL, "SYNTH-100")
+        with tempfile.TemporaryDirectory() as t:
+            path = os.path.join(t, "receipt.json")
+            audit.write_receipt(path, run_id="R1", mode_requested="auto", mode_effective="auto",
+                                audit={"jira_creations": {"status": "ok", "count": 0, "truncated": False},
+                                       "sippy_catalog_diff": diff}, previous_run=None)
+            decision, origin, reason = audit.read_receipt_decision(jload(path))
+        self.assertEqual((decision, origin), ("report", "R1"))
+        self.assertIn("Release target check mismatch", reason)
+        clean = self.run_case(CLONE_URL, "SYNTH-200")
+        with tempfile.TemporaryDirectory() as t:
+            path = os.path.join(t, "receipt.json")
+            audit.write_receipt(path, run_id="R2", mode_requested="auto", mode_effective="auto",
+                                audit={"jira_creations": {"status": "ok", "count": 0, "truncated": False},
+                                       "sippy_catalog_diff": clean}, previous_run=None)
+            self.assertEqual(audit.read_receipt_decision(jload(path))[0], "configured")
+
     def test_receipts_without_release_section_are_unchanged(self):
         self.assertEqual(audit._own_violations("R", {"status": "ok", "count": 0}, {"status": "match"}), [])
         self.assertTrue(audit._own_violations("R", {"status": "ok", "count": 0},
@@ -1130,6 +1148,8 @@ class ReleaseTargetAuditTests(AuditFetchTests):
         self.assertTrue(audit._own_violations("R", {"status": "ok", "count": 0},
                                               {"status": "match", "release_targets": {"status": "unknown",
                                                                                       "items": ["bogus", None]}}))
+        self.assertTrue(audit._own_violations("R", {"status": "ok", "count": 0},
+                                              {"status": "match", "release_targets": {"status": "mismatch", "items": 5}}))
 
     def test_diff_cli_writes_release_section_and_keeps_stdout(self):
         with tempfile.TemporaryDirectory() as t:

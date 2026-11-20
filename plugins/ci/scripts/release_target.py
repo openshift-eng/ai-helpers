@@ -28,10 +28,12 @@ Rules (deliberately narrow):
       exhausted budget.
   A write to the candidate is allowed only for ``self`` and ``no-matching-clone``.
 
-Enforcement scope: this check runs where the bundled scripts call it (``triage_regression.py`` and
-``add_jira_triage_link.py`` with ``--require-release-target``, ``backport_note.py``, ``manifest.py
-validate`` and ``audit.py diff``). It is not a security boundary: a caller with tokens and a shell can
-bypass the scripts; such Sippy triage writes are caught only after the fact by ``audit.py diff``.
+Enforcement scope: before a write this check runs only where a caller uses the bundled scripts with it
+(``triage_regression.py`` / ``add_jira_triage_link.py`` with ``--require-release-target``, and
+``backport_note.py``); ``manifest.py validate`` checks the recorded evidence. It is not a security boundary:
+a caller with tokens and a shell can bypass the scripts. Sippy triage writes are re-checked after the fact by
+``audit.py diff`` (``release_targets``) whatever channel made them; Jira comments and description edits
+made outside the scripts are not.
 
   release_target.py check ISSUE_KEY --regression-ids 1,2   -> prints the decision record (exit 0 allowed, 3 refused)
 """

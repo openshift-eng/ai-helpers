@@ -153,6 +153,14 @@ class TestResolve(unittest.TestCase):
         self.assertEqual((rec["allowed"], rec["releases"]["4.30"]["decision"]), (False, "unknown"))
         self.assertIn("lookup failed", " ".join(rec["reasons"]))
 
+    def test_missing_fields_on_candidate_are_unknown(self):
+        raw = issue("SYNTH-70", "4.31.0")
+        del raw["fields"]["issuelinks"]               # incomplete read: links not returned
+        rec = self.check("SYNTH-70", ["4.30"], raw)
+        self.assertEqual((rec["allowed"], rec["releases"]["4.30"]["decision"]), (False, "unknown"))
+        rec = self.check("SYNTH-71", ["4.30"], {"key": "SYNTH-71"})   # no fields at all
+        self.assertFalse(rec["allowed"])
+
     def test_unparseable_or_untargeted_member_is_unknown(self):
         p = issue("SYNTH-30", "4.31.0", links=[link("Cloners", "in", "SYNTH-31")])
         for clone in (issue("SYNTH-31", "rhel-9.9"), issue("SYNTH-31", None)):
