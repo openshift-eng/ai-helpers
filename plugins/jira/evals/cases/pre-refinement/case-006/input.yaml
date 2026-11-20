@@ -1,0 +1,43 @@
+issue_key: TRT-9006
+card:
+  key: TRT-9006
+  issue_type: Task
+  status: New
+  summary: Alert when a payload stream stops accepting payloads
+  labels: []
+  creator: trt-engineer-d
+  description: |
+    We keep noticing late that a release stream has gone a whole day without an
+    accepted payload. Add an alert to #trt-alert when any nightly stream has
+    had no accepted payload for 24 hours.
+
+    Done when:
+    * An alert fires in #trt-alert when a nightly stream has no accepted
+      payload for 24 hours.
+    * The alert names the stream and links to its release controller page.
+search_results:
+  - key: TRT-9100
+    issue_type: Task
+    status: Closed
+    resolution: Done
+    resolved: "2026-10-02"
+    summary: Alert on payload streams with no accepted payload in 24 hours
+    description: |
+      Post an alert to #trt-alert when a nightly payload stream has gone 24
+      hours without an accepted payload, naming the stream and linking to the
+      release controller page for it.
+
+      Done when:
+      * The alert fires for any nightly stream with no accepted payload for
+        24 hours.
+      * The message names the stream and links to the release controller.
+      * Implemented as a Sippy alert rule (sippy#4210).
+  - key: TRT-9120
+    issue_type: Story
+    status: New
+    resolution: null
+    resolved: null
+    summary: Show the age of the last accepted payload on the release dashboard
+    description: |
+      As a release watcher, I want the release dashboard to show how long ago
+      each stream last accepted a payload, so that I can spot stalled streams.

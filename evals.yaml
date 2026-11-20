@@ -19,6 +19,17 @@ evals:
   - plugins/jira/evals
   - plugins/jira/skills/ready-to-solve
 
+- config: plugins/jira/evals/eval-pre-refinement.yaml
+  eval_cases_dir: plugins/jira/evals/cases/pre-refinement
+  run: pr
+  parallelism: 5
+  max_turns: 100
+  triggers:
+  - plugins/jira/evals/eval-pre-refinement.yaml
+  - plugins/jira/evals/cases/pre-refinement
+  - plugins/jira/skills/pre-refinement
+  - plugins/jira/reference/trt.md
+
 - config: plugins/ci/evals/eval-detect-permafail.yaml
   eval_cases_dir: plugins/ci/evals/cases/detect-permafail
   run: pr

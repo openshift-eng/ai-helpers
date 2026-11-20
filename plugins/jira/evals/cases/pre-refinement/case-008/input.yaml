@@ -1,0 +1,54 @@
+issue_key: TRT-9008
+card:
+  key: TRT-9008
+  issue_type: Story
+  status: New
+  summary: Let users copy a regression's test name from the triage dialog
+  labels: [component-readiness]
+  creator:
+    name: ship-help-jira
+    displayName: Chai Bot Jira
+  description: |
+    As a component team engineer, I want to copy a regression's test name from
+    the triage dialog with one click, so that I can paste it into a bug or a
+    search without retyping it.
+
+    ## Acceptance Criteria
+
+    * Verify that the triage dialog shows a copy button next to the test name.
+    * Verify that clicking the copy button puts the full test name on the
+      clipboard.
+    * Verify that the full test name, exactly as shown, is copied to the
+      clipboard when the button is clicked.
+    * Verify that a confirmation tooltip reading "Copied" appears for about two
+      seconds after copying.
+    * Verify that the copy button uses the existing button component from the
+      shared UI library.
+    * Verify that the copy button is reachable with the keyboard and has an
+      accessible label.
+
+    ## Additional Context
+
+    Component team engineers want to copy a regression's test name from the
+    triage dialog with one click so they can paste it into a bug or a search.
+    The button should be next to the test name and copy the full test name to
+    the clipboard, with a short confirmation. This will save time and avoid
+    typos when filing bugs from Component Readiness.
+
+    Determine the approach during design, including whether other dialogs need
+    the same button. Changes to the underlying triage workflow are out of
+    scope for this story.
+
+    Related: TRT-8950 (triage dialog redesign).
+
+    Requested by a component team engineer via Chai Bot in #forum-trt
+search_results:
+  - key: TRT-8950
+    issue_type: Story
+    status: Closed
+    resolution: Done
+    resolved: "2026-09-12"
+    summary: Redesign the Component Readiness triage dialog
+    description: |
+      Rework the triage dialog layout: group the regression details, move the
+      Jira controls to the footer, and use the shared UI library components.

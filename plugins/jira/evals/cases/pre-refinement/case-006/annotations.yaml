@@ -1,0 +1,17 @@
+expected_key: TRT-9006
+expected_outcome: duplicate
+expected_stricter_review: false
+expected_stricter_reasons: []
+expected_duplicate_of: TRT-9100
+expected_related: [TRT-9120]
+expected_links: []
+ground_truth: |
+  The card re-files TRT-9100: the same alert (no accepted payload on a nightly
+  stream for 24 hours), the same channel, and the same contents. Finishing one
+  finishes the other. TRT-9100 was closed as Done on 2026-10-02, and a closed
+  duplicate still counts.
+
+  Correct: outcome duplicate, duplicate_of TRT-9100 with its status (Closed)
+  and resolution (Done 2026-10-02), one or two lines of evidence, and no
+  rewrite or gap comment. TRT-9120 is related (a dashboard view of the same
+  signal), not a duplicate.

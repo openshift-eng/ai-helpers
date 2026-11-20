@@ -202,6 +202,7 @@ A plugin to automate tasks with Jira
 - **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs]`** - Generate test steps for a JIRA issue
 - **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
 - **`/jira:issues-by-component` `<project-key> [time-period] [--component name] [--assignee username] [--reporter username] [--status status] [--search term] [--search-description]`** - List and analyze JIRA issues organized by component with flexible filtering
+- **`/jira:pre-refinement` `[ISSUE_KEY ...] [--jql <query>] [--label ai-pre-refined] [--supported-types Story,Bug,Spike,Task,Ticket] [--mode propose|confirm|dry-run]`** - Pre-refine new Jira cards before a team's refinement session: duplicates, templates, readiness and a concision rubric, with every change approved by a person
 - **`/jira:ready-to-solve` `<jira-issue-key> [--dry-run] [--verbose] [--fix]`** - Check whether a Jira issue is well-groomed and ready for /jira:solve
 - **`/jira:reconcile-github` `[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]`** - Reconcile state mismatches between GitHub and Jira issues
 - **`/jira:setup-gh2jira`** - Install and configure the gh2jira utility with all required tools and credentials

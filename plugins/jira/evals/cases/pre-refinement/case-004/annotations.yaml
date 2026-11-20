@@ -1,0 +1,21 @@
+expected_key: TRT-9004
+expected_outcome: gaps_only
+expected_readiness: needs_info
+expected_stricter_review: false
+expected_stricter_reasons: []
+expected_duplicate_of: null
+expected_links: []
+gap_comment_required: true
+gap_comment_mentions_any: [produce, deliverable, recommendation, design doc, exit, done, decision, outcome, finished]
+ground_truth: |
+  A Spike with its question (how to stop release metadata drifting) and
+  context (hand-maintained spreadsheet, copied separately by Sippy and the
+  release tooling) present and concise, and a summary within the rules, but
+  no exit criteria or deliverable.
+  A missing timebox is not a gap for TRT.
+
+  Correct: gaps only, needs info, no description change. The gap comment asks
+  what the spike should produce (for example a recommendation with follow-up
+  cards, or a design doc) and what decision it enables. Inventing exit
+  criteria in a rewrite is a failure, and so is flagging the missing timebox.
+notes: Worked example E6 (Spike without exit criteria), dropped from trt.md in review.
