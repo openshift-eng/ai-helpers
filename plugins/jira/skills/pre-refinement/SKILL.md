@@ -209,6 +209,11 @@ The **gap comment** is addressed to the reporter: each missing item as a
 concrete question, in a few lines. No greeting, card summary or restated
 rubric.
 
+End every gap comment and duplicate-closure comment with exactly one
+`AI-generated. Review for accuracy.` notice. Chai Bot's comment writer adds
+it; on the Atlassian MCP path append `_AI-generated. Review for accuracy._`
+yourself, after the comment's last line.
+
 Each proposal carries two to four **change notes**: what changed, and what
 was deliberately kept (criteria, evidence, links, boundaries).
 
