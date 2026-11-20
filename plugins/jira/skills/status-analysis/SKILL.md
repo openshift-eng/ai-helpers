@@ -355,7 +355,7 @@ Follow `formatting.md` to generate output based on `output_format`:
 **Metrics:** X/Y issues complete (Z%)
 ```
 
-**Note**: When posting via `addCommentToJiraIssue`, always include `contentFormat: "markdown"`.
+**Note**: When posting via `addOrEditJiraIssueComment`, always include `contentFormat: "markdown"`.
 
 **For `ryg_field` (update-weekly-status)**:
 

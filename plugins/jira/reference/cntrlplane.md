@@ -36,7 +36,7 @@ Project-specific conventions for creating Jira issues in the CNTRLPLANE project.
 
 ### Setting Target Version via MCP
 
-1. Fetch available versions via `getJiraIssueTypeMetaWithFields` — the `versions` field's `allowedValues` contains valid version IDs
+1. Fetch available versions via the `getJiraIssueTypeMetaWithFields` operation (`executeRead`) — the `versions` field's `allowedValues` contains valid version IDs
 2. Find the version ID for the normalized version name
 3. Use array format: `"customfield_10855": [{"id": "VERSION_ID"}]`
 

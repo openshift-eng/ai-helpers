@@ -38,9 +38,9 @@ Keep it under 100 characters when possible. If the user provides a free-form des
 
 ## Required Fields
 
-Probability and Impact option IDs **must be fetched** via `getJiraIssueTypeMetaWithFields` for the GCP project using the Risk issue type before creation — they cannot be set by value name, only by option ID.
+Probability and Impact option IDs **must be fetched** via the `getJiraIssueTypeMetaWithFields` operation (`executeRead`) for the GCP project using the Risk issue type before creation — they cannot be set by value name, only by option ID.
 
-Before creating, also verify the Risk issue type exists in the GCP project via `getJiraProjectIssueTypesMetadata`.
+Before creating, also verify the Risk issue type exists in the GCP project via the `listJiraProjectIssueTypesMetadata` operation (via `executeRead`).
 
 ### Risk Probability (`customfield_10642`)
 
@@ -105,13 +105,13 @@ Collect the three context elements:
 
 Show the probability scale above. **Prompt:** "Based on the criteria above, what probability level fits? (Rare / Unlikely / Moderate / Likely / Very Likely)"
 
-Fetch option IDs via `getJiraIssueTypeMetaWithFields` before creation — do not set by name.
+Fetch option IDs via the `getJiraIssueTypeMetaWithFields` operation (`executeRead`) before creation — do not set by name.
 
 ### 5. Impact Assessment
 
 Show the impact scale above. **Prompt:** "If this risk materializes, what is the severity? (Annoyance / Low / Moderate / Medium / High)"
 
-Fetch option IDs via `getJiraIssueTypeMetaWithFields` before creation — do not set by name.
+Fetch option IDs via the `getJiraIssueTypeMetaWithFields` operation (`executeRead`) before creation — do not set by name.
 
 ### 6. Component
 
@@ -123,7 +123,7 @@ Fetch available components for the GCP project and present a list. This field is
 
 **Prompt:** "Who is the risk owner — responsible for monitoring and responding to this risk?"
 
-The process doc defines the assignee as the person who shepherds the risk through its lifecycle. If the user is unsure, suggest leaving it unset (it can be assigned during triage), but note that unassigned risks are harder to track. Resolve to a Jira account ID via `lookupJiraAccountId` before setting.
+The process doc defines the assignee as the person who shepherds the risk through its lifecycle. If the user is unsure, suggest leaving it unset (it can be assigned during triage), but note that unassigned risks are harder to track. Resolve to a Jira account ID via the `lookupJiraAccountId` operation (`executeRead`) before setting.
 
 ### 8. Mitigation and Contingency Plan (Optional)
 

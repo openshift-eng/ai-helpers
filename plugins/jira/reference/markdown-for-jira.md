@@ -5,7 +5,7 @@ description: Markdown formatting guide for Jira issue descriptions via MCP tools
 
 # Markdown for Jira Reference
 
-When using MCP tools (e.g., `createJiraIssue`, `editJiraIssue`, `addCommentToJiraIssue`) to create or update Jira issues, write descriptions and comments in **Markdown format** with `contentFormat: "markdown"`. Jira Cloud renders Markdown natively.
+When using MCP tools (e.g., `createJiraIssue`, `editJiraIssue`, `addOrEditJiraIssueComment`) to create or update Jira issues, write descriptions and comments in **Markdown format** with `contentFormat: "markdown"`. Jira Cloud renders Markdown natively.
 
 This means you do **not** need to use Jira wiki markup syntax directly. Write standard Markdown and Jira will render it correctly.
 

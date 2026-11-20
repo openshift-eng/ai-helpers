@@ -99,9 +99,10 @@ The plugin config follows a mechanical pattern:
 
 **Fetch the primary bug:**
 
-Use `mcp__atlassian__getJiraIssue`:
+Use `getJiraIssue`:
 - `cloudId`: `redhat.atlassian.net`
 - `issueIdOrKey`: the JIRA key
+- `view`: `evidence` (required for `issuelinks` — the compact view drops it even when requested)
 - `fields`: `["summary", "status", "issuetype", "fixVersions", "issuelinks", "customfield_10855", "customfield_10783", "customfield_10785", "customfield_10840", "labels", "components"]`
 - `responseContentFormat`: `markdown`
 
@@ -220,14 +221,14 @@ All 7 checks passed. If the PR still shows `jira/invalid-bug`, comment `/jira re
 After reporting, offer to fix each failing check. List the fixes and ask for confirmation before proceeding.
 
 **Fix: Target version** (checks 2, 6)
-1. Resolve the version ID: use `mcp__atlassian__getJiraIssueTypeMetaWithFields` with `projectIdOrKey: {PROJECT}`, `issueTypeId` from the bug's `issuetype.id`, and `requiredFieldsOnly: false`
+1. Resolve the version ID: call `executeRead` with `name: "getJiraIssueTypeMetaWithFields"`, `projectIdOrKey: {PROJECT}`, `issueTypeId` from the bug's `issuetype.id`, and `requiredFieldsOnly: false`
 2. Find `customfield_10855` in the response fields — its `allowedValues` array contains all available versions. Match the entry whose `.name` equals the expected version string (e.g., `4.20.z`) and extract its `.id`
-3. Update: `mcp__atlassian__editJiraIssue` with `fields: {"customfield_10855": [{"id": "{version_id}"}]}`
+3. Update: `editJiraIssue` with `fields: {"customfield_10855": [{"id": "{version_id}"}]}`
 
 **Fix: Status** (checks 1, 3)
-1. Get available transitions: `mcp__atlassian__getTransitionsForJiraIssue`
+1. Get available transitions: call `executeRead` with `name: "listJiraIssueTransitions"` and the issue key
 2. Find transition to a valid state (prefer "New" or "POST")
-3. Transition: `mcp__atlassian__transitionJiraIssue` with the transition ID
+3. Transition: `transitionJiraIssue` with the transition ID
 
 **Fix: Release notes** (check 4)
 1. Ask the user for release note text. Suggest format:
@@ -237,7 +238,7 @@ After reporting, offer to fix each failing check. List the fixes and ask for con
    Fix: {what was done}
    Result: {the fix resolves it}
    ```
-2. Update: `mcp__atlassian__editJiraIssue` with `fields: {"customfield_10783": "{text}"}`
+2. Update: `editJiraIssue` with `fields: {"customfield_10783": "{text}"}`
 3. Alternative: if user wants to skip release notes, set release note type:
    `fields: {"customfield_10785": {"value": "Release Note Not Required"}}`
 
@@ -247,15 +248,15 @@ After reporting, offer to fix each failing check. List the fixes and ask for con
    - Create a new bug in the same project with:
      - Same summary (prefixed with branch info if needed)
      - Target Version set to the expected dependent version
-   - Link with a "Blocks" relationship: `mcp__atlassian__createIssueLink` with `type: "Blocks"`, `inwardIssue: {original_bug}`, `outwardIssue: {new_bug}` (original bug blocks the new dependent)
-   - Use `mcp__atlassian__createJiraIssue` then `mcp__atlassian__createIssueLink`
+   - Link with a "Blocks" relationship: call `executeWrite` with `name: "createJiraIssueLink"`, `linkType: "Blocks"`, `inwardIssue: {original_bug}`, `outwardIssue: {new_bug}` (original bug blocks the new dependent)
+   - Use `createJiraIssue` then the `createJiraIssueLink` operation via `executeWrite`
 3. If a dependent exists but targets wrong version or is in wrong state, offer to fix it
 
 **Fix: Dependent bug state** (check 5)
 1. For each dependent in wrong state:
-   - Get transitions: `mcp__atlassian__getTransitionsForJiraIssue` for the dependent
+   - Get transitions: call `executeRead` with `name: "listJiraIssueTransitions"` for the dependent
    - Find transition to an allowed state
-   - Transition: `mcp__atlassian__transitionJiraIssue`
+   - Transition: `transitionJiraIssue`
 
 **After all fixes applied:**
 1. Re-run all 7 checks to confirm everything passes
