@@ -35,7 +35,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Set, Callable
+from typing import Optional, List, Dict, Any, Set, Callable, AsyncIterator
 from urllib.parse import urlparse
 
 from adf import adf_to_text as _adf_to_text
@@ -546,15 +546,15 @@ class JiraClient:
         # the page order to yield a globally oldest-first changelog.
         return [entry for page in reversed(pages) for entry in page]
 
-    async def _fetch_changelog_pages(
+    async def _iter_changelog_pages(
         self,
         issue_key: str,
         max_results: int = 100,
         not_older_than: Optional[datetime] = None,
-    ) -> List[List[Dict[str, Any]]]:
-        """Fetch changelog pages covering recent history, newest page first.
+    ) -> AsyncIterator[List[Dict[str, Any]]]:
+        """Yield changelog pages covering recent history, newest first.
 
-        Returns pages ordered newest-first; each page is oldest-first
+        Pages are yielded newest-first; each page is oldest-first
         internally, as returned by Jira. Backward pagination stops once a
         page starts before `not_older_than` (when given) — earlier pages
         cannot hold newer entries because Jira sorts oldest-first.
@@ -567,12 +567,12 @@ class JiraClient:
             f"Changelog for {issue_key}",
         )
         if not first:
-            return []
+            return
         total = first.get("total") or 0
         if first.get("isLast", True) or total <= max_results:
-            return [first.get("values") or []]
+            yield first.get("values") or []
+            return
 
-        pages: List[List[Dict[str, Any]]] = []
         # Index of the oldest entry not yet fetched. Each backward request
         # is sized to the remaining span so pages never overlap (a fixed
         # page size would overlap whenever `total % max_results != 0`).
@@ -601,7 +601,7 @@ class JiraClient:
                     remaining_start = total
                     continue
             expect_last = False
-            pages.append(values)
+            yield values
             remaining_start = fetch_start
             oldest = parse_iso_datetime(values[0].get("created"))
             if (
@@ -610,7 +610,20 @@ class JiraClient:
                 and oldest < not_older_than
             ):
                 break
-        return pages
+
+    async def _fetch_changelog_pages(
+        self,
+        issue_key: str,
+        max_results: int = 100,
+        not_older_than: Optional[datetime] = None,
+    ) -> List[List[Dict[str, Any]]]:
+        """Collect all changelog pages (see _iter_changelog_pages)."""
+        return [
+            page
+            async for page in self._iter_changelog_pages(
+                issue_key, max_results, not_older_than
+            )
+        ]
 
     async def find_last_change_matching(
         self,
@@ -621,11 +634,12 @@ class JiraClient:
         """Find the newest changelog entry with an item matching `item_match`.
 
         Jira returns changelog oldest-first, so this jumps to the newest
-        page and walks backward, stopping at the first match. Returns the
-        entry's `created` timestamp, or None if no entry matches.
+        page and walks backward, stopping at the first match. Pages are
+        consumed as they arrive, so a match on a recent page does not pay
+        for the rest of the history. Returns the entry's `created`
+        timestamp, or None if no entry matches.
         """
-        pages = await self._fetch_changelog_pages(issue_key, max_results, None)
-        for page in pages:  # newest-first
+        async for page in self._iter_changelog_pages(issue_key, max_results, None):
             for entry in reversed(page):  # newest-first within the page
                 if any(item_match(item) for item in entry.get("items", [])):
                     return entry.get("created")

@@ -482,6 +482,25 @@ class ChangelogPaginationTests(unittest.IsolatedAsyncioTestCase):
             await client.find_last_change_matching("KEY-1", lambda item: False)
         )
 
+    async def test_find_last_change_matching_stops_fetching_at_match(self) -> None:
+        # 250 entries = probe + 3 walk pages. A match on the newest page
+        # must stop after the tail jump instead of walking all history.
+        entries = synthetic_changelog(250)
+        entries[249]["items"] = [{"field": "Status Summary"}]
+        client, fake = self.make_client(entries)
+        found = await client.find_last_change_matching(
+            "KEY-1", g._is_status_summary_item
+        )
+        self.assertEqual(found, entries[249]["created"])
+        self.assertEqual(fake.requests, 2)  # probe + newest page only
+
+        # No match anywhere: the full history is still walked.
+        client, fake = self.make_client(synthetic_changelog(250))
+        self.assertIsNone(
+            await client.find_last_change_matching("KEY-1", lambda item: False)
+        )
+        self.assertEqual(fake.requests, 4)
+
 
 if __name__ == "__main__":
     unittest.main()
