@@ -39,6 +39,12 @@ Structured JSON data containing:
   "assignee": {"display_name": "Jane Developer", "email": "jdeveloper@redhat.com"},
   "components": ["Networking / cluster-network-operator"],
   "fix_versions": ["4.22"],
+  "affects_versions": ["4.22"],
+  "target_versions": ["4.22.0"],
+  "target_releases": ["4.22"],
+  "links": [
+    {"type": "Cloners", "direction": "inward", "relation": "is cloned by", "key": "OCPBUGS-74500"}
+  ],
   "comment_count": 5,
   "comments": [...],
   "linked_prs": ["https://github.com/openshift/ovn-kubernetes/pull/1234"],
@@ -50,6 +56,8 @@ Structured JSON data containing:
   }
 }
 ```
+
+`target_versions` is the explicit Target Version field and `target_releases` its normalised `X.Y` form. Clones inherit Affects and Fix Versions, so only the Target Version says which release an issue is for. `links` keep the Jira link type and direction (`Cloners` = clone relations; `Blocks`/`Depend` are not clones). For release-specific triage targets use `plugins/ci/scripts/release_target.py` rather than reading these by hand.
 
 ## API Endpoint
 

@@ -24,6 +24,7 @@ from typing import Any, Dict, List
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
 import jira_auth  # noqa: E402
+import release_target  # noqa: E402
 
 TRIAGE_UI_BASE = "https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages"
 
@@ -83,7 +84,48 @@ def _build_triage_section(triage_id: int) -> List[Dict[str, Any]]:
     ]
 
 
-def add_triage_link(issue_key: str, triage_id: int, auth: "jira_auth.JiraAuth") -> dict:
+SIPPY_TRIAGE_API = "https://sippy.dptools.openshift.org/api/component_readiness/triages"
+
+
+def _fetch_triage(triage_id: int) -> Dict[str, Any]:
+    req = urllib.request.Request(f"{SIPPY_TRIAGE_API}/{triage_id}", headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def check_triage_release(issue_key: str, triage_id: int, fetch_triage=None, check=None) -> Dict[str, Any]:
+    """Pre-write gate: the triage must point at issue_key, and every linked regression's release must
+    resolve to issue_key (release_target.check_regressions). Never raises; refusals have allowed=False."""
+    try:
+        triage = (fetch_triage or _fetch_triage)(triage_id)
+    except Exception as e:
+        return {"allowed": False, "reasons": [f"cannot read triage {triage_id}: {type(e).__name__}: {e}"]}
+    key = release_target.issue_key((triage or {}).get("url"))
+    if key != issue_key.strip().upper():
+        return {"allowed": False, "reasons": [f"triage {triage_id} points at {key}, not {issue_key}"]}
+    ids = [r.get("id") for r in (triage.get("regressions") or []) if isinstance(r, dict) and r.get("id") is not None]
+    return (check or release_target.check_regressions)(key, ids)
+
+
+def add_triage_link(issue_key: str, triage_id: int, auth: "jira_auth.JiraAuth", release_gate=None) -> dict:
+    """Append the triage link; with release_gate, nothing is written unless the gate allows it."""
+    check = None
+    if release_gate is not None:
+        try:
+            check = release_gate(issue_key, triage_id)
+        except Exception as e:      # fail closed
+            check = {"allowed": False, "reasons": [f"release check error: {e}"]}
+        if not (isinstance(check, dict) and check.get("allowed") is True):
+            return {"success": False, "issue_key": issue_key, "release_check": check,
+                    "error": "Release target check refused the write (nothing was sent): "
+                             + "; ".join((check or {}).get("reasons") or ["no decision"])}
+    result = _add_triage_link(issue_key, triage_id, auth)
+    if check is not None:
+        result["release_check"] = check
+    return result
+
+
+def _add_triage_link(issue_key: str, triage_id: int, auth: "jira_auth.JiraAuth") -> dict:
     triage_url = f"{TRIAGE_UI_BASE}/{triage_id}"
 
     try:
@@ -172,6 +214,12 @@ def main():
         help="Triage record ID from Component Readiness",
     )
     parser.add_argument(
+        "--require-release-target",
+        action="store_true",
+        help="Refuse unless the triage points at this issue and the issue is the release-specific target "
+             "for every linked regression's release (see plugins/ci/scripts/release_target.py)",
+    )
+    parser.add_argument(
         "--format",
         choices=["json", "text"],
         default="text",
@@ -185,7 +233,8 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    result = add_triage_link(args.issue_key, args.triage_id, auth)
+    result = add_triage_link(args.issue_key, args.triage_id, auth,
+                             release_gate=check_triage_release if args.require_release_target else None)
 
     if args.format == "json":
         print(json.dumps(result, indent=2))

@@ -250,7 +250,50 @@
         "fix_version": "5.1.0"
       },
       "this_release": "4.22",
-      "clone_exists": false
+      "clone_exists": false,
+      "release_check": {
+        "schema": "1",
+        "issue": "OCPBUGS-113706",
+        "checked_at": "2026-10-13T05:21:07Z",
+        "allowed": false,
+        "releases": {
+          "4.22": {
+            "release": "4.22",
+            "decision": "no-matching-clone",
+            "target": null,
+            "complete": true,
+            "reasons": [
+              "no issue in the clone family targets 4.22; a release-specific bug is needed (report-only)"
+            ]
+          }
+        },
+        "family": [
+          {
+            "key": "OCPBUGS-113706",
+            "status": "Verified",
+            "resolution": null,
+            "target_versions_raw": [
+              "5.1.0"
+            ],
+            "target_releases": [
+              "5.1"
+            ],
+            "affects_versions": [
+              "5.1"
+            ],
+            "fix_versions": [
+              "5.1.0"
+            ]
+          }
+        ],
+        "ignored_links": [],
+        "reasons": [
+          "release 4.22: no-matching-clone; no issue in the clone family targets 4.22; a release-specific bug is needed (report-only)"
+        ],
+        "regression_releases": {
+          "49531": "4.22"
+        }
+      }
     }
   ],
   "unanalysed": [
