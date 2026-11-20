@@ -146,6 +146,12 @@ fi
   "components": ["Networking / cluster-network-operator"],
   "labels": ["Regression"],
   "fix_versions": ["4.22"],
+  "affects_versions": ["4.22"],
+  "target_versions": ["4.22.0"],
+  "target_releases": ["4.22"],
+  "links": [
+    {"type": "Cloners", "direction": "inward", "relation": "is cloned by", "key": "OCPBUGS-74500"}
+  ],
   "created": "2026-01-20T14:30:00.000+0000",
   "updated": "2026-02-10T09:15:00.000+0000",
   "comment_count": 5,
@@ -168,6 +174,8 @@ fi
   }
 }
 ```
+
+`target_versions` is the explicit Target Version field and `target_releases` its normalised `X.Y` form. Clones inherit Affects and Fix Versions, so only the Target Version says which release an issue is for. `links` keep the Jira link type and direction (`Cloners` = clone relations; `Blocks`/`Depend` are not clones). For release-specific triage targets use `plugins/ci/scripts/release_target.py` rather than reading these by hand.
 
 ### Summary Format (--format summary)
 
