@@ -49,6 +49,9 @@ from unittest import mock  # noqa: E402
 SIPPY_RELEASES = {101: "4.30", 102: "4.30", 201: "4.31"}
 CLOSED_NEWER_PARENT = fx.issue("SYNTH-110", "4.31.0", status="Closed")      # no clone for 4.30
 UNTARGETED = fx.issue("SYNTH-120", None)
+AMBIGUOUS = [fx.issue("SYNTH-130", "4.31.0", links=[fx.link("Cloners", "in", "SYNTH-131"), fx.link("Cloners", "in", "SYNTH-132")]),
+             fx.issue("SYNTH-131", "4.30.z"), fx.issue("SYNTH-132", "4.30.0")]
+INCOMPLETE = fx.issue("SYNTH-140", "4.31.0", links=[fx.link("Cloners", "in", "SYNTH-141")])   # SYNTH-141 unreadable
 
 
 class _Resp(io.BytesIO):
@@ -64,7 +67,7 @@ class TestReleaseGateConsumerPath(unittest.TestCase):
 
     def setUp(self):
         self.sent = []
-        jira = fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED, CLOSED_NEWER_PARENT, UNTARGETED)
+        jira = fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED, CLOSED_NEWER_PARENT, UNTARGETED, INCOMPLETE, *AMBIGUOUS)
 
         def fake_get_json(url, headers=None):
             rid = int(url.rstrip("/").rsplit("/", 1)[-1])
@@ -113,6 +116,26 @@ class TestReleaseGateConsumerPath(unittest.TestCase):
         self.assertFalse(res["success"])
         self.assertEqual(self.sent, [])
         self.assertEqual(res["release_check"]["releases"]["4.30"]["decision"], "unknown")
+
+    def test_ambiguous_or_incomplete_family_is_refused_with_zero_http(self):
+        for key, decision in (("SYNTH-130", "ambiguous"), ("SYNTH-140", "unknown")):
+            with self.urlopen():
+                res = self.manager([101], key).create()
+            self.assertFalse(res["success"], key)
+            self.assertEqual(self.sent, [], key)
+            self.assertEqual(res["release_check"]["releases"]["4.30"]["decision"], decision)
+
+    def test_suggested_clone_is_written_only_after_revalidation_as_candidate(self):
+        with self.urlopen():
+            refused = self.manager([101], "SYNTH-100").create()
+        suggested = refused["release_check"]["releases"]["4.30"]["target"]
+        self.assertEqual((refused["success"], suggested, self.sent), (False, "SYNTH-200", []))   # nothing rerouted
+        with self.urlopen():
+            res = self.manager([101], suggested).create()        # caller supplies the clone; gate re-runs
+        self.assertTrue(res["success"], res.get("error"))
+        self.assertEqual(res["release_check"]["releases"]["4.30"]["decision"], "self")
+        method, _, body = self.sent[0]
+        self.assertEqual((method, json.loads(body)["url"]), ("POST", "https://example.atlassian.net/browse/SYNTH-200"))
 
     def test_matching_release_target_is_written_with_evidence(self):
         with self.urlopen():
