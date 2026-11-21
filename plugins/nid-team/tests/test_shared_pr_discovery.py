@@ -40,7 +40,16 @@ elif args[:2] == ["auth", "status"]:
 elif args[:2] == ["api", "/rate_limit"]:
     print(json.dumps({"resources": {"graphql": {"remaining": 5000}}}))
 elif args[:2] == ["api", "graphql"]:
-    print("{}")
+    if "--input" in args:
+        request = json.load(sys.stdin)
+        if "DashboardOrder" not in request["query"]:
+            raise SystemExit("Unexpected ordering mutation")
+        data["ordering_project"] = request["variables"]["project"]
+        save()
+        print(json.dumps({"data": {"node": {"items": {
+            "nodes": [], "pageInfo": {"hasNextPage": False, "endCursor": None}}}}}))
+    else:
+        print("{}")
 elif args[:2] == ["project", "item-list"]:
     print(json.dumps({"items": data["items"]}))
 elif args[:2] == ["project", "item-add"]:
@@ -148,6 +157,9 @@ class SharedPRDiscoveryTest(unittest.TestCase):
                       self.state["added"])
         self.assertIn("https://github.com/openshift/release/pull/87291",
                       self.state["added"])
+
+    def test_sync_runs_ordering_for_the_configured_project(self):
+        self.assertEqual(self.state["ordering_project"], self.constants["PROJECT_ID"])
 
     def test_preserves_authors_and_finds_actual_reviewers(self):
         for repo, number in (("bgp-cloud-connector", 126), ("release", 99901),

@@ -34,6 +34,7 @@ This handles:
 - **Reviewer Sync** — When Primary or Secondary Reviewer is set, comments `/assign @user` on the PR if not already assigned
 - **Shared Repo PRs** — Adds PRs authored by, assigned to, or actually reviewed by team members in shared repos (defined in `config.sh`). GitHub review requests never qualify a PR for inclusion. Includes open PRs and merges from the last `SHARED_MERGED_DAYS` days (default 7); newly discovered merged PRs are marked Done.
 - **Area (deterministic)** — Sets Area for repos with obvious mappings (defined in `REPO_TO_AREA` in `config.sh`)
+- **Open PR order** — Keeps open PRs ordered by when they were added to the dashboard, newest first. This brings recent additions into the initially loaded rows of grouped views such as All. The step paginates through all open PRs, changes only item positions, and makes no moves when already ordered. It applies to views using the project's manual order; GitHub still loads longer groups in pages.
 
 ### Step 2: Classify ambiguous PR areas with AI
 
@@ -84,8 +85,10 @@ After the script and AI classification complete, output a summary table of all c
 | Area (AI) | [CIO#1503](https://github.com/openshift/cluster-ingress-operator/pull/1503) | → GWAPI |
 | Author Type | [CIO#1503](https://github.com/openshift/cluster-ingress-operator/pull/1503) | → Team |
 | Jira Priority | [CDO#482](https://github.com/openshift/cluster-dns-operator/pull/482) | → High |
+| Position | [router#888](https://github.com/openshift/router/pull/888) | → 8 in open PR order (newest dashboard additions first) |
 
 If nothing changed for an operation, omit it from the table.
+Include `POSITION:` changes from the script in the summary, and report an ordering error if the script fails to verify the final order.
 
 If there were any reviewer assignments (including "Other") during this sync, also output a **PR Scrub Assignments** section in markdown bullet list format with clickable links and PR titles. Use this format:
 

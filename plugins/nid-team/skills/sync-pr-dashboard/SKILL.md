@@ -9,6 +9,9 @@ Read and follow the [dashboard sync workflow](../../commands/sync-pr-dashboard.m
 Complete the script run, AI classification of ambiguous PR areas, and reporting
 steps described there.
 
+The sync also maintains newest-added-first ordering for open PRs, so recent
+dashboard additions appear near the top of grouped views.
+
 Resolve the plugin root from the actual location of this `SKILL.md`: two
 directories above the directory containing the file. Substitute that absolute
 path for `${CLAUDE_PLUGIN_ROOT}` in the workflow's commands. This also works

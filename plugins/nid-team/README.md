@@ -35,6 +35,12 @@ It tracks open PRs and merges from the last seven days so completed
 reviews are accounted for between syncs. BGP Cloud Connector and its related
 release CI changes use the **BGP** Area.
 
+Every sync orders open PRs by when they were added to the dashboard, newest
+first. This brings recent additions into the initially loaded rows of grouped
+views such as All. Ordering changes preserve item IDs and fields, and a repeat
+run makes no moves when the PRs are already ordered. Views with an explicit
+sort retain their own display order; longer groups still load in pages.
+
 ### `/nid-team:nudge-prs` (experimental)
 
 Sends automated reminder comments on high-priority assigned PRs that have had no human activity for a configurable number of days. This command is experimental and may be removed in the future.
