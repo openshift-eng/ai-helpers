@@ -170,6 +170,56 @@ For each issue in `manifest.issues`, read its detailed data:
       "is_bot": false
     }
   ],
+  "events_in_window": [
+    {
+      "type": "github_commit",
+      "occurred_at": "2026-01-30T09:00:00Z",
+      "author": "User Name",
+      "author_email": "dev@example.com",
+      "pr": "org/repo#123",
+      "pr_url": "https://github.com/org/repo/pull/123",
+      "sha": "abc1234",
+      "message": "Add feature handler"
+    },
+    {
+      "type": "github_review",
+      "occurred_at": "2026-01-31T14:00:00Z",
+      "author": "Reviewer Name",
+      "author_login": "reviewer-login",
+      "pr": "org/repo#123",
+      "pr_url": "https://github.com/org/repo/pull/123",
+      "state": "APPROVED",
+      "body": "LGTM"
+    },
+    {
+      "type": "jira_transition",
+      "occurred_at": "2026-02-01T09:00:00Z",
+      "author": "User Name",
+      "author_email": "user@example.com",
+      "changes": [
+        {
+          "field": "status",
+          "from": "To Do",
+          "to": "In Progress"
+        }
+      ]
+    },
+    {
+      "type": "github_merge",
+      "occurred_at": "2026-02-01T15:30:00Z",
+      "author": "Committer Name",
+      "author_login": "committer-login",
+      "pr": "org/repo#123",
+      "pr_url": "https://github.com/org/repo/pull/123"
+    },
+    {
+      "type": "jira_comment",
+      "occurred_at": "2026-02-03T14:00:00Z",
+      "author": "User Name",
+      "author_email": "user@example.com",
+      "text": "PR submitted for review"
+    }
+  ],
   "prs": [
     {
       "url": "https://github.com/org/repo/pull/123",
@@ -237,7 +287,11 @@ For each issue in `manifest.issues`, read its detailed data:
 | `changelog_in_range` | Field changes in date range |
 | `comments_in_range` | Human comments in date range |
 | `comments_in_range[].is_bot` | Filter out bot comments |
+| `events_in_window` | Chronologically sorted in-range events from all sources (Jira status transitions, Jira comments, and GitHub commits/reviews/merges), each carrying its own UTC ISO-8601 `occurred_at` (normalized to `Z` suffix); the authoritative record of when activity happened. Changelog churn that is not a status change (link/label/rank/assignee edits) does not produce events |
+| `events_in_window[].author` | Display name of the actor (falls back to email, login, or `Unknown`); `author_email` (Jira sources, commits) or `author_login` (GitHub sources) carries the source identity when available |
+| `events_in_window` bot filtering | Bot-authored reviews and commits are excluded (see `reviews_in_range[].is_bot` / `commits_in_range[].is_bot`); merges are kept even when a merge bot performed them, since the merge itself is the evidence |
 | `prs` | GitHub PRs linked to this issue |
+| `prs[].owner` / `prs[].repo` / `prs[].number` | PR identity as extracted from the Jira link (may differ in spelling from `prs[].url`) |
 | `prs[].state` | OPEN, CLOSED, MERGED |
 | `prs[].activity_summary` | Quick check for in-range activity |
 | `prs[].commits_in_range` | Commits within date range |
