@@ -1,13 +1,13 @@
 {
   "schema_version": "1.0",
   "policy": {
-    "name": "post-ga",
+    "name": "ga",
     "version": "2026-10-09",
     "write_mode": "report",
     "existing_only": true
   },
   "source_run": {
-    "job": "periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-post-ga",
+    "job": "periodic-ci-openshift-eng-ai-helpers-main-periodics-bulk-triage-ga",
     "run_id": "2108...",
     "url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/.../2108...",
     "started": "2026-10-13T05:00:12Z"

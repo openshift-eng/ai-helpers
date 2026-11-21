@@ -1,15 +1,15 @@
-# Post-GA policy (`--policy post-ga`)
+# GA policy (`--policy ga`)
 
-Rulebook for the weekly post-GA run. Read after SKILL.md; the deep-dive rules in Phase 3 still apply to every cluster you analyse. Authentication, the AI-attribution footer and Existing-only mode are defined in SKILL.md and are not repeated here.
+Rulebook for the scheduled run over released (GA) versions. `--policy post-ga` is an accepted alias for `--policy ga`. Read after SKILL.md; the deep-dive rules in Phase 3 still apply to every cluster you analyse. Authentication, the AI-attribution footer and Existing-only mode are defined in SKILL.md and are not repeated here.
 
 ## 1. Purpose and scope
 
-- Views: the seven `-main` views `4.16-main` … `4.22-main`, in one run.
+- Views: the released `-main` views the job lists (for example `4.16-main` … `5.0-main`), in one run.
 - Goal: surface significant, widespread issues quickly (a `HIGH` cluster pages the duty rotation), link clusters to existing bugs only when the evidence bar is met, and keep everything else quiet but remembered across runs (lineage, watch list). Zero untriaged is **not** the goal: a small unexplained `LOW` cluster that stays untriaged but listed is a fine outcome.
 - Work per **cluster**, never per regression. Closed regressions are evidence only, never work items.
 - Existing-only: **never create a Jira issue.** Also no code-fix PRs, release-blocker flags, transitions, or Sippy label/symptom creation (recommend only).
 - Two independent axes: **evidence decides writes; blast radius decides notification.**
-- Outputs: `triage-duty-report-post-ga.md` and `triage-manifest.json`.
+- Outputs: `ga-triage-duty-report.md` (or the report path the runner names) and `triage-manifest.json`.
 
 ## 2. Phase 0 inputs
 
@@ -50,7 +50,7 @@ Every cell has a no-write fallback. Persisting unexplained `LOW` work — single
 - **Evidence membership.** Each evidence item records `prowjob_run_id` and `supports_regression_ids[]`. `proposed_action.regression_ids` must be a subset of the union of those. Members not covered go to `members.unlinked[{id, reason}]`; split the cluster if signatures differ. Own-run evidence only (Case 10).
 - **Extend, don't duplicate.** Before proposing `create_triage` for a bug, look it up in the public triage catalogue (`GET https://sippy.dptools.openshift.org/api/component_readiness/triages`, no token; Phase 0's inventory restriction does not cover this) — a triage whose `url` carries the bug key is the target even when it is `resolved`: propose `extend_triage` with its id (resolution is preserved on PUT) and, if the fix never shipped to this release, add the `backport_candidates[]` entry. Several clusters linking the same bug share one triage. Additive. Re-read the triage immediately before every PUT; resend `url/type/description/resolved/resolution_reason` (full-record replacement) with `+00:00` timestamps; verify from both sides. Record the re-read in `precheck`.
 - **Sibling-release lookup.** Search triages in newer views (`4.(n+1)-main`, `5.0-main`) for the same test family or label → bug → its clone chain (`Blocks` links, `[release-x.y]` prefix). Link to the clone for this release if present; else link to the parent and add a `backport_candidates[]` entry.
-- **Catch-all** (`OCPQUAL-88`, triage 851): **off by default for post-GA** — never admit a regression; persisting unexplained `LOW` singletons stay listed in `watch_list` with reason `persisting singleton, unexplained; not written`, and `catch_all.admitted` stays `[]`. Re-enabling is one line here, with the former rule: only `LOW` ∧ singleton ∧ persisting ≥2 cycles ∧ examined, each admission carrying `rule_checks` `{examined, no_bug_meets_bar, not_in_cluster, pre_5_0}` all true and listed in the digest.
+- **Catch-all** (`OCPQUAL-88`, triage 851): **off by default for GA** — never admit a regression; persisting unexplained `LOW` singletons stay listed in `watch_list` with reason `persisting singleton, unexplained; not written`, and `catch_all.admitted` stays `[]`. Re-enabling is one line here, with the former rule: only `LOW` ∧ singleton ∧ persisting ≥2 cycles ∧ examined, each admission carrying `rule_checks` `{examined, no_bug_meets_bar, not_in_cluster, pre_5_0}` all true and listed in the digest.
 
 ## 5. Notification policy
 
@@ -129,7 +129,7 @@ Write the per-cluster JSON files, then merge and validate (`manifest.py` is in `
 
 Validator rules: every evidence item has `prowjob_run_id` and `supports_regression_ids`; `regression_ids` ⊆ supported ids; `rule_checks` all true; `escalation.required` true for every `HIGH` cluster. Every claim needs a locator the next reader can open; unavailable states are explicit (`unknown`, `partial`, `unauthorized`), never zero.
 
-Then write `triage-duty-report-post-ga.md` following SKILL.md Phase 5 plus: clusters by urgency × disposition, completed/planned/failed actions, watch list, catch-all admissions, backport candidates, `UNANALYSED`, and "Proposed new bugs (not filed)".
+Then write `ga-triage-duty-report.md` (or the report path the runner names) following SKILL.md Phase 5 plus: clusters by urgency × disposition, completed/planned/failed actions, watch list, catch-all admissions, backport candidates, `UNANALYSED`, and "Proposed new bugs (not filed)".
 
 ## 10. Policy matrix
 

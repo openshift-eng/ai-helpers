@@ -9,7 +9,7 @@ description: Use this skill for Component Readiness triage duty - holistically a
 
 ```
 bulk-triage-regressions <view> [--components comp1 comp2 ...] [--auto-triage] [--existing-only]
-bulk-triage-regressions --views <v1> <v2> ... --policy post-ga [--write-mode report|auto]
+bulk-triage-regressions --views <v1> <v2> ... --policy ga [--write-mode report|auto]
 ```
 
 Example: `bulk-triage-regressions 5.0-main --components Installer Unknown`
@@ -34,9 +34,9 @@ Use this skill when doing triage duty for a view, or whenever a user asks to "lo
 
 JIRA writes (filing bugs, `set-release-blocker`, `add-jira-triage-link`) additionally require JIRA credentials in the environment: either `JIRA_USERNAME` and `JIRA_API_TOKEN` (API token from https://id.atlassian.com/manage-profile/security/api-tokens), or a service-account OAuth credential in `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET` and `JIRA_CLOUD_ID`, which takes precedence when set and never falls back to the API token. Verify either kind with `python3 plugins/ci/scripts/jira_auth.py check` (exit 0 and the account vs an error). With a service-account credential, Basic auth against `https://redhat.atlassian.net` does not work: send every direct JIRA REST call (searches, comments, issue creation when the Jira MCP tools are unavailable) through `python3 plugins/ci/scripts/jira_auth.py request <METHOD> '/rest/api/3/...' [--data-file body.json]`, which obtains the access token itself and prints only the response. If a required write credential is missing or invalid, pause before Phase 4 and ask the user to fix it — the analysis and report so far remain valid and must still be presented.
 
-### Phase 0: Run the pre-pass (post-ga only)
+### Phase 0: Run the pre-pass (ga only)
 
-With `--policy post-ga`, first run `scripts/prepass.py` with the given views. Treat the `prepass.json` clusters as the complete batch inventory: do not re-derive clusters, and do not call the list/details/related APIs for inventory. Analyse clusters in file order (HIGH first) within the time budget. A `symptom_probe.status` other than `ok` means unknown, never "no symptoms matched". Read and follow `references/post-ga-policy.md` for everything else in this mode, and skip Phase 1's collection steps.
+With `--policy ga`, first run `scripts/prepass.py` with the given views. Treat the `prepass.json` clusters as the complete batch inventory: do not re-derive clusters, and do not call the list/details/related APIs for inventory. Analyse clusters in file order (HIGH first) within the time budget. A `symptom_probe.status` other than `ok` means unknown, never "no symptoms matched". Read and follow `references/ga-policy.md` for everything else in this mode, and skip Phase 1's collection steps.
 
 ### Phase 1: Collect the full batch
 
@@ -196,7 +196,7 @@ With `--auto-triage`, only act autonomously when confidence is high: consistent 
 
 #### Existing-only mode (`--existing-only`)
 
-This mode records matches to existing bugs but never files new JIRA issues. Analysis is unchanged. `--policy post-ga` implies `--existing-only`. These rules apply to every write in any phase, including the Phase 1 stale-triage sweep:
+This mode records matches to existing bugs but never files new JIRA issues. Analysis is unchanged. `--policy ga` implies `--existing-only`. These rules apply to every write in any phase, including the Phase 1 stale-triage sweep:
 
 - **Allowed writes:** only for a verified match to an existing issue:
   - extend a triage, or create one for the existing issue;
@@ -314,12 +314,12 @@ Principles distilled from real mis-dispositions; full narratives in [case-notes.
 - `--existing-only`: Record matches to existing triages/JIRA issues but never file new JIRA issues; new-bug buckets become report proposals (see "Existing-only mode" in Phase 4).
 - `--audit-closed`: Read-only closed-set audit mode (see "Closed-set audit mode") — justifies why every closed untriaged regression closed. Mutually exclusive with normal duty triage and with `--auto-triage`; performs no writes.
 - `--views <v1> <v2> ...`: alternative to `<view>`; several views in one run.
-- `--policy pre-ga|post-ga`: default `pre-ga` — the daily pre-GA rules of this document (formerly called `duty`). `post-ga` is the weekly post-GA (`-main`) policy, defined in [post-ga-policy.md](references/post-ga-policy.md).
-- `--write-mode report|auto`: default `auto` for `pre-ga`, `report` for `post-ga`. `report` performs no Sippy or Jira writes.
+- `--policy devel|ga`: default `devel` — the daily rules of this document for the release in development (formerly called `duty`). `ga` is the policy for released versions (`-main` views of GA releases), defined in [ga-policy.md](references/ga-policy.md). The older names `pre-ga` (= `devel`) and `post-ga` (= `ga`) are accepted as aliases.
+- `--write-mode report|auto`: default `auto` for `devel`, `report` for `ga`. `report` performs no Sippy or Jira writes.
 
 ## See Also
 
-- Reference: `references/post-ga-policy.md` — rulebook for `--policy post-ga` (pre-pass, write/notification policy, manifest)
+- Reference: `references/ga-policy.md` — rulebook for `--policy ga` (pre-pass, write/notification policy, manifest)
 - Reference: [jira-comment.md](references/jira-comment.md) — only comment template for adding regressions to existing bugs
 - Related Command: `/ci:analyze-regression` — single-regression deep dive; this skill orchestrates its techniques across a batch
 - Related Skill: `create` (jira plugin) — file new JIRA bugs via `/jira:create bug` (`plugins/jira/skills/create/SKILL.md`)
