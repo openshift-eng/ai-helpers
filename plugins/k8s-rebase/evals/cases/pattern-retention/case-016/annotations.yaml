@@ -1,0 +1,7 @@
+notes: >
+  openshift/cluster-network-operator @ k8s 1.35.3 — deploys and configures
+  OVN-K on OpenShift. Heavy openshift/api and operator-framework dependencies
+  mean more .go call-site changes are expected than in smaller repos.
+  CNO-specific operator wiring (reconciler logic, status conditions) is
+  out-of-scope for a k8s bump — a diff touching those areas is a scope-creep
+  signal.
