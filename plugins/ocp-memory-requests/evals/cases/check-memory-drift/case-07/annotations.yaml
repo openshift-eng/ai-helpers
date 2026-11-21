@@ -1,0 +1,9 @@
+# case-07: reconcile - same key, similar value -> leave
+expected_release: '5.1'
+expected_window_days: 30
+expected_excluded_runs: 1
+expected_create_count: 0
+expected_no_write:
+- etcd-operator
+notes: Open bug has the same memory-drift-key and a value within one rounding increment
+  of the new recommendation; leave it — no create and no update in the log.

@@ -1,0 +1,11 @@
+# case-06: variable requests across variants
+expected_release: '5.1'
+expected_window_days: 30
+expected_excluded_runs: 5
+expected_create_count: 1
+expected_creates:
+- {deployment: kube-apiserver-operator}
+expected_description_contains:
+- differs across variants
+notes: Request differs across variants (50/100); the created bug tells the reviewer to
+  check every manifest. The var flag itself is covered by the scripts' unit tests.

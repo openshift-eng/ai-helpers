@@ -1,0 +1,11 @@
+# case-10: reconcile - same name, different namespace -> create
+expected_release: '5.1'
+expected_window_days: 30
+expected_excluded_runs: 4
+expected_create_count: 1
+expected_creates:
+- {deployment: controller-manager}
+expected_description_contains:
+- 'memory-drift-key: 5.1/openshift-controller-manager/controller-manager'
+notes: Open bug tracks the same deployment NAME in a different namespace; keys differ,
+  so a new bug is filed. Regression test for EXACT memory-drift-key matching.

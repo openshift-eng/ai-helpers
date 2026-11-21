@@ -1,0 +1,1 @@
+[{"Namespace":"openshift-image-registry","Deployment":"image-registry","job_runs":1,"p90_start_mb":38.5,"p50_start_mb":30.0,"request_mb":256.0,"request_mb_min":256.0,"request_mb_max":256.0}]

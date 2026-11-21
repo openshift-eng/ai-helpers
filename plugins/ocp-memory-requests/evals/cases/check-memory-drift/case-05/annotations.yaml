@@ -1,0 +1,10 @@
+# case-05: manifest skip
+expected_release: '5.1'
+expected_window_days: 30
+expected_excluded_runs: 2
+expected_create_count: 0
+expected_no_write:
+- old-test-operator
+expected_skipped:
+- {deployment: old-test-operator, reason_contains: manifest not found}
+notes: Deployment is absent from release manifests; skip with reason and file no bug.

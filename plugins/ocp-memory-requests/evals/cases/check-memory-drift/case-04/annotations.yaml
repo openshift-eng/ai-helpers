@@ -1,0 +1,8 @@
+# case-04: set a missing request
+expected_release: '5.1'
+expected_window_days: 30
+expected_excluded_runs: 4
+expected_create_count: 1
+expected_creates:
+- {deployment: etcd-operator}
+notes: No request configured at all; the skill surfaces it (direction set) and files a bug.

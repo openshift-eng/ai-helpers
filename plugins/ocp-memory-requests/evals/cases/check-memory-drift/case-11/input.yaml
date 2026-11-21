@@ -1,0 +1,12 @@
+# case-11: reconcile — open bug for a different release -> create
+command_args: --min-runs 1
+devel_release: '5.1'
+manifests_present:
+- etcd-operator
+preexisting_bugs:
+- deployment: etcd-operator
+  namespace: openshift-etcd-operator
+  affected_version: '5.0'
+  status: In Progress
+  labels: [ocp-memory-requests]
+  memory_drift_key: 5.0/openshift-etcd-operator/etcd-operator
