@@ -1,0 +1,13 @@
+mode: live
+repository: https://github.com/submariner-io/admiral.git
+base_branch: devel
+default_branch: devel
+base_commit: af20d0bf09dade1c6537d6d38f5175f7b8704042
+default_commit: af20d0bf09dade1c6537d6d38f5175f7b8704042
+branch: devel
+arguments:
+- devel
+original_branch: devel
+runtime_expectation: repair
+canonical_commands:
+  test: make unit
