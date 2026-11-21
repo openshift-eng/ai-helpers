@@ -17,7 +17,6 @@ Arguments section.
 | 2   | Phase 4: apply fixes automatically (→ Phase 5)?                                                                    | Ask                                            | Proceed (yes)                                                                                            |
 | 3   | Phase 6: create a GitHub PR (→ `create-fix-pr`)?                                                                   | Ask                                            | Proceed (yes)                                                                                            |
 | 4   | `create-fix-pr` Step 2: conflicting open PR found (title match)                                                    | Ask: stack / wait / independent — do not guess | Always **`wait`** — skip PR creation this run; never auto-stack onto or auto-duplicate someone else's PR |
-| 5   | `report-to-jira` Step 3b: restricted-visibility posting unavailable, only public MCP/CLI fallback works — proceed? | Ask                                            | Proceed (yes) — post via the fallback, clearly logged as posted without the visibility restriction       |
 
 **Always hard-fail regardless of `AUTO_APPROVE`** (never guess):
 
