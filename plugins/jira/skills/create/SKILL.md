@@ -113,11 +113,11 @@ Applied defaults:
 | Field | ID | Type | Usage |
 |---|---|---|---|
 | Epic Name | `customfield_10011` | String | Required for Epics; must match summary |
-| Target Version | `customfield_10855` | Array | Format: `[{"id": "VERSION_ID"}]` — fetch via `getJiraIssueTypeMetaWithFields`. Some projects use string format; project conventions take precedence |
+| Target Version | `customfield_10855` | Array | Format: `[{"id": "VERSION_ID"}]` — fetch via the `getJiraIssueTypeMetaWithFields` operation (`executeRead`). Some projects use string format; project conventions take precedence |
 
 ## Issue Hierarchy and Parent Linking
 
-Jira issue types have a `hierarchyLevel` that determines valid parent-child relationships. The parent field only accepts an issue whose `hierarchyLevel` is exactly one level above the child. Not all projects have all levels — use `getJiraProjectIssueTypesMetadata` to discover available types and their levels for a given project.
+Jira issue types have a `hierarchyLevel` that determines valid parent-child relationships. The parent field only accepts an issue whose `hierarchyLevel` is exactly one level above the child. Not all projects have all levels — use the `listJiraProjectIssueTypesMetadata` operation (via `executeRead`) to discover the issue types available in a given project.
 
 ```plaintext
 Level 3: Outcome

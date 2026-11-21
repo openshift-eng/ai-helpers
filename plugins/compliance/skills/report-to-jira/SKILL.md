@@ -179,20 +179,21 @@ fi
 ### Step 3b: MCP tool (default / fallback)
 
 ```python
-addCommentToJiraIssue(
-    issue_key=SOURCE_TICKET,
-    comment_body="<constructed comment from Step 2>",
-    contentFormat="markdown"
+addOrEditJiraIssueComment(
+    issueIdOrKey=SOURCE_TICKET,
+    commentBody="<constructed comment from Step 2>",
+    contentFormat="markdown",
+    commentVisibility={"type": "group", "value": "Red Hat Employee"}
 )
 ```
 
-> ⚠️ The MCP tool does not expose a `visibility` parameter — the comment will be visible to everyone with access to the ticket, not restricted to an internal group.
+> The MCP tool supports restricted visibility via `commentVisibility` (`{"type": "group"|"role", "value": "<name>"}`). Pass the same internal group Step 3a uses — `Red Hat Employee` on `redhat.atlassian.net`; on other instances pick an equivalent group per the note above. Only when no equivalent group exists can `commentVisibility` be omitted, in which case the comment is visible to everyone with access to the ticket.
 
-This visibility downgrade is gated by `AUTO_APPROVE` when it happens **after** Step 3a was actually attempted and failed (i.e. restricted posting was possible in principle but didn't work):
+This visibility downgrade is gated by `AUTO_APPROVE` when Step 3a was attempted and failed **and** no equivalent group is available for `commentVisibility`:
 
 - IF `AUTO_APPROVE=no` and Step 3a was attempted and failed → **ask the user**:
   ```
-  ⚠️ Restricted-visibility posting is unavailable (no REST credentials, or the request failed). The MCP fallback will post this comment visible to everyone with ticket access. Proceed?
+  ⚠️ Restricted-visibility posting is unavailable (no REST credentials, or the request failed, and no equivalent group exists for the MCP fallback). The MCP fallback will post this comment visible to everyone with ticket access. Proceed?
   ```
   IF user says **no** → display the full comment body in the session for manual posting instead.
 - IF `AUTO_APPROVE=yes` and Step 3a was attempted and failed → proceed automatically via the MCP fallback. **Clearly log** that this comment was posted without the internal-only restriction.

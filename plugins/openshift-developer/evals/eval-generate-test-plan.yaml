@@ -100,6 +100,7 @@ permissions:
     - "mcp__user_jira__jira_list_accessible_resources"
     - "mcp__atlassian__jira_list_accessible_resources"
     - "mcp__atlassian__getAccessibleAtlassianResources"
+    - "mcp__plugin_jira_atlassian__getAccessibleAtlassianResources"
     # Not in Step 1b's candidate list, but what the live Atlassian MCP exposes:
     - "mcp__atlassian__getJiraIssue"
     - "mcp__atlassian__searchJiraIssuesUsingJql"
