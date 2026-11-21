@@ -132,7 +132,7 @@ This is the only copy of the report template. The `node-cve:triage` command refe
 
 ### Handoff mode
 
-In a run started with `init --handoff` (`--handoff` on the triage command), the helper refuses `post-comment` and `slack`, and `validate` needs `--trackers`. Steps 2a, 2c and the comment and Slack texts of Steps 3 and 4 stay the same. Steps 2b, 2d and 2e do not apply: every validated tracker goes into the plan with `plan-comment`, the Slack texts with `plan-slack`, and `plan-show` finishes the plan. The caller deduplicates against the tracker's existing comments and posts. See the triage command's "Handoff mode" section for the call sequence.
+In a run started with `init --handoff` (`--handoff` on the triage command), the helper refuses `post-comment` and `slack`, and `validate` needs `--trackers`. Steps 2a, 2c and the comment and Slack texts of Steps 3 and 4 stay the same. Steps 2b, 2d and 2e do not apply: every validated tracker goes into the plan with `plan-comment`, which renders the comment body in Markdown and refuses a body that does not follow the template exactly, the Slack texts with `plan-slack`, and `plan-show` finishes the plan. The caller deduplicates against the tracker's existing comments and posts. See the triage command's "Handoff mode" section for the call sequence.
 
 ### Step 2: Posting gate (if --notify-jira, --notify-slack, or --dry-run)
 
@@ -227,9 +227,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/report-findings/scripts/node-cve-lib.sh" post
 bash "${CLAUDE_PLUGIN_ROOT}/skills/report-findings/scripts/node-cve-lib.sh" post-comment OCPBUGS-YYYYY .work/node-cve/triage-YYYY-MM-DD/CVE-XXXX-XXXXX-openshift-cri-o-comment.txt 12345678
 ```
 
-Fill in real values. "Classification" is exactly one label from the [analyze-cve-repos](../analyze-cve-repos/SKILL.md) Step 6 table (Reachable, Present but not exploitable, Present but not reachable, Unaffected, Uncertain), "Confidence" one of High, Medium, Low. The evidence must not contain the text `{noformat}`.
+Fill in real values. "Classification" is exactly one label from the [analyze-cve-repos](../analyze-cve-repos/SKILL.md) Step 6 table (Reachable, Present but not exploitable, Present but not reachable, Unaffected, Uncertain), "Confidence" one of High, Medium, Low. The evidence must not contain the text `{noformat}`. Write the recommended action as plain text, one or a few short lines without wiki markup (no lists, emphasis or `{{code}}`): handoff mode renders it as plain Markdown text.
 
-Use the footer line exactly as shown. The "AI-generated" label and review notice are required by Red Hat's medium-risk AI agent controls (TR-01, HU-01). The `[node-cve:triage|` link in it is also the marker that deduplication and the cache check search for. Do not append a date. The Jira comment timestamp already covers that.
+Use the footer line exactly as shown. The "AI-generated" label and review notice are required by Red Hat's medium-risk AI agent controls (TR-01, HU-01). The `[node-cve:triage|` link in it is also the marker that deduplication and the cache check search for. In handoff mode the plan carries the footer in Markdown and the caller searches for the link text `node-cve:triage` together with the rest of the footer. Do not append a date. The Jira comment timestamp already covers that.
 
 **Important:**
 - `post-comment` refuses keys that are not in `validated-trackers.txt` and refuses everything when the gate is closed. Do not work around a refusal.

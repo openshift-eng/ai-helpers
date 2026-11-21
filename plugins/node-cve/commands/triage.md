@@ -38,7 +38,7 @@ All Jira, Slack and git access goes through one helper script, invoked as a sing
 bash "${CLAUDE_PLUGIN_ROOT}/skills/report-findings/scripts/node-cve-lib.sh" help
 ```
 
-This keeps the command usable in headless runs with a strict tool allowlist: the only Bash command needed is `bash <plugin-root>/skills/report-findings/scripts/node-cve-lib.sh ...`. Rules for the executor:
+This keeps the command usable in headless runs with a strict tool allowlist: the only Bash command needed is `bash <plugin-root>/skills/report-findings/scripts/node-cve-lib.sh ...`. Where skills are installed without their plugin (Chai workspaces put them under `.claude/skills/<skill>/`), `CLAUDE_PLUGIN_ROOT` is not set: use `scripts/node-cve-lib.sh` in the `report-findings` skill's base directory instead, in this and every other command of this plugin. Rules for the executor:
 
 - **Do not write ad-hoc `curl`, `jira`, or `git` commands, and do not chain commands** with `&&`, `;`, pipes or redirects. Every helper subcommand is self-contained, takes file paths as arguments, and writes its own output files. Shell variables do not persist between Bash tool calls anyway.
 - **Use the Read, Grep, Glob and Write tools** for everything that touches files: reading the shared references, searching source code, finding cached analysis files, writing reports and payload texts under `.work/node-cve/`.
@@ -256,7 +256,7 @@ With `--handoff`, the command posts nothing and hands the posts to the caller in
 
    The version, the `--max-trackers` value and the run directory in this and the following commands are examples. Use the real `version_filter`, the `--max-trackers` value of the run and the `TRIAGE_DIR` that `init` printed.
 
-3. If `--notify-jira`: write the comment body per tracker exactly as in report-findings Step 3 and add it to the plan, one call per validated tracker. There is no `ADD`/`UPDATE`/`SKIP-UNCHANGED` decision here, every validated tracker gets an entry:
+3. If `--notify-jira`: write the comment body per tracker exactly as in report-findings Step 3 and add it to the plan, one call per validated tracker. `plan-comment` renders the body in Markdown, since Chai's `comment_on_jira_issue` takes Markdown. It refuses a body that does not follow the template exactly; fix the body and run it again. There is no `ADD`/`UPDATE`/`SKIP-UNCHANGED` decision here, every validated tracker gets an entry:
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/skills/report-findings/scripts/node-cve-lib.sh" plan-comment OCPBUGS-XXXXX .work/node-cve/triage-YYYY-MM-DD/CVE-XXXX-XXXXX-openshift-cri-o-comment.txt
@@ -374,6 +374,6 @@ Rules for this output (do not print these rules):
 - Analysis targets downstream forks (for example openshift/cri-o), or the upstream repository at the shipped tag for upstream-only components (conmon-rs, cri-tools). If the downstream fork or branch does not exist, the CVE is classified as Uncertain. Dependency versions and Go toolchain versions differ across releases, so version-specific branches are used.
 - Large repos like openshift/kubernetes may take longer to analyze. The helper uses `--depth 1` clones for speed.
 - Reachability analysis is performed by Claude reading the source code directly, not by external tools. This works across Go and Rust codebases.
-- Jira comments use Atlassian wiki markup (not Markdown), which requires the Jira REST API v2 comment endpoints.
+- Jira comments use Atlassian wiki markup (not Markdown), which requires the Jira REST API v2 comment endpoints. In handoff mode the plan carries the same comments rendered in Markdown.
 - The command does not modify any code or create PRs. It only reads, analyzes, and reports.
 - Reports and artifacts are saved to `.work/node-cve/` (gitignored). `/node-team:cleanup` purges old `triage-*` directories and the `repos/` clones.
