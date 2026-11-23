@@ -15,3 +15,4 @@ input_json: |
       {"type": "test_failure", "url": "url10", "tests": ["TestServiceMesh"], "test_count": 1}
     ]
   }
+# eval-runner smoke test, do not merge

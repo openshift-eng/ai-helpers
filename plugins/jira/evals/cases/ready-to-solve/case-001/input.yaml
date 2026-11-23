@@ -35,3 +35,4 @@ issue_description: |
 
   - KMS key rotation failure due to premature convergence (workaround applied)
   - PR #8970 -- Workaround: prevent premature convergence during KMS key rotation
+# eval-runner smoke test, do not merge
