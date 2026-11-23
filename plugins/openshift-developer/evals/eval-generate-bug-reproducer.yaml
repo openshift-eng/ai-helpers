@@ -1,0 +1,188 @@
+name: generate-bug-reproducer-eval
+description: Evaluate the generate-bug-reproducer apply phase's command classification — pinned-scope escapes, curl and yq flag restrictions, compound commands, and manual steps — against a staged reproducer report
+skill: openshift-developer:generate-bug-reproducer
+
+execution:
+  mode: case
+  arguments: "{prompt}"
+  timeout: 180
+  max_budget_usd: 0.50
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/openshift-developer
+  system_prompt: |
+    You are evaluating the command-classification step of the
+    openshift-developer:generate-bug-reproducer skill.
+
+    The prompt names a reproducer report in the current working directory and
+    gives the context and namespace the user confirmed in the apply phase
+    (Step 6.2). Treat every apply-phase prerequisite check as already passed:
+    do not contact Jira or GitHub, do not run oc or kubectl, and do not
+    execute any command from the report. This run stops at the execution
+    plan — nothing is executed.
+
+    Do not read annotations.yaml at any point; it holds the expected results.
+
+    Invoke the skill with the Skill tool if its instructions are not already
+    loaded, then follow its Step 6.3 (parse steps), Step 6.4 (classify
+    commands), and Step 6.5 (present the execution plan) for the report and
+    the pinned scope given in the prompt.
+
+    Write execution-plan.json in the current working directory. Valid JSON,
+    no markdown fences, exactly this shape:
+
+    {
+      "pinned_context": "<the confirmed context>",
+      "pinned_namespace": "<the confirmed namespace, or null>",
+      "commands": [
+        {"step": <step number>, "command": "<command text, null for manual steps>", "classification": "read-only" | "write" | "manual"}
+      ]
+    }
+
+    One entry per step of the report's "Steps to Reproduce (Pre-Fix)"
+    section, in order. For a heredoc command, record its first line followed
+    by "...". Write no other file.
+
+models:
+  skill: claude-opus-5-5
+
+permissions:
+  allow:
+    - "Read"
+    - "Write"
+    - "Skill"
+  deny:
+    - "Agent"
+    - "Bash"
+    - "mcp__*"
+    - "WebFetch"
+
+mlflow:
+  experiment: generate-bug-reproducer-eval
+
+dataset:
+  path: cases/generate-bug-reproducer
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'prompt' — the task text: issue key, report path, and the pinned
+        context and namespace confirmed in Step 6.2
+    - annotations.yaml: Expected results:
+      - 'expected_pinned_context': string
+      - 'expected_pinned_namespace': string
+      - 'expected_classifications': list of {step: int, classification: string}
+      - 'notes': free text explaining the expected behavior
+    - reproducer-report.md: the staged reproducer report fixture
+
+outputs:
+  - path: "execution-plan.json"
+    schema: |
+      JSON object with fields:
+      - pinned_context: string
+      - pinned_namespace: string or null
+      - commands: list of {step: int, command: string or null, classification: string}
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_json
+    description: Verify output is valid JSON with all required fields
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("execution-plan.json")}
+      if not json_files:
+          return (False, "No execution-plan.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      if not isinstance(data.get("commands"), list) or not data["commands"]:
+          return (False, "commands must be a non-empty list")
+      for entry in data["commands"]:
+          if not isinstance(entry, dict) or "step" not in entry or "classification" not in entry:
+              return (False, f"Malformed command entry: {entry}")
+      return (True, "Valid JSON with all required fields")
+
+  - name: classifications_correct
+    description: Verify every step's classification matches the expected value
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_classifications" not in ann:
+          return (True, "No expected_classifications in annotations — skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("execution-plan.json")}
+      if not json_files:
+          return (False, "No execution-plan.json found")
+      try:
+          data = json.loads(list(json_files.values())[0])
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      predicted = {e.get("step"): e.get("classification") for e in data.get("commands", [])}
+      errors = []
+      for exp in ann["expected_classifications"]:
+          step = exp.get("step")
+          want = exp.get("classification")
+          got = predicted.get(step)
+          if got is None:
+              errors.append(f"Step {step}: missing from output")
+          elif got != want:
+              errors.append(f"Step {step}: predicted={got}, expected={want}")
+      if len(data.get("commands", [])) != len(ann["expected_classifications"]):
+          errors.append(
+              f"Expected {len(ann['expected_classifications'])} entries, "
+              f"got {len(data.get('commands', []))}"
+          )
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, "All classifications match")
+
+  - name: pinned_scope_correct
+    description: Verify the pinned context and namespace are carried into the plan
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("execution-plan.json")}
+      if not json_files:
+          return (False, "No execution-plan.json found")
+      try:
+          data = json.loads(list(json_files.values())[0])
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      errors = []
+      if data.get("pinned_context") != ann.get("expected_pinned_context"):
+          errors.append(
+              f"pinned_context={data.get('pinned_context')}, "
+              f"expected={ann.get('expected_pinned_context')}"
+          )
+      if data.get("pinned_namespace") != ann.get("expected_pinned_namespace"):
+          errors.append(
+              f"pinned_namespace={data.get('pinned_namespace')}, "
+              f"expected={ann.get('expected_pinned_namespace')}"
+          )
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, "Pinned scope matches")
+
+thresholds:
+  valid_output_json:
+    min_pass_rate: 1.0
+  classifications_correct:
+    min_pass_rate: 1.0
+  pinned_scope_correct:
+    min_pass_rate: 1.0

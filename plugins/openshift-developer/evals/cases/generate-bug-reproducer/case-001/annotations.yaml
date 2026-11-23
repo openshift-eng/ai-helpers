@@ -1,0 +1,19 @@
+expected_pinned_context: eval-context
+expected_pinned_namespace: reproducer-ns
+expected_classifications:
+  - step: 1
+    classification: read-only
+  - step: 2
+    classification: write
+  - step: 3
+    classification: write
+  - step: 4
+    classification: read-only
+  - step: 5
+    classification: write
+notes: >
+  Steps 1 and 4 stay read-only: -n reproducer-ns matches the pinned
+  namespace, which is not a scope escape. Step 2 names a different
+  namespace and step 3 a different context — both are pinned-scope
+  escapes and require individual confirmation even though oc get and
+  kubectl logs are read-only subcommands. Step 5 is oc apply, a write.

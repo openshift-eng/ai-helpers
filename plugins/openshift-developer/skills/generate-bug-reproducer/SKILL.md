@@ -53,10 +53,10 @@ If no PRs are found, warn that root-cause inference will rely on Jira text alone
 
 The resolved, filtered PR set from this step is the canonical PR list: it includes auto-discovered PRs and excludes the PRs the filtering rules removed. Do not compare against the raw arguments, which may be empty (auto-discovery) or contain PRs that filtering removed.
 
-If apply mode is set and `.work/generate-bug-reproducer/{ISSUE_KEY}/reproducer-report.md` exists, read its embedded provenance metadata (see Step 4) and compare it against the issue key and the canonical PR list. Compare as sets, ignoring order, duplicates, trailing slashes, and case.
+If apply mode is set and `.work/generate-bug-reproducer/{ISSUE_KEY}/reproducer-report.md` exists, read its embedded provenance metadata (see Step 4) and compare it against the issue key, the canonical PR list, and their current revisions. Refetch current `fields.updated` for the Jira issue and `headRefOid` for each canonical PR, then compare issue key, PR set (as sets, ignoring order, duplicates, trailing slashes, and case), `jira_updated`, and `pr_shas`. Treat missing provenance fields in an old report as a mismatch.
 
-- Issue key and PR set both match: ask the user whether to reuse or regenerate.
-- Anything differs, or the metadata is missing or unparseable: state the mismatch and default to regenerating, unless the user confirms they want the stale report.
+- All provenance matches: ask the user whether to reuse or regenerate.
+- Anything differs, or the metadata is missing or unparseable: state which field diverged (e.g. `PR https://... head abc→def (force-push)`, `Jira updated 2026-11-20T13:53:07Z`) and default to regenerating, unless the user confirms they want the stale report.
 - If the user chooses to reuse, skip Steps 3-5 and go directly to Step 6.
 
 ### Step 3: Establish root cause and reconcile sources
@@ -83,10 +83,14 @@ Embed provenance metadata as an HTML comment above the first heading so a later 
 ```html
 <!-- generate-bug-reproducer-metadata
 issue: {ISSUE_KEY}
+jira_updated: {Jira fields.updated at generation time, ISO 8601}
 pr_urls: {comma-separated PR URLs actually analyzed, or "none"}
+pr_shas: {comma-separated PR URL=headRefOid pairs, or "none"}
 generated_at: {ISO 8601 timestamp}
 -->
 ```
+
+Capture `fields.updated` at generation time, and for each PR its `headRefOid` via `gh pr view <PR> --json headRefOid`. `generated_at` remains for manual archaeology; staleness is decided by the revision fields above.
 
 Sections:
 
@@ -138,20 +142,27 @@ A report must already exist, either generated above or reused via Step 2.1. If t
      3. Paste and execute the 'oc login' command in your terminal
    ```
 
-3. **Confirm the target cluster:**
+3. **Confirm the target cluster and pin execution scope:**
    ```bash
    oc whoami --show-server
    oc version
+   oc config current-context
+   oc config view --minify --output 'jsonpath={.contexts[?(@.name=="{current-context}")].context.namespace}'
    ```
    ```text
    You are logged in to:
      Server: {server-url}
      User:   {username}
      Version: {oc-version}
+     Context: {current-context}
+     Namespace: {namespace or "default" if empty}
+
+   All oc/kubectl commands will be pinned to this context and namespace.
+   Steps that try to escape this scope — a different --context/--cluster/--user/--kubeconfig, or -n/--namespace naming a different namespace — will be flagged.
 
    Proceed with applying the reproducer steps on this cluster? (yes/no)
    ```
-   If the user says no, abort the apply phase.
+   Capture the current context and namespace as the pinned scope for Steps 6.4 and 6.6. If the user says no, abort the apply phase.
 
 #### 6.3: Parse steps from the report
 
@@ -170,7 +181,7 @@ Steps written in prose with no executable command are flagged "manual — no exe
 - `kubectl get`, `kubectl describe`, `kubectl logs`
 - Non-cluster shell commands: `cat`, `echo`, `grep`, `jq`
 - `yq` **only** in its read form, writing to stdout: no `-i`/`--inplace`, and no yq v3 `w -i`
-- `curl` **only** as a single plain GET: no `-X`/`--request` other than `GET`, no `-d`/`--data*`/`-F`/`-T`/`--upload-file`, no `-o`/`--output` to a sensitive path, and the target must be an endpoint already referenced in the report — never an arbitrary, internal, or metadata URL
+- `curl` **only** as a single plain GET: no `-X`/`--request` other than `GET`, no `-d`/`--data*`/`-F`/`-T`/`--upload-file`, no `-o`/`--output`, and the target must be an endpoint already referenced in the report — never an arbitrary, internal, or metadata URL
 
 **Write** (individual confirmation required):
 - `oc apply`, `oc create`, `oc delete`, `oc patch`, `oc replace`
@@ -180,7 +191,8 @@ Steps written in prose with no executable command are flagged "manual — no exe
 - `oc adm` (any subcommand other than `top`)
 - `kubectl apply`, `kubectl create`, `kubectl delete`, `kubectl patch`
 - Any compound or chained command (`&&`, `||`, `;`, `|`, command substitution `$(...)` or backticks, redirection `>`/`>>`) — chaining can hide destructive or exfiltrating behavior behind read-only-looking parts, so classify as write even when every visible component looks safe
-- `curl` with any method or flag not allowed above, or targeting an internal or unreferenced endpoint
+- `curl` with any method or flag not allowed above, targeting an internal or unreferenced endpoint, or writing to a file via `-o`/`--output`
+- Any `oc` or `kubectl` command that escapes the pinned scope — `--context`, `--cluster`, `--user`, or `--kubeconfig` naming anything other than the pinned context, or `-n`/`--namespace` naming a namespace other than the pinned namespace — flag the conflict and require individual confirmation; do not bulk-approve even when the base subcommand is read-only. `-n`/`--namespace` matching the pinned namespace is not an escape and keeps the base subcommand's own classification
 - `yq` with `-i`/`--inplace` or yq v3 `w -i`, or any flag not allowed above
 - Any unrecognized `oc` subcommand, or anything that does not cleanly match a single pattern above — default to write; never bulk-approve an ambiguous command
 
@@ -188,6 +200,7 @@ Steps written in prose with no executable command are flagged "manual — no exe
 
 ```text
 === Execution Plan for {ISSUE_KEY} ===
+Pinned scope: context {current-context}, namespace test-namespace
 
 Read-only commands (one-time approval):
   Step 1: oc get namespace test-namespace
@@ -225,12 +238,14 @@ If the user says no, fall back to individual confirmation for every command.
 - Redact values from `oc get secret`, `oc get -o yaml` on Secret or ConfigMap resources, `oc config view` (unless credentials are already elided), and any `Authorization`, `token`, `password`, or `Bearer` field in JSON/YAML/HTTP output
 - Replace them with `[REDACTED]` both on screen and in the apply log — never write raw secret material under `.work/`
 - For commands known to return sensitive data, ask for explicit confirmation before displaying or persisting the output even when classified read-only
+- If a `curl` command requested a file via `-o`/`--output`, capture the response to stdout first, apply redaction, then write only the redacted content to the target file — never write raw response bytes to disk
 
 **For each step, in order:**
 
 1. Display the step number and description
-2. Read-only commands execute immediately when bulk-approved
-3. Write commands ask for individual confirmation:
+2. Pin every `oc`/`kubectl` command to the confirmed context and namespace: inject `--context={pinned-context}` unless the step already carries a context flag, and inject `-n {pinned-namespace}` only when the step has no `-n`/`--namespace` of its own; flagged escapes are never auto-pinned and require explicit confirmation with a warning showing the conflict
+3. Read-only commands execute immediately when bulk-approved
+4. Write commands ask for individual confirmation:
    ```text
    About to execute (WRITE):
      oc apply -f - <<EOF
@@ -242,11 +257,11 @@ If the user says no, fall back to individual confirmation for every command.
    Execute this command? (yes/skip/abort)
    ```
    **yes** executes, **skip** moves to the next step, **abort** stops everything immediately
-4. Manual steps display the instruction and wait for the user to confirm completion
-5. Before running anything, ensure it terminates on its own. Convert streaming or interactive commands (`oc logs -f`, `oc exec` without a fixed command, `oc rsh`, interactive `oc debug`) to a bounded form such as `--tail=200` or `--since=`, or ask the user to confirm an explicit timeout
-6. Enforce a per-command timeout — 30s read-only, 60s write, longer only with explicit confirmation. On timeout, terminate the process group, mark the step `TIMED OUT`, and continue; one hung command must never block the rest of the plan
-7. Capture and display output with redaction applied, capped to a bounded size (first and last 200 lines, or 20KB, noting truncation)
-8. Where the step has an expected result, compare:
+5. Manual steps display the instruction and wait for the user to confirm completion
+6. Before running anything, ensure it terminates on its own. Convert streaming or interactive commands (`oc logs -f`, `oc exec` without a fixed command, `oc rsh`, interactive `oc debug`) to a bounded form such as `--tail=200` or `--since=`, or ask the user to confirm an explicit timeout
+7. Enforce a per-command timeout — 30s read-only, 60s write, longer only with explicit confirmation. On timeout, terminate the process group, mark the step `TIMED OUT`, and continue; one hung command must never block the rest of the plan
+8. Capture and display output with redaction applied, capped to a bounded size (first and last 200 lines, or 20KB, noting truncation)
+9. Where the step has an expected result, compare:
    ```text
    Expected: {expected behavior from report}
    Observed: {actual command output}

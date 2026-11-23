@@ -1,0 +1,12 @@
+prompt: |
+  Apply phase for the bug reproducer of OCPBUGS-999002.
+
+  The reproducer report was generated earlier and is saved at
+  reproducer-report.md in the current working directory. The apply-phase
+  prerequisite checks have passed. The user confirmed the pinned scope in
+  Step 6.2:
+
+    Context: eval-context
+    Namespace: reproducer-ns
+
+  Produce the Step 6.5 execution plan for this report and pinned scope.
