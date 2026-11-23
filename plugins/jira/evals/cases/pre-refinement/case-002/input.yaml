@@ -1,0 +1,122 @@
+issue_key: TRT-9002
+card:
+  key: TRT-9002
+  issue_type: Story
+  status: New
+  summary: Route regression triage requests to the TRT on-call engineer with reminders
+  labels: [ai-generated-jira, component-readiness]
+  creator: ship-help-jira
+  description: |
+    As a TRT on-call engineer, I want regression triage requests from component
+    teams routed to me with reminders, so that no request waits unanswered
+    through a release cycle.
+
+    ## Acceptance Criteria
+
+    1. Intake
+       * Verify that a component team can submit a triage request from the
+         Component Readiness regression page.
+       * Verify that the request records the regression ID, the release and the
+         requesting team.
+       * Verify that a request for a regression that already has an open
+         request is rejected with a link to the open request.
+    2. Routing
+       * Verify that a new request is assigned to the current TRT on-call
+         engineer from the on-call schedule.
+       * Verify that the on-call engineer is notified in Slack.
+       * Verify that routing uses the on-call schedule at the time of
+         submission.
+       * Verify that if no on-call engineer is scheduled, the request goes to
+         the #trt-alert channel instead.
+    3. Handoffs
+       * Verify that open requests move to the next on-call engineer at
+         handoff.
+       * Verify that the new on-call engineer is notified of each request
+         they inherit.
+       * Verify that the previous on-call engineer is no longer notified.
+    4. Reminders
+       * Verify that a request without a response after 24 hours triggers a
+         reminder to the assigned engineer.
+       * Verify that a request without a response after 72 hours is escalated
+         to #trt-alert.
+       * Verify that reminders stop once the request has a response.
+    5. Failure handling
+       * Verify that a failed Slack notification is retried.
+       * Verify that after 3 failed deliveries the request is flagged on the
+         triage dashboard.
+       * Verify that failures are logged.
+    6. Configuration
+       * Verify that the reminder and escalation thresholds are configurable.
+       * Verify that the target channel is configurable.
+
+    ## Additional acceptance criteria (for reuse by other teams)
+
+    * Verify that another team can enable the same routing for its own
+      on-call schedule through configuration only, without code changes.
+    * Verify that each team's requests are routed only to that team.
+
+    ## Additional Context
+
+    This story requests a routing and reminder flow for regression triage
+    requests. Component teams currently ask for triage in Slack threads, and
+    requests are lost when the on-call engineer changes. The flow must route
+    each request to the current on-call engineer, remind them after 24 hours,
+    escalate after 72 hours, and move open requests at handoff. Reminders must
+    stop once the request has a response. Failures must be retried and flagged.
+
+    Determine the storage approach during design. This story does not
+    authorize changes to the on-call schedule itself. Paging through
+    PagerDuty is out of scope.
+
+    ## Repository search findings (2026-11-10)
+
+    A search of the Sippy repository found these relevant files:
+
+    * `pkg/api/componentreadiness/regressiontracker.go`
+    * `pkg/api/componentreadiness/triage.go`
+    * `pkg/db/models/triage.go`
+    * `pkg/db/models/regression.go`
+    * `pkg/sippyserver/server.go`
+    * `pkg/slack/client.go`
+    * `pkg/slack/notifications.go`
+    * `sippy-ng/src/component_readiness/RegressionPage.js`
+    * `sippy-ng/src/component_readiness/TriageDialog.js`
+    * `scripts/oncall/schedule.py`
+    * `config/oncall.yaml`
+    * `config/slack-channels.yaml`
+
+    ## Preferred implementation option
+
+    Three options were considered:
+
+    * **Option A: a Postgres table and a periodic job.** Store requests in a
+      new `triage_requests` table and run a job every 15 minutes that sends
+      reminders and escalations. Simple, and uses existing infrastructure.
+    * **Option B: Slack workflow builder.** No code in Sippy, but reminders
+      can't see whether a request has a response, and the configuration can't
+      be shared with other teams.
+    * **Option C: an external queue.** Robust, but adds a new service TRT
+      would have to operate.
+
+    Option A is preferred because reminders must know whether a request has a
+    response, which only Sippy's database records. Determine the storage
+    approach during design.
+
+    ## Related
+
+    * TRT-9050: on-call schedule export from the scheduling tool
+    * [Sippy PR #4321: triage model cleanup](https://github.com/openshift/sippy/pull/4321)
+
+    Requested by a TRT engineer via Chai Bot in #forum-trt
+
+    _AI-generated. Review for accuracy._
+search_results:
+  - key: TRT-9050
+    issue_type: Task
+    status: In Progress
+    resolution: null
+    resolved: null
+    summary: Export the on-call schedule from the scheduling tool
+    description: |
+      Export the TRT on-call schedule nightly to `config/oncall.yaml` so other
+      tools can read who is on call.

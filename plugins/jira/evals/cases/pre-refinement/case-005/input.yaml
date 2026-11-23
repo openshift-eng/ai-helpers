@@ -1,0 +1,14 @@
+issue_key: TRT-9005
+card:
+  key: TRT-9005
+  issue_type: Epic
+  status: New
+  summary: Component Readiness parity with the release dashboard
+  labels: []
+  creator: trt-engineer-a
+  description: |
+    Collects the work needed for Component Readiness to show everything the
+    release dashboard shows today, so the dashboard can be retired. This epic
+    was put together quickly and repeats a lot of the background from the
+    planning doc; it could certainly be shorter.
+search_results: []

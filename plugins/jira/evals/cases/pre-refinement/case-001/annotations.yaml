@@ -1,0 +1,18 @@
+expected_key: TRT-9001
+expected_outcome: no_change
+expected_readiness: ready
+expected_stricter_review: false
+expected_stricter_reasons: []
+expected_duplicate_of: null
+expected_related: [TRT-8790]
+expected_links: []
+ground_truth: |
+  A well-refined Story: a user-story sentence, three testable acceptance
+  criteria, and short context whose evidence is marked unverified. It is under
+  the Story length guidance and passes C1-C7, so the only possible edits are
+  stylistic: "no change", ready, no gap comment.
+
+  TRT-8790 is related (it created the devcontainer and put integration tests
+  out of scope), not a duplicate: finishing it did not finish this card. The
+  card already links it, so no link is proposed.
+notes: Worked example E1, dropped from trt.md in review.

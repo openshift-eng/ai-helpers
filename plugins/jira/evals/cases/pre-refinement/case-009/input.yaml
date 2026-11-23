@@ -1,0 +1,12 @@
+issue_key: TRT-9009
+card:
+  key: TRT-9009
+  issue_type: Story
+  status: New
+  summary: Improve things
+  labels: [ai-pre-refined, sippy]
+  creator: trt-engineer-b
+  description: |
+    Make the Sippy pages better. There are lots of ways they could be improved
+    and we should do some of them.
+search_results: []

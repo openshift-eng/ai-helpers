@@ -282,7 +282,8 @@ A refined summary and description must keep, unchanged in meaning:
   reworded, but none may be weakened, dropped or added. If two conflict, keep
   both and flag the conflict.
 - **Facts exactly as written:** numbers, thresholds, versions, dates, IDs,
-  test and job names, error strings, code identifiers and file paths.
+  test and job names, error strings, code identifiers and file paths (except
+  in content removed under C4 or C5; see below).
 - **Every link target** (issue keys, PRs, docs, runs). Shortening the link text
   is fine; dropping a link is not, unless it duplicates another link exactly.
 - **Out-of-scope statements and stated boundaries.**
@@ -294,6 +295,10 @@ A refined summary and description must keep, unchanged in meaning:
 
 Never move content into a comment to make the description shorter. Content
 that fails the rubric is condensed or removed; content that is essential stays.
+These rules protect what the refined card keeps: when C4 or C5 removes content
+(a log excerpt, dated search findings, an option comparison), the
+identifiers, file paths and numbers in it may go with it. A criterion, link
+or boundary never does.
 
 ## Worked examples
 
