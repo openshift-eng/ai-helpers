@@ -131,7 +131,7 @@ Custom fields to include:
 
 For single bug mode (`--bug` flag), fetch the bug by key via `getJiraIssue`:
 - **issueIdOrKey**: The bug key provided by user
-- **expand**: "renderedFields"
+- Fetch the bug's comments via `listJiraIssueComments` (paginate with `startAt` until `isLast`) — `getJiraIssue` returns only a comment count, so `expand: "renderedFields"` no longer yields comment text
 
 **Handle query results:**
 - If total is 0, display message: "✅ No proposed blockers found" with filter summary
@@ -195,7 +195,7 @@ If a workaround doesn't meet all three criteria, it's NOT an acceptable workarou
      - Regression
    - Identify scope: All platforms vs specific form-factor/configuration
 4. **Check for acceptable workarounds**:
-   - Use `expand="renderedFields"` to get comment text
+   - Read comment text from the `listJiraIssueComments` results
    - Search for keywords: "workaround", "work around", "alternative", "bypass"
    - Assess if workaround meets all 3 criteria (idempotent, safe at scale, timely)
 5. **Generate recommendation**:
@@ -204,7 +204,7 @@ If a workaround doesn't meet all three criteria, it's NOT an acceptable workarou
    - ⚠️ **DISCUSS** - Edge cases requiring team discussion
 
 **Use MCP tools:**
-- `getJiraIssue` with expand="renderedFields" to get comments
+- `getJiraIssue` for the bug fields, plus `listJiraIssueComments` for comment text
 - Analyze comment text for workaround mentions
 
 ### Phase 5: Generate Validation Report

@@ -75,9 +75,18 @@ Jira comment bodies are capped at **32,767 characters**. Apply these steps **in 
 
 CVE analysis reports contain security-sensitive findings. Prefer restricted (internal-only) visibility when the Jira instance supports it.
 
+Write the Step 2 comment to a private temporary file once, before any posting path — every method below reads this file. Write the report with a file-writing tool, not a shell heredoc, so report text is never interpreted as shell source:
+
+```bash
+COMMENT_FILE=$(mktemp /tmp/cve-report-comment.XXXXXX)
+chmod 600 "${COMMENT_FILE}"
+```
+
+Keep the file for the whole posting workflow and remove it in the cleanup step at the end of Step 3.
+
 ### Step 3a: Direct REST API with restricted visibility (attempt first, if credentials are configured)
 
-If a token is available in the environment, try the REST API directly so the comment can carry a visibility restriction the MCP tool does not support. Try **both** auth schemes and let the HTTP response decide which one worked — credentials may be exposed differently depending on the runtime (a local shell with a bare token vs. a CI/RWS runner with a mounted service-account email+token pair):
+If a token is available in the environment, try the REST API directly — it remains the preferred restricted-visibility path. The Step 3b MCP fallback can carry the same restriction via `commentVisibility`, so a REST failure no longer forces an unrestricted comment. Try **both** auth schemes and let the HTTP response decide which one worked — credentials may be exposed differently depending on the runtime (a local shell with a bare token vs. a CI/RWS runner with a mounted service-account email+token pair):
 
 1. **Basic auth (email + API token)** — the scheme most Jira Cloud instances actually expect for API tokens. Used when both `JIRA_EMAIL` and a token are available.
 2. **Bearer token only** — fallback for runtimes that expose only a bare token env var with no associated email.
@@ -90,14 +99,12 @@ JIRA_EMAIL="${JIRA_EMAIL:-}"
 if [ -n "${JIRA_API_TOKEN}" ] && [ -n "${JIRA_BASE_URL}" ]; then
   case "${JIRA_BASE_URL}" in
     https://*) ;;
-    *) echo "ERROR: JIRA_BASE_URL must use HTTPS (got: ${JIRA_BASE_URL})"; exit 1 ;;
+    *) echo "ERROR: JIRA_BASE_URL must use HTTPS (got: ${JIRA_BASE_URL})"; rm -f "${COMMENT_FILE:-}"; exit 1 ;;
   esac
 
-  cat > /tmp/cve-report-comment.txt << 'COMMENT_EOF'
-<constructed comment from Step 2>
-COMMENT_EOF
-
-  COMMENT_BODY=$(cat /tmp/cve-report-comment.txt)
+  COMMENT_BODY=$(cat "${COMMENT_FILE}")
+  RESPONSE_FILE=$(mktemp /tmp/jira-post-response.XXXXXX)
+  chmod 600 "${RESPONSE_FILE}"
   COMMENT_JSON_BODY=$(echo "${COMMENT_BODY}" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))")
 
   post_comment() {
@@ -119,7 +126,7 @@ COMMENT_EOF
     unset auth_header
     $_was_tracing && set -x || true
 
-    http_code=$(curl -s -o /tmp/jira-post-response.txt -w "%{http_code}" \
+    http_code=$(curl -s -o "${RESPONSE_FILE}" -w "%{http_code}" \
       --connect-timeout 15 \
       --max-time 60 \
       -X POST \
@@ -161,49 +168,62 @@ EOF
     echo "✓ Comment posted with restricted visibility"
   else
     echo "✗ REST API failed (HTTP ${HTTP_STATUS:-n/a}) — will fall back to MCP tool"
-    cat /tmp/jira-post-response.txt 2>/dev/null || true
+    cat "${RESPONSE_FILE}" 2>/dev/null || true
   fi
 fi
 ```
 
-> The `visibility` object above targets `redhat.atlassian.net`. On other Jira Cloud instances, adjust `type`/`value` to match an equivalent internal-only group, or omit `visibility` entirely if none exists.
+> The `visibility` object above targets `redhat.atlassian.net`. On other Jira Cloud instances, adjust `type`/`value` to match an equivalent internal-only group. If no equivalent internal group exists, skip the REST post and continue to Step 3b — do not post unrestricted from here.
 
 - IF HTTP 201 (either scheme) → done. Skip Step 3b.
 - IF credentials are not configured → continue to Step 3b.
 - IF HTTP 401/403 on both schemes (or Basic wasn't attempted and Bearer also fails) → credentials not available or insufficient permissions; continue to Step 3b.
-- IF Basic auth returns any other status (400, 429, 5xx, curl error `000`) → do **not** retry with Bearer (the POST is not idempotent) — go directly to Step 3b.
+- IF the final REST attempt (either scheme) returns any other status (400, 429, 5xx, curl error `000`) → do **not** retry with the other scheme (the POST is not idempotent) — go directly to Step 3b.
 - Never print `JIRA_API_TOKEN`, `JIRA_EMAIL`, the computed `BASIC_AUTH` value, or the contents of `${curl_cfg}` — only the HTTP status code and response body (which contains no credentials).
+
+5xx and curl `000` leave the write's outcome unknown. Before posting via MCP, check for an existing comment: call `listJiraIssueComments`, paginating with `startAt` until `isLast` is true, and compare each body against the exact Step 2 comment — a match means the report is already on the ticket, so do not repost. A failed or incomplete read, or a restricted comment this account cannot see, is also an unknown outcome: take the Step 4 failure path instead of reposting.
 
 ---
 
 ### Step 3b: MCP tool (default / fallback)
 
 ```python
-addCommentToJiraIssue(
-    issue_key=SOURCE_TICKET,
-    comment_body="<constructed comment from Step 2>",
-    contentFormat="markdown"
+addOrEditJiraIssueComment(
+    issueIdOrKey=SOURCE_TICKET,
+    commentBody="<constructed comment from Step 2>",
+    contentFormat="markdown",
+    commentVisibility={"type": "group", "value": "Red Hat Employee"}
 )
 ```
 
-> ⚠️ The MCP tool does not expose a `visibility` parameter — the comment will be visible to everyone with access to the ticket, not restricted to an internal group.
+> The MCP tool supports restricted visibility via `commentVisibility` (`{"type": "group"|"role", "value": "<name>"}`). Pass the same internal group Step 3a uses — `Red Hat Employee` on `redhat.atlassian.net`; on other instances pick an equivalent group per the note above.
 
-This visibility downgrade is gated by `AUTO_APPROVE` when it happens **after** Step 3a was actually attempted and failed (i.e. restricted posting was possible in principle but didn't work):
+Any post without the internal-only restriction is gated by `AUTO_APPROVE`, regardless of whether Step 3a was attempted:
 
-- IF `AUTO_APPROVE=no` and Step 3a was attempted and failed → **ask the user**:
-  ```
-  ⚠️ Restricted-visibility posting is unavailable (no REST credentials, or the request failed). The MCP fallback will post this comment visible to everyone with ticket access. Proceed?
-  ```
-  IF user says **no** → display the full comment body in the session for manual posting instead.
-- IF `AUTO_APPROVE=yes` and Step 3a was attempted and failed → proceed automatically via the MCP fallback. **Clearly log** that this comment was posted without the internal-only restriction.
-- IF Step 3a was never attempted (no REST credentials configured at all) → just post via MCP; this is the normal/expected path for most setups and does not need a prompt.
+- Equivalent internal group exists → post via MCP with `commentVisibility`; no approval needed.
+- No equivalent group → the comment is visible to everyone with ticket access:
+  - `AUTO_APPROVE=no` → **ask the user**:
+    ```
+    ⚠️ No equivalent internal group exists on this instance for `commentVisibility`. The comment will be visible to everyone with ticket access. Proceed?
+    ```
+    If the user declines → display the comment body for manual posting.
+  - `AUTO_APPROVE=yes` → post and **clearly log** that the comment went out unrestricted.
+- MCP rejects the post → only a **confirmed visibility-related rejection** (the error names `commentVisibility` or an invalid group/role, and no comment was created) may fall back to an unrestricted post, under the same `AUTO_APPROVE` rules. Rate limits, server errors, timeouts, and ambiguous failures are plain errors: take the Step 4 failure path, keep `commentVisibility` on any retry, and retry only when the original write is known not to have succeeded. Do not switch to jira-cli to bypass this rule.
 
 **Fallback — jira-cli** (if MCP is also unavailable):
 
 ```bash
 jira issue comment add "${SOURCE_TICKET}" \
-  --body "$(cat /tmp/cve-report-comment.txt)" \
+  --body "$(cat "${COMMENT_FILE}")" \
   --no-input
+```
+
+> `jira-cli` posts with no visibility restriction. Apply the unrestricted-post rule above before **every** `jira-cli` post: ask under `AUTO_APPROVE=no`, proceed and log under `AUTO_APPROVE=yes`.
+
+**Cleanup** — when the posting workflow finishes, on success or failure, remove the temporary files:
+
+```bash
+rm -f "${COMMENT_FILE}" "${RESPONSE_FILE:-}"
 ```
 
 ---

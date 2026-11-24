@@ -18,7 +18,7 @@ Four output formats are supported:
 | `ryg_field_markdown` | Explicitly opted-in consumers with a verified converter | Draft only; convert to ADF before writing | Standard Markdown bullets |
 | `feature_markdown` | `/jira:generate-feature-updates` | stdout / localhost HTTP server | Markdown nested lists |
 
-**Important**: When posting comments via `addCommentToJiraIssue` or updating descriptions via `editJiraIssue`, always include `contentFormat: "markdown"`.
+**Important**: When posting comments via `addOrEditJiraIssueComment` or updating descriptions via `editJiraIssue`, always include `contentFormat: "markdown"`.
 
 The qualified PR-link rules below apply only to the opt-in `ryg_field_markdown`
 draft, not native `ryg_field` or the other formats. Native ADF logical-content

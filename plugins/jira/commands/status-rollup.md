@@ -127,7 +127,7 @@ Regenerate only affected sections and present again.
 
 Once approved:
 
-1. Use `addCommentToJiraIssue` with `contentFormat: "markdown"` to post to the root issue
+1. Use `addOrEditJiraIssueComment` with `contentFormat: "markdown"` to post to the root issue
 2. Comment includes footer: ``_Generated with [Claude Code](https://claude.com/claude-code) via `/jira:status-rollup {issue-id} --start-date {date} --end-date {date}`_``
 3. Confirm success and provide issue URL
 

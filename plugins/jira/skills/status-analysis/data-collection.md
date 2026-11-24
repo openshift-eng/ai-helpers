@@ -270,7 +270,7 @@ For `status-rollup` or when pre-gathered data is not available.
 
 ### Step 1: Fetch Root Issue(s)
 
-For each root issue key in `config.root_issues`, fetch the issue via `getJiraIssue` with fields `summary`, `status`, `assignee`, `issuetype`, `created`, `updated`, `description`, `issuelinks`, `comment`, `customfield_10814`, and `expand: "changelog"`.
+For each root issue key in `config.root_issues`, fetch the issue by calling `executeRead` with `name: "getJiraIssue"`, `view: "evidence"`, `expand: "changelog"`, and fields `summary`, `status`, `assignee`, `issuetype`, `created`, `updated`, `description`, `issuelinks`, `customfield_10814`; slim with `responseFields` listing every field the extraction below reads (e.g. `key`, `fields.summary`, `fields.status`, `fields.assignee`, `fields.issuetype`, `fields.created`, `fields.updated`, `fields.description`, `fields.issuelinks`, `fields.customfield_10814`, `changelog.histories`). Fetch the issue's comments separately via `listJiraIssueComments` with `view: "evidence"`, paginating with `startAt` until `isLast` is true.
 
 **Extract from response**:
 - `key`: Issue key (e.g., "OCPSTRAT-1234")
@@ -282,7 +282,7 @@ For each root issue key in `config.root_issues`, fetch the issue via `getJiraIss
 - `fields.updated`: Last update date
 - `fields.description`: Issue description (for PR URL extraction)
 - `fields.issuelinks`: Linked issues and remote links
-- `fields.comment.comments`: Recent comments
+- Comments from `listJiraIssueComments`: Comment bodies with authors and `created` timestamps
 - `fields.{status-summary-field-id}`: Current Status Summary value (if applicable)
 - `changelog.histories`: Field change history
 
@@ -303,7 +303,7 @@ Use `parent = KEY` JQL with BFS recursion to find all descendants (Cloud-compati
 
 ### Step 3: Fetch Issue Details
 
-For each descendant issue key (and root if not already fetched), call `getJiraIssue` with fields `summary`, `status`, `assignee`, `issuetype`, `created`, `updated`, `issuelinks`, `comment`, and `expand: "changelog"`.
+For each descendant issue key (and root if not already fetched), call `executeRead` with `name: "getJiraIssue"`, `view: "evidence"`, `expand: "changelog"`, and fields `summary`, `status`, `assignee`, `issuetype`, `created`, `updated`, `issuelinks` (slim with `responseFields` as in Step 1), then fetch its comments via `listJiraIssueComments` with `view: "evidence"`, paginating with `startAt` until `isLast` is true.
 
 **Optimization**: Parallelize these calls where possible. MCP tools can be called concurrently for different issues.
 

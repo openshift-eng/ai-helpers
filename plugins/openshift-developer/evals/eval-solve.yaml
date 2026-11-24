@@ -104,7 +104,7 @@ permissions:
     - "mcp__atlassian__jira_search"
     - "mcp__plugin_jira_atlassian__getJiraIssue"
     - "mcp__plugin_jira_atlassian__searchJiraIssuesUsingJql"
-    - "mcp__plugin_jira_atlassian__fetch"
+    - "mcp__plugin_jira_atlassian__getAccessibleAtlassianResources"
   deny: []
 
 models:

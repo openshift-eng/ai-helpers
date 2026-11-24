@@ -75,7 +75,7 @@ Repeat steps 1-3 until the PR is approved and CI is green or non-actionable fail
 
 ### MCP Servers
 
-- **atlassian** — Atlassian MCP server (`https://mcp.atlassian.com/v1/mcp`)
+- **atlassian** — Atlassian MCP server (`https://mcp.atlassian.com/v2/mcp`)
 
 ## Prerequisites
 

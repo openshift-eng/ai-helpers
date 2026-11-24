@@ -92,7 +92,7 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.9.10",
+      "version": "0.10.0",
       "category": "productivity",
       "keywords": [
         "jira",
@@ -308,7 +308,7 @@
       "name": "compliance",
       "source": "./plugins/compliance",
       "description": "Security compliance and vulnerability analysis tools for Go projects",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "category": "security",
       "keywords": [
         "cve",
@@ -545,7 +545,7 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.42",
+      "version": "1.1.43",
       "category": "bundle",
       "keywords": [
         "openshift",

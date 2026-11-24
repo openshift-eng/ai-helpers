@@ -67,14 +67,14 @@ whichever column the session provides:
 | Operation | chai-bot | Atlassian MCP |
 |---|---|---|
 | Select cards | `query_jira` (at most 50 per call) | `searchJiraIssuesUsingJql` |
-| Read a card: summary, description, type, status, labels, creator, links, comments | `get_jira_issue` | `getJiraIssue` |
+| Read a card: summary, description, type, status, labels, creator, links, comments | `get_jira_issue` | `executeRead` with `name: "getJiraIssue"` and `view: "evidence"`; comments via `listJiraIssueComments` with `view: "evidence"`, paginating with `startAt` until `isLast` is true |
 | Search for duplicates by meaning | `search_datastore` on `jira-ocp-issues`, filter `jira_project_key: ANY("TRT")` | none; use the JQL pass only |
 | Search for duplicates by text | `query_jira` | `searchJiraIssuesUsingJql` |
 | Stage a proposal (propose mode) | `check_proposal`, `make_proposal`, then `send_response` | not available; use confirm mode |
 | Replace summary or description, or set labels | `priv_jira_update_issue` (pass the description inline, never by buffer ID, so approvers see it) | `editJiraIssue` |
-| Post the gap comment | `comment_on_jira_issue` | `addCommentToJiraIssue` |
-| Link a related card (`Related`) | `priv_jira_link_issues`, where offered. Never `link_jira_issues` or another link tool that writes without an approval | `createIssueLink` (type `Related`) |
-| Close as duplicate (link, close, comment, label in one step) | `priv_jira_close_duplicate` with `add_label` and `expected_status: New` | In this order: `addCommentToJiraIssue` (the closure comment, naming the target), `createIssueLink` (type `Duplicate`), `editJiraIssue` for the label, then `getTransitionsForJiraIssue` and `transitionJiraIssue` with resolution `Duplicate` (see "Partial duplicate closure") |
+| Post the gap comment | `comment_on_jira_issue` | `addOrEditJiraIssueComment` |
+| Link a related card (`Related`) | `priv_jira_link_issues`, where offered. Never `link_jira_issues` or another link tool that writes without an approval | `executeWrite` with `name: "createJiraIssueLink"` and `linkType: "Related"` |
+| Close as duplicate (link, close, comment, label in one step) | `priv_jira_close_duplicate` with `add_label` and `expected_status: New` | In this order: `addOrEditJiraIssueComment` (the closure comment, naming the target), `executeWrite` with `name: "createJiraIssueLink"` and `linkType: "Duplicate"`, `editJiraIssue` for the label, then `executeRead` with `name: "listJiraIssueTransitions"` and `transitionJiraIssue` with resolution `Duplicate` (see "Partial duplicate closure") |
 | Load another skill | `find_skills`, `get_skill` | the Skill tool |
 
 Writing `labels` replaces the whole list: re-read the labels right before

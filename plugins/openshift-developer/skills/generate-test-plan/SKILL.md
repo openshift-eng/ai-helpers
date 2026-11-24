@@ -56,6 +56,8 @@ Fetch the issue with **all** of these fields — do not omit any:
 
 **Remote links** — fetch separately using the remote-links endpoint or parameter. Confirm the parameter name is correct for the discovered MCP tool (e.g. `properties=remoteLinks`, `include="remote_links"`, or a separate `jira_get_remote_links` call). Verify the response actually contains remote link data; if empty, fall back to scanning the description and comments for GitHub PR URLs.
 
+**Atlassian v2 MCP specifics** — when the resolved tool is the Atlassian v2 MCP server, fetch typed issue links via `executeRead` with `name: "getJiraIssue"` and `view: "evidence"` in `inputs`. Fetch comment bodies via `listJiraIssueComments`, paginating with `startAt` until `isLast` is true.
+
 #### 1d. Backport and clone chain traversal
 
 If the issue has `is cloned by` or `cloned from` links (indicating backports or clones):

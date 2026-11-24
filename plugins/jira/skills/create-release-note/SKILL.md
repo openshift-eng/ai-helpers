@@ -27,7 +27,7 @@ This skill is automatically invoked by the `/jira:create-release-note` command a
 
 **Actions**:
 
-1. **Fetch the bug** via `getJiraIssue` with the issue key and `responseContentFormat: "markdown"`.
+1. **Fetch the bug** by calling `executeRead` with `name: "getJiraIssue"`, the issue key, `responseContentFormat: "markdown"`, and `view: "evidence"`. Fetch the bug's comments via `listJiraIssueComments`, paginating with `startAt` until `isLast` is true.
 
 2. **Parse the response**:
    - Extract `issuetype.name` - verify it's "Bug"
@@ -35,7 +35,7 @@ This skill is automatically invoked by the `/jira:create-release-note` command a
    - Extract `issuelinks` - array of linked issues
    - Extract `customfield_10785` - current Release Note Type (if already set)
    - Extract `customfield_10783` - current Release Note Text (if already set)
-   - Extract `comment.comments` - array of comment objects
+   - Extract the comments returned by `listJiraIssueComments`
 
 3. **Validate issue type**:
    - If `issuetype.name != "Bug"`, show warning:
@@ -186,7 +186,7 @@ Consequence: "control-plane-operator enters a crash loop"
    - **IMPORTANT**: Only extract full PR URLs, not issue references
 
 3. **Bug Comments**:
-   - Iterate through `comment.comments` array
+   - Iterate through all `listJiraIssueComments` pages collected in Step 1
    - For each comment, scan `body` field for GitHub PR URLs
    - Use same regex pattern
    - Extract all matches
