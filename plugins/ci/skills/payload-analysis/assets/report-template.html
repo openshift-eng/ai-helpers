@@ -83,8 +83,8 @@ code { font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; fo
 
 <h1>Payload Analysis: {payload_tag}</h1>
 <div class="metadata">
-  <p>Architecture: {architecture} | Stream: {stream} | Generated: {timestamp}</p>
-  <p>Release Controller: <a target="_blank" href="{release_url}">{payload_tag}</a></p>
+  <p>Version: {payload_version} | Architecture: {architecture} | Stream: {stream_name} | Generated: {timestamp}</p>
+  <p>Release Controller: <a target="_blank" href="{release_controller_url}">{payload_tag}</a></p>
   <p>Snapshot: {snapshot_dir}</p>
 </div>
 
@@ -93,9 +93,9 @@ code { font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; fo
   <p><strong>Phase: {phase}</strong></p>
   <p>{total_blocking} blocking jobs: {succeeded} passed, {failed} failed</p>
   <p>{new_failures} new failure(s), {persistent_failures} persistent failure(s)</p>
-  <p>Chain: {chain_length} payloads, {hours_since_baseline}h since baseline</p>
+  <p>Chain: {chain_length} payloads, {hours_since_baseline}h between target and chain baseline</p>
   <p>Consecutive rejections in this stream: <strong>{consecutive_rejection_count}</strong></p>
-  <p>Last accepted: <a target="_blank" href="{baseline_url}">{baseline_tag}</a> ({hours_since_baseline}h ago)</p>
+  <p>Chain baseline: <a target="_blank" href="{baseline_url}">{baseline_tag}</a> ({hours_since_baseline}h before target)</p>
   <p>Per-job persistence:</p>
   <ul>
     <!-- BEGIN: persistence-item — one per failed job -->
@@ -104,10 +104,19 @@ code { font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; fo
   </ul>
 </div>
 
+<!-- BEGIN: collection-errors — include when collection_errors has entries without recovered: true -->
+<div class="card">
+  <h2>Collection Errors</h2>
+  <p>{collection_errors_summary}</p>
+</div>
+<!-- END: collection-errors -->
+
 <!-- BEGIN: revert-verdict — include only when revert candidates exist (score >= 85); otherwise use the no-revert-verdict block instead -->
 <div class="verdict verdict-revert">
   <h2>Recommended Reverts</h2>
+  <!-- BEGIN: ocp-revert-policy — include only for OCP/OKD payloads -->
   <p><strong>OCP Policy: PRs that break payloads MUST be reverted.</strong></p>
+  <!-- END: ocp-revert-policy -->
   <table>
     <tr><th>PR</th><th>Component</th><th>Description</th><th>Caused Failure In</th><th>Failing Since</th><th>Score</th><th>Rationale</th></tr>
     <!-- BEGIN: revert-row — one row per revert candidate -->
@@ -140,9 +149,10 @@ code { font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; fo
 <!-- BEGIN: force-accept-verdict — include only when Step 6.4 recommends force-accept -->
 <div class="verdict verdict-infra">
   <strong>Force-Accept Recommended</strong>
-  <p>All blocking job failures are temporary infrastructure issues and no payload has been
-     accepted in this stream for more than 18 hours.</p>
-  <p>Baseline: <a target="_blank" href="{baseline_url}">{baseline_tag}</a> ({hours_since_baseline}h ago)</p>
+  <p>All blocking job failures are temporary infrastructure issues.</p>
+  <p>Newest Accepted payload in the collected history:
+     <a target="_blank" href="{last_accepted_url}">{last_accepted_tag}</a>
+     (cut {hours_since_last_accepted}h before target).</p>
 </div>
 <!-- END: force-accept-verdict -->
 

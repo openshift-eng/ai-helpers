@@ -1,0 +1,5 @@
+snapshot: snapshot.json
+request: >-
+  Resume at the Report step. Run the skill's report command on the existing
+  output/findings.json as supplied, then finish the payload report. Run each
+  report command as a separate shell call so its exit status is visible.

@@ -30,6 +30,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
         "payload_tag": "string",
         "version": "string",
         "stream": "string",
+        "stream_name": "string",
         "architecture": "string",
         "phase": "string",
         "release_controller_url": "string",
@@ -61,6 +62,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
             "payload_tag": "4.22.0-0.nightly-2026-02-25-152806",
             "version": "4.22",
             "stream": "nightly",
+            "stream_name": "4.22.0-0.nightly",
             "architecture": "amd64",
             "phase": "Rejected",
             "release_controller_url": "https://amd64.ocp.releases.ci.openshift.org/...",
@@ -90,6 +92,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
             "payload_tag": "4.22.0-0.nightly-2026-02-25-152806",
             "version": "4.22",
             "stream": "nightly",
+            "stream_name": "4.22.0-0.nightly",
             "architecture": "amd64",
             "phase": "Rejected",
             "release_controller_url": "https://amd64.ocp.releases.ci.openshift.org/...",
@@ -149,8 +152,9 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 | Field | Type | Description |
 |-------|------|-------------|
 | `payload_tag` | string | Full payload tag |
-| `version` | string | OCP version (e.g., `"4.22"`) |
-| `stream` | string | Canonical stream type: `"nightly"` or `"ci"`. For OKD payloads (e.g. `okd-scos-nightly`, `okd-scos`), map to the base type: `okd-scos-nightly` → `"nightly"`, `okd-scos` → `"ci"`. |
+| `version` | string | Snapshot version: `X.Y` for `nightly`/`ci` (OCP/OKD release minor, e.g. `"4.22"`); `X.Y.Z` for `hypershift` (operator component version, e.g. `"0.1.87"`) |
+| `stream` | string | Export group: exactly `"nightly"`, `"ci"`, or `"hypershift"`. Normalize OKD labels: `okd-scos-nightly` → `"nightly"`, `okd-scos` → `"ci"`. HyperShift operator payloads use `"hypershift"` even for custom controller streams. |
+| `stream_name` | string | Exact snapshot controller stream, including custom names such as `"hypershift.v2"`; preserve this independently of the normalized export group |
 | `architecture` | string | `"amd64"`, `"arm64"`, `"multi"`, etc. |
 | `phase` | string | Payload phase: `"Rejected"`, `"Accepted"`, `"Ready"` |
 | `release_controller_url` | string | URL to the payload on the release controller |
@@ -158,7 +162,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 | `rejection_streak` | int64 | Number of consecutive rejected payloads leading up to the target |
 | `total_blocking_jobs` | int64 | Total number of blocking jobs in the payload |
 | `failed_blocking_jobs` | int64 | Number of failed blocking jobs |
-| `force_accept_recommended` | int64 | `1` if all failures are temporary infrastructure, no more than 2 blocking jobs failed, and no payload accepted in 18+ hours; `0` otherwise |
+| `force_accept_recommended` | int64 | `1` when `payload-analysis` Step 6.4 recommends force-accept; `0` otherwise, including insufficient acceptance-history evidence |
 
 ### Job-level fields
 

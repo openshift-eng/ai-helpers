@@ -10,7 +10,7 @@ Use the following prompt **verbatim** (substituting the placeholder values) when
 >
 > **Non-aggregated jobs**: **Examine the final attempt first**, then compare with previous attempts to determine whether all retries failed the same way. If retries show different failure modes, note this — it distinguishes consistent regressions from intermittent/infrastructure issues. Consistent failures across all attempts strongly indicate a product regression rather than flakiness.
 >
-> **RHCOS version**: This job's cluster runs on **<rhcos_version>**. <rhcos_context>
+> **Tested OS label**: **<rhcos_version>**. <rhcos_context> Labels ending in `-default` are inferred from the tested OCP version; they do not identify the management cluster OS.
 >
 > **RHCOS RPM changes and changelogs**: Read `<summary_json_path>` and find the entry in `payloads[]` whose `tag` equals `<originating_payload_tag>`. If that entry has an `rhcos_changes[]` array, look up the RHCOS variant matching this job's `rhcos_version` using the tag mapping: `rhel-coreos` → `rhcos9`/`rhcos9-default`, `rhel-coreos-10` → `rhcos10`/`rhcos10-default`, both apply to `rhcos9_10`. Check whether any changed, added, or removed RPM packages overlap with the failure's root cause. If the failure involves OS-level components (kernel, bootloader, systemd, SELinux, rpm-ostree, cri-o, crun, runc, networking) and matching packages changed, **read the RPM changelog** to see what actually changed — the changelog is the RPM equivalent of a PR's `code.diff`. To find it: in `<summary_json_path>`, check `rpm_changelogs[]` at the top level for the baseline entry (`is_baseline: true`) for the matching variant — its `diff.changed[]` entries each have a `changelog` field. For the originating payload's hop specifically: find `rpm_changelogs[]` in `payloads[]` for `<originating_payload_tag>` matching the variant, and read the file at its `changelogs` path (relative to `<snapshot_dir>`). Multiple binary RPMs built from the same source RPM share identical changelogs — read it once. A changelog entry that describes a change in the subsystem or behavior seen in the failure is strong evidence; a changelog about unrelated subsystems rules the package out. Note the correlation level and any relevant changelog entries in your ANALYSIS_RESULT.
 >
@@ -32,6 +32,7 @@ Where `<rhcos_version>` is the `rhcos_version` field from the snapshot's failed 
 
 - For **`rhcos9`** or **`rhcos9-default`**: "RHCOS 9 is based on RHEL 9 — the standard CoreOS variant for this OCP version."
 - For **`rhcos10`** or **`rhcos10-default`**: "RHCOS 10 is based on RHEL 10 with a different kernel, systemd, SELinux policy, and package versions than RHCOS 9. If the failure involves OS-level components (kernel, bootloader, rpm-ostree, MCO, Ignition), consider whether RHEL 10 differences could be the root cause."
+- For an **empty value**: "The tested OS variant is unknown; do not infer it from the payload component version."
 - For **`rhcos9_10`** (heterogeneous): "This is a heterogeneous cluster with both RHCOS 9 and RHCOS 10 nodes. Failures may be specific to one node variant — check whether failing nodes are RHCOS 9 or RHCOS 10 when node-level logs are available."
 
 `<summary_json_path>` is the absolute path to the snapshot's `summary.json` file, and `<originating_payload_tag>` is the failure mode's `first_failed_in` value (Step 3.3/Step 5) — not the job-level `streak.originating_payload`, which can predate the regression when a job has multiple failure modes.
@@ -52,7 +53,7 @@ ANALYSIS_RESULT:
 - underlying_job_name: <for aggregated jobs only, extracted from junit artifacts>
 - retries_consistent: yes|no|no_retries|only_final_examined
 - retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure", or "no retries" when there was only a single attempt>
-- rhcos_version: rhcos9|rhcos10|rhcos9_10|rhcos9-default|rhcos10-default
+- rhcos_version: <snapshot value, or unknown when absent>
 - rhcos_rpm_correlation: none|possible|likely
 - rhcos_rpm_suspect_packages: <comma-separated package names if correlation is possible or likely, or "none">
 - rhcos_rpm_changelog_evidence: <for each suspect package, the specific changelog entry that relates to the failure, or "none" if the changelog was read but contained no relevant entries, or "unavailable" if no changelog data exists in the snapshot>

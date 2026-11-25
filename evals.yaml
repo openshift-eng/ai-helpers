@@ -30,6 +30,16 @@ evals:
   - plugins/ci/skills/detect-permafail
   - plugins/ci/commands/detect-permafail.md
 
+- config: plugins/ci/evals/eval-analyze-hypershift-payload.yaml
+  eval_cases_dir: plugins/ci/evals/cases/analyze-hypershift-payload
+  run: pr
+  parallelism: 1
+  max_turns: 100
+  triggers:
+  - plugins/ci/evals/eval-analyze-hypershift-payload.yaml
+  - plugins/ci/evals/cases/analyze-hypershift-payload
+  - plugins/ci/skills/analyze-hypershift-payload
+
 - config: plugins/openshift-developer/evals/eval-address-reviews.yaml
   eval_cases_dir: plugins/openshift-developer/evals/cases/address-reviews
   run: pr

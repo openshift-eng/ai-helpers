@@ -22,6 +22,7 @@ PLUGIN_TESTS := $(shell find plugins -name 'test_*.py' -o -name '*_test.py' 2>/d
 
 .PHONY: test
 test: ## Run all tests
+	$(MAKE) -C plugins/ci/skills/analyze-hypershift-payload test
 	pytest tests/ -v
 	@failures=0; \
 	for t in $(PLUGIN_TESTS); do \

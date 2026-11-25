@@ -6,6 +6,7 @@ import json
 import os
 import urllib.error
 import urllib.parse
+from unittest.mock import Mock
 
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -253,13 +254,17 @@ def test_hybrid_chain_can_start_from_culled_target():
     assert chain_builder.sources[BASELINE] == "release-controller"
 
 
-def test_payload_collection_falls_back_per_tag_and_diff(tmp_path):
+def test_payload_collection_falls_back_per_tag_and_diff(tmp_path, monkeypatch):
     class FakeReleaseController:
         def __init__(self):
+            self.url = "https://release-controller.example"
             self.changelog_calls = []
 
         def fetch_release(self, stream_name, tag_name):
-            return _payload("Succeeded")
+            return _payload("Failed" if tag_name == TARGET else "Succeeded")
+
+        def fetch_tags(self, stream_name):
+            return [{"name": TARGET}, {"name": BASELINE}]
 
         def release_url(self, stream_name, tag_name):
             return f"https://release-controller.example/{tag_name}"
@@ -272,6 +277,9 @@ def test_payload_collection_falls_back_per_tag_and_diff(tmp_path):
         def __init__(self):
             self.payload_calls = []
             self.changelog_calls = []
+
+        def fetch_tags(self):
+            return [{"release_tag": tag} for tag in (TARGET, CULLED, BASELINE)]
 
         def build_synthetic_payload(self, tag_name, tag):
             self.payload_calls.append(tag_name)
@@ -287,32 +295,32 @@ def test_payload_collection_falls_back_per_tag_and_diff(tmp_path):
                 "_source": "sippy",
             }
 
-    snapshotter = ps.Snapshotter(
-        ps.PayloadTag.parse(TARGET),
-        output_dir=str(tmp_path),
-        collect_junit=False,
-        collect_rpmdb=False,
-    )
-    snapshotter.rc = FakeReleaseController()
-    snapshotter.sippy = FakeSippy()
-    snapshotter._payload_sources = {
-        TARGET: "release-controller",
-        CULLED: "sippy",
-        BASELINE: "release-controller",
-    }
+    profile = ps.PROFILES["ocp"]
+    request = profile.resolve(TARGET, controller_url="https://release-controller.example")
+    rc = FakeReleaseController()
+    sippy = FakeSippy()
+    monkeypatch.setattr(ps, "ReleaseController", lambda url: rc)
+    monkeypatch.setattr(ps, "SippyClient", lambda *args: sippy)
+    source = profile.build_source(request)
+    chain = source.history(TARGET, 5)
+    assert chain == [TARGET, CULLED, BASELINE]
+    # History already queried the missing payload; check collection separately.
+    sippy.payload_calls.clear()
+    snapshotter = ps.Snapshotter(request.identity, source, snapshot_dir=str(tmp_path),
+                                collect_junit=False)
 
     base_dir = tmp_path / "5.0" / "nightly"
     collectors = snapshotter._collect_payloads(
-        str(base_dir), [TARGET, CULLED, BASELINE]
+        str(base_dir), chain
     )
 
     assert collectors == []
-    assert snapshotter.sippy.payload_calls == [CULLED]
-    assert snapshotter.sippy.changelog_calls == [
+    assert sippy.payload_calls == [CULLED]
+    assert sippy.changelog_calls == [
         (TARGET, CULLED),
         (CULLED, BASELINE),
     ]
-    assert snapshotter.rc.changelog_calls == []
+    assert rc.changelog_calls == []
 
     with open(base_dir / TARGET / "payload.json", encoding="utf-8") as handle:
         assert json.load(handle)["_source"] == "release-controller"
@@ -320,3 +328,37 @@ def test_payload_collection_falls_back_per_tag_and_diff(tmp_path):
         assert json.load(handle)["_source"] == "sippy"
     with open(base_dir / TARGET / "changelog.json", encoding="utf-8") as handle:
         assert json.load(handle)["_source"] == "sippy"
+
+
+def test_ocp_source_keeps_retained_diffs_on_controller():
+    tag = ps.PayloadTag.parse(TARGET)
+    rc = Mock(url="https://controller.example")
+    rc.fetch_changelog.return_value = {"changeLogJson": {"updatedImages": []}}
+    rc.fetch_tags.return_value = [{"name": TARGET}, {"name": BASELINE}]
+    rc.fetch_release.side_effect = lambda stream, name: _payload(
+        "Failed" if name == TARGET else "Succeeded"
+    )
+    sippy = Mock()
+    sippy.fetch_tags.return_value = []
+    source = ps.OcpPayloadSource(ps.ControllerSource(rc, tag),
+                                 ps.SippySource(sippy, rc, tag))
+    assert source.history(TARGET, 5) == [TARGET, BASELINE]
+
+    assert source.changelog(TARGET, BASELINE)["_source"] == "release-controller"
+    rc.fetch_changelog.assert_called_once_with(tag.stream_name, TARGET, BASELINE)
+    sippy.build_synthetic_changelog.assert_not_called()
+
+
+def test_ocp_source_retains_controller_history_when_sippy_is_unavailable():
+    tag = ps.PayloadTag.parse(TARGET)
+    rc = Mock(url="https://controller.example")
+    rc.fetch_tags.return_value = [{"name": TARGET}, {"name": BASELINE}]
+    rc.fetch_release.side_effect = lambda stream, name: _payload(
+        "Failed" if name == TARGET else "Succeeded"
+    )
+    sippy = Mock()
+    sippy.fetch_tags.side_effect = urllib.error.URLError("unavailable")
+    source = ps.OcpPayloadSource(ps.ControllerSource(rc, tag),
+                                 ps.SippySource(sippy, rc, tag))
+
+    assert source.history(TARGET, 5) == [TARGET, BASELINE]
