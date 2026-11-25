@@ -1,0 +1,100 @@
+name: analyze-hypershift-payload-eval
+description: Evaluate the diagnosis and evidence for failed blocking jobs on saved HyperShift payloads.
+execution:
+  skill: ci:analyze-hypershift-payload
+  mode: case
+  arguments: "{snapshot} {request?}"
+  timeout: 600
+  max_budget_usd: 2.0
+runner:
+  type: claude-code
+  plugin_dirs: [plugins/ci]
+  system_prompt: |
+    Use the supplied snapshot as the evidence for this historical replay.
+    Use the output directory in the current workspace as RUN_DIR.
+models:
+  skill: claude-sonnet-4-6
+  judge: claude-sonnet-4-6
+permissions:
+  allow: [Skill, Read, Bash, Write, Edit]
+dataset:
+  path: cases/analyze-hypershift-payload
+  workspace:
+    files: [snapshot.json.gz, output/findings.json]
+hooks:
+  before_each:
+    - command: gzip -dc snapshot.json.gz > snapshot.json
+outputs:
+  - path: output
+    schema: findings.json and the self-contained report.html rendered by the skill.
+judges:
+  - name: reported_findings
+    description: Require a report and the expected job-to-PR attribution for this payload.
+    check: |
+      import json
+      files = outputs["files"]
+      expected = outputs["annotations"]
+      report = files.get("output/report.html", "")
+      if expected["tag"] not in report:
+          return False, "Missing HTML report for the target"
+      result = json.loads(files.get("output/findings.json", "{}"))
+      if result.get("tag") != expected["tag"]:
+          return False, "Missing findings for the target"
+      jobs = result["jobs"]
+      actual = {j["job"]: sorted(j.get("candidate_prs", [])) for j in jobs}
+      if len(actual) != len(jobs) or actual != expected["failed_jobs"]:
+          return False, f"Unexpected job coverage or candidate PRs: {actual}"
+      return True, "Target report, job coverage and candidate PRs match"
+  - name: supported_diagnosis
+    description: Judge whether the investigator established the cause and recurrence from the cited evidence.
+    prompt: |
+      Evaluate the findings against the case observations.
+      {{ annotations.observations }}
+
+      {{ outputs.files.get('output/findings.json', '') }}
+
+      Pass if the explanation identifies the underlying cause, establishes whether it
+      recurred on a predecessor, and identifies the last observed pass for the affected
+      tests. Check that the citations support those claims using the run identities
+      above. A payload phase alone cannot establish a testcase outcome. Judge
+      citations at the scope of the actual claim. Accept equivalent wording and
+      representative citations that establish it. Verify descriptions of missing
+      artifacts against the recorded collection errors in the case observations.
+      Require evidence from readable artifacts for claims about testcase outcomes.
+      Fail a materially unsupported claim and explain the missing evidence.
+    feedback_type: bool
+  - name: report_recovery
+    description: Observe the report command reject the draft and succeed on a later attempt.
+    if: "annotations.get('expected_rejection')"
+    check: |
+      import re
+      diagnostic = outputs["annotations"]["expected_rejection"]
+      report = re.compile(
+          r"""(?:^|[\n;&]|\s-[a-z]*c\s+['"])\s*(?:env\s+)?(?:\w+=\S+\s+)*"""
+          r"""(?:\S*/)?go\s+[^\n;&|]*?\brun\s+\.\s+report\s"""
+      )
+      pending = set()
+      rejected = False
+      for event in outputs["events"]:
+          for tool in event.get("tools", []):
+              command = tool["input"].get("command", "").replace("\\\n", " ")
+              if tool["name"] == "Bash" and report.search(command):
+                  pending.add(tool["id"])
+          call = event.get("tool_use_id")
+          if event["type"] != "tool_result" or call not in pending:
+              continue
+          pending.remove(call)
+          if event["is_error"] and diagnostic in event["content"].splitlines():
+              rejected = True
+              pending.clear()  # A retry must start after the rejection.
+          elif not event["is_error"]:
+              if rejected:
+                  return True, "Report rejected the incomplete draft and succeeded on retry"
+              return False, "Report succeeded before the expected rejection"
+      if rejected:
+          return False, "Report rejected the draft but no successful retry was observed"
+      return False, f"No failed report call returned {diagnostic!r}"
+thresholds:
+  reported_findings: {min_pass_rate: 1.0}
+  supported_diagnosis: {min_pass_rate: 1.0}
+  report_recovery: {min_pass_rate: 1.0}

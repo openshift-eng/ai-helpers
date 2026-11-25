@@ -1,0 +1,4 @@
+<testsuite name="e2e">
+  <testcase classname="azure" name="setup"/>
+  <testcase classname="other" name="setup"><skipped/></testcase>
+</testsuite>

@@ -1,0 +1,20 @@
+tag: 0.1.87-0036-gd2d9578c4.nightly-2026-11-06-105750
+failed_jobs:
+  release-5.1-e2e-aks: []
+observations: |
+  Azure rejected role-assignment creation during AKS setup because the subscription
+  had exhausted its role-assignment quota (RoleAssignmentLimitExceeded). The
+  namespace readiness timeout is consistent with failed setup. No payload PR
+  has evidence of causation.
+
+  The target's three runs (2118659148919869440, 2118674279884132352,
+  2118689354304983040) and all three 0033 runs (2118430985090502656,
+  2118446393809965056, 2118463805766766592) contain the same quota error.
+  Accepted 0030 first hit the quota (2118304048049295360). Its middle run
+  (2118319844834152448) has no readable JUnit. The snapshot's collection error
+  records that the artifact service removed that run's junit_operator.xml.
+  In the final 0030 run (2118325527705030656), the step's junit.xml records passes for all ten
+  affected Go tests, including TestCreateClusterDefaultSecurityContextUID.
+  junit_operator.xml records two separate wrapper passes for the multi-stage
+  step and test phase.
+expected_rejection: missing finding for release-5.1-e2e-aks

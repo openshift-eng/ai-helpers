@@ -2,6 +2,28 @@
 
 Index of what each opaque `case-NNN` directory tests.
 
+## analyze-hypershift-payload (`cases/analyze-hypershift-payload`)
+
+| Case | Description |
+|------|-------------|
+| case-001 | Rejected 0036. Diagnose the AKS failure across retries and distinguish an observed predecessor pass from a missing JUnit. |
+| case-002 | Resume reporting 0036 from a draft that omits the failed blocker. The trace must show the validation error followed by a successful report retry. Both cases use the same diagnosis rubric. |
+
+Each case contains its own compressed snapshot with Azure resource paths redacted
+and its expected observations in `annotations.yaml`. The harness unpacks the
+snapshot as `snapshot.json` and keeps the annotations outside the agent's
+workspace. The agent writes `output/findings.json` and renders `output/report.html`.
+
+With agent-eval-harness installed, run these from the repository root. Review
+the first run's findings, citations and judge feedback before changing the
+skill or rubric. Keep the fixture and model fixed for the comparison.
+
+```text
+/eval-run --config plugins/ci/evals/eval-analyze-hypershift-payload.yaml --cases case-001 --run-id hcp-before
+/eval-run --config plugins/ci/evals/eval-analyze-hypershift-payload.yaml --cases case-001 --run-id hcp-after --baseline hcp-before
+/eval-run --config plugins/ci/evals/eval-analyze-hypershift-payload.yaml --cases case-002 --run-id hcp-recovery
+```
+
 ## bulk-triage-regressions (`cases/bulk-triage-regressions`)
 
 Phase 3 mechanism-verification of `ci:bulk-triage-regressions` against real
