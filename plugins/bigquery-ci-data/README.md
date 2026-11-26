@@ -7,7 +7,7 @@ Query and analyze OpenShift CI data stored in BigQuery across multiple datasets 
 This plugin provides structured knowledge about CI data tables in BigQuery, enabling ad-hoc investigation of test failures, job health, risk analysis, operator behavior, and more. It covers:
 
 - **Jobs and tests** — prow job runs, junit test results, variant classifications, and infrastructure failure labels in `openshift-gce-devel.ci_analysis_us`
-- **Autodl data** — automatically collected data from test runs including risk analysis, retry statistics, operator state, CPU metrics, kube-apiserver audit analysis, control plane singleton pod placement and memory, and more in `openshift-ci-data-analysis.ci_data_autodl`
+- **Autodl data** — automatically collected data from test runs including risk analysis, retry statistics, operator state, CPU metrics, kube-apiserver audit analysis, control plane pod placement and memory, and more in `openshift-ci-data-analysis.ci_data_autodl`
 - **Agent decisions** — chain presubmit override decision log in `openshift-gce-devel.ci_analysis_us`
 
 ## Prerequisites
@@ -35,7 +35,7 @@ General-purpose entry point. Describe what you want to know about CI data and th
 |-------|---------|
 | `foundations` | Shared cost safety protocol, `bq` CLI patterns, caching workflow |
 | `jobs-and-tests` | `ci_analysis_us` tables: junit, jobs, job_variants, job_labels |
-| `autodl` | `ci_data_autodl` tables: risk analysis, retries, operator state, CPU, audit logs, disruption, control plane singleton placement and memory |
+| `autodl` | `ci_data_autodl` tables: risk analysis, retries, operator state, CPU, audit logs, disruption, control plane pod placement and memory |
 | `chai-presubmit-override-decisions` | `ci_analysis_us.chai_presubmit_decision_log`: presubmit override decisions |
 
 ## Cost Safety
