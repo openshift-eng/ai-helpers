@@ -1,6 +1,6 @@
 ---
 name: autodl
-description: Use when querying auto-collected CI data from test runs in BigQuery (ci_data_autodl dataset) including risk analysis, disruption, CPU metrics, audit logs, operator state, retry statistics, and control plane singleton pod placement and memory
+description: Use when querying auto-collected CI data from test runs in BigQuery (ci_data_autodl dataset) including risk analysis, disruption, CPU metrics, audit logs, operator state, retry statistics, and control plane pod placement and memory
 ---
 
 # Autodl Tables
@@ -18,7 +18,7 @@ Follow the `foundations` skill for cost safety, caching, and execution workflow.
 - Correlating CPU usage with test failures
 - Understanding DNS disruption during tests
 - Checking cluster instance types and configuration
-- Understanding how single-replica operator pods are placed across masters, and how much memory each pod and master uses before and after the test suites
+- Understanding how control plane pods are placed across masters — single-replica operator Deployments ("singletons") or every pod on the masters — and how much memory each pod and master uses before and after the test suites
 
 ## Common Columns
 
@@ -249,54 +249,66 @@ Cloud instance types used by nodes in the cluster (AWS, Azure, GCP).
 
 **Use case**: Correlate failures with instance types, track what hardware CI uses.
 
-### Control Plane Singleton Placement
+### Control Plane Pod Placement
 
-Single-replica operator pods ("singletons") run on the control plane masters. These two tables show which master each one lands on and how much memory they use before and after the CI test suites run. Together they answer: are singletons piling up on one master, and which pods grow during the suites?
+These two tables (named `control_plane_singleton_*` for historical reasons) cover every running `openshift-*` pod on the control plane masters: single-replica operator Deployments ("singletons"), multi-replica Deployments, DaemonSets, static pods, guard pods and CatalogSource pods — roughly 56 pods per master instead of the 14 singletons recorded before the collector was broadened in November 2026. They show which master each pod lands on and how much memory they use before and after the CI test suites run, answering: are pods piling up on one master, and which pods grow during the suites?
+
+`Singleton*` columns keep their original single-replica Deployment meaning so existing queries and dashboards see no step change. The `All*` placement columns, and the per-pod `WorkloadKind`/`Replicas` columns, cover every pod and are NULL in rows loaded before the broadening — identify old rows with `WorkloadKind IS NULL` / `AllPods IS NULL`.
 
 **Snapshots, not one row per run.** A job run can have more than one snapshot (one autodl file per collection, identified by the timestamp in `Source`, e.g. `control-plane-singleton-placement_20261022-090059-autodl.json`). In a 7-day sample, 58 runs had 108 snapshots. Group by `JobRunName, Source` to analyze a single snapshot. Aggregating on `JobRunName` alone silently mixes snapshots and double counts.
 
 **Joining the two tables.** Joining on `JobRunName` alone fans out across snapshots. `Source` has a different prefix in each table (`control-plane-singleton-placement_...` vs `control-plane-singleton-pods_...`), so it can't be matched directly. The timestamp part matches: in the 7-day sample all 108 placement snapshots matched a pod snapshot on `JobRunName` plus `REGEXP_EXTRACT(Source, r'_(\d{8}-\d{6})-autodl')`. Pods tie to their master via `NodeName`.
 
 **Memory columns.** `Start` is memory use at the start of the snapshot window (before the suites), `End` is at the end (after the suites), and `Avg`/`Peak` cover the window in between. All memory values are in MB.
-
 #### `control_plane_singleton_placement`
-One row per master node per snapshot, aggregating the singleton pods placed on that master. The memory columns are per-master totals across those pods (values scale with `SingletonPods`); they are not per-pod figures.
+
+One row per master node per snapshot, aggregating the control plane pods placed on that master. The memory columns are per-master totals across those pods (values scale with the pod counts); they are not per-pod figures. `Singleton*` totals cover only pods of single-replica Deployments; `All*` totals cover every control plane pod on the master.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | NodeName | STRING | Master node name |
 | TotalMasters | INTEGER | Number of masters in the cluster (3 in all recent rows) |
-| SingletonPods | INTEGER | Singleton pods on this master. **0 is common** — a master hosting none |
+| SingletonPods | INTEGER | Pods of single-replica Deployments on this master. **0 is common** — a master hosting none |
 | SingletonMemoryRequestMB | FLOAT | Memory requests of those pods |
 | SingletonStartMemoryUsageMB | FLOAT | Their memory use at start |
 | SingletonEndMemoryUsageMB | FLOAT | Their memory use at end |
 | SingletonAvgMemoryUsageMB | FLOAT | Average use over the window |
 | SingletonPeakMemoryUsageMB | FLOAT | Peak use over the window |
+| AllPods | INTEGER | Every control plane pod on this master (multi-replica Deployments, DaemonSets, static pods, guard pods, CatalogSource pods included). NULL in rows loaded before the broadening |
+| AllMemoryRequestMB | FLOAT | Memory requests of all those pods |
+| AllStartMemoryUsageMB | FLOAT | Their memory use at start |
+| AllEndMemoryUsageMB | FLOAT | Their memory use at end |
+| AllAvgMemoryUsageMB | FLOAT | Average use over the window |
+| AllPeakMemoryUsageMB | FLOAT | Peak use over the window |
 
-Masters with `SingletonPods = 0` have all-zero memory columns (about 22% of rows in the 7-day sample). Whether to include them in an average depends on the question:
+The `All*` columns are NULL for rows loaded before November 2026 — filter with `AllPods IS NOT NULL` when trending them over time.
+
+Masters with `SingletonPods = 0` have all-zero `Singleton*` memory columns (about 22% of rows in the 7-day sample). Whether to include them in an average depends on the question:
 
 - **Average per occupied master** ("how heavy is a master that hosts singletons"): filter with `SingletonPods > 0`.
 - **Average across all masters** ("how is singleton memory spread over the cluster"): keep the zero rows. Filtering them out shrinks the denominator and inflates the result.
 
 **Use case**: Detect singletons concentrated on one master, find masters with no singletons, compare per-master singleton memory to request.
-
 #### `control_plane_singleton_pods`
-One row per singleton pod per snapshot.
+
+One row per control plane pod per snapshot (the table name and `Deployment` column predate the broadening from singletons to all pods).
 
 | Column | Type | Notes |
 |--------|------|-------|
 | Namespace | STRING | Pod namespace |
-| Deployment | STRING | Owning deployment (stable across runs, unlike `PodName`) |
+| WorkloadKind | STRING | Controlling workload kind: `Deployment`, `DaemonSet`, `StaticPod` (mirror pods), `Pod` (no controller, e.g. guard pods), `CatalogSource`, or another controller kind. NULL in rows loaded before the broadening — those are all singletons |
+| Replicas | INTEGER | Desired replicas for Deployments; NULL for other kinds. Singletons are `WorkloadKind = 'Deployment' AND Replicas = 1` |
+| Deployment | STRING | Workload name for every kind (stable across runs, unlike `PodName`). Static and controller-less pods have the `-<node>` suffix stripped, so `etcd-master-1` becomes `etcd` |
 | PodName | STRING | Pod name, includes the replicaset/pod hash |
 | NodeName | STRING | Master the pod ran on |
 | PodAgeSeconds | INTEGER | Pod age when the snapshot was taken. A pod rescheduled to another master gets a different `PodName` |
 | MemoryRequestMB | FLOAT | Memory request. **Can be 0** — use `SAFE_DIVIDE` for ratios rather than filtering the rows out |
-| StartMemoryUsageMB | FLOAT | Memory use at start |
+| StartMemoryUsageMB | FLOAT | Memory use at start. Looked up by pod, falling back to the workload's mean start usage for pods replaced during the run (common on upgrades) |
 | EndMemoryUsageMB | FLOAT | Memory use at end |
 | AvgMemoryUsageMB | FLOAT | Average over the window |
 | PeakMemoryUsageMB | FLOAT | Peak over the window |
 
-**Use case**: Find operators whose memory grows during the suites (`EndMemoryUsageMB - StartMemoryUsageMB`), pods that far exceed their request, and which masters particular operators land on. Group by `Deployment` rather than `PodName` to compare across runs.
+**Use case**: Find operators whose memory grows during the suites (`EndMemoryUsageMB - StartMemoryUsageMB`), pods that far exceed their request, and which masters particular operators land on. Group by `Deployment` rather than `PodName` to compare across runs. To keep queries singleton-only across old and new rows, filter with `(WorkloadKind IS NULL OR (WorkloadKind = 'Deployment' AND Replicas = 1))`.
 
 ## Query Examples
 
@@ -392,11 +404,14 @@ SELECT
   ROUND(AVG(SAFE_DIVIDE(PeakMemoryUsageMB, MemoryRequestMB)), 2) AS avg_peak_to_request
 FROM `openshift-ci-data-analysis.ci_data_autodl.control_plane_singleton_pods`
 WHERE PartitionTime >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+  AND (WorkloadKind IS NULL OR (WorkloadKind = 'Deployment' AND Replicas = 1))
 GROUP BY Namespace, Deployment
 HAVING samples >= 5
 ORDER BY avg_growth_mb DESC
 LIMIT 15
 ```
+
+Drop the `WorkloadKind` filter to include every control plane pod (DaemonSets, static pods, and so on), or group by `WorkloadKind` to compare kinds.
 
 ## Data Pipeline
 
