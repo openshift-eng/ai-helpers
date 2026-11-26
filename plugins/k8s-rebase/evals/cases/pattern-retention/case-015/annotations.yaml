@@ -1,0 +1,5 @@
+notes: >
+  openshift/cloud-network-config-controller @ k8s 1.35.3 — manages cloud
+  EgressIP (AWS/Azure/GCP). known_good_ref is pinned to a SHA in the
+  upstream repo. Moderate k8s API surface; expect go.mod/vendor changes
+  plus some cloud-provider and controller-runtime call-site fixes.
