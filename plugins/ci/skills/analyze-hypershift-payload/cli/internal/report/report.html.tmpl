@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HyperShift payload {{.Snapshot.Target.Tag}}</title>
+  <style>
+    body { max-width: 68rem; margin: 2rem auto; padding: 0 1rem; font: 1rem/1.5 system-ui, sans-serif; overflow-wrap: anywhere; }
+    table { border-collapse: collapse; } th, td { padding: .2rem .8rem .2rem 0; text-align: left; vertical-align: top; }
+    .explanation, pre { white-space: pre-wrap; }
+    pre { border-inline-start: .2rem solid #aaa; padding-inline-start: .75rem; }
+    summary { cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>HyperShift payload analysis</h1>
+  {{with .Snapshot.Target}}<p><a href="{{.URL}}">{{.Tag}}</a> · {{.Phase}} · operator {{.OperatorVersion}}</p>{{end}}
+  <h2>Blocking failures</h2>
+  {{range .Findings.Jobs}}
+  <h3>{{.Job}}</h3>
+  <p class="explanation">{{.Explanation}}</p>
+  {{with .SupplementalEvidence}}
+  <h4>Supplemental evidence</h4>
+  <ul>{{range .}}
+    <li><a href="{{.URL}}">{{.Caption}}</a>
+      {{with .Excerpt}}{{if foldExcerpt .}}<details><summary>Show excerpt</summary><pre><code>{{.}}</code></pre></details>
+      {{else}}<pre><code>{{.}}</code></pre>{{end}}{{end}}
+    </li>{{end}}
+  </ul>{{end}}
+  {{with .Evidence}}<h4>Snapshot evidence</h4><ul>{{range .}}<li><a href="{{.}}">{{.}}</a></li>{{end}}</ul>{{end}}
+  {{with .CandidatePRs}}<p>Candidate changes</p><ul>{{range .}}<li><a href="{{.}}">{{.}}</a></li>{{end}}</ul>{{end}}
+  {{else}}<p>No failed blocking jobs recorded.</p>{{end}}
+  <h2>Target verification jobs</h2>
+  <table>
+    <thead><tr><th>Job</th><th>Role</th><th>Tested OCP</th><th>State</th><th>Runs</th></tr></thead>
+    <tbody>{{range .Snapshot.Target.Jobs}}<tr><td>{{.Name}}</td><td>{{if .Blocking}}Blocking{{else}}Informing{{end}}</td><td>{{.TestedOCP}}</td><td>{{.State}}</td><td>{{range .Attempts}}<a href="{{.URL}}">Run</a> {{end}}</td></tr>{{end}}</tbody>
+  </table>
+  {{with .Snapshot.History}}<h2>Recent payloads</h2><ul>{{range .}}<li><a href="{{.URL}}">{{.Tag}}</a> · {{.Phase}}</li>{{end}}</ul>{{end}}
+  {{if .Findings.Jobs}}{{with .Snapshot.Baseline}}<p>All blocking jobs passed on <a href="{{.URL}}">{{.Tag}}</a>.</p>{{else}}<p>No predecessor with all blocking jobs passing was found in the collected history.</p>{{end}}{{end}}
+  {{with .Snapshot.CollectionErrors}}<h2>Collection errors</h2><ul>{{range .}}<li><a href="{{.URL}}">Source</a> · {{.Reason}}</li>{{end}}</ul>{{end}}
+</body>
+</html>

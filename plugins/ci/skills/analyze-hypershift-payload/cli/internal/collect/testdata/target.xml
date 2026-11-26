@@ -1,0 +1,6 @@
+<testsuites>
+  <testsuite name="e2e">
+    <testcase classname="azure" name="setup"><error message="quota exceeded"/></testcase>
+    <testcase name="passed"/>
+  </testsuite>
+</testsuites>
