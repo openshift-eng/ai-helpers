@@ -399,7 +399,7 @@ def finalize(doc, *, jira_creations, sippy_diff, permissions, mode_requested, mo
     }
     out["source_run"] = dict(source_run or {})
     pol = out.get("policy") if isinstance(out.get("policy"), dict) else {}
-    pol.update({"name": pol.get("name") or "post-ga", "write_mode": mode_effective,
+    pol.update({"name": pol.get("name") or "ga", "write_mode": mode_effective,
                 "write_mode_requested": mode_requested, "existing_only": bool(existing_only)})
     out["policy"] = pol
     return out
