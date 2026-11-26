@@ -171,3 +171,22 @@ data instead of inventing content.
 | case-003 | OCPBUGS-52409 | Bug with a clone chain and a closed-unmerged backport |
 | case-004 | OCPSTRAT-3851 | Feature with no implementation PRs |
 | case-005 | OCPSTRAT-3154 | Source trimmed of topology, security and interoperability content, with links removed |
+
+## generate-bug-reproducer (`cases/generate-bug-reproducer`)
+
+Whether the apply phase classifies the commands in a finished reproducer
+report correctly: pinned-scope escapes, curl and yq flag restrictions,
+compound commands, and manual steps. Each case stages the report and a
+confirmed pinned scope; the subject produces the Step 6.5 execution plan
+without executing anything.
+
+| Case | Description |
+|------|-------------|
+| case-001 | Pinned scope: matching `-n` stays read-only, differing `-n` and `--context` are write |
+| case-002 | curl plain GET read-only, `-o` and POST write; yq stdout read-only, `-i` write |
+| case-003 | Compound and piped commands write, `oc adm top` read-only, unmatched subcommand write, manual step |
+
+```text
+/eval-run --config plugins/openshift-developer/evals/eval-generate-bug-reproducer.yaml --model claude-opus-5-5
+```
+

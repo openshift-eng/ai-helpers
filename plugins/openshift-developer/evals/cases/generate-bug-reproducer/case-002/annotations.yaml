@@ -1,0 +1,19 @@
+expected_pinned_context: eval-context
+expected_pinned_namespace: reproducer-ns
+expected_classifications:
+  - step: 1
+    classification: read-only
+  - step: 2
+    classification: write
+  - step: 3
+    classification: write
+  - step: 4
+    classification: read-only
+  - step: 5
+    classification: write
+notes: >
+  Step 1 is a single plain GET to an endpoint referenced in the report —
+  read-only. Step 2 writes the response to a file via -o, so it must be
+  individually confirmed and the file written only after redaction. Step 3
+  sends a POST with a body. Step 4 is yq in its stdout read form. Step 5
+  is yq -i, an in-place write.

@@ -1,0 +1,19 @@
+expected_pinned_context: eval-context
+expected_pinned_namespace: reproducer-ns
+expected_classifications:
+  - step: 1
+    classification: write
+  - step: 2
+    classification: write
+  - step: 3
+    classification: read-only
+  - step: 4
+    classification: manual
+  - step: 5
+    classification: write
+notes: >
+  Step 1 is a compound command (&&) and step 2 pipes cat into grep — both
+  are write even though every visible part looks read-only. Step 3 is
+  oc adm top, the one oc adm subcommand on the read-only list. Step 4 has
+  no executable command and is manual. Step 5 uses an oc subcommand that
+  matches no allowlist entry, so it defaults to write.
