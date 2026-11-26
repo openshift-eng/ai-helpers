@@ -1,0 +1,9 @@
+repository: https://github.com/submariner-io/submariner.git
+base_branch: release-0.24
+default_branch: devel
+base_commit: e9b4dec4944cbbf8d630603904fb6e0f82a2b566
+default_commit: fb518adb012b060e4e5ec252cc34b92cab99cac1
+branch: '0.24'
+arguments:
+- '0.24'
+original_branch: devel

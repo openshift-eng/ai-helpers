@@ -19,6 +19,7 @@ rules:
       - "${CLAUDE_PLUGIN_ROOT}/hooks/stop-hook.sh"
       - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/start-collector.sh"
       - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop-collector.sh"
+      - 'python3 "${CLAUDE_PLUGIN_ROOT}/scripts/deliver.py" hook'
   settings-dangerous:
     enabled: true
     severity: error
