@@ -32,6 +32,16 @@ snapshots AS (
     AND p.Namespace NOT LIKE 'openshift-e2e-%'
     AND p.Namespace NOT LIKE 'openshift-must-gather%'
     AND p.Namespace NOT LIKE 'e2e-%'
+    -- Restrict to single-replica ("singleton") pods. openshift/origin#31914
+    -- broadened this table from singletons to every control-plane pod on the
+    -- masters (DaemonSets, multi-replica Deployments, static/guard/CatalogSource
+    -- pods), adding the WorkloadKind/Replicas columns. Without this filter the
+    -- aggregate silently widens to non-singletons, and multi-replica Deployments
+    -- would emit several rows per snapshot and distort the snapshot ranking below.
+    -- Old rows (loaded before Nov 2026) have WorkloadKind NULL and are singleton-
+    -- only, so keep them.
+    AND (p.WorkloadKind IS NULL
+         OR (p.WorkloadKind = 'Deployment' AND p.Replicas = 1))
 ),
 post_upgrade AS (
   SELECT JobRunName, Namespace, Deployment, MemoryRequestMB, StartMemoryUsageMB

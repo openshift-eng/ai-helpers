@@ -98,4 +98,5 @@ numbers by hand. Paths are relative to this skill's directory.
 - **Both directions** — file for decreases ("lower to") and missing requests ("set to"), not just increases.
 - **Trust floor** — never file from fewer than `min_runs` job runs.
 - **Shipped-only** — never file for a Deployment with no release manifest (step 4).
+- **Singletons only** — `control_plane_singleton_pods` now holds *all* control-plane pods (openshift/origin#31914), not just single-replica ones. The queries filter to singletons (`WorkloadKind IS NULL OR (WorkloadKind = 'Deployment' AND Replicas = 1)`); keep that filter if editing them.
 - **Escalate** — on an error or ambiguous result it can't resolve, reach out to the OCP Quality Staff Engineers (and/or comment on the Jira) rather than failing silently.

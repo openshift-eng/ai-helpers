@@ -1,7 +1,7 @@
 {
   "name": "ocp-memory-requests",
   "description": "Keep OpenShift control-plane operator memory requests accurate by detecting drift from observed usage and filing agent-ready OCPBUGS fixes",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "author": {
     "name": "github.com/openshift-eng"
   }

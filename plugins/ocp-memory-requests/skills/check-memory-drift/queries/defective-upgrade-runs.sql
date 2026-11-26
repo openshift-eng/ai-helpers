@@ -26,6 +26,10 @@ run_snaps AS (
     AND p.Namespace NOT LIKE 'openshift-e2e-%'
     AND p.Namespace NOT LIKE 'openshift-must-gather%'
     AND p.Namespace NOT LIKE 'e2e-%'
+    -- Match singleton-usage.sql's scope: singletons only. See that query for why
+    -- (openshift/origin#31914 broadened this table; old rows have WorkloadKind NULL).
+    AND (p.WorkloadKind IS NULL
+         OR (p.WorkloadKind = 'Deployment' AND p.Replicas = 1))
   GROUP BY p.JobRunName, u.is_upgrade
 )
 SELECT COUNT(*) AS defective_upgrade_runs

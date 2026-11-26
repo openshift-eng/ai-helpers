@@ -38,9 +38,20 @@ approvals — humans review the resulting PR, not the run.
 Source: `openshift-ci-data-analysis.ci_data_autodl`, the `control_plane_singleton_pods`
 table described in the `autodl` skill:
 
-- **`control_plane_singleton_pods`** — one row per singleton pod per snapshot. The **per-pod memory** source, and the only table with `Namespace`/`Deployment` — so it is what identifies the operator to file a bug against. Group by `Deployment` (stable across runs, unlike `PodName`).
+- **`control_plane_singleton_pods`** — one row per control-plane pod per snapshot. The **per-pod memory** source, and the only table with `Namespace`/`Deployment` — so it is what identifies the operator to file a bug against. Group by `Deployment` (stable across runs, unlike `PodName`).
 
 Key choices, all deliberate:
+
+- **Filter to singletons explicitly.** `openshift/origin#31914` broadened this
+  table from single-replica pods to *every* control-plane pod on the masters
+  (DaemonSets, multi-replica Deployments, static/guard/CatalogSource pods), adding
+  `WorkloadKind` and `Replicas` columns. This skill targets single-replica operators
+  only, so both queries filter with
+  `(WorkloadKind IS NULL OR (WorkloadKind = 'Deployment' AND Replicas = 1))` —
+  the `NULL` branch keeps older rows (loaded before Nov 2026) that predate the new
+  columns and were singleton-only. Without the filter the aggregate would silently
+  include non-singletons and multi-replica Deployments would distort the per-run
+  snapshot ranking.
 
 - **Use the `StartMemoryUsageMB` column.** `Start` is the memory use at the **start of the snapshot window — before the e2e suites run**. That is the at-rest baseline a request should cover, not the load the suites generate (`End`/`Peak`).
 - **Floor from all CI runs on the release.** The baseline covers every run on the release (upgrade and non-upgrade alike), matching how the first batch of bugs was scoped. A run can emit more than one snapshot (upgrade runs emit two: post-install then post-upgrade), each identified by the timestamp in `Source` (`..._YYYYMMDD-HHMMSS-autodl.json`). **Use the latest snapshot per run** — the post-upgrade one for upgrade runs, the single snapshot for others — so each run contributes exactly one observation.
