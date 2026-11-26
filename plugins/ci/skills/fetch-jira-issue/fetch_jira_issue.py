@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
 import jira_auth  # noqa: E402
+import release_target  # noqa: E402
 
 
 def _adf_to_text(node: Any) -> str:
@@ -68,6 +69,9 @@ class JiraIssueFetcher:
         "components",
         "labels",
         "fixVersions",
+        "versions",
+        "issuelinks",
+        release_target.TARGET_VERSION_FIELD,
         "updated",
         "created",
         "comment",
@@ -193,9 +197,18 @@ class JiraIssueFetcher:
             "fix_versions": [
                 v.get("name", "") for v in (fields.get("fixVersions") or [])
             ],
+        }
+        # Release routing data (additive keys). Clones inherit Affects/Fix Versions, so only the explicit
+        # Target Version identifies the release an issue is for; links keep their type and direction.
+        facts = release_target.issue_facts(raw_data)
+        issue.update({
+            "affects_versions": facts.get("affects_versions", []),
+            "target_versions": facts.get("target_versions_raw", []),
+            "target_releases": facts.get("target_releases", []),
+            "links": facts.get("links", []),
             "created": fields.get("created", ""),
             "updated": fields.get("updated", ""),
-        }
+        })
 
         # Parse comments
         comment_data = fields.get("comment", {})
@@ -420,6 +433,12 @@ def format_summary(issue: Dict[str, Any]) -> str:
         lines.append(f"Labels: {', '.join(issue['labels'])}")
     if issue["fix_versions"]:
         lines.append(f"Fix Versions: {', '.join(issue['fix_versions'])}")
+    if issue.get("affects_versions"):
+        lines.append(f"Affects Versions: {', '.join(issue['affects_versions'])}")
+    if issue.get("target_versions"):
+        lines.append(f"Target Version: {', '.join(str(v) for v in issue['target_versions'])}")
+    for link in issue.get("links") or []:
+        lines.append(f"Link: {link.get('relation') or link.get('type')} {link.get('key')} ({link.get('type')})")
 
     created_date = issue["created"][:10] if issue["created"] else "unknown"
     updated_date = issue["updated"][:10] if issue["updated"] else "unknown"

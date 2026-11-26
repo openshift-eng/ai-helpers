@@ -449,5 +449,236 @@ class ManifestTest(unittest.TestCase):
             self.assertEqual(v.returncode, 0)
 
 
+sys.path.insert(0, os.path.join(HERE, '..', '..', '..', 'scripts'))
+import release_target  # noqa: E402
+import test_release_target as fx  # noqa: E402  (synthetic Jira fixtures)
+
+
+def with_done_write(key, release='4.30', checked_at='2026-10-13T05:30:00Z', check_key=None):
+    """example() whose first cluster declares a done create_triage to `key` with a release check on check_key."""
+    d = example()
+    c = d['clusters'][0]
+    c['fingerprint']['release'] = release
+    act = c['actions'][0]
+    act.update(type='create_triage', status='done', jira=key)
+    rec = release_target.check_write(check_key or key, {release}, fx.store(
+        fx.PARENT, fx.CLONE, fx.BLOCKED, fx.issue('SYNTH-110', '4.31.0', status='Closed')))
+    rec['checked_at'] = checked_at
+    act['release_check'] = rec
+    return d, act
+
+
+class ReleaseEvidenceTest(unittest.TestCase):
+    """Validator rules for release-specific Jira targets and negative clone claims (synthetic keys)."""
+
+    def errs(self, d, needle):
+        return [e for e in m.validate(d) if needle in e]
+
+    def test_matching_target_write_validates(self):
+        d, _ = with_done_write('SYNTH-200')
+        self.assertEqual(m.validate(d), [])
+
+    def test_wrong_target_write_is_rejected(self):
+        d, _ = with_done_write('SYNTH-100')        # closed newer-release parent while a 4.30 clone exists
+        self.assertTrue(self.errs(d, "releases[4.30] does not support the write: 'clone'"))
+        self.assertTrue(self.errs(d, 'allowed is not true'))
+
+    def test_complete_no_clone_does_not_authorize_a_done_write(self):
+        d, act = with_done_write('SYNTH-110')      # closed newer-release parent, no clone for 4.30
+        self.assertEqual(act['release_check']['releases']['4.30']['decision'], 'no-matching-clone')
+        self.assertTrue(self.errs(d, "does not support the write: 'no-matching-clone'"))
+        act['release_check']['allowed'] = True     # forged flag still fails on the decision
+        self.assertTrue(self.errs(d, "does not support the write: 'no-matching-clone'"))
+        item = {'triage_id': '7', 'jira': 'SYNTH-110', 'allowed': False,
+                'decisions': {'4.30': {'decision': 'no-matching-clone', 'target': None}}}
+        out = m.finalize(d, jira_creations={'status': 'ok', 'count': 0}, permissions=None,
+                         sippy_diff={'status': 'match', 'release_targets': {'status': 'mismatch', 'items': [item]}},
+                         mode_requested='auto', mode_effective='auto', decision=('configured', '', ''),
+                         source_run={'run_id': 'r'}, previous_run=None, existing_only=True)
+        self.assertTrue(self.errs(out, "does not support the write: 'no-matching-clone'"))      # runner finalize
+        self.assertTrue(self.errs(out, 'release_targets: mismatch: triage 7 -> SYNTH-110'))
+        act['status'] = 'skipped-release-check'    # the correct, report-only record of the same decision
+        self.assertEqual(m.validate(d), [])
+
+    def test_missing_or_forged_or_mismatched_evidence_is_rejected(self):
+        d, act = with_done_write('SYNTH-200')
+        del act['release_check']
+        self.assertTrue(self.errs(d, 'release_check missing'))
+        d, act = with_done_write('SYNTH-100')
+        act['release_check']['allowed'] = True     # a flipped flag does not hide the per-release decision
+        self.assertTrue(self.errs(d, 'does not support the write'))
+        d, _ = with_done_write('SYNTH-100', check_key='SYNTH-200')
+        self.assertTrue(self.errs(d, "release_check.issue 'SYNTH-200' != 'SYNTH-100'"))
+        d, _ = with_done_write('SYNTH-200', release='4.31')
+        self.assertTrue(self.errs(d, 'does not support the write'))
+
+    def test_done_write_must_name_its_bug(self):
+        d, act = with_done_write('SYNTH-200')
+        del act['jira']
+        self.assertTrue(self.errs(d, 'done write needs `jira`'))
+
+    def test_stale_evidence_is_rejected(self):
+        d, _ = with_done_write('SYNTH-200', checked_at='2026-10-01T00:00:00Z')
+        self.assertTrue(self.errs(d, 'predates this run'))
+
+    def test_skipped_release_check_needs_the_refusal_record(self):
+        d, act = with_done_write('SYNTH-100')
+        act['status'] = 'skipped-release-check'
+        self.assertEqual(m.validate(d), [])
+        del act['release_check']
+        self.assertTrue(self.errs(d, 'skipped-release-check needs'))
+
+    def test_unverifiable_cluster_release_is_rejected(self):
+        d, _ = with_done_write('SYNTH-200')
+        d['clusters'][0]['fingerprint']['release'] = None
+        self.assertTrue(self.errs(d, 'is not a release'))
+
+    def test_legacy_manifest_without_evidence_is_rejected(self):
+        # shape written before release checks existed: a done write with only the triage re-read precheck
+        d = example()
+        c = d['clusters'][0]
+        c['fingerprint']['release'] = '4.30'
+        c['actions'][0].update(type='create_triage', status='done', jira='SYNTH-100',
+                               precheck={'triage_reread': True, 'already_present': []})
+        c['actions'][0].pop('release_check', None)
+        self.assertTrue(self.errs(d, 'release_check missing'))
+
+    def test_runner_release_audit_fails_finalized_manifest(self):
+        d, _ = with_done_write('SYNTH-200')
+        items = [{'triage_id': '7', 'jira': 'SYNTH-100', 'allowed': False,
+                  'decisions': {'4.30': {'decision': 'clone', 'target': 'SYNTH-200'}}}]
+        diff = {'status': 'match', 'release_targets': {'status': 'mismatch', 'items': items}}
+        out = m.finalize(d, jira_creations={'status': 'ok', 'count': 0}, sippy_diff=diff, permissions=None,
+                         mode_requested='auto', mode_effective='auto', decision=('configured', '', ''),
+                         source_run={'run_id': 'r'}, previous_run=None, existing_only=True)
+        self.assertTrue(self.errs(out, 'release_targets: mismatch: triage 7 -> SYNTH-100'))
+        self_item = {'triage_id': '7', 'jira': 'SYNTH-200', 'allowed': True,
+                     'decisions': {'4.30': {'decision': 'self', 'target': 'SYNTH-200'}}}
+        for ok in ({'status': 'verified', 'items': [self_item]}, {'status': 'skipped', 'items': []}):
+            out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': ok}
+            self.assertEqual(self.errs(out, 'release_targets'), [], ok)
+        out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'unknown', 'items': items}}
+        self.assertTrue(self.errs(out, 'release_targets: unknown'))
+        out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'unknown', 'items': 5}}
+        self.assertTrue(self.errs(out, 'release_targets: unknown'))       # malformed items never raise
+        out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'mismatch', 'items': 5}}
+        self.assertTrue(self.errs(out, 'release_targets: mismatch'))
+        out['audit']['sippy_catalog_diff'] = {'status': 'match'}          # diffs written before the check existed
+        self.assertEqual(self.errs(out, 'release_targets'), [])
+
+    def finalized(self, release_targets):
+        d, _ = with_done_write('SYNTH-200')
+        return m.finalize(d, jira_creations={'status': 'ok', 'count': 0}, permissions=None,
+                          sippy_diff={'status': 'match', 'release_targets': release_targets},
+                          mode_requested='auto', mode_effective='auto', decision=('configured', '', ''),
+                          source_run={'run_id': 'r'}, previous_run=None, existing_only=True)
+
+    def test_verified_release_audit_requires_authorizing_decisions(self):    # review: verified summary
+        good = {'triage_id': '7', 'jira': 'SYNTH-200', 'allowed': True,
+                'decisions': {'4.30': {'decision': 'self', 'target': 'SYNTH-200'}}}
+        contradictions = {
+            'clone to another issue': dict(good, decisions={'4.30': {'decision': 'clone', 'target': 'SYNTH-100'}}),
+            'no-matching-clone': dict(good, decisions={'4.30': {'decision': 'no-matching-clone', 'target': None}}),
+            'unknown': dict(good, decisions={'4.30': {'decision': 'unknown', 'target': None}}),
+            'self for another issue': dict(good, decisions={'4.30': {'decision': 'self', 'target': 'SYNTH-100'}}),
+            'item not allowed': dict(good, allowed=False),
+            'no decisions': dict(good, decisions={}),
+            'decisions not an object': dict(good, decisions=['self']),
+            'decision not an object': dict(good, decisions={'4.30': 'self'}),
+            'no bug key': dict(good, jira=None),
+        }
+        for label, item in contradictions.items():
+            for doc in (self.finalized({'status': 'verified', 'items': [item]}),):
+                self.assertTrue(self.errs(doc, 'release_targets: verified'), label)       # finalize consumer
+                self.assertTrue([e for e in m.validate(doc) if 'release_targets' in e], label)   # validate
+        for label, rt in (('verified without items', {'status': 'verified', 'items': []}),
+                          ('verified with malformed items', {'status': 'verified', 'items': 5}),
+                          ('verified with a non-object item', {'status': 'verified', 'items': [good, 'x']}),
+                          ('skipped but lists writes', {'status': 'skipped', 'items': [good]})):
+            self.assertTrue(self.errs(self.finalized(rt), 'release_targets'), label)
+        self.assertEqual(self.errs(self.finalized({'status': 'verified', 'items': [good]}), 'release_targets'), [])
+
+    def test_real_audit_output_finalizes(self):                             # producer-shaped controls
+        import audit
+        jira = fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED, fx.issue('SYNTH-110', '4.31.0', status='Closed'))
+        check = lambda url, regs: release_target.check_regressions(url, regs, fetch=jira,
+                                                                   fetch_regression=lambda rid: {'release': '4.30'})
+
+        def produced(url):
+            before = {'time': '2026-10-13T05:00:00Z', 'triages': {}}
+            after = {'time': '2026-10-13T06:00:00Z', 'triages': {'7': {'regression_ids': [101], 'url': url}}}
+            diff = audit.diff_triages(before, after, [{'type': 'create_triage', 'triage_id': 7, 'regression_ids': [101],
+                                                       'jira': url.rsplit('/', 1)[-1], 'status': 'done'}])
+            diff['release_targets'] = audit.verify_release_targets(diff, after, check=check)
+            return diff['release_targets']
+        ok = produced('https://example.atlassian.net/browse/SYNTH-200')
+        self.assertEqual(ok['status'], 'verified')
+        self.assertEqual(self.errs(self.finalized(ok), 'release_targets'), [])
+        for url in ('https://example.atlassian.net/browse/SYNTH-100', 'https://example.atlassian.net/browse/SYNTH-110'):
+            bad = produced(url)
+            self.assertEqual(bad['status'], 'mismatch', url)
+            self.assertTrue(self.errs(self.finalized(bad), 'release_targets: mismatch'), url)
+        empty = audit.verify_release_targets({'status': 'match', 'created': [], 'extended': []},
+                                             {'time': 't', 'triages': {}}, check=check)
+        self.assertEqual(self.errs(self.finalized(empty), 'release_targets'), [])
+
+    # --- review follow-ups (synthetic) ---
+    def test_invalid_observation_time_fails_closed(self):                 # finding 4
+        for bad in (None, 'not-a-time'):
+            d, _ = with_done_write('SYNTH-200')
+            d['observation']['time'] = bad
+            self.assertTrue(self.errs(d, 'observation.time'), bad)
+            d = example()                                                    # clone_exists:false claim
+            d['observation']['time'] = bad
+            self.assertTrue(self.errs(d, 'observation.time'), bad)
+            d = example()                                                    # nothing that needs freshness
+            d['backport_candidates'] = []
+            d['observation']['time'] = bad
+            self.assertEqual(self.errs(d, 'freshness'), [], bad)
+
+    def test_explicit_unknown_release_audit_without_items_is_rejected(self):   # finding 5
+        d, _ = with_done_write('SYNTH-200')
+        out = m.finalize(d, jira_creations={'status': 'ok', 'count': 0}, permissions=None,
+                         sippy_diff={'status': 'match', 'release_targets': {'status': 'unknown', 'items': []}},
+                         mode_requested='auto', mode_effective='auto', decision=('configured', '', ''),
+                         source_run={'run_id': 'r'}, previous_run=None, existing_only=True)
+        self.assertTrue(self.errs(out, 'release_targets: unknown'))
+        out['audit']['sippy_catalog_diff'] = {'status': 'match', 'release_targets': {'status': 'skipped', 'items': []}}
+        self.assertEqual(self.errs(out, 'release_targets'), [])
+
+    def test_no_clone_claim_needs_an_identified_fixed_bug(self):           # finding 6
+        d = example()
+        del d['backport_candidates'][0]['fixed_in']['key']
+        self.assertTrue(self.errs(d, 'fixed_in.key'))
+        d = example()
+        d['backport_candidates'][0]['fixed_in'] = 'OCPBUGS-113706'
+        self.assertTrue(self.errs(d, 'fixed_in.key'))
+        self.assertEqual(m.validate(example()), [])
+
+    def test_negative_clone_claim_needs_fresh_complete_evidence(self):
+        d = example()
+        b = d['backport_candidates'][0]
+        del b['release_check']
+        self.assertTrue(self.errs(d, 'backport_candidates[0]: release_check missing'))
+        d = example()
+        d['backport_candidates'][0]['release_check']['checked_at'] = '2026-10-01T00:00:00Z'   # stale baseline claim
+        self.assertTrue(self.errs(d, 'predates this run'))
+        d = example()
+        d['backport_candidates'][0]['release_check']['releases']['4.22']['complete'] = False
+        self.assertTrue(self.errs(d, 'does not support the no-clone claim'))
+        d = example()
+        d['backport_candidates'][0]['clone_exists'] = 'unknown'
+        self.assertTrue(self.errs(d, 'clone_exists must be true or false'))
+        d, act = with_done_write('SYNTH-200')      # an authorizing write record is not proof that no clone exists
+        b = d['backport_candidates'][0]
+        b.update(fixed_in={'key': 'SYNTH-200', 'fix_version': '4.31'}, this_release='4.30',
+                 release_check=act['release_check'])
+        self.assertTrue(self.errs(d, 'does not support the no-clone claim'))
+        d = example()
+        d['backport_candidates'][0]['clone_exists'] = True
+        del d['backport_candidates'][0]['release_check']
+        self.assertEqual(m.validate(d), [])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -34,6 +34,11 @@ class AuditFetchTests(unittest.TestCase):
         patcher = mock.patch.object(audit, "_default_audit_fetch", return_value=[])
         self.audit_fetch = patcher.start()
         self.addCleanup(patcher.stop)
+        # hermetic: the post-write release check never reaches Sippy or Jira in these tests
+        release = mock.patch.object(audit, "_default_release_check",
+                                    return_value={"allowed": True, "releases": {}, "reasons": []})
+        self.release_check = release.start()
+        self.addCleanup(release.stop)
 
 
 class DiffTests(AuditFetchTests):
@@ -1050,5 +1055,129 @@ class CliTests(AuditFetchTests):
             self.assertEqual(jload(o)["status"], "unknown")
 
 
-if __name__ == '__main__':
+import sys  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "scripts"))
+import test_release_target as fx  # noqa: E402  (synthetic Jira fixtures)
+
+PARENT_URL = "https://example.atlassian.net/browse/SYNTH-100"
+CLONE_URL = "https://example.atlassian.net/browse/SYNTH-200"
+NO_CLONE_PARENT_URL = "https://example.atlassian.net/browse/SYNTH-110"   # targeted at 4.31, no 4.30 clone
+
+
+def synthetic_check(url, regs):
+    """Real release_target decision over synthetic Jira data; every regression is on 4.30."""
+    jira = fx.store(fx.PARENT, fx.CLONE, fx.BLOCKED, fx.issue("SYNTH-110", "4.31.0", status="Closed"))
+    return audit.release_target.check_regressions(url, regs, fetch=jira,
+                                                  fetch_regression=lambda rid: {"release": "4.30"})
+
+
+class ReleaseTargetAuditTests(AuditFetchTests):
+    """Post-write release verification next to the unchanged declared-vs-observed key audit."""
+
+    def setUp(self):
+        super().setUp()
+        self.release_check.side_effect = synthetic_check
+
+    def run_case(self, observed_url, declared_key):
+        before, after = snap({}), snap({"7": tri([101, 102], url=observed_url)})
+        declared = [{"type": "create_triage", "triage_id": 7, "jira": declared_key,
+                     "regression_ids": [101, 102], "status": "done"}]
+        diff = audit.diff_triages(before, after, declared)
+        diff["release_targets"] = audit.verify_release_targets(diff, after)
+        return diff
+
+    def test_original_wrong_target_write_is_a_violation(self):
+        diff = self.run_case(PARENT_URL, "SYNTH-100")     # consistent declaration, wrong release-specific bug
+        self.assertEqual(diff["status"], "match")          # key audit alone cannot see it
+        self.assertEqual(diff["release_targets"]["status"], "mismatch")
+        self.assertEqual(diff["release_targets"]["items"][0]["decisions"]["4.30"],
+                         {"decision": "clone", "target": "SYNTH-200"})
+        reasons = [r for _, r in audit._own_violations("R", {"status": "ok", "count": 0}, diff)]
+        self.assertTrue(any(r.startswith("Release target check mismatch") for r in reasons), reasons)
+
+    def test_write_to_no_clone_parent_is_a_violation(self):
+        diff = self.run_case(NO_CLONE_PARENT_URL, "SYNTH-110")
+        self.assertEqual(diff["status"], "match")                       # key audit unchanged
+        self.assertEqual(diff["release_targets"]["status"], "mismatch")
+        self.assertEqual(diff["release_targets"]["items"][0]["decisions"]["4.30"],
+                         {"decision": "no-matching-clone", "target": None})
+        reasons = [r for _, r in audit._own_violations("R", {"status": "ok", "count": 0}, diff)]
+        self.assertTrue(any(r.startswith("Release target check mismatch") for r in reasons), reasons)
+
+    def test_matching_target_write_is_clean(self):
+        diff = self.run_case(CLONE_URL, "SYNTH-200")
+        self.assertEqual((diff["status"], diff["release_targets"]["status"]), ("match", "verified"))
+        self.assertEqual(audit._own_violations("R", {"status": "ok", "count": 0}, diff), [])
+
+    def test_key_drift_is_still_caught_by_the_key_audit(self):
+        diff = self.run_case(CLONE_URL, "SYNTH-100")      # observed key differs from declared key
+        self.assertEqual(diff["status"], "mismatch")
+        self.assertTrue(any(o["triage_id"] == "7" for o in diff["undeclared"]))
+
+    def test_extended_checks_only_added_and_skips_external(self):
+        before = snap({"7": tri([1], url=PARENT_URL), "8": tri([1], url=PARENT_URL)})
+        after = snap({"7": tri([1, 101], url=PARENT_URL), "8": tri([1, 102], url=PARENT_URL)})
+        self.audit_fetch.side_effect = lambda tid: ([{"user": "someone", "operation": "update", "changes": [],
+                                                      "created_at": "2026-10-12T01:00:00Z"}] if tid == "8" else [])
+        declared = [{"type": "extend_triage", "triage_id": 7, "regression_ids": [101], "status": "done"}]
+        diff = audit.diff_triages(before, after, declared)
+        res = audit.verify_release_targets(diff, after)
+        self.assertEqual([(i["triage_id"], i["regression_ids"]) for i in res["items"]], [("7", [101])])
+        self.assertEqual(res["status"], "mismatch")
+
+    def test_unknown_and_unavailable_fail_closed(self):
+        self.release_check.side_effect = lambda url, regs: 1 / 0
+        diff = self.run_case(CLONE_URL, "SYNTH-200")
+        self.assertEqual(diff["release_targets"]["status"], "unknown")
+        self.assertTrue(audit._own_violations("R", {"status": "ok", "count": 0}, diff))
+        self.assertEqual(audit.verify_release_targets({"status": "unknown"}, snap({}))["status"], "unknown")
+        self.assertEqual(audit.verify_release_targets({"status": "match", "created": [], "extended": []},
+                                                      snap({}))["status"], "skipped")
+
+    def test_release_violation_forces_next_run_into_report_mode(self):
+        diff = self.run_case(PARENT_URL, "SYNTH-100")
+        with tempfile.TemporaryDirectory() as t:
+            path = os.path.join(t, "receipt.json")
+            audit.write_receipt(path, run_id="R1", mode_requested="auto", mode_effective="auto",
+                                audit={"jira_creations": {"status": "ok", "count": 0, "truncated": False},
+                                       "sippy_catalog_diff": diff}, previous_run=None)
+            decision, origin, reason = audit.read_receipt_decision(jload(path))
+        self.assertEqual((decision, origin), ("report", "R1"))
+        self.assertIn("Release target check mismatch", reason)
+        clean = self.run_case(CLONE_URL, "SYNTH-200")
+        with tempfile.TemporaryDirectory() as t:
+            path = os.path.join(t, "receipt.json")
+            audit.write_receipt(path, run_id="R2", mode_requested="auto", mode_effective="auto",
+                                audit={"jira_creations": {"status": "ok", "count": 0, "truncated": False},
+                                       "sippy_catalog_diff": clean}, previous_run=None)
+            self.assertEqual(audit.read_receipt_decision(jload(path))[0], "configured")
+
+    def test_receipts_without_release_section_are_unchanged(self):
+        self.assertEqual(audit._own_violations("R", {"status": "ok", "count": 0}, {"status": "match"}), [])
+        self.assertTrue(audit._own_violations("R", {"status": "ok", "count": 0},
+                                              {"status": "match", "release_targets": "bogus"}))
+        self.assertTrue(audit._own_violations("R", {"status": "ok", "count": 0},
+                                              {"status": "match", "release_targets": {"status": "unknown",
+                                                                                      "items": ["bogus", None]}}))
+        self.assertTrue(audit._own_violations("R", {"status": "ok", "count": 0},
+                                              {"status": "match", "release_targets": {"status": "mismatch", "items": 5}}))
+
+    def test_diff_cli_writes_release_section_and_keeps_stdout(self):
+        with tempfile.TemporaryDirectory() as t:
+            def w(n, o):
+                p = os.path.join(t, n)
+                jdump(o, p)
+                return p
+            b, a = w("b", snap({})), w("a", snap({"7": tri([101], url=PARENT_URL)}))
+            m = w("m", {"clusters": [{"actions": [{"type": "create_triage", "triage_id": 7, "jira": "SYNTH-100",
+                                                   "regression_ids": [101], "status": "done"}]}]})
+            o = os.path.join(t, "o")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = audit.main(["diff", "--before", b, "--after", a, "--manifest", m, "--out", o])
+            self.assertEqual((code, out.getvalue().strip()), (0, "match"))
+            self.assertEqual(jload(o)["release_targets"]["status"], "mismatch")
+
+
+if __name__ == "__main__":
     unittest.main()

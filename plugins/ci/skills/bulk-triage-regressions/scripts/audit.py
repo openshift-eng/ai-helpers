@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "scripts"))
 import jira_auth  # noqa: E402
+import release_target  # noqa: E402
 
 SCHEMA_VERSION = "1.0"
 SIPPY_TRIAGES_URL = "https://sippy.dptools.openshift.org/api/component_readiness/triages"
@@ -450,6 +451,54 @@ def write_receipt(path, *, run_id, mode_requested, mode_effective, audit, previo
     _write_json(path, receipt)
 
 
+def _default_release_check(url, regression_ids):
+    return release_target.check_regressions(url, regression_ids)
+
+
+def verify_release_targets(diff, after, check=None):
+    """Post-write release check of this run's created/extended triages (release_target.py).
+
+    The catalogue diff proves the observed Jira key equals the declared one; this proves the key is the
+    release-specific bug for the regressions written to it. Created triages are checked for all their
+    regressions, extended ones for the added regressions only; changes attributed to other users
+    (``external``) are skipped. Status: ``verified`` | ``skipped`` (nothing written) | ``mismatch`` (the
+    written bug is not targeted at the release: another family member is, or none is) | ``unknown`` (could
+    not be decided)."""
+    if not isinstance(diff, dict) or diff.get("status") not in ("match", "mismatch"):
+        return {"status": "unknown", "items": [], "error": "catalogue diff unavailable"}
+    triages = (after or {}).get("triages") if isinstance(after, dict) else None
+    if not isinstance(triages, dict):
+        return {"status": "unknown", "items": [], "error": "after snapshot unavailable"}
+    external = {(e.get("kind"), str(e.get("triage_id"))) for e in diff.get("external") or [] if isinstance(e, dict)}
+    targets = [("created", t, (triages.get(t) or {}).get("regression_ids") or []) for t in diff.get("created") or []]
+    targets += [("extended", e.get("triage_id"), e.get("added") or [])
+                for e in diff.get("extended") or [] if isinstance(e, dict)]
+    items = []
+    for kind, key, regs in targets:            # `key` is the snapshot's own key for this triage
+        tid = str(key)
+        if (kind, tid) in external:
+            continue
+        url = (triages.get(key) or {}).get("url")
+        try:
+            rec = (check or _default_release_check)(url, sorted(regs))
+        except Exception as e:
+            rec = {"allowed": False, "releases": {}, "reasons": ["%s: %s" % (type(e).__name__, e)]}
+        decisions = {r: {"decision": d.get("decision"), "target": d.get("target")}
+                     for r, d in (rec.get("releases") or {}).items() if isinstance(d, dict)}
+        items.append({"kind": kind, "triage_id": tid, "jira": _jira_key(url), "regression_ids": sorted(regs),
+                      "allowed": rec.get("allowed") is True, "decisions": decisions,
+                      "reasons": (rec.get("reasons") or [])[:5]})
+    if not items:
+        status = "skipped"
+    elif all(i["allowed"] for i in items):
+        status = "verified"
+    elif any(d["decision"] in ("clone", "no-matching-clone") for i in items for d in i["decisions"].values()):
+        status = "mismatch"
+    else:
+        status = "unknown"
+    return {"status": status, "items": items}
+
+
 def _own_violations(run_id, jira, diff):
     """Reasons this receipt's own audit is not a VALID, CLEAN audit. Fail closed: anything short of
     jira ok/count exactly 0/not truncated and sippy match is a violation attributed to this run."""
@@ -472,6 +521,16 @@ def _own_violations(run_id, jira, diff):
             json.dumps(diff.get("undeclared")), json.dumps(diff.get("declared_not_observed"))))
     elif dst != "match":
         out.append("Sippy catalogue audit %s — %s" % (dst if dst else "missing", diff.get("error") or "no clean result"))
+    # Release-semantic check (absent in receipts written before it existed: no violation for those).
+    if "release_targets" in diff:
+        rel = diff["release_targets"]
+        rst = rel.get("status") if isinstance(rel, dict) else None
+        if rst not in ("verified", "skipped"):
+            bad = [{"triage_id": i.get("triage_id"), "jira": i.get("jira"), "decisions": i.get("decisions")}
+                   for i in (rel.get("items") if isinstance(rel, dict) and isinstance(rel.get("items"), list) else [])
+                   if isinstance(i, dict) and not i.get("allowed")]
+            out.append("Release target check %s: %s" % (rst or "malformed", json.dumps(bad) if bad else
+                                                         (rel.get("error") if isinstance(rel, dict) else "") or "no clean result"))
     return [(run_id, r[:REASON_MAX]) for r in out]
 
 
@@ -594,8 +653,12 @@ def main(argv=None):
                 print("audit.py jql: warning: Jira search truncated at %d pages" % MAX_PAGES, file=sys.stderr)
             _write_json(args.out, res)
         elif args.cmd == "diff":
-            res = diff_triages(_read_json(args.before), _read_json(args.after),
-                               _declared(_read_json(args.manifest)))
+            after = _read_json(args.after)
+            res = diff_triages(_read_json(args.before), after, _declared(_read_json(args.manifest)))
+            try:
+                res["release_targets"] = verify_release_targets(res, after)
+            except Exception as e:      # fail closed: an unverifiable run is a receipt violation
+                res["release_targets"] = {"status": "unknown", "items": [], "error": "%s: %s" % (type(e).__name__, e)}
             _write_json(args.out, res)
             print(res["status"])
         elif args.cmd == "permissions":
