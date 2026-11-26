@@ -55,7 +55,7 @@ The command executes in two phases:
    - User filters support exclusion by prefixing with an exclamation mark (example: !<user@example.com>)
 
 2. **If project key is NOT provided:**
-   - Use `getVisibleJiraProjects` to list all accessible projects
+   - Call `executeRead` with `name: "listJiraProjects"` to list all accessible projects
    - Present projects in a numbered list with keys and names
    - Ask: "Please enter the number of the project you want to update:"
    - Parse response and extract project key
@@ -109,9 +109,9 @@ For each user filter parameter:
 1. **Check if it's an email** (contains `@`): Use as-is for script parameter
 
 2. **If it's a display name** (doesn't contain `@`):
-   - Use `lookupJiraAccountId` with the name as the search string
+   - Call `executeRead` with `name: "lookupJiraAccountId"` and the name as the `query`
    - Show found user details and ask for confirmation
-   - If confirmed, use the email address; if not, ask for email directly
+   - If confirmed and the match includes an email address, use it; if not confirmed, or no email address was returned, ask for email directly
 
 3. **Handle exclusion prefix** (exclamation mark):
    - Strip the prefix before lookup

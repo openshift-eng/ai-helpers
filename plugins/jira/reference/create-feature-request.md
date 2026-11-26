@@ -16,7 +16,7 @@ A customer-driven request for new functionality, submitted to the **RFE** projec
 
 - `projectKey`: `"RFE"`
 - `issueTypeName`: `"Feature Request"`
-- Use `getJiraIssueTypeMetaWithFields` to discover custom field IDs for the RFE project
+- Call `executeRead` with `name: "getJiraIssueTypeMetaWithFields"` to discover custom field IDs for the RFE project
 
 ## Title Best Practices
 

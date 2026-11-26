@@ -53,13 +53,13 @@ The command executes in two phases:
    - User filters support exclusion by prefixing with an exclamation mark (example: !<user@example.com>)
 
 2. **If project key is NOT provided:**
-   - Use `mcp__atlassian-mcp__jira_get_all_projects` to list all accessible projects
+   - Call `executeRead` with `name: "listJiraProjects"` to list all accessible projects
    - Present projects in a numbered list with keys and names
    - Ask: "Please enter the number of the project you want to generate updates for:"
    - Parse response and extract project key
 
 3. **Validate project access:**
-   - Use `mcp__atlassian-mcp__jira_search` with JQL: `project = "{project-key}" AND status != Closed`
+   - Use `searchJiraIssuesUsingJql` with JQL: `project = "{project-key}" AND status != Closed`
    - Verify the project exists and is accessible
 
 #### Step 2. Determine Target Component(s)
@@ -68,9 +68,8 @@ The command executes in two phases:
    - Use the component name directly
 
 2. **If `--component` is NOT provided:**
-   - Use `mcp__atlassian-mcp__jira_search_fields` with keyword "component" to find the component field ID
-   - Query component values through `mcp__atlassian-mcp__jira_search` with `fields=components` and JQL `project = "{project-key}" AND status != Closed`
-   - Extract all unique component names from the search results
+   - Call `executeRead` with `name: "listJiraProjectComponents"` and the project key to list available components
+   - Extract all unique component names from the results
    - Present components in a numbered list
    - Ask: "Please enter the number(s) of the component(s) you want to generate updates for (space-separated), or press Enter to skip:"
    - If multiple components selected, process each separately
@@ -82,9 +81,9 @@ For each user filter parameter:
 1. **Check if it's an email** (contains `@`): Use as-is for script parameter
 
 2. **If it's a display name** (doesn't contain `@`):
-   - Use `mcp__atlassian-mcp__jira_get_user_profile` with the name as the `user_identifier` parameter
+   - Call `executeRead` with `name: "lookupJiraAccountId"` and the name as the `query` parameter
    - Show found user details and ask for confirmation
-   - If confirmed, use the email address; if not, ask for email directly
+   - If confirmed and the match includes an email address, use it; if not confirmed, or no email address was returned, ask for email directly
 
 3. **Handle exclusion prefix** (exclamation mark):
    - Strip the prefix before lookup

@@ -79,36 +79,28 @@ Discovers all descendant issues using `parent = KEY` JQL with BFS recursion.
 
 **Implementation**:
 
-1. **Fetch issue metadata** via `getJiraIssue` with the issue key, requesting fields `summary`, `description`, `issuetype`, `status`, `comment`, and `expand: "changelog"`.
+1. **Fetch issue metadata** via `getJiraIssue` with the issue key, requesting fields `summary`, `description`, `issuetype`, `status`. Fetch the issue's comments via `listJiraIssueComments`, paginating with `startAt` until `isLast` is true — `getJiraIssue` returns only a comment count.
    - Extract `fields.description` -- for text-based PR URL extraction
-   - Extract `fields.comment.comments` -- for PR URLs mentioned in comments
-   - Extract `changelog.histories` -- for remote link PR URLs from `RemoteIssueLink` field changes
+   - Extract comment bodies from `listJiraIssueComments` -- for PR URLs mentioned in comments
 
 2. **Search for descendant issues using BFS** via `searchJiraIssuesUsingJql` with `jql: "parent = <issue-key>"`, `fields: ["key"]`, and `maxResults: 100`. Recursively search `parent = <child-key>` for each result until no more children. Only fetch the `key` field here -- full data (including changelog) is fetched per-issue in Phase 2.
 
-3. **Fetch full data for each issue** (including root + all descendants) via `getJiraIssue` with fields `summary`, `description`, `issuetype`, `status`, `comment`, and `expand: "changelog"`. This fetches description, comments, and changelog (which includes remote links). Excludes issue links (`relates to`, `blocks`, etc.) -- only parent-child relationships.
+3. **Fetch full data for each issue** (including root + all descendants) via `getJiraIssue` with fields `summary`, `description`, `issuetype`, `status`, plus its comments via `listJiraIssueComments`. This fetches description and comments. Excludes issue links (`relates to`, `blocks`, etc.) -- only parent-child relationships.
 
 ### 🔗 Phase 2: GitHub PR Extraction
 
 Extracts PR URLs from two sources:
 
-### Source 1: Jira Remote Links via Changelog (primary)
-- **Extract remote links from issue changelog** (using MCP with authenticated access):
-  1. Fetch the issue via `getJiraIssue` with `issueIdOrKey` and `expand: "changelog"`
-  2. From the response, extract `changelog.histories[].items[]` entries where `field == "RemoteIssueLink"`
-  3. Parse the `toString` (or `to_string`) value of each entry for GitHub PR URLs matching `https://github.com/{owner}/{repo}/pull/{number}`
-  4. Deduplicate the extracted URLs
-- **Important**:
-  - Remote links appear in changelog as `RemoteIssueLink` field changes
-  - Changelog contains link creation events with GitHub PR URLs in `toString` or `to_string` field
-  - Store results in variables, not temporary files
-  - Uses MCP authentication (no separate curl needed)
+### Source 1: Jira Remote Links (primary)
+- **List the issue's remote links** by calling `executeRead` with `name: "listJiraIssueRemoteIssueLinks"` and the issue key; extract GitHub PR URLs from each entry's `object.url`, matching `https://github.com/{owner}/{repo}/pull/{number}`, and deduplicate.
+- Store results in variables, not temporary files. Uses MCP authentication (no separate curl needed).
+- **Fallback — changelog scan**: fetch the issue with `expand: "changelog"` and extract remote-link entries from `changelog.histories[].items[]`. Note v2 changelogs encode remote links as `RemoteWorkItemLink` entries whose `toString` holds a shorthand title (`owner/repo#number`) with no full URL — parse that shorthand as well as the v1 `RemoteIssueLink` form.
 - Filters for GitHub PR URLs matching `/pull/` or `/pulls/` pattern
 
 ### Source 2: Text Content (backup)
-- Searches both `fields.description` and `fields.comment.comments[]` (already fetched in Phase 1)
+- Searches both `fields.description` and the comment bodies from `listJiraIssueComments` (already fetched in Phase 1)
 - **Description**: Extract from `fields.description` (plain text or Jira wiki format)
-- **Comments**: Iterate through `fields.comment.comments[]` array and search each `comment.body`
+- **Comments**: Iterate through the `listJiraIssueComments` results and search each comment body
 - Uses regex: `https?://github\.com/([\w-]+)/([\w-]+)/pulls?/(\d+)`
 - **Example extraction (using variables)**:
   ```bash
@@ -117,8 +109,8 @@ Extracts PR URLs from two sources:
     grep -oE 'https?://github\.com/[^/]+/[^/]+/pulls?/[0-9]+')
 
   # From comments (parse JSON in memory)
-  comment_prs=$(echo "$issue_json" | \
-    jq -r '.fields.comment.comments[]?.body // empty' | \
+  comment_prs=$(echo "$comments_json" | \
+    jq -r '.comments[]?.body // empty' | \
     grep -oE 'https?://github\.com/[^/]+/[^/]+/pulls?/[0-9]+')
 
   # Combine all PRs
@@ -157,7 +149,7 @@ Extracts PR URLs from two sources:
 
 ## Performance Considerations
 
-**API calls**: BFS `searchJiraIssuesUsingJql` calls + N `getJiraIssue` (with changelog) + M `gh pr view`
+**API calls**: BFS `searchJiraIssuesUsingJql` calls + N `getJiraIssue` + M `gh pr view`
 - Example: 11 issues = BFS discovery calls + 11 MCP detail calls + M PR fetches
 - Changelog expansion includes remote links (no extra calls needed)
 - Can parallelize: issue fetching and PR metadata fetching

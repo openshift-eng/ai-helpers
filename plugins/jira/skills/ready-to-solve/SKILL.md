@@ -142,7 +142,7 @@ Post or update a Jira comment reflecting the validation result so the ticket aut
 
 #### Step 1: Check for existing automated comment
 
-Fetch the issue with comments included via `getJiraIssue` and search for one whose body starts with `**Automated Readiness Check`. Save its `comment_id` if found.
+List the issue's comments via `listJiraIssueComments` — paginate with `startAt` until `isLast` is true, and use `view: "evidence"` so each comment includes its author. Find all comments whose body starts with `**Automated Readiness Check` and identify the newest by `created` (a comment posted as a fallback after a permission-denied edit supersedes older results). Resolve the current account via `atlassianUserInfo` to determine whether the newest automated comment is this account's. Never edit a comment authored by another account — post a new comment instead.
 
 #### Step 2: Build comment body
 
@@ -154,7 +154,7 @@ Fetch the issue with comments included via `getJiraIssue` and search for one who
   *Auto-fix was attempted but could not fully resolve all issues. Please address the remaining items manually.*
   ```
 
-**On PASS**: If an existing automated comment was found in Step 1, use a brief body. If no existing comment was found, skip to Phase 7 — no comment is needed for a first-time PASS.
+**On PASS**: If no automated comment exists from any account, skip to Phase 7 — no comment is needed for a first-time PASS. Otherwise use a brief body: update the newest automated comment in place when it is this account's, or post a new comment when it belongs to another account, so the latest result always reflects this run.
 
 ```markdown
 **Automated Readiness Check — PASSED**
@@ -164,11 +164,11 @@ All checks passed. This issue is ready for `/jira:solve`.
 
 #### Step 3: Post or edit the comment
 
-If an existing automated comment was found (Step 1), the Atlassian Rovo MCP does not support editing comments directly. Post a new comment instead.
+If the newest automated comment is this account's, pass its `id` as `commentId` to update it in place. Otherwise — the newest belongs to another account — omit `commentId` and post a new comment that supersedes it, so an older comment is never edited while a newer automated comment exists.
 
-Post the comment via `addCommentToJiraIssue` with the issue key, the comment body, and `contentFormat: "markdown"`.
+Post via `addOrEditJiraIssueComment` with the issue key, the comment body, `commentId` when editing, and `contentFormat: "markdown"`. If Jira rejects the edit because the account lacks comment-edit permission, retry without `commentId` to post a new comment; treat other failures as errors.
 
-If no existing comment was found and the verdict is PASS, do nothing.
+If no automated comment exists from any account and the verdict is PASS, do nothing.
 
 ### Phase 7: Apply Jira Label
 
