@@ -213,17 +213,27 @@ posts. The scheduled task tells the coordinator to:
    (and report the skip) unless its components still equal `components` and
    its summary still contains `[openshift-<version_filter>]` or
    `[openshift-<version_filter>.z]` (compare after stripping `.z`). Skip it as
-   unchanged when its newest comment containing `marker` has the same
-   `Classification` and `Branch` rows as the entry. Otherwise post `body`
-   unchanged with `comment_on_jira_issue`. The body is Jira wiki markup and
-   ends with the AI-generated footer, which must stay.
+   unchanged when its newest comment that contains `marker`,
+   "AI-generated analysis by" and "Always review prior to use" shows the
+   same `classification` and `branch` as the entry, in its Classification
+   and Branch table rows (`|Classification|...|` in wiki markup from direct
+   runs, or the table of an earlier Chai comment). Otherwise post `body`
+   unchanged with `comment_on_jira_issue`. The body is Markdown and ends
+   with the AI-generated footer, which must stay.
 5. Send the `slack` texts (header, summary, details, footer) in the report.
 
 Chai's Jira tools cannot edit a comment, so a changed classification adds a
 new comment instead of updating the old one in place, and a trusted
 `[reanalyze]` tag is not honored. The Jira comment cache is not available
 either, so every run analyzes all CVEs again. The Jira account behind the
-coordinator's tools needs to browse OCPBUGS and add comments there.
+coordinator's tools needs to browse OCPBUGS and add comments there. Chai's
+Jira tools do not return embargoed trackers or trackers with a security
+level other than "Red Hat Employee", so those get no comment.
+
+Chai workspaces install the skills flat under `.claude/skills/<skill>/` and
+do not set `CLAUDE_PLUGIN_ROOT`. The helper is then
+`.claude/skills/report-findings/scripts/node-cve-lib.sh`, and it finds the
+node-team references at `.claude/skills/node/references/`.
 
 ### OpenShift CronJob
 
