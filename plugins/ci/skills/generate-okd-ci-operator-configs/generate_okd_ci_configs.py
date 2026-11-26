@@ -48,6 +48,23 @@ def main():
         help='Print what would be generated without writing files.',
     )
 
+    parser.add_argument(
+        '--base-stream',
+        type=int,
+        choices=(9, 10),
+        default=None,
+        help='CentOS Stream for scos base images. Defaults to 10 for OKD 5.1 '
+             'and later, 9 otherwise.',
+    )
+    parser.add_argument(
+        '--release-repo',
+        type=Path,
+        default=None,
+        help='Path to an openshift/release checkout. When set, branch names, '
+             'image capabilities and builder versions are checked '
+             'against each repo\'s OCP ci-operator config.',
+    )
+
     args = parser.parse_args()
 
     # Validate input paths.
@@ -61,6 +78,9 @@ def main():
     if not (args.ocp_build_data / 'images').is_dir():
         print(f'ERROR: images/ directory not found in {args.ocp_build_data}', file=sys.stderr)
         sys.exit(1)
+    if args.release_repo and not (args.release_repo / 'ci-operator' / 'config').is_dir():
+        print(f'ERROR: ci-operator/config not found in {args.release_repo}', file=sys.stderr)
+        sys.exit(1)
 
     generate_configs(
         ocp_build_data=args.ocp_build_data,
@@ -68,6 +88,8 @@ def main():
         output_dir=args.output_dir,
         github_token=args.github_token,
         dry_run=args.dry_run,
+        base_stream=args.base_stream,
+        release_repo_path=args.release_repo,
     )
 
 
