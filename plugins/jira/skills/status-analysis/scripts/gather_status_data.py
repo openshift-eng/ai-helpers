@@ -23,6 +23,8 @@ Output:
     - issues/OCPSTRAT-1234.json: Per-issue data with descendants and PRs
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import json
@@ -33,9 +35,9 @@ import subprocess
 import sys
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Set
+from typing import Optional, List, Dict, Any, Set, Callable, AsyncIterator, Tuple
 from urllib.parse import urlparse
 
 from adf import adf_to_text as _adf_to_text
@@ -98,6 +100,8 @@ JIRA_REQUEST_DELAY_SECONDS = 0.3  # 300ms between requests (increased from 200ms
 JIRA_MAX_CONCURRENT_REQUESTS = 2  # Max 2 parallel requests (reduced from 3)
 JIRA_BATCH_SIZE = 40  # Max tickets per JQL query
 JIRA_CHANGELOG_DELAY_SECONDS = 0.5  # Extra delay for changelog API (more rate-limited)
+JIRA_PAGE_RETRY_ATTEMPTS = 3  # Attempts for a single paginated-list page
+JIRA_PAGE_RETRY_DELAY_SECONDS = 5  # Base delay between page retries (scaled by attempt)
 
 # GitHub rate limiting
 GITHUB_MAX_CONCURRENT_REQUESTS = 5  # Reduced from 10
@@ -116,9 +120,16 @@ class DateRange:
     end: date
 
     def contains(self, dt: datetime) -> bool:
-        """Check if a datetime falls within this range."""
+        """Check if a datetime falls within this range (compared in UTC).
+
+        Offset-bearing timestamps are converted to UTC first so window
+        membership does not depend on each source's timezone; naive
+        datetimes are treated as UTC (matching parse_iso_datetime).
+        """
         if dt is None:
             return False
+        if isinstance(dt, datetime) and dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc)
         d = dt.date() if isinstance(dt, datetime) else dt
         return self.start <= d <= self.end
 
@@ -168,6 +179,136 @@ class PRRef:
                 url=url
             )
         return None
+
+    @property
+    def identity(self) -> Tuple[str, str, int]:
+        """Canonical identity of the referenced PR."""
+        return (self.owner, self.repo, self.number)
+
+
+def _note_pr_ref(
+    pr_refs_map: Dict[Tuple[str, str, int], PRRef],
+    url: str,
+    issue_key: str,
+) -> Optional[bool]:
+    """Record a PR URL against the issue it was found in.
+
+    Refs are keyed by (owner, repo, number) so URL spelling variants
+    of the same PR (http vs https, /pull vs /pulls) coalesce into one
+    entry instead of emitting that PR's events twice per issue.
+    Returns True when a new ref was created, False when the URL merged
+    into an existing ref, and None when the URL is not a GitHub PR.
+    """
+    ref = PRRef.from_url(url)
+    if not ref:
+        return None
+    created = ref.identity not in pr_refs_map
+    if created:
+        pr_refs_map[ref.identity] = ref
+    pr_refs_map[ref.identity].found_in_issues.add(issue_key)
+    return created
+
+
+def parse_iso_datetime(date_str: Optional[str]) -> Optional[datetime]:
+    """Parse an ISO-8601 timestamp, normalizing to UTC.
+
+    Naive timestamps are assumed to be UTC; offset-bearing ones are
+    converted. Returns None when the string is missing or unparseable.
+    """
+    if not date_str:
+        return None
+    try:
+        parsed = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+# Sentinel that sorts unparseable/missing event timestamps last.
+_EVENT_SORT_LAST = datetime.max.replace(tzinfo=timezone.utc)
+
+
+def _normalize_timestamp(value: Optional[str]) -> Optional[str]:
+    """Normalize a timestamp string to UTC ISO-8601 with a Z suffix.
+
+    Returns the original value unchanged when it cannot be parsed, so
+    malformed data stays visible to consumers instead of vanishing.
+    """
+    parsed = parse_iso_datetime(value)
+    if parsed is None:
+        return value
+    return parsed.isoformat().replace("+00:00", "Z")
+
+
+def _is_status_summary_item(item: Dict[str, Any]) -> bool:
+    """Check whether a changelog item is a status summary field change."""
+    field_name = (item.get("field") or "").lower()
+    return "status" in field_name and "summary" in field_name
+
+
+def _scan_last_status_summary_update(changelog: List[Dict[str, Any]]) -> Optional[str]:
+    """Find the newest status-summary change in an oldest-first changelog."""
+    for entry in reversed(changelog):
+        if any(_is_status_summary_item(item) for item in entry.get("items", [])):
+            return entry.get("created")
+    return None
+
+
+def _name_tokens(*values: Optional[str]) -> Set[str]:
+    """Split identifiers into lowercase alphanumeric tokens."""
+    tokens: Set[str] = set()
+    for value in values:
+        if value:
+            tokens.update(t for t in re.split(r"[^a-z0-9]+", value.lower()) if t)
+    return tokens
+
+
+_BOT_TOKENS = {"bot", "robot", "automation", "jenkins"}
+
+
+def _is_github_bot(
+    login: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+) -> bool:
+    """Heuristically detect GitHub bot identities.
+
+    Matches the `[bot]` suffix GitHub App bots carry (in login or
+    email), hyphenated bot logins (openshift-merge-bot), and
+    robot/automation/jenkins display names. Token-based so a human
+    login, name, or email merely containing 'bot' as a substring
+    (e.g. 'abotkin') is not flagged. Personal privacy addresses
+    (12345+alice@users.noreply.github.com) belong to human accounts
+    and are not bot markers either — only explicit bot tokens are.
+    """
+    return bool(_name_tokens(login, name, email) & _BOT_TOKENS)
+
+
+# Jira-side automation identities: the product's own integrations
+# (GitHub, Jira Automation) and CI hooks in addition to the generic
+# bot markers.
+_JIRA_BOT_TOKENS = _BOT_TOKENS | {"jira", "github"}
+
+
+def _is_jira_bot(
+    name: Optional[str] = None, email: Optional[str] = None
+) -> bool:
+    """Heuristically detect automation-authored Jira comments.
+
+    Integration and CI identities carry a whole automation word (bot,
+    robot, automation, jenkins, jira, github) in their display name or
+    email. Token-based, so a human display name containing such a word
+    as a substring (e.g. 'Mary Abbott') is not flagged. GitHub
+    personal privacy addresses (alice@users.noreply.github.com) belong
+    to human accounts and are exempt from the 'github' token.
+    """
+    if email and email.lower().endswith("@users.noreply.github.com"):
+        # A personal GitHub privacy address: a human's account, not the
+        # GitHub integration identity.
+        email = None
+    return bool(_name_tokens(name, email) & _JIRA_BOT_TOKENS)
 
 
 # =============================================================================
@@ -302,6 +443,36 @@ class JiraClient:
 
         return None
 
+    async def _fetch_json_with_retry(
+        self, url: str, context: str
+    ) -> Dict[str, Any]:
+        """Fetch one page of a paginated list, retrying transient failures.
+
+        A failed page mid-pagination would otherwise truncate the list
+        while the gather still reports it as complete, silently
+        dropping in-window data. `_fetch_json` already absorbs rate
+        limits; this adds a bounded retry for other transient failures
+        and fails loud when the page is genuinely unavailable, so an
+        incomplete result can never pass as complete.
+        """
+        for attempt in range(1, JIRA_PAGE_RETRY_ATTEMPTS + 1):
+            page = await self._fetch_json(url)
+            if page is not None:
+                return page
+            if attempt < JIRA_PAGE_RETRY_ATTEMPTS:
+                delay = JIRA_PAGE_RETRY_DELAY_SECONDS * attempt
+                logger.warning(
+                    f"{context}: page fetch failed "
+                    f"(attempt {attempt}/{JIRA_PAGE_RETRY_ATTEMPTS}), "
+                    f"retrying in {delay}s"
+                )
+                await asyncio.sleep(delay)
+        raise RuntimeError(
+            f"{context}: pagination failed at {url} after "
+            f"{JIRA_PAGE_RETRY_ATTEMPTS} attempts; an incomplete list "
+            f"would be reported as complete"
+        )
+
     async def search_issues(
         self,
         jql: str,
@@ -382,20 +553,169 @@ class JiraClient:
         logger.info(f"Fetched {len(results)} issues total")
         return results
 
+    async def get_issue_comments(self, issue_key: str) -> List[Dict[str, Any]]:
+        """Fetch every comment of an issue, oldest-first.
+
+        The search endpoint embeds only the first page of comments
+        (~20) in each issue; this pages through
+        /rest/api/3/issue/{key}/comment until the list is complete.
+        Page fetches use the same bounded-retry, fail-loud policy as
+        changelog pagination: a truncated comment list must never pass
+        as complete.
+        """
+        comments: List[Dict[str, Any]] = []
+        start_at = 0
+        while True:
+            page = await self._fetch_json_with_retry(
+                f"{self.base_url}/rest/api/3/issue/{issue_key}/comment"
+                f"?startAt={start_at}&maxResults=100",
+                f"Comments for {issue_key}",
+            )
+            values = page.get("comments") or []
+            comments.extend(values)
+            total = page.get("total")
+            if (
+                page.get("isLast")
+                or not values
+                or (total is not None and len(comments) >= total)
+            ):
+                return comments
+            start_at += len(values)
+
     async def get_issue_changelog(
-        self, issue_key: str, max_results: int = 100
+        self,
+        issue_key: str,
+        max_results: int = 100,
+        not_older_than: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
-        """Get changelog for an issue."""
+        """Get changelog entries for an issue, oldest-first.
+
+        Jira returns changelog oldest-first with at most 100 entries per
+        page and no ordering control, so issues with more than one page of
+        history would otherwise expose only their oldest entries. This
+        fetches the first page for `total`, jumps to the newest page, and
+        walks backward while pages may still overlap `not_older_than`
+        (the boundary-crossing page is kept). Issues with a single page
+        of history cost exactly one request.
+        """
+        pages = await self._fetch_changelog_pages(
+            issue_key, max_results, not_older_than
+        )
+        # Pages arrive newest-first, each oldest-first internally; reverse
+        # the page order to yield a globally oldest-first changelog.
+        return [entry for page in reversed(pages) for entry in page]
+
+    async def _iter_changelog_pages(
+        self,
+        issue_key: str,
+        max_results: int = 100,
+        not_older_than: Optional[datetime] = None,
+    ) -> AsyncIterator[List[Dict[str, Any]]]:
+        """Yield changelog pages covering recent history, newest first.
+
+        Pages are yielded newest-first; each page is oldest-first
+        internally, as returned by Jira. Backward pagination stops once a
+        page starts before `not_older_than` (when given) — earlier pages
+        cannot hold newer entries because Jira sorts oldest-first.
+        """
         # Extra delay for changelog API which is more rate-limited
         await asyncio.sleep(JIRA_CHANGELOG_DELAY_SECONDS)
-        url = f"{self.base_url}/rest/api/3/issue/{issue_key}/changelog?maxResults={max_results}"
-        result = await self._fetch_json(url)
-        return result.get("values", []) if result else []
+        base_url = f"{self.base_url}/rest/api/3/issue/{issue_key}/changelog"
+        first = await self._fetch_json_with_retry(
+            f"{base_url}?maxResults={max_results}&startAt=0",
+            f"Changelog for {issue_key}",
+        )
+        if not first:
+            return
+        total = first.get("total") or 0
+        # Jira caps the changelog page size (100) and reports the size it
+        # actually served in `maxResults`. Size the single-page shortcut
+        # and the backward offsets from that effective size: using a
+        # larger requested size would return only the first capped page
+        # and skip the entries between it and the tail.
+        page_size = min(max_results, first.get("maxResults") or max_results)
+        if first.get("isLast", True) or total <= page_size:
+            yield first.get("values") or []
+            return
+
+        # Index of the oldest entry not yet fetched. Each backward request
+        # is sized to the remaining span so pages never overlap (a fixed
+        # page size would overlap whenever `total % page_size != 0`).
+        remaining_start = total
+        expect_last = True  # the tail-jump page should be the last page
+        while remaining_start > 0:
+            fetch_start = max(0, remaining_start - page_size)
+            fetch_len = remaining_start - fetch_start
+            page = await self._fetch_json_with_retry(
+                f"{base_url}?maxResults={fetch_len}&startAt={fetch_start}",
+                f"Changelog for {issue_key}",
+            )
+            # A valid page is never empty here: startAt < total always
+            # yields values. Empty means the changelog shrank since
+            # `total` was read, and everything that still exists has
+            # already been fetched.
+            values = page.get("values") or []
+            if not values:
+                break
+            if expect_last and not page.get("isLast"):
+                # The changelog grew since `total` was read; re-jump to
+                # the new tail (`total` is restated in every response).
+                new_total = page.get("total") or total
+                if new_total > total:
+                    total = new_total
+                    remaining_start = total
+                    continue
+            expect_last = False
+            yield values
+            remaining_start = fetch_start
+            oldest = parse_iso_datetime(values[0].get("created"))
+            if (
+                not_older_than is not None
+                and oldest is not None
+                and oldest < not_older_than
+            ):
+                break
+
+    async def _fetch_changelog_pages(
+        self,
+        issue_key: str,
+        max_results: int = 100,
+        not_older_than: Optional[datetime] = None,
+    ) -> List[List[Dict[str, Any]]]:
+        """Collect all changelog pages (see _iter_changelog_pages)."""
+        return [
+            page
+            async for page in self._iter_changelog_pages(
+                issue_key, max_results, not_older_than
+            )
+        ]
+
+    async def find_last_change_matching(
+        self,
+        issue_key: str,
+        item_match: Callable[[Dict[str, Any]], bool],
+        max_results: int = 100,
+    ) -> Optional[str]:
+        """Find the newest changelog entry with an item matching `item_match`.
+
+        Jira returns changelog oldest-first, so this jumps to the newest
+        page and walks backward, stopping at the first match. Pages are
+        consumed as they arrive, so a match on a recent page does not pay
+        for the rest of the history. Returns the entry's `created`
+        timestamp, or None if no entry matches.
+        """
+        async for page in self._iter_changelog_pages(issue_key, max_results, None):
+            for entry in reversed(page):  # newest-first within the page
+                if any(item_match(item) for item in entry.get("items", [])):
+                    return entry.get("created")
+        return None
 
     async def fetch_changelogs_batch(
-        self, issue_keys: List[str]
+        self,
+        issue_keys: List[str],
+        not_older_than: Optional[datetime] = None,
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """Fetch changelogs for multiple issues."""
+        """Fetch changelogs for multiple issues, bounded by `not_older_than`."""
         if not issue_keys:
             logger.debug("No issue keys for changelog fetch")
             return {}
@@ -406,7 +726,7 @@ class JiraClient:
 
         # Create tasks for all changelogs
         async def fetch_one(key: str):
-            changelog = await self.get_issue_changelog(key)
+            changelog = await self.get_issue_changelog(key, not_older_than=not_older_than)
             logger.debug(f"  Changelog for {key}: {len(changelog)} entries")
             return key, changelog
 
@@ -514,6 +834,7 @@ class GitHubClient:
                         createdAt
                         updatedAt
                         mergedAt
+                        mergedBy {{ login ... on User {{ name }} }}
                         additions
                         deletions
                         changedFiles
@@ -743,14 +1064,33 @@ class StatusDataGatherer:
             text = _adf_to_text(text)
         return set(self.PR_PATTERN.findall(text))
 
+    async def _expand_truncated_comments(self, root_issues: List[Dict]) -> None:
+        """Replace capped embedded comment arrays with the full lists.
+
+        Jira's search endpoint embeds only the first page of comments
+        (~20) per issue. In-window comments past that cap would
+        silently produce no jira_comment events (and escape PR-URL
+        extraction), so when the embedded page reports a larger
+        total, fetch the complete list from the comment endpoint.
+        """
+        for issue in root_issues:
+            comment_field = (issue.get("fields") or {}).get("comment") or {}
+            embedded = comment_field.get("comments") or []
+            total = comment_field.get("total")
+            if total is None or total <= len(embedded):
+                continue
+            issue_key = issue["key"]
+            logger.debug(
+                f"  {issue_key}: {len(embedded)}/{total} embedded comments, "
+                f"fetching full list"
+            )
+            full = await self.jira.get_issue_comments(issue_key)
+            if len(full) >= len(embedded):
+                comment_field["comments"] = full
+
     def _parse_datetime(self, date_str: Optional[str]) -> Optional[datetime]:
-        """Parse ISO datetime string."""
-        if not date_str:
-            return None
-        try:
-            return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-        except (ValueError, TypeError):
-            return None
+        """Parse ISO datetime string, normalized to UTC."""
+        return parse_iso_datetime(date_str)
 
     def _filter_changelog_to_range(
         self, changelog: List[Dict], date_range: DateRange
@@ -760,9 +1100,13 @@ class StatusDataGatherer:
         for entry in changelog:
             created = self._parse_datetime(entry.get("created"))
             if created and date_range.contains(created):
+                author = entry.get("author", {})
                 filtered.append({
                     "date": entry.get("created"),
-                    "author": entry.get("author", {}).get("emailAddress"),
+                    "author": author.get("emailAddress"),
+                    "author_name": (
+                        author.get("displayName") or author.get("emailAddress") or "Unknown"
+                    ),
                     "items": [
                         {
                             "field": item.get("field"),
@@ -779,7 +1123,6 @@ class StatusDataGatherer:
     ) -> List[Dict]:
         """Filter comments to date range and mark bots."""
         filtered = []
-        bot_patterns = ["automation", "bot", "github", "jenkins", "jira"]
 
         for comment in comments:
             created = self._parse_datetime(comment.get("created"))
@@ -787,16 +1130,17 @@ class StatusDataGatherer:
                 continue
 
             author = comment.get("author", {})
-            author_name = (author.get("displayName", "") or "").lower()
-            author_email = (author.get("emailAddress", "") or "").lower()
-
-            is_bot = any(p in author_name or p in author_email for p in bot_patterns)
-            if "noreply" in author_email:
-                is_bot = True
+            # Token-based automation check: substring matching would
+            # drop human commenters like "Mary Abbott" ('bot' in
+            # 'abbott') — see _is_jira_bot.
+            is_bot = _is_jira_bot(
+                name=author.get("displayName"), email=author.get("emailAddress")
+            )
 
             filtered.append({
                 "author": author.get("emailAddress") or author.get("displayName", "Unknown"),
                 "author_name": author.get("displayName", "Unknown"),
+                "author_email": author.get("emailAddress"),
                 "date": comment.get("created"),
                 "body": _adf_to_text(comment.get("body", "")),
                 "is_bot": is_bot,
@@ -817,6 +1161,9 @@ class StatusDataGatherer:
                 reviews_in_range.append({
                     "author": author_obj.get("login", "Unknown"),
                     "author_name": author_obj.get("name") or author_obj.get("login", "Unknown"),
+                    "is_bot": _is_github_bot(
+                        login=author_obj.get("login"), name=author_obj.get("name")
+                    ),
                     "state": review.get("state"),
                     "body": (review.get("body") or "")[:500],
                     "submitted_at": review.get("submittedAt"),
@@ -835,6 +1182,9 @@ class StatusDataGatherer:
                     "date": commit.get("committedDate"),
                     "author": commit_author.get("email", "Unknown"),
                     "author_name": commit_author.get("name") or commit_author.get("email", "Unknown"),
+                    "is_bot": _is_github_bot(
+                        name=commit_author.get("name"), email=commit_author.get("email")
+                    ),
                 })
 
         # Filter review comments
@@ -869,6 +1219,8 @@ class StatusDataGatherer:
             ],
         }
 
+        merged_by = pr_data.get("mergedBy") or {}
+
         return {
             "url": pr_data.get("url"),
             "number": pr_data.get("number"),
@@ -876,6 +1228,8 @@ class StatusDataGatherer:
             "state": pr_data.get("state"),
             "is_draft": pr_data.get("isDraft", False),
             "review_decision": pr_data.get("reviewDecision"),
+            "merged_by": merged_by.get("login"),
+            "merged_by_name": merged_by.get("name") or merged_by.get("login", "Unknown"),
             "dates": {
                 "created_at": pr_data.get("createdAt"),
                 "updated_at": pr_data.get("updatedAt"),
@@ -891,6 +1245,143 @@ class StatusDataGatherer:
                 "review_comments_in_range": len(review_comments_in_range),
             },
         }
+
+    def _build_events_in_range(
+        self,
+        changelog_in_range: List[Dict],
+        comments_in_range: List[Dict],
+        issue_prs: List[Dict],
+        date_range: Optional[DateRange] = None,
+    ) -> List[Dict]:
+        """Assemble dated in-window events from Jira and GitHub sources.
+
+        Each event carries its own `occurred_at` timestamp, normalized to
+        UTC ISO-8601, so downstream consumers can treat it as evidence of
+        when the activity happened; events are sorted chronologically.
+        """
+        events: List[Dict] = []
+
+        for entry in changelog_in_range:
+            # Comment additions get their own jira_comment events (with
+            # full text and bot filtering), so drop them here; changelog
+            # comment items would only duplicate those events.
+            items = [
+                item for item in entry.get("items", [])
+                if (item.get("field") or "").lower() != "comment"
+            ]
+            # Only status changes are transitions. Changelog entries also
+            # record link/label/rank/assignee churn, which is not
+            # evidence of meaningful activity and would drown the
+            # timeline (and inflate downstream significance checks).
+            if not any((item.get("field") or "").lower() == "status" for item in items):
+                continue
+            events.append({
+                "type": "jira_transition",
+                "occurred_at": _normalize_timestamp(entry.get("date")),
+                "author": entry.get("author_name") or entry.get("author") or "Unknown",
+                "author_email": entry.get("author"),
+                "changes": items,
+            })
+
+        for comment in comments_in_range:
+            if comment.get("is_bot"):
+                continue
+            events.append({
+                "type": "jira_comment",
+                "occurred_at": _normalize_timestamp(comment.get("date")),
+                "author": comment.get("author_name"),
+                "author_email": comment.get("author_email"),
+                "text": comment.get("body"),
+            })
+
+        for pr in issue_prs:
+            owner = pr.get("owner")
+            repo = pr.get("repo")
+            number = pr.get("number")
+            if not (owner and repo and number):
+                continue
+            pr_label = f"{owner}/{repo}#{number}"
+            # A merge whose only in-window activity is the merge itself
+            # must still count as activity; without this event such PRs
+            # yield no events and the week is dropped entirely. Kept even
+            # when a merge bot performed it — the merge is the evidence,
+            # the actor is incidental.
+            merged_at = (pr.get("dates") or {}).get("merged_at")
+            if (
+                merged_at
+                and date_range is not None
+                and date_range.contains(self._parse_datetime(merged_at))
+            ):
+                events.append({
+                    "type": "github_merge",
+                    "occurred_at": _normalize_timestamp(merged_at),
+                    "author": pr.get("merged_by_name"),
+                    "author_login": pr.get("merged_by"),
+                    "pr": pr_label,
+                    "pr_url": pr.get("url"),
+                })
+            for review in pr.get("reviews_in_range", []):
+                if review.get("is_bot"):
+                    continue
+                events.append({
+                    "type": "github_review",
+                    "occurred_at": _normalize_timestamp(review.get("submitted_at")),
+                    "author": review.get("author_name"),
+                    "author_login": review.get("author"),
+                    "pr": pr_label,
+                    "pr_url": pr.get("url"),
+                    "state": review.get("state"),
+                    "body": review.get("body"),
+                })
+            for commit in pr.get("commits_in_range", []):
+                if commit.get("is_bot"):
+                    continue
+                events.append({
+                    "type": "github_commit",
+                    "occurred_at": _normalize_timestamp(commit.get("date")),
+                    "author": commit.get("author_name"),
+                    "author_email": commit.get("author"),
+                    "pr": pr_label,
+                    "pr_url": pr.get("url"),
+                    "sha": commit.get("sha"),
+                    "message": commit.get("message"),
+                })
+
+        # Sort by parsed instants: raw strings from different sources mix
+        # formats (fractional seconds, +0000 vs Z) that do not sort
+        # lexicographically. Unparseable timestamps sort last.
+        events.sort(
+            key=lambda e: parse_iso_datetime(e.get("occurred_at")) or _EVENT_SORT_LAST
+        )
+        return events
+
+    async def _fetch_changelogs_complete(
+        self,
+        issue_keys: List[str],
+        not_older_than: Optional[datetime],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Fetch changelogs, retrying keys the batch dropped on failure.
+
+        `fetch_changelogs_batch` logs and omits an issue whose changelog
+        keeps raising, which would silently drop that issue's transition
+        history. Retry the missing issues individually; a persistent
+        failure propagates instead of producing a report with missing
+        events.
+        """
+        changelogs = await self.jira.fetch_changelogs_batch(
+            issue_keys, not_older_than=not_older_than
+        )
+        missing = [key for key in issue_keys if key not in changelogs]
+        if missing:
+            logger.warning(
+                f"Changelog fetch dropped {len(missing)} issue(s); "
+                f"retrying individually: {', '.join(missing)}"
+            )
+            for key in missing:
+                changelogs[key] = await self.jira.get_issue_changelog(
+                    key, not_older_than=not_older_than
+                )
+        return changelogs
 
     async def gather(self) -> Dict[str, Any]:
         """Main gathering method."""
@@ -929,6 +1420,10 @@ class StatusDataGatherer:
         if not root_issues:
             logger.warning("No root issues found. Check JQL query and permissions.")
             return self._build_manifest([], {}, {}, {}, start_time)
+
+        # The search results embed only the first ~20 comments per issue;
+        # expand truncated ones before anything reads them.
+        await self._expand_truncated_comments(root_issues)
 
         # Step 2: Get descendants for all root issues (iterative BFS to handle multi-level hierarchy)
         logger.info("Step 2/8: Fetching descendants")
@@ -976,7 +1471,28 @@ class StatusDataGatherer:
         # Step 4: Fetch changelogs for root Jira issues
         logger.info("Step 4/8: Fetching changelogs for root Jira issues")
         root_keys = [issue["key"] for issue in root_issues]
-        changelogs = await self.jira.fetch_changelogs_batch(root_keys)
+        # Bound changelog fetches to the window, padded by one day:
+        # timestamps carry their own UTC offsets, so an entry dated within
+        # the window locally can sit before UTC midnight of its start.
+        window_start = datetime.combine(
+            self.config.date_range.start - timedelta(days=1),
+            datetime.min.time(),
+            tzinfo=timezone.utc,
+        )
+        changelogs = await self._fetch_changelogs_complete(
+            root_keys, not_older_than=window_start
+        )
+        # Last status-summary change per issue: scan the fetched history
+        # first; only issues whose summary was last touched before it pay
+        # for a targeted backward walk.
+        last_status_updates: Dict[str, Optional[str]] = {}
+        for key in root_keys:
+            found = _scan_last_status_summary_update(changelogs.get(key, []))
+            if found is None:
+                found = await self.jira.find_last_change_matching(
+                    key, _is_status_summary_item
+                )
+            last_status_updates[key] = found
 
         # Step 5: Fetch remote links for root Jira issues (PRs roll up to parent)
         logger.info("Step 5/8: Fetching remote links for root Jira issues")
@@ -984,7 +1500,9 @@ class StatusDataGatherer:
 
         # Step 6: Extract PR URLs from all issues, comments, and remote links
         logger.info("Step 6/8: Extracting PR URLs from issues, comments, and remote links")
-        pr_refs_map: Dict[str, PRRef] = {}
+        # Keyed by PR identity, so URL spelling variants of the same PR
+        # coalesce instead of duplicating its events per issue.
+        pr_refs_map: Dict[Tuple[str, str, int], PRRef] = {}
 
         for issue in root_issues:
             issue_key = issue["key"]
@@ -993,26 +1511,16 @@ class StatusDataGatherer:
             # From description
             desc_urls = self._extract_pr_urls(fields.get("description", ""))
             for url in desc_urls:
-                if url not in pr_refs_map:
-                    ref = PRRef.from_url(url)
-                    if ref:
-                        pr_refs_map[url] = ref
-                        logger.debug(f"    Found PR in {issue_key} description: {url}")
-                if url in pr_refs_map:
-                    pr_refs_map[url].found_in_issues.add(issue_key)
+                if _note_pr_ref(pr_refs_map, url, issue_key):
+                    logger.debug(f"    Found PR in {issue_key} description: {url}")
 
             # From comments
             comments = fields.get("comment", {}).get("comments", [])
             for comment in comments:
                 comment_urls = self._extract_pr_urls(comment.get("body", ""))
                 for url in comment_urls:
-                    if url not in pr_refs_map:
-                        ref = PRRef.from_url(url)
-                        if ref:
-                            pr_refs_map[url] = ref
-                            logger.debug(f"    Found PR in {issue_key} comment: {url}")
-                    if url in pr_refs_map:
-                        pr_refs_map[url].found_in_issues.add(issue_key)
+                    if _note_pr_ref(pr_refs_map, url, issue_key):
+                        logger.debug(f"    Found PR in {issue_key} comment: {url}")
 
         # From descendants
         desc_pr_count = 0
@@ -1024,23 +1532,13 @@ class StatusDataGatherer:
                 child_fields = child.get("fields", {})
 
                 for url in self._extract_pr_urls(child_fields.get("description", "")):
-                    if url not in pr_refs_map:
-                        ref = PRRef.from_url(url)
-                        if ref:
-                            pr_refs_map[url] = ref
-                            desc_pr_count += 1
-                    if url in pr_refs_map:
-                        pr_refs_map[url].found_in_issues.add(parent_key)
+                    if _note_pr_ref(pr_refs_map, url, parent_key):
+                        desc_pr_count += 1
 
                 for comment in child_fields.get("comment", {}).get("comments", []):
                     for url in self._extract_pr_urls(comment.get("body", "")):
-                        if url not in pr_refs_map:
-                            ref = PRRef.from_url(url)
-                            if ref:
-                                pr_refs_map[url] = ref
-                                desc_pr_count += 1
-                        if url in pr_refs_map:
-                            pr_refs_map[url].found_in_issues.add(parent_key)
+                        if _note_pr_ref(pr_refs_map, url, parent_key):
+                            desc_pr_count += 1
 
         # From remote links (only PRs that reference a descendant issue key)
         remote_link_pr_count = 0
@@ -1055,16 +1553,11 @@ class StatusDataGatherer:
                     # Check if the PR title references a descendant issue
                     references_descendant = any(desc_key in title for desc_key in desc_keys)
                     if references_descendant:
-                        if url not in pr_refs_map:
-                            ref = PRRef.from_url(url)
-                            if ref:
-                                pr_refs_map[url] = ref
-                                remote_link_pr_count += 1
-                                logger.debug(f"    Found PR in {issue_key} remote link: {url}")
-                        if url in pr_refs_map:
-                            pr_refs_map[url].found_in_issues.add(issue_key)
+                        if _note_pr_ref(pr_refs_map, url, issue_key):
+                            remote_link_pr_count += 1
+                            logger.debug(f"    Found PR in {issue_key} remote link: {url}")
 
-        logger.info(f"  Found {len(pr_refs_map)} unique PR URLs ({desc_pr_count} from descendants, {remote_link_pr_count} from remote links)")
+        logger.info(f"  Found {len(pr_refs_map)} unique PRs ({desc_pr_count} from descendants, {remote_link_pr_count} from remote links)")
 
         # Step 7: Fetch PR data from GitHub
         logger.info("Step 7/8: Fetching PR data from GitHub")
@@ -1088,6 +1581,7 @@ class StatusDataGatherer:
             start_time,
             pr_refs_map,
             pr_data_map,
+            last_status_updates,
         )
 
         duration = (datetime.now() - start_time).total_seconds()
@@ -1103,8 +1597,9 @@ class StatusDataGatherer:
         descendant_data: Dict[str, Dict],
         changelogs: Dict[str, List[Dict]],
         start_time: datetime,
-        pr_refs_map: Optional[Dict[str, PRRef]] = None,
+        pr_refs_map: Optional[Dict[Tuple[str, str, int], PRRef]] = None,
         pr_data_map: Optional[Dict[str, Dict]] = None,
+        last_status_updates: Optional[Dict[str, Optional[str]]] = None,
     ) -> Dict[str, Any]:
         """Build manifest and per-issue files."""
         pr_refs_map = pr_refs_map or {}
@@ -1169,16 +1664,12 @@ class StatusDataGatherer:
                 issue_changelog, self.config.date_range
             )
 
-            # Find last status summary update
-            last_status_update = None
-            for entry in reversed(issue_changelog):
-                for item in entry.get("items", []):
-                    field_name = (item.get("field") or "").lower()
-                    if "status" in field_name and "summary" in field_name:
-                        last_status_update = entry.get("created")
-                        break
-                if last_status_update:
-                    break
+            # Find last status summary update (precomputed in gather();
+            # falls back to scanning the fetched changelog)
+            if last_status_updates is not None:
+                last_status_update = last_status_updates.get(issue_key)
+            else:
+                last_status_update = _scan_last_status_summary_update(issue_changelog)
 
             # Filter comments
             comments = fields.get("comment", {}).get("comments", [])
@@ -1188,17 +1679,31 @@ class StatusDataGatherer:
 
             # Get PRs for this issue
             issue_prs = []
-            for url, ref in pr_refs_map.items():
+            for ref in pr_refs_map.values():
                 if issue_key in ref.found_in_issues:
-                    if url in pr_data_map:
+                    if ref.url in pr_data_map:
                         filtered_pr = self._filter_pr_to_range(
-                            pr_data_map[url], self.config.date_range
+                            pr_data_map[ref.url], self.config.date_range
                         )
+                        # Carry the ref's identity (owner/repo/number) on
+                        # the PR itself: the Jira-scraped URL that keys the
+                        # maps can differ from GitHub's canonical
+                        # pr_data["url"] (http vs https, /pulls/), so URL
+                        # matching would silently drop the PR's events.
+                        filtered_pr["owner"] = ref.owner
+                        filtered_pr["repo"] = ref.repo
+                        if not filtered_pr.get("number"):
+                            filtered_pr["number"] = ref.number
                         filtered_pr["found_in_descendants"] = [
                             k for k in ref.found_in_issues if k != issue_key
                         ]
                         issue_prs.append(filtered_pr)
                         total_prs += 1
+
+            events_in_window = self._build_events_in_range(
+                changelog_in_range, comments_in_range, issue_prs,
+                self.config.date_range
+            )
 
             # Build issue data
             assignee = fields.get("assignee") or {}
@@ -1220,6 +1725,7 @@ class StatusDataGatherer:
                 "changelog_in_range": changelog_in_range,
                 "comments_in_range": comments_in_range,
                 "prs": issue_prs,
+                "events_in_window": events_in_window,
             }
 
             # Write issue file
