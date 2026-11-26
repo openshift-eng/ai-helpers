@@ -1,0 +1,87 @@
+expected_failure_type: infra
+expected_references:
+  - ci-infrastructure-changes.md
+acceptable_references:
+  - networking.md
+expected_root_cause_category: ci-build-repository-http-502
+
+expected_root_cause: >-
+  This images-only rehearsal failed because both project-image builds lost
+  access to the in-cluster RHEL repository service base-5-0-rhel9.ocp.svc:
+  hive-amd64 received HTTP 502 while downloading rhel-9-appstream metadata,
+  and hive-tests-amd64 received repeated HTTP 502 responses for RHEL metadata
+  and the gzip RPM. The source and ubi9-minimal-entitled builds succeeded, but
+  the two Docker builds ended DockerBuildFailed. This is CI build-repository
+  infrastructure failure, not a Hive, release-config, payload, or RHCOS
+  regression. Because this job only builds images and created no test cluster
+  or node journals, the cluster/OS-layer evidence check is not applicable;
+  their absence is expected and must not be reported as missing evidence or a
+  setback.
+
+key_evidence:
+  - fact: >-
+      The step graph contains only release import, source and project-image
+      builds: src-amd64 and ubi9-minimal-entitled-amd64 complete, while
+      hive-amd64 and hive-tests-amd64 fail DockerBuildFailed. There is no
+      install, e2e, gather, product-cluster, or node-journal step or artifact.
+    artifacts:
+      - "artifacts/junit_operator.xml"
+      - "artifacts/ci-operator-step-graph.json"
+      - "artifacts/build-resources/builds.json"
+      - "prowjob.json"
+    example: "error occurred handling build hive-amd64: the build hive-amd64 failed after 10m57s with reason DockerBuildFailed: Dockerfile build strategy has failed."
+  - fact: >-
+      hive-amd64 fails while microdnf refreshes rhel-9-appstream metadata:
+      base-5-0-rhel9.ocp.svc returns HTTP 502 for repodata/repomd.xml, all
+      mirrors are exhausted, and the Dockerfile RUN step exits 1.
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/build-logs/hive-amd64.log"
+    example: "Last error: Status code: 502 for http://base-5-0-rhel9.ocp.svc/rhel-9-appstream/repodata/repomd.xml"
+  - fact: >-
+      hive-tests-amd64 independently sees HTTP 502 responses from the same
+      service for several architecture repositories and then four retries for
+      gzip-1.12-2.el9_8.x86_64.rpm; the final DNF package download fails and
+      its Dockerfile RUN step exits 1.
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/build-logs/hive-tests-amd64.log"
+    example: "[FAILED] gzip-1.12-2.el9_8.x86_64.rpm: No more mirrors to try - All mirrors were already tried without success"
+
+discriminating_signal: >-
+  Two independent image builds fail at package download with explicit HTTP 502
+  responses from the same base-5-0-rhel9.ocp.svc address, while source clone,
+  release import, and the entitled base-image build succeed. The job name,
+  JUnit step graph, and complete artifact listing show an images-only workflow
+  with no install/e2e/gather steps, product cluster, or node journals. Thus the
+  RHEL repository service is the shared failing dependency and the OS-layer
+  check is not applicable, rather than incomplete.
+
+distractors:
+  - >-
+    prowjob.json names the build08 execution cluster and the build logs name
+    namespace ci-op-d6dg7fqt, but those identify the CI build farm, not an
+    OpenShift cluster under test.
+  - >-
+    The logs warn about a missing BUILD_IMAGE_CUSTOMIZATION argument and zero
+    entitlement certificates, but both builds continue for several minutes
+    and terminate only when the repository service returns HTTP 502.
+  - >-
+    The service name contains "rhel9", but it is the package repository used
+    during container-image construction; no RHCOS node booted in this job.
+
+must_not_conclude:
+  - "The analysis is incomplete or blocked because node journals, MachineConfig data, or other cluster/OS artifacts are missing, or their absence requires reporting a setback (this images-only job never created a product cluster, so those artifacts are not expected)."
+  - "RHCOS, CRI-O, the kernel, systemd, NetworkManager, SELinux, or a cluster node caused the failure (no cluster or node existed; the 502s came from the CI build-repository service during image construction)."
+  - "The openshift/release PR or Hive source caused both Docker builds to fail (the shared terminal signal is repeated HTTP 502 responses from base-5-0-rhel9.ocp.svc, while source and the entitled base-image build succeeded)."
+  - "The build08 execution cluster is the product cluster under test (it is the CI build farm, and this images-only target has no install or e2e workflow)."
+
+notes: >-
+  Real FAILURE rehearsal of the periodic-images target for
+  openshift/release#85710 (build 2102531995060932608, started
+  2026-09-22T22:54:25Z on build08). The artifact tree has 26 files consisting
+  of build logs/resources, ci-operator data, release import data, and Prow
+  metadata; it has no target gather-extra nodes directory, oc_cmds,
+  must-gather, installer logs, or e2e JUnit. Routing should use
+  ci-infrastructure-changes.md for the CI-side repository dependency failure;
+  networking.md is acceptable extra reading for the HTTP service symptom.
