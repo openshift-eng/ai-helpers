@@ -23,6 +23,8 @@ Output:
     - issues/OCPSTRAT-1234.json: Per-issue data with descendants and PRs
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import json
