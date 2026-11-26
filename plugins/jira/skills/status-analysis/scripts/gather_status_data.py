@@ -116,9 +116,16 @@ class DateRange:
     end: date
 
     def contains(self, dt: datetime) -> bool:
-        """Check if a datetime falls within this range."""
+        """Check if a datetime falls within this range (compared in UTC).
+
+        Offset-bearing timestamps are converted to UTC first so window
+        membership does not depend on each source's timezone; naive
+        datetimes are treated as UTC (matching parse_iso_datetime).
+        """
         if dt is None:
             return False
+        if isinstance(dt, datetime) and dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc)
         d = dt.date() if isinstance(dt, datetime) else dt
         return self.start <= d <= self.end
 
@@ -187,6 +194,22 @@ def parse_iso_datetime(date_str: Optional[str]) -> Optional[datetime]:
     return parsed.astimezone(timezone.utc)
 
 
+# Sentinel that sorts unparseable/missing event timestamps last.
+_EVENT_SORT_LAST = datetime.max.replace(tzinfo=timezone.utc)
+
+
+def _normalize_timestamp(value: Optional[str]) -> Optional[str]:
+    """Normalize a timestamp string to UTC ISO-8601 with a Z suffix.
+
+    Returns the original value unchanged when it cannot be parsed, so
+    malformed data stays visible to consumers instead of vanishing.
+    """
+    parsed = parse_iso_datetime(value)
+    if parsed is None:
+        return value
+    return parsed.isoformat().replace("+00:00", "Z")
+
+
 def _is_status_summary_item(item: Dict[str, Any]) -> bool:
     """Check whether a changelog item is a status summary field change."""
     field_name = (item.get("field") or "").lower()
@@ -199,6 +222,61 @@ def _scan_last_status_summary_update(changelog: List[Dict[str, Any]]) -> Optiona
         if any(_is_status_summary_item(item) for item in entry.get("items", [])):
             return entry.get("created")
     return None
+
+
+def _name_tokens(*values: Optional[str]) -> Set[str]:
+    """Split identifiers into lowercase alphanumeric tokens."""
+    tokens: Set[str] = set()
+    for value in values:
+        if value:
+            tokens.update(t for t in re.split(r"[^a-z0-9]+", value.lower()) if t)
+    return tokens
+
+
+_BOT_TOKENS = {"bot", "robot", "automation", "jenkins"}
+
+
+def _is_github_bot(
+    login: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+) -> bool:
+    """Heuristically detect GitHub bot identities.
+
+    Matches the `[bot]` suffix GitHub App bots carry (in login or
+    email), hyphenated bot logins (openshift-merge-bot), and
+    robot/automation/jenkins display names. Token-based so a human
+    login, name, or email merely containing 'bot' as a substring
+    (e.g. 'abotkin') is not flagged. Personal privacy addresses
+    (12345+alice@users.noreply.github.com) belong to human accounts
+    and are not bot markers either — only explicit bot tokens are.
+    """
+    return bool(_name_tokens(login, name, email) & _BOT_TOKENS)
+
+
+# Jira-side automation identities: the product's own integrations
+# (GitHub, Jira Automation) and CI hooks in addition to the generic
+# bot markers.
+_JIRA_BOT_TOKENS = _BOT_TOKENS | {"jira", "github"}
+
+
+def _is_jira_bot(
+    name: Optional[str] = None, email: Optional[str] = None
+) -> bool:
+    """Heuristically detect automation-authored Jira comments.
+
+    Integration and CI identities carry a whole automation word (bot,
+    robot, automation, jenkins, jira, github) in their display name or
+    email. Token-based, so a human display name containing such a word
+    as a substring (e.g. 'Mary Abbott') is not flagged. GitHub
+    personal privacy addresses (alice@users.noreply.github.com) belong
+    to human accounts and are exempt from the 'github' token.
+    """
+    if email and email.lower().endswith("@users.noreply.github.com"):
+        # A personal GitHub privacy address: a human's account, not the
+        # GitHub integration identity.
+        email = None
+    return bool(_name_tokens(name, email) & _JIRA_BOT_TOKENS)
 
 
 # =============================================================================
@@ -637,6 +715,7 @@ class GitHubClient:
                         createdAt
                         updatedAt
                         mergedAt
+                        mergedBy {{ login ... on User {{ name }} }}
                         additions
                         deletions
                         changedFiles
@@ -867,13 +946,8 @@ class StatusDataGatherer:
         return set(self.PR_PATTERN.findall(text))
 
     def _parse_datetime(self, date_str: Optional[str]) -> Optional[datetime]:
-        """Parse ISO datetime string."""
-        if not date_str:
-            return None
-        try:
-            return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-        except (ValueError, TypeError):
-            return None
+        """Parse ISO datetime string, normalized to UTC."""
+        return parse_iso_datetime(date_str)
 
     def _filter_changelog_to_range(
         self, changelog: List[Dict], date_range: DateRange
@@ -883,9 +957,13 @@ class StatusDataGatherer:
         for entry in changelog:
             created = self._parse_datetime(entry.get("created"))
             if created and date_range.contains(created):
+                author = entry.get("author", {})
                 filtered.append({
                     "date": entry.get("created"),
-                    "author": entry.get("author", {}).get("emailAddress"),
+                    "author": author.get("emailAddress"),
+                    "author_name": (
+                        author.get("displayName") or author.get("emailAddress") or "Unknown"
+                    ),
                     "items": [
                         {
                             "field": item.get("field"),
@@ -902,7 +980,6 @@ class StatusDataGatherer:
     ) -> List[Dict]:
         """Filter comments to date range and mark bots."""
         filtered = []
-        bot_patterns = ["automation", "bot", "github", "jenkins", "jira"]
 
         for comment in comments:
             created = self._parse_datetime(comment.get("created"))
@@ -910,16 +987,17 @@ class StatusDataGatherer:
                 continue
 
             author = comment.get("author", {})
-            author_name = (author.get("displayName", "") or "").lower()
-            author_email = (author.get("emailAddress", "") or "").lower()
-
-            is_bot = any(p in author_name or p in author_email for p in bot_patterns)
-            if "noreply" in author_email:
-                is_bot = True
+            # Token-based automation check: substring matching would
+            # drop human commenters like "Mary Abbott" ('bot' in
+            # 'abbott') — see _is_jira_bot.
+            is_bot = _is_jira_bot(
+                name=author.get("displayName"), email=author.get("emailAddress")
+            )
 
             filtered.append({
                 "author": author.get("emailAddress") or author.get("displayName", "Unknown"),
                 "author_name": author.get("displayName", "Unknown"),
+                "author_email": author.get("emailAddress"),
                 "date": comment.get("created"),
                 "body": _adf_to_text(comment.get("body", "")),
                 "is_bot": is_bot,
@@ -940,6 +1018,9 @@ class StatusDataGatherer:
                 reviews_in_range.append({
                     "author": author_obj.get("login", "Unknown"),
                     "author_name": author_obj.get("name") or author_obj.get("login", "Unknown"),
+                    "is_bot": _is_github_bot(
+                        login=author_obj.get("login"), name=author_obj.get("name")
+                    ),
                     "state": review.get("state"),
                     "body": (review.get("body") or "")[:500],
                     "submitted_at": review.get("submittedAt"),
@@ -958,6 +1039,9 @@ class StatusDataGatherer:
                     "date": commit.get("committedDate"),
                     "author": commit_author.get("email", "Unknown"),
                     "author_name": commit_author.get("name") or commit_author.get("email", "Unknown"),
+                    "is_bot": _is_github_bot(
+                        name=commit_author.get("name"), email=commit_author.get("email")
+                    ),
                 })
 
         # Filter review comments
@@ -992,6 +1076,8 @@ class StatusDataGatherer:
             ],
         }
 
+        merged_by = pr_data.get("mergedBy") or {}
+
         return {
             "url": pr_data.get("url"),
             "number": pr_data.get("number"),
@@ -999,6 +1085,8 @@ class StatusDataGatherer:
             "state": pr_data.get("state"),
             "is_draft": pr_data.get("isDraft", False),
             "review_decision": pr_data.get("reviewDecision"),
+            "merged_by": merged_by.get("login"),
+            "merged_by_name": merged_by.get("name") or merged_by.get("login", "Unknown"),
             "dates": {
                 "created_at": pr_data.get("createdAt"),
                 "updated_at": pr_data.get("updatedAt"),
@@ -1020,21 +1108,36 @@ class StatusDataGatherer:
         changelog_in_range: List[Dict],
         comments_in_range: List[Dict],
         issue_prs: List[Dict],
-        pr_refs_map: Dict[str, PRRef],
+        date_range: Optional[DateRange] = None,
     ) -> List[Dict]:
         """Assemble dated in-window events from Jira and GitHub sources.
 
-        Each event carries its own `occurred_at` timestamp so downstream
-        consumers can treat it as evidence of when the activity happened.
+        Each event carries its own `occurred_at` timestamp, normalized to
+        UTC ISO-8601, so downstream consumers can treat it as evidence of
+        when the activity happened; events are sorted chronologically.
         """
         events: List[Dict] = []
 
         for entry in changelog_in_range:
+            # Comment additions get their own jira_comment events (with
+            # full text and bot filtering), so drop them here; changelog
+            # comment items would only duplicate those events.
+            items = [
+                item for item in entry.get("items", [])
+                if (item.get("field") or "").lower() != "comment"
+            ]
+            # Only status changes are transitions. Changelog entries also
+            # record link/label/rank/assignee churn, which is not
+            # evidence of meaningful activity and would drown the
+            # timeline (and inflate downstream significance checks).
+            if not any((item.get("field") or "").lower() == "status" for item in items):
+                continue
             events.append({
                 "type": "jira_transition",
-                "occurred_at": entry.get("date"),
-                "author": entry.get("author"),
-                "changes": entry.get("items", []),
+                "occurred_at": _normalize_timestamp(entry.get("date")),
+                "author": entry.get("author_name") or entry.get("author") or "Unknown",
+                "author_email": entry.get("author"),
+                "changes": items,
             })
 
         for comment in comments_in_range:
@@ -1042,38 +1145,71 @@ class StatusDataGatherer:
                 continue
             events.append({
                 "type": "jira_comment",
-                "occurred_at": comment.get("date"),
+                "occurred_at": _normalize_timestamp(comment.get("date")),
                 "author": comment.get("author_name"),
+                "author_email": comment.get("author_email"),
                 "text": comment.get("body"),
             })
 
         for pr in issue_prs:
-            ref = pr_refs_map.get(pr.get("url"))
-            if not ref:
+            owner = pr.get("owner")
+            repo = pr.get("repo")
+            number = pr.get("number")
+            if not (owner and repo and number):
                 continue
-            pr_label = f"{ref.owner}/{ref.repo}#{ref.number}"
+            pr_label = f"{owner}/{repo}#{number}"
+            # A merge whose only in-window activity is the merge itself
+            # must still count as activity; without this event such PRs
+            # yield no events and the week is dropped entirely. Kept even
+            # when a merge bot performed it — the merge is the evidence,
+            # the actor is incidental.
+            merged_at = (pr.get("dates") or {}).get("merged_at")
+            if (
+                merged_at
+                and date_range is not None
+                and date_range.contains(self._parse_datetime(merged_at))
+            ):
+                events.append({
+                    "type": "github_merge",
+                    "occurred_at": _normalize_timestamp(merged_at),
+                    "author": pr.get("merged_by_name"),
+                    "author_login": pr.get("merged_by"),
+                    "pr": pr_label,
+                    "pr_url": pr.get("url"),
+                })
             for review in pr.get("reviews_in_range", []):
+                if review.get("is_bot"):
+                    continue
                 events.append({
                     "type": "github_review",
-                    "occurred_at": review.get("submitted_at"),
+                    "occurred_at": _normalize_timestamp(review.get("submitted_at")),
                     "author": review.get("author_name"),
+                    "author_login": review.get("author"),
                     "pr": pr_label,
                     "pr_url": pr.get("url"),
                     "state": review.get("state"),
                     "body": review.get("body"),
                 })
             for commit in pr.get("commits_in_range", []):
+                if commit.get("is_bot"):
+                    continue
                 events.append({
                     "type": "github_commit",
-                    "occurred_at": commit.get("date"),
+                    "occurred_at": _normalize_timestamp(commit.get("date")),
                     "author": commit.get("author_name"),
+                    "author_email": commit.get("author"),
                     "pr": pr_label,
                     "pr_url": pr.get("url"),
                     "sha": commit.get("sha"),
                     "message": commit.get("message"),
                 })
 
-        events.sort(key=lambda e: e.get("occurred_at") or "")
+        # Sort by parsed instants: raw strings from different sources mix
+        # formats (fractional seconds, +0000 vs Z) that do not sort
+        # lexicographically. Unparseable timestamps sort last.
+        events.sort(
+            key=lambda e: parse_iso_datetime(e.get("occurred_at")) or _EVENT_SORT_LAST
+        )
         return events
 
     async def gather(self) -> Dict[str, Any]:
@@ -1397,6 +1533,15 @@ class StatusDataGatherer:
                         filtered_pr = self._filter_pr_to_range(
                             pr_data_map[url], self.config.date_range
                         )
+                        # Carry the ref's identity (owner/repo/number) on
+                        # the PR itself: the Jira-scraped URL that keys the
+                        # maps can differ from GitHub's canonical
+                        # pr_data["url"] (http vs https, /pulls/), so URL
+                        # matching would silently drop the PR's events.
+                        filtered_pr["owner"] = ref.owner
+                        filtered_pr["repo"] = ref.repo
+                        if not filtered_pr.get("number"):
+                            filtered_pr["number"] = ref.number
                         filtered_pr["found_in_descendants"] = [
                             k for k in ref.found_in_issues if k != issue_key
                         ]
@@ -1404,7 +1549,8 @@ class StatusDataGatherer:
                         total_prs += 1
 
             events_in_window = self._build_events_in_range(
-                changelog_in_range, comments_in_range, issue_prs, pr_refs_map
+                changelog_in_range, comments_in_range, issue_prs,
+                self.config.date_range
             )
 
             # Build issue data
