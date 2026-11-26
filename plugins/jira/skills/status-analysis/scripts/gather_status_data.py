@@ -35,7 +35,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Set, Callable
+from typing import Optional, List, Dict, Any, Set, Callable, AsyncIterator, Tuple
 from urllib.parse import urlparse
 
 from adf import adf_to_text as _adf_to_text
@@ -98,6 +98,8 @@ JIRA_REQUEST_DELAY_SECONDS = 0.3  # 300ms between requests (increased from 200ms
 JIRA_MAX_CONCURRENT_REQUESTS = 2  # Max 2 parallel requests (reduced from 3)
 JIRA_BATCH_SIZE = 40  # Max tickets per JQL query
 JIRA_CHANGELOG_DELAY_SECONDS = 0.5  # Extra delay for changelog API (more rate-limited)
+JIRA_PAGE_RETRY_ATTEMPTS = 3  # Attempts for a single paginated-list page
+JIRA_PAGE_RETRY_DELAY_SECONDS = 5  # Base delay between page retries (scaled by attempt)
 
 # GitHub rate limiting
 GITHUB_MAX_CONCURRENT_REQUESTS = 5  # Reduced from 10
@@ -175,6 +177,34 @@ class PRRef:
                 url=url
             )
         return None
+
+    @property
+    def identity(self) -> Tuple[str, str, int]:
+        """Canonical identity of the referenced PR."""
+        return (self.owner, self.repo, self.number)
+
+
+def _note_pr_ref(
+    pr_refs_map: Dict[Tuple[str, str, int], PRRef],
+    url: str,
+    issue_key: str,
+) -> Optional[bool]:
+    """Record a PR URL against the issue it was found in.
+
+    Refs are keyed by (owner, repo, number) so URL spelling variants
+    of the same PR (http vs https, /pull vs /pulls) coalesce into one
+    entry instead of emitting that PR's events twice per issue.
+    Returns True when a new ref was created, False when the URL merged
+    into an existing ref, and None when the URL is not a GitHub PR.
+    """
+    ref = PRRef.from_url(url)
+    if not ref:
+        return None
+    created = ref.identity not in pr_refs_map
+    if created:
+        pr_refs_map[ref.identity] = ref
+    pr_refs_map[ref.identity].found_in_issues.add(issue_key)
+    return created
 
 
 def parse_iso_datetime(date_str: Optional[str]) -> Optional[datetime]:
@@ -411,6 +441,36 @@ class JiraClient:
 
         return None
 
+    async def _fetch_json_with_retry(
+        self, url: str, context: str
+    ) -> Dict[str, Any]:
+        """Fetch one page of a paginated list, retrying transient failures.
+
+        A failed page mid-pagination would otherwise truncate the list
+        while the gather still reports it as complete, silently
+        dropping in-window data. `_fetch_json` already absorbs rate
+        limits; this adds a bounded retry for other transient failures
+        and fails loud when the page is genuinely unavailable, so an
+        incomplete result can never pass as complete.
+        """
+        for attempt in range(1, JIRA_PAGE_RETRY_ATTEMPTS + 1):
+            page = await self._fetch_json(url)
+            if page is not None:
+                return page
+            if attempt < JIRA_PAGE_RETRY_ATTEMPTS:
+                delay = JIRA_PAGE_RETRY_DELAY_SECONDS * attempt
+                logger.warning(
+                    f"{context}: page fetch failed "
+                    f"(attempt {attempt}/{JIRA_PAGE_RETRY_ATTEMPTS}), "
+                    f"retrying in {delay}s"
+                )
+                await asyncio.sleep(delay)
+        raise RuntimeError(
+            f"{context}: pagination failed at {url} after "
+            f"{JIRA_PAGE_RETRY_ATTEMPTS} attempts; an incomplete list "
+            f"would be reported as complete"
+        )
+
     async def search_issues(
         self,
         jql: str,
@@ -491,6 +551,35 @@ class JiraClient:
         logger.info(f"Fetched {len(results)} issues total")
         return results
 
+    async def get_issue_comments(self, issue_key: str) -> List[Dict[str, Any]]:
+        """Fetch every comment of an issue, oldest-first.
+
+        The search endpoint embeds only the first page of comments
+        (~20) in each issue; this pages through
+        /rest/api/3/issue/{key}/comment until the list is complete.
+        Page fetches use the same bounded-retry, fail-loud policy as
+        changelog pagination: a truncated comment list must never pass
+        as complete.
+        """
+        comments: List[Dict[str, Any]] = []
+        start_at = 0
+        while True:
+            page = await self._fetch_json_with_retry(
+                f"{self.base_url}/rest/api/3/issue/{issue_key}/comment"
+                f"?startAt={start_at}&maxResults=100",
+                f"Comments for {issue_key}",
+            )
+            values = page.get("comments") or []
+            comments.extend(values)
+            total = page.get("total")
+            if (
+                page.get("isLast")
+                or not values
+                or (total is not None and len(comments) >= total)
+            ):
+                return comments
+            start_at += len(values)
+
     async def get_issue_changelog(
         self,
         issue_key: str,
@@ -514,15 +603,15 @@ class JiraClient:
         # the page order to yield a globally oldest-first changelog.
         return [entry for page in reversed(pages) for entry in page]
 
-    async def _fetch_changelog_pages(
+    async def _iter_changelog_pages(
         self,
         issue_key: str,
         max_results: int = 100,
         not_older_than: Optional[datetime] = None,
-    ) -> List[List[Dict[str, Any]]]:
-        """Fetch changelog pages covering recent history, newest page first.
+    ) -> AsyncIterator[List[Dict[str, Any]]]:
+        """Yield changelog pages covering recent history, newest first.
 
-        Returns pages ordered newest-first; each page is oldest-first
+        Pages are yielded newest-first; each page is oldest-first
         internally, as returned by Jira. Backward pagination stops once a
         page starts before `not_older_than` (when given) — earlier pages
         cannot hold newer entries because Jira sorts oldest-first.
@@ -530,26 +619,40 @@ class JiraClient:
         # Extra delay for changelog API which is more rate-limited
         await asyncio.sleep(JIRA_CHANGELOG_DELAY_SECONDS)
         base_url = f"{self.base_url}/rest/api/3/issue/{issue_key}/changelog"
-        first = await self._fetch_json(f"{base_url}?maxResults={max_results}&startAt=0")
+        first = await self._fetch_json_with_retry(
+            f"{base_url}?maxResults={max_results}&startAt=0",
+            f"Changelog for {issue_key}",
+        )
         if not first:
-            return []
+            return
         total = first.get("total") or 0
-        if first.get("isLast", True) or total <= max_results:
-            return [first.get("values") or []]
+        # Jira caps the changelog page size (100) and reports the size it
+        # actually served in `maxResults`. Size the single-page shortcut
+        # and the backward offsets from that effective size: using a
+        # larger requested size would return only the first capped page
+        # and skip the entries between it and the tail.
+        page_size = min(max_results, first.get("maxResults") or max_results)
+        if first.get("isLast", True) or total <= page_size:
+            yield first.get("values") or []
+            return
 
-        pages: List[List[Dict[str, Any]]] = []
         # Index of the oldest entry not yet fetched. Each backward request
         # is sized to the remaining span so pages never overlap (a fixed
-        # page size would overlap whenever `total % max_results != 0`).
+        # page size would overlap whenever `total % page_size != 0`).
         remaining_start = total
         expect_last = True  # the tail-jump page should be the last page
         while remaining_start > 0:
-            fetch_start = max(0, remaining_start - max_results)
+            fetch_start = max(0, remaining_start - page_size)
             fetch_len = remaining_start - fetch_start
-            page = await self._fetch_json(
-                f"{base_url}?maxResults={fetch_len}&startAt={fetch_start}"
+            page = await self._fetch_json_with_retry(
+                f"{base_url}?maxResults={fetch_len}&startAt={fetch_start}",
+                f"Changelog for {issue_key}",
             )
-            values = (page or {}).get("values") or []
+            # A valid page is never empty here: startAt < total always
+            # yields values. Empty means the changelog shrank since
+            # `total` was read, and everything that still exists has
+            # already been fetched.
+            values = page.get("values") or []
             if not values:
                 break
             if expect_last and not page.get("isLast"):
@@ -561,7 +664,7 @@ class JiraClient:
                     remaining_start = total
                     continue
             expect_last = False
-            pages.append(values)
+            yield values
             remaining_start = fetch_start
             oldest = parse_iso_datetime(values[0].get("created"))
             if (
@@ -570,7 +673,20 @@ class JiraClient:
                 and oldest < not_older_than
             ):
                 break
-        return pages
+
+    async def _fetch_changelog_pages(
+        self,
+        issue_key: str,
+        max_results: int = 100,
+        not_older_than: Optional[datetime] = None,
+    ) -> List[List[Dict[str, Any]]]:
+        """Collect all changelog pages (see _iter_changelog_pages)."""
+        return [
+            page
+            async for page in self._iter_changelog_pages(
+                issue_key, max_results, not_older_than
+            )
+        ]
 
     async def find_last_change_matching(
         self,
@@ -581,11 +697,12 @@ class JiraClient:
         """Find the newest changelog entry with an item matching `item_match`.
 
         Jira returns changelog oldest-first, so this jumps to the newest
-        page and walks backward, stopping at the first match. Returns the
-        entry's `created` timestamp, or None if no entry matches.
+        page and walks backward, stopping at the first match. Pages are
+        consumed as they arrive, so a match on a recent page does not pay
+        for the rest of the history. Returns the entry's `created`
+        timestamp, or None if no entry matches.
         """
-        pages = await self._fetch_changelog_pages(issue_key, max_results, None)
-        for page in pages:  # newest-first
+        async for page in self._iter_changelog_pages(issue_key, max_results, None):
             for entry in reversed(page):  # newest-first within the page
                 if any(item_match(item) for item in entry.get("items", [])):
                     return entry.get("created")
@@ -945,6 +1062,30 @@ class StatusDataGatherer:
             text = _adf_to_text(text)
         return set(self.PR_PATTERN.findall(text))
 
+    async def _expand_truncated_comments(self, root_issues: List[Dict]) -> None:
+        """Replace capped embedded comment arrays with the full lists.
+
+        Jira's search endpoint embeds only the first page of comments
+        (~20) per issue. In-window comments past that cap would
+        silently produce no jira_comment events (and escape PR-URL
+        extraction), so when the embedded page reports a larger
+        total, fetch the complete list from the comment endpoint.
+        """
+        for issue in root_issues:
+            comment_field = (issue.get("fields") or {}).get("comment") or {}
+            embedded = comment_field.get("comments") or []
+            total = comment_field.get("total")
+            if total is None or total <= len(embedded):
+                continue
+            issue_key = issue["key"]
+            logger.debug(
+                f"  {issue_key}: {len(embedded)}/{total} embedded comments, "
+                f"fetching full list"
+            )
+            full = await self.jira.get_issue_comments(issue_key)
+            if len(full) >= len(embedded):
+                comment_field["comments"] = full
+
     def _parse_datetime(self, date_str: Optional[str]) -> Optional[datetime]:
         """Parse ISO datetime string, normalized to UTC."""
         return parse_iso_datetime(date_str)
@@ -1212,6 +1353,34 @@ class StatusDataGatherer:
         )
         return events
 
+    async def _fetch_changelogs_complete(
+        self,
+        issue_keys: List[str],
+        not_older_than: Optional[datetime],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Fetch changelogs, retrying keys the batch dropped on failure.
+
+        `fetch_changelogs_batch` logs and omits an issue whose changelog
+        keeps raising, which would silently drop that issue's transition
+        history. Retry the missing issues individually; a persistent
+        failure propagates instead of producing a report with missing
+        events.
+        """
+        changelogs = await self.jira.fetch_changelogs_batch(
+            issue_keys, not_older_than=not_older_than
+        )
+        missing = [key for key in issue_keys if key not in changelogs]
+        if missing:
+            logger.warning(
+                f"Changelog fetch dropped {len(missing)} issue(s); "
+                f"retrying individually: {', '.join(missing)}"
+            )
+            for key in missing:
+                changelogs[key] = await self.jira.get_issue_changelog(
+                    key, not_older_than=not_older_than
+                )
+        return changelogs
+
     async def gather(self) -> Dict[str, Any]:
         """Main gathering method."""
         start_time = datetime.now()
@@ -1249,6 +1418,10 @@ class StatusDataGatherer:
         if not root_issues:
             logger.warning("No root issues found. Check JQL query and permissions.")
             return self._build_manifest([], {}, {}, {}, start_time)
+
+        # The search results embed only the first ~20 comments per issue;
+        # expand truncated ones before anything reads them.
+        await self._expand_truncated_comments(root_issues)
 
         # Step 2: Get descendants for all root issues (iterative BFS to handle multi-level hierarchy)
         logger.info("Step 2/8: Fetching descendants")
@@ -1304,7 +1477,7 @@ class StatusDataGatherer:
             datetime.min.time(),
             tzinfo=timezone.utc,
         )
-        changelogs = await self.jira.fetch_changelogs_batch(
+        changelogs = await self._fetch_changelogs_complete(
             root_keys, not_older_than=window_start
         )
         # Last status-summary change per issue: scan the fetched history
@@ -1325,7 +1498,9 @@ class StatusDataGatherer:
 
         # Step 6: Extract PR URLs from all issues, comments, and remote links
         logger.info("Step 6/8: Extracting PR URLs from issues, comments, and remote links")
-        pr_refs_map: Dict[str, PRRef] = {}
+        # Keyed by PR identity, so URL spelling variants of the same PR
+        # coalesce instead of duplicating its events per issue.
+        pr_refs_map: Dict[Tuple[str, str, int], PRRef] = {}
 
         for issue in root_issues:
             issue_key = issue["key"]
@@ -1334,26 +1509,16 @@ class StatusDataGatherer:
             # From description
             desc_urls = self._extract_pr_urls(fields.get("description", ""))
             for url in desc_urls:
-                if url not in pr_refs_map:
-                    ref = PRRef.from_url(url)
-                    if ref:
-                        pr_refs_map[url] = ref
-                        logger.debug(f"    Found PR in {issue_key} description: {url}")
-                if url in pr_refs_map:
-                    pr_refs_map[url].found_in_issues.add(issue_key)
+                if _note_pr_ref(pr_refs_map, url, issue_key):
+                    logger.debug(f"    Found PR in {issue_key} description: {url}")
 
             # From comments
             comments = fields.get("comment", {}).get("comments", [])
             for comment in comments:
                 comment_urls = self._extract_pr_urls(comment.get("body", ""))
                 for url in comment_urls:
-                    if url not in pr_refs_map:
-                        ref = PRRef.from_url(url)
-                        if ref:
-                            pr_refs_map[url] = ref
-                            logger.debug(f"    Found PR in {issue_key} comment: {url}")
-                    if url in pr_refs_map:
-                        pr_refs_map[url].found_in_issues.add(issue_key)
+                    if _note_pr_ref(pr_refs_map, url, issue_key):
+                        logger.debug(f"    Found PR in {issue_key} comment: {url}")
 
         # From descendants
         desc_pr_count = 0
@@ -1365,23 +1530,13 @@ class StatusDataGatherer:
                 child_fields = child.get("fields", {})
 
                 for url in self._extract_pr_urls(child_fields.get("description", "")):
-                    if url not in pr_refs_map:
-                        ref = PRRef.from_url(url)
-                        if ref:
-                            pr_refs_map[url] = ref
-                            desc_pr_count += 1
-                    if url in pr_refs_map:
-                        pr_refs_map[url].found_in_issues.add(parent_key)
+                    if _note_pr_ref(pr_refs_map, url, parent_key):
+                        desc_pr_count += 1
 
                 for comment in child_fields.get("comment", {}).get("comments", []):
                     for url in self._extract_pr_urls(comment.get("body", "")):
-                        if url not in pr_refs_map:
-                            ref = PRRef.from_url(url)
-                            if ref:
-                                pr_refs_map[url] = ref
-                                desc_pr_count += 1
-                        if url in pr_refs_map:
-                            pr_refs_map[url].found_in_issues.add(parent_key)
+                        if _note_pr_ref(pr_refs_map, url, parent_key):
+                            desc_pr_count += 1
 
         # From remote links (only PRs that reference a descendant issue key)
         remote_link_pr_count = 0
@@ -1396,16 +1551,11 @@ class StatusDataGatherer:
                     # Check if the PR title references a descendant issue
                     references_descendant = any(desc_key in title for desc_key in desc_keys)
                     if references_descendant:
-                        if url not in pr_refs_map:
-                            ref = PRRef.from_url(url)
-                            if ref:
-                                pr_refs_map[url] = ref
-                                remote_link_pr_count += 1
-                                logger.debug(f"    Found PR in {issue_key} remote link: {url}")
-                        if url in pr_refs_map:
-                            pr_refs_map[url].found_in_issues.add(issue_key)
+                        if _note_pr_ref(pr_refs_map, url, issue_key):
+                            remote_link_pr_count += 1
+                            logger.debug(f"    Found PR in {issue_key} remote link: {url}")
 
-        logger.info(f"  Found {len(pr_refs_map)} unique PR URLs ({desc_pr_count} from descendants, {remote_link_pr_count} from remote links)")
+        logger.info(f"  Found {len(pr_refs_map)} unique PRs ({desc_pr_count} from descendants, {remote_link_pr_count} from remote links)")
 
         # Step 7: Fetch PR data from GitHub
         logger.info("Step 7/8: Fetching PR data from GitHub")
@@ -1445,7 +1595,7 @@ class StatusDataGatherer:
         descendant_data: Dict[str, Dict],
         changelogs: Dict[str, List[Dict]],
         start_time: datetime,
-        pr_refs_map: Optional[Dict[str, PRRef]] = None,
+        pr_refs_map: Optional[Dict[Tuple[str, str, int], PRRef]] = None,
         pr_data_map: Optional[Dict[str, Dict]] = None,
         last_status_updates: Optional[Dict[str, Optional[str]]] = None,
     ) -> Dict[str, Any]:
@@ -1527,11 +1677,11 @@ class StatusDataGatherer:
 
             # Get PRs for this issue
             issue_prs = []
-            for url, ref in pr_refs_map.items():
+            for ref in pr_refs_map.values():
                 if issue_key in ref.found_in_issues:
-                    if url in pr_data_map:
+                    if ref.url in pr_data_map:
                         filtered_pr = self._filter_pr_to_range(
-                            pr_data_map[url], self.config.date_range
+                            pr_data_map[ref.url], self.config.date_range
                         )
                         # Carry the ref's identity (owner/repo/number) on
                         # the PR itself: the Jira-scraped URL that keys the
