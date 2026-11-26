@@ -33,9 +33,9 @@ import subprocess
 import sys
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Set
+from typing import Optional, List, Dict, Any, Set, Callable
 from urllib.parse import urlparse
 
 from adf import adf_to_text as _adf_to_text
@@ -168,6 +168,37 @@ class PRRef:
                 url=url
             )
         return None
+
+
+def parse_iso_datetime(date_str: Optional[str]) -> Optional[datetime]:
+    """Parse an ISO-8601 timestamp, normalizing to UTC.
+
+    Naive timestamps are assumed to be UTC; offset-bearing ones are
+    converted. Returns None when the string is missing or unparseable.
+    """
+    if not date_str:
+        return None
+    try:
+        parsed = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _is_status_summary_item(item: Dict[str, Any]) -> bool:
+    """Check whether a changelog item is a status summary field change."""
+    field_name = (item.get("field") or "").lower()
+    return "status" in field_name and "summary" in field_name
+
+
+def _scan_last_status_summary_update(changelog: List[Dict[str, Any]]) -> Optional[str]:
+    """Find the newest status-summary change in an oldest-first changelog."""
+    for entry in reversed(changelog):
+        if any(_is_status_summary_item(item) for item in entry.get("items", [])):
+            return entry.get("created")
+    return None
 
 
 # =============================================================================
@@ -383,19 +414,111 @@ class JiraClient:
         return results
 
     async def get_issue_changelog(
-        self, issue_key: str, max_results: int = 100
+        self,
+        issue_key: str,
+        max_results: int = 100,
+        not_older_than: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
-        """Get changelog for an issue."""
+        """Get changelog entries for an issue, oldest-first.
+
+        Jira returns changelog oldest-first with at most 100 entries per
+        page and no ordering control, so issues with more than one page of
+        history would otherwise expose only their oldest entries. This
+        fetches the first page for `total`, jumps to the newest page, and
+        walks backward while pages may still overlap `not_older_than`
+        (the boundary-crossing page is kept). Issues with a single page
+        of history cost exactly one request.
+        """
+        pages = await self._fetch_changelog_pages(
+            issue_key, max_results, not_older_than
+        )
+        # Pages arrive newest-first, each oldest-first internally; reverse
+        # the page order to yield a globally oldest-first changelog.
+        return [entry for page in reversed(pages) for entry in page]
+
+    async def _fetch_changelog_pages(
+        self,
+        issue_key: str,
+        max_results: int = 100,
+        not_older_than: Optional[datetime] = None,
+    ) -> List[List[Dict[str, Any]]]:
+        """Fetch changelog pages covering recent history, newest page first.
+
+        Returns pages ordered newest-first; each page is oldest-first
+        internally, as returned by Jira. Backward pagination stops once a
+        page starts before `not_older_than` (when given) — earlier pages
+        cannot hold newer entries because Jira sorts oldest-first.
+        """
         # Extra delay for changelog API which is more rate-limited
         await asyncio.sleep(JIRA_CHANGELOG_DELAY_SECONDS)
-        url = f"{self.base_url}/rest/api/3/issue/{issue_key}/changelog?maxResults={max_results}"
-        result = await self._fetch_json(url)
-        return result.get("values", []) if result else []
+        base_url = f"{self.base_url}/rest/api/3/issue/{issue_key}/changelog"
+        first = await self._fetch_json(f"{base_url}?maxResults={max_results}&startAt=0")
+        if not first:
+            return []
+        total = first.get("total") or 0
+        if first.get("isLast", True) or total <= max_results:
+            return [first.get("values") or []]
+
+        pages: List[List[Dict[str, Any]]] = []
+        # Index of the oldest entry not yet fetched. Each backward request
+        # is sized to the remaining span so pages never overlap (a fixed
+        # page size would overlap whenever `total % max_results != 0`).
+        remaining_start = total
+        expect_last = True  # the tail-jump page should be the last page
+        while remaining_start > 0:
+            fetch_start = max(0, remaining_start - max_results)
+            fetch_len = remaining_start - fetch_start
+            page = await self._fetch_json(
+                f"{base_url}?maxResults={fetch_len}&startAt={fetch_start}"
+            )
+            values = (page or {}).get("values") or []
+            if not values:
+                break
+            if expect_last and not page.get("isLast"):
+                # The changelog grew since `total` was read; re-jump to
+                # the new tail (`total` is restated in every response).
+                new_total = page.get("total") or total
+                if new_total > total:
+                    total = new_total
+                    remaining_start = total
+                    continue
+            expect_last = False
+            pages.append(values)
+            remaining_start = fetch_start
+            oldest = parse_iso_datetime(values[0].get("created"))
+            if (
+                not_older_than is not None
+                and oldest is not None
+                and oldest < not_older_than
+            ):
+                break
+        return pages
+
+    async def find_last_change_matching(
+        self,
+        issue_key: str,
+        item_match: Callable[[Dict[str, Any]], bool],
+        max_results: int = 100,
+    ) -> Optional[str]:
+        """Find the newest changelog entry with an item matching `item_match`.
+
+        Jira returns changelog oldest-first, so this jumps to the newest
+        page and walks backward, stopping at the first match. Returns the
+        entry's `created` timestamp, or None if no entry matches.
+        """
+        pages = await self._fetch_changelog_pages(issue_key, max_results, None)
+        for page in pages:  # newest-first
+            for entry in reversed(page):  # newest-first within the page
+                if any(item_match(item) for item in entry.get("items", [])):
+                    return entry.get("created")
+        return None
 
     async def fetch_changelogs_batch(
-        self, issue_keys: List[str]
+        self,
+        issue_keys: List[str],
+        not_older_than: Optional[datetime] = None,
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """Fetch changelogs for multiple issues."""
+        """Fetch changelogs for multiple issues, bounded by `not_older_than`."""
         if not issue_keys:
             logger.debug("No issue keys for changelog fetch")
             return {}
@@ -406,7 +529,7 @@ class JiraClient:
 
         # Create tasks for all changelogs
         async def fetch_one(key: str):
-            changelog = await self.get_issue_changelog(key)
+            changelog = await self.get_issue_changelog(key, not_older_than=not_older_than)
             logger.debug(f"  Changelog for {key}: {len(changelog)} entries")
             return key, changelog
 
@@ -892,6 +1015,67 @@ class StatusDataGatherer:
             },
         }
 
+    def _build_events_in_range(
+        self,
+        changelog_in_range: List[Dict],
+        comments_in_range: List[Dict],
+        issue_prs: List[Dict],
+        pr_refs_map: Dict[str, PRRef],
+    ) -> List[Dict]:
+        """Assemble dated in-window events from Jira and GitHub sources.
+
+        Each event carries its own `occurred_at` timestamp so downstream
+        consumers can treat it as evidence of when the activity happened.
+        """
+        events: List[Dict] = []
+
+        for entry in changelog_in_range:
+            events.append({
+                "type": "jira_transition",
+                "occurred_at": entry.get("date"),
+                "author": entry.get("author"),
+                "changes": entry.get("items", []),
+            })
+
+        for comment in comments_in_range:
+            if comment.get("is_bot"):
+                continue
+            events.append({
+                "type": "jira_comment",
+                "occurred_at": comment.get("date"),
+                "author": comment.get("author_name"),
+                "text": comment.get("body"),
+            })
+
+        for pr in issue_prs:
+            ref = pr_refs_map.get(pr.get("url"))
+            if not ref:
+                continue
+            pr_label = f"{ref.owner}/{ref.repo}#{ref.number}"
+            for review in pr.get("reviews_in_range", []):
+                events.append({
+                    "type": "github_review",
+                    "occurred_at": review.get("submitted_at"),
+                    "author": review.get("author_name"),
+                    "pr": pr_label,
+                    "pr_url": pr.get("url"),
+                    "state": review.get("state"),
+                    "body": review.get("body"),
+                })
+            for commit in pr.get("commits_in_range", []):
+                events.append({
+                    "type": "github_commit",
+                    "occurred_at": commit.get("date"),
+                    "author": commit.get("author_name"),
+                    "pr": pr_label,
+                    "pr_url": pr.get("url"),
+                    "sha": commit.get("sha"),
+                    "message": commit.get("message"),
+                })
+
+        events.sort(key=lambda e: e.get("occurred_at") or "")
+        return events
+
     async def gather(self) -> Dict[str, Any]:
         """Main gathering method."""
         start_time = datetime.now()
@@ -976,7 +1160,28 @@ class StatusDataGatherer:
         # Step 4: Fetch changelogs for root Jira issues
         logger.info("Step 4/8: Fetching changelogs for root Jira issues")
         root_keys = [issue["key"] for issue in root_issues]
-        changelogs = await self.jira.fetch_changelogs_batch(root_keys)
+        # Bound changelog fetches to the window, padded by one day:
+        # timestamps carry their own UTC offsets, so an entry dated within
+        # the window locally can sit before UTC midnight of its start.
+        window_start = datetime.combine(
+            self.config.date_range.start - timedelta(days=1),
+            datetime.min.time(),
+            tzinfo=timezone.utc,
+        )
+        changelogs = await self.jira.fetch_changelogs_batch(
+            root_keys, not_older_than=window_start
+        )
+        # Last status-summary change per issue: scan the fetched history
+        # first; only issues whose summary was last touched before it pay
+        # for a targeted backward walk.
+        last_status_updates: Dict[str, Optional[str]] = {}
+        for key in root_keys:
+            found = _scan_last_status_summary_update(changelogs.get(key, []))
+            if found is None:
+                found = await self.jira.find_last_change_matching(
+                    key, _is_status_summary_item
+                )
+            last_status_updates[key] = found
 
         # Step 5: Fetch remote links for root Jira issues (PRs roll up to parent)
         logger.info("Step 5/8: Fetching remote links for root Jira issues")
@@ -1088,6 +1293,7 @@ class StatusDataGatherer:
             start_time,
             pr_refs_map,
             pr_data_map,
+            last_status_updates,
         )
 
         duration = (datetime.now() - start_time).total_seconds()
@@ -1105,6 +1311,7 @@ class StatusDataGatherer:
         start_time: datetime,
         pr_refs_map: Optional[Dict[str, PRRef]] = None,
         pr_data_map: Optional[Dict[str, Dict]] = None,
+        last_status_updates: Optional[Dict[str, Optional[str]]] = None,
     ) -> Dict[str, Any]:
         """Build manifest and per-issue files."""
         pr_refs_map = pr_refs_map or {}
@@ -1169,16 +1376,12 @@ class StatusDataGatherer:
                 issue_changelog, self.config.date_range
             )
 
-            # Find last status summary update
-            last_status_update = None
-            for entry in reversed(issue_changelog):
-                for item in entry.get("items", []):
-                    field_name = (item.get("field") or "").lower()
-                    if "status" in field_name and "summary" in field_name:
-                        last_status_update = entry.get("created")
-                        break
-                if last_status_update:
-                    break
+            # Find last status summary update (precomputed in gather();
+            # falls back to scanning the fetched changelog)
+            if last_status_updates is not None:
+                last_status_update = last_status_updates.get(issue_key)
+            else:
+                last_status_update = _scan_last_status_summary_update(issue_changelog)
 
             # Filter comments
             comments = fields.get("comment", {}).get("comments", [])
@@ -1200,6 +1403,10 @@ class StatusDataGatherer:
                         issue_prs.append(filtered_pr)
                         total_prs += 1
 
+            events_in_window = self._build_events_in_range(
+                changelog_in_range, comments_in_range, issue_prs, pr_refs_map
+            )
+
             # Build issue data
             assignee = fields.get("assignee") or {}
             labels = [label for label in fields.get("labels", []) if isinstance(label, str)]
@@ -1220,6 +1427,7 @@ class StatusDataGatherer:
                 "changelog_in_range": changelog_in_range,
                 "comments_in_range": comments_in_range,
                 "prs": issue_prs,
+                "events_in_window": events_in_window,
             }
 
             # Write issue file
