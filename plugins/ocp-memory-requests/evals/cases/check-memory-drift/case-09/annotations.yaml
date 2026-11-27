@@ -1,0 +1,8 @@
+# case-09: reconcile - Closed bug, same key -> create
+expected_release: '5.1'
+expected_window_days: 30
+expected_excluded_runs: 2
+expected_create_count: 1
+expected_creates:
+- {deployment: etcd-operator}
+notes: The existing bug is Closed; it must not suppress a new bug for current drift.

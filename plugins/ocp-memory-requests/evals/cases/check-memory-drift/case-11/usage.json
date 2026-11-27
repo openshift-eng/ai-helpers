@@ -1,0 +1,1 @@
+[{"Namespace":"openshift-etcd-operator","Deployment":"etcd-operator","job_runs":1,"p90_start_mb":160.6,"p50_start_mb":120.0,"request_mb":50.0,"request_mb_min":50.0,"request_mb_max":50.0}]

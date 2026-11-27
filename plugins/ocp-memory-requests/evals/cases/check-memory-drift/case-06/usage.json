@@ -1,0 +1,1 @@
+[{"Namespace":"openshift-kube-apiserver-operator","Deployment":"kube-apiserver-operator","job_runs":1,"p90_start_mb":212.3,"p50_start_mb":180.0,"request_mb":100.0,"request_mb_min":50.0,"request_mb_max":100.0}]

@@ -1,0 +1,6 @@
+# case-14: empty result
+expected_release: '5.1'
+expected_window_days: 30
+expected_excluded_runs: 7
+expected_create_count: 0
+notes: No usage rows for the release in the window; clear report, no write.
