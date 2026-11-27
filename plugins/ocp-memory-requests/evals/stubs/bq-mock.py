@@ -65,6 +65,8 @@ def main(argv=None):
                    help="validate the query and estimate bytes without billing")
     q.add_argument("--format", default="json")
     q.add_argument("--use_legacy_sql", help="ignored (mock)")
+    q.add_argument("--project_id", help="ignored (mock)")
+    q.add_argument("--max_rows", type=int, help="ignored (mock)")
     args = ap.parse_args(argv)
 
     sql = sys.stdin.read()
