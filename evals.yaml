@@ -63,3 +63,16 @@ evals:
   - plugins/openshift-developer/skills/address-ci-failures
   - plugins/openshift-developer/skills/has-review-work/scripts
   - plugins/ci/skills/prow-job-analysis/references/flaky-test-identification.md
+
+- config: plugins/ocp-memory-requests/evals/eval-check-memory-drift.yaml
+  eval_cases_dir: plugins/ocp-memory-requests/evals/cases/check-memory-drift
+  run: pr
+  parallelism: 4
+  max_turns: 100
+  triggers:
+  - plugins/ocp-memory-requests/evals/eval-check-memory-drift.yaml
+  - plugins/ocp-memory-requests/evals/cases/check-memory-drift
+  - plugins/ocp-memory-requests/evals/stubs
+  - plugins/ocp-memory-requests/skills/check-memory-drift
+  - plugins/bigquery-ci-data/skills/foundations
+  - plugins/bigquery-ci-data/skills/autodl
